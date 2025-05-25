@@ -5,44 +5,79 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    /* Light theme - iPhone 16 style */
+    --background: 248 250 252;
+    --foreground: 15 23 42;
+    --card: 255 255 255;
+    --card-foreground: 15 23 42;
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    --primary: 99 102 241;
+    --primary-foreground: 248 250 252;
+    --secondary: 241 245 249;
+    --secondary-foreground: 51 65 85;
+    --muted: 248 250 252;
+    --muted-foreground: 100 116 139;
+    --accent: 241 245 249;
+    --accent-foreground: 51 65 85;
+    --destructive: 239 68 68;
+    --destructive-foreground: 248 250 252;
+    --border: 226 232 240;
+    --input: 226 232 240;
+    --ring: 99 102 241;
+    --radius: 0.75rem;
+    
+    /* iPhone 16 inspired colors */
+    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --blur-bg: rgba(248, 250, 252, 0.8);
+    --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --gradient-surface: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  }
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+  .dark {
+    /* Dark theme - iPhone 16 style */
+    --background: 2 6 23;
+    --foreground: 248 250 252;
+    --card: 15 23 42;
+    --card-foreground: 248 250 252;
+    --popover: 15 23 42;
+    --popover-foreground: 248 250 252;
+    --primary: 129 140 248;
+    --primary-foreground: 15 23 42;
+    --secondary: 30 41 59;
+    --secondary-foreground: 226 232 240;
+    --muted: 30 41 59;
+    --muted-foreground: 148 163 184;
+    --accent: 30 41 59;
+    --accent-foreground: 226 232 240;
+    --destructive: 248 113 113;
+    --destructive-foreground: 15 23 42;
+    --border: 51 65 85;
+    --input: 51 65 85;
+    --ring: 129 140 248;
+    
+    /* Dark mode iPhone 16 colors */
+    --glass-bg: rgba(15, 23, 42, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --blur-bg: rgba(2, 6, 23, 0.8);
+    --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    --gradient-primary: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+    --gradient-surface: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  }
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-
-    --radius: 1rem;
-
-    --sidebar-background: 240 10% 6%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 240 4.9% 83.9%;
+  .sidebar-background {
+    --sidebar-background: var(--card);
+    --sidebar-foreground: var(--card-foreground);
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--ring);
   }
 }
 
@@ -52,127 +87,187 @@
   }
 
   body {
-    @apply bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-foreground font-inter;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
-    background-attachment: fixed;
+    @apply bg-background text-foreground transition-colors duration-300;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     font-weight: 600;
+    letter-spacing: -0.025em;
   }
 }
 
-/* Ultra-modern gradients */
-.gradient-warm {
-  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #533483 100%);
+/* iPhone 16 inspired design system */
+.glass-morphism {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-soft);
 }
 
-.gradient-glass {
-  background: rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.surface-elevated {
+  background: var(--gradient-surface);
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--shadow-medium);
 }
 
-.gradient-suggestion {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+.button-primary {
+  background: var(--gradient-primary);
+  @apply text-white font-semibold rounded-2xl px-6 py-3 shadow-lg transition-all duration-200 hover:scale-105 active:scale-95;
 }
 
-/* Modern chat bubbles */
-.chat-bubble {
-  @apply rounded-2xl px-6 py-4 max-w-[85%] shadow-lg backdrop-blur-sm;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.button-secondary {
+  @apply bg-secondary text-secondary-foreground font-medium rounded-2xl px-6 py-3 border border-border hover:bg-accent transition-all duration-200 hover:scale-105 active:scale-95;
 }
 
+.card-modern {
+  @apply bg-card border border-border rounded-3xl p-6 shadow-lg hover:shadow-xl transition-all duration-300;
+}
+
+.input-modern {
+  @apply bg-background border border-border rounded-2xl px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200;
+}
+
+/* Chat bubbles - iPhone style */
 .chat-bubble-user {
-  @apply bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white ml-auto;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  @apply bg-primary text-primary-foreground rounded-3xl rounded-br-lg px-4 py-3 max-w-xs ml-auto shadow-md;
 }
 
 .chat-bubble-ai {
-  @apply bg-gradient-to-r from-slate-800/40 to-slate-700/40 text-gray-100;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  @apply bg-secondary text-secondary-foreground rounded-3xl rounded-bl-lg px-4 py-3 max-w-xs mr-auto shadow-md;
 }
 
-/* Copilot-style suggestions */
+/* Suggestion cards - Copilot style */
 .suggestion-card {
-  @apply p-4 rounded-xl cursor-pointer transition-all duration-300 hover:scale-105;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  @apply glass-morphism rounded-2xl p-4 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 }
 
 .suggestion-card:hover {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.2);
+  background: var(--blur-bg);
+  box-shadow: var(--shadow-medium);
 }
 
-/* Modern scrollbar */
+/* Floating elements */
+.floating-element {
+  @apply glass-morphism rounded-2xl shadow-xl backdrop-blur-md;
+}
+
+/* Smooth scrollbar - iPhone style */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* Ultra-modern animations */
+/* Animations - iOS inspired */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
-@keyframes glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
+.animate-slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
 }
 
-.float-animation {
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.animate-float {
   animation: float 6s ease-in-out infinite;
 }
 
-.glow-animation {
-  animation: glow 4s ease-in-out infinite;
+/* Dynamic island style for notifications */
+.dynamic-island {
+  @apply glass-morphism rounded-full px-6 py-3 shadow-xl;
+  backdrop-filter: blur(20px) saturate(180%);
 }
 
-.shimmer-effect {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
+/* Typography improvements */
+.text-display {
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
 }
 
-/* Typing indicator */
-.typing-dots {
-  @apply flex space-x-1;
+.text-headline {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 
-.typing-dot {
-  @apply w-2 h-2 bg-blue-400 rounded-full animate-bounce;
+.text-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  font-weight: 400;
 }
 
-.typing-dot:nth-child(2) {
-  animation-delay: 0.1s;
-}
-
-.typing-dot:nth-child(3) {
-  animation-delay: 0.2s;
+/* Responsive design improvements */
+@media (max-width: 768px) {
+  .card-modern {
+    @apply p-4 rounded-2xl;
+  }
+  
+  .button-primary,
+  .button-secondary {
+    @apply px-4 py-2.5 text-sm;
+  }
 }

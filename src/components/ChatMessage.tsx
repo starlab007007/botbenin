@@ -29,7 +29,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
       return;
     }
 
-    // Modern typing animation for AI messages
+    // iPhone-style smooth typing animation
     setDisplayedContent('');
     setIsTyping(true);
     
@@ -44,53 +44,53 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
         setIsTyping(false);
         clearInterval(typingTimer);
       }
-    }, 25); // Faster typing for modern feel
+    }, 20); // Smooth typing speed
 
     return () => clearInterval(typingTimer);
   }, [message.content, message.isUser]);
 
   return (
-    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}>
-      <div className={`flex items-start space-x-4 max-w-[85%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
-        {/* Modern Avatar */}
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-semibold shadow-lg ${
+    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} animate-slide-in mb-4`}>
+      <div className={`flex items-start space-x-3 max-w-[85%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+        {/* Modern avatar with gradient */}
+        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white font-semibold shadow-lg ${
           message.isUser 
-            ? 'bg-gradient-to-r from-blue-600 to-purple-600' 
-            : 'bg-gradient-to-r from-slate-700 to-slate-600'
+            ? 'bg-gradient-to-r from-primary to-primary/80' 
+            : 'bg-gradient-to-r from-secondary to-accent'
         }`}>
           {message.isUser ? (
             <User className="w-5 h-5" />
           ) : (
-            <Bot className="w-5 h-5" />
+            <Bot className="w-5 h-5 text-foreground" />
           )}
         </div>
 
         {/* Message Content */}
         <div className="space-y-2 flex-1">
-          <Card className={`chat-bubble ${message.isUser ? 'chat-bubble-user' : 'chat-bubble-ai'} transition-all duration-300 hover:shadow-xl`}>
+          <div className={`${message.isUser ? 'chat-bubble-user' : 'chat-bubble-ai'} transition-all duration-300 hover:shadow-lg`}>
             <div className="text-sm leading-relaxed">
               {isTyping ? (
                 <div className="whitespace-pre-wrap">
                   {displayedContent}
-                  <span className="inline-block w-2 h-5 bg-blue-400 ml-1 animate-pulse"></span>
+                  <span className="inline-block w-1 h-4 bg-primary ml-1 animate-pulse rounded"></span>
                 </div>
               ) : (
                 <MediaRenderer content={displayedContent} />
               )}
             </div>
-          </Card>
+          </div>
 
           {/* Action Buttons for AI Messages */}
           {!message.isUser && !isTyping && (
-            <div className="flex items-center space-x-3 px-2">
+            <div className="flex items-center space-x-3 px-2 animate-fade-in">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onToggleBookmark(message.id)}
-                className={`text-xs h-8 rounded-lg transition-all duration-300 ${
+                className={`text-xs h-8 rounded-xl transition-all duration-300 ${
                   message.isBookmarked 
-                    ? 'text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20' 
-                    : 'text-gray-400 hover:text-gray-300 hover:bg-white/5'
+                    ? 'text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20' 
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
               >
                 {message.isBookmarked ? (
@@ -100,7 +100,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
                 )}
                 {message.isBookmarked ? 'Sauvé' : 'Sauvegarder'}
               </Button>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-muted-foreground">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
