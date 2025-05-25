@@ -39,8 +39,47 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
     scrollToBottom();
   }, [messages]);
 
+  // Générer des suggestions dynamiques basées sur le dernier message de l'IA
+  const generateDynamicSuggestions = (lastBotMessage: string) => {
+    const suggestions = [
+      { action: "Pouvez-vous me donner plus de détails ?" },
+      { action: "Quelles sont les options disponibles ?" },
+      { action: "Comment puis-je procéder ?" }
+    ];
+
+    // Suggestions spécifiques basées sur le contenu
+    if (lastBotMessage.toLowerCase().includes('iphone') || lastBotMessage.toLowerCase().includes('coque')) {
+      return [
+        { action: "Montrez-moi les coques iPhone 15" },
+        { action: "Quels sont vos prix ?" },
+        { action: "Avez-vous des promotions ?" }
+      ];
+    }
+    
+    if (lastBotMessage.toLowerCase().includes('boutique') || lastBotMessage.toLowerCase().includes('article')) {
+      return [
+        { action: "Voir tous les produits" },
+        { action: "Quelles sont vos marques ?" },
+        { action: "Livraison disponible ?" }
+      ];
+    }
+
+    if (lastBotMessage.toLowerCase().includes('nouveauté')) {
+      return [
+        { action: "Voir les dernières arrivées" },
+        { action: "Quand sortent les nouveaux modèles ?" },
+        { action: "Newsletter pour les nouveautés" }
+      ];
+    }
+
+    return suggestions;
+  };
+
+  const lastBotMessage = messages.slice().reverse().find(msg => !msg.isUser);
+  const showDynamicSuggestions = messages.length > 1 && lastBotMessage && !isLoading;
+
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+    <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
       <div className="max-w-full mx-auto space-y-4">
         {/* Welcome message and suggestions */}
         {messages.length <= 1 && (
@@ -55,25 +94,25 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
               Voici quelques suggestions pour commencer
             </p>
             
-            {/* Suggestion buttons */}
-            <div className="space-y-2 max-w-xs mx-auto">
+            {/* Suggestion buttons - Modifiées */}
+            <div className="space-y-3 max-w-sm mx-auto">
               <button 
-                onClick={() => onSuggestionClick({ action: "Comment optimiser ma productivité?" })}
-                className="w-full bg-blue-600 text-white rounded-2xl py-3 px-4 text-sm font-medium hover:bg-blue-700 transition-colors"
+                onClick={() => onSuggestionClick({ action: "Je cherche une coque d'iPhone" })}
+                className="w-full bg-blue-600 text-white rounded-2xl py-4 px-6 text-sm font-medium hover:bg-blue-700 transition-colors"
               >
-                Comment optimiser ma productivité?
+                Je cherche une coque d'iPhone
               </button>
               <button 
-                onClick={() => onSuggestionClick({ action: "Quelles sont vos objectifs?" })}
-                className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl py-3 px-4 text-sm font-medium hover:bg-gray-50 transition-colors"
+                onClick={() => onSuggestionClick({ action: "Quels sont les articles disponibles dans votre boutique ?" })}
+                className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl py-4 px-6 text-sm font-medium hover:bg-gray-50 transition-colors"
               >
-                Quelles sont vos objectifs?
+                Quels sont les articles disponibles dans votre boutique ?
               </button>
               <button 
-                onClick={() => onSuggestionClick({ action: "Comment puis-je vous aider?" })}
-                className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl py-3 px-4 text-sm font-medium hover:bg-gray-50 transition-colors"
+                onClick={() => onSuggestionClick({ action: "Quelles sont les nouveautés ?" })}
+                className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl py-4 px-6 text-sm font-medium hover:bg-gray-50 transition-colors"
               >
-                Comment puis-je vous aider?
+                Quelles sont les nouveautés ?
               </button>
             </div>
           </div>
@@ -87,6 +126,24 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
             onToggleBookmark={onToggleBookmark}
           />
         ))}
+
+        {/* Suggestions dynamiques après chaque réponse */}
+        {showDynamicSuggestions && (
+          <div className="flex flex-col items-center mt-6">
+            <p className="text-sm text-gray-500 mb-3">Suggestions :</p>
+            <div className="flex flex-wrap gap-2 justify-center max-w-md">
+              {generateDynamicSuggestions(lastBotMessage.content).map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => onSuggestionClick(suggestion)}
+                  className="bg-white border border-gray-200 text-gray-700 rounded-full py-2 px-4 text-xs font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                >
+                  {suggestion.action}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Loading State */}
         {isLoading && (

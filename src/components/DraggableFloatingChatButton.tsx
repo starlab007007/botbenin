@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import { MessageCircle, X, Sparkles, Move } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -108,10 +109,10 @@ export const DraggableFloatingChatButton: React.FC = () => {
         )}
       </div>
 
-      {/* Chat Interface Modal */}
+      {/* Chat Interface Modal - Élargi */}
       {showChat && (
         <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm">
-          <div className="fixed bottom-0 right-0 left-0 md:bottom-4 md:right-4 md:left-auto md:w-[420px] h-[85vh] md:h-[700px] bg-white rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden animate-scale-in border border-gray-200">
+          <div className="fixed bottom-0 right-0 left-0 md:bottom-4 md:right-4 md:left-auto md:w-[520px] h-[90vh] md:h-[750px] bg-white rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden animate-scale-in border border-gray-200">
             <ChatInterface onBackToLanding={() => setShowChat(false)} />
           </div>
         </div>
