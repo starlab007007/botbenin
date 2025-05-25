@@ -145,9 +145,10 @@ export const TopHeader: React.FC = () => {
       </header>
 
       {/* Mobile Sidebar */}
-      {showMobileSidebar && (
-        <MobileSidebar onClose={() => setShowMobileSidebar(false)} />
-      )}
+      <MobileSidebar 
+        isOpen={showMobileSidebar}
+        onClose={() => setShowMobileSidebar(false)} 
+      />
 
       {/* Auth Modal */}
       <AuthModal 

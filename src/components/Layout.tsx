@@ -7,7 +7,7 @@ import { FloatingChatButton } from '@/components/FloatingChatButton';
 
 export const Layout: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-100"> {/* Changé de bg-gray-50 à bg-gray-100 */}
       {/* Top Header for mobile and desktop */}
       <TopHeader />
       
@@ -19,7 +19,7 @@ export const Layout: React.FC = () => {
         
         {/* Main Content */}
         <main className="flex-1 lg:ml-64 min-h-screen">
-          <div className="bg-gray-50 min-h-[calc(100vh-4rem)]">
+          <div className="bg-gray-100 min-h-[calc(100vh-4rem)]"> {/* Changé de bg-gray-50 à bg-gray-100 */}
             <Outlet />
           </div>
         </main>
