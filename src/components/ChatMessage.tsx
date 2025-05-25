@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BookmarkPlus, BookmarkCheck } from 'lucide-react';
+import { MediaRenderer } from '@/components/MediaRenderer';
 
 interface Message {
   id: string;
@@ -28,7 +29,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
       return;
     }
 
-    // Typing animation for AI messages
+    // Animation de frappe pour les messages IA
     setDisplayedContent('');
     setIsTyping(true);
     
@@ -58,16 +59,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
           {message.isUser ? 'U' : 'AI'}
         </div>
 
-        {/* Message Content */}
+        {/* Contenu du message */}
         <div className="space-y-2">
           <Card className={`chat-bubble ${message.isUser ? 'chat-bubble-user' : 'chat-bubble-ai'}`}>
-            <div className="whitespace-pre-wrap text-sm leading-relaxed">
-              {displayedContent}
-              {isTyping && <span className="animate-pulse">|</span>}
+            <div className="text-sm leading-relaxed">
+              {isTyping ? (
+                <div className="whitespace-pre-wrap">
+                  {displayedContent}
+                  <span className="animate-pulse">|</span>
+                </div>
+              ) : (
+                <MediaRenderer content={displayedContent} />
+              )}
             </div>
           </Card>
 
-          {/* Bookmark Button for AI messages */}
+          {/* Bouton de marque-page pour les messages IA */}
           {!message.isUser && !isTyping && (
             <div className="flex items-center space-x-2">
               <Button
