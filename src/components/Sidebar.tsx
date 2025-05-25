@@ -11,17 +11,14 @@ import {
   FolderOpen, 
   Users as UsersIcon, 
   User, 
-  HelpCircle,
-  Settings,
-  Shield
+  HelpCircle
 } from 'lucide-react';
-import { useUser } from '@/contexts/UserContext';
 
 const menuItems = [
   { title: 'Accueil', path: '/', icon: Home, color: 'bg-blue-500' },
   { title: 'Chat', path: '/chat', icon: MessageCircle, color: 'bg-green-500' },
   { title: 'Automatisations', path: '/automatisations', icon: Workflow, color: 'bg-purple-500' },
-  { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3, color: 'bg-orange-500' },
+  { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3, color: 'bg-gray-500' },
 ];
 
 const aiModules = [
@@ -31,10 +28,6 @@ const aiModules = [
   { title: 'IA Citoyen', path: '/modules/citoyen', icon: UsersIcon, color: 'bg-teal-500' },
 ];
 
-const adminItems = [
-  { title: 'Gestion Utilisateurs', path: '/users', icon: Shield, color: 'bg-red-500', permission: 'manage_users' },
-];
-
 const bottomItems = [
   { title: 'Mon Compte', path: '/account', icon: User, color: 'bg-gray-500' },
   { title: 'Aide / Support', path: '/support', icon: HelpCircle, color: 'bg-red-500' },
@@ -42,7 +35,6 @@ const bottomItems = [
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { currentUser, hasPermission } = useUser();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -102,39 +94,6 @@ export const Sidebar: React.FC = () => {
             ))}
           </ul>
         </div>
-
-        {/* Admin Section */}
-        {currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager') && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
-              Administration
-            </h3>
-            <ul className="space-y-2">
-              {adminItems.map((item) => {
-                if (item.permission && !hasPermission(item.permission)) return null;
-                return (
-                  <li key={item.path}>
-                    <NavLink
-                      to={item.path}
-                      className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                        isActive(item.path)
-                          ? 'bg-gray-50 shadow-sm'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
-                        <item.icon className="w-4 h-4 text-white" />
-                      </div>
-                      <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
-                        {item.title}
-                      </span>
-                    </NavLink>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
 
         {/* Bottom Items */}
         <div className="absolute bottom-4 left-4 right-4">

@@ -8,10 +8,10 @@ export const DashboardPage: React.FC = () => {
     { title: 'Conversations', value: '1,234', change: '+12%', icon: BarChart3, color: 'bg-blue-500' },
     { title: 'Workflows', value: '89', change: '+8%', icon: Zap, color: 'bg-purple-500' },
     { title: 'Utilisateurs', value: '456', change: '+15%', icon: Users, color: 'bg-green-500' },
-    { title: 'Performance', value: '98.5%', change: '+2%', icon: TrendingUp, color: 'bg-orange-500' },
+    { title: 'Performance', value: '98.5%', change: '+2%', icon: TrendingUp, color: 'bg-gray-500' },
     { title: 'Leads générés', value: '234', change: '+28%', icon: Target, color: 'bg-pink-500' },
     { title: 'Temps économisé', value: '45h', change: '+18%', icon: Clock, color: 'bg-teal-500' },
-    { title: 'Satisfaction', value: '4.8/5', change: '+0.3', icon: Star, color: 'bg-yellow-500' },
+    { title: 'Satisfaction', value: '4.8/5', change: '+0.3', icon: Star, color: 'bg-gray-600' },
     { title: 'Activité', value: '92%', change: '+5%', icon: Activity, color: 'bg-indigo-500' }
   ];
 
@@ -27,7 +27,7 @@ export const DashboardPage: React.FC = () => {
     { name: 'Agent IA Business', usage: '45%', color: 'bg-blue-500', trend: '+12%' },
     { name: 'Agent IA Marketing', usage: '32%', color: 'bg-green-500', trend: '+8%' },
     { name: 'IA Citoyen', usage: '23%', color: 'bg-purple-500', trend: '+15%' },
-    { name: 'Agent IA Gestion', usage: '18%', color: 'bg-orange-500', trend: '+5%' }
+    { name: 'Agent IA Gestion', usage: '18%', color: 'bg-gray-500', trend: '+5%' }
   ];
 
   return (

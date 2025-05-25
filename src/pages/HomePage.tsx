@@ -34,7 +34,7 @@ export const HomePage: React.FC = () => {
       title: 'Tableau de bord',
       description: 'Analytics et performances',
       icon: TrendingUp,
-      color: 'bg-orange-500',
+      color: 'bg-gray-500',
       action: () => navigate('/dashboard')
     }
   ];
