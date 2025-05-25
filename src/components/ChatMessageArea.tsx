@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ChatMessage } from '@/components/ChatMessage';
 import { SuggestionCards } from '@/components/SuggestionCards';
@@ -30,6 +30,7 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
   onSuggestionClick,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [usedSuggestions, setUsedSuggestions] = useState<Set<string>>(new Set());
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -39,40 +40,104 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
     scrollToBottom();
   }, [messages]);
 
+  // Banque de suggestions avec catégories
+  const suggestionBank = {
+    initial: [
+      { action: "Je cherche une coque d'iPhone", category: "produit" },
+      { action: "Quels sont les articles disponibles dans votre boutique ?", category: "catalogue" },
+      { action: "Quelles sont les nouveautés ?", category: "nouveauté" }
+    ],
+    produit: [
+      { action: "Montrez-moi les coques iPhone 15", category: "spécifique" },
+      { action: "Quels sont vos prix ?", category: "prix" },
+      { action: "Avez-vous des promotions ?", category: "promo" },
+      { action: "Quelle est la qualité des matériaux ?", category: "qualité" },
+      { action: "Livraison disponible ?", category: "livraison" }
+    ],
+    catalogue: [
+      { action: "Voir tous les produits", category: "navigation" },
+      { action: "Quelles sont vos marques ?", category: "marque" },
+      { action: "Avez-vous des accessoires Samsung ?", category: "samsung" },
+      { action: "Produits pour tablettes disponibles ?", category: "tablette" },
+      { action: "Câbles et chargeurs en stock ?", category: "accessoire" }
+    ],
+    nouveauté: [
+      { action: "Voir les dernières arrivées", category: "recent" },
+      { action: "Quand sortent les nouveaux modèles ?", category: "futur" },
+      { action: "Newsletter pour les nouveautés", category: "newsletter" },
+      { action: "Alertes pour iPhone 16 ?", category: "alerte" },
+      { action: "Produits tendance actuels", category: "tendance" }
+    ],
+    prix: [
+      { action: "Avez-vous des prix dégressifs ?", category: "volume" },
+      { action: "Modes de paiement acceptés ?", category: "paiement" },
+      { action: "Garantie incluse ?", category: "garantie" },
+      { action: "Retour possible si défaut ?", category: "retour" }
+    ],
+    livraison: [
+      { action: "Délais de livraison ?", category: "délai" },
+      { action: "Livraison gratuite à partir de combien ?", category: "gratuit" },
+      { action: "Livraison express disponible ?", category: "express" },
+      { action: "Point relais possibles ?", category: "relais" }
+    ],
+    spécifique: [
+      { action: "Compatible avec iPhone 15 Pro Max ?", category: "compatibilité" },
+      { action: "Couleurs disponibles ?", category: "couleur" },
+      { action: "Protection écran incluse ?", category: "protection" },
+      { action: "Résistant aux chocs ?", category: "résistance" }
+    ]
+  };
+
   // Générer des suggestions dynamiques basées sur le dernier message de l'IA
-  const generateDynamicSuggestions = (lastBotMessage: string) => {
-    const suggestions = [
-      { action: "Pouvez-vous me donner plus de détails ?" },
-      { action: "Quelles sont les options disponibles ?" },
-      { action: "Comment puis-je procéder ?" }
-    ];
+  const generateDynamicSuggestions = (lastBotMessage: string): Array<{action: string, category: string}> => {
+    const content = lastBotMessage.toLowerCase();
+    let suggestionsPool: Array<{action: string, category: string}> = [];
 
-    // Suggestions spécifiques basées sur le contenu
-    if (lastBotMessage.toLowerCase().includes('iphone') || lastBotMessage.toLowerCase().includes('coque')) {
-      return [
-        { action: "Montrez-moi les coques iPhone 15" },
-        { action: "Quels sont vos prix ?" },
-        { action: "Avez-vous des promotions ?" }
-      ];
-    }
-    
-    if (lastBotMessage.toLowerCase().includes('boutique') || lastBotMessage.toLowerCase().includes('article')) {
-      return [
-        { action: "Voir tous les produits" },
-        { action: "Quelles sont vos marques ?" },
-        { action: "Livraison disponible ?" }
-      ];
-    }
-
-    if (lastBotMessage.toLowerCase().includes('nouveauté')) {
-      return [
-        { action: "Voir les dernières arrivées" },
-        { action: "Quand sortent les nouveaux modèles ?" },
-        { action: "Newsletter pour les nouveautés" }
+    // Déterminer la catégorie basée sur le contenu
+    if (content.includes('iphone') || content.includes('coque')) {
+      suggestionsPool = [...suggestionBank.produit, ...suggestionBank.spécifique];
+    } else if (content.includes('boutique') || content.includes('article') || content.includes('catalogue')) {
+      suggestionsPool = [...suggestionBank.catalogue, ...suggestionBank.produit];
+    } else if (content.includes('nouveauté') || content.includes('nouveau')) {
+      suggestionsPool = [...suggestionBank.nouveauté, ...suggestionBank.catalogue];
+    } else if (content.includes('prix') || content.includes('coût') || content.includes('euro')) {
+      suggestionsPool = [...suggestionBank.prix, ...suggestionBank.livraison];
+    } else if (content.includes('livraison') || content.includes('délai')) {
+      suggestionsPool = [...suggestionBank.livraison, ...suggestionBank.prix];
+    } else {
+      // Suggestions générales si aucune catégorie spécifique
+      suggestionsPool = [
+        { action: "Pouvez-vous me donner plus de détails ?", category: "général" },
+        { action: "Quelles sont les options disponibles ?", category: "général" },
+        { action: "Comment puis-je procéder ?", category: "général" },
+        { action: "Avez-vous d'autres suggestions ?", category: "général" }
       ];
     }
 
-    return suggestions;
+    // Filtrer les suggestions déjà utilisées et en sélectionner 3
+    const availableSuggestions = suggestionsPool.filter(
+      suggestion => !usedSuggestions.has(suggestion.action)
+    );
+
+    // Si moins de 3 suggestions disponibles, réinitialiser partiellement
+    if (availableSuggestions.length < 3) {
+      const resetSuggestions = new Set(usedSuggestions);
+      // Garder seulement les 5 dernières suggestions utilisées
+      const recentSuggestions = Array.from(usedSuggestions).slice(-5);
+      setUsedSuggestions(new Set(recentSuggestions));
+      
+      return suggestionsPool
+        .filter(suggestion => !recentSuggestions.includes(suggestion.action))
+        .slice(0, 3);
+    }
+
+    return availableSuggestions.slice(0, 3);
+  };
+
+  const handleSuggestionClick = (suggestion: any) => {
+    // Marquer la suggestion comme utilisée
+    setUsedSuggestions(prev => new Set([...prev, suggestion.action]));
+    onSuggestionClick(suggestion);
   };
 
   const lastBotMessage = messages.slice().reverse().find(msg => !msg.isUser);
@@ -94,26 +159,21 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
               Voici quelques suggestions pour commencer
             </p>
             
-            {/* Suggestion buttons - Modifiées */}
+            {/* Suggestion buttons initiales */}
             <div className="space-y-3 max-w-sm mx-auto">
-              <button 
-                onClick={() => onSuggestionClick({ action: "Je cherche une coque d'iPhone" })}
-                className="w-full bg-blue-600 text-white rounded-2xl py-4 px-6 text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                Je cherche une coque d'iPhone
-              </button>
-              <button 
-                onClick={() => onSuggestionClick({ action: "Quels sont les articles disponibles dans votre boutique ?" })}
-                className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl py-4 px-6 text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                Quels sont les articles disponibles dans votre boutique ?
-              </button>
-              <button 
-                onClick={() => onSuggestionClick({ action: "Quelles sont les nouveautés ?" })}
-                className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl py-4 px-6 text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                Quelles sont les nouveautés ?
-              </button>
+              {suggestionBank.initial.map((suggestion, index) => (
+                <button 
+                  key={suggestion.action}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className={`w-full ${
+                    index === 0 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                  } rounded-2xl py-4 px-6 text-sm font-medium transition-colors`}
+                >
+                  {suggestion.action}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -130,18 +190,21 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
         {/* Suggestions dynamiques après chaque réponse */}
         {showDynamicSuggestions && (
           <div className="flex flex-col items-center mt-6">
-            <p className="text-sm text-gray-500 mb-3">Suggestions :</p>
+            <p className="text-sm text-gray-500 mb-3">Suggestions personnalisées :</p>
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
               {generateDynamicSuggestions(lastBotMessage.content).map((suggestion, index) => (
                 <button
-                  key={index}
-                  onClick={() => onSuggestionClick(suggestion)}
-                  className="bg-white border border-gray-200 text-gray-700 rounded-full py-2 px-4 text-xs font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                  key={`${suggestion.action}-${index}`}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="bg-white border border-gray-200 text-gray-700 rounded-full py-2 px-4 text-xs font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
                 >
                   {suggestion.action}
                 </button>
               ))}
             </div>
+            <p className="text-xs text-gray-400 mt-2">
+              Suggestions adaptées à votre conversation
+            </p>
           </div>
         )}
 
