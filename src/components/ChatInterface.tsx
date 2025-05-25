@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ChatMessage } from '@/components/ChatMessage';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -24,7 +24,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: "Hi! I'm your AI career coach. I'm here to help you discover your purpose and build your dream career. What would you like to explore today?",
+      content: "Bonjour ! Je suis votre assistant IA Bot.Bj. Je peux vous aider avec vos processus métiers, marketing, gestion et services citoyens. Comment puis-je vous assister aujourd'hui ?",
       isUser: false,
       timestamp: new Date(),
     }
@@ -58,7 +58,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
     setInputValue('');
     setIsLoading(true);
 
-    console.log('=== WEBHOOK DEBUG START ===');
+    console.log('=== BOT.BJ WEBHOOK DEBUG START ===');
     console.log('User message:', currentInput);
     console.log('Webhook URL:', 'https://ia.bot.bj/webhook/iphoneshop1');
 
@@ -72,9 +72,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       const requestPayload = {
         message: currentInput,
         timestamp: new Date().toISOString(),
-        session_id: 'career_coaching_session',
-        user_id: 'anonymous_user',
-        source: 'career_coaching_app'
+        session_id: 'bot_bj_session',
+        user_id: 'bot_bj_user',
+        source: 'bot_bj_platform'
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
@@ -84,11 +84,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
-          'User-Agent': 'CareerCoach-App/1.0',
+          'User-Agent': 'Bot.Bj-Platform/1.0',
         },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
-        mode: 'cors', // Try CORS first
+        mode: 'cors',
       });
 
       clearTimeout(timeoutId);
@@ -113,13 +113,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
         responseData = await response.json();
         console.log('JSON Response:', JSON.stringify(responseData, null, 2));
         
-        // Try different possible response structures
-        processedContent = responseData.message || 
+        processedContent = responseData.output || 
+                          responseData.message || 
                           responseData.response || 
                           responseData.text || 
                           responseData.content ||
                           responseData.reply ||
-                          responseData.output ||
                           (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
         responseData = await response.text();
@@ -130,7 +129,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       console.log('Processed content:', processedContent);
 
       if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from n8n webhook');
+        throw new Error('Empty or invalid response from Bot.Bj webhook');
       }
 
       const aiMessage: Message = {
@@ -144,29 +143,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       setMessages(prev => [...prev, aiMessage]);
 
       toast({
-        title: "Response Received",
-        description: "Successfully connected to n8n and received AI response!",
+        title: "Réponse reçue",
+        description: "Bot.Bj a traité votre demande avec succès !",
       });
 
     } catch (error) {
-      console.error('=== WEBHOOK ERROR ===');
+      console.error('=== BOT.BJ WEBHOOK ERROR ===');
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
       
-      let errorMessage = "I'm having trouble connecting to the AI service right now. Let me help you with some general career guidance instead.";
-      let toastMessage = "Connection failed";
+      let errorMessage = "Je rencontre des difficultés techniques. Laissez-moi vous proposer une assistance générale en attendant.";
+      let toastMessage = "Problème de connexion";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = "The request to n8n timed out after 30 seconds. This might indicate the webhook is not responding. Please check your n8n workflow.";
-          toastMessage = "Request timeout - check n8n workflow";
+          errorMessage = "La requête a pris trop de temps. Le système Bot.Bj pourrait être occupé. Veuillez réessayer.";
+          toastMessage = "Timeout - réessayez";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Cannot reach the n8n webhook. This could be due to:\n• CORS issues\n• Network connectivity problems\n• The webhook URL being incorrect\n• n8n workflow not active";
-          toastMessage = "Cannot reach n8n webhook - check CORS and workflow status";
-        } else if (error.message.includes('HTTP')) {
-          errorMessage = `n8n webhook returned an error: ${error.message}. Please check your n8n workflow configuration.`;
-          toastMessage = `n8n error: ${error.message}`;
+          errorMessage = "Impossible de se connecter au système Bot.Bj. Vérifiez votre connexion internet et réessayez.";
+          toastMessage = "Problème de connectivité";
         }
       }
 
@@ -180,13 +176,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
-        title: "n8n Connection Issue",
+        title: "Bot.Bj - Problème technique",
         description: toastMessage,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
-      console.log('=== WEBHOOK DEBUG END ===');
+      console.log('=== BOT.BJ WEBHOOK DEBUG END ===');
     }
   };
 
@@ -219,35 +215,33 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-warm-beige-50 to-soft-peach-50">
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-800 to-slate-900">
       {/* Header */}
-      <div className="bg-white/90 backdrop-blur-sm border-b border-warm-beige-200 p-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+      <div className="bg-slate-700/90 backdrop-blur-sm border-b border-slate-600 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
             <Button
               variant="ghost"
               size="sm"
               onClick={onBackToLanding}
-              className="text-gray-600 hover:text-gray-900"
+              className="text-slate-300 hover:text-white"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
+              <X className="w-4 h-4" />
             </Button>
             <div>
-              <h1 className="font-playfair font-semibold text-xl text-gray-900">CareerCoach AI</h1>
-              <p className="text-sm text-gray-600">Powered by n8n webhook integration</p>
+              <h1 className="font-bold text-lg text-white">Bot.Bj Assistant</h1>
+              <p className="text-xs text-slate-400">IA conversationnelle</p>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
-            <div className={`w-3 h-3 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`} 
-                 title={isLoading ? 'Connecting to n8n...' : 'Ready to connect'} />
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`} />
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowBookmarks(true)}
-              className="border-soft-peach-200 text-soft-peach-700 hover:bg-soft-peach-50"
+              className="border-slate-600 text-slate-300 text-xs"
             >
-              Saved Advice ({bookmarkedMessages.length})
+              Favoris ({bookmarkedMessages.length})
             </Button>
           </div>
         </div>
@@ -255,7 +249,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-4xl mx-auto space-y-4">
+        <div className="space-y-4">
           {messages.map((message) => (
             <ChatMessage
               key={message.id}
@@ -268,11 +262,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
               <Card className="chat-bubble chat-bubble-ai">
                 <div className="flex items-center space-x-2">
                   <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-soft-peach-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-soft-peach-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-soft-peach-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
-                  <span className="text-sm text-gray-600">Connecting to n8n...</span>
+                  <span className="text-sm text-slate-600">Bot.Bj réfléchit...</span>
                 </div>
               </Card>
             </div>
@@ -282,25 +276,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       </div>
 
       {/* Input */}
-      <div className="bg-white/90 backdrop-blur-sm border-t border-warm-beige-200 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex space-x-3">
-            <Input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask about your career goals, skills, or industry interests..."
-              className="flex-1 border-warm-beige-300 focus:border-soft-peach-400 focus:ring-soft-peach-400/20 rounded-full px-4 py-3"
-              disabled={isLoading}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
-              className="bg-soft-peach-500 hover:bg-soft-peach-600 text-white rounded-full px-6 py-3 disabled:opacity-50"
-            >
-              {isLoading ? 'Sending...' : 'Send'}
-            </Button>
-          </div>
+      <div className="bg-slate-700/90 backdrop-blur-sm border-t border-slate-600 p-4">
+        <div className="flex space-x-3">
+          <Input
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Tapez votre message..."
+            className="flex-1 border-slate-600 focus:border-blue-400 bg-slate-800 text-white placeholder-slate-400"
+            disabled={isLoading}
+          />
+          <Button
+            onClick={handleSendMessage}
+            disabled={!inputValue.trim() || isLoading}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4"
+          >
+            {isLoading ? 'Envoi...' : 'Envoyer'}
+          </Button>
         </div>
       </div>
     </div>
