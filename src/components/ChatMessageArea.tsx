@@ -42,9 +42,16 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
   // Banque de suggestions avec catégories
   const suggestionBank = {
     initial: [
-      { action: "Je cherche une coque d'iPhone", category: "produit" },
-      { action: "Quels sont les articles disponibles dans votre boutique ?", category: "catalogue" },
-      { action: "Quelles sont les nouveautés ?", category: "nouveauté" }
+      { action: "Je cherche location maison à Cotonou", category: "produit" },
+      { action: "Je cherche opportunité d'achat de terrain à Calavi", category: "catalogue" },
+      { action: "Regardons les opportunités d'investissement", category: "nouveauté" }
+    ],
+    services_locaux: [
+      { action: "Je cherche location maison à Cotonou", category: "immobilier" },
+      { action: "Je cherche opportunité d'achat de terrain à Calavi", category: "terrain" },
+      { action: "Regardons les opportunités d'investissement", category: "investissement" },
+      { action: "Quels sont les meilleurs quartiers pour investir ?", category: "conseil" },
+      { action: "Prix du m² dans différents quartiers", category: "prix" }
     ],
     restaurant: [
       { action: "Je cherche un restaurant français", category: "cuisine" },
@@ -167,7 +174,9 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
             
             {/* Suggestion buttons initiales */}
             <div className="space-y-3 max-w-sm mx-auto">
-              {(userContext === 'restaurant' ? suggestionBank.restaurant : suggestionBank.initial).map((suggestion, index) => (
+              {(userContext === 'restaurant' ? suggestionBank.restaurant : 
+                userContext === 'services_locaux' ? suggestionBank.services_locaux : 
+                suggestionBank.initial).map((suggestion, index) => (
                 <button 
                   key={suggestion.action}
                   onClick={() => handleSuggestionClick(suggestion)}
