@@ -81,125 +81,106 @@ export const AutomationsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8">
+    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Automatisations</h1>
-          <p className="text-gray-600">Gérez vos workflows et processus automatisés</p>
+          <p className="text-gray-600">Automatisez vos flux métiers et créez des workflows personnalisés avec l'interface visuelle.</p>
         </div>
-        <Button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 lg:px-6 lg:py-3">
+        <Button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3">
           <Plus className="w-4 h-4 mr-2" />
           Nouvelle automatisation
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        <Card className="p-4 lg:p-6 bg-gradient-to-r from-green-500 to-green-600 text-white border-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="p-6 bg-purple-500 text-white border-0 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-white/90 mb-1 font-medium text-sm lg:text-base">Total actif</h3>
-              <div className="text-2xl lg:text-3xl font-bold">12</div>
-              <p className="text-white/80 text-xs lg:text-sm flex items-center mt-1">
-                <TrendingUp className="w-3 h-3 mr-1" />
-                +15%
-              </p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-white/60" />
-          </div>
-        </Card>
-        
-        <Card className="p-4 lg:p-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-white/90 mb-1 font-medium text-sm lg:text-base">Exécutions</h3>
-              <div className="text-2xl lg:text-3xl font-bold">289</div>
-              <p className="text-white/80 text-xs lg:text-sm flex items-center mt-1">
-                <TrendingUp className="w-3 h-3 mr-1" />
-                +8%
-              </p>
+              <h3 className="text-white/90 mb-1 font-medium">Workflows actifs</h3>
+              <div className="text-3xl font-bold mb-1">8</div>
             </div>
             <Workflow className="w-8 h-8 text-white/60" />
           </div>
         </Card>
         
-        <Card className="p-4 lg:p-6 bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0">
+        <Card className="p-6 bg-blue-500 text-white border-0 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-white/90 mb-1 font-medium text-sm lg:text-base">Temps économisé</h3>
-              <div className="text-2xl lg:text-3xl font-bold">15h</div>
-              <p className="text-white/80 text-xs lg:text-sm flex items-center mt-1">
-                <Clock className="w-3 h-3 mr-1" />
-                Cette semaine
-              </p>
+              <h3 className="text-white/90 mb-1 font-medium">Exécutions ce mois</h3>
+              <div className="text-3xl font-bold mb-1">142</div>
+            </div>
+            <TrendingUp className="w-8 h-8 text-white/60" />
+          </div>
+        </Card>
+        
+        <Card className="p-6 bg-green-500 text-white border-0 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-white/90 mb-1 font-medium">Temps économisé</h3>
+              <div className="text-3xl font-bold mb-1">24h</div>
             </div>
             <Clock className="w-8 h-8 text-white/60" />
           </div>
         </Card>
-        
-        <Card className="p-4 lg:p-6 bg-gradient-to-r from-orange-500 to-orange-600 text-white border-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-white/90 mb-1 font-medium text-sm lg:text-base">Erreurs</h3>
-              <div className="text-2xl lg:text-3xl font-bold">2</div>
-              <p className="text-white/80 text-xs lg:text-sm flex items-center mt-1">
-                <TrendingUp className="w-3 h-3 mr-1" />
-                -50%
-              </p>
-            </div>
-            <Settings className="w-8 h-8 text-white/60" />
-          </div>
-        </Card>
       </div>
 
-      {/* Automations Grid */}
-      <div>
-        <h2 className="text-lg lg:text-xl font-semibold text-gray-900 mb-4 lg:mb-6">Workflows actifs</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
-          {automations.map((automation, index) => (
-            <Card key={index} className="p-4 lg:p-6 hover:shadow-lg transition-all duration-200 border border-gray-100">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 ${automation.color} rounded-xl flex items-center justify-center shadow-md`}>
+      {/* Create New Workflow Section */}
+      <Card className="p-6 bg-gray-500 text-white rounded-xl">
+        <h2 className="text-xl font-semibold mb-4">Créer un nouveau workflow</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="p-6 bg-purple-500 text-white border-0 rounded-xl cursor-pointer hover:bg-purple-600 transition-colors">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <Settings className="w-6 h-6" />
+              </div>
+              <h3 className="font-semibold mb-1">Éditeur visuel</h3>
+              <p className="text-sm text-purple-100">Interface drag & drop</p>
+            </div>
+          </Card>
+          
+          <Card className="p-6 bg-blue-500 text-white border-0 rounded-xl cursor-pointer hover:bg-blue-600 transition-colors">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <Workflow className="w-6 h-6" />
+              </div>
+              <h3 className="font-semibold mb-1">Template prédéfini</h3>
+              <p className="text-sm text-blue-100">Modèles métiers</p>
+            </div>
+          </Card>
+        </div>
+      </Card>
+
+      {/* Workflows en cours */}
+      <Card className="p-6 bg-gray-500 text-white rounded-xl">
+        <h2 className="text-xl font-semibold mb-6">Workflows en cours</h2>
+        <div className="space-y-4">
+          {automations.slice(0, 3).map((automation, index) => (
+            <div key={index} className="flex items-center justify-between p-4 bg-gray-600 rounded-xl">
+              <div className="flex items-center space-x-4">
+                <div className={`w-12 h-12 ${automation.color} rounded-xl flex items-center justify-center`}>
                   <Workflow className="w-6 h-6 text-white" />
                 </div>
-                <div className="flex space-x-2">
-                  <Button variant="outline" size="sm" className="p-2">
-                    {automation.status === 'Actif' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
-                  <Button variant="outline" size="sm" className="p-2">
-                    <Settings className="w-4 h-4" />
-                  </Button>
+                <div>
+                  <h3 className="font-semibold text-white">{automation.name}</h3>
+                  <p className="text-gray-300 text-sm">{automation.status}</p>
                 </div>
               </div>
-              
-              <h3 className="font-semibold text-gray-900 mb-2 text-sm lg:text-base">{automation.name}</h3>
-              <p className="text-gray-600 text-xs lg:text-sm mb-4 line-clamp-2">{automation.description}</p>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className={`px-3 py-1 text-xs rounded-full font-medium border ${getStatusColor(automation.status)} flex items-center space-x-1`}>
-                    {getStatusIcon(automation.status)}
-                    <span>{automation.status}</span>
-                  </span>
-                  <span className="text-xs text-gray-500">{automation.type}</span>
+              <div className="flex items-center space-x-4">
+                <div className="text-right">
+                  <div className="text-white font-semibold">{automation.executions}</div>
+                  <div className="text-gray-300 text-sm">Exécutions</div>
                 </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="text-center">
-                    <div className="text-lg lg:text-xl font-bold text-gray-900">{automation.executions}</div>
-                    <p className="text-xs text-gray-500">Exécutions</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-gray-900">{automation.lastRun}</div>
-                    <p className="text-xs text-gray-500">Dernière exec.</p>
-                  </div>
-                </div>
+                <Button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold px-4 py-2">
+                  Voir
+                </Button>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 };

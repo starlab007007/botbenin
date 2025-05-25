@@ -19,10 +19,8 @@ export const Layout: React.FC = () => {
         
         {/* Main Content */}
         <main className="flex-1 lg:ml-64 min-h-screen">
-          <div className="p-4 lg:p-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[calc(100vh-8rem)] lg:min-h-[calc(100vh-6rem)]">
-              <Outlet />
-            </div>
+          <div className="bg-gray-50 min-h-[calc(100vh-4rem)]">
+            <Outlet />
           </div>
         </main>
       </div>

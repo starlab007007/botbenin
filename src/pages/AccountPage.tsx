@@ -70,7 +70,7 @@ export const AccountPage: React.FC = () => {
   ];
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8">
+    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
       <div>
         <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Mon Compte</h1>
@@ -78,11 +78,11 @@ export const AccountPage: React.FC = () => {
       </div>
 
       {/* Account Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {accountSections.map((section, index) => (
-          <Card key={index} className="p-6 border border-gray-100">
+          <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl">
             <div className="flex items-center mb-6">
-              <div className={`w-12 h-12 ${section.color} rounded-xl flex items-center justify-center shadow-md mr-4`}>
+              <div className={`w-12 h-12 ${section.color} rounded-xl flex items-center justify-center shadow-sm mr-4`}>
                 <section.icon className="w-6 h-6 text-white" />
               </div>
               <h2 className="text-xl font-semibold text-gray-900">{section.title}</h2>
@@ -98,9 +98,9 @@ export const AccountPage: React.FC = () => {
       {/* Settings Grid */}
       <div>
         <h2 className="text-xl font-semibold text-gray-900 mb-6">Préférences</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {settingsOptions.map((option, index) => (
-            <Card key={index} className="p-4 lg:p-6 border border-gray-100 hover:shadow-md transition-shadow">
+            <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className={`w-10 h-10 ${option.color} rounded-lg flex items-center justify-center`}>
@@ -118,9 +118,9 @@ export const AccountPage: React.FC = () => {
       </div>
 
       {/* Security Section */}
-      <Card className="p-6 lg:p-8 border border-gray-100">
+      <Card className="p-8 bg-white border border-gray-200 rounded-xl">
         <div className="flex items-center mb-6">
-          <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center shadow-md mr-4">
+          <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center shadow-sm mr-4">
             <Shield className="w-6 h-6 text-white" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900">Sécurité</h2>
