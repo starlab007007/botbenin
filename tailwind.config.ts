@@ -20,8 +20,10 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				'playfair': ['Playfair Display', 'serif'],
-				'inter': ['Inter', 'sans-serif'],
+				'display': ['Playfair Display', 'Georgia', 'serif'],
+				'body': ['Roboto', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+				'playfair': ['Playfair Display', 'Georgia', 'serif'],
+				'roboto': ['Roboto', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
@@ -57,30 +59,44 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				// Custom color palette for career coaching app
-				'warm-beige': {
-					50: '#faf8f5',
-					100: '#f5f0e8',
-					200: '#e8dcc6',
-					300: '#dcc7a4',
-					400: '#d0b382',
-					500: '#c49e60',
-					600: '#b8894e',
-					700: '#9d7441',
-					800: '#825f35',
-					900: '#674a29',
-				},
-				'soft-peach': {
-					50: '#fef8f6',
-					100: '#fdf0eb',
-					200: '#f9ddd2',
-					300: '#f5cab9',
-					400: '#f1b7a0',
-					500: '#eda487',
-					600: '#e9916e',
-					700: '#e57e55',
-					800: '#d16a42',
-					900: '#b85732',
+				// Bot.Bj Brand Colors
+				'bot-bj': {
+					blue: {
+						50: '#e3f2fd',
+						100: '#bbdefb',
+						200: '#90caf9',
+						300: '#64b5f6',
+						400: '#42a5f5',
+						500: '#2196f3',
+						600: '#1e88e5',
+						700: '#1976d2',
+						800: '#1565c0',
+						900: '#0d47a1', // Primary blue
+					},
+					green: {
+						50: '#e8f5e8',
+						100: '#c8e6c9',
+						200: '#a5d6a7',
+						300: '#81c784',
+						400: '#66bb6a',
+						500: '#4caf50',
+						600: '#43a047',
+						700: '#388e3c',
+						800: '#2e7d32', // Primary green
+						900: '#1b5e20',
+					},
+					orange: {
+						50: '#fff3e0',
+						100: '#ffe0b2',
+						200: '#ffcc80',
+						300: '#ffb74d',
+						400: '#ffa726',
+						500: '#ff9800',
+						600: '#fb8c00',
+						700: '#f57c00',
+						800: '#ff6b35', // Primary orange
+						900: '#e65100',
+					},
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
@@ -126,6 +142,18 @@ export default {
 				'slide-up': {
 					'0%': { opacity: '0', transform: 'translateY(20px)' },
 					'100%': { opacity: '1', transform: 'translateY(0)' }
+				},
+				'scale-in': {
+					'0%': { opacity: '0', transform: 'scale(0.95)' },
+					'100%': { opacity: '1', transform: 'scale(1)' }
+				},
+				'float': {
+					'0%, 100%': { transform: 'translateY(0px)' },
+					'50%': { transform: 'translateY(-6px)' }
+				},
+				'pulse-glow': {
+					'0%, 100%': { opacity: '1' },
+					'50%': { opacity: '0.7' }
 				}
 			},
 			animation: {
@@ -133,7 +161,10 @@ export default {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'typing': 'typing 2s steps(100, end)',
 				'fade-in': 'fade-in 0.6s ease-out',
-				'slide-up': 'slide-up 0.5s ease-out'
+				'slide-up': 'slide-up 0.5s ease-out',
+				'scale-in': 'scale-in 0.3s ease-out',
+				'float': 'float 6s ease-in-out infinite',
+				'pulse-glow': 'pulse-glow 2s ease-in-out infinite'
 			}
 		}
 	},

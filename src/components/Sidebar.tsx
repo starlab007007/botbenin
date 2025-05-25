@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Bot
 } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const menuItems = [
   { title: 'Accueil', path: '/', icon: Home },
@@ -41,20 +42,22 @@ export const Sidebar: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="fixed left-0 top-0 h-screen w-64 bg-slate-800/90 backdrop-blur-sm border-r border-slate-700">
+    <div className="fixed left-0 top-0 h-screen w-64 bot-bj-sidebar z-40">
       {/* Logo */}
-      <div className="p-6 border-b border-slate-700">
+      <div className="p-6 border-b border-border/20">
         <div className="flex items-center space-x-3">
-          <Bot className="w-8 h-8 text-green-400" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-r from-primary to-secondary flex items-center justify-center shadow-lg">
+            <Bot className="w-6 h-6 text-white" />
+          </div>
           <div>
-            <h1 className="text-xl font-bold text-white">Bot.Bj</h1>
-            <p className="text-sm text-slate-400">Plateforme IA</p>
+            <h1 className="text-xl font-display font-bold text-foreground">Bot.Bj</h1>
+            <p className="text-sm text-muted-foreground font-body">Plateforme IA</p>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-6">
+      <nav className="flex-1 p-4 space-y-6 font-body">
         {/* Main Menu */}
         <div>
           <ul className="space-y-2">
@@ -62,10 +65,8 @@ export const Sidebar: React.FC = () => {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive(item.path)
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                  className={`bot-bj-nav-item ${
+                    isActive(item.path) ? 'active' : ''
                   }`}
                 >
                   <item.icon className="w-5 h-5" />
@@ -78,7 +79,7 @@ export const Sidebar: React.FC = () => {
 
         {/* AI Modules */}
         <div>
-          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2 font-body">
             Modules IA
           </h3>
           <ul className="space-y-2">
@@ -86,10 +87,8 @@ export const Sidebar: React.FC = () => {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive(item.path)
-                      ? 'bg-green-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                  className={`bot-bj-nav-item secondary ${
+                    isActive(item.path) ? 'active' : ''
                   }`}
                 >
                   <item.icon className="w-5 h-5" />
@@ -100,6 +99,11 @@ export const Sidebar: React.FC = () => {
           </ul>
         </div>
 
+        {/* Theme Toggle */}
+        <div className="px-2">
+          <ThemeToggle />
+        </div>
+
         {/* Bottom Items */}
         <div className="absolute bottom-4 left-4 right-4">
           <ul className="space-y-2">
@@ -107,14 +111,12 @@ export const Sidebar: React.FC = () => {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive(item.path)
-                      ? 'bg-orange-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                  className={`bot-bj-nav-item accent ${
+                    isActive(item.path) ? 'active' : ''
                   }`}
                 >
                   <item.icon className="w-5 h-5" />
-                  <span>{item.title}</span>
+                  <span className="text-sm">{item.title}</span>
                 </NavLink>
               </li>
             ))}

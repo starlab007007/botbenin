@@ -7,10 +7,10 @@ import { FloatingChatButton } from '@/components/FloatingChatButton';
 export const Layout: React.FC = () => {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      {/* Modern background gradient */}
-      <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-muted pointer-events-none" />
+      {/* Modern gradient background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-background via-background to-muted/30 pointer-events-none" />
       
-      {/* Subtle floating elements for depth */}
+      {/* Floating design elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-20 w-72 h-72 bg-primary/5 rounded-full filter blur-3xl animate-float" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-secondary/10 rounded-full filter blur-3xl animate-float" style={{ animationDelay: '2s' }} />
@@ -21,7 +21,7 @@ export const Layout: React.FC = () => {
         <Sidebar />
         <main className="flex-1 ml-64 min-h-screen">
           <div className="h-full p-6">
-            <div className="h-full surface-elevated rounded-3xl overflow-hidden">
+            <div className="h-full bot-bj-card overflow-hidden">
               <Outlet />
             </div>
           </div>

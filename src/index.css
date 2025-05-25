@@ -3,70 +3,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Roboto:wght@300;400;500;600;700&display=swap');
+
 @layer base {
   :root {
-    /* Light theme - iPhone 16 style */
+    /* Bot.Bj Brand Colors - Light Mode */
     --background: 248 250 252;
     --foreground: 15 23 42;
     --card: 255 255 255;
     --card-foreground: 15 23 42;
     --popover: 255 255 255;
     --popover-foreground: 15 23 42;
-    --primary: 99 102 241;
+    --primary: 13 71 161; /* #0D47A1 - Bleu foncé */
     --primary-foreground: 248 250 252;
-    --secondary: 241 245 249;
-    --secondary-foreground: 51 65 85;
-    --muted: 248 250 252;
+    --secondary: 46 125 50; /* #2E7D32 - Vert succès */
+    --secondary-foreground: 248 250 252;
+    --muted: 241 245 249;
     --muted-foreground: 100 116 139;
-    --accent: 241 245 249;
-    --accent-foreground: 51 65 85;
+    --accent: 255 107 53; /* #FF6B35 - Orange CTA */
+    --accent-foreground: 248 250 252;
     --destructive: 239 68 68;
     --destructive-foreground: 248 250 252;
     --border: 226 232 240;
     --input: 226 232 240;
-    --ring: 99 102 241;
+    --ring: 13 71 161;
     --radius: 0.75rem;
     
-    /* iPhone 16 inspired colors */
-    --glass-bg: rgba(255, 255, 255, 0.8);
-    --glass-border: rgba(255, 255, 255, 0.2);
-    --blur-bg: rgba(248, 250, 252, 0.8);
+    /* Bot.Bj Custom Variables */
+    --bot-bj-blue: 13 71 161;
+    --bot-bj-green: 46 125 50;
+    --bot-bj-orange: 255 107 53;
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(13, 71, 161, 0.1);
     --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --gradient-primary: linear-gradient(135deg, rgb(13, 71, 161) 0%, rgb(46, 125, 50) 100%);
     --gradient-surface: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   }
 
   .dark {
-    /* Dark theme - iPhone 16 style */
-    --background: 2 6 23;
+    /* Bot.Bj Brand Colors - Dark Mode */
+    --background: 15 23 42;
     --foreground: 248 250 252;
-    --card: 15 23 42;
+    --card: 30 41 59;
     --card-foreground: 248 250 252;
-    --popover: 15 23 42;
+    --popover: 30 41 59;
     --popover-foreground: 248 250 252;
-    --primary: 129 140 248;
+    --primary: 59 130 246; /* Lighter blue for dark mode */
     --primary-foreground: 15 23 42;
-    --secondary: 30 41 59;
-    --secondary-foreground: 226 232 240;
-    --muted: 30 41 59;
+    --secondary: 34 197 94; /* Lighter green for dark mode */
+    --secondary-foreground: 15 23 42;
+    --muted: 51 65 85;
     --muted-foreground: 148 163 184;
-    --accent: 30 41 59;
-    --accent-foreground: 226 232 240;
+    --accent: 251 146 60; /* Lighter orange for dark mode */
+    --accent-foreground: 15 23 42;
     --destructive: 248 113 113;
     --destructive-foreground: 15 23 42;
     --border: 51 65 85;
     --input: 51 65 85;
-    --ring: 129 140 248;
+    --ring: 59 130 246;
     
-    /* Dark mode iPhone 16 colors */
-    --glass-bg: rgba(15, 23, 42, 0.8);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --blur-bg: rgba(2, 6, 23, 0.8);
+    /* Dark mode adjustments */
+    --glass-bg: rgba(30, 41, 59, 0.85);
+    --glass-border: rgba(59, 130, 246, 0.2);
     --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
     --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
-    --gradient-primary: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
-    --gradient-surface: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    --gradient-primary: linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(34, 197, 94) 100%);
+    --gradient-surface: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   }
 
   .sidebar-background {
@@ -88,76 +92,135 @@
 
   body {
     @apply bg-background text-foreground transition-colors duration-300;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    font-family: 'Playfair Display', Georgia, serif;
     font-weight: 600;
     letter-spacing: -0.025em;
   }
+
+  .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .font-body {
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
 }
 
-/* iPhone 16 inspired design system */
-.glass-morphism {
+/* Bot.Bj Design System Components */
+.bot-bj-card {
+  @apply bg-card border border-border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 backdrop-blur-sm;
   background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-soft);
 }
 
-.surface-elevated {
-  background: var(--gradient-surface);
-  border: 1px solid hsl(var(--border));
+.bot-bj-card:hover {
+  transform: translateY(-2px);
   box-shadow: var(--shadow-medium);
 }
 
-.button-primary {
+.bot-bj-button-primary {
+  @apply text-white font-semibold rounded-2xl px-6 py-3 shadow-lg transition-all duration-300 hover:scale-105 active:scale-95;
   background: var(--gradient-primary);
-  @apply text-white font-semibold rounded-2xl px-6 py-3 shadow-lg transition-all duration-200 hover:scale-105 active:scale-95;
 }
 
-.button-secondary {
-  @apply bg-secondary text-secondary-foreground font-medium rounded-2xl px-6 py-3 border border-border hover:bg-accent transition-all duration-200 hover:scale-105 active:scale-95;
+.bot-bj-button-primary:hover {
+  filter: brightness(1.1);
 }
 
-.card-modern {
-  @apply bg-card border border-border rounded-3xl p-6 shadow-lg hover:shadow-xl transition-all duration-300;
+.bot-bj-button-secondary {
+  @apply bg-secondary text-secondary-foreground font-medium rounded-2xl px-6 py-3 border hover:bg-secondary/90 transition-all duration-300 hover:scale-105 active:scale-95;
 }
 
-.input-modern {
-  @apply bg-background border border-border rounded-2xl px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200;
+.bot-bj-button-accent {
+  @apply bg-accent text-accent-foreground font-semibold rounded-2xl px-6 py-3 shadow-lg transition-all duration-300 hover:scale-105 active:scale-95;
 }
 
-/* Chat bubbles - iPhone style */
-.chat-bubble-user {
-  @apply bg-primary text-primary-foreground rounded-3xl rounded-br-lg px-4 py-3 max-w-xs ml-auto shadow-md;
+.bot-bj-input {
+  @apply bg-background border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300;
 }
 
-.chat-bubble-ai {
-  @apply bg-secondary text-secondary-foreground rounded-3xl rounded-bl-lg px-4 py-3 max-w-xs mr-auto shadow-md;
+.bot-bj-sidebar {
+  background: var(--gradient-surface);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-right: 1px solid var(--glass-border);
 }
 
-/* Suggestion cards - Copilot style */
-.suggestion-card {
-  @apply glass-morphism rounded-2xl p-4 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg;
+.bot-bj-nav-item {
+  @apply flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 font-medium;
+}
+
+.bot-bj-nav-item:hover {
+  @apply bg-primary/10 text-primary;
+  transform: translateX(4px);
+}
+
+.bot-bj-nav-item.active {
+  @apply bg-primary text-primary-foreground shadow-lg;
+}
+
+.bot-bj-nav-item.secondary:hover {
+  @apply bg-secondary/10 text-secondary;
+}
+
+.bot-bj-nav-item.secondary.active {
+  @apply bg-secondary text-secondary-foreground;
+}
+
+.bot-bj-nav-item.accent:hover {
+  @apply bg-accent/10 text-accent;
+}
+
+.bot-bj-nav-item.accent.active {
+  @apply bg-accent text-accent-foreground;
+}
+
+/* Chat Interface Styles */
+.bot-bj-chat-bubble-user {
+  @apply bg-primary text-primary-foreground rounded-2xl rounded-br-lg px-4 py-3 max-w-xs ml-auto shadow-md;
+}
+
+.bot-bj-chat-bubble-ai {
+  @apply bg-card text-card-foreground rounded-2xl rounded-bl-lg px-4 py-3 max-w-xs mr-auto shadow-md border;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
 }
 
-.suggestion-card:hover {
-  background: var(--blur-bg);
+.bot-bj-suggestion-card {
+  @apply rounded-xl p-4 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg border;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.bot-bj-suggestion-card:hover {
+  background: var(--background);
   box-shadow: var(--shadow-medium);
 }
 
-/* Floating elements */
-.floating-element {
-  @apply glass-morphism rounded-2xl shadow-xl backdrop-blur-md;
+/* Stats Cards */
+.bot-bj-stats-card {
+  @apply p-6 rounded-2xl shadow-lg transition-all duration-300 hover:scale-105;
 }
 
-/* Smooth scrollbar - iPhone style */
+.bot-bj-stats-card.primary {
+  background: var(--gradient-primary);
+  @apply text-white;
+}
+
+.bot-bj-stats-card.secondary {
+  @apply bg-secondary text-secondary-foreground;
+}
+
+.bot-bj-stats-card.accent {
+  @apply bg-accent text-accent-foreground;
+}
+
+/* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -176,7 +239,7 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* Animations - iOS inspired */
+/* Animations */
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -213,7 +276,16 @@
     transform: translateY(0px);
   }
   50% {
-    transform: translateY(-10px);
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
   }
 }
 
@@ -233,13 +305,11 @@
   animation: float 6s ease-in-out infinite;
 }
 
-/* Dynamic island style for notifications */
-.dynamic-island {
-  @apply glass-morphism rounded-full px-6 py-3 shadow-xl;
-  backdrop-filter: blur(20px) saturate(180%);
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* Typography improvements */
+/* Typography Classes */
 .text-display {
   font-size: clamp(2rem, 5vw, 4rem);
   font-weight: 700;
@@ -260,14 +330,15 @@
   font-weight: 400;
 }
 
-/* Responsive design improvements */
+/* Responsive Design */
 @media (max-width: 768px) {
-  .card-modern {
-    @apply p-4 rounded-2xl;
+  .bot-bj-card {
+    @apply p-4 rounded-xl;
   }
   
-  .button-primary,
-  .button-secondary {
+  .bot-bj-button-primary,
+  .bot-bj-button-secondary,
+  .bot-bj-button-accent {
     @apply px-4 py-2.5 text-sm;
   }
 }
