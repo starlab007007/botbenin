@@ -33,30 +33,34 @@ export const CitoyenModule: React.FC = () => {
   ];
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center mb-4">
-            <Users className="w-8 h-8 text-orange-400 mr-3" />
-            <h1 className="text-3xl font-bold text-white">IA Citoyen</h1>
+            <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mr-4">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">IA Citoyen</h1>
+              <p className="text-gray-600 text-lg mt-1">
+                Services intelligents pour les citoyens : emploi, démarches administratives, réservations et aide juridique.
+              </p>
+            </div>
           </div>
-          <p className="text-slate-300 text-lg">
-            Services intelligents pour les citoyens : emploi, démarches administratives, réservations et aide juridique.
-          </p>
         </div>
 
         {/* Quick Access */}
-        <Card className="bg-gradient-to-r from-orange-600 to-red-600 border-0 p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">Accès rapide</h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <Button className="bg-white/20 hover:bg-white/30 text-white p-4 h-auto">
+        <Card className="p-6 mb-8 bg-white border border-gray-200 rounded-xl">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Accès rapide</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button className="bg-red-500 hover:bg-red-600 text-white p-4 h-auto rounded-xl transition-all">
               <div className="text-center">
                 <Phone className="w-6 h-6 mb-2 mx-auto" />
                 <span>Urgences - 911</span>
               </div>
             </Button>
-            <Button className="bg-white/20 hover:bg-white/30 text-white p-4 h-auto">
+            <Button className="bg-blue-500 hover:bg-blue-600 text-white p-4 h-auto rounded-xl transition-all">
               <div className="text-center">
                 <FileText className="w-6 h-6 mb-2 mx-auto" />
                 <span>Démarche express</span>
@@ -66,16 +70,16 @@ export const CitoyenModule: React.FC = () => {
         </Card>
 
         {/* Services Grid */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {services.map((service, index) => (
-            <Card key={index} className="bg-slate-800/50 border-slate-700 p-6">
+            <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-all">
               <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center mr-3">
+                <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mr-3">
                   <service.icon className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-white">{service.title}</h3>
-                  <p className="text-slate-400">{service.description}</p>
+                  <h3 className="text-lg font-semibold text-gray-900">{service.title}</h3>
+                  <p className="text-gray-600 text-sm">{service.description}</p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -83,7 +87,7 @@ export const CitoyenModule: React.FC = () => {
                   <Button
                     key={actionIndex}
                     variant="outline"
-                    className="w-full text-left justify-start border-slate-600 text-slate-300 hover:bg-slate-700"
+                    className="w-full text-left justify-start border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
                   >
                     {action}
                   </Button>
@@ -94,23 +98,29 @@ export const CitoyenModule: React.FC = () => {
         </div>
 
         {/* Popular Services */}
-        <Card className="bg-slate-800/50 border-slate-700 p-6 mt-8">
-          <h2 className="text-xl font-semibold text-white mb-4">Services populaires</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-slate-700/50 rounded-lg">
-              <Briefcase className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-              <h3 className="font-semibold text-white">Offres d'emploi</h3>
-              <p className="text-slate-400 text-sm">1,234 nouvelles offres</p>
+        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Services populaires</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <Briefcase className="w-6 h-6 text-orange-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-1">Offres d'emploi</h3>
+              <p className="text-gray-600 text-sm">1,234 nouvelles offres</p>
             </div>
-            <div className="text-center p-4 bg-slate-700/50 rounded-lg">
-              <MapPin className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-              <h3 className="font-semibold text-white">Restaurants</h3>
-              <p className="text-slate-400 text-sm">456 établissements</p>
+            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <MapPin className="w-6 h-6 text-orange-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-1">Restaurants</h3>
+              <p className="text-gray-600 text-sm">456 établissements</p>
             </div>
-            <div className="text-center p-4 bg-slate-700/50 rounded-lg">
-              <FileText className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-              <h3 className="font-semibold text-white">Formulaires</h3>
-              <p className="text-slate-400 text-sm">89 démarches disponibles</p>
+            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <FileText className="w-6 h-6 text-orange-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-1">Formulaires</h3>
+              <p className="text-gray-600 text-sm">89 démarches disponibles</p>
             </div>
           </div>
         </Card>

@@ -27,32 +27,36 @@ export const BusinessModule: React.FC = () => {
   ];
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center mb-4">
-            <Briefcase className="w-8 h-8 text-blue-400 mr-3" />
-            <h1 className="text-3xl font-bold text-white">Agent IA Business</h1>
+            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mr-4">
+              <Briefcase className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Agent IA Business</h1>
+              <p className="text-gray-600 text-lg mt-1">
+                Automatisez vos processus commerciaux et optimisez votre gestion client avec l'intelligence artificielle.
+              </p>
+            </div>
           </div>
-          <p className="text-slate-300 text-lg">
-            Automatisez vos processus commerciaux et optimisez votre gestion client avec l'intelligence artificielle.
-          </p>
         </div>
 
         {/* Quick Actions */}
-        <Card className="bg-slate-800/50 border-slate-700 p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">Actions rapides</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white p-4 h-auto flex-col">
+        <Card className="p-6 mb-8 bg-white border border-gray-200 rounded-xl">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Actions rapides</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Button className="bg-blue-500 hover:bg-blue-600 text-white p-4 h-auto flex-col rounded-xl transition-all">
               <Plus className="w-6 h-6 mb-2" />
               <span>Nouveau contact</span>
             </Button>
-            <Button className="bg-green-600 hover:bg-green-700 text-white p-4 h-auto flex-col">
+            <Button className="bg-green-500 hover:bg-green-600 text-white p-4 h-auto flex-col rounded-xl transition-all">
               <FileText className="w-6 h-6 mb-2" />
               <span>Générer devis</span>
             </Button>
-            <Button className="bg-purple-600 hover:bg-purple-700 text-white p-4 h-auto flex-col">
+            <Button className="bg-purple-500 hover:bg-purple-600 text-white p-4 h-auto flex-col rounded-xl transition-all">
               <TrendingUp className="w-6 h-6 mb-2" />
               <span>Analyse des ventes</span>
             </Button>
@@ -60,22 +64,22 @@ export const BusinessModule: React.FC = () => {
         </Card>
 
         {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {features.map((feature, index) => (
-            <Card key={index} className="bg-slate-800/50 border-slate-700 p-6">
+            <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-all">
               <div className="flex items-center mb-4">
-                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
-                  <feature.icon className="w-5 h-5 text-white" />
+                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mr-3">
+                  <feature.icon className="w-6 h-6 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{feature.title}</h3>
               </div>
-              <p className="text-slate-400 mb-4">{feature.description}</p>
+              <p className="text-gray-600 mb-4">{feature.description}</p>
               <div className="space-y-2">
                 {feature.actions.map((action, actionIndex) => (
                   <Button
                     key={actionIndex}
                     variant="outline"
-                    className="w-full text-left justify-start border-slate-600 text-slate-300 hover:bg-slate-700"
+                    className="w-full text-left justify-start border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
                   >
                     {action}
                   </Button>
