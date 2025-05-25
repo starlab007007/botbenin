@@ -65,7 +65,7 @@ export const AutomationsPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Actif': return 'bg-green-100 text-green-800 border-green-200';
-      case 'En pause': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'En pause': return 'bg-gray-100 text-gray-800 border-gray-200';
       case 'Erreur': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -128,8 +128,8 @@ export const AutomationsPage: React.FC = () => {
       </div>
 
       {/* Create New Workflow Section */}
-      <Card className="p-6 bg-gray-500 text-white rounded-xl">
-        <h2 className="text-xl font-semibold mb-4">Créer un nouveau workflow</h2>
+      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+        <h2 className="text-xl font-semibold mb-4 text-gray-900">Créer un nouveau workflow</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="p-6 bg-purple-500 text-white border-0 rounded-xl cursor-pointer hover:bg-purple-600 transition-colors">
             <div className="text-center">
@@ -154,26 +154,26 @@ export const AutomationsPage: React.FC = () => {
       </Card>
 
       {/* Workflows en cours */}
-      <Card className="p-6 bg-gray-500 text-white rounded-xl">
-        <h2 className="text-xl font-semibold mb-6">Workflows en cours</h2>
+      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+        <h2 className="text-xl font-semibold mb-6 text-gray-900">Workflows en cours</h2>
         <div className="space-y-4">
           {automations.slice(0, 3).map((automation, index) => (
-            <div key={index} className="flex items-center justify-between p-4 bg-gray-600 rounded-xl">
+            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
               <div className="flex items-center space-x-4">
                 <div className={`w-12 h-12 ${automation.color} rounded-xl flex items-center justify-center`}>
                   <Workflow className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white">{automation.name}</h3>
-                  <p className="text-gray-300 text-sm">{automation.status}</p>
+                  <h3 className="font-semibold text-gray-900">{automation.name}</h3>
+                  <p className="text-gray-600 text-sm">{automation.status}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="text-right">
-                  <div className="text-white font-semibold">{automation.executions}</div>
-                  <div className="text-gray-300 text-sm">Exécutions</div>
+                  <div className="text-gray-900 font-semibold">{automation.executions}</div>
+                  <div className="text-gray-500 text-sm">Exécutions</div>
                 </div>
-                <Button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold px-4 py-2">
+                <Button className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2">
                   Voir
                 </Button>
               </div>
