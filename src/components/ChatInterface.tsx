@@ -17,14 +17,22 @@ interface Message {
 
 interface ChatInterfaceProps {
   onBackToLanding: () => void;
+  webhookUrl?: string;
+  chatTitle?: string;
+  chatContext?: string;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+  onBackToLanding, 
+  webhookUrl = 'https://ia.bot.bj/webhook/iphoneshop1',
+  chatTitle = 'Bot.Bj Assistant',
+  chatContext
+}) => {
   const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: "🚀 Bonjour ! Je suis Bot.Bj, votre assistant IA intelligent. Je peux vous aider avec vos processus métiers, marketing, gestion et services citoyens. Que souhaitez-vous accomplir aujourd'hui ?",
+      content: getWelcomeMessage(chatContext),
       isUser: false,
       timestamp: new Date(),
     }
@@ -35,8 +43,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  // Determine user context based on current route
-  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'general' => {
+  function getWelcomeMessage(context?: string): string {
+    switch (context) {
+      case 'services_locaux':
+        return "🏢 Bonjour ! Je suis votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?";
+      default:
+        return "🚀 Bonjour ! Je suis Bot.Bj, votre assistant IA intelligent. Je peux vous aider avec vos processus métiers, marketing, gestion et services citoyens. Que souhaitez-vous accomplir aujourd'hui ?";
+    }
+  }
+
+  // Determine user context based on current route or provided context
+  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'general' => {
+    if (chatContext) return chatContext as any;
     const path = location.pathname;
     if (path.includes('business')) return 'business';
     if (path.includes('marketing')) return 'marketing';
@@ -64,7 +82,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
 
     console.log('=== BOT.BJ WEBHOOK DEBUG START ===');
     console.log('User message:', textToSend);
-    console.log('Webhook URL:', 'https://ia.bot.bj/webhook/iphoneshop1');
+    console.log('Webhook URL:', webhookUrl);
 
     try {
       const controller = new AbortController();
@@ -76,14 +94,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
-        session_id: 'bot_bj_session',
+        session_id: `bot_bj_session_${chatContext || 'general'}`,
         user_id: 'bot_bj_user',
-        source: 'bot_bj_platform'
+        source: 'bot_bj_platform',
+        context: chatContext || 'general'
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
-      const response = await fetch('https://ia.bot.bj/webhook/iphoneshop1', {
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -148,7 +167,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
 
       toast({
         title: "Réponse reçue",
-        description: "Bot.Bj a traité votre demande avec succès !",
+        description: `${chatTitle} a traité votre demande avec succès !`,
       });
 
     } catch (error) {
@@ -162,10 +181,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = "La requête a pris trop de temps. Le système Bot.Bj pourrait être occupé. Veuillez réessayer.";
+          errorMessage = "La requête a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.";
           toastMessage = "Timeout - réessayez";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au système Bot.Bj. Vérifiez votre connexion internet et réessayez.";
+          errorMessage = "Impossible de se connecter au système. Vérifiez votre connexion internet et réessayez.";
           toastMessage = "Problème de connectivité";
         }
       }
@@ -180,7 +199,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
-        title: "Bot.Bj - Problème technique",
+        title: `${chatTitle} - Problème technique`,
         description: toastMessage,
         variant: "destructive",
       });
@@ -229,6 +248,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
         isLoading={isLoading}
         bookmarkedCount={bookmarkedMessages.length}
         onShowBookmarks={() => setShowBookmarks(true)}
+        title={chatTitle}
       />
       
       <ChatMessageArea

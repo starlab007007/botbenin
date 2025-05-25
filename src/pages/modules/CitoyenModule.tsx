@@ -3,8 +3,12 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, Briefcase, Scale, FileText, MapPin, Phone } from 'lucide-react';
+import { ChatInterface } from '@/components/ChatInterface';
+import { useState } from 'react';
 
 export const CitoyenModule: React.FC = () => {
+  const [showLocalServicesChat, setShowLocalServicesChat] = useState(false);
+
   const services = [
     {
       icon: Briefcase,
@@ -32,13 +36,33 @@ export const CitoyenModule: React.FC = () => {
     }
   ];
 
+  const handleActionClick = (action: string) => {
+    if (action === 'Services locaux') {
+      setShowLocalServicesChat(true);
+    }
+    // Autres actions peuvent être ajoutées ici
+  };
+
+  if (showLocalServicesChat) {
+    return (
+      <div className="h-screen">
+        <ChatInterface 
+          onBackToLanding={() => setShowLocalServicesChat(false)} 
+          webhookUrl="https://ia.bot.bj/webhook/immo1"
+          chatTitle="Services Locaux"
+          chatContext="services_locaux"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-8">
           <div className="flex items-center mb-4">
-            <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center mr-4">
+            <div className="w-12 h-12 bg-teal-600 rounded-lg flex items-center justify-center mr-4">
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -74,8 +98,8 @@ export const CitoyenModule: React.FC = () => {
           {services.map((service, index) => (
             <Card key={index} className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all">
               <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
-                  <service.icon className="w-6 h-6 text-orange-600" />
+                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
+                  <service.icon className="w-6 h-6 text-gray-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">{service.title}</h3>
@@ -88,6 +112,7 @@ export const CitoyenModule: React.FC = () => {
                     key={actionIndex}
                     variant="outline"
                     className="w-full text-left justify-start border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
+                    onClick={() => handleActionClick(action)}
                   >
                     {action}
                   </Button>
@@ -102,22 +127,22 @@ export const CitoyenModule: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Services populaires</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                <Briefcase className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                <Briefcase className="w-6 h-6 text-gray-600" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">Offres d'emploi</h3>
               <p className="text-gray-600 text-sm">1,234 nouvelles offres</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                <MapPin className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                <MapPin className="w-6 h-6 text-gray-600" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">Restaurants</h3>
               <p className="text-gray-600 text-sm">456 établissements</p>
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                <FileText className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                <FileText className="w-6 h-6 text-gray-600" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">Formulaires</h3>
               <p className="text-gray-600 text-sm">89 démarches disponibles</p>

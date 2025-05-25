@@ -9,7 +9,13 @@ import {
   FileText, 
   BarChart3,
   MessageSquare,
-  Zap
+  Zap,
+  MapPin,
+  Home,
+  Car,
+  Utensils,
+  ShoppingBag,
+  Wrench
 } from 'lucide-react';
 
 interface Suggestion {
@@ -22,7 +28,7 @@ interface Suggestion {
 }
 
 interface SuggestionCardsProps {
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'general';
   onSuggestionClick: (suggestion: Suggestion) => void;
 }
 
@@ -32,6 +38,42 @@ export const SuggestionCards: React.FC<SuggestionCardsProps> = ({
 }) => {
   const getSuggestionsForContext = (context: string): Suggestion[] => {
     switch (context) {
+      case 'services_locaux':
+        return [
+          {
+            id: 'sl1',
+            title: 'Trouver un restaurant',
+            description: 'Découvrez les meilleurs restaurants près de chez vous',
+            icon: Utensils,
+            category: 'Restauration',
+            action: 'Je cherche un bon restaurant français dans le centre-ville'
+          },
+          {
+            id: 'sl2',
+            title: 'Réserver un hôtel',
+            description: 'Trouvez l\'hébergement parfait pour votre séjour',
+            icon: Home,
+            category: 'Hébergement',
+            action: 'J\'ai besoin d\'un hôtel 3 étoiles pour ce weekend'
+          },
+          {
+            id: 'sl3',
+            title: 'Services de réparation',
+            description: 'Contactez des professionnels pour vos réparations',
+            icon: Wrench,
+            category: 'Réparation',
+            action: 'Je cherche un plombier disponible en urgence'
+          },
+          {
+            id: 'sl4',
+            title: 'Commerces de proximité',
+            description: 'Explorez les magasins et services autour de vous',
+            icon: ShoppingBag,
+            category: 'Shopping',
+            action: 'Où puis-je acheter des produits bio près de chez moi ?'
+          }
+        ];
+        
       case 'business':
         return [
           {
@@ -168,11 +210,11 @@ export const SuggestionCards: React.FC<SuggestionCardsProps> = ({
           },
           {
             id: '16',
-            title: 'Réservation restaurant',
-            description: 'Trouvez et réservez une table',
-            icon: MessageSquare,
+            title: 'Services locaux',
+            description: 'Trouvez restaurants, hôtels et commerces',
+            icon: MapPin,
             category: 'Services',
-            action: 'Réserver une table pour 2 personnes ce soir'
+            action: 'Je cherche un restaurant italien ouvert ce soir'
           }
         ];
       
