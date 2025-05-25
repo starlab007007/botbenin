@@ -54,73 +54,119 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
     setIsLoading(true);
 
+    console.log('=== WEBHOOK DEBUG START ===');
+    console.log('User message:', currentInput);
+    console.log('Webhook URL:', 'https://ia.bot.bj/webhook/iphoneshop1');
+
     try {
-      console.log('Sending message to webhook:', inputValue);
-      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout after 30 seconds');
+        controller.abort();
+      }, 30000);
+
+      const requestPayload = {
+        message: currentInput,
+        timestamp: new Date().toISOString(),
+        session_id: 'career_coaching_session',
+        user_id: 'anonymous_user',
+        source: 'career_coaching_app'
+      };
+
+      console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
       const response = await fetch('https://ia.bot.bj/webhook/iphoneshop1', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'CareerCoach-App/1.0',
         },
-        body: JSON.stringify({
-          message: inputValue,
-          timestamp: new Date().toISOString(),
-          session_id: 'career_coaching_session'
-        }),
+        body: JSON.stringify(requestPayload),
         signal: controller.signal,
+        mode: 'cors', // Try CORS first
       });
 
       clearTimeout(timeoutId);
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Response received!');
+      console.log('Status:', response.status);
+      console.log('Status Text:', response.statusText);
+      console.log('Headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Response OK:', response.ok);
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}, statusText: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const contentType = response.headers.get('content-type');
-      let data;
-      
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-        console.log('Received JSON response from webhook:', data);
-        data = data.message || data.response || data.text || JSON.stringify(data);
+      const contentType = response.headers.get('content-type') || '';
+      console.log('Content-Type:', contentType);
+
+      let responseData;
+      let processedContent;
+
+      if (contentType.includes('application/json')) {
+        responseData = await response.json();
+        console.log('JSON Response:', JSON.stringify(responseData, null, 2));
+        
+        // Try different possible response structures
+        processedContent = responseData.message || 
+                          responseData.response || 
+                          responseData.text || 
+                          responseData.content ||
+                          responseData.reply ||
+                          responseData.output ||
+                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
-        data = await response.text();
-        console.log('Received text response from webhook:', data);
+        responseData = await response.text();
+        console.log('Text Response:', responseData);
+        processedContent = responseData;
       }
 
-      if (!data || data.trim() === '') {
-        throw new Error('Empty response from webhook');
+      console.log('Processed content:', processedContent);
+
+      if (!processedContent || processedContent.trim() === '') {
+        throw new Error('Empty or invalid response from n8n webhook');
       }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: data.trim(),
+        content: processedContent.trim(),
         isUser: false,
         timestamp: new Date(),
       };
 
+      console.log('Adding AI message:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
+      toast({
+        title: "Response Received",
+        description: "Successfully connected to n8n and received AI response!",
+      });
+
     } catch (error) {
-      console.error('Error calling webhook:', error);
+      console.error('=== WEBHOOK ERROR ===');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error?.message);
+      console.error('Full error:', error);
       
-      let errorMessage = "I apologize, but I'm having trouble connecting right now. In the meantime, I'd love to help you think through your career goals. What specific area would you like to focus on - skill development, career transition, or finding your next opportunity?";
+      let errorMessage = "I'm having trouble connecting to the AI service right now. Let me help you with some general career guidance instead.";
+      let toastMessage = "Connection failed";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = "The request timed out. Let me help you with your career question anyway. Could you tell me more about what you're looking to achieve in your career?";
+          errorMessage = "The request to n8n timed out after 30 seconds. This might indicate the webhook is not responding. Please check your n8n workflow.";
+          toastMessage = "Request timeout - check n8n workflow";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "I'm unable to connect to the AI service right now. This might be due to network issues or the service being temporarily unavailable. Can you tell me about your career goals so I can provide some general guidance?";
+          errorMessage = "Cannot reach the n8n webhook. This could be due to:\n• CORS issues\n• Network connectivity problems\n• The webhook URL being incorrect\n• n8n workflow not active";
+          toastMessage = "Cannot reach n8n webhook - check CORS and workflow status";
+        } else if (error.message.includes('HTTP')) {
+          errorMessage = `n8n webhook returned an error: ${error.message}. Please check your n8n workflow configuration.`;
+          toastMessage = `n8n error: ${error.message}`;
         }
       }
 
@@ -134,12 +180,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
       setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
-        title: "Connection Issue",
-        description: "Having trouble connecting to the AI coach. The service might be temporarily unavailable.",
+        title: "n8n Connection Issue",
+        description: toastMessage,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
+      console.log('=== WEBHOOK DEBUG END ===');
     }
   };
 
@@ -188,17 +235,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
             </Button>
             <div>
               <h1 className="font-playfair font-semibold text-xl text-gray-900">CareerCoach AI</h1>
-              <p className="text-sm text-gray-600">Your personal career guidance</p>
+              <p className="text-sm text-gray-600">Powered by n8n webhook integration</p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowBookmarks(true)}
-            className="border-soft-peach-200 text-soft-peach-700 hover:bg-soft-peach-50"
-          >
-            Saved Advice ({bookmarkedMessages.length})
-          </Button>
+          <div className="flex items-center space-x-3">
+            <div className={`w-3 h-3 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                 title={isLoading ? 'Connecting to n8n...' : 'Ready to connect'} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBookmarks(true)}
+              className="border-soft-peach-200 text-soft-peach-700 hover:bg-soft-peach-50"
+            >
+              Saved Advice ({bookmarkedMessages.length})
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -221,7 +272,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
                     <div className="w-2 h-2 bg-soft-peach-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                     <div className="w-2 h-2 bg-soft-peach-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
-                  <span className="text-sm text-gray-600">AI is thinking...</span>
+                  <span className="text-sm text-gray-600">Connecting to n8n...</span>
                 </div>
               </Card>
             </div>
@@ -247,7 +298,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
               disabled={!inputValue.trim() || isLoading}
               className="bg-soft-peach-500 hover:bg-soft-peach-600 text-white rounded-full px-6 py-3 disabled:opacity-50"
             >
-              Send
+              {isLoading ? 'Sending...' : 'Send'}
             </Button>
           </div>
         </div>
