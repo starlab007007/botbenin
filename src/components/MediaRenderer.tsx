@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { ImageViewer } from '@/components/ImageViewer';
 
 interface MediaRendererProps {
   content: string;
@@ -91,31 +92,11 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       // Ajouter le média
       if (mediaMatch.type === 'image') {
         parts.push(
-          <div key={`image-${i}`} className="my-3">
-            <img
-              src={mediaMatch.content.url}
-              alt={mediaMatch.content.alt}
-              className="max-w-full h-auto rounded-lg shadow-md"
-              style={{ maxHeight: '400px' }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                // Afficher le lien original en cas d'erreur
-                const parent = target.parentNode as HTMLElement;
-                if (parent) {
-                  const link = document.createElement('a');
-                  link.href = mediaMatch.content.url;
-                  link.textContent = mediaMatch.content.isMarkdown 
-                    ? `[${mediaMatch.content.alt}](${mediaMatch.content.url})`
-                    : mediaMatch.content.url;
-                  link.className = 'text-blue-500 hover:text-blue-700 underline break-all';
-                  link.target = '_blank';
-                  link.rel = 'noopener noreferrer';
-                  parent.appendChild(link);
-                }
-              }}
-            />
-          </div>
+          <ImageViewer
+            key={`image-${i}`}
+            src={mediaMatch.content.url}
+            alt={mediaMatch.content.alt}
+          />
         );
       } else if (mediaMatch.type === 'video') {
         parts.push(
@@ -127,14 +108,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
               style={{ maxHeight: '400px' }}
             >
               Votre navigateur ne supporte pas la lecture de vidéos.
-              <a 
-                href={mediaMatch.content.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-700 underline"
-              >
-                Voir la vidéo
-              </a>
             </video>
           </div>
         );

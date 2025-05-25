@@ -50,16 +50,38 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
 
   return (
     <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`flex items-end space-x-2 max-w-[80%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+      <div className={`flex items-start space-x-2 max-w-[80%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
         {/* Avatar */}
         {!message.isUser && (
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mb-1">
+          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mt-1">
             <Bot className="w-4 h-4 text-gray-600" />
           </div>
         )}
 
         {/* Message Content */}
-        <div className="space-y-1">
+        <div className="space-y-1 flex-1">
+          {/* Bookmark button for AI messages */}
+          {!message.isUser && (
+            <div className="flex justify-end mb-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onToggleBookmark(message.id)}
+                className={`h-6 w-6 p-0 rounded-full transition-all duration-200 ${
+                  message.isBookmarked 
+                    ? 'text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100' 
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {message.isBookmarked ? (
+                  <BookmarkCheck className="w-3 h-3" />
+                ) : (
+                  <BookmarkPlus className="w-3 h-3" />
+                )}
+              </Button>
+            </div>
+          )}
+
           <div className={`rounded-2xl px-4 py-3 ${
             message.isUser 
               ? 'bg-blue-600 text-white rounded-br-lg' 
@@ -77,28 +99,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
             </div>
           </div>
 
-          {/* Timestamp and actions for AI messages */}
+          {/* Timestamp for AI messages */}
           {!message.isUser && !isTyping && (
-            <div className="flex items-center space-x-2 px-2">
+            <div className="flex items-center justify-end px-2">
               <span className="text-xs text-gray-500">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onToggleBookmark(message.id)}
-                className={`text-xs h-6 px-2 rounded-lg transition-all duration-200 ${
-                  message.isBookmarked 
-                    ? 'text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100' 
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {message.isBookmarked ? (
-                  <BookmarkCheck className="w-3 h-3" />
-                ) : (
-                  <BookmarkPlus className="w-3 h-3" />
-                )}
-              </Button>
             </div>
           )}
         </div>
