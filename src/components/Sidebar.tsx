@@ -6,34 +6,32 @@ import {
   MessageCircle, 
   Workflow, 
   BarChart3, 
-  Brain, 
   Briefcase, 
   Megaphone, 
   FolderOpen, 
   Users, 
   User, 
   HelpCircle,
-  Bot
+  Settings
 } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
 
 const menuItems = [
-  { title: 'Accueil', path: '/', icon: Home },
-  { title: 'Chat', path: '/chat', icon: MessageCircle },
-  { title: 'Automatisations', path: '/automatisations', icon: Workflow },
-  { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3 },
+  { title: 'Accueil', path: '/', icon: Home, color: 'bg-blue-500' },
+  { title: 'Chat', path: '/chat', icon: MessageCircle, color: 'bg-green-500' },
+  { title: 'Automatisations', path: '/automatisations', icon: Workflow, color: 'bg-purple-500' },
+  { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3, color: 'bg-orange-500' },
 ];
 
 const aiModules = [
-  { title: 'Agent IA Business', path: '/modules/business', icon: Briefcase },
-  { title: 'Agent IA Marketing', path: '/modules/marketing', icon: Megaphone },
-  { title: 'Agent IA Gestion', path: '/modules/gestion', icon: FolderOpen },
-  { title: 'IA Citoyen', path: '/modules/citoyen', icon: Users },
+  { title: 'Agent IA Business', path: '/modules/business', icon: Briefcase, color: 'bg-blue-600' },
+  { title: 'Agent IA Marketing', path: '/modules/marketing', icon: Megaphone, color: 'bg-pink-500' },
+  { title: 'Agent IA Gestion', path: '/modules/gestion', icon: FolderOpen, color: 'bg-indigo-500' },
+  { title: 'IA Citoyen', path: '/modules/citoyen', icon: Users, color: 'bg-teal-500' },
 ];
 
 const bottomItems = [
-  { title: 'Mon Compte', path: '/account', icon: User },
-  { title: 'Aide / Support', path: '/support', icon: HelpCircle },
+  { title: 'Mon Compte', path: '/account', icon: User, color: 'bg-gray-500' },
+  { title: 'Aide / Support', path: '/support', icon: HelpCircle, color: 'bg-red-500' },
 ];
 
 export const Sidebar: React.FC = () => {
@@ -42,22 +40,9 @@ export const Sidebar: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="fixed left-0 top-0 h-screen w-64 bot-bj-sidebar z-40">
-      {/* Logo */}
-      <div className="p-6 border-b border-border/20">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-r from-primary to-secondary flex items-center justify-center shadow-lg">
-            <Bot className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-display font-bold text-foreground">Bot.Bj</h1>
-            <p className="text-sm text-muted-foreground font-body">Plateforme IA</p>
-          </div>
-        </div>
-      </div>
-
+    <div className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200 overflow-y-auto">
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-6 font-body">
+      <nav className="p-4 space-y-6">
         {/* Main Menu */}
         <div>
           <ul className="space-y-2">
@@ -65,12 +50,18 @@ export const Sidebar: React.FC = () => {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  className={`bot-bj-nav-item ${
-                    isActive(item.path) ? 'active' : ''
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                    isActive(item.path)
+                      ? 'bg-gray-50 shadow-sm'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.title}</span>
+                  <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
+                    <item.icon className="w-4 h-4 text-white" />
+                  </div>
+                  <span className={`font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
+                    {item.title}
+                  </span>
                 </NavLink>
               </li>
             ))}
@@ -79,7 +70,7 @@ export const Sidebar: React.FC = () => {
 
         {/* AI Modules */}
         <div>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2 font-body">
+          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
             Modules IA
           </h3>
           <ul className="space-y-2">
@@ -87,21 +78,22 @@ export const Sidebar: React.FC = () => {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  className={`bot-bj-nav-item secondary ${
-                    isActive(item.path) ? 'active' : ''
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                    isActive(item.path)
+                      ? 'bg-gray-50 shadow-sm'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-sm">{item.title}</span>
+                  <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
+                    <item.icon className="w-4 h-4 text-white" />
+                  </div>
+                  <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
+                    {item.title}
+                  </span>
                 </NavLink>
               </li>
             ))}
           </ul>
-        </div>
-
-        {/* Theme Toggle */}
-        <div className="px-2">
-          <ThemeToggle />
         </div>
 
         {/* Bottom Items */}
@@ -111,12 +103,18 @@ export const Sidebar: React.FC = () => {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
-                  className={`bot-bj-nav-item accent ${
-                    isActive(item.path) ? 'active' : ''
+                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                    isActive(item.path)
+                      ? 'bg-gray-50 shadow-sm'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-sm">{item.title}</span>
+                  <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
+                    <item.icon className="w-4 h-4 text-white" />
+                  </div>
+                  <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
+                    {item.title}
+                  </span>
                 </NavLink>
               </li>
             ))}
