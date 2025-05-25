@@ -18,6 +18,7 @@ import { CitoyenModule } from "./pages/modules/CitoyenModule";
 import { AccountPage } from "./pages/AccountPage";
 import { SupportPage } from "./pages/SupportPage";
 import { UsersManagementPage } from "./pages/UsersManagementPage";
+import { DraggableFloatingChatButton } from "./components/DraggableFloatingChatButton";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <DraggableFloatingChatButton />
           </BrowserRouter>
         </TooltipProvider>
       </UserProvider>

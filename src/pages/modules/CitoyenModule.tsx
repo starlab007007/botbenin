@@ -33,16 +33,16 @@ export const CitoyenModule: React.FC = () => {
   ];
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
-        <div className="mb-8">
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-8">
           <div className="flex items-center mb-4">
-            <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mr-4">
+            <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center mr-4">
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">IA Citoyen</h1>
+              <h1 className="text-3xl font-bold text-gray-900">IA Citoyen</h1>
               <p className="text-gray-600 text-lg mt-1">
                 Services intelligents pour les citoyens : emploi, démarches administratives, réservations et aide juridique.
               </p>
@@ -51,16 +51,16 @@ export const CitoyenModule: React.FC = () => {
         </div>
 
         {/* Quick Access */}
-        <Card className="p-6 mb-8 bg-white border border-gray-200 rounded-xl">
+        <Card className="p-6 mb-8 bg-white border border-gray-200 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Accès rapide</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button className="bg-red-500 hover:bg-red-600 text-white p-4 h-auto rounded-xl transition-all">
+            <Button className="bg-red-600 hover:bg-red-700 text-white p-4 h-auto rounded-lg transition-all">
               <div className="text-center">
                 <Phone className="w-6 h-6 mb-2 mx-auto" />
                 <span>Urgences - 911</span>
               </div>
             </Button>
-            <Button className="bg-blue-500 hover:bg-blue-600 text-white p-4 h-auto rounded-xl transition-all">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white p-4 h-auto rounded-lg transition-all">
               <div className="text-center">
                 <FileText className="w-6 h-6 mb-2 mx-auto" />
                 <span>Démarche express</span>
@@ -72,10 +72,10 @@ export const CitoyenModule: React.FC = () => {
         {/* Services Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {services.map((service, index) => (
-            <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-all">
+            <Card key={index} className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all">
               <div className="flex items-center mb-4">
-                <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mr-3">
-                  <service.icon className="w-6 h-6 text-white" />
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
+                  <service.icon className="w-6 h-6 text-orange-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">{service.title}</h3>
@@ -98,25 +98,25 @@ export const CitoyenModule: React.FC = () => {
         </div>
 
         {/* Popular Services */}
-        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+        <Card className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Services populaires</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <Briefcase className="w-6 h-6 text-orange-600" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">Offres d'emploi</h3>
               <p className="text-gray-600 text-sm">1,234 nouvelles offres</p>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <MapPin className="w-6 h-6 text-orange-600" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">Restaurants</h3>
               <p className="text-gray-600 text-sm">456 établissements</p>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+            <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3">
                 <FileText className="w-6 h-6 text-orange-600" />
               </div>
               <h3 className="font-semibold text-gray-900 mb-1">Formulaires</h3>
