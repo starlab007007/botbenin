@@ -47,13 +47,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     switch (context) {
       case 'services_locaux':
         return "🏢 Bonjour ! Je suis votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?";
+      case 'restaurant':
+        return "🍽️ Bonjour ! Je suis votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?";
       default:
         return "🚀 Bonjour ! Je suis Bot.Bj, votre assistant IA intelligent. Je peux vous aider avec vos processus métiers, marketing, gestion et services citoyens. Que souhaitez-vous accomplir aujourd'hui ?";
     }
   }
 
   // Determine user context based on current route or provided context
-  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'general' => {
+  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general' => {
     if (chatContext) return chatContext as any;
     const path = location.pathname;
     if (path.includes('business')) return 'business';

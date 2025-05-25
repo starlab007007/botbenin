@@ -27,7 +27,7 @@ interface Suggestion {
 }
 
 interface SuggestionCardsProps {
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
   onSuggestionClick: (suggestion: Suggestion) => void;
 }
 
@@ -37,6 +37,42 @@ export const SuggestionCards: React.FC<SuggestionCardsProps> = ({
 }) => {
   const getSuggestionsForContext = (context: string): Suggestion[] => {
     switch (context) {
+      case 'restaurant':
+        return [
+          {
+            id: 'r1',
+            title: 'Cuisine française',
+            description: 'Découvrez les meilleurs restaurants français',
+            icon: Utensils,
+            category: 'Cuisine',
+            action: 'Je cherche un restaurant français gastronomique'
+          },
+          {
+            id: 'r2',
+            title: 'Réservation rapide',
+            description: 'Trouvez une table disponible maintenant',
+            icon: Calendar,
+            category: 'Disponibilité',
+            action: 'J\'ai besoin d\'une table pour 4 personnes ce soir'
+          },
+          {
+            id: 'r3',
+            title: 'Restaurant avec terrasse',
+            description: 'Profitez d\'un repas en extérieur',
+            icon: Home,
+            category: 'Ambiance',
+            action: 'Restaurant avec terrasse ensoleillée pour déjeuner'
+          },
+          {
+            id: 'r4',
+            title: 'Événement spécial',
+            description: 'Restaurants pour anniversaires et célébrations',
+            icon: Users,
+            category: 'Événement',
+            action: 'Restaurant romantique pour un anniversaire de mariage'
+          }
+        ];
+        
       case 'services_locaux':
         return [
           {

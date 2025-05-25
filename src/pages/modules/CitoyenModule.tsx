@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 export const CitoyenModule: React.FC = () => {
   const [showLocalServicesChat, setShowLocalServicesChat] = useState(false);
+  const [showRestaurantChat, setShowRestaurantChat] = useState(false);
 
   const services = [
     {
@@ -39,6 +40,8 @@ export const CitoyenModule: React.FC = () => {
   const handleActionClick = (action: string) => {
     if (action === 'Services locaux') {
       setShowLocalServicesChat(true);
+    } else if (action === 'Réserver restaurant') {
+      setShowRestaurantChat(true);
     }
     // Autres actions peuvent être ajoutées ici
   };
@@ -51,6 +54,19 @@ export const CitoyenModule: React.FC = () => {
           webhookUrl="https://ia.bot.bj/webhook/immo1"
           chatTitle="Services Locaux"
           chatContext="services_locaux"
+        />
+      </div>
+    );
+  }
+
+  if (showRestaurantChat) {
+    return (
+      <div className="h-screen">
+        <ChatInterface 
+          onBackToLanding={() => setShowRestaurantChat(false)} 
+          webhookUrl="https://ia.bot.bj/webhook/restau1"
+          chatTitle="Réservation Restaurant"
+          chatContext="restaurant"
         />
       </div>
     );

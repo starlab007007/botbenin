@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ChatMessage } from '@/components/ChatMessage';
@@ -15,7 +14,7 @@ interface Message {
 interface ChatMessageAreaProps {
   messages: Message[];
   showSuggestions: boolean;
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
   isLoading: boolean;
   onToggleBookmark: (messageId: string) => void;
   onSuggestionClick: (suggestion: any) => void;
@@ -46,6 +45,13 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
       { action: "Je cherche une coque d'iPhone", category: "produit" },
       { action: "Quels sont les articles disponibles dans votre boutique ?", category: "catalogue" },
       { action: "Quelles sont les nouveautés ?", category: "nouveauté" }
+    ],
+    restaurant: [
+      { action: "Je cherche un restaurant français", category: "cuisine" },
+      { action: "Restaurant avec terrasse disponible ce soir", category: "spécifique" },
+      { action: "Quels sont vos restaurants recommandés ?", category: "recommandation" },
+      { action: "Restaurant pour groupe de 8 personnes", category: "groupe" },
+      { action: "Réserver pour ce weekend", category: "réservation" }
     ],
     produit: [
       { action: "Montrez-moi les coques iPhone 15", category: "spécifique" },
@@ -161,7 +167,7 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
             
             {/* Suggestion buttons initiales */}
             <div className="space-y-3 max-w-sm mx-auto">
-              {suggestionBank.initial.map((suggestion, index) => (
+              {(userContext === 'restaurant' ? suggestionBank.restaurant : suggestionBank.initial).map((suggestion, index) => (
                 <button 
                   key={suggestion.action}
                   onClick={() => handleSuggestionClick(suggestion)}
