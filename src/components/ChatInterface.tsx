@@ -60,28 +60,51 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
     try {
       console.log('Sending message to webhook:', inputValue);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch('https://ia.bot.bj/webhook/iphoneshop1', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
         },
         body: JSON.stringify({
           message: inputValue,
           timestamp: new Date().toISOString(),
           session_id: 'career_coaching_session'
         }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}, statusText: ${response.statusText}`);
       }
 
-      const data = await response.text();
-      console.log('Received response from webhook:', data);
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+        console.log('Received JSON response from webhook:', data);
+        data = data.message || data.response || data.text || JSON.stringify(data);
+      } else {
+        data = await response.text();
+        console.log('Received text response from webhook:', data);
+      }
+
+      if (!data || data.trim() === '') {
+        throw new Error('Empty response from webhook');
+      }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: data || "I'm here to help you with your career journey. Could you tell me more about what you're looking to achieve?",
+        content: data.trim(),
         isUser: false,
         timestamp: new Date(),
       };
@@ -91,18 +114,28 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onBackToLanding })
     } catch (error) {
       console.error('Error calling webhook:', error);
       
-      const errorMessage: Message = {
+      let errorMessage = "I apologize, but I'm having trouble connecting right now. In the meantime, I'd love to help you think through your career goals. What specific area would you like to focus on - skill development, career transition, or finding your next opportunity?";
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = "The request timed out. Let me help you with your career question anyway. Could you tell me more about what you're looking to achieve in your career?";
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = "I'm unable to connect to the AI service right now. This might be due to network issues or the service being temporarily unavailable. Can you tell me about your career goals so I can provide some general guidance?";
+        }
+      }
+
+      const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: "I apologize, but I'm having trouble connecting right now. In the meantime, I'd love to help you think through your career goals. What specific area would you like to focus on - skill development, career transition, or finding your next opportunity?",
+        content: errorMessage,
         isUser: false,
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
         title: "Connection Issue",
-        description: "Having trouble connecting to the AI coach. Please try again in a moment.",
+        description: "Having trouble connecting to the AI coach. The service might be temporarily unavailable.",
         variant: "destructive",
       });
     } finally {
