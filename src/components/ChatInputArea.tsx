@@ -20,14 +20,14 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onSendMessage,
 }) => {
   return (
-    <div className="glass-header p-6">
+    <div className="glass-header p-6 bg-gray-50">
       <div className="flex items-end space-x-4 max-w-4xl mx-auto">
         <Button
           variant="ghost"
           size="sm"
           className="modern-button-secondary h-12 w-12 p-0 mb-1"
         >
-          <Paperclip className="w-5 h-5 icon-blue" />
+          <Paperclip className="w-5 h-5 text-gray-600" />
         </Button>
         
         <div className="flex-1 relative">
@@ -36,7 +36,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             onChange={(e) => onInputChange(e.target.value)}
             onKeyPress={onKeyPress}
             placeholder="Tapez votre message..."
-            className="modern-input min-h-[60px] max-h-[120px] resize-none py-4 px-6 pr-14 text-base bg-white/90 backdrop-blur-sm border-slate-200/50"
+            className="modern-input min-h-[60px] max-h-[120px] resize-none py-4 px-6 pr-14 text-base bg-gray-50/90 backdrop-blur-sm border-gray-200/50"
             disabled={isLoading}
           />
           <Button
@@ -44,7 +44,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             size="sm"
             className="absolute right-3 bottom-3 modern-button-secondary h-10 w-10 p-0"
           >
-            <Mic className="w-5 h-5 icon-green" />
+            <Mic className="w-5 h-5 text-gray-500" />
           </Button>
         </div>
         
