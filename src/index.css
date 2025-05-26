@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,69 +7,49 @@
 
 @layer base {
   :root {
-    /* Bot.Bj Brand Colors - Light Mode */
-    --background: 248 250 252;
-    --foreground: 15 23 42;
-    --card: 255 255 255;
-    --card-foreground: 15 23 42;
+    /* Couleurs uniformisées - tons gris et blanc */
+    --background: 249 250 251; /* gray-50 */
+    --foreground: 17 24 39; /* gray-900 */
+    --card: 255 255 255; /* white */
+    --card-foreground: 17 24 39; /* gray-900 */
     --popover: 255 255 255;
-    --popover-foreground: 15 23 42;
-    --primary: 13 71 161; /* #0D47A1 - Bleu foncé */
-    --primary-foreground: 248 250 252;
-    --secondary: 46 125 50; /* #2E7D32 - Vert succès */
-    --secondary-foreground: 248 250 252;
-    --muted: 241 245 249;
-    --muted-foreground: 100 116 139;
-    --accent: 107 114 128; /* Gris au lieu d'orange */
-    --accent-foreground: 248 250 252;
+    --popover-foreground: 17 24 39;
+    --primary: 75 85 99; /* gray-600 - pour les boutons */
+    --primary-foreground: 255 255 255;
+    --secondary: 156 163 175; /* gray-400 */
+    --secondary-foreground: 17 24 39;
+    --muted: 243 244 246; /* gray-100 */
+    --muted-foreground: 107 114 128; /* gray-500 */
+    --accent: 229 231 235; /* gray-200 */
+    --accent-foreground: 17 24 39;
     --destructive: 239 68 68;
-    --destructive-foreground: 248 250 252;
-    --border: 226 232 240;
-    --input: 226 232 240;
-    --ring: 13 71 161;
+    --destructive-foreground: 255 255 255;
+    --border: 229 231 235; /* gray-200 */
+    --input: 229 231 235;
+    --ring: 75 85 99;
     --radius: 0.75rem;
-    
-    /* Bot.Bj Custom Variables */
-    --bot-bj-blue: 13 71 161;
-    --bot-bj-green: 46 125 50;
-    --bot-bj-gray: 107 114 128; /* Gris au lieu d'orange */
-    --glass-bg: rgba(255, 255, 255, 0.85);
-    --glass-border: rgba(13, 71, 161, 0.1);
-    --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --gradient-primary: linear-gradient(135deg, rgb(13, 71, 161) 0%, rgb(46, 125, 50) 100%);
-    --gradient-surface: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   }
 
   .dark {
-    /* Bot.Bj Brand Colors - Dark Mode */
-    --background: 15 23 42;
-    --foreground: 248 250 252;
-    --card: 30 41 59;
-    --card-foreground: 248 250 252;
-    --popover: 30 41 59;
-    --popover-foreground: 248 250 252;
-    --primary: 59 130 246; /* Lighter blue for dark mode */
-    --primary-foreground: 15 23 42;
-    --secondary: 34 197 94; /* Lighter green for dark mode */
-    --secondary-foreground: 15 23 42;
-    --muted: 51 65 85;
-    --muted-foreground: 148 163 184;
-    --accent: 156 163 175; /* Lighter gray for dark mode */
-    --accent-foreground: 15 23 42;
+    --background: 17 24 39; /* gray-900 */
+    --foreground: 249 250 251; /* gray-50 */
+    --card: 31 41 55; /* gray-800 */
+    --card-foreground: 249 250 251;
+    --popover: 31 41 55;
+    --popover-foreground: 249 250 251;
+    --primary: 156 163 175; /* gray-400 */
+    --primary-foreground: 17 24 39;
+    --secondary: 75 85 99; /* gray-600 */
+    --secondary-foreground: 249 250 251;
+    --muted: 55 65 81; /* gray-700 */
+    --muted-foreground: 156 163 175;
+    --accent: 75 85 99;
+    --accent-foreground: 249 250 251;
     --destructive: 248 113 113;
-    --destructive-foreground: 15 23 42;
-    --border: 51 65 85;
-    --input: 51 65 85;
-    --ring: 59 130 246;
-    
-    /* Dark mode adjustments */
-    --glass-bg: rgba(30, 41, 59, 0.85);
-    --glass-border: rgba(59, 130, 246, 0.2);
-    --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-    --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
-    --gradient-primary: linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(34, 197, 94) 100%);
-    --gradient-surface: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    --destructive-foreground: 17 24 39;
+    --border: 75 85 99;
+    --input: 75 85 99;
+    --ring: 156 163 175;
   }
 
   .sidebar-background {
@@ -91,7 +70,7 @@
   }
 
   body {
-    @apply bg-gray-100 text-foreground transition-colors duration-300; /* Changé de bg-background à bg-gray-100 */
+    @apply bg-gray-50 text-foreground transition-colors duration-300;
     font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -112,115 +91,40 @@
   }
 }
 
-/* Bot.Bj Design System Components */
-.bot-bj-card {
-  @apply bg-card border border-border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 backdrop-blur-sm;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+/* Composants uniformisés */
+.uniform-card {
+  @apply bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300;
 }
 
-.bot-bj-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-medium);
+.uniform-button-primary {
+  @apply bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg px-4 py-2 transition-all duration-200;
 }
 
-.bot-bj-button-primary {
-  @apply text-white font-semibold rounded-2xl px-6 py-3 shadow-lg transition-all duration-300 hover:scale-105 active:scale-95;
-  background: var(--gradient-primary);
+.uniform-button-secondary {
+  @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg px-4 py-2 border border-gray-300 transition-all duration-200;
 }
 
-.bot-bj-button-primary:hover {
-  filter: brightness(1.1);
+.uniform-input {
+  @apply bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200;
 }
 
-.bot-bj-button-secondary {
-  @apply bg-secondary text-secondary-foreground font-medium rounded-2xl px-6 py-3 border hover:bg-secondary/90 transition-all duration-300 hover:scale-105 active:scale-95;
+.uniform-badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
 }
 
-.bot-bj-button-accent {
-  @apply bg-gray-500 text-white font-semibold rounded-2xl px-6 py-3 shadow-lg transition-all duration-300 hover:scale-105 active:scale-95; /* Changé en gris */
+.uniform-badge-active {
+  @apply bg-green-100 text-green-800 border border-green-200;
 }
 
-.bot-bj-input {
-  @apply bg-background border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300;
+.uniform-badge-inactive {
+  @apply bg-gray-100 text-gray-800 border border-gray-200;
 }
 
-.bot-bj-sidebar {
-  background: var(--gradient-surface);
-  backdrop-filter: blur(20px) saturate(180%);
-  border-right: 1px solid var(--glass-border);
+.uniform-stats-card {
+  @apply bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300;
 }
 
-.bot-bj-nav-item {
-  @apply flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 font-medium;
-}
-
-.bot-bj-nav-item:hover {
-  @apply bg-primary/10 text-primary;
-  transform: translateX(4px);
-}
-
-.bot-bj-nav-item.active {
-  @apply bg-primary text-primary-foreground shadow-lg;
-}
-
-.bot-bj-nav-item.secondary:hover {
-  @apply bg-secondary/10 text-secondary;
-}
-
-.bot-bj-nav-item.secondary.active {
-  @apply bg-secondary text-secondary-foreground;
-}
-
-.bot-bj-nav-item.accent:hover {
-  @apply bg-gray-500/10 text-gray-600; /* Changé en gris */
-}
-
-.bot-bj-nav-item.accent.active {
-  @apply bg-gray-500 text-white; /* Changé en gris */
-}
-
-/* Chat Interface Styles */
-.bot-bj-chat-bubble-user {
-  @apply bg-primary text-primary-foreground rounded-2xl rounded-br-lg px-4 py-3 max-w-xs ml-auto shadow-md;
-}
-
-.bot-bj-chat-bubble-ai {
-  @apply bg-card text-card-foreground rounded-2xl rounded-bl-lg px-4 py-3 max-w-xs mr-auto shadow-md border;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-}
-
-.bot-bj-suggestion-card {
-  @apply rounded-xl p-4 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg border;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-}
-
-.bot-bj-suggestion-card:hover {
-  background: var(--background);
-  box-shadow: var(--shadow-medium);
-}
-
-/* Stats Cards */
-.bot-bj-stats-card {
-  @apply p-6 rounded-2xl shadow-lg transition-all duration-300 hover:scale-105;
-}
-
-.bot-bj-stats-card.primary {
-  background: var(--gradient-primary);
-  @apply text-white;
-}
-
-.bot-bj-stats-card.secondary {
-  @apply bg-secondary text-secondary-foreground;
-}
-
-.bot-bj-stats-card.accent {
-  @apply bg-gray-500 text-white; /* Changé en gris */
-}
-
-/* ... keep existing code (scrollbar styling and animations) */
+/* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -332,13 +236,12 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .bot-bj-card {
-    @apply p-4 rounded-xl;
+  .uniform-card {
+    @apply p-4 rounded-lg;
   }
   
-  .bot-bj-button-primary,
-  .bot-bj-button-secondary,
-  .bot-bj-button-accent {
-    @apply px-4 py-2.5 text-sm;
+  .uniform-button-primary,
+  .uniform-button-secondary {
+    @apply px-3 py-2 text-sm;
   }
 }
