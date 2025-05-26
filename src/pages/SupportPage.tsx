@@ -1,14 +1,14 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { HelpCircle, Book, MessageCircle, Mail, Phone, Search, FileText, Video, ArrowRight } from 'lucide-react';
+import { HelpCircle, Book, MessageCircle, Mail, Phone, Search, FileText, Video, ArrowRight, Presentation } from 'lucide-react';
 import { DocumentationViewer } from '@/components/support/DocumentationViewer';
 import { LiveChatSystem } from '@/components/support/LiveChatSystem';
 import { VideoTutorials } from '@/components/support/VideoTutorials';
 import { KnowledgeBase } from '@/components/support/KnowledgeBase';
+import PlatformPresentation from '@/components/support/PlatformPresentation';
 
-type SupportView = 'home' | 'documentation' | 'chat' | 'videos' | 'knowledge';
+type SupportView = 'home' | 'documentation' | 'chat' | 'videos' | 'knowledge' | 'presentation';
 
 export const SupportPage: React.FC = () => {
   const [currentView, setCurrentView] = useState<SupportView>('home');
@@ -49,6 +49,15 @@ export const SupportPage: React.FC = () => {
       action: 'Parcourir les articles',
       view: 'knowledge' as SupportView,
       features: ['Articles détaillés', 'Solutions pratiques', 'Recherche avancée', 'Évaluations utilisateurs']
+    },
+    {
+      title: 'Présentation de la plateforme',
+      description: 'Découvrez l\'unicité de Bot.Bj, ses spécialités et sa valeur ajoutée',
+      icon: Presentation,
+      color: 'bg-gradient-to-r from-pink-500 to-purple-600',
+      action: 'Découvrir la plateforme',
+      view: 'presentation' as SupportView,
+      features: ['Vision complète', 'Avantages uniques', 'Flyers publicitaires', 'Témoignages clients']
     }
   ];
 
@@ -98,7 +107,8 @@ export const SupportPage: React.FC = () => {
       documentation: <DocumentationViewer />,
       chat: <LiveChatSystem />,
       videos: <VideoTutorials />,
-      knowledge: <KnowledgeBase />
+      knowledge: <KnowledgeBase />,
+      presentation: <PlatformPresentation />
     };
     
     return (
@@ -253,7 +263,7 @@ export const SupportPage: React.FC = () => {
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl">⚡</span>
             </div>
-            <h3 className="font-semibold text-black mb-2">Temps de réponse inférieur à 2min</h3>
+            <h3 className="font-semibold text-black mb-2">Temps de réponse < 2min</h3>
             <p className="text-black text-sm">Support technique réactif</p>
           </div>
           <div className="text-center">
