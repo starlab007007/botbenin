@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -304,7 +303,7 @@ export const HomePage: React.FC = () => {
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Hero Section */}
-      <div className="text-center bg-gradient-to-br from-gray-800 via-gray-900 to-black text-white py-16 px-8 rounded-3xl">
+      <div className="text-center bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 text-white py-16 px-8 rounded-3xl">
         <p className="text-sm lg:text-base text-gray-300 mb-4">
           Pour les entreprises qui fonctionnent déjà bien et qui veulent propulser leur croissance grâce à l'IA →
         </p>
@@ -339,7 +338,7 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {processSteps.map((step, index) => (
-            <Card key={index} className="bg-gray-800 border-gray-700 text-white p-8 hover:shadow-xl transition-shadow">
+            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-8 hover:shadow-xl transition-shadow">
               <div className={`w-16 h-16 ${step.color} rounded-xl flex items-center justify-center mb-6 mx-auto`}>
                 <step.icon className="w-8 h-8 text-white" />
               </div>
@@ -357,7 +356,7 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {aiReasons.map((reason, index) => (
-            <Card key={index} className="bg-gray-800 border-gray-700 text-white p-6 hover:shadow-lg transition-shadow">
+            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-6 hover:shadow-lg transition-shadow">
               <div className={`w-12 h-12 ${reason.color} rounded-xl flex items-center justify-center mb-4`}>
                 <reason.icon className="w-6 h-6 text-white" />
               </div>
@@ -375,7 +374,7 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {aiAdvantages.map((advantage, index) => (
-            <Card key={index} className="bg-gray-800 border-gray-700 text-white p-8 hover:shadow-xl transition-shadow">
+            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-8 hover:shadow-xl transition-shadow">
               <div className={`w-16 h-16 ${advantage.color} rounded-xl flex items-center justify-center mb-6 mx-auto`}>
                 <advantage.icon className="w-8 h-8 text-white" />
               </div>
@@ -400,7 +399,7 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {pricingPlans.map((plan, index) => (
-            <Card key={index} className="bg-gray-800 border-gray-700 text-white p-8 hover:shadow-xl transition-shadow">
+            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-8 hover:shadow-xl transition-shadow">
               <h3 className="text-xl font-semibold mb-4 text-center">{plan.title}</h3>
               <p className="text-gray-300 text-sm mb-6 text-center leading-relaxed">{plan.description}</p>
               <div className="text-center mb-6">
