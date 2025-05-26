@@ -21,12 +21,12 @@ const timeSlots = [
 ];
 
 const revenueRanges = [
-  { value: '0-10k', label: '0-10k €' },
-  { value: '10-20k', label: '10-20k €' },
-  { value: '20-50k', label: '20-50k €' },
-  { value: '50-100k', label: '50-100k €' },
-  { value: '100-200k', label: '100-200k €' },
-  { value: '200k+', label: 'Plus de 200k €' }
+  { value: '0-10k', label: '0-10k CFA' },
+  { value: '10-20k', label: '10-20k CFA' },
+  { value: '20-50k', label: '20-50k CFA' },
+  { value: '50-100k', label: '50-100k CFA' },
+  { value: '100-200k', label: '100-200k CFA' },
+  { value: '200k+', label: 'Plus de 200k CFA' }
 ];
 
 export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOpenChange }) => {
@@ -56,7 +56,13 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.acceptTerms) {
+    if (formData.acceptTerms && formData.revenue) {
+      // Envoi des données à l'administrateur
+      console.log('Données envoyées à l\'administrateur:', {
+        date: selectedDate,
+        time: selectedTime,
+        ...formData
+      });
       setStep('confirmation');
     }
   };
@@ -91,15 +97,15 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl bg-white border border-gray-200 text-gray-900">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white border border-gray-200 text-gray-900 md:w-full w-[95%] mx-auto my-2">
         <DialogHeader className="border-b border-gray-200 pb-4">
           <div className="flex items-center space-x-4">
             <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center text-white font-semibold">
-              A
+              S
             </div>
             <div>
               <DialogTitle className="text-xl font-semibold text-gray-900">
-                Alexis Dubain
+                STAR LAB
               </DialogTitle>
               <h2 className="text-lg font-medium text-gray-900 mt-1">Audit Offert</h2>
             </div>
@@ -110,7 +116,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
               Réservez votre audit stratégique pour découvrir combien d'heures par semaine vous pouvez gagner grâce à l'IA.
             </p>
           </div>
-          <div className="flex items-center space-x-6 mt-4 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-gray-600">
             <div className="flex items-center space-x-2">
               <Clock className="w-4 h-4" />
               <span>45min</span>
@@ -126,21 +132,21 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
           </div>
         </DialogHeader>
 
-        <div className="flex">
+        <div className="flex flex-col md:flex-row">
           {step === 'calendar' && (
             <>
-              <div className="flex-1 p-6">
+              <div className="flex-1 p-4 md:p-6">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={handleDateSelect}
                   locale={fr}
-                  className="bg-white border border-gray-200 rounded-lg pointer-events-auto"
+                  className="bg-white border border-gray-200 rounded-lg pointer-events-auto mx-auto"
                   disabled={(date) => date < new Date()}
                 />
               </div>
               {selectedDate && (
-                <div className="w-80 p-6 border-l border-gray-200">
+                <div className="w-full md:w-80 p-4 md:p-6 border-t md:border-t-0 md:border-l border-gray-200">
                   <div className="mb-4">
                     <h3 className="font-medium text-gray-900">
                       {format(selectedDate, 'EEEE d MMMM yyyy', { locale: fr })}
@@ -154,7 +160,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
                       24 h
                     </Button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
                     {timeSlots.map((time) => (
                       <Button
                         key={time}
@@ -172,7 +178,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
           )}
 
           {step === 'form' && (
-            <div className="flex-1 p-6">
+            <div className="flex-1 p-4 md:p-6">
               <div className="flex items-center justify-between mb-6">
                 <Button
                   variant="ghost"
@@ -239,6 +245,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
                   <Select
                     value={formData.isCompany}
                     onValueChange={(value) => setFormData({ ...formData, isCompany: value })}
+                    required
                   >
                     <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                       <SelectValue placeholder="Sélectionnez une option" />
@@ -302,7 +309,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
                     className="border-gray-300 mt-1"
                   />
                   <Label htmlFor="terms" className="text-sm text-gray-700 leading-relaxed">
-                    En cochant cette case, vous vous engagez à être disponible à l'heure convenue. Notre équipe Automascale investit du temps et des ressources pour préparer cet audit et vous proposer des solutions sur-mesure.
+                    En cochant cette case, vous vous engagez à être disponible à l'heure convenue. Notre équipe STAR LAB investit du temps et des ressources pour préparer cet audit et vous proposer des solutions sur-mesure.
                     <br />
                     <br />
                     Si vous devez reporter ce rendez-vous, merci de nous prévenir à l'avance 😊.
@@ -332,7 +339,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
                   <Button
                     type="submit"
                     className="bg-gray-900 text-white hover:bg-gray-800"
-                    disabled={!formData.acceptTerms}
+                    disabled={!formData.acceptTerms || !formData.revenue}
                   >
                     Confirmer
                   </Button>
@@ -342,7 +349,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
           )}
 
           {step === 'confirmation' && (
-            <div className="flex-1 p-6 text-center">
+            <div className="flex-1 p-4 md:p-6 text-center">
               <div className="mb-6">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Check className="w-8 h-8 text-green-600" />

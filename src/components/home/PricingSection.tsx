@@ -20,7 +20,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onBookingClick }
     {
       title: "Premier test",
       description: "Lancez votre première automatisation et constatez par vous-même l'impact sur votre efficacité opérationnelle.",
-      price: "À partir de 300.000 CFA",
+      price: "Premier test gratuit",
       buttonText: "Réserver un rdv",
       color: "bg-blue-500"
     },
