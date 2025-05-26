@@ -1,12 +1,13 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bot, Zap, Brain, Users, ArrowRight, Building, Store, GraduationCap, Hotel, Home, ShoppingCart, MessageSquare, CheckCircle, TrendingUp, Award, Star, Target, Settings, Rocket, Clock, RefreshCw, Edit3, UserCheck, Gauge, Clock4 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BookingModal } from '@/components/BookingModal';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
   const quickActions = [
     {
@@ -142,7 +143,7 @@ export const HomePage: React.FC = () => {
     {
       title: "Premier test",
       description: "Lancez votre première automatisation et constatez par vous-même l'impact sur votre efficacité opérationnelle.",
-      price: "À partir de 300.000 CFA",
+      price: "Gratuit",
       buttonText: "Réserver un rdv",
       color: "bg-gradient-to-br from-orange-500 to-yellow-500"
     },
@@ -301,6 +302,10 @@ export const HomePage: React.FC = () => {
     }
   ];
 
+  const handleBookingClick = () => {
+    setIsBookingModalOpen(true);
+  };
+
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Hero Section */}
@@ -324,7 +329,7 @@ export const HomePage: React.FC = () => {
         </p>
         <Button 
           className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white px-8 py-4 text-lg font-semibold border-0"
-          onClick={() => navigate('/chat')}
+          onClick={handleBookingClick}
         >
           Planifiez votre audit offert
           <ArrowRight className="w-5 h-5 ml-2" />
@@ -408,7 +413,7 @@ export const HomePage: React.FC = () => {
               </div>
               <Button 
                 className={`w-full ${plan.color} hover:opacity-90 text-white border-0 font-semibold py-3`}
-                onClick={() => navigate('/chat')}
+                onClick={handleBookingClick}
               >
                 {plan.buttonText}
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -556,7 +561,7 @@ export const HomePage: React.FC = () => {
             <p className="text-blue-100">Découvrez la puissance de l'IA conversationnelle pour votre entreprise</p>
           </div>
           <Button 
-            onClick={() => navigate('/chat')}
+            onClick={handleBookingClick}
             className="bg-white text-blue-600 hover:bg-gray-100 font-semibold px-8 py-4"
           >
             Commencer maintenant
@@ -564,6 +569,11 @@ export const HomePage: React.FC = () => {
           </Button>
         </div>
       </Card>
+
+      <BookingModal 
+        isOpen={isBookingModalOpen} 
+        onClose={() => setIsBookingModalOpen(false)} 
+      />
     </div>
   );
 };
