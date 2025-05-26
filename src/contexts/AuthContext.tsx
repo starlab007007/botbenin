@@ -1,203 +1,267 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
-interface ExtendedUser extends User {
-  name?: string;
-  permissions?: string[];
-  lastLogin?: Date;
-  createdAt?: Date;
-  subscription?: {
-    type: string;
-    status: string;
-  };
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
   phone?: string;
-  role?: string;
+  role: 'admin' | 'manager' | 'user' | 'viewer';
+  avatar?: string;
+  permissions: string[];
+  status: 'active' | 'inactive' | 'pending';
+  lastLogin?: Date;
+  createdAt: Date;
+  subscription?: {
+    type: 'free' | 'pro' | 'enterprise';
+    status: 'active' | 'expired' | 'cancelled';
+    expiresAt?: Date;
+  };
+  chatHistory: Array<{
+    id: string;
+    timestamp: Date;
+    messages: Array<{
+      content: string;
+      isUser: boolean;
+      timestamp: Date;
+    }>;
+  }>;
 }
 
 interface AuthContextType {
-  user: ExtendedUser | null;
-  session: Session | null;
-  loading: boolean;
+  user: AuthUser | null;
   isAuthenticated: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signOut: () => Promise<void>;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
-  register: (data: { name: string; email: string; phone?: string; password: string }) => Promise<boolean>;
+  register: (userData: {
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+  }) => Promise<boolean>;
   logout: () => void;
-  updateProfile: (data: any) => void;
+  updateProfile: (updates: Partial<AuthUser>) => void;
   isLoading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+const rolePermissions = {
+  admin: [
+    'read_all', 'write_all', 'delete_all', 'manage_users', 'manage_roles',
+    'view_analytics', 'manage_automations', 'access_all_modules', 'manage_subscriptions'
+  ],
+  manager: [
+    'read_all', 'write_most', 'manage_team', 'view_analytics', 
+    'manage_automations', 'access_business_modules'
+  ],
+  user: [
+    'read_own', 'write_own', 'use_automations', 'access_basic_modules', 'manage_profile'
+  ],
+  viewer: [
+    'read_limited', 'view_dashboards'
+  ]
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<ExtendedUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+// Mock users database
+const mockUsers: AuthUser[] = [
+  {
+    id: '1',
+    name: 'Administrateur Principal',
+    email: 'admin@bot.bj',
+    phone: '+22997123456',
+    role: 'admin',
+    permissions: rolePermissions.admin,
+    status: 'active',
+    createdAt: new Date('2024-01-01'),
+    lastLogin: new Date(),
+    subscription: {
+      type: 'enterprise',
+      status: 'active'
+    },
+    chatHistory: []
+  },
+  {
+    id: '2',
+    name: 'Manager Commercial',
+    email: 'manager@bot.bj',
+    phone: '+22997654321',
+    role: 'manager',
+    permissions: rolePermissions.manager,
+    status: 'active',
+    createdAt: new Date('2024-01-15'),
+    lastLogin: new Date(Date.now() - 86400000),
+    subscription: {
+      type: 'pro',
+      status: 'active'
+    },
+    chatHistory: []
+  }
+];
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        if (session?.user) {
-          // Extend user with additional properties
-          const extendedUser: ExtendedUser = {
-            ...session.user,
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
-            permissions: ['read_own', 'write_own'],
-            lastLogin: new Date(),
-            createdAt: new Date(session.user.created_at),
-            role: 'user',
-            phone: session.user.user_metadata?.phone,
-            subscription: {
-              type: 'free',
-              status: 'active'
-            }
-          };
-          setUser(extendedUser);
-        } else {
-          setUser(null);
-        }
-        setLoading(false);
+    // Check for stored auth on mount
+    const storedUser = localStorage.getItem('bot_bj_user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      } catch (error) {
+        localStorage.removeItem('bot_bj_user');
       }
-    );
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        const extendedUser: ExtendedUser = {
-          ...session.user,
-          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
-          permissions: ['read_own', 'write_own'],
-          lastLogin: new Date(),
-          createdAt: new Date(session.user.created_at),
-          role: 'user',
-          phone: session.user.user_metadata?.phone,
-          subscription: {
-            type: 'free',
-            status: 'active'
-          }
-        };
-        setUser(extendedUser);
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    }
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const foundUser = mockUsers.find(u => u.email === email);
+    
+    if (foundUser && password === 'password123') {
+      const updatedUser = { ...foundUser, lastLogin: new Date() };
+      setUser(updatedUser);
+      localStorage.setItem('bot_bj_user', JSON.stringify(updatedUser));
+      
+      toast({
+        title: "Connexion réussie",
+        description: `Bienvenue ${foundUser.name}!`,
+      });
+      
+      setIsLoading(false);
+      return true;
+    }
+    
+    toast({
+      title: "Erreur de connexion",
+      description: "Email ou mot de passe incorrect",
+      variant: "destructive",
+    });
+    
+    setIsLoading(false);
+    return false;
+  };
+
+  const loginWithPhone = async (phone: string, password: string): Promise<boolean> => {
+    setIsLoading(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const foundUser = mockUsers.find(u => u.phone === phone);
+    
+    if (foundUser && password === 'password123') {
+      const updatedUser = { ...foundUser, lastLogin: new Date() };
+      setUser(updatedUser);
+      localStorage.setItem('bot_bj_user', JSON.stringify(updatedUser));
+      
+      toast({
+        title: "Connexion réussie",
+        description: `Bienvenue ${foundUser.name}!`,
+      });
+      
+      setIsLoading(false);
+      return true;
+    }
+    
+    toast({
+      title: "Erreur de connexion",
+      description: "Téléphone ou mot de passe incorrect",
+      variant: "destructive",
+    });
+    
+    setIsLoading(false);
+    return false;
+  };
+
+  const register = async (userData: {
+    name: string;
+    email: string;
+    phone?: string;
+    password: string;
+  }): Promise<boolean> => {
+    setIsLoading(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const newUser: AuthUser = {
+      id: Date.now().toString(),
+      name: userData.name,
+      email: userData.email,
+      phone: userData.phone,
+      role: 'user',
+      permissions: rolePermissions.user,
+      status: 'active',
+      createdAt: new Date(),
+      subscription: {
+        type: 'free',
+        status: 'active'
       },
+      chatHistory: []
+    };
+    
+    mockUsers.push(newUser);
+    setUser(newUser);
+    localStorage.setItem('bot_bj_user', JSON.stringify(newUser));
+    
+    toast({
+      title: "Compte créé avec succès",
+      description: `Bienvenue ${newUser.name}!`,
     });
+    
     setIsLoading(false);
-    return { error };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    setIsLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setIsLoading(false);
-    return { error };
-  };
-
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    setIsLoading(false);
-    return !error;
-  };
-
-  const loginWithPhone = async (phone: string, password: string) => {
-    setIsLoading(true);
-    // For now, use email-based login with phone as identifier
-    const { error } = await supabase.auth.signInWithPassword({
-      email: phone,
-      password,
-    });
-    setIsLoading(false);
-    return !error;
-  };
-
-  const register = async (data: { name: string; email: string; phone?: string; password: string }) => {
-    setIsLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-      options: {
-        data: {
-          full_name: data.name,
-          phone: data.phone,
-        },
-      },
-    });
-    setIsLoading(false);
-    return !error;
-  };
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
+    return true;
   };
 
   const logout = () => {
-    supabase.auth.signOut();
+    setUser(null);
+    localStorage.removeItem('bot_bj_user');
+    toast({
+      title: "Déconnexion",
+      description: "Vous avez été déconnecté avec succès",
+    });
   };
 
-  const updateProfile = (data: any) => {
+  const updateProfile = (updates: Partial<AuthUser>) => {
     if (user) {
-      setUser({ ...user, ...data });
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      localStorage.setItem('bot_bj_user', JSON.stringify(updatedUser));
+      
+      toast({
+        title: "Profil mis à jour",
+        description: "Vos informations ont été mises à jour avec succès",
+      });
     }
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        loading,
-        isAuthenticated: !!user,
-        signUp,
-        signIn,
-        signOut,
-        login,
-        loginWithPhone,
-        register,
-        logout,
-        updateProfile,
-        isLoading,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated: !!user,
+      login,
+      loginWithPhone,
+      register,
+      logout,
+      updateProfile,
+      isLoading
+    }}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

@@ -1,244 +1,119 @@
 
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { Plus, Bot, Users, MessageSquare, Settings, LogOut, BarChart3 } from 'lucide-react';
-import { BotManagement } from '@/components/BotManagement';
-import { MessagesOverview } from '@/components/MessagesOverview';
-import { UserAnalytics } from '@/components/UserAnalytics';
-
-interface Bot {
-  id: string;
-  name: string;
-  description: string;
-  webhook_url: string;
-  is_active: boolean;
-  created_at: string;
-}
-
-interface BotOwner {
-  id: string;
-  subscription_plan: string;
-  max_bots: number;
-}
+import React from 'react';
+import { Card } from '@/components/ui/card';
+import { BarChart3, TrendingUp, Users, Zap, Activity, Target, Clock, Star } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
-  const { user, loading, signOut } = useAuth();
-  const { toast } = useToast();
-  const [bots, setBots] = useState<Bot[]>([]);
-  const [botOwner, setBotOwner] = useState<BotOwner | null>(null);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [isLoading, setIsLoading] = useState(true);
+  const metrics = [
+    { title: 'Conversations', value: '1,234', change: '+12%', icon: BarChart3, color: 'bg-blue-500' },
+    { title: 'Workflows', value: '89', change: '+8%', icon: Zap, color: 'bg-purple-500' },
+    { title: 'Utilisateurs', value: '456', change: '+15%', icon: Users, color: 'bg-green-500' },
+    { title: 'Performance', value: '98.5%', change: '+2%', icon: TrendingUp, color: 'bg-gray-500' },
+    { title: 'Leads générés', value: '234', change: '+28%', icon: Target, color: 'bg-pink-500' },
+    { title: 'Temps économisé', value: '45h', change: '+18%', icon: Clock, color: 'bg-teal-500' },
+    { title: 'Satisfaction', value: '4.8/5', change: '+0.3', icon: Star, color: 'bg-gray-600' },
+    { title: 'Activité', value: '92%', change: '+5%', icon: Activity, color: 'bg-indigo-500' }
+  ];
 
-  useEffect(() => {
-    if (user) {
-      fetchBotOwnerData();
-      fetchBots();
-    }
-  }, [user]);
+  const recentActivities = [
+    { action: 'Nouveau workflow créé', time: 'Il y a 2h', type: 'creation' },
+    { action: 'Campagne email lancée', time: 'Il y a 5h', type: 'campaign' },
+    { action: 'Contact ajouté au CRM', time: 'Il y a 1j', type: 'crm' },
+    { action: 'Rapport généré', time: 'Il y a 2j', type: 'report' },
+    { action: 'Lead qualifié', time: 'Il y a 3j', type: 'lead' }
+  ];
 
-  const fetchBotOwnerData = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('bot_owners')
-        .select('*')
-        .eq('user_id', user?.id)
-        .single();
-
-      if (error) throw error;
-      setBotOwner(data);
-    } catch (error) {
-      console.error('Error fetching bot owner data:', error);
-    }
-  };
-
-  const fetchBots = async () => {
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('bots')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setBots(data || []);
-    } catch (error) {
-      console.error('Error fetching bots:', error);
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de charger les bots.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    toast({
-      title: 'Déconnexion',
-      description: 'Vous avez été déconnecté avec succès.',
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  const navItems = [
-    { id: 'overview', label: 'Vue d\'ensemble', icon: BarChart3 },
-    { id: 'bots', label: 'Mes Bots', icon: Bot },
-    { id: 'messages', label: 'Messages', icon: MessageSquare },
-    { id: 'users', label: 'Utilisateurs', icon: Users },
+  const topModules = [
+    { name: 'Agent IA Business', usage: '45%', color: 'bg-blue-500', trend: '+12%' },
+    { name: 'Agent IA Marketing', usage: '32%', color: 'bg-green-500', trend: '+8%' },
+    { name: 'IA Citoyen', usage: '23%', color: 'bg-purple-500', trend: '+15%' },
+    { name: 'Agent IA Gestion', usage: '18%', color: 'bg-gray-500', trend: '+5%' }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">Bot.Bj Dashboard</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Bonjour, {user.user_metadata?.full_name || user.email}
-              </span>
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Déconnexion
-              </Button>
-            </div>
-          </div>
-        </div>
+      <div>
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Tableaux de bord</h1>
+        <p className="text-gray-600">Vue d'ensemble de vos performances et activités</p>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
-          {/* Sidebar */}
-          <div className="w-64 space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center px-4 py-3 rounded-lg text-left transition-colors ${
-                    activeTab === item.id
-                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 mr-3" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        {metrics.map((metric, index) => (
+          <Card key={index} className="p-6 hover:shadow-lg transition-all duration-200 bg-white border border-gray-200 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <div className={`w-12 h-12 ${metric.color} rounded-xl flex items-center justify-center shadow-sm`}>
+                <metric.icon className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-green-600 text-sm font-medium">{metric.change}</span>
+            </div>
+            <h3 className="text-gray-600 text-sm mb-1">{metric.title}</h3>
+            <div className="text-2xl font-bold text-gray-900">{metric.value}</div>
+          </Card>
+        ))}
+      </div>
 
-          {/* Main Content */}
-          <div className="flex-1">
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-gray-600">
-                        Bots Actifs
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-gray-900">
-                        {bots.filter(bot => bot.is_active).length}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-gray-600">
-                        Total Bots
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-gray-900">
-                        {bots.length}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-gray-600">
-                        Plan
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold text-gray-900 capitalize">
-                        {botOwner?.subscription_plan || 'Free'}
-                      </div>
-                    </CardContent>
-                  </Card>
+      {/* Charts and Activities */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Recent Activities */}
+        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Activité récente</h2>
+          <div className="space-y-4">
+            {recentActivities.map((activity, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div className="flex items-center space-x-3">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-gray-900">{activity.action}</span>
                 </div>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Bienvenue sur Bot.Bj</CardTitle>
-                    <CardDescription>
-                      Gérez vos chatbots IA et analysez les interactions de vos utilisateurs.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600 mb-4">
-                      Avec votre plan {botOwner?.subscription_plan || 'free'}, vous pouvez créer jusqu'à {botOwner?.max_bots || 1} bot(s).
-                    </p>
-                    {bots.length < (botOwner?.max_bots || 1) && (
-                      <Button onClick={() => setActiveTab('bots')}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Créer un nouveau bot
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
+                <span className="text-gray-500 text-sm">{activity.time}</span>
               </div>
-            )}
+            ))}
+          </div>
+        </Card>
 
-            {activeTab === 'bots' && (
-              <BotManagement 
-                bots={bots} 
-                setBots={setBots}
-                botOwner={botOwner}
-                isLoading={isLoading}
-              />
-            )}
+        {/* Top Modules */}
+        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6">Modules les plus utilisés</h2>
+          <div className="space-y-6">
+            {topModules.map((module, index) => (
+              <div key={index} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-900 font-medium">{module.name}</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-green-600 text-xs font-medium">{module.trend}</span>
+                    <span className="text-gray-900 font-semibold">{module.usage}</span>
+                  </div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${module.color} transition-all duration-500`}
+                    style={{ width: module.usage }}
+                  ></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
 
-            {activeTab === 'messages' && (
-              <MessagesOverview bots={bots} />
-            )}
-
-            {activeTab === 'users' && (
-              <UserAnalytics bots={bots} />
-            )}
+      {/* Performance Summary */}
+      <Card className="p-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 rounded-xl">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="text-center lg:text-left">
+            <h3 className="text-xl font-semibold mb-2">Performance globale</h3>
+            <p className="text-blue-100">Votre plateforme fonctionne à son niveau optimal</p>
+          </div>
+          <div className="text-center">
+            <div className="text-4xl font-bold mb-1">98.5%</div>
+            <p className="text-blue-100 text-sm">Taux de disponibilité</p>
+          </div>
+          <div className="text-center lg:text-right">
+            <div className="text-4xl font-bold mb-1">2.3s</div>
+            <p className="text-blue-100 text-sm">Temps de réponse moyen</p>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };

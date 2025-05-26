@@ -35,8 +35,8 @@ export const AccountPage: React.FC = () => {
 
   const handleCancelEdit = () => {
     setEditData({
-      name: user.name || '',
-      email: user.email || '',
+      name: user.name,
+      email: user.email,
       phone: user.phone || ''
     });
     setIsEditing(false);
@@ -67,13 +67,13 @@ export const AccountPage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center space-x-4 mb-6">
             <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-              {(user.name || 'U').split(' ').map(n => n[0]).join('')}
+              {user.name.split(' ').map(n => n[0]).join('')}
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">{user.name || 'Utilisateur'}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{user.name}</h3>
               <p className="text-gray-600">{user.email}</p>
               <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full capitalize">
-                {user.role || 'user'}
+                {user.role}
               </span>
             </div>
           </div>
@@ -112,7 +112,7 @@ export const AccountPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="text-gray-600 text-sm">Nom complet</label>
-                <p className="text-gray-900 font-semibold">{user.name || 'Non défini'}</p>
+                <p className="text-gray-900 font-semibold">{user.name}</p>
               </div>
               <div>
                 <label className="text-gray-600 text-sm">Email</label>
@@ -158,7 +158,7 @@ export const AccountPage: React.FC = () => {
             <div>
               <label className="text-gray-600 text-sm">Membre depuis</label>
               <p className="text-gray-900 font-semibold">
-                {user.created_at ? new Date(user.created_at).toLocaleDateString('fr-FR') : 'Récemment'}
+                {user.createdAt.toLocaleDateString('fr-FR')}
               </p>
             </div>
           </div>
