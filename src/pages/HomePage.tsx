@@ -13,24 +13,28 @@ export const HomePage: React.FC = () => {
       title: 'Nouvelle conversation',
       description: 'Démarrer un chat avec Bot.Bj',
       icon: Bot,
+      color: 'bg-blue-500',
       action: () => navigate('/chat')
     },
     {
       title: 'Créer une automatisation',
       description: 'Nouveau workflow intelligent',
       icon: Zap,
+      color: 'bg-purple-500',
       action: () => navigate('/automatisations')
     },
     {
       title: 'Agent Business',
       description: 'CRM et génération de leads',
       icon: Brain,
+      color: 'bg-green-500',
       action: () => navigate('/modules/business')
     },
     {
       title: 'Tableau de bord',
       description: 'Analytics et performances',
       icon: TrendingUp,
+      color: 'bg-gray-500',
       action: () => navigate('/dashboard')
     }
   ];
@@ -69,7 +73,7 @@ export const HomePage: React.FC = () => {
             className="p-6 hover:shadow-lg transition-all duration-200 cursor-pointer bg-white border border-gray-200 rounded-xl"
             onClick={action.action}
           >
-            <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center mb-4">
+            <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center mb-4 shadow-sm`}>
               <action.icon className="w-6 h-6 text-white" />
             </div>
             <h3 className="font-semibold text-gray-900 mb-2 text-base">{action.title}</h3>
@@ -86,7 +90,7 @@ export const HomePage: React.FC = () => {
             <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl">
               <div className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">{stat.value}</div>
               <div className="text-sm text-gray-600 mb-1">{stat.label}</div>
-              <div className="text-sm font-medium text-gray-700">{stat.change}</div>
+              <div className="text-sm font-medium text-green-600">{stat.change}</div>
             </Card>
           ))}
         </div>
@@ -101,8 +105,8 @@ export const HomePage: React.FC = () => {
             {recentActivities.map((activity, index) => (
               <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-gray-600" />
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-blue-600" />
                   </div>
                   <span className="text-gray-900 font-medium">{activity.title}</span>
                 </div>
@@ -116,41 +120,41 @@ export const HomePage: React.FC = () => {
         <Card className="p-6 bg-white border border-gray-200 rounded-xl">
           <h3 className="text-xl font-semibold text-gray-900 mb-6">Prochaines tâches</h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border-l-4 border-gray-600">
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border-l-4 border-blue-500">
               <div>
                 <div className="font-medium text-gray-900">Rapport hebdomadaire</div>
                 <div className="text-gray-600 text-sm">Aujourd'hui, 14:00</div>
               </div>
-              <Calendar className="w-6 h-6 text-gray-600" />
+              <Calendar className="w-6 h-6 text-blue-600" />
             </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border-l-4 border-gray-600">
+            <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border-l-4 border-green-500">
               <div>
                 <div className="font-medium text-gray-900">Campagne marketing</div>
                 <div className="text-gray-600 text-sm">Demain, 09:00</div>
               </div>
-              <Calendar className="w-6 h-6 text-gray-600" />
+              <Calendar className="w-6 h-6 text-green-600" />
             </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border-l-4 border-gray-600">
+            <div className="flex items-center justify-between p-4 bg-purple-50 rounded-xl border-l-4 border-purple-500">
               <div>
                 <div className="font-medium text-gray-900">Formation équipe</div>
                 <div className="text-gray-600 text-sm">Vendredi, 10:00</div>
               </div>
-              <Calendar className="w-6 h-6 text-gray-600" />
+              <Calendar className="w-6 h-6 text-purple-600" />
             </div>
           </div>
         </Card>
       </div>
 
       {/* CTA Section */}
-      <Card className="p-8 bg-gray-800 text-white border-0 rounded-xl">
+      <Card className="p-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 rounded-xl">
         <div className="text-center lg:text-left lg:flex lg:items-center lg:justify-between">
           <div className="mb-4 lg:mb-0">
             <h3 className="text-2xl font-bold mb-2">Prêt à automatiser vos processus ?</h3>
-            <p className="text-gray-300">Découvrez la puissance de l'IA conversationnelle pour votre entreprise</p>
+            <p className="text-blue-100">Découvrez la puissance de l'IA conversationnelle pour votre entreprise</p>
           </div>
           <Button 
             onClick={() => navigate('/chat')}
-            className="bg-white text-gray-900 hover:bg-gray-100 font-semibold px-8 py-4"
+            className="bg-white text-blue-600 hover:bg-gray-100 font-semibold px-8 py-4"
           >
             Commencer maintenant
             <ArrowRight className="w-5 h-5 ml-2" />

@@ -191,7 +191,7 @@ export const DashboardPage: React.FC = () => {
   if (!user) {
     return (
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-        <Card className="p-8 text-center bg-white border border-gray-200 rounded-xl">
+        <Card className="uniform-card p-8 text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Connexion requise
           </h2>
@@ -218,10 +218,10 @@ export const DashboardPage: React.FC = () => {
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {quickStats.map((stat, index) => (
-          <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
+          <Card key={index} className="uniform-stats-card">
             <div className="flex items-center justify-between mb-3">
-              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-                <stat.icon className="w-6 h-6 text-gray-600" />
+              <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center`}>
+                <stat.icon className={`w-6 h-6 ${stat.color}`} />
               </div>
             </div>
             <h3 className="text-gray-600 text-sm mb-1">{stat.title}</h3>
@@ -234,45 +234,45 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Permissions Available */}
-      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+      <Card className="uniform-card p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Fonctionnalités disponibles
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateBots ? 'border-gray-300 bg-gray-50' : 'border-gray-200 bg-gray-50'}`}>
-            <Bot className={`w-8 h-8 mb-2 ${permissions.canCreateBots ? 'text-gray-700' : 'text-gray-400'}`} />
+          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateBots ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <Bot className={`w-8 h-8 mb-2 ${permissions.canCreateBots ? 'text-green-600' : 'text-gray-400'}`} />
             <div className="text-sm font-medium text-gray-900">Chatbots</div>
             <div className="text-xs text-gray-600">
               {permissions.canCreateBots ? 'Disponible' : 'Non autorisé'}
             </div>
           </div>
           
-          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateAutomations ? 'border-gray-300 bg-gray-50' : 'border-gray-200 bg-gray-50'}`}>
-            <Zap className={`w-8 h-8 mb-2 ${permissions.canCreateAutomations ? 'text-gray-700' : 'text-gray-400'}`} />
+          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateAutomations ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <Zap className={`w-8 h-8 mb-2 ${permissions.canCreateAutomations ? 'text-green-600' : 'text-gray-400'}`} />
             <div className="text-sm font-medium text-gray-900">Automatisations</div>
             <div className="text-xs text-gray-600">
               {permissions.canCreateAutomations ? 'Disponible' : 'Non autorisé'}
             </div>
           </div>
           
-          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessBusiness ? 'border-gray-300 bg-gray-50' : 'border-gray-200 bg-gray-50'}`}>
-            <BarChart3 className={`w-8 h-8 mb-2 ${permissions.canAccessBusiness ? 'text-gray-700' : 'text-gray-400'}`} />
+          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessBusiness ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <BarChart3 className={`w-8 h-8 mb-2 ${permissions.canAccessBusiness ? 'text-green-600' : 'text-gray-400'}`} />
             <div className="text-sm font-medium text-gray-900">IA Business</div>
             <div className="text-xs text-gray-600">
               {permissions.canAccessBusiness ? 'Disponible' : 'Non autorisé'}
             </div>
           </div>
           
-          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessMarketing ? 'border-gray-300 bg-gray-50' : 'border-gray-200 bg-gray-50'}`}>
-            <TrendingUp className={`w-8 h-8 mb-2 ${permissions.canAccessMarketing ? 'text-gray-700' : 'text-gray-400'}`} />
+          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessMarketing ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <TrendingUp className={`w-8 h-8 mb-2 ${permissions.canAccessMarketing ? 'text-green-600' : 'text-gray-400'}`} />
             <div className="text-sm font-medium text-gray-900">IA Marketing</div>
             <div className="text-xs text-gray-600">
               {permissions.canAccessMarketing ? 'Disponible' : 'Non autorisé'}
             </div>
           </div>
           
-          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessManagement ? 'border-gray-300 bg-gray-50' : 'border-gray-200 bg-gray-50'}`}>
-            <Settings className={`w-8 h-8 mb-2 ${permissions.canAccessManagement ? 'text-gray-700' : 'text-gray-400'}`} />
+          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessManagement ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <Settings className={`w-8 h-8 mb-2 ${permissions.canAccessManagement ? 'text-green-600' : 'text-gray-400'}`} />
             <div className="text-sm font-medium text-gray-900">IA Gestion</div>
             <div className="text-xs text-gray-600">
               {permissions.canAccessManagement ? 'Disponible' : 'Non autorisé'}
@@ -282,22 +282,22 @@ export const DashboardPage: React.FC = () => {
       </Card>
 
       {/* Main Content Tabs */}
-      <Card className="bg-white border border-gray-200 rounded-xl">
+      <Card className="uniform-card">
         <Tabs defaultValue="bots" className="w-full">
           <TabsList className="grid w-full grid-cols-4 p-1 bg-gray-100 rounded-t-xl">
-            <TabsTrigger value="bots" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900" disabled={!permissions.canCreateBots}>
+            <TabsTrigger value="bots" className="flex items-center space-x-2" disabled={!permissions.canCreateBots}>
               <Bot className="w-4 h-4" />
               <span>Chatbots</span>
             </TabsTrigger>
-            <TabsTrigger value="messages" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
+            <TabsTrigger value="messages" className="flex items-center space-x-2">
               <MessageCircle className="w-4 h-4" />
               <span>Messages</span>
             </TabsTrigger>
-            <TabsTrigger value="automations" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900" disabled={!permissions.canCreateAutomations}>
+            <TabsTrigger value="automations" className="flex items-center space-x-2" disabled={!permissions.canCreateAutomations}>
               <Zap className="w-4 h-4" />
               <span>Automatisations</span>
             </TabsTrigger>
-            <TabsTrigger value="subscription" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
+            <TabsTrigger value="subscription" className="flex items-center space-x-2">
               <Star className="w-4 h-4" />
               <span>Abonnement</span>
             </TabsTrigger>
@@ -334,7 +334,7 @@ export const DashboardPage: React.FC = () => {
                   <p className="text-gray-600 mb-4">
                     Créez et gérez vos automatisations IA
                   </p>
-                  <Button className="bg-gray-700 hover:bg-gray-800 text-white">
+                  <Button className="uniform-button-primary">
                     Créer une automatisation
                   </Button>
                 </div>
@@ -359,22 +359,22 @@ export const DashboardPage: React.FC = () => {
       </Card>
 
       {/* Actions rapides */}
-      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+      <Card className="uniform-card p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 flex items-center space-x-2">
+          <Button className="uniform-button-secondary flex items-center space-x-2">
             <History className="w-4 h-4" />
             <span>Historique</span>
           </Button>
-          <Button className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 flex items-center space-x-2">
+          <Button className="uniform-button-secondary flex items-center space-x-2">
             <Bell className="w-4 h-4" />
             <span>Notifications</span>
           </Button>
-          <Button className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 flex items-center space-x-2">
+          <Button className="uniform-button-secondary flex items-center space-x-2">
             <Settings className="w-4 h-4" />
             <span>Paramètres</span>
           </Button>
-          <Button className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300 flex items-center space-x-2">
+          <Button className="uniform-button-secondary flex items-center space-x-2">
             <BarChart3 className="w-4 h-4" />
             <span>Analyses</span>
           </Button>

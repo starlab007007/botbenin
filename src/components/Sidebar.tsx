@@ -15,22 +15,22 @@ import {
 } from 'lucide-react';
 
 const menuItems = [
-  { title: 'Accueil', path: '/', icon: Home },
-  { title: 'Chat', path: '/chat', icon: MessageCircle },
-  { title: 'Automatisations', path: '/automatisations', icon: Workflow },
-  { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3 },
+  { title: 'Accueil', path: '/', icon: Home, color: 'bg-blue-500' },
+  { title: 'Chat', path: '/chat', icon: MessageCircle, color: 'bg-green-500' },
+  { title: 'Automatisations', path: '/automatisations', icon: Workflow, color: 'bg-purple-500' },
+  { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3, color: 'bg-gray-500' },
 ];
 
 const aiModules = [
-  { title: 'Agent IA Business', path: '/modules/business', icon: Briefcase },
-  { title: 'Agent IA Marketing', path: '/modules/marketing', icon: Megaphone },
-  { title: 'Agent IA Gestion', path: '/modules/gestion', icon: FolderOpen },
-  { title: 'IA Citoyen', path: '/modules/citoyen', icon: UsersIcon },
+  { title: 'Agent IA Business', path: '/modules/business', icon: Briefcase, color: 'bg-blue-600' },
+  { title: 'Agent IA Marketing', path: '/modules/marketing', icon: Megaphone, color: 'bg-pink-500' },
+  { title: 'Agent IA Gestion', path: '/modules/gestion', icon: FolderOpen, color: 'bg-indigo-500' },
+  { title: 'IA Citoyen', path: '/modules/citoyen', icon: UsersIcon, color: 'bg-teal-500' },
 ];
 
 const bottomItems = [
-  { title: 'Mon Compte', path: '/account', icon: User },
-  { title: 'Aide / Support', path: '/support', icon: HelpCircle },
+  { title: 'Mon Compte', path: '/account', icon: User, color: 'bg-gray-500' },
+  { title: 'Aide / Support', path: '/support', icon: HelpCircle, color: 'bg-red-500' },
 ];
 
 export const Sidebar: React.FC = () => {
@@ -51,14 +51,14 @@ export const Sidebar: React.FC = () => {
                   to={item.path}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                     isActive(item.path)
-                      ? 'bg-gray-100 text-gray-900 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-gray-50 shadow-sm'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
-                  <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center">
+                  <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                     <item.icon className="w-4 h-4 text-white" />
                   </div>
-                  <span className="font-medium">
+                  <span className={`font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
                     {item.title}
                   </span>
                 </NavLink>
@@ -69,7 +69,7 @@ export const Sidebar: React.FC = () => {
 
         {/* AI Modules */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-3 px-2">
+          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
             Modules IA
           </h3>
           <ul className="space-y-2">
@@ -79,14 +79,14 @@ export const Sidebar: React.FC = () => {
                   to={item.path}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                     isActive(item.path)
-                      ? 'bg-gray-100 text-gray-900 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-gray-50 shadow-sm'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
-                  <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center">
+                  <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                     <item.icon className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-sm font-medium">
+                  <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
                     {item.title}
                   </span>
                 </NavLink>
@@ -104,14 +104,14 @@ export const Sidebar: React.FC = () => {
                   to={item.path}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
                     isActive(item.path)
-                      ? 'bg-gray-100 text-gray-900 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-gray-50 shadow-sm'
+                      : 'hover:bg-gray-50'
                   }`}
                 >
-                  <div className="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center">
+                  <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                     <item.icon className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-sm font-medium">
+                  <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
                     {item.title}
                   </span>
                 </NavLink>

@@ -10,24 +10,28 @@ export const SupportPage: React.FC = () => {
       title: 'Documentation',
       description: 'Guides complets et tutoriels',
       icon: Book,
+      color: 'bg-blue-500',
       action: 'Consulter les docs'
     },
     {
       title: 'Chat en direct',
       description: 'Support instantané 24/7',
       icon: MessageCircle,
+      color: 'bg-green-500',
       action: 'Démarrer un chat'
     },
     {
       title: 'Vidéos tutoriels',
       description: 'Apprenez avec nos guides vidéo',
       icon: Video,
+      color: 'bg-purple-500',
       action: 'Voir les vidéos'
     },
     {
       title: 'Base de connaissances',
       description: 'Articles et solutions courantes',
       icon: FileText,
+      color: 'bg-orange-500',
       action: 'Parcourir les articles'
     }
   ];
@@ -72,7 +76,7 @@ export const SupportPage: React.FC = () => {
             placeholder="Rechercher dans l'aide..."
             className="flex-1 text-gray-900 placeholder-gray-500 focus:outline-none text-lg border-none bg-transparent"
           />
-          <Button className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-2">
+          <Button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2">
             Rechercher
           </Button>
         </div>
@@ -82,12 +86,12 @@ export const SupportPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {supportOptions.map((option, index) => (
           <Card key={index} className="p-6 hover:shadow-lg transition-all duration-200 cursor-pointer bg-white border border-gray-200 rounded-xl">
-            <div className="w-14 h-14 bg-gray-700 rounded-xl flex items-center justify-center mb-4">
+            <div className={`w-14 h-14 ${option.color} rounded-xl flex items-center justify-center mb-4 shadow-sm`}>
               <option.icon className="w-7 h-7 text-white" />
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">{option.title}</h2>
             <p className="text-gray-600 mb-4">{option.description}</p>
-            <Button className="bg-gray-700 hover:bg-gray-800 text-white w-full">
+            <Button className={`${option.color} hover:opacity-90 text-white w-full`}>
               {option.action}
             </Button>
           </Card>
@@ -113,11 +117,11 @@ export const SupportPage: React.FC = () => {
       </div>
 
       {/* Contact Section */}
-      <Card className="p-8 bg-gray-800 text-white border-0 rounded-xl">
+      <Card className="p-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 rounded-xl">
         <div className="text-center lg:text-left lg:flex lg:items-center lg:justify-between">
           <div className="mb-6 lg:mb-0">
             <h2 className="text-2xl font-bold mb-2">Besoin d'aide supplémentaire ?</h2>
-            <p className="text-gray-300">Notre équipe est là pour vous accompagner</p>
+            <p className="text-blue-100">Notre équipe est là pour vous accompagner</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4">
             <Button className="bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm">
