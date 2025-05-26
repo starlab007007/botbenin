@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -24,7 +23,7 @@ interface ChatInterfaceProps {
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
   onBackToLanding, 
-  webhookUrl = 'https://ia.bot.bj/webhook/iphoneshop1',
+  webhookUrl = 'https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/chat-webhook',
   chatTitle = 'Bot.Bj Assistant',
   chatContext
 }) => {
@@ -41,6 +40,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const { toast } = useToast();
 
   function getWelcomeMessage(context?: string): string {
@@ -87,18 +87,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     console.log('Webhook URL:', webhookUrl);
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('Request timeout after 30 seconds');
-        controller.abort();
-      }, 30000);
-
       const requestPayload = {
         message: textToSend,
+        bot_id: 'default-bot-id', // À remplacer par l'ID réel du bot
+        user_session: sessionId,
+        user_email: null, // Peut être rempli si l'utilisateur est connecté
+        user_name: null, // Peut être rempli si l'utilisateur est connecté
+        ip_address: null,
+        user_agent: navigator.userAgent,
         timestamp: new Date().toISOString(),
-        session_id: `bot_bj_session_${chatContext || 'general'}`,
-        user_id: 'bot_bj_user',
-        source: 'bot_bj_platform',
         context: chatContext || 'general'
       };
 
@@ -108,54 +105,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain, */*',
+          'Accept': 'application/json',
           'User-Agent': 'Bot.Bj-Platform/1.0',
         },
         body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-        mode: 'cors',
       });
-
-      clearTimeout(timeoutId);
 
       console.log('Response received!');
       console.log('Status:', response.status);
       console.log('Status Text:', response.statusText);
-      console.log('Headers:', Object.fromEntries(response.headers.entries()));
-      console.log('Response OK:', response.ok);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      console.log('Content-Type:', contentType);
-
-      let responseData;
-      let processedContent;
-
-      if (contentType.includes('application/json')) {
-        responseData = await response.json();
-        console.log('JSON Response:', JSON.stringify(responseData, null, 2));
-        
-        processedContent = responseData.output || 
-                          responseData.message || 
-                          responseData.response || 
-                          responseData.text || 
-                          responseData.content ||
-                          responseData.reply ||
-                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
-      } else {
-        responseData = await response.text();
-        console.log('Text Response:', responseData);
-        processedContent = responseData;
-      }
+      const responseData = await response.json();
+      console.log('JSON Response:', JSON.stringify(responseData, null, 2));
+      
+      const processedContent = responseData.output || 
+                              responseData.message || 
+                              responseData.response || 
+                              'Réponse reçue mais format inattendu.';
 
       console.log('Processed content:', processedContent);
-
-      if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from Bot.Bj webhook');
-      }
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -167,27 +139,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       console.log('Adding AI message:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
-      // Suppression des notifications de succès
-
     } catch (error) {
       console.error('=== BOT.BJ WEBHOOK ERROR ===');
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
       
-      let errorMessage = "Je rencontre des difficultés techniques. Laissez-moi vous proposer une assistance générale en attendant.";
-      let toastMessage = "Problème de connexion";
+      const errorMessage = "Je rencontre des difficultés techniques. Laissez-moi vous proposer une assistance générale en attendant.";
       
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = "La requête a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.";
-          toastMessage = "Timeout - réessayez";
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au système. Vérifiez votre connexion internet et réessayez.";
-          toastMessage = "Problème de connectivité";
-        }
-      }
-
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: errorMessage,
@@ -199,7 +158,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       
       toast({
         title: `${chatTitle} - Problème technique`,
-        description: toastMessage,
+        description: "Problème de connexion au service",
         variant: "destructive",
       });
     } finally {

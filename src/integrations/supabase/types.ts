@@ -182,6 +182,124 @@ export type Database = {
           },
         ]
       }
+      bot_owners: {
+        Row: {
+          created_at: string
+          id: string
+          max_bots: number
+          subscription_plan: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          max_bots?: number
+          subscription_plan?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          max_bots?: number
+          subscription_plan?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      bot_users: {
+        Row: {
+          bot_id: string | null
+          created_at: string
+          id: string
+          is_authenticated: boolean | null
+          last_active: string
+          session_id: string | null
+          user_email: string | null
+          user_metadata: Json | null
+          user_name: string | null
+        }
+        Insert: {
+          bot_id?: string | null
+          created_at?: string
+          id?: string
+          is_authenticated?: boolean | null
+          last_active?: string
+          session_id?: string | null
+          user_email?: string | null
+          user_metadata?: Json | null
+          user_name?: string | null
+        }
+        Update: {
+          bot_id?: string | null
+          created_at?: string
+          id?: string
+          is_authenticated?: boolean | null
+          last_active?: string
+          session_id?: string | null
+          user_email?: string | null
+          user_metadata?: Json | null
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_users_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bots: {
+        Row: {
+          api_key: string | null
+          configuration: Json | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          owner_id: string | null
+          updated_at: string
+          webhook_url: string | null
+        }
+        Insert: {
+          api_key?: string | null
+          configuration?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          owner_id?: string | null
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Update: {
+          api_key?: string | null
+          configuration?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          owner_id?: string | null
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           content: Json
@@ -228,6 +346,105 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          bot_id: string | null
+          bot_user_id: string | null
+          created_at: string
+          id: string
+          ip_address: string | null
+          message_content: string
+          message_type: string
+          metadata: Json | null
+          user_agent: string | null
+        }
+        Insert: {
+          bot_id?: string | null
+          bot_user_id?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          message_content: string
+          message_type?: string
+          metadata?: Json | null
+          user_agent?: string | null
+        }
+        Update: {
+          bot_id?: string | null
+          bot_user_id?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          message_content?: string
+          message_type?: string
+          metadata?: Json | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_sessions: {
+        Row: {
+          bot_id: string | null
+          bot_user_id: string | null
+          ended_at: string | null
+          id: string
+          session_metadata: Json | null
+          session_token: string | null
+          started_at: string
+          total_messages: number | null
+        }
+        Insert: {
+          bot_id?: string | null
+          bot_user_id?: string | null
+          ended_at?: string | null
+          id?: string
+          session_metadata?: Json | null
+          session_token?: string | null
+          started_at?: string
+          total_messages?: number | null
+        }
+        Update: {
+          bot_id?: string | null
+          bot_user_id?: string | null
+          ended_at?: string | null
+          id?: string
+          session_metadata?: Json | null
+          session_token?: string | null
+          started_at?: string
+          total_messages?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_users"
             referencedColumns: ["id"]
           },
         ]
