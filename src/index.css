@@ -1,5 +1,4 @@
 
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -301,3 +300,42 @@
   color: inherit;
 }
 
+.text-white {
+  @apply text-white !important;
+}
+
+.text-gray-900 {
+  @apply text-black !important;
+}
+
+.text-gray-800 {
+  @apply text-black !important;
+}
+
+.text-gray-700 {
+  @apply text-black !important;
+}
+
+.text-gray-600 {
+  @apply text-gray-600 !important;
+}
+
+.text-gray-500 {
+  @apply text-gray-500 !important;
+}
+
+.text-gray-400 {
+  @apply text-gray-400 !important;
+}
+
+.text-gray-300 {
+  @apply text-gray-300 !important;
+}
+
+.text-gray-200 {
+  @apply text-gray-200 !important;
+}
+
+.text-gray-100 {
+  @apply text-gray-100 !important;
+}
