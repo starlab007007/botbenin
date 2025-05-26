@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -129,8 +128,14 @@ export const MessagesOverview: React.FC = () => {
 
       if (error) throw error;
 
-      setMessages(messagesData || []);
-      calculateStats(messagesData || []);
+      // Type cast the messages to ensure message_type is properly typed
+      const typedMessages: ChatMessage[] = (messagesData || []).map(msg => ({
+        ...msg,
+        message_type: (msg.message_type === 'user' || msg.message_type === 'bot') ? msg.message_type : 'user'
+      })) as ChatMessage[];
+
+      setMessages(typedMessages);
+      calculateStats(typedMessages);
 
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error);
