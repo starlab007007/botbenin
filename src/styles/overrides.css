@@ -1,0 +1,52 @@
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(107 114 128 / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(107 114 128 / 0.5);
+}
+
+/* Force les dropdowns à avoir un background blanc et texte noir */
+[data-radix-popper-content-wrapper] {
+  @apply bg-white;
+}
+
+[data-radix-select-content] {
+  @apply bg-white border border-gray-300;
+}
+
+[data-radix-select-item] {
+  @apply text-black hover:bg-gray-50;
+}
+
+[data-radix-dialog-overlay] {
+  @apply bg-black/50;
+}
+
+[data-radix-dialog-content] {
+  @apply bg-white border border-gray-300;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .uniform-card {
+    @apply p-4 rounded-lg;
+  }
+  
+  .uniform-button-primary,
+  .uniform-button-secondary {
+    @apply px-3 py-2 text-sm;
+  }
+}

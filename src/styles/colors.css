@@ -1,0 +1,60 @@
+
+@layer base {
+  :root {
+    /* Couleurs uniformisées - tons gris et blanc uniquement */
+    --background: 255 255 255; /* white */
+    --foreground: 0 0 0; /* black */
+    --card: 255 255 255; /* white */
+    --card-foreground: 0 0 0; /* black */
+    --popover: 255 255 255; /* white */
+    --popover-foreground: 0 0 0; /* black */
+    --primary: 75 85 99; /* gray-600 */
+    --primary-foreground: 255 255 255; /* white */
+    --secondary: 243 244 246; /* gray-100 */
+    --secondary-foreground: 0 0 0; /* black */
+    --muted: 249 250 251; /* gray-50 */
+    --muted-foreground: 107 114 128; /* gray-500 */
+    --accent: 229 231 235; /* gray-200 */
+    --accent-foreground: 0 0 0; /* black */
+    --destructive: 239 68 68; /* red-500 pour les erreurs */
+    --destructive-foreground: 255 255 255; /* white */
+    --border: 229 231 235; /* gray-200 */
+    --input: 255 255 255; /* white */
+    --ring: 75 85 99; /* gray-600 */
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Mode sombre avec gris foncé et blanc */
+    --background: 17 24 39; /* gray-900 */
+    --foreground: 255 255 255; /* white */
+    --card: 31 41 55; /* gray-800 */
+    --card-foreground: 255 255 255; /* white */
+    --popover: 31 41 55; /* gray-800 */
+    --popover-foreground: 255 255 255; /* white */
+    --primary: 156 163 175; /* gray-400 */
+    --primary-foreground: 17 24 39; /* gray-900 */
+    --secondary: 75 85 99; /* gray-600 */
+    --secondary-foreground: 255 255 255; /* white */
+    --muted: 55 65 81; /* gray-700 */
+    --muted-foreground: 156 163 175; /* gray-400 */
+    --accent: 75 85 99; /* gray-600 */
+    --accent-foreground: 255 255 255; /* white */
+    --destructive: 248 113 113; /* red-400 */
+    --destructive-foreground: 17 24 39; /* gray-900 */
+    --border: 75 85 99; /* gray-600 */
+    --input: 75 85 99; /* gray-600 */
+    --ring: 156 163 175; /* gray-400 */
+  }
+
+  .sidebar-background {
+    --sidebar-background: var(--card);
+    --sidebar-foreground: var(--card-foreground);
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--ring);
+  }
+}
