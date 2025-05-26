@@ -78,7 +78,7 @@ export const CitoyenModule: React.FC = () => {
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-8">
           <div className="flex items-center mb-4">
-            <div className="w-12 h-12 bg-teal-600 rounded-lg flex items-center justify-center mr-4">
+            <div className="w-12 h-12 bg-gray-600 rounded-lg flex items-center justify-center mr-4">
               <Users className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -94,13 +94,13 @@ export const CitoyenModule: React.FC = () => {
         <Card className="p-6 mb-8 bg-white border border-gray-200 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Accès rapide</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button className="bg-red-600 hover:bg-red-700 text-white p-4 h-auto rounded-lg transition-all">
+            <Button className="bg-gray-600 hover:bg-gray-700 text-white p-4 h-auto rounded-lg transition-all">
               <div className="text-center">
                 <Phone className="w-6 h-6 mb-2 mx-auto" />
                 <span>Urgences - 911</span>
               </div>
             </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white p-4 h-auto rounded-lg transition-all">
+            <Button className="bg-gray-600 hover:bg-gray-700 text-white p-4 h-auto rounded-lg transition-all">
               <div className="text-center">
                 <FileText className="w-6 h-6 mb-2 mx-auto" />
                 <span>Démarche express</span>
