@@ -21,12 +21,12 @@ const timeSlots = [
 ];
 
 const revenueRanges = [
-  { value: '0-10k', label: '0-10k €' },
-  { value: '10-20k', label: '10-20k €' },
-  { value: '20-50k', label: '20-50k €' },
-  { value: '50-100k', label: '50-100k €' },
-  { value: '100-200k', label: '100-200k €' },
-  { value: '200k+', label: 'Plus de 200k €' }
+  { value: '0-1M', label: '0 - 1 million CFA' },
+  { value: '1-2M', label: '1 - 2 millions CFA' },
+  { value: '2-5M', label: '2 - 5 millions CFA' },
+  { value: '5-10M', label: '5 - 10 millions CFA' },
+  { value: '10-20M', label: '10 - 20 millions CFA' },
+  { value: '20M+', label: 'Plus de 20 millions CFA' }
 ];
 
 export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOpenChange }) => {
@@ -95,11 +95,11 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
         <DialogHeader className="border-b border-gray-200 pb-4">
           <div className="flex items-center space-x-4">
             <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center text-white font-semibold">
-              A
+              S
             </div>
             <div>
               <DialogTitle className="text-xl font-semibold text-gray-900">
-                Alexis Dubain
+                STAR LAB
               </DialogTitle>
               <h2 className="text-lg font-medium text-gray-900 mt-1">Audit Offert</h2>
             </div>
@@ -302,7 +302,7 @@ export const AuditBookingModal: React.FC<AuditBookingModalProps> = ({ open, onOp
                     className="border-gray-300 mt-1"
                   />
                   <Label htmlFor="terms" className="text-sm text-gray-700 leading-relaxed">
-                    En cochant cette case, vous vous engagez à être disponible à l'heure convenue. Notre équipe Automascale investit du temps et des ressources pour préparer cet audit et vous proposer des solutions sur-mesure.
+                    En cochant cette case, vous vous engagez à être disponible à l'heure convenue. Notre équipe STAR LAB investit du temps et des ressources pour préparer cet audit et vous proposer des solutions sur-mesure.
                     <br />
                     <br />
                     Si vous devez reporter ce rendez-vous, merci de nous prévenir à l'avance 😊.
