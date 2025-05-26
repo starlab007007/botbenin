@@ -90,17 +90,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-white rounded-xl shadow-2xl">
+      <Card className="w-full max-w-md bg-gray-200 rounded-xl shadow-2xl border border-gray-300">
         <div className="p-6">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Bot.Bj</h2>
-            <p className="text-gray-600">Votre assistant IA intelligent</p>
+            <h2 className="text-2xl font-bold text-black mb-2">Bot.Bj</h2>
+            <p className="text-gray-800">Votre assistant IA intelligent</p>
           </div>
 
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">Connexion</TabsTrigger>
-              <TabsTrigger value="register">Inscription</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-yellow-400">
+              <TabsTrigger value="login" className="text-black font-medium data-[state=active]:bg-yellow-300">Connexion</TabsTrigger>
+              <TabsTrigger value="register" className="text-black font-medium data-[state=active]:bg-yellow-300">Inscription</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
@@ -111,7 +111,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     variant={loginMethod === 'email' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setLoginMethod('email')}
-                    className="flex-1"
+                    className={`flex-1 ${loginMethod === 'email' ? 'bg-yellow-400 text-black hover:bg-yellow-500' : 'bg-gray-300 text-black border-gray-400 hover:bg-gray-400'}`}
                   >
                     <Mail className="w-4 h-4 mr-2" />
                     Email
@@ -121,7 +121,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     variant={loginMethod === 'phone' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setLoginMethod('phone')}
-                    className="flex-1"
+                    className={`flex-1 ${loginMethod === 'phone' ? 'bg-yellow-400 text-black hover:bg-yellow-500' : 'bg-gray-300 text-black border-gray-400 hover:bg-gray-400'}`}
                   >
                     <Phone className="w-4 h-4 mr-2" />
                     Téléphone
@@ -130,7 +130,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
                 {loginMethod === 'email' ? (
                   <div>
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email" className="text-black">Email</Label>
                     <Input
                       id="email"
                       type="email"
@@ -138,11 +138,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       value={loginData.email}
                       onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                       required
+                      className="bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                     />
                   </div>
                 ) : (
                   <div>
-                    <Label htmlFor="phone">Téléphone</Label>
+                    <Label htmlFor="phone" className="text-black">Téléphone</Label>
                     <Input
                       id="phone"
                       type="tel"
@@ -150,12 +151,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       value={loginData.phone}
                       onChange={(e) => setLoginData({ ...loginData, phone: e.target.value })}
                       required
+                      className="bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                     />
                   </div>
                 )}
 
                 <div>
-                  <Label htmlFor="password">Mot de passe</Label>
+                  <Label htmlFor="password" className="text-black">Mot de passe</Label>
                   <div className="relative">
                     <Input
                       id="password"
@@ -164,12 +166,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                       required
+                      className="bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 text-black hover:bg-yellow-500"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -179,7 +182,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
                 <Button
                   type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={isLoading}
                 >
                   {isLoading ? 'Connexion...' : 'Se connecter'}
@@ -187,20 +190,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
                 {/* Identifiants de démonstration */}
                 <div className="mt-6 space-y-3">
-                  <p className="text-sm text-gray-600 text-center font-medium">Comptes de démonstration :</p>
+                  <p className="text-sm text-black text-center font-medium">Comptes de démonstration :</p>
                   
                   <div className="space-y-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full flex items-center justify-start space-x-2 text-left"
+                      className="w-full flex items-center justify-start space-x-2 text-left bg-yellow-400 border-gray-400 text-black hover:bg-yellow-500"
                       onClick={fillAdminCredentials}
                     >
-                      <Crown className="w-4 h-4 text-purple-600" />
+                      <Crown className="w-4 h-4 text-black" />
                       <div>
                         <div className="font-medium">Administrateur</div>
-                        <div className="text-xs text-gray-500">admin@bot.bj</div>
+                        <div className="text-xs text-gray-700">admin@bot.bj</div>
                       </div>
                     </Button>
                     
@@ -208,13 +211,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full flex items-center justify-start space-x-2 text-left"
+                      className="w-full flex items-center justify-start space-x-2 text-left bg-yellow-400 border-gray-400 text-black hover:bg-yellow-500"
                       onClick={fillUserCredentials}
                     >
-                      <User className="w-4 h-4 text-blue-600" />
+                      <User className="w-4 h-4 text-black" />
                       <div>
                         <div className="font-medium">Manager</div>
-                        <div className="text-xs text-gray-500">manager@bot.bj</div>
+                        <div className="text-xs text-gray-700">manager@bot.bj</div>
                       </div>
                     </Button>
                   </div>
@@ -225,14 +228,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <TabsContent value="register">
               <form onSubmit={handleRegister} className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Nom complet</Label>
+                  <Label htmlFor="name" className="text-black">Nom complet</Label>
                   <div className="relative">
-                    <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" />
                     <Input
                       id="name"
                       type="text"
                       placeholder="Votre nom complet"
-                      className="pl-10"
+                      className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       value={registerData.name}
                       onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
                       required
@@ -241,14 +244,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div>
-                  <Label htmlFor="reg-email">Email</Label>
+                  <Label htmlFor="reg-email" className="text-black">Email</Label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" />
                     <Input
                       id="reg-email"
                       type="email"
                       placeholder="votre@email.com"
-                      className="pl-10"
+                      className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       value={registerData.email}
                       onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
                       required
@@ -257,14 +260,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div>
-                  <Label htmlFor="reg-phone">Téléphone (optionnel)</Label>
+                  <Label htmlFor="reg-phone" className="text-black">Téléphone (optionnel)</Label>
                   <div className="relative">
-                    <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" />
                     <Input
                       id="reg-phone"
                       type="tel"
                       placeholder="+229 XX XX XX XX"
-                      className="pl-10"
+                      className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       value={registerData.phone}
                       onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
                     />
@@ -272,14 +275,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div>
-                  <Label htmlFor="reg-password">Mot de passe</Label>
+                  <Label htmlFor="reg-password" className="text-black">Mot de passe</Label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" />
                     <Input
                       id="reg-password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
-                      className="pl-10 pr-10"
+                      className="pl-10 pr-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       value={registerData.password}
                       onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
                       required
@@ -288,7 +291,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 text-black hover:bg-yellow-500"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -297,14 +300,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div>
-                  <Label htmlFor="confirm-password">Confirmer le mot de passe</Label>
+                  <Label htmlFor="confirm-password" className="text-black">Confirmer le mot de passe</Label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-700" />
                     <Input
                       id="confirm-password"
                       type="password"
                       placeholder="••••••••"
-                      className="pl-10"
+                      className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       value={registerData.confirmPassword}
                       onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
                       required
@@ -314,7 +317,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
                 <Button
                   type="submit"
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
                   disabled={isLoading}
                 >
                   {isLoading ? 'Création...' : 'Créer un compte'}
@@ -327,13 +330,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <Button
               variant="ghost"
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700"
+              className="text-gray-700 hover:text-black hover:bg-gray-300"
             >
               Fermer
             </Button>
           </div>
 
-          <div className="mt-4 text-xs text-center text-gray-500">
+          <div className="mt-4 text-xs text-center text-black">
             <p>Mot de passe pour tous les comptes: <span className="font-mono font-medium">password123</span></p>
           </div>
         </div>
