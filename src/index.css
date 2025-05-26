@@ -1,4 +1,5 @@
 
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -300,27 +301,3 @@
   color: inherit;
 }
 
-/* Override toutes les classes de couleur jaune dans la plateforme */
-.text-yellow-400,
-.text-yellow-500,
-.text-yellow-600,
-.bg-yellow-400,
-.bg-yellow-500,
-.bg-yellow-600,
-.border-yellow-400,
-.border-yellow-500,
-.border-yellow-600 {
-  @apply text-blue-500 bg-white border-gray-300 !important;
-}
-
-/* Force toutes les icônes Star à être bleues au lieu de jaunes */
-.lucide-star {
-  @apply text-blue-500 !important;
-}
-
-/* Override des classes Tailwind pour le jaune */
-.fill-yellow-400,
-.fill-yellow-500,
-.fill-yellow-600 {
-  @apply fill-blue-500 !important;
-}
