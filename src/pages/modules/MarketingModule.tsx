@@ -17,7 +17,7 @@ export const MarketingModule: React.FC = () => {
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-8">
           <div className="flex items-center mb-4">
-            <div className="w-12 h-12 bg-gray-600 rounded-lg flex items-center justify-center mr-4">
+            <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center mr-4">
               <Megaphone className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -37,8 +37,8 @@ export const MarketingModule: React.FC = () => {
                 <h3 className="text-gray-600 mb-1 font-medium">Campagnes actives</h3>
                 <div className="text-3xl font-bold text-gray-900">12</div>
               </div>
-              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Megaphone className="w-6 h-6 text-gray-600" />
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <Megaphone className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </Card>
@@ -48,8 +48,8 @@ export const MarketingModule: React.FC = () => {
                 <h3 className="text-gray-600 mb-1 font-medium">Taux d'ouverture moyen</h3>
                 <div className="text-3xl font-bold text-gray-900">18.5%</div>
               </div>
-              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Mail className="w-6 h-6 text-gray-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Mail className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </Card>
@@ -59,8 +59,8 @@ export const MarketingModule: React.FC = () => {
                 <h3 className="text-gray-600 mb-1 font-medium">Conversions ce mois</h3>
                 <div className="text-3xl font-bold text-gray-900">247</div>
               </div>
-              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Target className="w-6 h-6 text-gray-600" />
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Target className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </Card>
@@ -70,19 +70,19 @@ export const MarketingModule: React.FC = () => {
         <Card className="p-6 mb-8 bg-white border border-gray-200 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Créer une campagne</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Button className="bg-gray-600 hover:bg-gray-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
               <Mail className="w-6 h-6 mb-2" />
               <span>Email</span>
             </Button>
-            <Button className="bg-gray-600 hover:bg-gray-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
+            <Button className="bg-green-600 hover:bg-green-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
               <MessageSquare className="w-6 h-6 mb-2" />
               <span>WhatsApp</span>
             </Button>
-            <Button className="bg-gray-600 hover:bg-gray-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
+            <Button className="bg-purple-600 hover:bg-purple-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
               <MessageSquare className="w-6 h-6 mb-2" />
               <span>SMS</span>
             </Button>
-            <Button className="bg-gray-600 hover:bg-gray-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
+            <Button className="bg-orange-600 hover:bg-orange-700 text-white p-4 h-auto flex-col rounded-lg transition-all">
               <Target className="w-6 h-6 mb-2" />
               <span>Multicanal</span>
             </Button>
@@ -101,7 +101,7 @@ export const MarketingModule: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-right">
-                    <div className="text-gray-600 font-semibold">{campaign.performance}</div>
+                    <div className="text-green-600 font-semibold">{campaign.performance}</div>
                     <p className="text-gray-500 text-sm">Taux d'ouverture</p>
                   </div>
                   <Button variant="outline" className="border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg">

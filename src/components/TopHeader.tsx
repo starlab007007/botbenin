@@ -65,7 +65,7 @@ export const TopHeader: React.FC = () => {
             onClick={handleLogoClick}
             className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
           >
-            <div className="w-8 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">B</span>
             </div>
             <span className="text-xl font-bold text-gray-900 hidden sm:block">Bot.Bj</span>
@@ -81,7 +81,7 @@ export const TopHeader: React.FC = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 h-10">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gradient-to-r from-gray-500 to-gray-600 text-white text-sm">
+                    <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm">
                       {getUserInitials(user!.name)}
                     </AvatarFallback>
                   </Avatar>
@@ -95,7 +95,7 @@ export const TopHeader: React.FC = () => {
                 <div className="px-3 py-2 border-b border-gray-100">
                   <p className="text-sm font-medium text-gray-900">{user!.name}</p>
                   <p className="text-xs text-gray-500">{user!.email}</p>
-                  <p className="text-xs text-gray-600 capitalize">{user!.role}</p>
+                  <p className="text-xs text-blue-600 capitalize">{user!.role}</p>
                 </div>
                 
                 <DropdownMenuItem asChild>
@@ -134,7 +134,7 @@ export const TopHeader: React.FC = () => {
           ) : (
             <Button
               onClick={() => setShowAuthModal(true)}
-              className="bg-gray-600 hover:bg-gray-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
               size="sm"
             >
               <User className="w-4 h-4 mr-2" />
