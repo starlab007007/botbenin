@@ -1,116 +1,230 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
-import { BarChart3, TrendingUp, Users, Zap, Activity, Target, Clock, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BotManagement } from '@/components/BotManagement';
+import { MessagesOverview } from '@/components/MessagesOverview';
+import { SubscriptionManagement } from '@/components/SubscriptionManagement';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { 
+  BarChart3, 
+  TrendingUp, 
+  Users, 
+  Zap, 
+  Activity, 
+  Target, 
+  Clock, 
+  Star,
+  Bot,
+  MessageCircle,
+  UserCheck,
+  Calendar
+} from 'lucide-react';
+
+interface DashboardStats {
+  totalBots: number;
+  totalMessages: number;
+  totalUsers: number;
+  activeToday: number;
+}
 
 export const DashboardPage: React.FC = () => {
-  const metrics = [
-    { title: 'Conversations', value: '1,234', change: '+12%', icon: BarChart3, color: 'bg-blue-500' },
-    { title: 'Workflows', value: '89', change: '+8%', icon: Zap, color: 'bg-purple-500' },
-    { title: 'Utilisateurs', value: '456', change: '+15%', icon: Users, color: 'bg-green-500' },
-    { title: 'Performance', value: '98.5%', change: '+2%', icon: TrendingUp, color: 'bg-gray-500' },
-    { title: 'Leads générés', value: '234', change: '+28%', icon: Target, color: 'bg-pink-500' },
-    { title: 'Temps économisé', value: '45h', change: '+18%', icon: Clock, color: 'bg-teal-500' },
-    { title: 'Satisfaction', value: '4.8/5', change: '+0.3', icon: Star, color: 'bg-gray-600' },
-    { title: 'Activité', value: '92%', change: '+5%', icon: Activity, color: 'bg-indigo-500' }
+  const { user } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({
+    totalBots: 0,
+    totalMessages: 0,
+    totalUsers: 0,
+    activeToday: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchDashboardStats();
+    }
+  }, [user]);
+
+  const fetchDashboardStats = async () => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      // Récupérer le bot_owner
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', authUser.id)
+        .single();
+
+      if (!ownerData) return;
+
+      // Statistiques des bots
+      const { data: botsData } = await supabase
+        .from('bots')
+        .select('id')
+        .eq('owner_id', ownerData.id);
+
+      const botIds = botsData?.map(bot => bot.id) || [];
+
+      // Statistiques des messages
+      const { data: messagesData } = await supabase
+        .from('chat_messages')
+        .select('id, created_at')
+        .in('bot_id', botIds);
+
+      // Statistiques des utilisateurs uniques
+      const { data: usersData } = await supabase
+        .from('bot_users')
+        .select('id, last_active')
+        .in('bot_id', botIds);
+
+      // Activité d'aujourd'hui
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const activeToday = usersData?.filter(user => 
+        new Date(user.last_active) >= today
+      ).length || 0;
+
+      setStats({
+        totalBots: botsData?.length || 0,
+        totalMessages: messagesData?.length || 0,
+        totalUsers: usersData?.length || 0,
+        activeToday: activeToday
+      });
+
+    } catch (error) {
+      console.error('Erreur lors du chargement des statistiques:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const quickStats = [
+    { 
+      title: 'Mes Chatbots', 
+      value: stats.totalBots.toString(), 
+      change: '+0%', 
+      icon: Bot, 
+      color: 'bg-blue-500' 
+    },
+    { 
+      title: 'Messages Total', 
+      value: stats.totalMessages.toString(), 
+      change: '+0%', 
+      icon: MessageCircle, 
+      color: 'bg-green-500' 
+    },
+    { 
+      title: 'Utilisateurs', 
+      value: stats.totalUsers.toString(), 
+      change: '+0%', 
+      icon: Users, 
+      color: 'bg-purple-500' 
+    },
+    { 
+      title: 'Actifs Aujourd\'hui', 
+      value: stats.activeToday.toString(), 
+      change: '+0%', 
+      icon: UserCheck, 
+      color: 'bg-teal-500' 
+    }
   ];
 
-  const recentActivities = [
-    { action: 'Nouveau workflow créé', time: 'Il y a 2h', type: 'creation' },
-    { action: 'Campagne email lancée', time: 'Il y a 5h', type: 'campaign' },
-    { action: 'Contact ajouté au CRM', time: 'Il y a 1j', type: 'crm' },
-    { action: 'Rapport généré', time: 'Il y a 2j', type: 'report' },
-    { action: 'Lead qualifié', time: 'Il y a 3j', type: 'lead' }
-  ];
-
-  const topModules = [
-    { name: 'Agent IA Business', usage: '45%', color: 'bg-blue-500', trend: '+12%' },
-    { name: 'Agent IA Marketing', usage: '32%', color: 'bg-green-500', trend: '+8%' },
-    { name: 'IA Citoyen', usage: '23%', color: 'bg-purple-500', trend: '+15%' },
-    { name: 'Agent IA Gestion', usage: '18%', color: 'bg-gray-500', trend: '+5%' }
-  ];
+  if (!user) {
+    return (
+      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+        <Card className="p-8 text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Connexion requise
+          </h2>
+          <p className="text-gray-600">
+            Veuillez vous connecter pour accéder au tableau de bord
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
       <div>
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Tableaux de bord</h1>
-        <p className="text-gray-600">Vue d'ensemble de vos performances et activités</p>
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+          Tableau de bord SaaS Chatbots
+        </h1>
+        <p className="text-gray-600">
+          Gérez vos chatbots et consultez les interactions de vos utilisateurs
+        </p>
       </div>
 
-      {/* Metrics Grid */}
+      {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {metrics.map((metric, index) => (
+        {quickStats.map((stat, index) => (
           <Card key={index} className="p-6 hover:shadow-lg transition-all duration-200 bg-white border border-gray-200 rounded-xl">
             <div className="flex items-center justify-between mb-3">
-              <div className={`w-12 h-12 ${metric.color} rounded-xl flex items-center justify-center shadow-sm`}>
-                <metric.icon className="w-6 h-6 text-white" />
+              <div className={`w-12 h-12 ${stat.color} rounded-xl flex items-center justify-center shadow-sm`}>
+                <stat.icon className="w-6 h-6 text-white" />
               </div>
-              <span className="text-green-600 text-sm font-medium">{metric.change}</span>
+              <span className="text-green-600 text-sm font-medium">{stat.change}</span>
             </div>
-            <h3 className="text-gray-600 text-sm mb-1">{metric.title}</h3>
-            <div className="text-2xl font-bold text-gray-900">{metric.value}</div>
+            <h3 className="text-gray-600 text-sm mb-1">{stat.title}</h3>
+            <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
           </Card>
         ))}
       </div>
 
-      {/* Charts and Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Activities */}
-        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Activité récente</h2>
-          <div className="space-y-4">
-            {recentActivities.map((activity, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="text-gray-900">{activity.action}</span>
-                </div>
-                <span className="text-gray-500 text-sm">{activity.time}</span>
-              </div>
-            ))}
+      {/* Main Content Tabs */}
+      <Card className="bg-white border border-gray-200 rounded-xl">
+        <Tabs defaultValue="bots" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 p-1 bg-gray-100 rounded-t-xl">
+            <TabsTrigger value="bots" className="flex items-center space-x-2">
+              <Bot className="w-4 h-4" />
+              <span>Mes Chatbots</span>
+            </TabsTrigger>
+            <TabsTrigger value="messages" className="flex items-center space-x-2">
+              <MessageCircle className="w-4 h-4" />
+              <span>Messages</span>
+            </TabsTrigger>
+            <TabsTrigger value="subscription" className="flex items-center space-x-2">
+              <Star className="w-4 h-4" />
+              <span>Abonnement</span>
+            </TabsTrigger>
+          </TabsList>
+          
+          <div className="p-6">
+            <TabsContent value="bots" className="mt-0">
+              <BotManagement />
+            </TabsContent>
+            
+            <TabsContent value="messages" className="mt-0">
+              <MessagesOverview />
+            </TabsContent>
+            
+            <TabsContent value="subscription" className="mt-0">
+              <SubscriptionManagement />
+            </TabsContent>
           </div>
-        </Card>
-
-        {/* Top Modules */}
-        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Modules les plus utilisés</h2>
-          <div className="space-y-6">
-            {topModules.map((module, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-900 font-medium">{module.name}</span>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-green-600 text-xs font-medium">{module.trend}</span>
-                    <span className="text-gray-900 font-semibold">{module.usage}</span>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${module.color} transition-all duration-500`}
-                    style={{ width: module.usage }}
-                  ></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+        </Tabs>
+      </Card>
 
       {/* Performance Summary */}
       <Card className="p-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 rounded-xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="text-center lg:text-left">
-            <h3 className="text-xl font-semibold mb-2">Performance globale</h3>
-            <p className="text-blue-100">Votre plateforme fonctionne à son niveau optimal</p>
+            <h3 className="text-xl font-semibold mb-2">Plateforme SaaS Chatbots</h3>
+            <p className="text-blue-100">
+              Votre solution complète pour créer et gérer des chatbots intelligents
+            </p>
           </div>
           <div className="text-center">
-            <div className="text-4xl font-bold mb-1">98.5%</div>
-            <p className="text-blue-100 text-sm">Taux de disponibilité</p>
+            <div className="text-4xl font-bold mb-1">{stats.totalBots}</div>
+            <p className="text-blue-100 text-sm">Chatbots créés</p>
           </div>
           <div className="text-center lg:text-right">
-            <div className="text-4xl font-bold mb-1">2.3s</div>
-            <p className="text-blue-100 text-sm">Temps de réponse moyen</p>
+            <div className="text-4xl font-bold mb-1">{stats.totalMessages}</div>
+            <p className="text-blue-100 text-sm">Messages traités</p>
           </div>
         </div>
       </Card>
