@@ -1,7 +1,303 @@
 
-@import './styles/base.css';
-@import './styles/colors.css';
-@import './styles/components.css';
-@import './styles/animations.css';
-@import './styles/typography.css';
-@import './styles/overrides.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Roboto:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Couleurs uniformisées - tons gris et blanc uniquement */
+    --background: 255 255 255; /* white */
+    --foreground: 0 0 0; /* black */
+    --card: 255 255 255; /* white */
+    --card-foreground: 0 0 0; /* black */
+    --popover: 255 255 255; /* white */
+    --popover-foreground: 0 0 0; /* black */
+    --primary: 75 85 99; /* gray-600 */
+    --primary-foreground: 255 255 255; /* white */
+    --secondary: 243 244 246; /* gray-100 */
+    --secondary-foreground: 0 0 0; /* black */
+    --muted: 249 250 251; /* gray-50 */
+    --muted-foreground: 107 114 128; /* gray-500 */
+    --accent: 229 231 235; /* gray-200 */
+    --accent-foreground: 0 0 0; /* black */
+    --destructive: 239 68 68; /* red-500 pour les erreurs */
+    --destructive-foreground: 255 255 255; /* white */
+    --border: 229 231 235; /* gray-200 */
+    --input: 255 255 255; /* white */
+    --ring: 75 85 99; /* gray-600 */
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Mode sombre avec gris foncé et blanc */
+    --background: 17 24 39; /* gray-900 */
+    --foreground: 255 255 255; /* white */
+    --card: 31 41 55; /* gray-800 */
+    --card-foreground: 255 255 255; /* white */
+    --popover: 31 41 55; /* gray-800 */
+    --popover-foreground: 255 255 255; /* white */
+    --primary: 156 163 175; /* gray-400 */
+    --primary-foreground: 17 24 39; /* gray-900 */
+    --secondary: 75 85 99; /* gray-600 */
+    --secondary-foreground: 255 255 255; /* white */
+    --muted: 55 65 81; /* gray-700 */
+    --muted-foreground: 156 163 175; /* gray-400 */
+    --accent: 75 85 99; /* gray-600 */
+    --accent-foreground: 255 255 255; /* white */
+    --destructive: 248 113 113; /* red-400 */
+    --destructive-foreground: 17 24 39; /* gray-900 */
+    --border: 75 85 99; /* gray-600 */
+    --input: 75 85 99; /* gray-600 */
+    --ring: 156 163 175; /* gray-400 */
+  }
+
+  .sidebar-background {
+    --sidebar-background: var(--card);
+    --sidebar-foreground: var(--card-foreground);
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+    --sidebar-border: var(--border);
+    --sidebar-ring: var(--ring);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-white text-black transition-colors duration-300;
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    @apply text-black;
+  }
+
+  .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .font-body {
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  /* Force tous les textes en noir */
+  p, span, div, label, input, textarea, select, option {
+    @apply text-black;
+  }
+
+  /* Force tous les backgrounds en blanc ou gris */
+  .bg-primary {
+    @apply bg-gray-600;
+  }
+
+  .bg-secondary {
+    @apply bg-gray-100;
+  }
+
+  .bg-accent {
+    @apply bg-gray-200;
+  }
+
+  .bg-muted {
+    @apply bg-gray-50;
+  }
+}
+
+/* Composants uniformisés avec schéma gris/blanc */
+.uniform-card {
+  @apply bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300;
+}
+
+.uniform-button-primary {
+  @apply bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg px-4 py-2 transition-all duration-200;
+}
+
+.uniform-button-secondary {
+  @apply bg-white hover:bg-gray-50 text-black font-medium rounded-lg px-4 py-2 border border-gray-300 transition-all duration-200;
+}
+
+.uniform-input {
+  @apply bg-white border border-gray-300 rounded-lg px-3 py-2 text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200;
+}
+
+.uniform-badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.uniform-badge-active {
+  @apply bg-gray-100 text-black border border-gray-300;
+}
+
+.uniform-badge-inactive {
+  @apply bg-gray-50 text-gray-600 border border-gray-200;
+}
+
+.uniform-stats-card {
+  @apply bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(107 114 128 / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(107 114 128 / 0.5);
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Typography Classes */
+.text-display {
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  @apply text-black;
+}
+
+.text-headline {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  @apply text-black;
+}
+
+.text-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  font-weight: 400;
+  @apply text-black;
+}
+
+/* Force les dropdowns à avoir un background blanc et texte noir */
+[data-radix-popper-content-wrapper] {
+  @apply bg-white;
+}
+
+[data-radix-select-content] {
+  @apply bg-white border border-gray-300;
+}
+
+[data-radix-select-item] {
+  @apply text-black hover:bg-gray-50;
+}
+
+[data-radix-dialog-overlay] {
+  @apply bg-black/50;
+}
+
+[data-radix-dialog-content] {
+  @apply bg-white border border-gray-300;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .uniform-card {
+    @apply p-4 rounded-lg;
+  }
+  
+  .uniform-button-primary,
+  .uniform-button-secondary {
+    @apply px-3 py-2 text-sm;
+  }
+}
+
+/* Force tous les éléments à utiliser le schéma de couleurs uniforme */
+* {
+  color: inherit;
+}
+
