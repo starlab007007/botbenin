@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -338,12 +339,12 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {processSteps.map((step, index) => (
-            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-8 hover:shadow-xl transition-shadow">
+            <Card key={index} className="bg-gray-200 border-gray-300 text-black p-8 hover:shadow-xl transition-shadow">
               <div className={`w-16 h-16 ${step.color} rounded-xl flex items-center justify-center mb-6 mx-auto`}>
                 <step.icon className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold mb-4 text-center">{step.title}</h3>
-              <p className="text-gray-300 leading-relaxed text-center">{step.description}</p>
+              <p className="text-gray-700 leading-relaxed text-center">{step.description}</p>
             </Card>
           ))}
         </div>
@@ -356,12 +357,12 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {aiReasons.map((reason, index) => (
-            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-6 hover:shadow-lg transition-shadow">
+            <Card key={index} className="bg-gray-200 border-gray-300 text-black p-6 hover:shadow-lg transition-shadow">
               <div className={`w-12 h-12 ${reason.color} rounded-xl flex items-center justify-center mb-4`}>
                 <reason.icon className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-lg font-semibold mb-3">{reason.title}</h3>
-              <p className="text-gray-300 text-sm leading-relaxed">{reason.description}</p>
+              <p className="text-gray-700 text-sm leading-relaxed">{reason.description}</p>
             </Card>
           ))}
         </div>
@@ -374,7 +375,7 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {aiAdvantages.map((advantage, index) => (
-            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-8 hover:shadow-xl transition-shadow">
+            <Card key={index} className="bg-gray-200 border-gray-300 text-black p-8 hover:shadow-xl transition-shadow">
               <div className={`w-16 h-16 ${advantage.color} rounded-xl flex items-center justify-center mb-6 mx-auto`}>
                 <advantage.icon className="w-8 h-8 text-white" />
               </div>
@@ -383,7 +384,7 @@ export const HomePage: React.FC = () => {
                 {advantage.features.map((feature, featureIndex) => (
                   <li key={featureIndex} className="flex items-start space-x-3">
                     <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
-                    <span className="text-gray-300 text-sm">{feature}</span>
+                    <span className="text-gray-700 text-sm">{feature}</span>
                   </li>
                 ))}
               </ul>
@@ -399,11 +400,11 @@ export const HomePage: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {pricingPlans.map((plan, index) => (
-            <Card key={index} className="bg-gray-700 border-gray-600 text-white p-8 hover:shadow-xl transition-shadow">
+            <Card key={index} className="bg-gray-200 border-gray-300 text-black p-8 hover:shadow-xl transition-shadow">
               <h3 className="text-xl font-semibold mb-4 text-center">{plan.title}</h3>
-              <p className="text-gray-300 text-sm mb-6 text-center leading-relaxed">{plan.description}</p>
+              <p className="text-gray-700 text-sm mb-6 text-center leading-relaxed">{plan.description}</p>
               <div className="text-center mb-6">
-                <div className="text-2xl font-bold text-yellow-400 mb-2">{plan.price}</div>
+                <div className="text-2xl font-bold text-yellow-600 mb-2">{plan.price}</div>
               </div>
               <Button 
                 className={`w-full ${plan.color} hover:opacity-90 text-white border-0 font-semibold py-3`}
