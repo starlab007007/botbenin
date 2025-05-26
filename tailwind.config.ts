@@ -59,7 +59,7 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				// Bot.Bj Brand Colors
+				// Bot.Bj Brand Colors - suppression du jaune
 				'bot-bj': {
 					blue: {
 						50: '#e3f2fd',
@@ -85,17 +85,17 @@ export default {
 						800: '#2e7d32', // Primary green
 						900: '#1b5e20',
 					},
-					orange: {
-						50: '#fff3e0',
-						100: '#ffe0b2',
-						200: '#ffcc80',
-						300: '#ffb74d',
-						400: '#ffa726',
-						500: '#ff9800',
-						600: '#fb8c00',
-						700: '#f57c00',
-						800: '#ff6b35', // Primary orange
-						900: '#e65100',
+					gray: {
+						50: '#f9fafb',
+						100: '#f3f4f6',
+						200: '#e5e7eb',
+						300: '#d1d5db',
+						400: '#9ca3af',
+						500: '#6b7280',
+						600: '#4b5563',
+						700: '#374151',
+						800: '#1f2937', // Remplace l'orange par du gris
+						900: '#111827',
 					},
 				},
 				sidebar: {

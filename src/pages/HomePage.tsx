@@ -580,7 +580,7 @@ export const HomePage: React.FC = () => {
             <Card className="text-center p-4 border border-gray-300">
               <div className="flex justify-center mb-2">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
+                  <Star key={i} className="w-4 h-4 text-blue-500 fill-current" />
                 ))}
               </div>
               <div className="text-2xl font-bold text-green-600 mb-2">+300%</div>
@@ -590,7 +590,7 @@ export const HomePage: React.FC = () => {
             <Card className="text-center p-4 border border-gray-300">
               <div className="flex justify-center mb-2">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
+                  <Star key={i} className="w-4 h-4 text-blue-500 fill-current" />
                 ))}
               </div>
               <div className="text-2xl font-bold text-blue-600 mb-2">-60%</div>
@@ -600,7 +600,7 @@ export const HomePage: React.FC = () => {
             <Card className="text-center p-4 border border-gray-300">
               <div className="flex justify-center mb-2">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
+                  <Star key={i} className="w-4 h-4 text-blue-500 fill-current" />
                 ))}
               </div>
               <div className="text-2xl font-bold text-purple-600 mb-2">98%</div>
