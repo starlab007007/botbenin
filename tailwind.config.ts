@@ -20,10 +20,10 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				'display': ['Playfair Display', 'Georgia', 'serif'],
-				'body': ['Roboto', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-				'playfair': ['Playfair Display', 'Georgia', 'serif'],
-				'roboto': ['Roboto', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+				'display': ['SF Pro Display', 'Inter', 'system-ui', 'sans-serif'],
+				'body': ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+				'inter': ['Inter', 'system-ui', 'sans-serif'],
+				'sf-pro': ['SF Pro Display', 'system-ui', 'sans-serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
@@ -59,43 +59,67 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				// Bot.Bj Brand Colors
-				'bot-bj': {
+				// Modern Color Palette - Apple-style
+				'modern': {
 					blue: {
-						50: '#e3f2fd',
-						100: '#bbdefb',
-						200: '#90caf9',
-						300: '#64b5f6',
-						400: '#42a5f5',
-						500: '#2196f3',
-						600: '#1e88e5',
-						700: '#1976d2',
-						800: '#1565c0',
-						900: '#0d47a1', // Primary blue
+						50: '#eff6ff',
+						100: '#dbeafe',
+						200: '#bfdbfe',
+						300: '#93c5fd',
+						400: '#60a5fa',
+						500: '#3b82f6', // Primary blue
+						600: '#2563eb',
+						700: '#1d4ed8',
+						800: '#1e40af',
+						900: '#1e3a8a',
 					},
-					green: {
-						50: '#e8f5e8',
-						100: '#c8e6c9',
-						200: '#a5d6a7',
-						300: '#81c784',
-						400: '#66bb6a',
-						500: '#4caf50',
-						600: '#43a047',
-						700: '#388e3c',
-						800: '#2e7d32', // Primary green
-						900: '#1b5e20',
+					slate: {
+						50: '#f8fafc',
+						100: '#f1f5f9',
+						200: '#e2e8f0',
+						300: '#cbd5e1',
+						400: '#94a3b8',
+						500: '#64748b',
+						600: '#475569',
+						700: '#334155',
+						800: '#1e293b',
+						900: '#0f172a',
+					},
+					emerald: {
+						50: '#ecfdf5',
+						100: '#d1fae5',
+						200: '#a7f3d0',
+						300: '#6ee7b7',
+						400: '#34d399',
+						500: '#10b981',
+						600: '#059669',
+						700: '#047857',
+						800: '#065f46',
+						900: '#064e3b',
+					},
+					purple: {
+						50: '#faf5ff',
+						100: '#f3e8ff',
+						200: '#e9d5ff',
+						300: '#d8b4fe',
+						400: '#c084fc',
+						500: '#a855f7',
+						600: '#9333ea',
+						700: '#7c3aed',
+						800: '#6b21a8',
+						900: '#581c87',
 					},
 					orange: {
-						50: '#fff3e0',
-						100: '#ffe0b2',
-						200: '#ffcc80',
-						300: '#ffb74d',
-						400: '#ffa726',
-						500: '#ff9800',
-						600: '#fb8c00',
-						700: '#f57c00',
-						800: '#ff6b35', // Primary orange
-						900: '#e65100',
+						50: '#fff7ed',
+						100: '#ffedd5',
+						200: '#fed7aa',
+						300: '#fdba74',
+						400: '#fb923c',
+						500: '#f97316',
+						600: '#ea580c',
+						700: '#c2410c',
+						800: '#9a3412',
+						900: '#7c2d12',
 					},
 				},
 				sidebar: {
@@ -114,6 +138,9 @@ export default {
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
 			},
+			backdropBlur: {
+				xs: '2px',
+			},
 			keyframes: {
 				'accordion-down': {
 					from: {
@@ -131,25 +158,41 @@ export default {
 						height: '0'
 					}
 				},
-				'typing': {
-					'0%': { width: '0ch' },
-					'100%': { width: '100ch' }
+				'float-in': {
+					'0%': { 
+						opacity: '0', 
+						transform: 'translateY(10px) scale(0.98)' 
+					},
+					'100%': { 
+						opacity: '1', 
+						transform: 'translateY(0) scale(1)' 
+					}
 				},
-				'fade-in': {
-					'0%': { opacity: '0', transform: 'translateY(10px)' },
-					'100%': { opacity: '1', transform: 'translateY(0)' }
+				'slide-in-right': {
+					'0%': { 
+						opacity: '0', 
+						transform: 'translateX(20px)' 
+					},
+					'100%': { 
+						opacity: '1', 
+						transform: 'translateX(0)' 
+					}
 				},
-				'slide-up': {
-					'0%': { opacity: '0', transform: 'translateY(20px)' },
-					'100%': { opacity: '1', transform: 'translateY(0)' }
-				},
-				'scale-in': {
-					'0%': { opacity: '0', transform: 'scale(0.95)' },
-					'100%': { opacity: '1', transform: 'scale(1)' }
-				},
-				'float': {
-					'0%, 100%': { transform: 'translateY(0px)' },
-					'50%': { transform: 'translateY(-6px)' }
+				'bounce-in': {
+					'0%': {
+						transform: 'scale(0.3)',
+						opacity: '0'
+					},
+					'50%': {
+						transform: 'scale(1.05)'
+					},
+					'70%': {
+						transform: 'scale(0.9)'
+					},
+					'100%': {
+						transform: 'scale(1)',
+						opacity: '1'
+					}
 				},
 				'pulse-glow': {
 					'0%, 100%': { opacity: '1' },
@@ -159,12 +202,14 @@ export default {
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
-				'typing': 'typing 2s steps(100, end)',
-				'fade-in': 'fade-in 0.6s ease-out',
-				'slide-up': 'slide-up 0.5s ease-out',
-				'scale-in': 'scale-in 0.3s ease-out',
-				'float': 'float 6s ease-in-out infinite',
+				'float-in': 'float-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+				'slide-in-right': 'slide-in-right 0.3s ease-out',
+				'bounce-in': 'bounce-in 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
 				'pulse-glow': 'pulse-glow 2s ease-in-out infinite'
+			},
+			boxShadow: {
+				'modern': '0 8px 32px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05)',
+				'modern-lg': '0 12px 40px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.08)',
 			}
 		}
 	},
