@@ -183,7 +183,7 @@ export const AccountPage: React.FC = () => {
   if (!authUser) {
     return (
       <div className="p-4 lg:p-8 space-y-6 bg-gray-50 min-h-screen">
-        <Card className="uniform-card p-8 text-center">
+        <Card className="p-8 text-center bg-white border border-gray-200 rounded-xl">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Connexion requise
           </h2>
@@ -207,22 +207,22 @@ export const AccountPage: React.FC = () => {
         </p>
       </div>
 
-      <Card className="uniform-card">
+      <Card className="bg-white border border-gray-200 rounded-xl">
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className="grid w-full grid-cols-4 p-1 bg-gray-100 rounded-t-xl">
-            <TabsTrigger value="profile" className="flex items-center space-x-2">
+            <TabsTrigger value="profile" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
               <User className="w-4 h-4" />
               <span>Profil</span>
             </TabsTrigger>
-            <TabsTrigger value="subscription" className="flex items-center space-x-2">
+            <TabsTrigger value="subscription" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
               <Crown className="w-4 h-4" />
               <span>Abonnement</span>
             </TabsTrigger>
-            <TabsTrigger value="permissions" className="flex items-center space-x-2">
+            <TabsTrigger value="permissions" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
               <Shield className="w-4 h-4" />
               <span>Permissions</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center space-x-2">
+            <TabsTrigger value="history" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
               <History className="w-4 h-4" />
               <span>Historique</span>
             </TabsTrigger>
@@ -231,7 +231,7 @@ export const AccountPage: React.FC = () => {
           <div className="p-6">
             <TabsContent value="profile" className="mt-0 space-y-6">
               {/* Informations générales */}
-              <Card className="uniform-card p-6">
+              <Card className="p-6 bg-white border border-gray-200 rounded-xl">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">
                     Informations personnelles
@@ -239,7 +239,7 @@ export const AccountPage: React.FC = () => {
                   <Button 
                     onClick={updateProfile}
                     disabled={isUpdating}
-                    className="uniform-button-primary"
+                    className="bg-gray-700 hover:bg-gray-800 text-white"
                   >
                     <Save className="w-4 h-4 mr-2" />
                     {isUpdating ? 'Mise à jour...' : 'Sauvegarder'}
@@ -248,77 +248,77 @@ export const AccountPage: React.FC = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       Nom complet
                     </label>
                     <Input
                       value={formData.full_name}
                       onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
                       placeholder="Votre nom complet"
-                      className="uniform-input"
+                      className="bg-white border border-gray-300 text-gray-900"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       Email
                     </label>
                     <Input
                       value={authUser.email || ''}
                       disabled
-                      className="uniform-input bg-gray-100"
+                      className="bg-gray-100 border border-gray-300 text-gray-900"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       Téléphone
                     </label>
                     <Input
                       value={formData.phone}
                       onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                       placeholder="+33 1 23 45 67 89"
-                      className="uniform-input"
+                      className="bg-white border border-gray-300 text-gray-900"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       Membre depuis
                     </label>
                     <Input
                       value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('fr-FR') : 'N/A'}
                       disabled
-                      className="uniform-input bg-gray-100"
+                      className="bg-gray-100 border border-gray-300 text-gray-900"
                     />
                   </div>
                 </div>
               </Card>
 
               {/* Statistiques du compte */}
-              <Card className="uniform-card p-6">
+              <Card className="p-6 bg-white border border-gray-200 rounded-xl">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Résumé du compte
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
+                    <div className="text-2xl font-bold text-gray-900">
                       {botOwner?.max_bots || 0}
                     </div>
                     <div className="text-sm text-gray-600">Bots autorisés</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
+                    <div className="text-2xl font-bold text-gray-900">
                       {userPermissions?.role === 'admin' ? 'Admin' : 
                        userPermissions?.role === 'manager' ? 'Manager' : 'User'}
                     </div>
                     <div className="text-sm text-gray-600">Niveau d'accès</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
+                    <div className="text-2xl font-bold text-gray-900">
                       {profile?.subscription_tier === 'free' ? 'Gratuit' : 'Premium'}
                     </div>
                     <div className="text-sm text-gray-600">Plan actuel</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
+                    <div className="text-2xl font-bold text-gray-900">
                       {userPermissions?.permissions.length || 0}
                     </div>
                     <div className="text-sm text-gray-600">Permissions</div>
@@ -329,7 +329,7 @@ export const AccountPage: React.FC = () => {
             
             <TabsContent value="subscription" className="mt-0 space-y-6">
               {/* Abonnement actuel */}
-              <Card className="uniform-card p-6">
+              <Card className="p-6 bg-white border border-gray-200 rounded-xl">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Abonnement actuel
                 </h3>
@@ -347,39 +347,39 @@ export const AccountPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <Badge className="uniform-badge-active">
+                  <Badge className="bg-gray-100 text-gray-900 border border-gray-200">
                     Actif
                   </Badge>
                 </div>
               </Card>
 
               {/* Fonctionnalités incluses */}
-              <Card className="uniform-card p-6">
+              <Card className="p-6 bg-white border border-gray-200 rounded-xl">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Fonctionnalités incluses
                 </h3>
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                     <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Création de chatbots personnalisés</span>
+                    <span className="text-gray-900">Création de chatbots personnalisés</span>
                   </div>
                   <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                     <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Gestion centralisée des messages</span>
+                    <span className="text-gray-900">Gestion centralisée des messages</span>
                   </div>
                   <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                     <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Analytics et statistiques</span>
+                    <span className="text-gray-900">Analytics et statistiques</span>
                   </div>
                   <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                     <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Intégrations webhook</span>
+                    <span className="text-gray-900">Intégrations webhook</span>
                   </div>
                 </div>
               </Card>
 
               {/* Actions d'abonnement */}
-              <Card className="uniform-card p-6">
+              <Card className="p-6 bg-white border border-gray-200 rounded-xl">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Gestion de l'abonnement
                 </h3>
@@ -389,11 +389,11 @@ export const AccountPage: React.FC = () => {
                     Passez au plan Premium pour débloquer plus de fonctionnalités.
                   </p>
                   <div className="flex space-x-3">
-                    <Button className="uniform-button-primary">
+                    <Button className="bg-gray-700 hover:bg-gray-800 text-white">
                       <CreditCard className="w-4 h-4 mr-2" />
                       Passer au Premium
                     </Button>
-                    <Button className="uniform-button-secondary">
+                    <Button className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300">
                       Voir les détails de facturation
                     </Button>
                   </div>
@@ -402,7 +402,7 @@ export const AccountPage: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="permissions" className="mt-0 space-y-6">
-              <Card className="uniform-card p-6">
+              <Card className="p-6 bg-white border border-gray-200 rounded-xl">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Rôle et Permissions
                 </h3>
@@ -430,7 +430,7 @@ export const AccountPage: React.FC = () => {
                         {userPermissions.permissions.map((permission, index) => (
                           <div key={index} className="flex items-center space-x-2 p-2 bg-white border border-gray-200 rounded">
                             <Key className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm text-gray-700">{permission}</span>
+                            <span className="text-sm text-gray-900">{permission}</span>
                           </div>
                         ))}
                       </div>

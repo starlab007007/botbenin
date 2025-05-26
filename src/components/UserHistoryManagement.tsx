@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -187,18 +188,18 @@ export const UserHistoryManagement: React.FC = () => {
         <p className="text-gray-600">Consultez votre activité et gérez vos notifications</p>
       </div>
 
-      <Card className="uniform-card">
+      <Card className="bg-white border border-gray-200 rounded-xl">
         <Tabs defaultValue="chats" className="w-full">
           <TabsList className="grid w-full grid-cols-3 p-1 bg-gray-100 rounded-t-xl">
-            <TabsTrigger value="chats" className="flex items-center space-x-2">
+            <TabsTrigger value="chats" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
               <MessageSquare className="w-4 h-4" />
               <span>Historique Chats</span>
             </TabsTrigger>
-            <TabsTrigger value="account" className="flex items-center space-x-2">
+            <TabsTrigger value="account" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
               <History className="w-4 h-4" />
               <span>Activité Compte</span>
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center space-x-2">
+            <TabsTrigger value="notifications" className="flex items-center space-x-2 text-gray-700 data-[state=active]:text-gray-900">
               <Bell className="w-4 h-4" />
               <span>Notifications</span>
             </TabsTrigger>
@@ -211,7 +212,7 @@ export const UserHistoryManagement: React.FC = () => {
                   <h3 className="text-lg font-semibold text-gray-900">
                     Historique des conversations
                   </h3>
-                  <Button className="uniform-button-secondary" size="sm">
+                  <Button className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300" size="sm">
                     <Filter className="w-4 h-4 mr-2" />
                     Filtrer
                   </Button>
@@ -295,7 +296,7 @@ export const UserHistoryManagement: React.FC = () => {
                   <h3 className="text-lg font-semibold text-gray-900">
                     Notifications ({notifications.filter(n => !n.read).length} non lues)
                   </h3>
-                  <Button className="uniform-button-secondary" size="sm">
+                  <Button className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300" size="sm">
                     Tout marquer comme lu
                   </Button>
                 </div>
@@ -323,7 +324,7 @@ export const UserHistoryManagement: React.FC = () => {
                                 {notification.title}
                               </h4>
                               {!notification.read && (
-                                <Badge className="uniform-badge bg-blue-100 text-blue-800">
+                                <Badge className="bg-gray-100 text-gray-900 border border-gray-200">
                                   Nouveau
                                 </Badge>
                               )}
@@ -341,7 +342,7 @@ export const UserHistoryManagement: React.FC = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => markNotificationAsRead(notification.id)}
-                                className="p-1"
+                                className="p-1 text-gray-600 hover:text-gray-900"
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
@@ -350,7 +351,7 @@ export const UserHistoryManagement: React.FC = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => deleteNotification(notification.id)}
-                              className="p-1 text-red-600 hover:text-red-700"
+                              className="p-1 text-gray-600 hover:text-gray-900"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
