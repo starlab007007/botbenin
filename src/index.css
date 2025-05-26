@@ -324,3 +324,299 @@
 .fill-yellow-600 {
   @apply fill-blue-500 !important;
 }
+
+/* NOUVELLES RÈGLES CSS POUR FORCER LE BLANC PAR DÉFAUT SUR TOUTE LA PLATEFORME */
+
+/* 1. COULEURS PAR DÉFAUT DU NAVIGATEUR - Éléments de formulaire */
+input, textarea, select, option, button {
+  background-color: white !important;
+  color: black !important;
+  border-color: #d1d5db !important; /* gray-300 */
+}
+
+/* États focus et hover pour les éléments de formulaire */
+input:focus,
+textarea:focus,
+select:focus {
+  background-color: white !important;
+  color: black !important;
+  border-color: #6b7280 !important; /* gray-500 */
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2) !important;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  background-color: white !important;
+  border-color: #9ca3af !important; /* gray-400 */
+}
+
+/* 2. AUTO-COMPLÉTION DU NAVIGATEUR */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: black !important;
+  background-color: white !important;
+  background-image: none !important;
+  color: black !important;
+}
+
+/* Firefox autocomplete */
+input:-moz-autofill,
+textarea:-moz-autofill,
+select:-moz-autofill {
+  background-color: white !important;
+  color: black !important;
+}
+
+/* 3. SHADCN/UI - OVERRIDES COMPLETS */
+/* Boutons shadcn/ui */
+[class*="button"],
+button[class*="variant"] {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* Cards shadcn/ui */
+[class*="card"],
+.card {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Dialogs et Modals shadcn/ui */
+[class*="dialog"],
+[class*="modal"],
+[role="dialog"],
+[data-state="open"] {
+  background-color: white !important;
+  color: black !important;
+}
+
+/* Popover et Dropdown shadcn/ui */
+[class*="popover"],
+[class*="dropdown"],
+[role="menu"],
+[role="listbox"] {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* Tabs shadcn/ui */
+[class*="tabs"],
+[role="tab"],
+[role="tabpanel"] {
+  background-color: white !important;
+  color: black !important;
+}
+
+/* 4. ÉLÉMENTS SYSTÈME DU NAVIGATEUR */
+/* Liens par défaut */
+a {
+  color: #2563eb !important; /* blue-600 */
+  text-decoration: none !important;
+}
+
+a:hover {
+  color: #1d4ed8 !important; /* blue-700 */
+  text-decoration: underline !important;
+}
+
+a:visited {
+  color: #7c3aed !important; /* violet-600 */
+}
+
+/* Listes */
+ul, ol, li {
+  color: black !important;
+}
+
+/* Tables */
+table, th, td {
+  background-color: white !important;
+  color: black !important;
+  border-color: #e5e7eb !important;
+}
+
+th {
+  background-color: #f9fafb !important; /* gray-50 */
+  color: black !important;
+  font-weight: 500 !important;
+}
+
+/* 5. ÉLÉMENTS INTERACTIFS */
+/* Checkboxes et Radio buttons */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #6b7280 !important; /* gray-500 */
+  background-color: white !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* Sliders */
+input[type="range"] {
+  accent-color: #6b7280 !important;
+  background: white !important;
+}
+
+/* File inputs */
+input[type="file"] {
+  background-color: white !important;
+  color: black !important;
+}
+
+input[type="file"]::file-selector-button {
+  background-color: #f3f4f6 !important; /* gray-100 */
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+  padding: 0.5rem 1rem !important;
+  border-radius: 0.375rem !important;
+}
+
+/* 6. ÉLÉMENTS DE CONTENU */
+/* Code blocks */
+pre, code {
+  background-color: #f9fafb !important; /* gray-50 */
+  color: black !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Blockquotes */
+blockquote {
+  background-color: #f9fafb !important;
+  color: black !important;
+  border-left: 4px solid #6b7280 !important;
+}
+
+/* 7. TOOLTIPS ET NOTIFICATIONS */
+/* Tooltips génériques */
+[role="tooltip"],
+.tooltip {
+  background-color: #1f2937 !important; /* gray-800 pour contraste */
+  color: white !important;
+  border: none !important;
+}
+
+/* Notifications/Alerts */
+[role="alert"],
+.alert {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+}
+
+/* 8. ÉTATS DE CHARGEMENT ET LOADING */
+/* Spinners et loaders */
+.spinner,
+.loader,
+[class*="loading"] {
+  border-color: #e5e7eb #e5e7eb #6b7280 #e5e7eb !important;
+}
+
+/* 9. DARK MODE PREVENTION - Force le mode clair */
+[data-theme="dark"],
+.dark,
+[class*="dark"] {
+  background-color: white !important;
+  color: black !important;
+}
+
+[data-theme="dark"] *,
+.dark *,
+[class*="dark"] * {
+  background-color: inherit !important;
+  color: inherit !important;
+}
+
+/* 10. RÈGLES GLOBALES DE SÉCURITÉ */
+/* Force tous les backgrounds à être blancs si pas définis */
+*:not([style*="background"]) {
+  background-color: transparent !important;
+}
+
+/* Force tous les textes à être noirs si pas définis */
+*:not([style*="color"]) {
+  color: black !important;
+}
+
+/* Override tous les styles inline qui pourraient contenir du jaune */
+[style*="yellow"],
+[style*="#ff"],
+[style*="rgb(255, 255, 0)"],
+[style*="hsl(60"] {
+  background-color: white !important;
+  color: black !important;
+}
+
+/* 11. COMPOSANTS TIERS ET BIBLIOTHÈQUES */
+/* React Query DevTools */
+[data-testid*="react-query"] {
+  background-color: white !important;
+  color: black !important;
+}
+
+/* Radix UI components */
+[data-radix-popper-content-wrapper] *,
+[data-radix-select-content] *,
+[data-radix-dialog-content] *,
+[data-radix-dropdown-menu-content] * {
+  background-color: inherit !important;
+  color: black !important;
+}
+
+/* 12. MEDIA QUERIES POUR LA RESPONSIVITÉ */
+@media (max-width: 768px) {
+  /* Assure que le mobile utilise aussi le blanc par défaut */
+  * {
+    background-color: white !important;
+    color: black !important;
+  }
+  
+  input, textarea, select {
+    background-color: white !important;
+    color: black !important;
+  }
+}
+
+/* 13. PRINT STYLES - Assure que l'impression soit en noir et blanc */
+@media print {
+  * {
+    background-color: white !important;
+    color: black !important;
+    border-color: black !important;
+  }
+}
+
+/* 14. RÈGLE FINALE - CATCH-ALL POUR TOUT CE QUI POURRAIT ÉCHAPPER */
+body * {
+  background-color: inherit !important;
+  color: inherit !important;
+}
+
+/* Assure que les variables CSS utilisent les bonnes valeurs */
+:root {
+  --color-background: white;
+  --color-foreground: black;
+  --color-text: black;
+  --color-border: #e5e7eb;
+}
+
+/* Force l'utilisation de ces variables */
+* {
+  background-color: var(--color-background) !important;
+  color: var(--color-foreground) !important;
+}
