@@ -12,6 +12,7 @@ import {
   Users
 } from 'lucide-react';
 import { MobileSidebar } from '@/components/MobileSidebar';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -46,86 +47,86 @@ export const TopHeader: React.FC = () => {
 
   return (
     <>
-      <header className="glass-header h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-40">
         {/* Left side */}
         <div className="flex items-center space-x-4">
           {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="sm"
-            className="lg:hidden modern-button-secondary h-10 w-10 p-0"
+            className="lg:hidden"
             onClick={() => setShowMobileSidebar(true)}
           >
-            <Menu className="w-5 h-5 icon-blue" />
+            <Menu className="w-5 h-5" />
           </Button>
 
           {/* Logo */}
           <button 
             onClick={handleLogoClick}
-            className="flex items-center space-x-3 hover:opacity-80 transition-all duration-200 hover:scale-105"
+            className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
           >
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-lg">B</span>
+            <div className="w-8 h-8 bg-gradient-to-r from-gray-600 to-gray-700 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">B</span>
             </div>
-            <span className="text-xl font-bold text-slate-900 hidden sm:block font-display">Bot.Bj</span>
+            <span className="text-xl font-bold text-gray-900 hidden sm:block">Bot.Bj</span>
           </button>
         </div>
 
         {/* Right side */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 lg:space-x-4">
+          <ThemeToggle />
+          
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="modern-button-secondary h-11 px-4 space-x-3">
+                <Button variant="ghost" className="flex items-center space-x-2 h-10">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-medium">
+                    <AvatarFallback className="bg-gradient-to-r from-gray-500 to-gray-600 text-white text-sm">
                       {getUserInitials(user!.name)}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:block text-sm font-medium text-slate-700">
+                  <span className="hidden sm:block text-sm font-medium text-gray-700">
                     {user!.name}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
               
-              <DropdownMenuContent align="end" className="dropdown-content w-64">
-                <div className="px-4 py-3 border-b border-slate-100">
-                  <p className="text-sm font-semibold text-slate-900">{user!.name}</p>
-                  <p className="text-xs text-slate-500">{user!.email}</p>
-                  <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-600 mt-2">
-                    {user!.role}
-                  </div>
+              <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-200 shadow-lg">
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <p className="text-sm font-medium text-gray-900">{user!.name}</p>
+                  <p className="text-xs text-gray-500">{user!.email}</p>
+                  <p className="text-xs text-gray-600 capitalize">{user!.role}</p>
                 </div>
                 
                 <DropdownMenuItem asChild>
-                  <Link to="/" className="dropdown-item">
-                    <Home className="w-4 h-4 icon-blue" />
+                  <Link to="/" className="flex items-center cursor-pointer">
+                    <Home className="w-4 h-4 mr-2" />
                     Accueil
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem asChild>
-                  <Link to="/account" className="dropdown-item">
-                    <User className="w-4 h-4 icon-green" />
+                  <Link to="/account" className="flex items-center cursor-pointer">
+                    <User className="w-4 h-4 mr-2" />
                     Mon Profil
                   </Link>
                 </DropdownMenuItem>
                 
                 {hasAdminAccess && (
                   <>
-                    <DropdownMenuSeparator className="my-1" />
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link to="/users" className="dropdown-item">
-                        <Users className="w-4 h-4 icon-purple" />
+                      <Link to="/users" className="flex items-center cursor-pointer">
+                        <Users className="w-4 h-4 mr-2" />
                         Gestion Utilisateurs
                       </Link>
                     </DropdownMenuItem>
                   </>
                 )}
                 
-                <DropdownMenuSeparator className="my-1" />
-                <DropdownMenuItem onClick={handleLogout} className="dropdown-item text-red-600 hover:text-red-700 hover:bg-red-50">
-                  <LogOut className="w-4 h-4" />
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+                  <LogOut className="w-4 h-4 mr-2" />
                   Déconnexion
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -133,7 +134,8 @@ export const TopHeader: React.FC = () => {
           ) : (
             <Button
               onClick={() => setShowAuthModal(true)}
-              className="modern-button-primary h-11 px-6"
+              className="bg-gray-600 hover:bg-gray-700 text-white"
+              size="sm"
             >
               <User className="w-4 h-4 mr-2" />
               Connexion
