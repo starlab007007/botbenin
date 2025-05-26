@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -309,8 +310,8 @@ export const HomePage: React.FC = () => {
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Hero Section */}
-      <div className="text-center bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 text-white py-16 px-8 rounded-3xl">
-        <p className="text-sm lg:text-base text-gray-300 mb-4">
+      <div className="text-center bg-gradient-to-br from-gray-400 via-gray-500 to-gray-600 text-black py-16 px-8 rounded-3xl">
+        <p className="text-sm lg:text-base text-gray-800 mb-4">
           Pour les entreprises qui fonctionnent déjà bien et qui veulent propulser leur croissance grâce à l'IA →
         </p>
         <h1 className="text-4xl lg:text-6xl font-bold mb-8">
@@ -322,7 +323,7 @@ export const HomePage: React.FC = () => {
             qui propulse votre entreprise
           </span>
         </h1>
-        <p className="text-lg lg:text-xl text-gray-300 mb-8 max-w-4xl mx-auto">
+        <p className="text-lg lg:text-xl text-gray-800 mb-8 max-w-4xl mx-auto leading-relaxed">
           Automatisez vos processus, libérez vos équipes des tâches répétitives et 
           concentrez-vous sur l'essentiel. Grâce à nos solutions d'automatisation sur-mesure, 
           chaque agent IA travaille en synergie pour transformer votre quotidien opérationnel.
