@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,49 +8,50 @@
 
 @layer base {
   :root {
-    /* Couleurs uniformisées - tons gris et blanc */
-    --background: 249 250 251; /* gray-50 */
-    --foreground: 17 24 39; /* gray-900 */
+    /* Couleurs uniformisées - tons gris et blanc uniquement */
+    --background: 255 255 255; /* white */
+    --foreground: 0 0 0; /* black */
     --card: 255 255 255; /* white */
-    --card-foreground: 17 24 39; /* gray-900 */
-    --popover: 255 255 255;
-    --popover-foreground: 17 24 39;
-    --primary: 75 85 99; /* gray-600 - pour les boutons */
-    --primary-foreground: 255 255 255;
-    --secondary: 156 163 175; /* gray-400 */
-    --secondary-foreground: 17 24 39;
-    --muted: 243 244 246; /* gray-100 */
+    --card-foreground: 0 0 0; /* black */
+    --popover: 255 255 255; /* white */
+    --popover-foreground: 0 0 0; /* black */
+    --primary: 75 85 99; /* gray-600 */
+    --primary-foreground: 255 255 255; /* white */
+    --secondary: 243 244 246; /* gray-100 */
+    --secondary-foreground: 0 0 0; /* black */
+    --muted: 249 250 251; /* gray-50 */
     --muted-foreground: 107 114 128; /* gray-500 */
     --accent: 229 231 235; /* gray-200 */
-    --accent-foreground: 17 24 39;
-    --destructive: 239 68 68;
-    --destructive-foreground: 255 255 255;
+    --accent-foreground: 0 0 0; /* black */
+    --destructive: 239 68 68; /* red-500 pour les erreurs */
+    --destructive-foreground: 255 255 255; /* white */
     --border: 229 231 235; /* gray-200 */
-    --input: 229 231 235;
-    --ring: 75 85 99;
+    --input: 255 255 255; /* white */
+    --ring: 75 85 99; /* gray-600 */
     --radius: 0.75rem;
   }
 
   .dark {
+    /* Mode sombre avec gris foncé et blanc */
     --background: 17 24 39; /* gray-900 */
-    --foreground: 249 250 251; /* gray-50 */
+    --foreground: 255 255 255; /* white */
     --card: 31 41 55; /* gray-800 */
-    --card-foreground: 249 250 251;
-    --popover: 31 41 55;
-    --popover-foreground: 249 250 251;
+    --card-foreground: 255 255 255; /* white */
+    --popover: 31 41 55; /* gray-800 */
+    --popover-foreground: 255 255 255; /* white */
     --primary: 156 163 175; /* gray-400 */
-    --primary-foreground: 17 24 39;
+    --primary-foreground: 17 24 39; /* gray-900 */
     --secondary: 75 85 99; /* gray-600 */
-    --secondary-foreground: 249 250 251;
+    --secondary-foreground: 255 255 255; /* white */
     --muted: 55 65 81; /* gray-700 */
-    --muted-foreground: 156 163 175;
-    --accent: 75 85 99;
-    --accent-foreground: 249 250 251;
-    --destructive: 248 113 113;
-    --destructive-foreground: 17 24 39;
-    --border: 75 85 99;
-    --input: 75 85 99;
-    --ring: 156 163 175;
+    --muted-foreground: 156 163 175; /* gray-400 */
+    --accent: 75 85 99; /* gray-600 */
+    --accent-foreground: 255 255 255; /* white */
+    --destructive: 248 113 113; /* red-400 */
+    --destructive-foreground: 17 24 39; /* gray-900 */
+    --border: 75 85 99; /* gray-600 */
+    --input: 75 85 99; /* gray-600 */
+    --ring: 156 163 175; /* gray-400 */
   }
 
   .sidebar-background {
@@ -70,7 +72,7 @@
   }
 
   body {
-    @apply bg-gray-50 text-foreground transition-colors duration-300;
+    @apply bg-white text-black transition-colors duration-300;
     font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -80,6 +82,7 @@
     font-family: 'Playfair Display', Georgia, serif;
     font-weight: 600;
     letter-spacing: -0.025em;
+    @apply text-black;
   }
 
   .font-display {
@@ -89,9 +92,31 @@
   .font-body {
     font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
+
+  /* Force tous les textes en noir */
+  p, span, div, label, input, textarea, select, option {
+    @apply text-black;
+  }
+
+  /* Force tous les backgrounds en blanc ou gris */
+  .bg-primary {
+    @apply bg-gray-600;
+  }
+
+  .bg-secondary {
+    @apply bg-gray-100;
+  }
+
+  .bg-accent {
+    @apply bg-gray-200;
+  }
+
+  .bg-muted {
+    @apply bg-gray-50;
+  }
 }
 
-/* Composants uniformisés */
+/* Composants uniformisés avec schéma gris/blanc */
 .uniform-card {
   @apply bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-300;
 }
@@ -101,11 +126,11 @@
 }
 
 .uniform-button-secondary {
-  @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg px-4 py-2 border border-gray-300 transition-all duration-200;
+  @apply bg-white hover:bg-gray-50 text-black font-medium rounded-lg px-4 py-2 border border-gray-300 transition-all duration-200;
 }
 
 .uniform-input {
-  @apply bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200;
+  @apply bg-white border border-gray-300 rounded-lg px-3 py-2 text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-all duration-200;
 }
 
 .uniform-badge {
@@ -113,11 +138,11 @@
 }
 
 .uniform-badge-active {
-  @apply bg-green-100 text-green-800 border border-green-200;
+  @apply bg-gray-100 text-black border border-gray-300;
 }
 
 .uniform-badge-inactive {
-  @apply bg-gray-100 text-gray-800 border border-gray-200;
+  @apply bg-gray-50 text-gray-600 border border-gray-200;
 }
 
 .uniform-stats-card {
@@ -135,12 +160,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: rgb(107 114 128 / 0.3);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: rgb(107 114 128 / 0.5);
 }
 
 /* Animations */
@@ -219,6 +244,7 @@
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.025em;
+  @apply text-black;
 }
 
 .text-headline {
@@ -226,12 +252,35 @@
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.025em;
+  @apply text-black;
 }
 
 .text-body {
   font-size: 1rem;
   line-height: 1.6;
   font-weight: 400;
+  @apply text-black;
+}
+
+/* Force les dropdowns à avoir un background blanc et texte noir */
+[data-radix-popper-content-wrapper] {
+  @apply bg-white;
+}
+
+[data-radix-select-content] {
+  @apply bg-white border border-gray-300;
+}
+
+[data-radix-select-item] {
+  @apply text-black hover:bg-gray-50;
+}
+
+[data-radix-dialog-overlay] {
+  @apply bg-black/50;
+}
+
+[data-radix-dialog-content] {
+  @apply bg-white border border-gray-300;
 }
 
 /* Responsive Design */
@@ -244,4 +293,49 @@
   .uniform-button-secondary {
     @apply px-3 py-2 text-sm;
   }
+}
+
+/* Force tous les éléments à utiliser le schéma de couleurs uniforme */
+* {
+  color: inherit;
+}
+
+.text-white {
+  @apply text-white !important;
+}
+
+.text-gray-900 {
+  @apply text-black !important;
+}
+
+.text-gray-800 {
+  @apply text-black !important;
+}
+
+.text-gray-700 {
+  @apply text-black !important;
+}
+
+.text-gray-600 {
+  @apply text-gray-600 !important;
+}
+
+.text-gray-500 {
+  @apply text-gray-500 !important;
+}
+
+.text-gray-400 {
+  @apply text-gray-400 !important;
+}
+
+.text-gray-300 {
+  @apply text-gray-300 !important;
+}
+
+.text-gray-200 {
+  @apply text-gray-200 !important;
+}
+
+.text-gray-100 {
+  @apply text-gray-100 !important;
 }
