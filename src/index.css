@@ -8,37 +8,37 @@
 
 @layer base {
   :root {
-    /* Modern Gray-style color palette - NO YELLOW */
-    --background: 243 244 246; /* gray-100 */
-    --foreground: 31 41 55; /* gray-800 */
-    --card: 249 250 251; /* gray-50 */
-    --card-foreground: 31 41 55; /* gray-800 */
-    --popover: 249 250 251; /* gray-50 */
-    --popover-foreground: 31 41 55; /* gray-800 */
-    --primary: 75 85 99; /* gray-600 */
-    --primary-foreground: 249 250 251; /* gray-50 */
-    --secondary: 229 231 235; /* gray-200 */
-    --secondary-foreground: 55 65 81; /* gray-700 */
-    --muted: 243 244 246; /* gray-100 */
-    --muted-foreground: 107 114 128; /* gray-500 */
-    --accent: 229 231 235; /* gray-200 */
-    --accent-foreground: 31 41 55; /* gray-800 */
+    /* Modern Apple-style color palette */
+    --background: 248 250 252; /* slate-50 */
+    --foreground: 15 23 42; /* slate-900 */
+    --card: 255 255 255; /* white */
+    --card-foreground: 15 23 42; /* slate-900 */
+    --popover: 255 255 255; /* white */
+    --popover-foreground: 15 23 42; /* slate-900 */
+    --primary: 59 130 246; /* blue-500 */
+    --primary-foreground: 255 255 255; /* white */
+    --secondary: 241 245 249; /* slate-100 */
+    --secondary-foreground: 51 65 85; /* slate-700 */
+    --muted: 248 250 252; /* slate-50 */
+    --muted-foreground: 100 116 139; /* slate-500 */
+    --accent: 241 245 249; /* slate-100 */
+    --accent-foreground: 15 23 42; /* slate-900 */
     --destructive: 239 68 68; /* red-500 */
     --destructive-foreground: 255 255 255; /* white */
-    --border: 209 213 219; /* gray-300 */
-    --input: 249 250 251; /* gray-50 */
-    --ring: 75 85 99; /* gray-600 */
+    --border: 226 232 240; /* slate-200 */
+    --input: 255 255 255; /* white */
+    --ring: 59 130 246; /* blue-500 */
     --radius: 12px;
     
     /* Sidebar variables */
-    --sidebar-background: 249 250 251; /* gray-50 */
-    --sidebar-foreground: 31 41 55; /* gray-800 */
-    --sidebar-primary: 75 85 99; /* gray-600 */
-    --sidebar-primary-foreground: 249 250 251; /* gray-50 */
-    --sidebar-accent: 229 231 235; /* gray-200 */
-    --sidebar-accent-foreground: 31 41 55; /* gray-800 */
-    --sidebar-border: 209 213 219; /* gray-300 */
-    --sidebar-ring: 75 85 99; /* gray-600 */
+    --sidebar-background: 255 255 255; /* white */
+    --sidebar-foreground: 15 23 42; /* slate-900 */
+    --sidebar-primary: 59 130 246; /* blue-500 */
+    --sidebar-primary-foreground: 255 255 255; /* white */
+    --sidebar-accent: 241 245 249; /* slate-100 */
+    --sidebar-accent-foreground: 15 23 42; /* slate-900 */
+    --sidebar-border: 226 232 240; /* slate-200 */
+    --sidebar-ring: 59 130 246; /* blue-500 */
   }
 }
 
@@ -48,7 +48,7 @@
   }
 
   html, body {
-    @apply bg-gray-100 text-gray-800;
+    @apply bg-slate-50 text-slate-900;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -59,7 +59,7 @@
     font-family: 'SF Pro Display', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-weight: 600;
     letter-spacing: -0.02em;
-    @apply text-gray-900;
+    @apply text-slate-900;
   }
 
   .font-display {
@@ -73,7 +73,7 @@
 
 /* Modern Floating Components */
 .floating-card {
-  @apply bg-gray-50/90 backdrop-blur-xl border border-gray-200/50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300;
+  @apply bg-white/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
@@ -83,74 +83,74 @@
 }
 
 .glass-header {
-  @apply bg-gray-50/90 backdrop-blur-xl border-b border-gray-200/30;
+  @apply bg-white/90 backdrop-blur-xl border-b border-white/20;
   box-shadow: 0 1px 12px rgba(0, 0, 0, 0.05);
 }
 
 .modern-button {
   @apply inline-flex items-center justify-center rounded-xl font-medium transition-all duration-200;
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500/50 focus-visible:ring-offset-2;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2;
   @apply disabled:pointer-events-none disabled:opacity-50;
 }
 
 .modern-button-primary {
-  @apply modern-button bg-gray-600 text-white hover:bg-gray-700 shadow-lg hover:shadow-xl;
+  @apply modern-button bg-blue-500 text-white hover:bg-blue-600 shadow-lg hover:shadow-xl;
   @apply active:scale-[0.98] transform;
 }
 
 .modern-button-secondary {
-  @apply modern-button bg-gray-50/80 text-gray-700 hover:bg-gray-100 border border-gray-200/50;
+  @apply modern-button bg-white/80 text-slate-700 hover:bg-white border border-slate-200/50;
   @apply shadow-sm hover:shadow-md backdrop-blur-sm;
 }
 
 .modern-input {
-  @apply flex h-11 w-full rounded-xl border border-gray-200/50 bg-gray-50/80 backdrop-blur-sm px-4 py-2;
-  @apply text-sm ring-offset-background placeholder:text-gray-500;
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500/50 focus-visible:ring-offset-2;
+  @apply flex h-11 w-full rounded-xl border border-slate-200/50 bg-white/80 backdrop-blur-sm px-4 py-2;
+  @apply text-sm ring-offset-background placeholder:text-slate-500;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:ring-offset-2;
   @apply disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200;
 }
 
-/* Icon Styles - Gray tones instead of bright colors */
+/* Icon Styles - Colorful like the reference */
 .icon-blue {
-  @apply text-gray-600;
+  @apply text-blue-500;
 }
 
 .icon-green {
-  @apply text-gray-500;
+  @apply text-emerald-500;
 }
 
 .icon-purple {
-  @apply text-gray-700;
+  @apply text-purple-500;
 }
 
 .icon-orange {
-  @apply text-gray-600;
+  @apply text-orange-500;
 }
 
 .icon-red {
-  @apply text-gray-800;
+  @apply text-red-500;
 }
 
 .icon-yellow {
-  @apply text-gray-500; /* CHANGED FROM YELLOW TO GRAY */
+  @apply text-yellow-500;
 }
 
 .icon-pink {
-  @apply text-gray-600;
+  @apply text-pink-500;
 }
 
 .icon-indigo {
-  @apply text-gray-700;
+  @apply text-indigo-500;
 }
 
 /* Modern Navigation */
 .nav-item {
-  @apply flex items-center space-x-3 px-4 py-3 rounded-xl text-gray-700 hover:text-gray-900;
-  @apply hover:bg-gray-100/50 transition-all duration-200 cursor-pointer;
+  @apply flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-700 hover:text-slate-900;
+  @apply hover:bg-slate-100/50 transition-all duration-200 cursor-pointer;
 }
 
 .nav-item.active {
-  @apply bg-gray-200 text-gray-800 font-medium;
+  @apply bg-blue-50 text-blue-600 font-medium;
 }
 
 .nav-item:hover {
@@ -159,7 +159,7 @@
 
 /* Chat Interface Modern Styling */
 .chat-container {
-  @apply bg-gradient-to-br from-gray-100 to-gray-50 min-h-screen;
+  @apply bg-gradient-to-br from-slate-50 to-white min-h-screen;
 }
 
 .chat-header {
@@ -171,11 +171,11 @@
 }
 
 .chat-message.user {
-  @apply ml-auto bg-gray-600 text-white;
+  @apply ml-auto bg-blue-500 text-white;
 }
 
 .chat-message.assistant {
-  @apply mr-auto bg-gray-50;
+  @apply mr-auto bg-white;
 }
 
 /* Dropdown and Popover Styling */
@@ -187,7 +187,7 @@
 
 .dropdown-item {
   @apply flex items-center space-x-3 px-3 py-2 rounded-lg text-sm;
-  @apply text-gray-700 hover:text-gray-900 hover:bg-gray-100/50;
+  @apply text-slate-700 hover:text-slate-900 hover:bg-slate-100/50;
   @apply transition-all duration-150 cursor-pointer;
 }
 
@@ -202,39 +202,34 @@
 }
 
 .stats-number {
-  @apply text-3xl font-bold text-gray-900 mb-2;
+  @apply text-3xl font-bold text-slate-900 mb-2;
 }
 
 .stats-label {
-  @apply text-sm text-gray-600 font-medium;
+  @apply text-sm text-slate-600 font-medium;
 }
 
 /* Search Bar Modern */
 .search-bar {
   @apply modern-input flex-1 pl-12 pr-4 h-12;
-  @apply bg-gray-50/90 backdrop-blur-sm border-gray-200/30;
+  @apply bg-white/90 backdrop-blur-sm border-slate-200/30;
 }
 
-/* Button variations with gray tones */
+/* Button variations with colors */
 .btn-blue {
-  @apply bg-gray-600 hover:bg-gray-700 text-white;
+  @apply bg-blue-500 hover:bg-blue-600 text-white;
 }
 
 .btn-green {
-  @apply bg-gray-500 hover:bg-gray-600 text-white;
+  @apply bg-emerald-500 hover:bg-emerald-600 text-white;
 }
 
 .btn-purple {
-  @apply bg-gray-700 hover:bg-gray-800 text-white;
+  @apply bg-purple-500 hover:bg-purple-600 text-white;
 }
 
 .btn-orange {
-  @apply bg-gray-600 hover:bg-gray-700 text-white;
-}
-
-/* Gradient backgrounds - all gray now */
-.gradient-warm {
-  @apply bg-gradient-to-br from-gray-100 to-gray-200;
+  @apply bg-orange-500 hover:bg-orange-600 text-white;
 }
 
 /* Scrollbar Styling */
@@ -248,12 +243,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(107, 114, 128, 0.3);
+  background: rgba(148, 163, 184, 0.3);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.5);
+  background: rgba(148, 163, 184, 0.5);
 }
 
 /* Modern Animations */
@@ -314,7 +309,7 @@
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.03em;
-  @apply text-gray-900;
+  @apply text-slate-900;
 }
 
 .text-headline {
@@ -322,14 +317,14 @@
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  @apply text-gray-900;
+  @apply text-slate-900;
 }
 
 .text-body {
   font-size: 1rem;
   line-height: 1.6;
   font-weight: 400;
-  @apply text-gray-700;
+  @apply text-slate-700;
 }
 
 /* Responsive Design */
@@ -347,42 +342,24 @@
   }
 }
 
-/* Override shadcn components for gray consistency */
+/* Override shadcn components for consistency */
 .bg-primary {
-  background-color: rgb(75 85 99) !important; /* gray-600 */
+  background-color: rgb(59 130 246) !important;
 }
 
 .bg-secondary {
-  background-color: rgb(229 231 235) !important; /* gray-200 */
+  background-color: rgb(241 245 249) !important;
 }
 
 .bg-accent {
-  background-color: rgb(229 231 235) !important; /* gray-200 */
+  background-color: rgb(241 245 249) !important;
 }
 
 .bg-muted {
-  background-color: rgb(243 244 246) !important; /* gray-100 */
+  background-color: rgb(248 250 252) !important;
 }
 
 /* Toast styling */
 .toaster, .toast {
   @apply floating-card;
-}
-
-/* Force gray background everywhere */
-body, html, #root, [data-radix-portal] {
-  background-color: rgb(243 244 246) !important; /* gray-100 */
-}
-
-/* Remove any yellow colors that might still exist */
-.bg-yellow-50, .bg-yellow-100, .bg-yellow-200, .bg-yellow-300, .bg-yellow-400, .bg-yellow-500 {
-  background-color: rgb(229 231 235) !important; /* gray-200 */
-}
-
-.text-yellow-500, .text-yellow-600, .text-yellow-400 {
-  color: rgb(107 114 128) !important; /* gray-500 */
-}
-
-.border-yellow-200, .border-yellow-300 {
-  border-color: rgb(209 213 219) !important; /* gray-300 */
 }
