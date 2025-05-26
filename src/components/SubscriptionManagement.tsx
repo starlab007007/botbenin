@@ -47,7 +47,7 @@ export const SubscriptionManagement: React.FC = () => {
     {
       id: 'pro',
       name: 'Pro',
-      price: 29,
+      price: 17400,
       maxBots: 5,
       features: [
         '5 chatbots',
@@ -63,7 +63,7 @@ export const SubscriptionManagement: React.FC = () => {
     {
       id: 'enterprise',
       name: 'Enterprise',
-      price: 99,
+      price: 59400,
       maxBots: 50,
       features: [
         'Chatbots illimités',
@@ -202,7 +202,7 @@ export const SubscriptionManagement: React.FC = () => {
                   <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
                   <div className="mt-2">
                     <span className="text-3xl font-bold text-gray-900">
-                      {plan.price}€
+                      {plan.price.toLocaleString()} CFA
                     </span>
                     <span className="text-gray-600">/mois</span>
                   </div>

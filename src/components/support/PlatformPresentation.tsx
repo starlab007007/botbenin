@@ -178,19 +178,19 @@ const PlatformPresentation: React.FC = () => {
     pricing: [
       {
         plan: "Starter",
-        price: "29€/mois",
+        price: "17.400 CFA/mois",
         features: ["1 Agent IA", "1000 messages/mois", "Support email", "Intégrations de base"],
         target: "Petites entreprises"
       },
       {
         plan: "Professional",
-        price: "89€/mois",
+        price: "53.400 CFA/mois",
         features: ["2 Agents IA", "10000 messages/mois", "Support prioritaire", "Toutes intégrations"],
         target: "PME/PMI"
       },
       {
         plan: "Enterprise",
-        price: "299€/mois",
+        price: "179.400 CFA/mois",
         features: ["4 Agents IA", "Messages illimités", "Support dédié", "Personnalisation complète"],
         target: "Grandes entreprises"
       },
@@ -374,6 +374,7 @@ const PlatformPresentation: React.FC = () => {
           <div>
             <p className="text-xs text-blue-100">www.bot.bj</p>
             <p className="text-xs text-blue-100">contact@bot.bj</p>
+            <p className="text-xs text-blue-100">+229 01 40 29 91 91</p>
           </div>
           <div className="flex space-x-2">
             <Button variant="outline" size="sm" className="bg-white/20 border-white/30 text-white hover:bg-white/30">
@@ -667,7 +668,7 @@ const PlatformPresentation: React.FC = () => {
                   <CardHeader>
                     <CardTitle className="text-center">
                       <div className="text-2xl font-bold text-gray-900">{plan.plan}</div>
-                      <div className="text-3xl font-bold text-blue-600 mt-2">{plan.price}</div>
+                      <div className="text-xl font-bold text-blue-600 mt-2">{plan.price}</div>
                       <div className="text-sm text-gray-600 mt-1">{plan.target}</div>
                     </CardTitle>
                   </CardHeader>
@@ -962,6 +963,7 @@ const PlatformPresentation: React.FC = () => {
                   <div className="bg-blue-50 rounded-lg p-4 text-center">
                     <div className="text-lg font-bold text-blue-600 mb-1">Essai gratuit 14 jours</div>
                     <div className="text-sm text-gray-600">www.bot.bj</div>
+                    <div className="text-sm text-gray-600">+229 01 40 29 91 91</div>
                   </div>
                 </div>
               </div>
@@ -997,6 +999,9 @@ const PlatformPresentation: React.FC = () => {
                 <Users className="w-4 h-4 mr-2" />
                 Contacter un expert
               </Button>
+            </div>
+            <div className="mt-4 text-sm text-blue-100">
+              <p>Support: +229 01 40 29 91 91 | contact@bot.bj</p>
             </div>
           </CardContent>
         </Card>

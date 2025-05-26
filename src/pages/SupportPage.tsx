@@ -243,7 +243,7 @@ export const SupportPage: React.FC = () => {
             </Button>
             <Button className="bg-white/20 hover:bg-white/30 text-white border border-white/30 backdrop-blur-sm">
               <Phone className="w-4 h-4 mr-2" />
-              +33 1 23 45 67 89
+              +229 01 40 29 91 91
             </Button>
           </div>
         </div>
