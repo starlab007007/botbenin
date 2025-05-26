@@ -49,17 +49,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
   }, [message.content, message.isUser]);
 
   return (
-    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`flex items-start space-x-2 max-w-[80%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-6`}>
+      <div className={`flex items-start space-x-3 max-w-[80%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
         {/* Avatar */}
         {!message.isUser && (
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mt-1">
-            <Bot className="w-4 h-4 text-gray-600" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-gray-500 to-gray-700 flex items-center justify-center mt-1 shadow-lg">
+            <Bot className="w-5 h-5 text-white" />
           </div>
         )}
 
         {/* Message Content */}
-        <div className="space-y-1 flex-1">
+        <div className="space-y-2 flex-1">
           {/* Bookmark button for AI messages */}
           {!message.isUser && (
             <div className="flex justify-end mb-1">
@@ -67,25 +67,25 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
                 variant="ghost"
                 size="sm"
                 onClick={() => onToggleBookmark(message.id)}
-                className={`h-6 w-6 p-0 rounded-full transition-all duration-200 ${
+                className={`h-8 w-8 p-0 rounded-xl transition-all duration-200 ${
                   message.isBookmarked 
-                    ? 'text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100' 
+                    ? 'text-gray-700 hover:text-gray-800 bg-gray-200 hover:bg-gray-300' 
                     : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 {message.isBookmarked ? (
-                  <BookmarkCheck className="w-3 h-3" />
+                  <BookmarkCheck className="w-4 h-4" />
                 ) : (
-                  <BookmarkPlus className="w-3 h-3" />
+                  <BookmarkPlus className="w-4 h-4" />
                 )}
               </Button>
             </div>
           )}
 
-          <div className={`rounded-2xl px-4 py-3 ${
+          <div className={`rounded-2xl px-5 py-4 ${
             message.isUser 
-              ? 'bg-blue-600 text-white rounded-br-lg' 
-              : 'bg-white text-gray-900 rounded-bl-lg shadow-sm border border-gray-100'
+              ? 'bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-br-lg shadow-lg' 
+              : 'floating-card rounded-bl-lg bg-gray-50'
           }`}>
             <div className="text-sm leading-relaxed">
               {isTyping ? (
@@ -102,7 +102,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
           {/* Timestamp for AI messages */}
           {!message.isUser && !isTyping && (
             <div className="flex items-center justify-end px-2">
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 font-medium">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>

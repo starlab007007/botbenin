@@ -6,17 +6,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BotManagement } from '@/components/BotManagement';
 import { MessagesOverview } from '@/components/MessagesOverview';
 import { SubscriptionManagement } from '@/components/SubscriptionManagement';
-import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import { QuickStats } from '@/components/dashboard/QuickStats';
-import { PermissionsCard } from '@/components/dashboard/PermissionsCard';
-import { QuickActionsCard } from '@/components/dashboard/QuickActionsCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Bot,
   MessageCircle,
   Star,
-  Zap
+  Zap,
+  BarChart3,
+  Users,
+  TrendingUp,
+  Settings,
+  History,
+  Bell
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -154,6 +156,38 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const quickStats = [
+    { 
+      title: 'Mes Chatbots', 
+      value: stats.totalBots.toString(), 
+      limit: permissions.maxBots,
+      icon: Bot, 
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-100'
+    },
+    { 
+      title: 'Messages Total', 
+      value: stats.totalMessages.toString(), 
+      icon: MessageCircle, 
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-100'
+    },
+    { 
+      title: 'Utilisateurs', 
+      value: stats.totalUsers.toString(), 
+      icon: Users, 
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-100'
+    },
+    { 
+      title: 'Actifs Aujourd\'hui', 
+      value: stats.activeToday.toString(), 
+      icon: TrendingUp, 
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-100'
+    }
+  ];
+
   if (!user) {
     return (
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
@@ -171,9 +205,81 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-      <DashboardHeader role={permissions.role} />
-      <QuickStats stats={stats} maxBots={permissions.maxBots} />
-      <PermissionsCard permissions={permissions} />
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+          Tableau de bord - Profil {permissions.role}
+        </h1>
+        <p className="text-gray-600">
+          Gérez vos fonctionnalités selon vos permissions
+        </p>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        {quickStats.map((stat, index) => (
+          <Card key={index} className="uniform-stats-card">
+            <div className="flex items-center justify-between mb-3">
+              <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center`}>
+                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              </div>
+            </div>
+            <h3 className="text-gray-600 text-sm mb-1">{stat.title}</h3>
+            <div className="text-2xl font-bold text-gray-900">
+              {stat.value}
+              {stat.limit && <span className="text-sm text-gray-500">/{stat.limit}</span>}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Permissions Available */}
+      <Card className="uniform-card p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Fonctionnalités disponibles
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateBots ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <Bot className={`w-8 h-8 mb-2 ${permissions.canCreateBots ? 'text-green-600' : 'text-gray-400'}`} />
+            <div className="text-sm font-medium text-gray-900">Chatbots</div>
+            <div className="text-xs text-gray-600">
+              {permissions.canCreateBots ? 'Disponible' : 'Non autorisé'}
+            </div>
+          </div>
+          
+          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateAutomations ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <Zap className={`w-8 h-8 mb-2 ${permissions.canCreateAutomations ? 'text-green-600' : 'text-gray-400'}`} />
+            <div className="text-sm font-medium text-gray-900">Automatisations</div>
+            <div className="text-xs text-gray-600">
+              {permissions.canCreateAutomations ? 'Disponible' : 'Non autorisé'}
+            </div>
+          </div>
+          
+          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessBusiness ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <BarChart3 className={`w-8 h-8 mb-2 ${permissions.canAccessBusiness ? 'text-green-600' : 'text-gray-400'}`} />
+            <div className="text-sm font-medium text-gray-900">IA Business</div>
+            <div className="text-xs text-gray-600">
+              {permissions.canAccessBusiness ? 'Disponible' : 'Non autorisé'}
+            </div>
+          </div>
+          
+          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessMarketing ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <TrendingUp className={`w-8 h-8 mb-2 ${permissions.canAccessMarketing ? 'text-green-600' : 'text-gray-400'}`} />
+            <div className="text-sm font-medium text-gray-900">IA Marketing</div>
+            <div className="text-xs text-gray-600">
+              {permissions.canAccessMarketing ? 'Disponible' : 'Non autorisé'}
+            </div>
+          </div>
+          
+          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessManagement ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+            <Settings className={`w-8 h-8 mb-2 ${permissions.canAccessManagement ? 'text-green-600' : 'text-gray-400'}`} />
+            <div className="text-sm font-medium text-gray-900">IA Gestion</div>
+            <div className="text-xs text-gray-600">
+              {permissions.canAccessManagement ? 'Disponible' : 'Non autorisé'}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Main Content Tabs */}
       <Card className="uniform-card">
@@ -252,7 +358,28 @@ export const DashboardPage: React.FC = () => {
         </Tabs>
       </Card>
 
-      <QuickActionsCard />
+      {/* Actions rapides */}
+      <Card className="uniform-card p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Button className="uniform-button-secondary flex items-center space-x-2">
+            <History className="w-4 h-4" />
+            <span>Historique</span>
+          </Button>
+          <Button className="uniform-button-secondary flex items-center space-x-2">
+            <Bell className="w-4 h-4" />
+            <span>Notifications</span>
+          </Button>
+          <Button className="uniform-button-secondary flex items-center space-x-2">
+            <Settings className="w-4 h-4" />
+            <span>Paramètres</span>
+          </Button>
+          <Button className="uniform-button-secondary flex items-center space-x-2">
+            <BarChart3 className="w-4 h-4" />
+            <span>Analyses</span>
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 };
