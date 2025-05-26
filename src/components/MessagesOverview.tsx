@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,10 +22,10 @@ interface ChatMessage {
     user_name: string;
     user_email: string;
     session_id: string;
-  };
+  } | null;
   bots: {
     name: string;
-  };
+  } | null;
 }
 
 interface MessagesOverviewProps {
@@ -78,7 +77,14 @@ export const MessagesOverview: React.FC<MessagesOverviewProps> = ({ bots }) => {
       const { data, error } = await query.limit(100);
 
       if (error) throw error;
-      setMessages(data || []);
+      
+      // Type-safe mapping to ensure message_type is correctly typed
+      const typedMessages: ChatMessage[] = (data || []).map(msg => ({
+        ...msg,
+        message_type: (msg.message_type === 'user' || msg.message_type === 'bot') ? msg.message_type : 'user'
+      }));
+      
+      setMessages(typedMessages);
     } catch (error: any) {
       console.error('Error fetching messages:', error);
       toast({
