@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,7 @@ export const SupportPage: React.FC = () => {
     },
     {
       title: 'Présentation de la plateforme',
-      description: 'Découvrez l\'unicité de Bot.Bj, ses spécialités et sa valeur ajoutée',
+      description: "Découvrez l'unicité de Bot.Bj, ses spécialités et sa valeur ajoutée",
       icon: Presentation,
       color: 'bg-gradient-to-r from-pink-500 to-purple-600',
       action: 'Découvrir la plateforme',
@@ -76,7 +77,7 @@ export const SupportPage: React.FC = () => {
     },
     {
       question: 'Comment configurer les webhooks n8n ?',
-      answer: 'Dans votre workflow n8n, ajoutez un nœud webhook et configurez l\'URL fournie par Bot.Bj. Consultez notre documentation complète pour les détails.',
+      answer: "Dans votre workflow n8n, ajoutez un nœud webhook et configurez l'URL fournie par Bot.Bj. Consultez notre documentation complète pour les détails.",
       category: 'Intégrations'
     },
     {
@@ -90,8 +91,8 @@ export const SupportPage: React.FC = () => {
       category: 'Utilisateurs'
     },
     {
-      question: 'Quels sont les différents types d\'agents IA ?',
-      answer: 'Bot.Bj propose 4 types d\'agents : Business (analyse de données), Marketing (campagnes automatisées), Gestion (processus RH) et Citoyen (services publics).',
+      question: "Quels sont les différents types d'agents IA ?",
+      answer: "Bot.Bj propose 4 types d'agents : Business (analyse de données), Marketing (campagnes automatisées), Gestion (processus RH) et Citoyen (services publics).",
       category: 'Agents IA'
     },
     {
@@ -131,8 +132,8 @@ export const SupportPage: React.FC = () => {
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-white min-h-screen">
       {/* Header */}
       <div className="text-center lg:text-left">
-        <h1 className="text-3xl lg:text-4xl font-bold text-black mb-2">Centre d'Aide Bot.Bj</h1>
-        <p className="text-lg text-black">Toute l'aide dont vous avez besoin pour maîtriser la plateforme</p>
+        <h1 className="text-3xl lg:text-4xl font-bold text-black mb-2">Centre d&apos;Aide Bot.Bj</h1>
+        <p className="text-lg text-black">Toute l&apos;aide dont vous avez besoin pour maîtriser la plateforme</p>
       </div>
 
       {/* Quick Stats */}
@@ -220,8 +221,8 @@ export const SupportPage: React.FC = () => {
       <Card className="p-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 rounded-xl">
         <div className="text-center lg:text-left lg:flex lg:items-center lg:justify-between">
           <div className="mb-6 lg:mb-0">
-            <h2 className="text-2xl font-bold mb-2">Besoin d'aide personnalisée ?</h2>
-            <p className="text-blue-100">Notre équipe d'experts est disponible 24/7 pour vous accompagner</p>
+            <h2 className="text-2xl font-bold mb-2">Besoin d&apos;aide personnalisée ?</h2>
+            <p className="text-blue-100">Notre équipe d&apos;experts est disponible 24/7 pour vous accompagner</p>
             <div className="mt-4 text-sm text-blue-100">
               <div>• Support technique spécialisé</div>
               <div>• Consultation stratégique</div>
@@ -263,7 +264,7 @@ export const SupportPage: React.FC = () => {
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl">⚡</span>
             </div>
-            <h3 className="font-semibold text-black mb-2">Temps de réponse < 2min</h3>
+            <h3 className="font-semibold text-black mb-2">Temps de réponse &lt; 2min</h3>
             <p className="text-black text-sm">Support technique réactif</p>
           </div>
           <div className="text-center">
