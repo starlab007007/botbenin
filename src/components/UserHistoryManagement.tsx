@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -82,20 +81,32 @@ export const UserHistoryManagement: React.FC = () => {
         id,
         started_at,
         total_messages,
-        bots (name),
-        chat_messages (message_content)
+        bots (name)
       `)
       .order('started_at', { ascending: false })
       .limit(50);
 
     if (sessions) {
-      const formattedHistory: ChatHistory[] = sessions.map(session => ({
-        id: session.id,
-        bot_name: session.bots?.name || 'Bot supprimé',
-        message_count: session.total_messages || 0,
-        last_message: session.chat_messages?.[0]?.message_content?.substring(0, 100) || 'Aucun message',
-        created_at: session.started_at
-      }));
+      // Récupérer les derniers messages pour chaque session
+      const formattedHistory: ChatHistory[] = [];
+      
+      for (const session of sessions) {
+        const { data: lastMessage } = await supabase
+          .from('chat_messages')
+          .select('message_content')
+          .eq('bot_id', session.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        formattedHistory.push({
+          id: session.id,
+          bot_name: session.bots?.name || 'Bot supprimé',
+          message_count: session.total_messages || 0,
+          last_message: lastMessage?.message_content?.substring(0, 100) || 'Aucun message',
+          created_at: session.started_at
+        });
+      }
       
       setChatHistory(formattedHistory);
     }
