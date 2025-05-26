@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -144,7 +143,7 @@ export const HomePage: React.FC = () => {
     {
       title: "Premier test",
       description: "Lancez votre première automatisation et constatez par vous-même l'impact sur votre efficacité opérationnelle.",
-      price: "À partir de 300.000 CFA",
+      price: "Premier test gratuit",
       buttonText: "Réserver un rdv",
       color: "bg-blue-500"
     },
@@ -306,110 +305,146 @@ export const HomePage: React.FC = () => {
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-white min-h-screen">
       {/* Hero Section */}
-      <div className="text-center bg-blue-600 text-white py-16 px-8 rounded-3xl">
-        <p className="text-sm lg:text-base text-blue-100 mb-4">
-          Pour les entreprises qui fonctionnent déjà bien et qui veulent propulser leur croissance grâce à l'IA →
-        </p>
-        <h1 className="text-4xl lg:text-6xl font-bold mb-8">
-          <span className="text-white">
-            Une équipe d'agents IA
-          </span>
-          <br />
-          <span className="text-white">
-            qui propulse votre entreprise
-          </span>
-        </h1>
-        <p className="text-lg lg:text-xl text-blue-100 mb-8 max-w-4xl mx-auto">
-          Automatisez vos processus, libérez vos équipes des tâches répétitives et 
-          concentrez-vous sur l'essentiel. Grâce à nos solutions d'automatisation sur-mesure, 
-          chaque agent IA travaille en synergie pour transformer votre quotidien opérationnel.
-        </p>
-        <Button 
-          className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-4 text-lg font-semibold border-0"
-          onClick={() => setShowBookingModal(true)}
-        >
-          Planifiez votre audit offert
-          <ArrowRight className="w-5 h-5 ml-2" />
-        </Button>
-      </div>
+      <Card className="bg-blue-600 text-white py-16 px-8 rounded-3xl border border-gray-300">
+        <div className="text-center">
+          <Card className="inline-block bg-blue-500 text-blue-100 mb-4 px-4 py-2 rounded-lg border border-gray-400">
+            <p className="text-sm lg:text-base">
+              Pour les entreprises qui fonctionnent déjà bien et qui veulent propulser leur croissance grâce à l'IA →
+            </p>
+          </Card>
+          <Card className="bg-transparent border-none">
+            <h1 className="text-4xl lg:text-6xl font-bold mb-8 text-white">
+              <span className="text-white">
+                Une équipe d'agents IA
+              </span>
+              <br />
+              <span className="text-white">
+                qui propulse votre entreprise
+              </span>
+            </h1>
+          </Card>
+          <Card className="bg-transparent border-none mb-8">
+            <p className="text-lg lg:text-xl text-blue-100 max-w-4xl mx-auto">
+              Automatisez vos processus, libérez vos équipes des tâches répétitives et 
+              concentrez-vous sur l'essentiel. Grâce à nos solutions d'automatisation sur-mesure, 
+              chaque agent IA travaille en synergie pour transformer votre quotidien opérationnel.
+            </p>
+          </Card>
+          <Button 
+            className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-4 text-lg font-semibold border-2 border-gray-300"
+            onClick={() => setShowBookingModal(true)}
+          >
+            Planifiez votre audit offert
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+      </Card>
 
       {/* Comment ça marche Section */}
-      <div className="space-y-8">
+      <Card className="space-y-8 p-8 border border-gray-300">
         <div className="text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold text-black mb-4">Comment ça marche ?</h2>
-          <p className="text-lg text-black">Une approche simple et efficace pour transformer vos processus</p>
+          <Card className="inline-block p-4 border border-gray-300 bg-white">
+            <h2 className="text-3xl lg:text-4xl font-bold text-black mb-4">Comment ça marche ?</h2>
+            <p className="text-lg text-black">Une approche simple et efficace pour transformer vos processus</p>
+          </Card>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {processSteps.map((step, index) => (
-            <Card key={index} className="bg-white border-gray-200 text-black p-8 hover:shadow-xl transition-shadow">
-              <div className={`w-16 h-16 ${step.color} rounded-xl flex items-center justify-center mb-6 mx-auto`}>
+            <Card key={index} className="bg-white border-gray-300 text-black p-8 hover:shadow-xl transition-shadow">
+              <div className={`w-16 h-16 ${step.color} rounded-xl flex items-center justify-center mb-6 mx-auto border border-gray-400`}>
                 <step.icon className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-semibold mb-4 text-center text-black">{step.title}</h3>
-              <p className="text-black leading-relaxed text-center">{step.description}</p>
+              <Card className="border border-gray-300 p-4 mb-4">
+                <h3 className="text-xl font-semibold text-center text-black">{step.title}</h3>
+              </Card>
+              <Card className="border border-gray-300 p-4">
+                <p className="text-black leading-relaxed text-center">{step.description}</p>
+              </Card>
             </Card>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* L'IA est faite pour vous si Section */}
-      <div className="space-y-8">
+      <Card className="space-y-8 p-8 border border-gray-300">
         <div className="text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold text-black mb-8">L'IA est faite pour vous si :</h2>
+          <Card className="inline-block p-4 border border-gray-300 bg-white">
+            <h2 className="text-3xl lg:text-4xl font-bold text-black mb-8">L'IA est faite pour vous si :</h2>
+          </Card>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {aiReasons.map((reason, index) => (
-            <Card key={index} className="bg-white border-gray-200 text-black p-6 hover:shadow-lg transition-shadow">
-              <div className={`w-12 h-12 ${reason.color} rounded-xl flex items-center justify-center mb-4`}>
+            <Card key={index} className="bg-white border-gray-300 text-black p-6 hover:shadow-lg transition-shadow">
+              <div className={`w-12 h-12 ${reason.color} rounded-xl flex items-center justify-center mb-4 border border-gray-400`}>
                 <reason.icon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-lg font-semibold mb-3 text-black">{reason.title}</h3>
-              <p className="text-black text-sm leading-relaxed">{reason.description}</p>
+              <Card className="border border-gray-300 p-3 mb-3">
+                <h3 className="text-lg font-semibold text-black">{reason.title}</h3>
+              </Card>
+              <Card className="border border-gray-300 p-3">
+                <p className="text-black text-sm leading-relaxed">{reason.description}</p>
+              </Card>
             </Card>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Les avantages de nos assistants IA */}
-      <div className="space-y-8">
+      <Card className="space-y-8 p-8 border border-gray-300">
         <div className="text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold text-black mb-8">Les avantages de nos assistants IA</h2>
+          <Card className="inline-block p-4 border border-gray-300 bg-white">
+            <h2 className="text-3xl lg:text-4xl font-bold text-black mb-8">Les avantages de nos assistants IA</h2>
+          </Card>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {aiAdvantages.map((advantage, index) => (
-            <Card key={index} className="bg-white border-gray-200 text-black p-8 hover:shadow-xl transition-shadow">
-              <div className={`w-16 h-16 ${advantage.color} rounded-xl flex items-center justify-center mb-6 mx-auto`}>
+            <Card key={index} className="bg-white border-gray-300 text-black p-8 hover:shadow-xl transition-shadow">
+              <div className={`w-16 h-16 ${advantage.color} rounded-xl flex items-center justify-center mb-6 mx-auto border border-gray-400`}>
                 <advantage.icon className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-semibold mb-6 text-center text-black">{advantage.title}</h3>
+              <Card className="border border-gray-300 p-4 mb-6">
+                <h3 className="text-xl font-semibold text-center text-black">{advantage.title}</h3>
+              </Card>
               <ul className="space-y-3">
                 {advantage.features.map((feature, featureIndex) => (
                   <li key={featureIndex} className="flex items-start space-x-3">
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                    <span className="text-black text-sm">{feature}</span>
+                    <Card className="p-2 border border-gray-300 flex-1">
+                      <div className="flex items-start space-x-3">
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-black text-sm">{feature}</span>
+                      </div>
+                    </Card>
                   </li>
                 ))}
               </ul>
             </Card>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Combien ça coûte Section */}
-      <div className="space-y-8">
+      <Card className="space-y-8 p-8 border border-gray-300">
         <div className="text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold text-black mb-8">Combien ça coûte ?</h2>
+          <Card className="inline-block p-4 border border-gray-300 bg-white">
+            <h2 className="text-3xl lg:text-4xl font-bold text-black mb-8">Combien ça coûte ?</h2>
+          </Card>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {pricingPlans.map((plan, index) => (
-            <Card key={index} className="bg-white border-gray-200 text-black p-8 hover:shadow-xl transition-shadow">
-              <h3 className="text-xl font-semibold mb-4 text-center text-black">{plan.title}</h3>
-              <p className="text-black text-sm mb-6 text-center leading-relaxed">{plan.description}</p>
-              <div className="text-center mb-6">
-                <div className="text-2xl font-bold text-black mb-2">{plan.price}</div>
-              </div>
+            <Card key={index} className="bg-white border-gray-300 text-black p-8 hover:shadow-xl transition-shadow">
+              <Card className="border border-gray-300 p-4 mb-4">
+                <h3 className="text-xl font-semibold text-center text-black">{plan.title}</h3>
+              </Card>
+              <Card className="border border-gray-300 p-4 mb-6">
+                <p className="text-black text-sm text-center leading-relaxed">{plan.description}</p>
+              </Card>
+              <Card className="border border-gray-300 p-4 mb-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-black">{plan.price}</div>
+                </div>
+              </Card>
               <Button 
-                className={`w-full ${plan.color} hover:bg-blue-600 text-white border-0 font-semibold py-3`}
+                className={`w-full ${plan.color} hover:bg-blue-600 text-white border-2 border-gray-300 font-semibold py-3`}
                 onClick={() => setShowBookingModal(true)}
               >
                 {plan.buttonText}
@@ -418,105 +453,131 @@ export const HomePage: React.FC = () => {
             </Card>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Header */}
-      <div className="text-center lg:text-left">
-        <h1 className="text-2xl lg:text-4xl font-bold text-black mb-2 lg:mb-4">
-          Actions rapides
-        </h1>
-        <p className="text-black text-base lg:text-lg mb-6 lg:mb-8">
-          Votre plateforme IA pour automatiser et optimiser vos processus métiers
-        </p>
-      </div>
+      <Card className="p-8 border border-gray-300">
+        <div className="text-center lg:text-left">
+          <Card className="inline-block p-4 border border-gray-300 mb-4">
+            <h1 className="text-2xl lg:text-4xl font-bold text-black">
+              Actions rapides
+            </h1>
+          </Card>
+          <Card className="border border-gray-300 p-4">
+            <p className="text-black text-base lg:text-lg">
+              Votre plateforme IA pour automatiser et optimiser vos processus métiers
+            </p>
+          </Card>
+        </div>
+      </Card>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {quickActions.map((action, index) => (
-          <Card 
-            key={index}
-            className="p-6 hover:shadow-lg transition-all duration-200 cursor-pointer bg-white border border-gray-200 rounded-xl"
-            onClick={action.action}
-          >
-            <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center mb-4 shadow-sm`}>
-              <action.icon className="w-6 h-6 text-white" />
-            </div>
-            <h3 className="font-semibold text-black mb-2 text-base">{action.title}</h3>
-            <p className="text-black text-sm">{action.description}</p>
-          </Card>
-        ))}
-      </div>
+      <Card className="p-8 border border-gray-300">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+          {quickActions.map((action, index) => (
+            <Card 
+              key={index}
+              className="p-6 hover:shadow-lg transition-all duration-200 cursor-pointer bg-white border-gray-300 rounded-xl"
+              onClick={action.action}
+            >
+              <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center mb-4 shadow-sm border border-gray-400`}>
+                <action.icon className="w-6 h-6 text-white" />
+              </div>
+              <Card className="border border-gray-300 p-2 mb-2">
+                <h3 className="font-semibold text-black text-base">{action.title}</h3>
+              </Card>
+              <Card className="border border-gray-300 p-2">
+                <p className="text-black text-sm">{action.description}</p>
+              </Card>
+            </Card>
+          ))}
+        </div>
+      </Card>
 
       {/* Avantages par Secteur */}
-      <div className="space-y-8">
-        <h2 className="text-2xl lg:text-3xl font-bold text-black text-center mb-8">
-          Avantages par Secteur d'Activité
-        </h2>
+      <Card className="space-y-8 p-8 border border-gray-300">
+        <Card className="text-center p-4 border border-gray-300">
+          <h2 className="text-2xl lg:text-3xl font-bold text-black mb-8">
+            Avantages par Secteur d'Activité
+          </h2>
+        </Card>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {sectorAdvantages.map((sector, index) => (
-            <Card key={index} className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+            <Card key={index} className="bg-white border-gray-300 hover:shadow-lg transition-shadow">
               <div className="p-6">
                 <div className="flex items-center mb-4">
-                  <div className={`w-12 h-12 ${sector.color} rounded-xl flex items-center justify-center mr-4`}>
+                  <div className={`w-12 h-12 ${sector.color} rounded-xl flex items-center justify-center mr-4 border border-gray-400`}>
                     <sector.icon className="w-6 h-6 text-white" />
                   </div>
-                  <h3 className="text-xl font-semibold text-black">{sector.sector}</h3>
+                  <Card className="border border-gray-300 p-2 flex-1">
+                    <h3 className="text-xl font-semibold text-black">{sector.sector}</h3>
+                  </Card>
                 </div>
-                <div className="space-y-3 mb-4">
-                  {sector.advantages.map((advantage, advIndex) => (
-                    <div key={advIndex} className="flex items-start space-x-3">
-                      <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                      <span className="text-black text-sm">{advantage}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className={`${sector.color} text-white rounded-lg p-3 text-center`}>
+                <Card className="border border-gray-300 p-4 mb-4">
+                  <div className="space-y-3">
+                    {sector.advantages.map((advantage, advIndex) => (
+                      <div key={advIndex} className="flex items-start space-x-3">
+                        <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span className="text-black text-sm">{advantage}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <Card className={`${sector.color} text-white rounded-lg p-3 text-center border border-gray-400`}>
                   <div className="font-bold">ROI Moyen: {sector.roi}</div>
-                </div>
+                </Card>
               </div>
             </Card>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Avantages de la Plateforme */}
-      <div className="space-y-8">
-        <h2 className="text-2xl lg:text-3xl font-bold text-black text-center mb-8">
-          Avantages de la Plateforme Bot.Bj
-        </h2>
+      <Card className="space-y-8 p-8 border border-gray-300">
+        <Card className="text-center p-4 border border-gray-300">
+          <h2 className="text-2xl lg:text-3xl font-bold text-black mb-8">
+            Avantages de la Plateforme Bot.Bj
+          </h2>
+        </Card>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
           {platformAdvantages.map((advantage, index) => (
-            <Card key={index} className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+            <Card key={index} className="bg-white border-gray-300 hover:shadow-lg transition-shadow">
               <div className="p-6">
-                <h3 className="text-lg font-semibold text-black mb-4 flex items-center">
-                  <Award className="w-5 h-5 mr-2 text-blue-500" />
-                  {advantage.category}
-                </h3>
+                <Card className="border border-gray-300 p-3 mb-4">
+                  <h3 className="text-lg font-semibold text-black flex items-center">
+                    <Award className="w-5 h-5 mr-2 text-blue-500" />
+                    {advantage.category}
+                  </h3>
+                </Card>
                 <div className="space-y-3">
                   {advantage.items.map((item, itemIndex) => (
-                    <div key={itemIndex} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <Card key={itemIndex} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-300">
                       <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                       <span className="text-black text-sm">{item}</span>
-                    </div>
+                    </Card>
                   ))}
                 </div>
               </div>
             </Card>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Témoignages */}
-      <Card className="bg-gray-50 border border-gray-200">
+      <Card className="bg-gray-50 border-gray-300">
         <div className="p-8">
           <div className="text-center mb-6">
             <Building className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-black mb-2">Témoignages Clients</h3>
-            <p className="text-black">Découvrez comment Bot.Bj transforme les entreprises</p>
+            <Card className="inline-block p-4 border border-gray-300 mb-2">
+              <h3 className="text-2xl font-bold text-black">Témoignages Clients</h3>
+            </Card>
+            <Card className="border border-gray-300 p-2">
+              <p className="text-black">Découvrez comment Bot.Bj transforme les entreprises</p>
+            </Card>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
+            <Card className="text-center p-4 border border-gray-300">
               <div className="flex justify-center mb-2">
                 {[...Array(5)].map((_, i) => (
                   <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
@@ -525,8 +586,8 @@ export const HomePage: React.FC = () => {
               <div className="text-2xl font-bold text-green-600 mb-2">+300%</div>
               <div className="text-black text-sm">Productivité équipe marketing</div>
               <div className="text-xs text-gray-500 mt-1">- TechCorp</div>
-            </div>
-            <div className="text-center">
+            </Card>
+            <Card className="text-center p-4 border border-gray-300">
               <div className="flex justify-center mb-2">
                 {[...Array(5)].map((_, i) => (
                   <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
@@ -535,8 +596,8 @@ export const HomePage: React.FC = () => {
               <div className="text-2xl font-bold text-blue-600 mb-2">-60%</div>
               <div className="text-black text-sm">Coûts opérationnels</div>
               <div className="text-xs text-gray-500 mt-1">- StartupPro</div>
-            </div>
-            <div className="text-center">
+            </Card>
+            <Card className="text-center p-4 border border-gray-300">
               <div className="flex justify-center mb-2">
                 {[...Array(5)].map((_, i) => (
                   <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
@@ -545,21 +606,25 @@ export const HomePage: React.FC = () => {
               <div className="text-2xl font-bold text-purple-600 mb-2">98%</div>
               <div className="text-black text-sm">Satisfaction client</div>
               <div className="text-xs text-gray-500 mt-1">- GroupeInno</div>
-            </div>
+            </Card>
           </div>
         </div>
       </Card>
 
       {/* CTA Section */}
-      <Card className="bg-blue-600 text-white border-0 mt-12">
+      <Card className="bg-blue-600 text-white border-gray-300 mt-12">
         <div className="p-8 text-center lg:text-left lg:flex lg:items-center lg:justify-between">
           <div className="mb-4 lg:mb-0">
-            <h3 className="text-2xl font-bold mb-2">Prêt à Transformer votre Business ?</h3>
-            <p className="text-blue-100">Découvrez la puissance de l'IA conversationnelle pour votre entreprise</p>
+            <Card className="inline-block p-3 bg-blue-500 border border-gray-400 mb-2">
+              <h3 className="text-2xl font-bold text-white">Prêt à Transformer votre Business ?</h3>
+            </Card>
+            <Card className="p-2 bg-blue-500 border border-gray-400">
+              <p className="text-blue-100">Découvrez la puissance de l'IA conversationnelle pour votre entreprise</p>
+            </Card>
           </div>
           <Button 
             onClick={() => setShowBookingModal(true)}
-            className="bg-white text-blue-600 hover:bg-gray-100 font-semibold px-8 py-4"
+            className="bg-white text-blue-600 hover:bg-gray-100 font-semibold px-8 py-4 border-2 border-gray-300"
           >
             Commencer maintenant
             <ArrowRight className="w-5 h-5 ml-2" />
