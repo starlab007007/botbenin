@@ -102,12 +102,12 @@ export const SupportPage: React.FC = () => {
     };
     
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-white">
         <div className="bg-white border-b border-gray-200 p-4">
           <Button 
             onClick={() => setCurrentView('home')}
             variant="outline" 
-            className="text-gray-700 border-gray-300"
+            className="text-black border-gray-300 bg-white hover:bg-gray-50"
           >
             ← Retour au support
           </Button>
@@ -118,11 +118,11 @@ export const SupportPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-white min-h-screen">
       {/* Header */}
       <div className="text-center lg:text-left">
-        <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">Centre d'Aide Bot.Bj</h1>
-        <p className="text-lg text-gray-600">Toute l'aide dont vous avez besoin pour maîtriser la plateforme</p>
+        <h1 className="text-3xl lg:text-4xl font-bold text-black mb-2">Centre d'Aide Bot.Bj</h1>
+        <p className="text-lg text-black">Toute l'aide dont vous avez besoin pour maîtriser la plateforme</p>
       </div>
 
       {/* Quick Stats */}
@@ -130,8 +130,8 @@ export const SupportPage: React.FC = () => {
         {quickStats.map((stat, index) => (
           <Card key={index} className="bg-white border border-gray-200 p-4 text-center">
             <stat.icon className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-            <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
-            <div className="text-sm text-gray-600">{stat.label}</div>
+            <div className="text-2xl font-bold text-black">{stat.value}</div>
+            <div className="text-sm text-black">{stat.label}</div>
           </Card>
         ))}
       </div>
@@ -143,7 +143,7 @@ export const SupportPage: React.FC = () => {
           <input
             type="text"
             placeholder="Que cherchez-vous ? (ex: créer un chatbot, configurer webhook...)"
-            className="flex-1 text-gray-900 placeholder-gray-500 focus:outline-none text-lg border-none bg-transparent"
+            className="flex-1 text-black placeholder-gray-500 focus:outline-none text-lg border-none bg-transparent"
           />
           <Button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2">
             Rechercher
@@ -158,12 +158,12 @@ export const SupportPage: React.FC = () => {
             <div className={`w-14 h-14 ${option.color} rounded-xl flex items-center justify-center mb-4 shadow-sm group-hover:shadow-md transition-shadow`}>
               <option.icon className="w-7 h-7 text-white" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">{option.title}</h2>
-            <p className="text-gray-600 mb-4">{option.description}</p>
+            <h2 className="text-xl font-semibold text-black mb-2">{option.title}</h2>
+            <p className="text-black mb-4">{option.description}</p>
             
             <div className="space-y-2 mb-4">
               {option.features.map((feature, idx) => (
-                <div key={idx} className="flex items-center text-sm text-gray-600">
+                <div key={idx} className="flex items-center text-sm text-black">
                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></div>
                   {feature}
                 </div>
@@ -183,17 +183,17 @@ export const SupportPage: React.FC = () => {
 
       {/* FAQ Section */}
       <div>
-        <h2 className="text-2xl font-semibold text-gray-900 mb-6">Questions Fréquentes</h2>
+        <h2 className="text-2xl font-semibold text-black mb-6">Questions Fréquentes</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {faqs.map((faq, index) => (
             <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-3">
-                <h3 className="font-semibold text-gray-900 pr-2">{faq.question}</h3>
-                <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium whitespace-nowrap">
+                <h3 className="font-semibold text-black pr-2">{faq.question}</h3>
+                <span className="px-3 py-1 bg-gray-100 text-black text-xs rounded-full font-medium whitespace-nowrap">
                   {faq.category}
                 </span>
               </div>
-              <p className="text-gray-600 leading-relaxed">{faq.answer}</p>
+              <p className="text-black leading-relaxed">{faq.answer}</p>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -240,28 +240,28 @@ export const SupportPage: React.FC = () => {
 
       {/* Success Stories */}
       <Card className="p-8 bg-white border border-gray-200 rounded-xl">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">Témoignages Clients</h2>
+        <h2 className="text-2xl font-semibold text-black mb-6 text-center">Témoignages Clients</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl">🎯</span>
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">+300% Efficacité</h3>
-            <p className="text-gray-600 text-sm">Automatisation des processus métier</p>
+            <h3 className="font-semibold text-black mb-2">+300% Efficacité</h3>
+            <p className="text-black text-sm">Automatisation des processus métier</p>
           </div>
           <div className="text-center">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl">⚡</span>
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">Temps de réponse < 2min</h3>
-            <p className="text-gray-600 text-sm">Support technique réactif</p>
+            <h3 className="font-semibold text-black mb-2">Temps de réponse inférieur à 2min</h3>
+            <p className="text-black text-sm">Support technique réactif</p>
           </div>
           <div className="text-center">
             <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl">🚀</span>
             </div>
-            <h3 className="font-semibold text-gray-900 mb-2">ROI de 400%</h3>
-            <p className="text-gray-600 text-sm">Retour sur investissement moyen</p>
+            <h3 className="font-semibold text-black mb-2">ROI de 400%</h3>
+            <p className="text-black text-sm">Retour sur investissement moyen</p>
           </div>
         </div>
       </Card>
