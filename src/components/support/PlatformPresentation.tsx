@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +22,19 @@ import {
   Building,
   MessageSquare,
   BarChart3,
-  Workflow
+  Workflow,
+  Store,
+  GraduationCap,
+  Hotel,
+  Home,
+  ShoppingCart,
+  Briefcase,
+  DollarSign,
+  Settings,
+  TrendingDown,
+  PieChart,
+  Clock,
+  UserCheck
 } from 'lucide-react';
 
 const PlatformPresentation: React.FC = () => {
@@ -55,6 +66,181 @@ const PlatformPresentation: React.FC = () => {
       color: "bg-gradient-to-r from-green-500 to-emerald-500"
     }
   ];
+
+  const sectorAdvantages = [
+    {
+      sector: "PME/PMI",
+      icon: Building,
+      color: "bg-blue-600",
+      advantages: [
+        "Automatisation des processus RH et comptables",
+        "Gestion intelligente des stocks et commandes",
+        "Support client 24/7 automatisé",
+        "Analyse prédictive des ventes",
+        "Réduction des coûts opérationnels de 40%"
+      ],
+      roi: "300% en 6 mois"
+    },
+    {
+      sector: "Commerçants",
+      icon: Store,
+      color: "bg-green-600",
+      advantages: [
+        "Chatbot pour conseils produits personnalisés",
+        "Gestion automatique des inventaires",
+        "Programme de fidélité intelligent",
+        "Notifications push ciblées",
+        "Analyse comportementale clients"
+      ],
+      roi: "250% en 4 mois"
+    },
+    {
+      sector: "Citoyens/Administration",
+      icon: Users,
+      color: "bg-purple-600",
+      advantages: [
+        "Démarches administratives simplifiées",
+        "Assistance 24/7 pour services publics",
+        "Suivi automatique des dossiers",
+        "Notifications importantes automatiques",
+        "Interface multilingue adaptée"
+      ],
+      roi: "Satisfaction +85%"
+    },
+    {
+      sector: "Agences de Communication",
+      icon: MessageSquare,
+      color: "bg-pink-600",
+      advantages: [
+        "Création automatique de contenus",
+        "Gestion multi-clients centralisée",
+        "Campagnes publicitaires optimisées par IA",
+        "Reporting automatique et analytics",
+        "Gestion des réseaux sociaux 24/7"
+      ],
+      roi: "400% en 3 mois"
+    },
+    {
+      sector: "Organismes de Formation",
+      icon: GraduationCap,
+      color: "bg-orange-600",
+      advantages: [
+        "Assistant pédagogique intelligent",
+        "Suivi personnalisé des apprenants",
+        "Évaluation automatisée",
+        "Planification optimisée des cours",
+        "Support technique multilingue"
+      ],
+      roi: "200% en 5 mois"
+    },
+    {
+      sector: "Hôtellerie",
+      icon: Hotel,
+      color: "bg-teal-600",
+      advantages: [
+        "Réservations et check-in automatisés",
+        "Conciergerie virtuelle 24/7",
+        "Gestion des réclamations instantanée",
+        "Recommandations personnalisées",
+        "Optimisation des tarifs dynamique"
+      ],
+      roi: "350% en 4 mois"
+    },
+    {
+      sector: "Immobilier",
+      icon: Home,
+      color: "bg-indigo-600",
+      advantages: [
+        "Qualification automatique des prospects",
+        "Visites virtuelles intelligentes",
+        "Estimation automatique des biens",
+        "Suivi du processus de vente",
+        "Marketing ciblé par IA"
+      ],
+      roi: "280% en 6 mois"
+    },
+    {
+      sector: "E-commerce",
+      icon: ShoppingCart,
+      color: "bg-red-600",
+      advantages: [
+        "Recommandations produits personnalisées",
+        "Assistance shopping intelligente",
+        "Gestion automatique des retours",
+        "Optimisation des prix en temps réel",
+        "Analytics comportementaux avancés"
+      ],
+      roi: "450% en 3 mois"
+    }
+  ];
+
+  const economicModel = {
+    pricing: [
+      {
+        plan: "Starter",
+        price: "29€/mois",
+        features: ["1 Agent IA", "1000 messages/mois", "Support email", "Intégrations de base"],
+        target: "Petites entreprises"
+      },
+      {
+        plan: "Professional",
+        price: "89€/mois",
+        features: ["2 Agents IA", "10000 messages/mois", "Support prioritaire", "Toutes intégrations"],
+        target: "PME/PMI"
+      },
+      {
+        plan: "Enterprise",
+        price: "299€/mois",
+        features: ["4 Agents IA", "Messages illimités", "Support dédié", "Personnalisation complète"],
+        target: "Grandes entreprises"
+      },
+      {
+        plan: "Custom",
+        price: "Sur devis",
+        features: ["Solution sur mesure", "Développements spécifiques", "SLA garanti", "Formation équipe"],
+        target: "Secteur public & Corporate"
+      }
+    ],
+    revenueStreams: [
+      "Abonnements mensuels récurrents",
+      "Services de personnalisation",
+      "Formation et consulting",
+      "Marketplace d'extensions",
+      "API usage premium"
+    ]
+  };
+
+  const platformFunctioning = {
+    architecture: [
+      {
+        layer: "Interface Utilisateur",
+        description: "Dashboard no-code intuitif pour créer et gérer vos agents IA",
+        technologies: ["React", "TypeScript", "Tailwind CSS"]
+      },
+      {
+        layer: "Agents IA Spécialisés",
+        description: "4 agents optimisés pour différents domaines métier",
+        technologies: ["GPT-4", "Machine Learning", "NLP avancé"]
+      },
+      {
+        layer: "Moteur d'Automatisation",
+        description: "n8n intégré pour connecter plus de 400 services",
+        technologies: ["n8n", "Webhooks", "API REST"]
+      },
+      {
+        layer: "Infrastructure Cloud",
+        description: "Hébergement sécurisé et scalable en Europe",
+        technologies: ["AWS", "Docker", "Kubernetes"]
+      }
+    ],
+    workflow: [
+      "1. Configuration de votre agent via interface no-code",
+      "2. Connexion de vos outils existants (CRM, ERP, etc.)",
+      "3. Entraînement de l'IA avec vos données spécifiques",
+      "4. Déploiement et mise en production",
+      "5. Monitoring et optimisation continue"
+    ]
+  };
 
   const platformAdvantages = [
     {
@@ -226,6 +412,9 @@ const PlatformPresentation: React.FC = () => {
             {[
               { id: 'overview', label: 'Vue d\'ensemble', icon: Target },
               { id: 'features', label: 'Fonctionnalités', icon: Cog },
+              { id: 'sectors', label: 'Secteurs', icon: Briefcase },
+              { id: 'economic', label: 'Modèle Économique', icon: DollarSign },
+              { id: 'functioning', label: 'Fonctionnement', icon: Settings },
               { id: 'advantages', label: 'Avantages', icon: TrendingUp },
               { id: 'testimonials', label: 'Témoignages', icon: Users },
               { id: 'flyer', label: 'Flyer Publicitaire', icon: Award }
@@ -427,6 +616,231 @@ const PlatformPresentation: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {activeSection === 'sectors' && (
+          <div className="space-y-8">
+            <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">
+              Avantages par Secteur d'Activité
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {sectorAdvantages.map((sector, index) => (
+                <Card key={index} className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl text-gray-900">
+                      <div className={`w-12 h-12 ${sector.color} rounded-xl flex items-center justify-center mr-4`}>
+                        <sector.icon className="w-6 h-6 text-white" />
+                      </div>
+                      {sector.sector}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 mb-4">
+                      {sector.advantages.map((advantage, advIndex) => (
+                        <div key={advIndex} className="flex items-start space-x-3">
+                          <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                          <span className="text-gray-700 text-sm">{advantage}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className={`${sector.color} text-white rounded-lg p-3 text-center`}>
+                      <div className="font-bold">ROI Moyen: {sector.roi}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'economic' && (
+          <div className="space-y-8">
+            <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">
+              Modèle Économique Bot.Bj
+            </h2>
+            
+            {/* Pricing Plans */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              {economicModel.pricing.map((plan, index) => (
+                <Card key={index} className={`bg-white border border-gray-200 hover:shadow-lg transition-shadow ${plan.plan === 'Professional' ? 'ring-2 ring-blue-500' : ''}`}>
+                  <CardHeader>
+                    <CardTitle className="text-center">
+                      <div className="text-2xl font-bold text-gray-900">{plan.plan}</div>
+                      <div className="text-3xl font-bold text-blue-600 mt-2">{plan.price}</div>
+                      <div className="text-sm text-gray-600 mt-1">{plan.target}</div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {plan.features.map((feature, featureIndex) => (
+                        <div key={featureIndex} className="flex items-center space-x-2">
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          <span className="text-sm text-gray-700">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <Button className={`w-full mt-6 ${plan.plan === 'Professional' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-600 hover:bg-gray-700'} text-white`}>
+                      Choisir ce plan
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Revenue Streams */}
+            <Card className="bg-white border border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-2xl text-gray-900 text-center flex items-center justify-center">
+                  <PieChart className="w-8 h-8 mr-3 text-blue-600" />
+                  Sources de Revenus
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {economicModel.revenueStreams.map((stream, index) => (
+                    <div key={index} className="flex items-center space-x-3 p-4 bg-blue-50 rounded-lg">
+                      <DollarSign className="w-6 h-6 text-blue-600 flex-shrink-0" />
+                      <span className="text-gray-900 font-medium">{stream}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Business Model Canvas */}
+            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-2xl text-gray-900 text-center">
+                  Business Model Canvas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-lg text-gray-900">Proposition de Valeur</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li>• Automatisation intelligente</li>
+                      <li>• ROI mesurable et rapide</li>
+                      <li>• Interface no-code</li>
+                      <li>• Support 24/7</li>
+                    </ul>
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-lg text-gray-900">Segments Clients</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li>• PME/PMI</li>
+                      <li>• E-commerce</li>
+                      <li>• Services publics</li>
+                      <li>• Secteur hôtelier</li>
+                    </ul>
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-lg text-gray-900">Canaux de Distribution</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li>• Vente directe</li>
+                      <li>• Partenaires intégrateurs</li>
+                      <li>• Marketplace</li>
+                      <li>• Marketing digital</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeSection === 'functioning' && (
+          <div className="space-y-8">
+            <h2 className="text-3xl font-bold text-gray-900 text-center mb-8">
+              Fonctionnement de la Plateforme
+            </h2>
+            
+            {/* Architecture */}
+            <Card className="bg-white border border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-2xl text-gray-900 text-center flex items-center justify-center">
+                  <Cog className="w-8 h-8 mr-3 text-blue-600" />
+                  Architecture Technique
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {platformFunctioning.architecture.map((layer, index) => (
+                    <div key={index} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-sm">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-gray-900 mb-2">{layer.layer}</h3>
+                        <p className="text-gray-700 text-sm mb-3">{layer.description}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {layer.technologies.map((tech, techIndex) => (
+                            <span key={techIndex} className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                              {tech}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Workflow */}
+            <Card className="bg-white border border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-2xl text-gray-900 text-center flex items-center justify-center">
+                  <Workflow className="w-8 h-8 mr-3 text-green-600" />
+                  Processus de Mise en Œuvre
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {platformFunctioning.workflow.map((step, index) => (
+                    <div key={index} className="flex items-center space-x-4 p-4 bg-green-50 rounded-lg">
+                      <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+                        {index + 1}
+                      </div>
+                      <span className="text-gray-900 font-medium">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Performance Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <Card className="bg-white border border-gray-200 text-center">
+                <CardContent className="p-6">
+                  <Clock className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+                  <div className="text-2xl font-bold text-gray-900 mb-2">&lt; 30min</div>
+                  <div className="text-gray-600">Temps de déploiement</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-200 text-center">
+                <CardContent className="p-6">
+                  <Zap className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
+                  <div className="text-2xl font-bold text-gray-900 mb-2">99.9%</div>
+                  <div className="text-gray-600">Disponibilité</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-200 text-center">
+                <CardContent className="p-6">
+                  <TrendingUp className="w-12 h-12 text-green-600 mx-auto mb-4" />
+                  <div className="text-2xl font-bold text-gray-900 mb-2">Auto</div>
+                  <div className="text-gray-600">Scalabilité</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border border-gray-200 text-center">
+                <CardContent className="p-6">
+                  <UserCheck className="w-12 h-12 text-purple-600 mx-auto mb-4" />
+                  <div className="text-2xl font-bold text-gray-900 mb-2">24/7</div>
+                  <div className="text-gray-600">Support</div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
 
