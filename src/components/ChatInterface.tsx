@@ -167,10 +167,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       console.log('Adding AI message:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
-      toast({
-        title: "Réponse reçue",
-        description: `${chatTitle} a traité votre demande avec succès !`,
-      });
+      // Suppression des notifications de succès
 
     } catch (error) {
       console.error('=== BOT.BJ WEBHOOK ERROR ===');

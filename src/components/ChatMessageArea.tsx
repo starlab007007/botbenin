@@ -42,9 +42,9 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
   // Banque de suggestions avec catégories
   const suggestionBank = {
     initial: [
-      { action: "Je cherche location maison à Cotonou", category: "produit" },
-      { action: "Je cherche opportunité d'achat de terrain à Calavi", category: "catalogue" },
-      { action: "Regardons les opportunités d'investissement", category: "nouveauté" }
+      { action: "Quoi de neuf aujourd'hui", category: "général" },
+      { action: "Les bons plans de la journée", category: "catalogue" },
+      { action: "Qu'est-ce que vous m'offrez", category: "nouveauté" }
     ],
     services_locaux: [
       { action: "Je cherche location maison à Cotonou", category: "immobilier" },
