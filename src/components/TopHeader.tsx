@@ -12,7 +12,6 @@ import {
   Users
 } from 'lucide-react';
 import { MobileSidebar } from '@/components/MobileSidebar';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -74,8 +73,6 @@ export const TopHeader: React.FC = () => {
 
         {/* Right side */}
         <div className="flex items-center space-x-2 lg:space-x-4">
-          <ThemeToggle />
-          
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
