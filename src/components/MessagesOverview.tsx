@@ -2,58 +2,76 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { MessageCircle, Search, Filter, Download, RefreshCw } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { 
+  MessageSquare, 
+  User, 
+  Bot, 
+  Search,
+  Filter,
+  RefreshCw,
+  Download,
+  Calendar,
+  Clock
+} from 'lucide-react';
 
 interface ChatMessage {
   id: string;
   message_content: string;
   message_type: 'user' | 'bot';
   created_at: string;
+  ip_address?: string;
+  user_agent?: string;
   bot_users: {
-    user_name: string;
-    user_email: string;
-    session_id: string;
+    user_name?: string;
+    user_email?: string;
+    session_id?: string;
   };
   bots: {
     name: string;
   };
 }
 
-interface Bot {
-  id: string;
-  name: string;
+interface MessageStats {
+  totalMessages: number;
+  userMessages: number;
+  botMessages: number;
+  todayMessages: number;
 }
 
 export const MessagesOverview: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [bots, setBots] = useState<Bot[]>([]);
+  const [filteredMessages, setFilteredMessages] = useState<ChatMessage[]>([]);
+  const [stats, setStats] = useState<MessageStats>({
+    totalMessages: 0,
+    userMessages: 0,
+    botMessages: 0,
+    todayMessages: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'user' | 'bot'>('all');
   const [selectedBot, setSelectedBot] = useState<string>('all');
-  const [messageTypeFilter, setMessageTypeFilter] = useState<string>('all');
+  const [bots, setBots] = useState<Array<{ id: string; name: string }>>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchData();
+    fetchMessages();
+    fetchBots();
   }, []);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    filterMessages();
+  }, [messages, searchTerm, filterType, selectedBot]);
+
+  const fetchBots = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Récupérer le bot_owner
       const { data: ownerData } = await supabase
         .from('bot_owners')
         .select('id')
@@ -62,41 +80,60 @@ export const MessagesOverview: React.FC = () => {
 
       if (!ownerData) return;
 
-      // Récupérer les bots
-      const { data: botsData, error: botsError } = await supabase
+      const { data: botsData } = await supabase
         .from('bots')
         .select('id, name')
         .eq('owner_id', ownerData.id);
 
-      if (botsError) throw botsError;
       setBots(botsData || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des bots:', error);
+    }
+  };
 
-      // Récupérer les messages avec jointures
-      const { data: messagesData, error: messagesError } = await supabase
+  const fetchMessages = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!ownerData) return;
+
+      const { data: botsData } = await supabase
+        .from('bots')
+        .select('id')
+        .eq('owner_id', ownerData.id);
+
+      const botIds = botsData?.map(bot => bot.id) || [];
+
+      if (botIds.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: messagesData, error } = await supabase
         .from('chat_messages')
         .select(`
-          id,
-          message_content,
-          message_type,
-          created_at,
-          bot_users (
-            user_name,
-            user_email,
-            session_id
-          ),
-          bots (
-            name
-          )
+          *,
+          bot_users (user_name, user_email, session_id),
+          bots (name)
         `)
-        .in('bot_id', botsData?.map(bot => bot.id) || [])
+        .in('bot_id', botIds)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(1000);
 
-      if (messagesError) throw messagesError;
-      setMessages(messagesData as ChatMessage[] || []);
+      if (error) throw error;
+
+      setMessages(messagesData || []);
+      calculateStats(messagesData || []);
 
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
+      console.error('Erreur lors du chargement des messages:', error);
       toast({
         title: "Erreur",
         description: "Impossible de charger les messages",
@@ -107,39 +144,64 @@ export const MessagesOverview: React.FC = () => {
     }
   };
 
-  const filteredMessages = messages.filter(message => {
-    const matchesSearch = message.message_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         message.bot_users?.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         message.bot_users?.user_email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesBot = selectedBot === 'all' || message.bots?.name === selectedBot;
-    const matchesType = messageTypeFilter === 'all' || message.message_type === messageTypeFilter;
-    
-    return matchesSearch && matchesBot && matchesType;
-  });
+  const calculateStats = (messagesData: ChatMessage[]) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const stats = {
+      totalMessages: messagesData.length,
+      userMessages: messagesData.filter(m => m.message_type === 'user').length,
+      botMessages: messagesData.filter(m => m.message_type === 'bot').length,
+      todayMessages: messagesData.filter(m => new Date(m.created_at) >= today).length
+    };
+
+    setStats(stats);
+  };
+
+  const filterMessages = () => {
+    let filtered = messages;
+
+    // Filtre par terme de recherche
+    if (searchTerm) {
+      filtered = filtered.filter(message =>
+        message.message_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        message.bot_users?.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        message.bot_users?.user_email?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    // Filtre par type de message
+    if (filterType !== 'all') {
+      filtered = filtered.filter(message => message.message_type === filterType);
+    }
+
+    // Filtre par bot
+    if (selectedBot !== 'all') {
+      filtered = filtered.filter(message => message.bots.name === selectedBot);
+    }
+
+    setFilteredMessages(filtered);
+  };
 
   const exportMessages = () => {
     const csvContent = [
-      ['Date', 'Bot', 'Type', 'Utilisateur', 'Email', 'Message'],
-      ...filteredMessages.map(msg => [
-        new Date(msg.created_at).toLocaleString('fr-FR'),
-        msg.bots?.name || 'N/A',
-        msg.message_type,
-        msg.bot_users?.user_name || 'Anonyme',
-        msg.bot_users?.user_email || 'N/A',
-        `"${msg.message_content.replace(/"/g, '""')}"`
-      ])
-    ].map(row => row.join(',')).join('\n');
+      ['Date', 'Bot', 'Type', 'Utilisateur', 'Message'].join(','),
+      ...filteredMessages.map(message => [
+        new Date(message.created_at).toLocaleString('fr-FR'),
+        message.bots.name,
+        message.message_type,
+        message.bot_users?.user_name || message.bot_users?.user_email || 'Anonyme',
+        `"${message.message_content.replace(/"/g, '""')}"`
+      ].join(','))
+    ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `messages-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `messages_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
 
     toast({
       title: "Export réussi",
@@ -157,128 +219,186 @@ export const MessagesOverview: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Messages des Chatbots</h2>
-          <p className="text-gray-600">
-            {filteredMessages.length} message(s) trouvé(s)
-          </p>
+      {/* En-tête et statistiques */}
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Messages & Conversations</h2>
+            <p className="text-gray-600">Consultez tous les messages de vos chatbots</p>
+          </div>
+          <div className="flex space-x-2">
+            <Button onClick={fetchMessages} variant="outline" size="sm">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Actualiser
+            </Button>
+            <Button onClick={exportMessages} variant="outline" size="sm">
+              <Download className="w-4 h-4 mr-2" />
+              Exporter
+            </Button>
+          </div>
         </div>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={fetchData}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualiser
-          </Button>
-          <Button onClick={exportMessages} className="bg-green-600 hover:bg-green-700">
-            <Download className="w-4 h-4 mr-2" />
-            Exporter CSV
-          </Button>
+
+        {/* Statistiques */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Card className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats.totalMessages}</div>
+                <div className="text-sm text-gray-600">Total messages</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <User className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats.userMessages}</div>
+                <div className="text-sm text-gray-600">Messages utilisateurs</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Bot className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats.botMessages}</div>
+                <div className="text-sm text-gray-600">Messages bots</div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{stats.todayMessages}</div>
+                <div className="text-sm text-gray-600">Aujourd'hui</div>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
       {/* Filtres */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Rechercher dans les messages..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+        <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Input
+                placeholder="Rechercher dans les messages..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
-          
-          <Select value={selectedBot} onValueChange={setSelectedBot}>
-            <SelectTrigger>
-              <SelectValue placeholder="Tous les bots" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les bots</SelectItem>
-              {bots.map((bot) => (
-                <SelectItem key={bot.id} value={bot.name}>
-                  {bot.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
 
-          <Select value={messageTypeFilter} onValueChange={setMessageTypeFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Type de message" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les types</SelectItem>
-              <SelectItem value="user">Messages utilisateur</SelectItem>
-              <SelectItem value="bot">Réponses du bot</SelectItem>
-            </SelectContent>
-          </Select>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as 'all' | 'user' | 'bot')}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">Tous les types</option>
+            <option value="user">Messages utilisateurs</option>
+            <option value="bot">Réponses bots</option>
+          </select>
 
-          <Button variant="outline" onClick={() => {
-            setSearchTerm('');
-            setSelectedBot('all');
-            setMessageTypeFilter('all');
-          }}>
-            <Filter className="w-4 h-4 mr-2" />
-            Réinitialiser
-          </Button>
+          <select
+            value={selectedBot}
+            onChange={(e) => setSelectedBot(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">Tous les bots</option>
+            {bots.map(bot => (
+              <option key={bot.id} value={bot.name}>{bot.name}</option>
+            ))}
+          </select>
         </div>
       </Card>
 
       {/* Liste des messages */}
-      <div className="space-y-4">
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">
+          Historique des messages ({filteredMessages.length})
+        </h3>
+
         {filteredMessages.length === 0 ? (
-          <Card className="p-8 text-center">
-            <MessageCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun message trouvé</h3>
+          <div className="text-center py-8">
+            <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Aucun message trouvé
+            </h3>
             <p className="text-gray-600">
               {messages.length === 0 
-                ? "Aucun message n'a encore été envoyé à vos chatbots"
-                : "Aucun message ne correspond à vos critères de recherche"
+                ? "Vos chatbots n'ont pas encore reçu de messages"
+                : "Aucun message ne correspond aux filtres sélectionnés"
               }
             </p>
-          </Card>
+          </div>
         ) : (
-          filteredMessages.map((message) => (
-            <Card key={message.id} className="p-4">
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center space-x-3">
-                  <Badge variant={message.message_type === 'user' ? 'default' : 'secondary'}>
-                    {message.message_type === 'user' ? 'Utilisateur' : 'Bot'}
-                  </Badge>
-                  <span className="text-sm font-medium text-gray-900">
-                    {message.bots?.name || 'Bot inconnu'}
-                  </span>
-                  <span className="text-sm text-gray-500">
-                    {message.bot_users?.user_name || 'Utilisateur anonyme'}
-                  </span>
-                  {message.bot_users?.user_email && (
-                    <span className="text-sm text-gray-400">
-                      ({message.bot_users.user_email})
-                    </span>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {filteredMessages.map((message) => (
+              <div key={message.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  message.message_type === 'user' 
+                    ? 'bg-blue-100' 
+                    : 'bg-purple-100'
+                }`}>
+                  {message.message_type === 'user' ? (
+                    <User className={`w-4 h-4 ${
+                      message.message_type === 'user' ? 'text-blue-600' : 'text-purple-600'
+                    }`} />
+                  ) : (
+                    <Bot className="w-4 h-4 text-purple-600" />
                   )}
                 </div>
-                <span className="text-xs text-gray-500">
-                  {new Date(message.created_at).toLocaleString('fr-FR')}
-                </span>
-              </div>
-              
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-gray-900 whitespace-pre-wrap">
-                  {message.message_content}
-                </p>
-              </div>
 
-              {message.bot_users?.session_id && (
-                <div className="mt-2 text-xs text-gray-400">
-                  Session: {message.bot_users.session_id}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={message.message_type === 'user' ? 'default' : 'secondary'}>
+                        {message.message_type === 'user' ? 'Utilisateur' : 'Bot'}
+                      </Badge>
+                      <span className="text-sm font-medium text-gray-900">
+                        {message.bot_users?.user_name || message.bot_users?.user_email || 'Utilisateur anonyme'}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        • {message.bots.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                      <Clock className="w-4 h-4" />
+                      <span>{new Date(message.created_at).toLocaleString('fr-FR')}</span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-gray-700 break-words">
+                    {message.message_content}
+                  </p>
+
+                  {message.ip_address && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      IP: {message.ip_address}
+                    </div>
+                  )}
                 </div>
-              )}
-            </Card>
-          ))
+              </div>
+            ))}
+          </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 };

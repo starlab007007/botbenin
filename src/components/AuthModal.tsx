@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Phone, Eye, EyeOff, User, Lock } from 'lucide-react';
+import { Mail, Phone, Eye, EyeOff, User, Lock, Shield, Crown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface AuthModalProps {
@@ -68,6 +68,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       onClose();
       setRegisterData({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
     }
+  };
+
+  const fillAdminCredentials = () => {
+    setLoginData({
+      email: 'admin@bot.bj',
+      phone: '+22997123456',
+      password: 'password123'
+    });
+  };
+
+  const fillUserCredentials = () => {
+    setLoginData({
+      email: 'manager@bot.bj',
+      phone: '+22997654321',
+      password: 'password123'
+    });
   };
 
   if (!isOpen) return null;
@@ -168,6 +184,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 >
                   {isLoading ? 'Connexion...' : 'Se connecter'}
                 </Button>
+
+                {/* Identifiants de démonstration */}
+                <div className="mt-6 space-y-3">
+                  <p className="text-sm text-gray-600 text-center font-medium">Comptes de démonstration :</p>
+                  
+                  <div className="space-y-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center justify-start space-x-2 text-left"
+                      onClick={fillAdminCredentials}
+                    >
+                      <Crown className="w-4 h-4 text-purple-600" />
+                      <div>
+                        <div className="font-medium">Administrateur</div>
+                        <div className="text-xs text-gray-500">admin@bot.bj</div>
+                      </div>
+                    </Button>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center justify-start space-x-2 text-left"
+                      onClick={fillUserCredentials}
+                    >
+                      <User className="w-4 h-4 text-blue-600" />
+                      <div>
+                        <div className="font-medium">Manager</div>
+                        <div className="text-xs text-gray-500">manager@bot.bj</div>
+                      </div>
+                    </Button>
+                  </div>
+                </div>
               </form>
             </TabsContent>
 
@@ -283,7 +334,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div className="mt-4 text-xs text-center text-gray-500">
-            <p>Mot de passe de démo: <span className="font-mono">password123</span></p>
+            <p>Mot de passe pour tous les comptes: <span className="font-mono font-medium">password123</span></p>
           </div>
         </div>
       </Card>
