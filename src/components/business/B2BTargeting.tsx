@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -189,14 +188,14 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     const requestId = `req_${Date.now()}`;
     setIsLoading(true);
     
-    console.log('=== B2B WEBHOOK SEARCH START ===');
+    console.log('=== B2B SEARCH VIA SUPABASE PROXY START ===');
     console.log('Request ID:', requestId);
     console.log('Search filters:', filters);
 
     // Initialize loading response
     const loadingResponse: WebhookResponse = {
       status: 'loading',
-      message: 'Recherche en cours vers le backend n8n...',
+      message: 'Recherche en cours via Supabase proxy...',
       timestamp: new Date(),
       requestId
     };
@@ -205,125 +204,106 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     const payload = buildSearchPayload();
     console.log('Search payload:', JSON.stringify(payload, null, 2));
 
-    const webhookUrl = 'https://ia.bot.bj/webhook/lead';
-
     try {
-      // Create timeout controller with extended timeout
+      // Create timeout controller
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('Request timeout after 45 seconds');
+        console.log('Request timeout after 30 seconds');
         controller.abort();
-      }, 45000);
+      }, 30000);
 
-      console.log('Sending request to n8n webhook:', webhookUrl);
+      console.log('Sending request via Supabase Edge Function proxy');
 
-      const response = await fetch(webhookUrl, {
+      // Use Supabase Edge Function as proxy
+      const response = await fetch('/functions/v1/b2b-proxy', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain, */*',
-          'User-Agent': 'B2B-Targeting-Platform/1.0',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Cache-Control': 'no-cache',
+          'Accept': 'application/json',
           'X-Request-ID': requestId
         },
         body: JSON.stringify(payload),
-        signal: controller.signal,
-        credentials: 'omit'
+        signal: controller.signal
       });
 
       clearTimeout(timeoutId);
 
-      console.log('Response received from n8n!');
+      console.log('Proxy response received!');
       console.log('Status:', response.status, 'Status Text:', response.statusText);
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
-      let responseData;
-      let processedContent;
-      let extractedContacts: B2BContact[] = [];
-
-      const contentType = response.headers.get('content-type') || '';
-      console.log('Content-Type:', contentType);
-
-      if (response.ok) {
-        if (contentType.includes('application/json')) {
-          responseData = await response.json();
-          console.log('JSON Response from n8n:', JSON.stringify(responseData, null, 2));
-          
-          // Extract message
-          processedContent = responseData.output || 
-                            responseData.message || 
-                            responseData.response || 
-                            responseData.text || 
-                            responseData.content ||
-                            responseData.reply ||
-                            'Recherche terminée avec succès';
-
-          // Extract contacts data
-          if (responseData.contacts || responseData.leads || responseData.results || responseData.data) {
-            const contactsData = responseData.contacts || responseData.leads || responseData.results || responseData.data;
-            if (Array.isArray(contactsData)) {
-              extractedContacts = contactsData;
-              console.log('Contacts extracted from n8n response:', extractedContacts.length);
-            }
-          }
-        } else {
-          responseData = await response.text();
-          console.log('Text Response from n8n:', responseData);
-          processedContent = responseData || 'Réponse reçue du backend';
-        }
-
-        // Create success response
-        const successResponse: WebhookResponse = {
-          status: 'success',
-          message: processedContent,
-          data: extractedContacts.length > 0 ? extractedContacts : mockResults,
-          timestamp: new Date(),
-          requestId
-        };
-
-        setWebhookResponse(successResponse);
-        setSearchHistory(prev => [successResponse, ...prev.slice(0, 4)]);
-
-        toast({
-          title: "Recherche B2B - Succès",
-          description: `${extractedContacts.length > 0 ? extractedContacts.length : mockResults.length} contacts trouvés`,
-        });
-
-        console.log('Webhook search completed successfully');
-
-      } else {
-        // Handle HTTP errors
-        const errorText = await response.text();
-        console.error('HTTP Error Response:', errorText);
-        
-        throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`Proxy error: HTTP ${response.status}`);
       }
 
+      const proxyResponse = await response.json();
+      console.log('Proxy response data:', JSON.stringify(proxyResponse, null, 2));
+
+      let extractedContacts: B2BContact[] = [];
+      let processedContent = 'Recherche terminée avec succès';
+
+      // Extract data from proxy response
+      if (proxyResponse.success && proxyResponse.data) {
+        const n8nData = proxyResponse.data;
+        
+        // Extract message
+        processedContent = n8nData.output || 
+                          n8nData.message || 
+                          n8nData.response || 
+                          n8nData.text || 
+                          n8nData.content ||
+                          processedContent;
+
+        // Extract contacts
+        if (n8nData.contacts || n8nData.leads || n8nData.results || n8nData.data) {
+          const contactsData = n8nData.contacts || n8nData.leads || n8nData.results || n8nData.data;
+          if (Array.isArray(contactsData)) {
+            extractedContacts = contactsData;
+            console.log('Contacts extracted from n8n via proxy:', extractedContacts.length);
+          }
+        }
+      }
+
+      // Create success response
+      const successResponse: WebhookResponse = {
+        status: 'success',
+        message: processedContent,
+        data: extractedContacts.length > 0 ? extractedContacts : mockResults,
+        timestamp: new Date(),
+        requestId
+      };
+
+      setWebhookResponse(successResponse);
+      setSearchHistory(prev => [successResponse, ...prev.slice(0, 4)]);
+
+      toast({
+        title: "Recherche B2B - Succès",
+        description: `${extractedContacts.length > 0 ? extractedContacts.length : mockResults.length} contacts trouvés`,
+      });
+
+      console.log('B2B search via proxy completed successfully');
+
     } catch (error) {
-      console.error('=== B2B WEBHOOK SEARCH ERROR ===');
+      console.error('=== B2B SEARCH VIA PROXY ERROR ===');
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
       
       let errorStatus: 'error' | 'timeout' = 'error';
-      let errorMessage = "Erreur de connexion au backend n8n";
-      let fallbackMessage = "Affichage des données de démonstration";
+      let errorMessage = "Erreur de connexion via proxy Supabase";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorStatus = 'timeout';
-          errorMessage = "Timeout de la requête (45s)";
+          errorMessage = "Timeout de la requête (30s)";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de joindre le backend n8n";
-        } else if (error.message.includes('NetworkError')) {
-          errorMessage = "Erreur réseau";
+          errorMessage = "Impossible de joindre le proxy Supabase";
         }
       }
 
       const errorResponse: WebhookResponse = {
         status: errorStatus,
-        message: `${errorMessage}. ${fallbackMessage}.`,
+        message: `${errorMessage}. Affichage des données de démonstration.`,
         data: mockResults,
         timestamp: new Date(),
         requestId
@@ -333,13 +313,13 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
-        title: "Recherche B2B - Problème de connexion",
+        title: "Recherche B2B - Utilisation des données de démo",
         description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
-      console.log('=== B2B WEBHOOK SEARCH END ===');
+      console.log('=== B2B SEARCH VIA SUPABASE PROXY END ===');
     }
   };
 
