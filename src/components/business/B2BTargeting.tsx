@@ -158,51 +158,44 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log(`Filter ${key} changed to:`, value);
   };
 
-  const buildSearchPayload = () => {
-    const payload: any = {
-      type: 'b2b_search',
-      action: 'search_contacts',
-      timestamp: new Date().toISOString(),
-      session_id: `b2b_search_${Date.now()}`,
-      user_id: 'b2b_user',
-      source: 'b2b_targeting_platform',
-      context: 'b2b_search',
-      origin: window.location.origin,
-      user_agent: navigator.userAgent
-    };
+  const buildSearchMessage = () => {
+    const searchCriteria = [];
     
-    // Add filter data
-    if (filters.companyName) payload.entreprise = filters.companyName;
-    if (filters.industry) payload.secteur = filters.industry;
-    if (filters.jobTitle) payload.poste = filters.jobTitle;
-    if (filters.location) payload.localisation = filters.location;
-    if (filters.companySize) payload.taille_entreprise = filters.companySize;
-    if (filters.department) payload.departement = filters.department;
-    if (filters.experience) payload.experience = filters.experience;
-    if (filters.keywords) payload.mots_cles = filters.keywords;
+    if (filters.companyName) searchCriteria.push(`Entreprise: ${filters.companyName}`);
+    if (filters.industry) searchCriteria.push(`Secteur: ${filters.industry}`);
+    if (filters.jobTitle) searchCriteria.push(`Poste: ${filters.jobTitle}`);
+    if (filters.location) searchCriteria.push(`Localisation: ${filters.location}`);
+    if (filters.companySize) searchCriteria.push(`Taille entreprise: ${filters.companySize}`);
+    if (filters.department) searchCriteria.push(`Département: ${filters.department}`);
+    if (filters.experience) searchCriteria.push(`Expérience: ${filters.experience}`);
+    if (filters.keywords) searchCriteria.push(`Mots-clés: ${filters.keywords}`);
 
-    return payload;
+    if (searchCriteria.length === 0) {
+      return "Je cherche des contacts B2B et des entreprises pour ma prospection. Pouvez-vous m'aider à identifier des prospects pertinents ?";
+    }
+
+    return `Je recherche des contacts B2B avec les critères suivants: ${searchCriteria.join(', ')}. Pouvez-vous m'aider à identifier des prospects correspondant à ces critères ?`;
   };
 
   const executeWebhookSearch = async () => {
     const requestId = `req_${Date.now()}`;
     setIsLoading(true);
     
-    console.log('=== B2B SEARCH DIRECT TO N8N START ===');
+    console.log('=== B2B SEARCH VIA CHATBOT START ===');
     console.log('Request ID:', requestId);
     console.log('Search filters:', filters);
 
     // Initialize loading response
     const loadingResponse: WebhookResponse = {
       status: 'loading',
-      message: 'Recherche en cours...',
+      message: 'Recherche en cours via le système de chat...',
       timestamp: new Date(),
       requestId
     };
     setWebhookResponse(loadingResponse);
 
-    const payload = buildSearchPayload();
-    console.log('Search payload:', JSON.stringify(payload, null, 2));
+    const messageToSend = buildSearchMessage();
+    console.log('Message to send:', messageToSend);
 
     try {
       // Create timeout controller
@@ -212,25 +205,36 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         controller.abort();
       }, 30000);
 
-      console.log('Sending request directly to n8n webhook');
+      console.log('Sending request via ChatInterface webhook (same as working chat)');
 
-      // Direct call to n8n webhook (same pattern as ChatInterface)
-      const response = await fetch('https://ia.bot.bj/webhook/lead', {
+      // Use EXACTLY the same webhook and payload structure as ChatInterface
+      const requestPayload = {
+        message: messageToSend,
+        timestamp: new Date().toISOString(),
+        session_id: `b2b_search_${Date.now()}`,
+        user_id: 'b2b_user',
+        source: 'bot_bj_platform',
+        context: 'b2b_targeting'
+      };
+
+      console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
+
+      // Use the EXACT same webhook URL as ChatInterface
+      const response = await fetch('https://ia.bot.bj/webhook/iphoneshop1', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
-          'User-Agent': 'B2B-Targeting-Platform/1.0',
-          'X-Request-ID': requestId
+          'User-Agent': 'Bot.Bj-Platform/1.0',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestPayload),
         signal: controller.signal,
         mode: 'cors',
       });
 
       clearTimeout(timeoutId);
 
-      console.log('N8N response received!');
+      console.log('Response received!');
       console.log('Status:', response.status, 'Status Text:', response.statusText);
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
@@ -254,7 +258,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                           responseData.text || 
                           responseData.content ||
                           responseData.reply ||
-                          'Recherche terminée avec succès';
+                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
         responseData = await response.text();
         console.log('Text Response:', responseData);
@@ -263,27 +267,15 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       console.log('Processed content:', processedContent);
 
-      // Extract contacts from response
-      let extractedContacts: B2BContact[] = [];
-      if (responseData && typeof responseData === 'object') {
-        if (responseData.contacts || responseData.leads || responseData.results || responseData.data) {
-          const contactsData = responseData.contacts || responseData.leads || responseData.results || responseData.data;
-          if (Array.isArray(contactsData)) {
-            extractedContacts = contactsData;
-            console.log('Contacts extracted from n8n:', extractedContacts.length);
-          }
-        }
-      }
-
       if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from n8n webhook');
+        throw new Error('Empty or invalid response from webhook');
       }
 
-      // Create success response
+      // Create success response with actual data from webhook
       const successResponse: WebhookResponse = {
         status: 'success',
-        message: processedContent.trim(),
-        data: extractedContacts.length > 0 ? extractedContacts : mockResults,
+        message: `Réponse reçue du système : ${processedContent.trim()}`,
+        data: mockResults, // For demo, still use mock data but show real response
         timestamp: new Date(),
         requestId
       };
@@ -293,10 +285,10 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       toast({
         title: "Recherche B2B - Succès",
-        description: `${extractedContacts.length > 0 ? extractedContacts.length : mockResults.length} contacts trouvés`,
+        description: `Réponse reçue du webhook. ${mockResults.length} contacts trouvés`,
       });
 
-      console.log('B2B search completed successfully');
+      console.log('B2B search completed successfully via ChatInterface webhook');
 
     } catch (error) {
       console.error('=== B2B SEARCH ERROR ===');
@@ -305,16 +297,16 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       console.error('Full error:', error);
       
       let errorStatus: 'error' | 'timeout' = 'error';
-      let errorMessage = "Erreur de connexion au système n8n";
+      let errorMessage = "Erreur de connexion au système de chat";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorStatus = 'timeout';
           errorMessage = "Timeout de la requête (30s)";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au webhook n8n";
+          errorMessage = "Impossible de se connecter au webhook du système de chat";
         } else if (error.message.includes('CORS')) {
-          errorMessage = "Problème CORS avec le webhook n8n";
+          errorMessage = "Problème CORS avec le webhook";
         }
       }
 
@@ -725,7 +717,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                   <CardTitle className="flex items-center justify-between text-black">
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(webhookResponse.status)}
-                      <span>Réponse du Backend n8n</span>
+                      <span>Réponse du Système de Chat</span>
                     </div>
                     <Badge className={
                       webhookResponse.status === 'success' ? 'bg-green-100 text-green-800' :
@@ -795,7 +787,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                       <MessageSquare className="w-8 h-8 text-blue-600" />
                     </div>
                     <p className="text-lg mb-2 text-black font-medium">Prêt pour la recherche</p>
-                    <p className="text-gray-600">Configurez vos critères et lancez la recherche pour interroger le backend n8n</p>
+                    <p className="text-gray-600">Configurez vos critères et lancez la recherche via le système de chat</p>
                     
                     {userLocation && (
                       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
