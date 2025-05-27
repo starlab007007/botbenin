@@ -205,9 +205,9 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         controller.abort();
       }, 30000);
 
-      console.log('Sending request via ChatInterface webhook (same as working chat)');
+      console.log('Sending request via ChatInterface webhook (restau1)');
 
-      // Use EXACTLY the same webhook and payload structure as ChatInterface
+      // Use EXACTLY the same webhook and payload structure as ChatInterface but with restau1
       const requestPayload = {
         message: messageToSend,
         timestamp: new Date().toISOString(),
@@ -219,8 +219,8 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
-      // Use the EXACT same webhook URL as ChatInterface
-      const response = await fetch('https://ia.bot.bj/webhook/iphoneshop1', {
+      // Use the restau1 webhook URL
+      const response = await fetch('https://ia.bot.bj/webhook/restau1', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -288,7 +288,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         description: `Réponse reçue du webhook. ${mockResults.length} contacts trouvés`,
       });
 
-      console.log('B2B search completed successfully via ChatInterface webhook');
+      console.log('B2B search completed successfully via restau1 webhook');
 
     } catch (error) {
       console.error('=== B2B SEARCH ERROR ===');
