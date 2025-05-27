@@ -10,9 +10,13 @@ import {
   MessageSquare,
   ArrowRight
 } from 'lucide-react';
+import { B2BTargeting } from '@/components/business/B2BTargeting';
+import { LocalProspecting } from '@/components/business/LocalProspecting';
+
+type ViewMode = 'menu' | 'ciblage-b2b' | 'prospection-locale' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
 
 export const BusinessModule: React.FC = () => {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<ViewMode>('menu');
 
   const businessOptions = [
     {
@@ -58,11 +62,82 @@ export const BusinessModule: React.FC = () => {
   ];
 
   const handleOptionSelect = (optionId: string) => {
-    setSelectedOption(optionId);
+    setCurrentView(optionId as ViewMode);
     console.log('Option sélectionnée:', optionId);
-    // Ici vous pouvez ajouter la logique pour traiter l'option sélectionnée
   };
 
+  const handleBackToMenu = () => {
+    setCurrentView('menu');
+  };
+
+  // Render different views based on current selection
+  if (currentView === 'ciblage-b2b') {
+    return <B2BTargeting onBack={handleBackToMenu} />;
+  }
+
+  if (currentView === 'prospection-locale') {
+    return <LocalProspecting onBack={handleBackToMenu} />;
+  }
+
+  // TODO: Implement other views
+  if (currentView === 'scoring-leads') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <Button variant="ghost" onClick={handleBackToMenu} className="mb-6">
+            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
+            Retour au menu
+          </Button>
+          <Card className="p-8 text-center">
+            <Target className="w-16 h-16 mx-auto mb-4 text-orange-600" />
+            <h2 className="text-2xl font-bold mb-4">Scoring & Qualification des Leads</h2>
+            <p className="text-gray-600 mb-6">Cette fonctionnalité sera bientôt disponible.</p>
+            <p className="text-sm text-gray-500">Système de scoring automatique des prospects basé sur l'IA.</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'listes-prospects') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <Button variant="ghost" onClick={handleBackToMenu} className="mb-6">
+            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
+            Retour au menu
+          </Button>
+          <Card className="p-8 text-center">
+            <Upload className="w-16 h-16 mx-auto mb-4 text-purple-600" />
+            <h2 className="text-2xl font-bold mb-4">Mes Listes de Prospects (Import)</h2>
+            <p className="text-gray-600 mb-6">Cette fonctionnalité sera bientôt disponible.</p>
+            <p className="text-sm text-gray-500">Import et enrichissement de vos listes de contacts existantes.</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'campagnes-engagement') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <Button variant="ghost" onClick={handleBackToMenu} className="mb-6">
+            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
+            Retour au menu
+          </Button>
+          <Card className="p-8 text-center">
+            <MessageSquare className="w-16 h-16 mx-auto mb-4 text-red-600" />
+            <h2 className="text-2xl font-bold mb-4">Campagnes & Modèles d'Engagement</h2>
+            <p className="text-gray-600 mb-6">Cette fonctionnalité sera bientôt disponible.</p>
+            <p className="text-sm text-gray-500">Création de campagnes personnalisées avec IA pour l'engagement client.</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Default menu view
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-6">
@@ -105,28 +180,6 @@ export const BusinessModule: React.FC = () => {
             </Card>
           ))}
         </div>
-
-        {/* Selected Option Indicator */}
-        {selectedOption && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-blue-900">Option sélectionnée :</h3>
-                <p className="text-blue-800">
-                  {businessOptions.find(opt => opt.id === selectedOption)?.title}
-                </p>
-              </div>
-              <Button 
-                onClick={() => setSelectedOption(null)}
-                variant="outline"
-                size="sm"
-                className="text-blue-600 border-blue-300 hover:bg-blue-100"
-              >
-                Réinitialiser
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="flex justify-center mt-12">
