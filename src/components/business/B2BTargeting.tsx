@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, Filter, Download, Users, MapPin, Mail, Phone, Eye, MessageSquare, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Search, Filter, Download, Users, MapPin, Mail, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { GeoLocationMap } from './GeoLocationMap';
 import { useToast } from '@/hooks/use-toast';
 
@@ -35,6 +36,14 @@ interface B2BContact {
   coordinates?: [number, number];
 }
 
+interface WebhookResponse {
+  status: 'success' | 'error' | 'timeout' | 'loading';
+  message: string;
+  data?: B2BContact[];
+  timestamp: Date;
+  requestId: string;
+}
+
 interface B2BTargetingProps {
   onBack: () => void;
 }
@@ -52,15 +61,13 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
   });
 
   const [showResults, setShowResults] = useState(false);
-  const [showWebhookResponse, setShowWebhookResponse] = useState(false);
-  const [webhookResponse, setWebhookResponse] = useState<string>('');
+  const [webhookResponse, setWebhookResponse] = useState<WebhookResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [webhookContacts, setWebhookContacts] = useState<B2BContact[]>([]);
-  const [connectionError, setConnectionError] = useState<string>('');
+  const [searchHistory, setSearchHistory] = useState<WebhookResponse[]>([]);
   const { toast } = useToast();
 
-  // Enhanced mock results with email and phone data
+  // Enhanced mock results with comprehensive data
   const mockResults: B2BContact[] = [
     {
       id: '1',
@@ -139,12 +146,10 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         },
         (error) => {
           console.error('Error getting location:', error);
-          // Default to Paris center if geolocation fails
           setUserLocation([2.3522, 48.8566]);
         }
       );
     } else {
-      // Default to Paris center if geolocation not supported
       setUserLocation([2.3522, 48.8566]);
     }
   }, []);
@@ -154,12 +159,20 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log(`Filter ${key} changed to:`, value);
   };
 
-  const buildPayloadFromFilters = () => {
+  const buildSearchPayload = () => {
     const payload: any = {
       type: 'b2b_search',
-      action: 'search_contacts'
+      action: 'search_contacts',
+      timestamp: new Date().toISOString(),
+      session_id: `b2b_search_${Date.now()}`,
+      user_id: 'b2b_user',
+      source: 'b2b_targeting_platform',
+      context: 'b2b_search',
+      origin: window.location.origin,
+      user_agent: navigator.userAgent
     };
     
+    // Add filter data
     if (filters.companyName) payload.entreprise = filters.companyName;
     if (filters.industry) payload.secteur = filters.industry;
     if (filters.jobTitle) payload.poste = filters.jobTitle;
@@ -172,40 +185,37 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     return payload;
   };
 
-  const handleWebhookSearch = async () => {
+  const executeWebhookSearch = async () => {
+    const requestId = `req_${Date.now()}`;
     setIsLoading(true);
-    setShowWebhookResponse(false);
-    setWebhookResponse('');
-    setConnectionError('');
     
     console.log('=== B2B WEBHOOK SEARCH START ===');
-    console.log('Filters:', filters);
+    console.log('Request ID:', requestId);
+    console.log('Search filters:', filters);
 
-    const payload = buildPayloadFromFilters();
-    console.log('Webhook payload:', payload);
+    // Initialize loading response
+    const loadingResponse: WebhookResponse = {
+      status: 'loading',
+      message: 'Recherche en cours vers le backend n8n...',
+      timestamp: new Date(),
+      requestId
+    };
+    setWebhookResponse(loadingResponse);
+
+    const payload = buildSearchPayload();
+    console.log('Search payload:', JSON.stringify(payload, null, 2));
 
     const webhookUrl = 'https://ia.bot.bj/webhook/lead';
 
     try {
-      const requestPayload = {
-        ...payload,
-        timestamp: new Date().toISOString(),
-        session_id: `b2b_targeting_${Date.now()}`,
-        user_id: 'b2b_user',
-        source: 'b2b_targeting_platform',
-        context: 'b2b_search',
-        origin: window.location.origin,
-        user_agent: navigator.userAgent
-      };
-
-      console.log('Sending request to n8n webhook:', JSON.stringify(requestPayload, null, 2));
-
-      // Utiliser une approche similaire à ChatInterface pour la gestion des requêtes
+      // Create timeout controller with extended timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('Request timeout after 60 seconds');
+        console.log('Request timeout after 45 seconds');
         controller.abort();
-      }, 60000); // Augmenté à 60 secondes
+      }, 45000);
+
+      console.log('Sending request to n8n webhook:', webhookUrl);
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -214,25 +224,24 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
           'Accept': 'application/json, text/plain, */*',
           'User-Agent': 'B2B-Targeting-Platform/1.0',
           'X-Requested-With': 'XMLHttpRequest',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache',
+          'X-Request-ID': requestId
         },
-        body: JSON.stringify(requestPayload),
+        body: JSON.stringify(payload),
         signal: controller.signal,
-        credentials: 'omit' // Éviter les problèmes de cookies cross-origin
+        credentials: 'omit'
       });
 
       clearTimeout(timeoutId);
 
       console.log('Response received from n8n!');
-      console.log('Status:', response.status);
-      console.log('Status Text:', response.statusText);
-      console.log('Response OK:', response.ok);
+      console.log('Status:', response.status, 'Status Text:', response.statusText);
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       let responseData;
       let processedContent;
+      let extractedContacts: B2BContact[] = [];
 
-      // Vérifier le content-type de la réponse
       const contentType = response.headers.get('content-type') || '';
       console.log('Content-Type:', contentType);
 
@@ -241,83 +250,91 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
           responseData = await response.json();
           console.log('JSON Response from n8n:', JSON.stringify(responseData, null, 2));
           
-          // Extraire le message de la réponse comme dans ChatInterface
+          // Extract message
           processedContent = responseData.output || 
                             responseData.message || 
                             responseData.response || 
                             responseData.text || 
                             responseData.content ||
                             responseData.reply ||
-                            responseData.data ||
-                            (typeof responseData === 'string' ? responseData : JSON.stringify(responseData, null, 2));
+                            'Recherche terminée avec succès';
 
-          // Essayer d'extraire les données de contacts si disponibles
-          if (responseData.contacts || responseData.leads || responseData.results) {
-            const contactsData = responseData.contacts || responseData.leads || responseData.results;
+          // Extract contacts data
+          if (responseData.contacts || responseData.leads || responseData.results || responseData.data) {
+            const contactsData = responseData.contacts || responseData.leads || responseData.results || responseData.data;
             if (Array.isArray(contactsData)) {
-              console.log('Contacts data extracted:', contactsData);
-              setWebhookContacts(contactsData);
+              extractedContacts = contactsData;
+              console.log('Contacts extracted from n8n response:', extractedContacts.length);
             }
           }
         } else {
           responseData = await response.text();
           console.log('Text Response from n8n:', responseData);
-          processedContent = responseData;
+          processedContent = responseData || 'Réponse reçue du backend';
         }
 
-        if (!processedContent || processedContent.trim() === '') {
-          processedContent = "Recherche terminée avec succès. Les résultats sont en cours de traitement.";
-        }
+        // Create success response
+        const successResponse: WebhookResponse = {
+          status: 'success',
+          message: processedContent,
+          data: extractedContacts.length > 0 ? extractedContacts : mockResults,
+          timestamp: new Date(),
+          requestId
+        };
 
-        setWebhookResponse(processedContent.trim());
-        setShowWebhookResponse(true);
+        setWebhookResponse(successResponse);
+        setSearchHistory(prev => [successResponse, ...prev.slice(0, 4)]);
 
         toast({
           title: "Recherche B2B - Succès",
-          description: "Réponse reçue du backend n8n",
+          description: `${extractedContacts.length > 0 ? extractedContacts.length : mockResults.length} contacts trouvés`,
         });
 
-        console.log('Webhook response processed successfully');
+        console.log('Webhook search completed successfully');
 
       } else {
-        // Gérer les erreurs HTTP
+        // Handle HTTP errors
         const errorText = await response.text();
         console.error('HTTP Error Response:', errorText);
         
-        throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}${errorText ? ' - ' + errorText : ''}`);
+        throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
       }
 
     } catch (error) {
-      console.error('=== B2B WEBHOOK ERROR ===');
+      console.error('=== B2B WEBHOOK SEARCH ERROR ===');
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
       
-      let errorMessage = "Erreur de connexion au service de recherche n8n.";
-      let fallbackMessage = "Utilisation des données de démonstration en attendant la résolution du problème.";
-      let toastMessage = "Problème de connexion au backend n8n";
+      let errorStatus: 'error' | 'timeout' = 'error';
+      let errorMessage = "Erreur de connexion au backend n8n";
+      let fallbackMessage = "Affichage des données de démonstration";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = "La requête a pris trop de temps (timeout 60s).";
-          toastMessage = "Timeout - requête trop longue";
+          errorStatus = 'timeout';
+          errorMessage = "Timeout de la requête (45s)";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au backend n8n. Vérifiez votre connexion internet et les paramètres CORS.";
-          toastMessage = "Échec de connexion au backend";
+          errorMessage = "Impossible de joindre le backend n8n";
         } else if (error.message.includes('NetworkError')) {
-          errorMessage = "Erreur réseau lors de la connexion au backend n8n.";
-          toastMessage = "Erreur réseau";
+          errorMessage = "Erreur réseau";
         }
       }
 
-      setConnectionError(error?.message || 'Erreur inconnue');
-      setWebhookResponse(`${errorMessage}\n\n${fallbackMessage}\n\nDétails de l'erreur: ${error?.message || 'Erreur inconnue'}`);
-      setShowWebhookResponse(true);
-      setWebhookContacts(mockResults); // Utiliser les données de démo comme fallback
+      const errorResponse: WebhookResponse = {
+        status: errorStatus,
+        message: `${errorMessage}. ${fallbackMessage}.`,
+        data: mockResults,
+        timestamp: new Date(),
+        requestId
+      };
+
+      setWebhookResponse(errorResponse);
+      setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
-        title: "Recherche B2B - Erreur",
-        description: toastMessage,
+        title: "Recherche B2B - Problème de connexion",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -326,24 +343,21 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     }
   };
 
-  const handleVisualize = () => {
+  const handleViewResults = () => {
     setShowResults(true);
-    setShowWebhookResponse(false);
-    console.log('Switching to visualization view');
+    console.log('Switching to results view');
   };
 
   const handleBackToSearch = () => {
-    setShowWebhookResponse(false);
     setShowResults(false);
-    setConnectionError('');
-    console.log('Back to search filters');
+    setWebhookResponse(null);
+    console.log('Back to search interface');
   };
 
   const handleExport = () => {
     console.log('Exporting B2B results...');
-    const contactsToExport = webhookContacts.length > 0 ? webhookContacts : mockResults;
+    const contactsToExport = webhookResponse?.data || mockResults;
     
-    // Create CSV content
     const csvContent = [
       ['Nom', 'Entreprise', 'Poste', 'Email', 'Téléphone', 'Localisation', 'Secteur', 'Taille Entreprise', 'LinkedIn'],
       ...contactsToExport.map(contact => [
@@ -362,11 +376,11 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'contacts_b2b.csv';
+    link.download = `contacts_b2b_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
-  const resetFilters = () => {
+  const resetSearch = () => {
     setFilters({
       companyName: '',
       industry: '',
@@ -377,130 +391,48 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       department: '',
       keywords: ''
     });
-    setConnectionError('');
-    console.log('Filters reset');
+    setWebhookResponse(null);
+    setShowResults(false);
+    console.log('Search reset');
   };
 
-  // Webhook Response View - Amélioré pour ressembler à ChatInterface
-  if (showWebhookResponse) {
-    return (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={handleBackToSearch} className="text-black hover:bg-gray-200">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Nouvelle recherche
-              </Button>
-              <h1 className="text-2xl font-bold text-black">Réponse du Backend n8n</h1>
-            </div>
-            <Button onClick={onBack} className="bg-gray-800 text-white hover:bg-gray-700">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour au menu
-            </Button>
-          </div>
+  const getStatusIcon = (status: WebhookResponse['status']) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'error':
+        return <AlertCircle className="w-5 h-5 text-red-600" />;
+      case 'timeout':
+        return <Clock className="w-5 h-5 text-orange-600" />;
+      case 'loading':
+        return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
+      default:
+        return <MessageSquare className="w-5 h-5 text-gray-600" />;
+    }
+  };
 
-          {/* Connection Status */}
-          {connectionError && (
-            <Card className="bg-red-50 border-red-200 mb-6">
-              <CardContent className="p-4">
-                <div className="flex items-center text-red-800">
-                  <AlertCircle className="w-5 h-5 mr-2" />
-                  <span className="font-medium">Problème de connexion détecté:</span>
-                </div>
-                <p className="text-red-700 mt-2 text-sm">{connectionError}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Webhook Response Card - Style chat-like */}
-          <Card className="bg-white border-gray-300 mb-6">
-            <CardHeader className="bg-gray-50 border-b border-gray-200">
-              <CardTitle className="flex items-center text-black">
-                <MessageSquare className="w-5 h-5 mr-2" />
-                Réponse du Service n8n
-                {!connectionError && (
-                  <Badge className="ml-2 bg-green-100 text-green-800">Connecté</Badge>
-                )}
-                {connectionError && (
-                  <Badge className="ml-2 bg-red-100 text-red-800">Erreur de connexion</Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              {/* Response content with chat-like styling */}
-              <div className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
-                <div className="prose prose-sm max-w-none">
-                  <div className="text-gray-900 whitespace-pre-wrap leading-relaxed font-medium">
-                    {webhookResponse}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button 
-                  onClick={handleVisualize}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  Visualiser les résultats
-                </Button>
-                <Button 
-                  onClick={handleBackToSearch}
-                  variant="outline"
-                  className="border-gray-400 text-black hover:bg-gray-200 px-8 py-3"
-                >
-                  <Search className="w-4 h-4 mr-2" />
-                  Nouvelle recherche
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Search Summary */}
-          <Card className="bg-white border-gray-300">
-            <CardHeader>
-              <CardTitle className="text-black text-lg">Critères de recherche utilisés</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(filters).map(([key, value]) => {
-                  if (!value) return null;
-                  const labels: Record<string, string> = {
-                    companyName: 'Entreprise',
-                    industry: 'Secteur',
-                    companySize: 'Taille',
-                    location: 'Localisation',
-                    jobTitle: 'Poste',
-                    experience: 'Expérience',
-                    department: 'Département',
-                    keywords: 'Mots-clés'
-                  };
-                  return (
-                    <div key={key} className="text-sm">
-                      <span className="font-medium text-gray-700">{labels[key]}:</span>
-                      <div className="text-gray-900">{value}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  const getStatusColor = (status: WebhookResponse['status']) => {
+    switch (status) {
+      case 'success':
+        return 'bg-green-50 border-green-200';
+      case 'error':
+        return 'bg-red-50 border-red-200';
+      case 'timeout':
+        return 'bg-orange-50 border-orange-200';
+      case 'loading':
+        return 'bg-blue-50 border-blue-200';
+      default:
+        return 'bg-gray-50 border-gray-200';
+    }
+  };
 
   // Results View
   if (showResults) {
-    const displayContacts = webhookContacts.length > 0 ? webhookContacts : mockResults;
+    const displayContacts = webhookResponse?.data || mockResults;
     
     return (
       <div className="min-h-screen bg-gray-100 p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
               <Button variant="ghost" onClick={handleBackToSearch} className="text-black hover:bg-gray-200">
@@ -521,6 +453,32 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
               </Button>
             </div>
           </div>
+
+          {/* Status Information */}
+          {webhookResponse && (
+            <Card className={`mb-6 ${getStatusColor(webhookResponse.status)}`}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {getStatusIcon(webhookResponse.status)}
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        Statut: {webhookResponse.status === 'success' ? 'Succès' : 
+                                 webhookResponse.status === 'error' ? 'Erreur' :
+                                 webhookResponse.status === 'timeout' ? 'Timeout' : 'En cours'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {webhookResponse.timestamp.toLocaleString()} - ID: {webhookResponse.requestId}
+                      </p>
+                    </div>
+                  </div>
+                  {webhookResponse.status !== 'success' && (
+                    <Badge className="bg-yellow-100 text-yellow-800">Données de démonstration</Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Map Section */}
           <div className="mb-6">
@@ -610,7 +568,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     );
   }
 
-  // Search Form View
+  // Search Interface with Response Display
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -733,7 +691,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
                 <div className="flex flex-col space-y-2">
                   <Button 
-                    onClick={handleWebhookSearch} 
+                    onClick={executeWebhookSearch} 
                     className="w-full bg-gray-800 text-white hover:bg-gray-700" 
                     disabled={isLoading}
                   >
@@ -751,54 +709,131 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                   </Button>
                   <Button 
                     variant="outline" 
-                    onClick={resetFilters}
+                    onClick={resetSearch}
                     className="w-full text-black border-gray-400 hover:bg-gray-200"
                     disabled={isLoading}
                   >
-                    Réinitialiser les filtres
+                    Réinitialiser
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Preview Panel */}
+          {/* Response Display Panel */}
           <div className="lg:col-span-2">
-            <Card className="bg-white border-gray-300">
-              <CardHeader className="bg-gray-200 border-b border-gray-300">
-                <CardTitle className="text-black">Statut de Connexion n8n</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  {!connectionError ? (
-                    <>
-                      <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
-                        <MessageSquare className="w-8 h-8 text-green-600" />
+            {webhookResponse ? (
+              <Card className={`bg-white border-gray-300 ${getStatusColor(webhookResponse.status)}`}>
+                <CardHeader className="border-b border-gray-200">
+                  <CardTitle className="flex items-center justify-between text-black">
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(webhookResponse.status)}
+                      <span>Réponse du Backend n8n</span>
+                    </div>
+                    <Badge className={
+                      webhookResponse.status === 'success' ? 'bg-green-100 text-green-800' :
+                      webhookResponse.status === 'error' ? 'bg-red-100 text-red-800' :
+                      webhookResponse.status === 'timeout' ? 'bg-orange-100 text-orange-800' :
+                      'bg-blue-100 text-blue-800'
+                    }>
+                      {webhookResponse.status === 'success' ? 'Succès' :
+                       webhookResponse.status === 'error' ? 'Erreur' :
+                       webhookResponse.status === 'timeout' ? 'Timeout' : 'En cours'}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
+                    <div className="prose prose-sm max-w-none">
+                      <div className="text-gray-900 whitespace-pre-wrap leading-relaxed font-medium">
+                        {webhookResponse.message}
                       </div>
-                      <p className="text-lg mb-2 text-black font-medium">Prêt pour la recherche</p>
-                      <p className="text-gray-600">Configurez vos critères et lancez la recherche pour interroger le backend n8n</p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-                        <AlertCircle className="w-8 h-8 text-red-600" />
-                      </div>
-                      <p className="text-lg mb-2 text-red-800 font-medium">Problème de connexion</p>
-                      <p className="text-red-600 text-sm">{connectionError}</p>
-                    </>
-                  )}
+                    </div>
+                  </div>
                   
-                  {userLocation && (
-                    <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-blue-800">
-                        <MapPin className="w-4 h-4 inline mr-1" />
-                        Position détectée: {userLocation[1].toFixed(4)}, {userLocation[0].toFixed(4)}
+                  {webhookResponse.data && (
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-600 mb-3">
+                        <strong>{webhookResponse.data.length}</strong> contacts trouvés
                       </p>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button 
+                      onClick={handleViewResults}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+                      disabled={!webhookResponse.data}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Visualiser les résultats
+                    </Button>
+                    <Button 
+                      onClick={resetSearch}
+                      variant="outline"
+                      className="border-gray-400 text-black hover:bg-gray-200 px-8 py-3"
+                    >
+                      <Search className="w-4 h-4 mr-2" />
+                      Nouvelle recherche
+                    </Button>
+                  </div>
+
+                  {/* Request Details */}
+                  <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+                    <p className="text-xs text-gray-600">
+                      <strong>Requête:</strong> {webhookResponse.requestId} | 
+                      <strong> Timestamp:</strong> {webhookResponse.timestamp.toLocaleString()}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-white border-gray-300">
+                <CardHeader className="bg-gray-200 border-b border-gray-300">
+                  <CardTitle className="text-black">Interface de Recherche B2B</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                      <MessageSquare className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <p className="text-lg mb-2 text-black font-medium">Prêt pour la recherche</p>
+                    <p className="text-gray-600">Configurez vos critères et lancez la recherche pour interroger le backend n8n</p>
+                    
+                    {userLocation && (
+                      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          <MapPin className="w-4 h-4 inline mr-1" />
+                          Position détectée: {userLocation[1].toFixed(4)}, {userLocation[0].toFixed(4)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Search History */}
+                    {searchHistory.length > 0 && (
+                      <div className="mt-6">
+                        <h4 className="text-sm font-medium text-gray-700 mb-3">Historique récent</h4>
+                        <div className="space-y-2">
+                          {searchHistory.slice(0, 3).map((search, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                              <div className="flex items-center space-x-2">
+                                {getStatusIcon(search.status)}
+                                <span className="text-gray-600">
+                                  {search.timestamp.toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <Badge className="text-xs">
+                                {search.data?.length || 0} contacts
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
