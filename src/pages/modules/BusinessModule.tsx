@@ -4,12 +4,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
   Users, 
-  Building2, 
-  Mail, 
-  Briefcase, 
   MapPin, 
+  Target, 
   Upload, 
-  FileText,
+  MessageSquare,
   ArrowRight
 } from 'lucide-react';
 
@@ -18,60 +16,44 @@ export const BusinessModule: React.FC = () => {
 
   const businessOptions = [
     {
-      id: 'find-people',
-      title: "Trouver et enrichir des personnes",
-      description: "Filtrer par titre de poste, entreprise, localisation, et plus encore.",
+      id: 'ciblage-b2b',
+      title: "Ciblage B2B (Entreprises & Contacts)",
+      description: "Identifiez et qualifiez avec précision des entreprises et des contacts professionnels selon des critères avancés pour une prospection B2B efficace.",
       icon: Users,
-      color: 'bg-red-100',
-      iconColor: 'text-red-600'
-    },
-    {
-      id: 'find-accounts',
-      title: "Trouver et enrichir des comptes",
-      description: "Filtrer par secteur, taille, mots-clés et plus encore.",
-      icon: Building2,
       color: 'bg-blue-100',
       iconColor: 'text-blue-600'
     },
     {
-      id: 'draft-emails',
-      title: "Rédiger des emails avec l'IA",
-      description: "Trouver des entreprises et générer des emails personnalisés avec l'IA.",
-      icon: Mail,
-      color: 'bg-orange-100',
-      iconColor: 'text-orange-600'
-    },
-    {
-      id: 'find-jobs',
-      title: "Trouver des emplois",
-      description: "Filtrer par titre, description, localisation, et plus encore.",
-      icon: Briefcase,
-      color: 'bg-yellow-100',
-      iconColor: 'text-yellow-600'
-    },
-    {
-      id: 'find-local-businesses',
-      title: "Trouver des entreprises locales",
-      description: "En utilisant Google Maps, accéder aux avis, adresses, et plus encore.",
+      id: 'prospection-locale',
+      title: "Prospection Locale",
+      description: "Découvrez et ciblez des entreprises locales par secteur d'activité et zone géographique pour développer votre clientèle de proximité.",
       icon: MapPin,
       color: 'bg-green-100',
       iconColor: 'text-green-600'
     },
     {
-      id: 'import-csv',
-      title: "Importer depuis CSV",
-      description: "Télécharger un fichier CSV pour créer un tableau avec vos données.",
+      id: 'scoring-leads',
+      title: "Scoring & Qualification des Leads",
+      description: "Évaluez et priorisez automatiquement vos prospects en leur attribuant un score basé sur leur profil et leur potentiel pour votre chatbot.",
+      icon: Target,
+      color: 'bg-orange-100',
+      iconColor: 'text-orange-600'
+    },
+    {
+      id: 'listes-prospects',
+      title: "Mes Listes de Prospects (Import)",
+      description: "Importez, gérez et enrichissez vos listes de contacts existantes au format CSV pour les intégrer à vos actions de prospection.",
       icon: Upload,
       color: 'bg-purple-100',
       iconColor: 'text-purple-600'
     },
     {
-      id: 'use-template',
-      title: "Utiliser un modèle",
-      description: "Commencer avec l'un de nos modèles pré-construits.",
-      icon: FileText,
-      color: 'bg-cyan-100',
-      iconColor: 'text-cyan-600'
+      id: 'campagnes-engagement',
+      title: "Campagnes & Modèles d'Engagement",
+      description: "Créez des modèles, générez des messages personnalisés par IA (e-mails, WhatsApp) et gérez vos campagnes pour engager efficacement vos prospects.",
+      icon: MessageSquare,
+      color: 'bg-red-100',
+      iconColor: 'text-red-600'
     }
   ];
 
@@ -95,7 +77,7 @@ export const BusinessModule: React.FC = () => {
         </div>
 
         {/* Options Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {businessOptions.map((option) => (
             <Card 
               key={option.id}
