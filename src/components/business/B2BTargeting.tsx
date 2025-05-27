@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, Filter, Download, Users, MapPin, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Search, Filter, Download, Users, MapPin, Mail, Phone, Eye, MessageSquare, Loader2 } from 'lucide-react';
 import { GeoLocationMap } from './GeoLocationMap';
+import { useToast } from '@/hooks/use-toast';
 
 interface B2BFilters {
   companyName: string;
@@ -52,8 +53,12 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
   });
 
   const [showResults, setShowResults] = useState(false);
+  const [showWebhookResponse, setShowWebhookResponse] = useState(false);
+  const [webhookResponse, setWebhookResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [webhookContacts, setWebhookContacts] = useState<B2BContact[]>([]);
+  const { toast } = useToast();
 
   // Enhanced mock results with email and phone data
   const mockResults: B2BContact[] = [
@@ -149,24 +154,171 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log(`Filter ${key} changed to:`, value);
   };
 
-  const handleSearch = async () => {
+  const buildPayloadFromFilters = () => {
+    const payload: any = {};
+    
+    if (filters.companyName) payload.entreprise = filters.companyName;
+    if (filters.industry) payload.secteur = filters.industry;
+    if (filters.jobTitle) payload.poste = filters.jobTitle;
+    if (filters.location) payload.localisation = filters.location;
+    if (filters.companySize) payload.taille_entreprise = filters.companySize;
+    if (filters.department) payload.departement = filters.department;
+    if (filters.experience) payload.experience = filters.experience;
+    if (filters.keywords) payload.mots_cles = filters.keywords;
+
+    return payload;
+  };
+
+  const handleWebhookSearch = async () => {
     setIsLoading(true);
-    console.log('Starting B2B search with filters:', filters);
+    setShowWebhookResponse(false);
+    setWebhookResponse('');
     
-    // Simulation d'une recherche avec géolocalisation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
+    console.log('=== B2B WEBHOOK SEARCH START ===');
+    console.log('Filters:', filters);
+
+    const payload = buildPayloadFromFilters();
+    console.log('Webhook payload:', payload);
+
+    const webhookUrl = 'https://ia.bot.bj/webhook/lead';
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout after 30 seconds');
+        controller.abort();
+      }, 30000);
+
+      const requestPayload = {
+        ...payload,
+        timestamp: new Date().toISOString(),
+        session_id: `b2b_targeting_session`,
+        user_id: 'b2b_user',
+        source: 'b2b_targeting_platform',
+        context: 'b2b_search'
+      };
+
+      console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'B2B-Targeting-Platform/1.0',
+        },
+        body: JSON.stringify(requestPayload),
+        signal: controller.signal,
+        mode: 'cors',
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('Response received!');
+      console.log('Status:', response.status);
+      console.log('Status Text:', response.statusText);
+      console.log('Response OK:', response.ok);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      console.log('Content-Type:', contentType);
+
+      let responseData;
+      let processedContent;
+
+      if (contentType.includes('application/json')) {
+        responseData = await response.json();
+        console.log('JSON Response:', JSON.stringify(responseData, null, 2));
+        
+        processedContent = responseData.output || 
+                          responseData.message || 
+                          responseData.response || 
+                          responseData.text || 
+                          responseData.content ||
+                          responseData.reply ||
+                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+
+        // Try to extract contacts data if available
+        if (responseData.contacts || responseData.data || responseData.results) {
+          const contactsData = responseData.contacts || responseData.data || responseData.results;
+          if (Array.isArray(contactsData)) {
+            setWebhookContacts(contactsData);
+          }
+        }
+      } else {
+        responseData = await response.text();
+        console.log('Text Response:', responseData);
+        processedContent = responseData;
+      }
+
+      console.log('Processed content:', processedContent);
+
+      if (!processedContent || processedContent.trim() === '') {
+        throw new Error('Réponse vide ou invalide du webhook');
+      }
+
+      setWebhookResponse(processedContent.trim());
+      setShowWebhookResponse(true);
+
+      console.log('Webhook response set successfully');
+
+    } catch (error) {
+      console.error('=== B2B WEBHOOK ERROR ===');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error?.message);
+      console.error('Full error:', error);
+      
+      let errorMessage = "Erreur de connexion au service de recherche. Tentative avec les données de démonstration.";
+      let toastMessage = "Problème de connexion au webhook";
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = "La requête a pris trop de temps. Utilisation des données de démonstration.";
+          toastMessage = "Timeout - utilisation des données de démo";
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = "Impossible de se connecter au service. Utilisation des données de démonstration.";
+          toastMessage = "Problème de connectivité";
+        }
+      }
+
+      setWebhookResponse(errorMessage);
+      setShowWebhookResponse(true);
+      setWebhookContacts(mockResults); // Use mock data as fallback
+      
+      toast({
+        title: "Recherche B2B - Problème technique",
+        description: toastMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      console.log('=== B2B WEBHOOK SEARCH END ===');
+    }
+  };
+
+  const handleVisualize = () => {
     setShowResults(true);
-    setIsLoading(false);
-    console.log('B2B search completed, showing results');
+    setShowWebhookResponse(false);
+    console.log('Switching to visualization view');
+  };
+
+  const handleBackToSearch = () => {
+    setShowWebhookResponse(false);
+    setShowResults(false);
+    console.log('Back to search filters');
   };
 
   const handleExport = () => {
     console.log('Exporting B2B results...');
+    const contactsToExport = webhookContacts.length > 0 ? webhookContacts : mockResults;
+    
     // Create CSV content
     const csvContent = [
       ['Nom', 'Entreprise', 'Poste', 'Email', 'Téléphone', 'Localisation', 'Secteur', 'Taille Entreprise', 'LinkedIn'],
-      ...mockResults.map(contact => [
+      ...contactsToExport.map(contact => [
         contact.name,
         contact.companyName,
         contact.jobTitle,
@@ -200,19 +352,103 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log('Filters reset');
   };
 
+  // Webhook Response View
+  if (showWebhookResponse) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" onClick={handleBackToSearch} className="text-black hover:bg-gray-200">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour à la recherche
+              </Button>
+              <h1 className="text-2xl font-bold text-black">Réponse de la Recherche B2B</h1>
+            </div>
+            <Button onClick={onBack} className="bg-gray-800 text-white hover:bg-gray-700">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Retour au menu
+            </Button>
+          </div>
+
+          {/* Webhook Response Card */}
+          <Card className="bg-white border-gray-300 mb-6">
+            <CardHeader className="bg-gray-200 border-b border-gray-300">
+              <CardTitle className="flex items-center text-black">
+                <MessageSquare className="w-5 h-5 mr-2" />
+                Réponse du Service de Recherche
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="text-sm text-gray-900 whitespace-pre-wrap leading-relaxed">
+                  {webhookResponse}
+                </div>
+              </div>
+              
+              <div className="flex justify-center">
+                <Button 
+                  onClick={handleVisualize}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Visualiser et continuer
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Search Summary */}
+          <Card className="bg-white border-gray-300">
+            <CardHeader>
+              <CardTitle className="text-black text-lg">Critères de recherche utilisés</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries(filters).map(([key, value]) => {
+                  if (!value) return null;
+                  const labels: Record<string, string> = {
+                    companyName: 'Entreprise',
+                    industry: 'Secteur',
+                    companySize: 'Taille',
+                    location: 'Localisation',
+                    jobTitle: 'Poste',
+                    experience: 'Expérience',
+                    department: 'Département',
+                    keywords: 'Mots-clés'
+                  };
+                  return (
+                    <div key={key} className="text-sm">
+                      <span className="font-medium text-gray-700">{labels[key]}:</span>
+                      <div className="text-gray-900">{value}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Results View
   if (showResults) {
+    const displayContacts = webhookContacts.length > 0 ? webhookContacts : mockResults;
+    
     return (
       <div className="min-h-screen bg-gray-100 p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={() => setShowResults(false)} className="text-black hover:bg-gray-200">
+              <Button variant="ghost" onClick={handleBackToSearch} className="text-black hover:bg-gray-200">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Retour aux filtres
+                Nouvelle recherche
               </Button>
               <h1 className="text-2xl font-bold text-black">Résultats du Ciblage B2B</h1>
-              <Badge variant="secondary" className="bg-gray-800 text-white">{mockResults.length} contacts trouvés</Badge>
+              <Badge variant="secondary" className="bg-gray-800 text-white">{displayContacts.length} contacts trouvés</Badge>
             </div>
             <div className="flex space-x-2">
               <Button variant="outline" onClick={handleExport} className="text-black border-gray-400 hover:bg-gray-200">
@@ -238,7 +474,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
               <CardContent className="p-0">
                 <div className="h-96">
                   <GeoLocationMap 
-                    contacts={mockResults} 
+                    contacts={displayContacts} 
                     userLocation={userLocation}
                   />
                 </div>
@@ -271,7 +507,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockResults.map((contact) => (
+                    {displayContacts.map((contact) => (
                       <TableRow key={contact.id} className="border-gray-200 hover:bg-gray-50">
                         <TableCell className="font-medium text-black">{contact.name}</TableCell>
                         <TableCell className="text-black">{contact.companyName}</TableCell>
@@ -314,6 +550,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     );
   }
 
+  // Search Form View
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -436,12 +673,15 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
                 <div className="flex flex-col space-y-2">
                   <Button 
-                    onClick={handleSearch} 
+                    onClick={handleWebhookSearch} 
                     className="w-full bg-gray-800 text-white hover:bg-gray-700" 
                     disabled={isLoading}
                   >
                     {isLoading ? (
-                      <>Recherche en cours...</>
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Recherche en cours...
+                      </>
                     ) : (
                       <>
                         <Search className="w-4 h-4 mr-2" />
@@ -453,6 +693,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                     variant="outline" 
                     onClick={resetFilters}
                     className="w-full text-black border-gray-400 hover:bg-gray-200"
+                    disabled={isLoading}
                   >
                     Réinitialiser les filtres
                   </Button>
