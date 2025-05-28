@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -105,21 +106,16 @@ const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
       const details = match[2];
       
       console.log(`Found business: ${businessName}`);
-      console.log(`Details: ${details}`);
 
       const addressMatch = details.match(/\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/);
       const phoneMatch = details.match(/\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/);
       const websiteMatch = details.match(/\*\*Site web\s*:\*\*\s*\[(.*?)\]/);
       const categoryMatch = details.match(/\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/);
-      const noteMatch = details.match(/\*\*Note\s*:\*\*\s*(.*?)(?:\n|$)/);
-      const hoursMatch = details.match(/\*\*Horaires\s*:\*\*\s*(.*?)(?:\n|$)/);
 
       const address = addressMatch ? addressMatch[1].trim() : '';
       const phone = phoneMatch ? phoneMatch[1].trim() : '';
       const website = websiteMatch ? websiteMatch[1].trim() : '';
       const category = categoryMatch ? categoryMatch[1].trim() : '';
-      const note = noteMatch ? noteMatch[1].trim() : '';
-      const hours = hoursMatch ? hoursMatch[1].trim() : '';
 
       const firstName = ['Marie', 'Pierre', 'Sophie', 'Laurent', 'Camille', 'Jean', 'Fatou', 'Moussa', 'Aïsha', 'Ibrahim'][businessIndex % 10];
       const lastName = ['Dubois', 'Martin', 'Laurent', 'Moreau', 'Bertrand', 'Diallo', 'Traoré', 'Kone', 'Coulibaly', 'Ouedraogo'][businessIndex % 10];
@@ -145,7 +141,7 @@ const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
         website: website || '',
         rating: Math.random() * 2 + 3,
         reviewCount: Math.floor(Math.random() * 200) + 20,
-        hours: hours || '9h00-18h00',
+        hours: '9h00-18h00',
         priceRange: ['€', '€€', '€€€'][Math.floor(Math.random() * 3)],
         distance: `${(Math.random() * 10 + 0.5).toFixed(1)} km`,
         location: address,
@@ -159,8 +155,6 @@ const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
 
       businesses.push(business);
       businessIndex++;
-      
-      console.log('Created local business:', business);
     }
 
     console.log(`Total local businesses extracted: ${businesses.length}`);
@@ -277,7 +271,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await fetch('https://httpbin.org/status/200', {
+        await fetch('https://httpbin.org/status/200', {
           method: 'HEAD',
           mode: 'no-cors',
           cache: 'no-cache'
@@ -289,7 +283,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     };
 
     checkConnection();
-    const interval = setInterval(checkConnection, 30000); // Check every 30s
+    const interval = setInterval(checkConnection, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -384,8 +378,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     const messageToSend = buildSearchMessage();
     console.log('Message to send:', messageToSend);
 
-    // Timeout plus court pour détecter rapidement les problèmes
-    const timeoutDuration = usePerplexityFallback ? 30000 : Math.min(45000, 15000 + (retryCount * 10000));
+    // Timeout plus long pour éviter les erreurs comme B2BTargeting
+    const timeoutDuration = usePerplexityFallback ? 60000 : 90000;
 
     try {
       let responseData;
@@ -396,7 +390,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         console.log('Using Perplexity API fallback');
         processedContent = await searchWithPerplexity(messageToSend);
       } else {
-        // Essayer les endpoints principaux avec timeout réduit
+        // Essayer les endpoints principaux avec timeout plus long
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
@@ -416,10 +410,11 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
           retry_count: retryCount
         };
 
-        // Essayer moins d'endpoints pour réduire le temps d'attente
+        // Utiliser les mêmes endpoints que B2BTargeting qui fonctionne
         const endpoints = [
           'https://ia.bot.bj/webhook/lead',
-          'https://ia.bot.bj/api/search'
+          'https://ia.bot.bj/api/search',
+          'https://ia.bot.bj/webhook/chat'
         ];
 
         let response;
@@ -455,6 +450,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
             lastError = error;
             
             if (i < endpoints.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Pause avant le prochain endpoint
               continue;
             }
           }
@@ -530,14 +526,12 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         }
       }
 
-      // Proposer Perplexity en cas d'échec répété
-      const shouldSuggestPerplexity = retryCount >= 2 && !usePerplexityFallback;
-      const shouldUseMockData = retryCount >= 3 || (usePerplexityFallback && retryCount >= 1);
-      const mockBusinesses = shouldUseMockData ? getMockBusinesses() : [];
+      // Afficher automatiquement les données de démonstration en cas d'erreur
+      const mockBusinesses = getMockBusinesses();
       
       const errorResponse: WebhookResponse = {
         status: errorStatus,
-        message: `${errorMessage}${shouldSuggestPerplexity ? '. Essayez avec l\'API Perplexity comme alternative.' : ''}${shouldUseMockData ? ' Affichage des données de démonstration.' : ''}`,
+        message: `${errorMessage}. Affichage des données de démonstration pour vous permettre de tester l'interface.`,
         data: mockBusinesses,
         timestamp: new Date(),
         requestId
@@ -547,8 +541,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
-        title: errorStatus === 'timeout' ? "Timeout de la requête" : "Erreur de connexion",
-        description: errorMessage,
+        title: errorStatus === 'timeout' ? "Timeout - Données de démo affichées" : "Erreur - Données de démo affichées",
+        description: "L'interface fonctionne avec des données de démonstration",
         variant: "destructive",
       });
     } finally {
@@ -819,7 +813,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     checked={isSelectAll}
-                    onCheckedChange={handleSelectAll}
+                    onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                   />
                   <span className="text-sm">Tout sélectionner</span>
                 </div>
@@ -832,7 +826,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     <TableHead className="w-12">
                       <Checkbox 
                         checked={isSelectAll}
-                        onCheckedChange={handleSelectAll}
+                        onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                       />
                     </TableHead>
                     <TableHead>Contact</TableHead>
@@ -957,7 +951,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                   <div className="flex items-center space-x-2">
                     <Checkbox 
                       checked={usePerplexityFallback}
-                      onCheckedChange={setUsePerplexityFallback}
+                      onCheckedChange={(checked) => setUsePerplexityFallback(checked as boolean)}
                     />
                     <Label className="text-sm font-medium">Utiliser Perplexity AI (Alternative)</Label>
                   </div>
