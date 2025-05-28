@@ -863,7 +863,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                     <p className="text-xs text-gray-600">
                       <strong>Requête:</strong> {webhookResponse.requestId} | 
                       <strong> Timestamp:</strong> {webhookResponse.timestamp.toLocaleString()}
-                      {retryCount > 0 && <strong> | Tentatives:</strong> {retryCount}}
+                      {retryCount > 0 && <><strong> | Tentatives:</strong> {retryCount}</>}
                     </p>
                   </div>
                 </CardContent>

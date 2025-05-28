@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -920,7 +919,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     <p className="text-xs text-gray-600">
                       <strong>Requête:</strong> {webhookResponse.requestId} | 
                       <strong> Timestamp:</strong> {webhookResponse.timestamp.toLocaleString()}
-                      {retryCount > 0 && <strong> | Tentatives:</strong> {retryCount}}
+                      {retryCount > 0 && <><strong> | Tentatives:</strong> {retryCount}</>}
                     </p>
                   </div>
                 </CardContent>
