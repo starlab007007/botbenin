@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Search, Filter, Download, MapPin, Star, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock, Navigation, Database, Mail } from 'lucide-react';
+import { ArrowLeft, Search, Filter, Download, MapPin, Star, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock, Navigation, Database, Mail, RefreshCw } from 'lucide-react';
 import { GeoLocationMap } from './GeoLocationMap';
 import { SaveToProspectsModal } from './SaveToProspectsModal';
 import { MarketingCampaignModal } from './MarketingCampaignModal';
@@ -332,7 +332,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     console.log('Message to send:', messageToSend);
 
     try {
-      const timeoutDuration = retryCount > 1 ? 45000 : 30000;
+      // Augmenter progressivement le timeout selon le nombre de tentatives
+      const timeoutDuration = Math.min(60000, 20000 + (retryCount * 15000)); // De 20s à 60s max
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -340,7 +341,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         controller.abort();
       }, timeoutDuration);
 
-      console.log('Sending local prospecting request via ChatInterface webhook (lead)');
+      console.log(`Sending local prospecting request with ${timeoutDuration/1000}s timeout`);
 
       const requestPayload = {
         message: messageToSend,
@@ -348,32 +349,68 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         session_id: `local_search_${Date.now()}`,
         user_id: 'local_user',
         source: 'bot_bj_platform',
-        context: 'local_prospecting'
+        context: 'local_prospecting',
+        timeout: timeoutDuration,
+        retry_count: retryCount
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
-      const response = await fetch('https://ia.bot.bj/webhook/lead', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain, */*',
-          'User-Agent': 'Bot.Bj-Platform/1.0',
-        },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-        mode: 'cors',
-      });
+      // Essayer plusieurs endpoints en cas d'échec
+      const endpoints = [
+        'https://ia.bot.bj/webhook/lead',
+        'https://ia.bot.bj/api/search',
+        'https://ia.bot.bj/webhook/business'
+      ];
+
+      let response;
+      let lastError;
+
+      for (let i = 0; i < endpoints.length; i++) {
+        try {
+          console.log(`Trying endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
+          
+          response = await fetch(endpoints[i], {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json, text/plain, */*',
+              'User-Agent': 'Bot.Bj-Platform/1.0',
+              'X-Request-ID': requestId,
+              'X-Retry-Count': retryCount.toString(),
+            },
+            body: JSON.stringify(requestPayload),
+            signal: controller.signal,
+            mode: 'cors',
+          });
+
+          if (response.ok) {
+            console.log(`Success with endpoint: ${endpoints[i]}`);
+            break;
+          } else {
+            console.log(`Endpoint ${endpoints[i]} failed with status: ${response.status}`);
+            lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+        } catch (error) {
+          console.log(`Endpoint ${endpoints[i]} failed with error:`, error);
+          lastError = error;
+          
+          // Si ce n'est pas le dernier endpoint, continuer
+          if (i < endpoints.length - 1) {
+            continue;
+          }
+        }
+      }
 
       clearTimeout(timeoutId);
+
+      if (!response || !response.ok) {
+        throw lastError || new Error('Tous les endpoints ont échoué');
+      }
 
       console.log('Response received!');
       console.log('Status:', response.status, 'Status Text:', response.statusText);
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
 
       const contentType = response.headers.get('content-type') || '';
       console.log('Content-Type:', contentType);
@@ -424,7 +461,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         description: `${extractedBusinesses.length} entreprises locales trouvées et géolocalisées`,
       });
 
-      console.log('Local prospecting search completed successfully via lead webhook');
+      console.log('Local prospecting search completed successfully');
 
     } catch (error) {
       console.error('=== LOCAL PROSPECTING SEARCH ERROR ===');
@@ -438,19 +475,23 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorStatus = 'timeout';
-          errorMessage = `Timeout de la requête (${retryCount > 1 ? 45 : 30}s)`;
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au webhook du système de chat";
+          errorMessage = `Timeout après ${timeoutDuration/1000}s - Le serveur met trop de temps à répondre`;
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = "Problème de réseau - Vérifiez votre connexion internet";
         } else if (error.message.includes('CORS')) {
-          errorMessage = "Problème CORS avec le webhook";
+          errorMessage = "Problème CORS avec le serveur";
+        } else if (error.message.includes('Tous les endpoints')) {
+          errorMessage = "Tous les serveurs sont indisponibles actuellement";
         }
       }
 
-      const mockBusinesses = getMockBusinesses();
+      // Utiliser des données de démo seulement après plusieurs tentatives
+      const shouldUseMockData = retryCount >= 2;
+      const mockBusinesses = shouldUseMockData ? getMockBusinesses() : [];
       
       const errorResponse: WebhookResponse = {
         status: errorStatus,
-        message: `${errorMessage}. Affichage des données de démonstration.`,
+        message: `${errorMessage}${shouldUseMockData ? '. Affichage des données de démonstration.' : ' - Essayez de nouveau dans quelques instants.'}`,
         data: mockBusinesses,
         timestamp: new Date(),
         requestId
@@ -460,7 +501,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
-        title: "Prospection Locale - Utilisation des données de démo",
+        title: errorStatus === 'timeout' ? "Timeout de la requête" : "Erreur de connexion",
         description: errorMessage,
         variant: "destructive",
       });
@@ -683,7 +724,20 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     </div>
                   </div>
                   {webhookResponse.status !== 'success' && (
-                    <Badge className="bg-yellow-100 text-yellow-800">Données de démonstration</Badge>
+                    <div className="flex items-center space-x-2">
+                      {webhookResponse.data && webhookResponse.data.length > 0 && (
+                        <Badge className="bg-yellow-100 text-yellow-800">Données de démonstration</Badge>
+                      )}
+                      <Button 
+                        onClick={executeWebhookSearch}
+                        size="sm"
+                        variant="outline"
+                        disabled={isLoading}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        Réessayer
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -997,20 +1051,20 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     <Button 
                       onClick={handleViewResults}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
-                      disabled={!webhookResponse.data}
+                      disabled={!webhookResponse.data || webhookResponse.data.length === 0}
                     >
                       <Eye className="w-4 h-4 mr-2" />
                       Visualiser les résultats
                     </Button>
-                    {webhookResponse.status !== 'success' && (
+                    {(webhookResponse.status === 'timeout' || webhookResponse.status === 'error') && (
                       <Button 
                         onClick={executeWebhookSearch}
                         variant="outline"
                         className="border-orange-400 text-orange-700 hover:bg-orange-50"
                         disabled={isLoading}
                       >
-                        <Search className="w-4 h-4 mr-2" />
-                        Réessayer
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Réessayer {retryCount > 0 && `(${retryCount + 1})`}
                       </Button>
                     )}
                     <Button 
