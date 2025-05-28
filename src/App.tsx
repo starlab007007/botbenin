@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -20,6 +19,7 @@ import { CitoyenModule } from "./pages/modules/CitoyenModule";
 import { AccountPage } from "./pages/AccountPage";
 import { SupportPage } from "./pages/SupportPage";
 import { UsersManagementPage } from "./pages/UsersManagementPage";
+import { ProspectsPage } from "./pages/ProspectsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +39,7 @@ const App: React.FC = () => (
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="automatisations" element={<AutomationsPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="prospects" element={<ProspectsPage />} />
                   <Route path="modules/business" element={<BusinessModule />} />
                   <Route path="modules/marketing" element={<MarketingModule />} />
                   <Route path="modules/gestion" element={<GestionModule />} />
