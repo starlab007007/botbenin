@@ -95,8 +95,19 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
 
     setIsSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Erreur d'authentification",
+          description: "Vous devez être connecté pour sauvegarder des entreprises",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // First, save businesses to local_businesses table
       const businessesToSave = selectedBusinesses.map(business => ({
+        user_id: user.id,
         search_session_id: searchSessionId,
         name: business.name,
         company_name: business.companyName,

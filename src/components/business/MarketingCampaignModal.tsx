@@ -63,9 +63,20 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
         phone: business.phone
       }));
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Erreur d'authentification",
+          description: "Vous devez être connecté pour créer une campagne",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('marketing_campaigns')
         .insert({
+          user_id: user.id,
           name: campaignData.name,
           type: campaignData.type,
           subject: campaignData.type === 'email' ? campaignData.subject : null,
