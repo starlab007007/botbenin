@@ -1,13 +1,11 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { X } from 'lucide-react';
 
 interface CreateProspectModalProps {
   isOpen: boolean;
@@ -15,20 +13,6 @@ interface CreateProspectModalProps {
 }
 
 export const CreateProspectModal: React.FC<CreateProspectModalProps> = ({ isOpen, onClose }) => {
-  const [tags, setTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState('');
-
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag('');
-    }
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle form submission here
@@ -38,7 +22,7 @@ export const CreateProspectModal: React.FC<CreateProspectModalProps> = ({ isOpen
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Nouveau Prospect</DialogTitle>
           <DialogDescription>
@@ -46,58 +30,46 @@ export const CreateProspectModal: React.FC<CreateProspectModalProps> = ({ isOpen
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="firstName">Prénom *</Label>
-              <Input id="firstName" required />
+              <Input id="firstName" required placeholder="Jean" />
             </div>
             <div>
               <Label htmlFor="lastName">Nom *</Label>
-              <Input id="lastName" required />
+              <Input id="lastName" required placeholder="Dupont" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" />
+              <Input id="email" type="email" placeholder="jean.dupont@example.com" />
             </div>
             <div>
               <Label htmlFor="phone">Téléphone</Label>
-              <Input id="phone" type="tel" />
+              <Input id="phone" type="tel" placeholder="+33 6 12 34 56 78" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="company">Entreprise</Label>
-              <Input id="company" />
+              <Input id="company" placeholder="Tech Solutions" />
             </div>
             <div>
               <Label htmlFor="position">Poste</Label>
-              <Input id="position" />
+              <Input id="position" placeholder="Directeur Marketing" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="database">Base de données</Label>
+              <Label htmlFor="status">Statut</Label>
               <Select>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une base" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tech-2024">Prospects Tech 2024</SelectItem>
-                  <SelectItem value="marketing-digital">Leads Marketing Digital</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="status">Statut</Label>
-              <Select defaultValue="new">
-                <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Sélectionner un statut" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="new">Nouveau</SelectItem>
@@ -107,45 +79,28 @@ export const CreateProspectModal: React.FC<CreateProspectModalProps> = ({ isOpen
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div>
-            <Label htmlFor="source">Source</Label>
-            <Input id="source" placeholder="ex: LinkedIn, Site web, Référence..." />
-          </div>
-
-          <div>
-            <Label>Tags</Label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                  {tag}
-                  <X
-                    className="h-3 w-3 cursor-pointer"
-                    onClick={() => removeTag(tag)}
-                  />
-                </Badge>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                placeholder="Ajouter un tag"
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-              />
-              <Button type="button" variant="outline" onClick={addTag}>
-                Ajouter
-              </Button>
+            <div>
+              <Label htmlFor="source">Source</Label>
+              <Input id="source" placeholder="LinkedIn, site web, référence..." />
             </div>
           </div>
 
           <div>
             <Label htmlFor="notes">Notes</Label>
-            <Textarea id="notes" placeholder="Notes sur ce prospect..." />
+            <Textarea 
+              id="notes" 
+              placeholder="Notes sur ce prospect..."
+              className="resize-none"
+              rows={3}
+            />
           </div>
 
-          <div className="flex justify-end space-x-2">
+          <div>
+            <Label htmlFor="tags">Tags (séparés par des virgules)</Label>
+            <Input id="tags" placeholder="VIP, Marketing, Tech..." />
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Annuler
             </Button>

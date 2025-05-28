@@ -3,7 +3,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarInitials } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarInitials } from "@/components/ui/avatar-initials";
 import { Mail, Phone, Building, Calendar, MoreHorizontal } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -39,6 +40,19 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
       score: 70,
       lastContact: '2024-01-10',
       tags: ['CEO', 'Tech'],
+    },
+    {
+      id: '3',
+      firstName: 'Pierre',
+      lastName: 'Bernard',
+      email: 'pierre.bernard@example.com',
+      phone: '+33 6 11 22 33 44',
+      company: 'StartupXYZ',
+      position: 'Fondateur',
+      status: 'converted',
+      score: 95,
+      lastContact: '2024-01-12',
+      tags: ['Startup', 'Fondateur'],
     },
   ];
 
@@ -144,6 +158,14 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
           </CardContent>
         </Card>
       ))}
+      
+      {filteredProspects.length === 0 && (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-muted-foreground">Aucun prospect trouvé pour "{searchTerm}"</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
