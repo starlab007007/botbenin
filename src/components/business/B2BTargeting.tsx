@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,11 +47,9 @@ interface B2BTargetingProps {
   onBack: () => void;
 }
 
-// Fonction pour convertir une adresse en coordonnées (geocoding basique pour la France)
 const getCoordinatesFromLocation = (location: string): [number, number] | undefined => {
   const locationLower = location.toLowerCase();
   
-  // Coordonnées approximatives pour les villes du Bénin et de France
   const cityCoordinates: { [key: string]: [number, number] } = {
     'cotonou': [2.3522, 6.4023],
     'porto-novo': [2.6037, 6.4968],
@@ -73,25 +70,21 @@ const getCoordinatesFromLocation = (location: string): [number, number] | undefi
     'rennes': [-1.6743, 48.1173],
   };
 
-  // Chercher une correspondance de ville
   for (const [city, coords] of Object.entries(cityCoordinates)) {
     if (locationLower.includes(city)) {
       return coords;
     }
   }
 
-  // Coordonnées par défaut pour Cotonou si aucune correspondance
   return [2.3522, 6.4023];
 };
 
-// Fonction pour parser la réponse webhook et extraire les contacts
 const parseWebhookResponse = (responseText: string): B2BContact[] => {
   console.log('Parsing webhook response:', responseText);
   
   const contacts: B2BContact[] = [];
   
   try {
-    // Pattern pour extraire les informations des entreprises dans la réponse
     const companyPattern = /\d+\.\s*\*\*(.*?)\*\*\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g;
     let match;
     let contactIndex = 1;
@@ -103,7 +96,6 @@ const parseWebhookResponse = (responseText: string): B2BContact[] => {
       console.log(`Found company: ${companyName}`);
       console.log(`Details: ${details}`);
 
-      // Extraire les détails spécifiques
       const addressMatch = details.match(/\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/);
       const phoneMatch = details.match(/\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/);
       const websiteMatch = details.match(/\*\*Site web\s*:\*\*\s*\[(.*?)\]/);
@@ -116,12 +108,10 @@ const parseWebhookResponse = (responseText: string): B2BContact[] => {
       const category = categoryMatch ? categoryMatch[1].trim() : '';
       const note = noteMatch ? noteMatch[1].trim() : '';
 
-      // Générer des informations de contact réalistes
       const firstName = ['Marie', 'Pierre', 'Sophie', 'Laurent', 'Camille', 'Jean', 'Fatou', 'Moussa', 'Aïsha', 'Ibrahim'][contactIndex % 10];
       const lastName = ['Dubois', 'Martin', 'Laurent', 'Moreau', 'Bertrand', 'Diallo', 'Traoré', 'Kone', 'Coulibaly', 'Ouedraogo'][contactIndex % 10];
       const fullName = `${firstName} ${lastName}`;
       
-      // Générer un email basé sur le nom et le site web
       let email = '';
       if (website) {
         const domain = website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
@@ -130,7 +120,6 @@ const parseWebhookResponse = (responseText: string): B2BContact[] => {
         email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`;
       }
 
-      // Déterminer la géolocalisation
       const coordinates = getCoordinatesFromLocation(address);
 
       const contact: B2BContact = {
@@ -155,7 +144,6 @@ const parseWebhookResponse = (responseText: string): B2BContact[] => {
 
     console.log(`Total contacts extracted: ${contacts.length}`);
     
-    // Si aucun contact n'a été extrait, utiliser les données de démonstration
     if (contacts.length === 0) {
       console.log('No contacts found in response, using demo data');
       return getMockContacts();
@@ -169,7 +157,6 @@ const parseWebhookResponse = (responseText: string): B2BContact[] => {
   }
 };
 
-// Fonction pour obtenir les données de démonstration
 const getMockContacts = (): B2BContact[] => {
   return [
     {
@@ -234,7 +221,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
   const [retryCount, setRetryCount] = useState(0);
   const { toast } = useToast();
 
-  // Get user's geolocation
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -244,11 +230,11 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         },
         (error) => {
           console.error('Error getting location:', error);
-          setUserLocation([2.3522, 6.4023]); // Cotonou par défaut
+          setUserLocation([2.3522, 6.4023]);
         }
       );
     } else {
-      setUserLocation([2.3522, 6.4023]); // Cotonou par défaut
+      setUserLocation([2.3522, 6.4023]);
     }
   }, []);
 
@@ -286,7 +272,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log('Retry count:', retryCount);
     console.log('Search filters:', filters);
 
-    // Initialize loading response
     const loadingResponse: WebhookResponse = {
       status: 'loading',
       message: 'Recherche en cours via le système de chat...',
@@ -299,10 +284,8 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log('Message to send:', messageToSend);
 
     try {
-      // Augmenter le timeout si c'est un retry
       const timeoutDuration = retryCount > 1 ? 45000 : 30000;
       
-      // Create timeout controller
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
@@ -311,7 +294,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       console.log('Sending request via ChatInterface webhook (lead)');
 
-      // Use EXACTLY the same webhook and payload structure as ChatInterface but with lead
       const requestPayload = {
         message: messageToSend,
         timestamp: new Date().toISOString(),
@@ -323,7 +305,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
-      // Use the lead webhook URL
       const response = await fetch('https://ia.bot.bj/webhook/lead', {
         method: 'POST',
         headers: {
@@ -375,11 +356,9 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         throw new Error('Empty or invalid response from webhook');
       }
 
-      // Parser la réponse pour extraire les contacts
       const extractedContacts = parseWebhookResponse(processedContent);
       console.log('Extracted contacts:', extractedContacts);
 
-      // Create success response with extracted data
       const successResponse: WebhookResponse = {
         status: 'success',
         message: processedContent.trim(),
@@ -390,7 +369,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       setWebhookResponse(successResponse);
       setSearchHistory(prev => [successResponse, ...prev.slice(0, 4)]);
-      setRetryCount(0); // Reset retry count on success
+      setRetryCount(0);
 
       toast({
         title: "Recherche B2B - Succès",
@@ -419,7 +398,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         }
       }
 
-      // Utiliser les données de démonstration en cas d'erreur
       const mockContacts = getMockContacts();
       
       const errorResponse: WebhookResponse = {
@@ -529,7 +507,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     }
   };
 
-  // Results View
   if (showResults) {
     const displayContacts = webhookResponse?.data || getMockContacts();
     
@@ -557,7 +534,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
             </div>
           </div>
 
-          {/* Status Information */}
           {webhookResponse && (
             <Card className={`mb-6 ${getStatusColor(webhookResponse.status)}`}>
               <CardContent className="p-4">
@@ -583,7 +559,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
             </Card>
           )}
 
-          {/* Map Section */}
           <div className="mb-6">
             <Card className="bg-white border-gray-300">
               <CardHeader className="border-b border-gray-200">
@@ -603,7 +578,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
             </Card>
           </div>
 
-          {/* Results Table */}
           <Card className="bg-white border-gray-300">
             <CardHeader className="border-b border-gray-200">
               <CardTitle className="flex items-center text-black">
@@ -671,11 +645,9 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     );
   }
 
-  // Search Interface with Response Display
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
             <Button variant="ghost" onClick={onBack} className="text-black hover:bg-gray-200">
@@ -687,7 +659,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Filters Panel */}
           <div className="lg:col-span-1">
             <Card className="bg-white border-gray-300">
               <CardHeader className="bg-gray-200 border-b border-gray-300">
@@ -697,7 +668,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6 p-6">
-                {/* Company Information */}
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-black">Informations Entreprise</Label>
                   <Input
@@ -735,7 +705,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                   </Select>
                 </div>
 
-                {/* Contact Information */}
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-black">Critères Contact</Label>
                   <Input
@@ -770,7 +739,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                   </Select>
                 </div>
 
-                {/* Geographic Criteria */}
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-black">Localisation</Label>
                   <Input
@@ -781,7 +749,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                   />
                 </div>
 
-                {/* Keywords */}
                 <div className="space-y-3">
                   <Label className="text-sm font-semibold text-black">Mots-clés</Label>
                   <Input
@@ -823,7 +790,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
             </Card>
           </div>
 
-          {/* Response Display Panel */}
           <div className="lg:col-span-2">
             {webhookResponse ? (
               <Card className={`bg-white border-gray-300 ${getStatusColor(webhookResponse.status)}`}>
@@ -892,7 +858,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                     </Button>
                   </div>
 
-                  {/* Request Details */}
                   <div className="mt-6 p-4 bg-gray-100 rounded-lg">
                     <p className="text-xs text-gray-600">
                       <strong>Requête:</strong> {webhookResponse.requestId} | 
@@ -924,7 +889,6 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                       </div>
                     )}
 
-                    {/* Search History */}
                     {searchHistory.length > 0 && (
                       <div className="mt-6">
                         <h4 className="text-sm font-medium text-gray-700 mb-3">Historique récent</h4>
