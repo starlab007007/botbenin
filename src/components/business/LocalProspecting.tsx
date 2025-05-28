@@ -6,8 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, Filter, Download, MapPin, Star, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock, Navigation } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, Search, Filter, Download, MapPin, Star, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock, Navigation, Database, Mail } from 'lucide-react';
 import { GeoLocationMap } from './GeoLocationMap';
+import { SaveToProspectsModal } from './SaveToProspectsModal';
+import { MarketingCampaignModal } from './MarketingCampaignModal';
 import { useToast } from '@/hooks/use-toast';
 
 interface LocalFilters {
@@ -261,6 +264,10 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [searchHistory, setSearchHistory] = useState<WebhookResponse[]>([]);
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedBusinesses, setSelectedBusinesses] = useState<string[]>([]);
+  const [isSelectAll, setIsSelectAll] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showMarketingModal, setShowMarketingModal] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -564,6 +571,49 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     );
   };
 
+  const handleBusinessSelection = (businessId: string, checked: boolean) => {
+    setSelectedBusinesses(prev => 
+      checked 
+        ? [...prev, businessId]
+        : prev.filter(id => id !== businessId)
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setIsSelectAll(checked);
+    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    setSelectedBusinesses(checked ? displayBusinesses.map(b => b.id) : []);
+  };
+
+  const getSelectedBusinessesData = () => {
+    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    return displayBusinesses.filter(business => selectedBusinesses.includes(business.id));
+  };
+
+  const handleSaveToProspects = () => {
+    if (selectedBusinesses.length === 0) {
+      toast({
+        title: "Sélection requise",
+        description: "Veuillez sélectionner au moins une entreprise",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleCreateCampaign = () => {
+    if (selectedBusinesses.length === 0) {
+      toast({
+        title: "Sélection requise",
+        description: "Veuillez sélectionner au moins une entreprise",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowMarketingModal(true);
+  };
+
   if (showResults) {
     const displayBusinesses = webhookResponse?.data || getMockBusinesses();
     
@@ -590,6 +640,30 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
               </Button>
             </div>
           </div>
+
+          {/* Selection Actions */}
+          {selectedBusinesses.length > 0 && (
+            <Card className="mb-6 bg-blue-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Badge className="bg-blue-600">{selectedBusinesses.length} sélectionnée(s)</Badge>
+                    <span className="text-sm text-blue-700">Actions pour les entreprises sélectionnées:</span>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button onClick={handleSaveToProspects} size="sm" variant="outline">
+                      <Database className="w-4 h-4 mr-2" />
+                      Sauvegarder dans Prospects
+                    </Button>
+                    <Button onClick={handleCreateCampaign} size="sm">
+                      <Mail className="w-4 h-4 mr-2" />
+                      Créer une Campagne
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {webhookResponse && (
             <Card className={`mb-6 ${getStatusColor(webhookResponse.status)}`}>
@@ -637,15 +711,30 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <MapPin className="w-5 h-5 mr-2" />
-                Entreprises Locales Identifiées
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <MapPin className="w-5 h-5 mr-2" />
+                  Entreprises Locales Identifiées
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    checked={isSelectAll}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  <span className="text-sm">Tout sélectionner</span>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox 
+                        checked={isSelectAll}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Entreprise</TableHead>
                     <TableHead>Catégorie</TableHead>
@@ -662,6 +751,12 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                 <TableBody>
                   {displayBusinesses.map((business) => (
                     <TableRow key={business.id}>
+                      <TableCell>
+                        <Checkbox 
+                          checked={selectedBusinesses.includes(business.id)}
+                          onCheckedChange={(checked) => handleBusinessSelection(business.id, checked as boolean)}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{business.name}</TableCell>
                       <TableCell className="font-medium">{business.companyName}</TableCell>
                       <TableCell>
@@ -704,6 +799,19 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
             </CardContent>
           </Card>
         </div>
+
+        <SaveToProspectsModal
+          isOpen={showSaveModal}
+          onClose={() => setShowSaveModal(false)}
+          selectedBusinesses={getSelectedBusinessesData()}
+          searchSessionId={`search_${Date.now()}`}
+        />
+
+        <MarketingCampaignModal
+          isOpen={showMarketingModal}
+          onClose={() => setShowMarketingModal(false)}
+          selectedBusinesses={getSelectedBusinessesData()}
+        />
       </div>
     );
   }

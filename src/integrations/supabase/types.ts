@@ -620,6 +620,135 @@ export type Database = {
           },
         ]
       }
+      local_businesses: {
+        Row: {
+          address: string | null
+          category: string | null
+          company_name: string
+          company_size: string | null
+          coordinates: Json | null
+          created_at: string
+          distance: string | null
+          email: string | null
+          hours: string | null
+          id: string
+          industry: string | null
+          job_title: string | null
+          linkedin_url: string | null
+          name: string
+          phone: string | null
+          price_range: string | null
+          rating: number | null
+          review_count: number | null
+          search_session_id: string
+          updated_at: string
+          user_id: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          category?: string | null
+          company_name: string
+          company_size?: string | null
+          coordinates?: Json | null
+          created_at?: string
+          distance?: string | null
+          email?: string | null
+          hours?: string | null
+          id?: string
+          industry?: string | null
+          job_title?: string | null
+          linkedin_url?: string | null
+          name: string
+          phone?: string | null
+          price_range?: string | null
+          rating?: number | null
+          review_count?: number | null
+          search_session_id: string
+          updated_at?: string
+          user_id: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          category?: string | null
+          company_name?: string
+          company_size?: string | null
+          coordinates?: Json | null
+          created_at?: string
+          distance?: string | null
+          email?: string | null
+          hours?: string | null
+          id?: string
+          industry?: string | null
+          job_title?: string | null
+          linkedin_url?: string | null
+          name?: string
+          phone?: string | null
+          price_range?: string | null
+          rating?: number | null
+          review_count?: number | null
+          search_session_id?: string
+          updated_at?: string
+          user_id?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      marketing_campaigns: {
+        Row: {
+          clicked_count: number | null
+          created_at: string
+          delivered_count: number | null
+          id: string
+          message_template: string
+          name: string
+          opened_count: number | null
+          scheduled_at: string | null
+          sent_count: number | null
+          status: string
+          subject: string | null
+          target_contacts: Json
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          clicked_count?: number | null
+          created_at?: string
+          delivered_count?: number | null
+          id?: string
+          message_template: string
+          name: string
+          opened_count?: number | null
+          scheduled_at?: string | null
+          sent_count?: number | null
+          status?: string
+          subject?: string | null
+          target_contacts?: Json
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          clicked_count?: number | null
+          created_at?: string
+          delivered_count?: number | null
+          id?: string
+          message_template?: string
+          name?: string
+          opened_count?: number | null
+          scheduled_at?: string | null
+          sent_count?: number | null
+          status?: string
+          subject?: string | null
+          target_contacts?: Json
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -1838,6 +1967,10 @@ export type Database = {
       is_admin: {
         Args: { user_uuid?: string }
         Returns: boolean
+      }
+      transfer_local_businesses_to_prospects: {
+        Args: { business_ids: string[]; target_database_id: string }
+        Returns: number
       }
     }
     Enums: {

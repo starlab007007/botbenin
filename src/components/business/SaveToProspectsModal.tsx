@@ -1,0 +1,225 @@
+
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Database, Users } from 'lucide-react';
+
+interface LocalBusiness {
+  id: string;
+  name: string;
+  companyName: string;
+  category: string;
+  address: string;
+  phone: string;
+  website: string;
+  email: string;
+  rating: number;
+  reviewCount: number;
+  hours: string;
+  priceRange: string;
+  distance: string;
+  coordinates?: [number, number];
+  jobTitle: string;
+  linkedinUrl: string;
+  industry: string;
+  companySize: string;
+}
+
+interface ProspectDatabase {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface SaveToProspectsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedBusinesses: LocalBusiness[];
+  searchSessionId: string;
+}
+
+export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
+  isOpen,
+  onClose,
+  selectedBusinesses,
+  searchSessionId
+}) => {
+  const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>('');
+  const [databases, setDatabases] = useState<ProspectDatabase[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  React.useEffect(() => {
+    if (isOpen) {
+      loadDatabases();
+    }
+  }, [isOpen]);
+
+  const loadDatabases = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('prospect_databases')
+        .select('id, name, description')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setDatabases(data || []);
+    } catch (error) {
+      console.error('Error loading databases:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les bases de données",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveBusinessesToDatabase = async () => {
+    if (!selectedDatabaseId) {
+      toast({
+        title: "Base de données requise",
+        description: "Veuillez sélectionner une base de données",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // First, save businesses to local_businesses table
+      const businessesToSave = selectedBusinesses.map(business => ({
+        search_session_id: searchSessionId,
+        name: business.name,
+        company_name: business.companyName,
+        category: business.category,
+        address: business.address,
+        phone: business.phone,
+        website: business.website,
+        email: business.email,
+        rating: business.rating,
+        review_count: business.reviewCount,
+        hours: business.hours,
+        price_range: business.priceRange,
+        distance: business.distance,
+        coordinates: business.coordinates ? { lat: business.coordinates[1], lng: business.coordinates[0] } : null,
+        job_title: business.jobTitle,
+        linkedin_url: business.linkedinUrl,
+        industry: business.industry,
+        company_size: business.companySize
+      }));
+
+      const { data: savedBusinesses, error: saveError } = await supabase
+        .from('local_businesses')
+        .insert(businessesToSave)
+        .select('id');
+
+      if (saveError) throw saveError;
+
+      // Then transfer to prospects using the database function
+      const businessIds = savedBusinesses?.map(b => b.id) || [];
+      const { data: transferResult, error: transferError } = await supabase
+        .rpc('transfer_local_businesses_to_prospects', {
+          business_ids: businessIds,
+          target_database_id: selectedDatabaseId
+        });
+
+      if (transferError) throw transferError;
+
+      toast({
+        title: "Succès",
+        description: `${transferResult} entreprises ajoutées à la base de prospects`,
+      });
+
+      onClose();
+    } catch (error) {
+      console.error('Error saving businesses:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les entreprises",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <Database className="w-5 h-5 mr-2" />
+            Sauvegarder dans les Prospects
+          </DialogTitle>
+          <DialogDescription>
+            Ajoutez {selectedBusinesses.length} entreprise(s) à votre base de prospects
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="database">Base de données de destination</Label>
+            {isLoading ? (
+              <div className="flex items-center space-x-2 p-2 border rounded">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Chargement des bases...</span>
+              </div>
+            ) : (
+              <Select value={selectedDatabaseId} onValueChange={setSelectedDatabaseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une base de données" />
+                </SelectTrigger>
+                <SelectContent>
+                  {databases.map((db) => (
+                    <SelectItem key={db.id} value={db.id}>
+                      <div className="flex items-center">
+                        <Users className="w-4 h-4 mr-2" />
+                        {db.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <h4 className="font-medium text-sm mb-2">Entreprises sélectionnées:</h4>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {selectedBusinesses.map((business, index) => (
+                <div key={index} className="text-xs text-gray-600">
+                  • {business.companyName} ({business.name})
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={onClose} disabled={isSaving}>
+              Annuler
+            </Button>
+            <Button onClick={saveBusinessesToDatabase} disabled={isSaving || !selectedDatabaseId}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sauvegarde...
+                </>
+              ) : (
+                'Sauvegarder'
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
