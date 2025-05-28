@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Search, Filter, Download, MapPin, Star, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock, Navigation, Database, Mail, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Search, Filter, Download, MapPin, Star, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock, Navigation, Database, Mail, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { GeoLocationMap } from './GeoLocationMap';
 import { SaveToProspectsModal } from './SaveToProspectsModal';
 import { MarketingCampaignModal } from './MarketingCampaignModal';
@@ -269,23 +268,29 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   const [isSelectAll, setIsSelectAll] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showMarketingModal, setShowMarketingModal] = useState(false);
+  const [usePerplexityFallback, setUsePerplexityFallback] = useState(false);
+  const [perplexityApiKey, setPerplexityApiKey] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const { toast } = useToast();
 
+  // Check internet connectivity
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation([position.coords.longitude, position.coords.latitude]);
-          console.log('User location detected:', position.coords.latitude, position.coords.longitude);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setUserLocation([2.3522, 6.4023]);
-        }
-      );
-    } else {
-      setUserLocation([2.3522, 6.4023]);
-    }
+    const checkConnection = async () => {
+      try {
+        const response = await fetch('https://httpbin.org/status/200', {
+          method: 'HEAD',
+          mode: 'no-cors',
+          cache: 'no-cache'
+        });
+        setConnectionStatus('online');
+      } catch (error) {
+        setConnectionStatus('offline');
+      }
+    };
+
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000); // Check every 30s
+    return () => clearInterval(interval);
   }, []);
 
   const handleFilterChange = (key: keyof LocalFilters, value: string) => {
@@ -311,19 +316,66 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     return `Je recherche des entreprises locales avec les critères suivants: ${searchCriteria.join(', ')}. Pouvez-vous m'aider à identifier des commerces et entreprises locales correspondant à ces critères avec leurs informations complètes (nom, adresse, téléphone, site web, horaires, catégorie) ?`;
   };
 
+  const searchWithPerplexity = async (searchQuery: string) => {
+    if (!perplexityApiKey) {
+      throw new Error('Clé API Perplexity requise');
+    }
+
+    console.log('Searching with Perplexity API...');
+    
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${perplexityApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'system',
+            content: 'Vous êtes un assistant spécialisé dans la recherche d\'entreprises locales. Répondez en français avec des informations structurées sur les entreprises trouvées.'
+          },
+          {
+            role: 'user',
+            content: searchQuery
+          }
+        ],
+        temperature: 0.2,
+        top_p: 0.9,
+        max_tokens: 2000,
+        return_images: false,
+        return_related_questions: false,
+        search_recency_filter: 'month',
+        frequency_penalty: 1,
+        presence_penalty: 0
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erreur Perplexity API: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || '';
+  };
+
   const executeWebhookSearch = async () => {
     const requestId = `local_req_${Date.now()}`;
     setIsLoading(true);
     setRetryCount(prev => prev + 1);
     
-    console.log('=== LOCAL PROSPECTING SEARCH VIA CHATBOT START ===');
+    console.log('=== LOCAL PROSPECTING SEARCH START ===');
     console.log('Request ID:', requestId);
     console.log('Retry count:', retryCount);
-    console.log('Search filters:', filters);
+    console.log('Connection status:', connectionStatus);
+    console.log('Use Perplexity fallback:', usePerplexityFallback);
 
     const loadingResponse: WebhookResponse = {
       status: 'loading',
-      message: 'Recherche d\'entreprises locales en cours via le système de chat...',
+      message: usePerplexityFallback ? 
+        'Recherche via Perplexity AI en cours...' : 
+        'Recherche d\'entreprises locales en cours...',
       timestamp: new Date(),
       requestId
     };
@@ -332,114 +384,109 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     const messageToSend = buildSearchMessage();
     console.log('Message to send:', messageToSend);
 
-    // Augmenter progressivement le timeout selon le nombre de tentatives
-    const timeoutDuration = Math.min(60000, 20000 + (retryCount * 15000)); // De 20s à 60s max
+    // Timeout plus court pour détecter rapidement les problèmes
+    const timeoutDuration = usePerplexityFallback ? 30000 : Math.min(45000, 15000 + (retryCount * 10000));
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
-        controller.abort();
-      }, timeoutDuration);
-
-      console.log(`Sending local prospecting request with ${timeoutDuration/1000}s timeout`);
-
-      const requestPayload = {
-        message: messageToSend,
-        timestamp: new Date().toISOString(),
-        session_id: `local_search_${Date.now()}`,
-        user_id: 'local_user',
-        source: 'bot_bj_platform',
-        context: 'local_prospecting',
-        timeout: timeoutDuration,
-        retry_count: retryCount
-      };
-
-      console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
-
-      // Essayer plusieurs endpoints en cas d'échec
-      const endpoints = [
-        'https://ia.bot.bj/webhook/lead',
-        'https://ia.bot.bj/api/search',
-        'https://ia.bot.bj/webhook/business'
-      ];
-
-      let response;
-      let lastError;
-
-      for (let i = 0; i < endpoints.length; i++) {
-        try {
-          console.log(`Trying endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
-          
-          response = await fetch(endpoints[i], {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json, text/plain, */*',
-              'User-Agent': 'Bot.Bj-Platform/1.0',
-              'X-Request-ID': requestId,
-              'X-Retry-Count': retryCount.toString(),
-            },
-            body: JSON.stringify(requestPayload),
-            signal: controller.signal,
-            mode: 'cors',
-          });
-
-          if (response.ok) {
-            console.log(`Success with endpoint: ${endpoints[i]}`);
-            break;
-          } else {
-            console.log(`Endpoint ${endpoints[i]} failed with status: ${response.status}`);
-            lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-        } catch (error) {
-          console.log(`Endpoint ${endpoints[i]} failed with error:`, error);
-          lastError = error;
-          
-          // Si ce n'est pas le dernier endpoint, continuer
-          if (i < endpoints.length - 1) {
-            continue;
-          }
-        }
-      }
-
-      clearTimeout(timeoutId);
-
-      if (!response || !response.ok) {
-        throw lastError || new Error('Tous les endpoints ont échoué');
-      }
-
-      console.log('Response received!');
-      console.log('Status:', response.status, 'Status Text:', response.statusText);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
-      const contentType = response.headers.get('content-type') || '';
-      console.log('Content-Type:', contentType);
-
       let responseData;
       let processedContent;
 
-      if (contentType.includes('application/json')) {
-        responseData = await response.json();
-        console.log('JSON Response:', JSON.stringify(responseData, null, 2));
-        
-        processedContent = responseData.output || 
-                          responseData.message || 
-                          responseData.response || 
-                          responseData.text || 
-                          responseData.content ||
-                          responseData.reply ||
-                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+      if (usePerplexityFallback && perplexityApiKey) {
+        // Utiliser Perplexity comme alternative
+        console.log('Using Perplexity API fallback');
+        processedContent = await searchWithPerplexity(messageToSend);
       } else {
-        responseData = await response.text();
-        console.log('Text Response:', responseData);
-        processedContent = responseData;
+        // Essayer les endpoints principaux avec timeout réduit
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
+          controller.abort();
+        }, timeoutDuration);
+
+        console.log(`Sending request with ${timeoutDuration/1000}s timeout`);
+
+        const requestPayload = {
+          message: messageToSend,
+          timestamp: new Date().toISOString(),
+          session_id: `local_search_${Date.now()}`,
+          user_id: 'local_user',
+          source: 'bot_bj_platform',
+          context: 'local_prospecting',
+          timeout: timeoutDuration,
+          retry_count: retryCount
+        };
+
+        // Essayer moins d'endpoints pour réduire le temps d'attente
+        const endpoints = [
+          'https://ia.bot.bj/webhook/lead',
+          'https://ia.bot.bj/api/search'
+        ];
+
+        let response;
+        let lastError;
+
+        for (let i = 0; i < endpoints.length; i++) {
+          try {
+            console.log(`Trying endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
+            
+            response = await fetch(endpoints[i], {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/plain, */*',
+                'User-Agent': 'Bot.Bj-Platform/1.0',
+                'X-Request-ID': requestId,
+                'X-Retry-Count': retryCount.toString(),
+              },
+              body: JSON.stringify(requestPayload),
+              signal: controller.signal,
+              mode: 'cors',
+            });
+
+            if (response.ok) {
+              console.log(`Success with endpoint: ${endpoints[i]}`);
+              break;
+            } else {
+              console.log(`Endpoint ${endpoints[i]} failed with status: ${response.status}`);
+              lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+          } catch (error) {
+            console.log(`Endpoint ${endpoints[i]} failed with error:`, error);
+            lastError = error;
+            
+            if (i < endpoints.length - 1) {
+              continue;
+            }
+          }
+        }
+
+        clearTimeout(timeoutId);
+
+        if (!response || !response.ok) {
+          throw lastError || new Error('Tous les endpoints ont échoué');
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (contentType.includes('application/json')) {
+          responseData = await response.json();
+          processedContent = responseData.output || 
+                            responseData.message || 
+                            responseData.response || 
+                            responseData.text || 
+                            responseData.content ||
+                            responseData.reply ||
+                            (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+        } else {
+          responseData = await response.text();
+          processedContent = responseData;
+        }
       }
 
       console.log('Processed content:', processedContent);
 
       if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from webhook');
+        throw new Error('Réponse vide du serveur');
       }
 
       const extractedBusinesses = parseWebhookResponse(processedContent);
@@ -459,7 +506,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
       toast({
         title: "Prospection Locale - Succès",
-        description: `${extractedBusinesses.length} entreprises locales trouvées et géolocalisées`,
+        description: `${extractedBusinesses.length} entreprises locales trouvées`,
       });
 
       console.log('Local prospecting search completed successfully');
@@ -468,10 +515,9 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       console.error('=== LOCAL PROSPECTING SEARCH ERROR ===');
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
-      console.error('Full error:', error);
       
       let errorStatus: 'error' | 'timeout' = 'error';
-      let errorMessage = "Erreur de connexion au système de chat";
+      let errorMessage = "Erreur de connexion";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
@@ -479,20 +525,19 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
           errorMessage = `Timeout après ${timeoutDuration/1000}s - Le serveur met trop de temps à répondre`;
         } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
           errorMessage = "Problème de réseau - Vérifiez votre connexion internet";
-        } else if (error.message.includes('CORS')) {
-          errorMessage = "Problème CORS avec le serveur";
-        } else if (error.message.includes('Tous les endpoints')) {
-          errorMessage = "Tous les serveurs sont indisponibles actuellement";
+        } else if (error.message.includes('Clé API Perplexity')) {
+          errorMessage = "Clé API Perplexity manquante ou invalide";
         }
       }
 
-      // Utiliser des données de démo seulement après plusieurs tentatives
-      const shouldUseMockData = retryCount >= 2;
+      // Proposer Perplexity en cas d'échec répété
+      const shouldSuggestPerplexity = retryCount >= 2 && !usePerplexityFallback;
+      const shouldUseMockData = retryCount >= 3 || (usePerplexityFallback && retryCount >= 1);
       const mockBusinesses = shouldUseMockData ? getMockBusinesses() : [];
       
       const errorResponse: WebhookResponse = {
         status: errorStatus,
-        message: `${errorMessage}${shouldUseMockData ? '. Affichage des données de démonstration.' : ' - Essayez de nouveau dans quelques instants.'}`,
+        message: `${errorMessage}${shouldSuggestPerplexity ? '. Essayez avec l\'API Perplexity comme alternative.' : ''}${shouldUseMockData ? ' Affichage des données de démonstration.' : ''}`,
         data: mockBusinesses,
         timestamp: new Date(),
         requestId
@@ -881,6 +926,19 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
               Retour
             </Button>
             <h1 className="text-2xl font-bold">Prospection Locale - Entreprises de Proximité</h1>
+            <div className="flex items-center space-x-2">
+              {connectionStatus === 'online' ? (
+                <Wifi className="w-5 h-5 text-green-600" />
+              ) : connectionStatus === 'offline' ? (
+                <WifiOff className="w-5 h-5 text-red-600" />
+              ) : (
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+              )}
+              <span className="text-sm text-gray-600">
+                {connectionStatus === 'online' ? 'En ligne' : 
+                 connectionStatus === 'offline' ? 'Hors ligne' : 'Vérification...'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -894,6 +952,32 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Fallback API Option */}
+                <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      checked={usePerplexityFallback}
+                      onCheckedChange={setUsePerplexityFallback}
+                    />
+                    <Label className="text-sm font-medium">Utiliser Perplexity AI (Alternative)</Label>
+                  </div>
+                  {usePerplexityFallback && (
+                    <div className="space-y-2">
+                      <Label className="text-xs">Clé API Perplexity:</Label>
+                      <Input
+                        type="password"
+                        placeholder="pplx-..."
+                        value={perplexityApiKey}
+                        onChange={(e) => setPerplexityApiKey(e.target.value)}
+                        className="text-sm"
+                      />
+                      <p className="text-xs text-gray-600">
+                        Alternative quand les serveurs principaux ne répondent pas
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">Zone Géographique</Label>
                   <Input
@@ -983,12 +1067,13 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                   <Button 
                     onClick={executeWebhookSearch} 
                     className="w-full" 
-                    disabled={isLoading}
+                    disabled={isLoading || (usePerplexityFallback && !perplexityApiKey)}
                   >
                     {isLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Recherche en cours... {retryCount > 1 && `(Tentative ${retryCount})`}
+                        {usePerplexityFallback ? 'Recherche Perplexity...' : 'Recherche en cours...'}
+                        {retryCount > 1 && ` (Tentative ${retryCount})`}
                       </>
                     ) : (
                       <>
@@ -1017,7 +1102,9 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(webhookResponse.status)}
-                      <span>Réponse du Système de Chat</span>
+                      <span>
+                        {usePerplexityFallback ? 'Réponse Perplexity AI' : 'Réponse du Système'}
+                      </span>
                     </div>
                     <Badge className={
                       webhookResponse.status === 'success' ? 'bg-green-100 text-green-800' :
@@ -1043,7 +1130,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                   {webhookResponse.data && (
                     <div className="mb-4">
                       <p className="text-sm text-gray-600 mb-3">
-                        <strong>{webhookResponse.data.length}</strong> entreprises locales trouvées et géolocalisées
+                        <strong>{webhookResponse.data.length}</strong> entreprises locales trouvées
                       </p>
                     </div>
                   )}
@@ -1058,15 +1145,26 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                       Visualiser les résultats
                     </Button>
                     {(webhookResponse.status === 'timeout' || webhookResponse.status === 'error') && (
-                      <Button 
-                        onClick={executeWebhookSearch}
-                        variant="outline"
-                        className="border-orange-400 text-orange-700 hover:bg-orange-50"
-                        disabled={isLoading}
-                      >
-                        <RefreshCw className="w-4 h-4 mr-2" />
-                        Réessayer {retryCount > 0 && `(${retryCount + 1})`}
-                      </Button>
+                      <>
+                        <Button 
+                          onClick={executeWebhookSearch}
+                          variant="outline"
+                          className="border-orange-400 text-orange-700 hover:bg-orange-50"
+                          disabled={isLoading}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Réessayer {retryCount > 0 && `(${retryCount + 1})`}
+                        </Button>
+                        {!usePerplexityFallback && retryCount >= 2 && (
+                          <Button 
+                            onClick={() => setUsePerplexityFallback(true)}
+                            variant="outline"
+                            className="border-blue-400 text-blue-700 hover:bg-blue-50"
+                          >
+                            Essayer Perplexity
+                          </Button>
+                        )}
+                      </>
                     )}
                     <Button 
                       onClick={resetSearch}
@@ -1083,6 +1181,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                       <strong>Requête:</strong> {webhookResponse.requestId} | 
                       <strong> Timestamp:</strong> {webhookResponse.timestamp.toLocaleString()}
                       {retryCount > 0 && <><strong> | Tentatives:</strong> {retryCount}</>}
+                      {usePerplexityFallback && <><strong> | Source:</strong> Perplexity AI</>}
                     </p>
                   </div>
                 </CardContent>
@@ -1100,6 +1199,15 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     <p className="text-lg mb-2 font-medium">Prêt pour la recherche locale</p>
                     <p className="text-gray-600">Configurez vos critères et lancez la recherche d'entreprises locales</p>
                     
+                    {connectionStatus === 'offline' && (
+                      <div className="mt-6 p-4 bg-red-50 rounded-lg">
+                        <p className="text-sm text-red-800">
+                          <WifiOff className="w-4 h-4 inline mr-1" />
+                          Connexion internet limitée - Utilisez Perplexity AI comme alternative
+                        </p>
+                      </div>
+                    )}
+
                     {userLocation && (
                       <div className="mt-6 p-4 bg-green-50 rounded-lg">
                         <p className="text-sm text-green-800">
