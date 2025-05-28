@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -331,10 +332,10 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     const messageToSend = buildSearchMessage();
     console.log('Message to send:', messageToSend);
 
+    // Augmenter progressivement le timeout selon le nombre de tentatives
+    const timeoutDuration = Math.min(60000, 20000 + (retryCount * 15000)); // De 20s à 60s max
+
     try {
-      // Augmenter progressivement le timeout selon le nombre de tentatives
-      const timeoutDuration = Math.min(60000, 20000 + (retryCount * 15000)); // De 20s à 60s max
-      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
