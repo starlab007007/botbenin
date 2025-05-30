@@ -13,6 +13,8 @@ import { HomePage } from "./pages/HomePage";
 import { ChatPage } from "./pages/ChatPage";
 import { AutomationsPage } from "./pages/AutomationsPage";
 import { BotManagementPage } from "./pages/BotManagementPage";
+import { BotTestPage } from "./pages/BotTestPage";
+import { PublicBotChatPage } from "./pages/PublicBotChatPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { BusinessModule } from "./pages/modules/BusinessModule";
 import { MarketingModule } from "./pages/modules/MarketingModule";
@@ -36,9 +38,14 @@ const App: React.FC = () => (
             <Sonner />
             <BrowserRouter>
               <Routes>
+                {/* Routes publiques */}
+                <Route path="/bot/:botId" element={<PublicBotChatPage />} />
+                
+                {/* Routes avec layout */}
                 <Route path="/" element={<Layout />}>
                   <Route index element={<HomePage />} />
                   <Route path="chat" element={<ChatPage />} />
+                  <Route path="chat-test" element={<BotTestPage />} />
                   <Route path="automatisations" element={<AutomationsPage />} />
                   <Route path="bots" element={<BotManagementPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />

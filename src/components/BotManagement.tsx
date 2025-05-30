@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { BotAnalytics } from '@/components/BotAnalytics';
 import { 
   Bot, 
   Plus, 
@@ -21,7 +21,9 @@ import {
   MessageSquare,
   Share,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Play,
+  MessageCircle
 } from 'lucide-react';
 
 interface Bot {
@@ -51,6 +53,7 @@ export const BotManagement: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
+  const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<Bot | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -106,7 +109,7 @@ export const BotManagement: React.FC = () => {
 
       setBots(botsData || []);
 
-      // Récupérer les statistiques optimisées via la vue
+      // Récupérer les statistiques
       if (botsData && botsData.length > 0) {
         await fetchBotsStatsOptimized(botsData.map(bot => bot.id));
       }
@@ -183,7 +186,7 @@ export const BotManagement: React.FC = () => {
         const { error: updateError } = await supabase
           .from('bots')
           .update({ 
-            public_chat_url: `https://ia.bot.bj/chat/${newBot.id}` 
+            public_chat_url: `${window.location.origin}/bot/${newBot.id}` 
           })
           .eq('id', newBot.id);
 
@@ -356,6 +359,25 @@ export const BotManagement: React.FC = () => {
     });
     setShowCreateForm(false);
   };
+
+  const testBot = (bot: Bot) => {
+    // Ouvrir le bot en mode test dans le même onglet
+    window.open(`/chat-test?bot=${bot.id}`, '_blank');
+  };
+
+  const viewAnalytics = (bot: Bot) => {
+    setSelectedBotForAnalytics(bot);
+  };
+
+  if (selectedBotForAnalytics) {
+    return (
+      <BotAnalytics
+        botId={selectedBotForAnalytics.id}
+        botName={selectedBotForAnalytics.name}
+        onBack={() => setSelectedBotForAnalytics(null)}
+      />
+    );
+  }
 
   if (isLoading) {
     return (
@@ -588,7 +610,29 @@ export const BotManagement: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Actions */}
+                {/* Actions principales */}
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <Button
+                    onClick={() => testBot(bot)}
+                    variant="outline"
+                    size="sm"
+                    className="text-green-600 border-green-200 hover:bg-green-50"
+                  >
+                    <Play className="w-4 h-4 mr-1" />
+                    Tester
+                  </Button>
+                  <Button
+                    onClick={() => viewAnalytics(bot)}
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                  >
+                    <BarChart3 className="w-4 h-4 mr-1" />
+                    Analytics
+                  </Button>
+                </div>
+
+                {/* Actions secondaires */}
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                   <div className="flex space-x-2">
                     <Button
