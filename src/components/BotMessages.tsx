@@ -69,7 +69,13 @@ export const BotMessages: React.FC<BotMessagesProps> = ({ botId, botName, onBack
 
       if (error) throw error;
 
-      setMessages(messagesData || []);
+      // Type assertion to ensure compatibility with our interface
+      const typedMessages: ChatMessage[] = (messagesData || []).map(msg => ({
+        ...msg,
+        message_type: (msg.message_type === 'user' || msg.message_type === 'bot') ? msg.message_type : 'user'
+      }));
+
+      setMessages(typedMessages);
 
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error);
