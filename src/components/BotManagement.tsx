@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -17,7 +18,10 @@ import {
   PowerOff,
   BarChart3,
   Users,
-  MessageSquare
+  MessageSquare,
+  Share,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 
 interface Bot {
@@ -27,6 +31,10 @@ interface Bot {
   webhook_url: string;
   api_key: string;
   is_active: boolean;
+  chat_title: string;
+  chat_context: string;
+  share_enabled: boolean;
+  public_chat_url: string;
   created_at: string;
   updated_at: string;
 }
@@ -47,7 +55,10 @@ export const BotManagement: React.FC = () => {
     name: '',
     description: '',
     webhook_url: '',
-    api_key: ''
+    api_key: '',
+    chat_title: 'Assistant IA',
+    chat_context: 'general',
+    share_enabled: true
   });
   const { toast } = useToast();
 
@@ -67,22 +78,37 @@ export const BotManagement: React.FC = () => {
         .eq('user_id', user.id)
         .single();
 
-      if (!ownerData) return;
+      if (!ownerData) {
+        // Créer un bot_owner si il n'existe pas
+        const { data: newOwner } = await supabase
+          .from('bot_owners')
+          .insert({ user_id: user.id })
+          .select('id')
+          .single();
+        
+        if (!newOwner) return;
+      }
+
+      const ownerId = ownerData?.id || (await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()).data?.id;
 
       // Récupérer les bots
       const { data: botsData, error } = await supabase
         .from('bots')
         .select('*')
-        .eq('owner_id', ownerData.id)
+        .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       setBots(botsData || []);
 
-      // Récupérer les statistiques pour chaque bot
+      // Récupérer les statistiques optimisées via la vue
       if (botsData && botsData.length > 0) {
-        await fetchBotsStats(botsData.map(bot => bot.id));
+        await fetchBotsStatsOptimized(botsData.map(bot => bot.id));
       }
 
     } catch (error) {
@@ -97,36 +123,23 @@ export const BotManagement: React.FC = () => {
     }
   };
 
-  const fetchBotsStats = async (botIds: string[]) => {
+  const fetchBotsStatsOptimized = async (botIds: string[]) => {
     try {
+      const { data: statsData, error } = await supabase
+        .from('bot_stats')
+        .select('*')
+        .in('bot_id', botIds);
+
+      if (error) throw error;
+
       const stats: Record<string, BotStats> = {};
-
-      for (const botId of botIds) {
-        // Messages total
-        const { data: messagesData } = await supabase
-          .from('chat_messages')
-          .select('id')
-          .eq('bot_id', botId);
-
-        // Utilisateurs uniques
-        const { data: usersData } = await supabase
-          .from('bot_users')
-          .select('id, last_active')
-          .eq('bot_id', botId);
-
-        // Actifs aujourd'hui
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const activeToday = usersData?.filter(user => 
-          new Date(user.last_active) >= today
-        ).length || 0;
-
-        stats[botId] = {
-          totalMessages: messagesData?.length || 0,
-          totalUsers: usersData?.length || 0,
-          activeToday
+      statsData?.forEach(stat => {
+        stats[stat.bot_id] = {
+          totalMessages: stat.total_messages || 0,
+          totalUsers: stat.total_users || 0,
+          activeToday: stat.active_today || 0
         };
-      }
+      });
 
       setBotStats(stats);
     } catch (error) {
@@ -147,7 +160,7 @@ export const BotManagement: React.FC = () => {
 
       if (!ownerData) return;
 
-      const { error } = await supabase
+      const { data: newBot, error } = await supabase
         .from('bots')
         .insert({
           owner_id: ownerData.id,
@@ -155,17 +168,42 @@ export const BotManagement: React.FC = () => {
           description: formData.description,
           webhook_url: formData.webhook_url,
           api_key: formData.api_key,
+          chat_title: formData.chat_title,
+          chat_context: formData.chat_context,
+          share_enabled: formData.share_enabled,
           is_active: true
-        });
+        })
+        .select('*')
+        .single();
 
       if (error) throw error;
+
+      // Générer l'URL publique pour le nouveau bot
+      if (newBot) {
+        const { error: updateError } = await supabase
+          .from('bots')
+          .update({ 
+            public_chat_url: `https://ia.bot.bj/chat/${newBot.id}` 
+          })
+          .eq('id', newBot.id);
+
+        if (updateError) console.warn('Erreur lors de la mise à jour de l\'URL publique:', updateError);
+      }
 
       toast({
         title: "Chatbot créé",
         description: "Votre nouveau chatbot a été créé avec succès",
       });
 
-      setFormData({ name: '', description: '', webhook_url: '', api_key: '' });
+      setFormData({ 
+        name: '', 
+        description: '', 
+        webhook_url: '', 
+        api_key: '',
+        chat_title: 'Assistant IA',
+        chat_context: 'general',
+        share_enabled: true
+      });
       setShowCreateForm(false);
       fetchBots();
     } catch (error) {
@@ -188,7 +226,10 @@ export const BotManagement: React.FC = () => {
           name: formData.name,
           description: formData.description,
           webhook_url: formData.webhook_url,
-          api_key: formData.api_key
+          api_key: formData.api_key,
+          chat_title: formData.chat_title,
+          chat_context: formData.chat_context,
+          share_enabled: formData.share_enabled
         })
         .eq('id', editingBot.id);
 
@@ -200,7 +241,15 @@ export const BotManagement: React.FC = () => {
       });
 
       setEditingBot(null);
-      setFormData({ name: '', description: '', webhook_url: '', api_key: '' });
+      setFormData({ 
+        name: '', 
+        description: '', 
+        webhook_url: '', 
+        api_key: '',
+        chat_title: 'Assistant IA',
+        chat_context: 'general',
+        share_enabled: true
+      });
       fetchBots();
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error);
@@ -264,20 +313,47 @@ export const BotManagement: React.FC = () => {
     }
   };
 
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Copié !",
+        description: `${label} copié dans le presse-papiers`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de copier dans le presse-papiers",
+        variant: "destructive",
+      });
+    }
+  };
+
   const startEdit = (bot: Bot) => {
     setEditingBot(bot);
     setFormData({
       name: bot.name,
       description: bot.description,
       webhook_url: bot.webhook_url,
-      api_key: bot.api_key
+      api_key: bot.api_key,
+      chat_title: bot.chat_title || 'Assistant IA',
+      chat_context: bot.chat_context || 'general',
+      share_enabled: bot.share_enabled ?? true
     });
     setShowCreateForm(true);
   };
 
   const cancelEdit = () => {
     setEditingBot(null);
-    setFormData({ name: '', description: '', webhook_url: '', api_key: '' });
+    setFormData({ 
+      name: '', 
+      description: '', 
+      webhook_url: '', 
+      api_key: '',
+      chat_title: 'Assistant IA',
+      chat_context: 'general',
+      share_enabled: true
+    });
     setShowCreateForm(false);
   };
 
@@ -325,6 +401,16 @@ export const BotManagement: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Titre du chat
+              </label>
+              <Input
+                value={formData.chat_title}
+                onChange={(e) => setFormData(prev => ({ ...prev, chat_title: e.target.value }))}
+                placeholder="Assistant IA"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Clé API
               </label>
               <Input
@@ -332,6 +418,16 @@ export const BotManagement: React.FC = () => {
                 onChange={(e) => setFormData(prev => ({ ...prev, api_key: e.target.value }))}
                 placeholder="sk-..."
                 type="password"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Contexte du chat
+              </label>
+              <Input
+                value={formData.chat_context}
+                onChange={(e) => setFormData(prev => ({ ...prev, chat_context: e.target.value }))}
+                placeholder="general"
               />
             </div>
             <div className="md:col-span-2">
@@ -353,6 +449,15 @@ export const BotManagement: React.FC = () => {
                 onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
                 placeholder="https://votre-webhook.com/endpoint"
               />
+            </div>
+            <div className="md:col-span-2 flex items-center space-x-2">
+              <Switch
+                checked={formData.share_enabled}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, share_enabled: checked }))}
+              />
+              <label className="text-sm font-medium text-gray-700">
+                Autoriser le partage public
+              </label>
             </div>
           </div>
           <div className="flex space-x-3">
@@ -430,6 +535,42 @@ export const BotManagement: React.FC = () => {
                 <p className="text-gray-600 text-sm mb-4 line-clamp-2">
                   {bot.description || 'Aucune description'}
                 </p>
+
+                {/* Titre et contexte du chat */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-1">Chat: {bot.chat_title}</div>
+                  <div className="text-xs text-gray-500">Contexte: {bot.chat_context}</div>
+                </div>
+
+                {/* URL publique et partage */}
+                {bot.share_enabled && bot.public_chat_url && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-blue-700">Lien public</span>
+                      <div className="flex space-x-1">
+                        <Button
+                          onClick={() => copyToClipboard(bot.public_chat_url, 'Lien public')}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1 h-6 w-6"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          onClick={() => window.open(bot.public_chat_url, '_blank')}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1 h-6 w-6"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="text-xs text-blue-600 truncate">
+                      {bot.public_chat_url}
+                    </div>
+                  </div>
+                )}
 
                 {/* Statistiques */}
                 <div className="grid grid-cols-3 gap-2 mb-4">

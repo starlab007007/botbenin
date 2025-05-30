@@ -248,6 +248,13 @@ export type Database = {
             foreignKeyName: "bot_users_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_users_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
           },
@@ -256,6 +263,8 @@ export type Database = {
       bots: {
         Row: {
           api_key: string | null
+          chat_context: string | null
+          chat_title: string | null
           configuration: Json | null
           created_at: string
           description: string | null
@@ -263,11 +272,15 @@ export type Database = {
           is_active: boolean | null
           name: string
           owner_id: string | null
+          public_chat_url: string | null
+          share_enabled: boolean | null
           updated_at: string
           webhook_url: string | null
         }
         Insert: {
           api_key?: string | null
+          chat_context?: string | null
+          chat_title?: string | null
           configuration?: Json | null
           created_at?: string
           description?: string | null
@@ -275,11 +288,15 @@ export type Database = {
           is_active?: boolean | null
           name: string
           owner_id?: string | null
+          public_chat_url?: string | null
+          share_enabled?: boolean | null
           updated_at?: string
           webhook_url?: string | null
         }
         Update: {
           api_key?: string | null
+          chat_context?: string | null
+          chat_title?: string | null
           configuration?: Json | null
           created_at?: string
           description?: string | null
@@ -287,6 +304,8 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           owner_id?: string | null
+          public_chat_url?: string | null
+          share_enabled?: boolean | null
           updated_at?: string
           webhook_url?: string | null
         }
@@ -389,6 +408,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
           },
@@ -433,6 +459,13 @@ export type Database = {
           total_messages?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
           {
             foreignKeyName: "chat_sessions_bot_id_fkey"
             columns: ["bot_id"]
@@ -1961,9 +1994,41 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      bot_stats: {
+        Row: {
+          active_today: number | null
+          bot_id: string | null
+          bot_name: string | null
+          last_message_at: string | null
+          owner_id: string | null
+          total_messages: number | null
+          total_users: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      create_bot_user_if_not_exists: {
+        Args: {
+          p_bot_id: string
+          p_session_id: string
+          p_user_name?: string
+          p_user_email?: string
+        }
+        Returns: string
+      }
+      generate_public_chat_url: {
+        Args: { bot_id: string }
+        Returns: string
+      }
       is_admin: {
         Args: { user_uuid?: string }
         Returns: boolean

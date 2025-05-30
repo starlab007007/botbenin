@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -11,6 +12,7 @@ import { Layout } from "./components/Layout";
 import { HomePage } from "./pages/HomePage";
 import { ChatPage } from "./pages/ChatPage";
 import { AutomationsPage } from "./pages/AutomationsPage";
+import { BotManagementPage } from "./pages/BotManagementPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { BusinessModule } from "./pages/modules/BusinessModule";
 import { MarketingModule } from "./pages/modules/MarketingModule";
@@ -38,6 +40,7 @@ const App: React.FC = () => (
                   <Route index element={<HomePage />} />
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="automatisations" element={<AutomationsPage />} />
+                  <Route path="bots" element={<BotManagementPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="prospects" element={<ProspectsPage />} />
                   <Route path="modules/business" element={<BusinessModule />} />
