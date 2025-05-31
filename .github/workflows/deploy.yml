@@ -24,10 +24,10 @@ jobs:
             git pull origin main
 
             echo "🛑 Arrêt des anciens conteneurs..."
-            docker-compose down
+            docker compose down
 
             echo "🔨 Construction et redémarrage des services..."
-            docker-compose up -d --build --force-recreate
+            docker compose up -d --build --force-recreate
 
             echo "🧹 Nettoyage des anciennes images inutilisées...."
             docker image prune -af
