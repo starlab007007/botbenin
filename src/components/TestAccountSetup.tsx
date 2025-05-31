@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,10 +51,13 @@ export const TestAccountSetup: React.FC = () => {
 
       // Configurer le compte avec la fonction appropriée
       const functionName = isAdmin ? 'setup_test_admin_account' : 'setup_test_user_account';
-      const { data, error } = await supabase.rpc(functionName, {
-        test_email: email,
-        test_password: password
-      });
+      const { data, error } = await supabase.rpc(
+        functionName as any, // Type assertion to bypass TypeScript strict typing
+        {
+          test_email: email,
+          test_password: password
+        }
+      );
 
       if (error) {
         throw error;
