@@ -16,7 +16,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isLoading,
   bookmarkedCount,
   onShowBookmarks,
-  title = 'Bot.Bj Assistant',
+  title = 'Bot.Bj',
 }) => {
   return (
     <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 flex items-center justify-between">
@@ -26,6 +26,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
         <div>
           <h1 className="font-semibold text-lg">{title}</h1>
+          <p className="text-sm text-white/90 italic">votre assistant virtuel</p>
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full transition-colors ${isLoading ? 'bg-yellow-300 animate-pulse' : 'bg-green-300'}`} />
             <span className="text-sm text-white/80">{isLoading ? 'En cours...' : 'En ligne'}</span>
