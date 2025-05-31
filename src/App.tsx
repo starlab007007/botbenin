@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -26,6 +25,7 @@ import { SupportPage } from "./pages/SupportPage";
 import { UsersManagementPage } from "./pages/UsersManagementPage";
 import { ProspectsPage } from "./pages/ProspectsPage";
 import NotFound from "./pages/NotFound";
+import { TestAccountsPage } from "./pages/TestAccountsPage";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +59,7 @@ const App: React.FC = () => (
                   <Route path="account" element={<AccountPage />} />
                   <Route path="support" element={<SupportPage />} />
                   <Route path="users" element={<UsersManagementPage />} />
+                  <Route path="test-accounts" element={<TestAccountsPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
