@@ -104,9 +104,15 @@ export const AccountPage: React.FC = () => {
       } else if (profileData) {
         setProfile(profileData);
         
-        // Set bot owner data
-        if (profileData.bot_owners && profileData.bot_owners.length > 0) {
+        // Set bot owner data safely
+        if (profileData.bot_owners && Array.isArray(profileData.bot_owners) && profileData.bot_owners.length > 0) {
           setBotOwner(profileData.bot_owners[0]);
+        } else {
+          // Set default bot owner data if none exists
+          setBotOwner({
+            subscription_plan: 'free',
+            max_bots: 1
+          });
         }
         
         setFormData({

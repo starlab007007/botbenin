@@ -1778,12 +1778,15 @@ export type Database = {
       }
       users: {
         Row: {
+          auth_provider: string | null
           avatar_url: string | null
           bio: string | null
           company: string | null
           created_at: string
           email: string
+          email_verified: boolean | null
           full_name: string
+          google_id: string | null
           id: string
           is_active: boolean | null
           language: string | null
@@ -1795,12 +1798,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auth_provider?: string | null
           avatar_url?: string | null
           bio?: string | null
           company?: string | null
           created_at?: string
           email: string
+          email_verified?: boolean | null
           full_name: string
+          google_id?: string | null
           id: string
           is_active?: boolean | null
           language?: string | null
@@ -1812,12 +1818,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auth_provider?: string | null
           avatar_url?: string | null
           bio?: string | null
           company?: string | null
           created_at?: string
           email?: string
+          email_verified?: boolean | null
           full_name?: string
+          google_id?: string | null
           id?: string
           is_active?: boolean | null
           language?: string | null
