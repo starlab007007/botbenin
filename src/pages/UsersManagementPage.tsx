@@ -1,8 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Users, 
   Plus, 
@@ -13,19 +17,217 @@ import {
   Trash2,
   Search,
   Filter,
-  MoreVertical
+  MoreVertical,
+  Phone,
+  Mail,
+  Activity,
+  Clock
 } from 'lucide-react';
-import { useUser } from '@/contexts/UserContext';
+
+interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  phone?: string;
+  subscription_tier: string;
+  created_at: string;
+  last_login?: string;
+  is_active: boolean;
+  language: string;
+  timezone: string;
+  avatar_url?: string;
+  last_activity?: string;
+  user_profiles?: Array<{
+    bio?: string;
+    avatar_url?: string;
+  }>;
+  user_roles?: Array<{
+    roles: {
+      name: string;
+    };
+  }>;
+  bot_owners?: Array<{
+    subscription_plan: string;
+    max_bots: number;
+  }>;
+}
+
+interface UserStats {
+  total_users: number;
+  active_users: number;
+  admin_users: number;
+  pending_users: number;
+}
 
 export const UsersManagementPage: React.FC = () => {
-  const { users, currentUser, addUser, updateUser, deleteUser, hasPermission } = useUser();
+  const { user: currentUser } = useAuth();
+  const { toast } = useToast();
+  const [users, setUsers] = useState<User[]>([]);
+  const [userStats, setUserStats] = useState<UserStats>({
+    total_users: 0,
+    active_users: 0,
+    admin_users: 0,
+    pending_users: 0
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (currentUser && hasPermission('manage_users')) {
+      fetchUsers();
+      fetchUserStats();
+    }
+  }, [currentUser]);
+
+  const hasPermission = (permission: string) => {
+    return currentUser?.permissions?.includes(permission) || false;
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          *,
+          user_profiles (
+            bio,
+            avatar_url
+          ),
+          user_roles (
+            roles (name)
+          ),
+          bot_owners (
+            subscription_plan,
+            max_bots
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des utilisateurs:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger la liste des utilisateurs",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchUserStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          id,
+          is_active,
+          user_roles (
+            roles (name)
+          )
+        `);
+
+      if (error) throw error;
+
+      if (data) {
+        const stats = {
+          total_users: data.length,
+          active_users: data.filter(u => u.is_active).length,
+          admin_users: data.filter(u => 
+            u.user_roles?.some(ur => ur.roles?.name === 'admin')
+          ).length,
+          pending_users: data.filter(u => !u.is_active).length
+        };
+        setUserStats(stats);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des statistiques:', error);
+    }
+  };
+
+  const updateUserStatus = async (userId: string, isActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: isActive })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      // Enregistrer l'activité
+      await supabase.rpc('log_user_activity', {
+        p_user_id: userId,
+        p_activity_type: isActive ? 'account_activated' : 'account_deactivated',
+        p_description: `Compte ${isActive ? 'activé' : 'désactivé'} par un administrateur`,
+        p_metadata: { admin_id: currentUser?.id }
+      });
+
+      await fetchUsers();
+      await fetchUserStats();
+
+      toast({
+        title: "Statut mis à jour",
+        description: `L'utilisateur a été ${isActive ? 'activé' : 'désactivé'} avec succès`,
+      });
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du statut:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le statut de l'utilisateur",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteUser = async (userId: string) => {
+    if (userId === currentUser?.id) {
+      toast({
+        title: "Erreur",
+        description: "Vous ne pouvez pas supprimer votre propre compte",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      await fetchUsers();
+      await fetchUserStats();
+
+      toast({
+        title: "Utilisateur supprimé",
+        description: "L'utilisateur a été supprimé avec succès",
+      });
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'utilisateur",
+        variant: "destructive",
+      });
+    }
+  };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
+    const matchesSearch = user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.phone?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const userRole = user.user_roles?.[0]?.roles?.name || 'user';
+    const matchesRole = filterRole === 'all' || userRole === filterRole;
+    
     return matchesSearch && matchesRole;
   });
 
@@ -39,21 +241,9 @@ export const UsersManagementPage: React.FC = () => {
     }
   };
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 border-green-200';
-      case 'inactive': return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+  const getStatusBadgeColor = (isActive: boolean) => {
+    return isActive ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200';
   };
-
-  const roles = [
-    { id: 'admin', name: 'Administrateur', permissions: 8, color: 'text-red-600' },
-    { id: 'manager', name: 'Manager', permissions: 6, color: 'text-blue-600' },
-    { id: 'user', name: 'Utilisateur', permissions: 4, color: 'text-green-600' },
-    { id: 'viewer', name: 'Observateur', permissions: 2, color: 'text-gray-600' }
-  ];
 
   if (!hasPermission('manage_users')) {
     return (
@@ -63,6 +253,14 @@ export const UsersManagementPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Accès restreint</h2>
           <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
         </Card>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-600"></div>
       </div>
     );
   }
@@ -87,7 +285,7 @@ export const UsersManagementPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-1">Total utilisateurs</h3>
-              <div className="text-2xl font-bold text-gray-900">{users.length}</div>
+              <div className="text-2xl font-bold text-gray-900">{userStats.total_users}</div>
             </div>
             <Users className="w-8 h-8 text-blue-500" />
           </div>
@@ -97,9 +295,7 @@ export const UsersManagementPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-1">Utilisateurs actifs</h3>
-              <div className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.status === 'active').length}
-              </div>
+              <div className="text-2xl font-bold text-gray-900">{userStats.active_users}</div>
             </div>
             <Shield className="w-8 h-8 text-green-500" />
           </div>
@@ -109,9 +305,7 @@ export const UsersManagementPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-1">Administrateurs</h3>
-              <div className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.role === 'admin').length}
-              </div>
+              <div className="text-2xl font-bold text-gray-900">{userStats.admin_users}</div>
             </div>
             <Settings className="w-8 h-8 text-red-500" />
           </div>
@@ -120,10 +314,8 @@ export const UsersManagementPage: React.FC = () => {
         <Card className="p-6 bg-white border border-gray-200 rounded-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">En attente</h3>
-              <div className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.status === 'pending').length}
-              </div>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">Inactifs</h3>
+              <div className="text-2xl font-bold text-gray-900">{userStats.pending_users}</div>
             </div>
             <Eye className="w-8 h-8 text-yellow-500" />
           </div>
@@ -136,7 +328,7 @@ export const UsersManagementPage: React.FC = () => {
           <div className="flex items-center space-x-4">
             <div className="relative">
               <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-              <input
+              <Input
                 type="text"
                 placeholder="Rechercher un utilisateur..."
                 value={searchTerm}
@@ -175,7 +367,8 @@ export const UsersManagementPage: React.FC = () => {
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Utilisateur</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Rôle</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Statut</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Dernière connexion</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Dernière activité</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-600">Abonnement</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
@@ -186,27 +379,51 @@ export const UsersManagementPage: React.FC = () => {
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
                         <span className="text-white font-semibold">
-                          {user.name.split(' ').map(n => n[0]).join('')}
+                          {user.full_name?.split(' ').map(n => n[0]).join('').substring(0, 2) || 'U'}
                         </span>
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className="font-medium text-gray-900">{user.full_name || 'Nom non défini'}</div>
+                        <div className="text-sm text-gray-500 flex items-center space-x-2">
+                          <Mail className="w-3 h-3" />
+                          <span>{user.email}</span>
+                        </div>
+                        {user.phone && (
+                          <div className="text-sm text-gray-500 flex items-center space-x-2">
+                            <Phone className="w-3 h-3" />
+                            <span>{user.phone}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
                   <td className="py-4 px-4">
-                    <Badge className={getRoleBadgeColor(user.role)}>
-                      {user.role}
+                    <Badge className={getRoleBadgeColor(user.user_roles?.[0]?.roles?.name || 'user')}>
+                      {user.user_roles?.[0]?.roles?.name || 'user'}
                     </Badge>
                   </td>
                   <td className="py-4 px-4">
-                    <Badge className={getStatusBadgeColor(user.status)}>
-                      {user.status}
+                    <Badge className={getStatusBadgeColor(user.is_active)}>
+                      {user.is_active ? 'Actif' : 'Inactif'}
                     </Badge>
                   </td>
                   <td className="py-4 px-4 text-gray-600">
-                    {user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Jamais'}
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-3 h-3" />
+                      <span className="text-sm">
+                        {user.last_activity ? 
+                          new Date(user.last_activity).toLocaleDateString('fr-FR') : 
+                          user.last_login ? 
+                          new Date(user.last_login).toLocaleDateString('fr-FR') : 
+                          'Jamais'
+                        }
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4">
+                    <Badge className="bg-purple-100 text-purple-800">
+                      {user.bot_owners?.[0]?.subscription_plan || user.subscription_tier || 'free'}
+                    </Badge>
                   </td>
                   <td className="py-4 px-4 text-right">
                     <div className="flex items-center justify-end space-x-2">
@@ -216,8 +433,21 @@ export const UsersManagementPage: React.FC = () => {
                       <Button variant="ghost" size="sm" className="p-2">
                         <Edit3 className="w-4 h-4" />
                       </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="p-2"
+                        onClick={() => updateUserStatus(user.id, !user.is_active)}
+                      >
+                        <Activity className={`w-4 h-4 ${user.is_active ? 'text-red-600' : 'text-green-600'}`} />
+                      </Button>
                       {user.id !== currentUser?.id && (
-                        <Button variant="ghost" size="sm" className="p-2 text-red-600 hover:text-red-700">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="p-2 text-red-600 hover:text-red-700"
+                          onClick={() => deleteUser(user.id)}
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
@@ -227,29 +457,6 @@ export const UsersManagementPage: React.FC = () => {
               ))}
             </tbody>
           </table>
-        </div>
-      </Card>
-
-      {/* Roles Management */}
-      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-        <h2 className="text-xl font-semibold mb-6 text-gray-900">Gestion des rôles</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {roles.map((role) => (
-            <div key={role.id} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className={`font-semibold ${role.color}`}>{role.name}</h3>
-                <Button variant="ghost" size="sm" className="p-1">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </div>
-              <p className="text-sm text-gray-600 mb-2">
-                {role.permissions} permissions
-              </p>
-              <div className="text-sm text-gray-500">
-                {users.filter(u => u.role === role.id).length} utilisateur(s)
-              </div>
-            </div>
-          ))}
         </div>
       </Card>
     </div>

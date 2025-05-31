@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   History, 
   MessageSquare, 
@@ -14,7 +16,9 @@ import {
   Clock,
   Eye,
   Trash2,
-  Filter
+  Filter,
+  Activity,
+  Shield
 } from 'lucide-react';
 
 interface ChatHistory {
@@ -25,12 +29,13 @@ interface ChatHistory {
   created_at: string;
 }
 
-interface AccountHistory {
+interface AccountActivity {
   id: string;
-  action: string;
-  details: string;
-  timestamp: string;
+  activity_type: string;
+  description: string;
+  created_at: string;
   ip_address: string;
+  metadata: any;
 }
 
 interface Notification {
@@ -42,29 +47,47 @@ interface Notification {
   created_at: string;
 }
 
+interface UserSession {
+  id: string;
+  session_token: string;
+  last_activity: string;
+  ip_address: string;
+  user_agent: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export const UserHistoryManagement: React.FC = () => {
+  const { user } = useAuth();
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>([]);
-  const [accountHistory, setAccountHistory] = useState<AccountHistory[]>([]);
+  const [accountActivities, setAccountActivities] = useState<AccountActivity[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [userSessions, setUserSessions] = useState<UserSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchAllHistory();
-  }, []);
+    if (user) {
+      fetchAllHistory();
+    }
+  }, [user]);
 
   const fetchAllHistory = async () => {
+    if (!user) return;
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Récupérer l'historique des chats
-      await fetchChatHistory(user.id);
+      setIsLoading(true);
       
-      // Récupérer l'historique du compte
-      await fetchAccountHistory(user.id);
+      // Récupérer l'historique des chats
+      await fetchChatHistory();
+      
+      // Récupérer l'activité du compte
+      await fetchAccountActivities();
       
       // Récupérer les notifications
-      await fetchNotifications(user.id);
+      await fetchNotifications();
+      
+      // Récupérer les sessions
+      await fetchUserSessions();
 
     } catch (error) {
       console.error('Erreur lors du chargement de l\'historique:', error);
@@ -73,28 +96,27 @@ export const UserHistoryManagement: React.FC = () => {
     }
   };
 
-  const fetchChatHistory = async (userId: string) => {
-    // Récupérer les sessions de chat via bot_users
+  const fetchChatHistory = async () => {
     const { data: sessions } = await supabase
       .from('chat_sessions')
       .select(`
         id,
         started_at,
         total_messages,
+        bot_id,
         bots (name)
       `)
       .order('started_at', { ascending: false })
       .limit(50);
 
     if (sessions) {
-      // Récupérer les derniers messages pour chaque session
       const formattedHistory: ChatHistory[] = [];
       
       for (const session of sessions) {
         const { data: lastMessage } = await supabase
           .from('chat_messages')
           .select('message_content')
-          .eq('bot_id', session.id)
+          .eq('bot_id', session.bot_id)
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
@@ -112,37 +134,42 @@ export const UserHistoryManagement: React.FC = () => {
     }
   };
 
-  const fetchAccountHistory = async (userId: string) => {
-    const { data: history } = await supabase
-      .from('access_logs')
+  const fetchAccountActivities = async () => {
+    const { data: activities } = await supabase
+      .from('user_activities')
       .select('*')
-      .eq('user_id', userId)
-      .order('timestamp', { ascending: false })
+      .eq('user_id', user!.id)
+      .order('created_at', { ascending: false })
       .limit(100);
 
-    if (history) {
-      const formattedHistory: AccountHistory[] = history.map(log => ({
-        id: log.id,
-        action: log.action,
-        details: JSON.stringify(log.details),
-        timestamp: log.timestamp,
-        ip_address: log.ip_address
-      }));
-      
-      setAccountHistory(formattedHistory);
+    if (activities) {
+      setAccountActivities(activities);
     }
   };
 
-  const fetchNotifications = async (userId: string) => {
+  const fetchNotifications = async () => {
     const { data: notifs } = await supabase
       .from('notifications')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', user!.id)
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (notifs) {
       setNotifications(notifs);
+    }
+  };
+
+  const fetchUserSessions = async () => {
+    const { data: sessions } = await supabase
+      .from('user_sessions')
+      .select('*')
+      .eq('user_id', user!.id)
+      .order('last_activity', { ascending: false })
+      .limit(20);
+
+    if (sessions) {
+      setUserSessions(sessions);
     }
   };
 
@@ -172,6 +199,30 @@ export const UserHistoryManagement: React.FC = () => {
     );
   };
 
+  const terminateSession = async (sessionId: string) => {
+    await supabase
+      .from('user_sessions')
+      .update({ is_active: false })
+      .eq('id', sessionId);
+    
+    setUserSessions(prev => 
+      prev.map(session => 
+        session.id === sessionId 
+          ? { ...session, is_active: false }
+          : session
+      )
+    );
+  };
+
+  const getActivityIcon = (activityType: string) => {
+    switch (activityType) {
+      case 'login': return <Shield className="w-4 h-4" />;
+      case 'account_created': return <User className="w-4 h-4" />;
+      case 'profile_updated': return <Settings className="w-4 h-4" />;
+      default: return <Activity className="w-4 h-4" />;
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -183,20 +234,24 @@ export const UserHistoryManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Historique & Notifications</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Historique & Activité</h2>
         <p className="text-gray-600">Consultez votre activité et gérez vos notifications</p>
       </div>
 
       <Card className="uniform-card">
         <Tabs defaultValue="chats" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 p-1 bg-gray-100 rounded-t-xl">
+          <TabsList className="grid w-full grid-cols-4 p-1 bg-gray-100 rounded-t-xl">
             <TabsTrigger value="chats" className="flex items-center space-x-2">
               <MessageSquare className="w-4 h-4" />
-              <span>Historique Chats</span>
+              <span>Conversations</span>
             </TabsTrigger>
-            <TabsTrigger value="account" className="flex items-center space-x-2">
-              <History className="w-4 h-4" />
-              <span>Activité Compte</span>
+            <TabsTrigger value="activities" className="flex items-center space-x-2">
+              <Activity className="w-4 h-4" />
+              <span>Activités</span>
+            </TabsTrigger>
+            <TabsTrigger value="sessions" className="flex items-center space-x-2">
+              <Shield className="w-4 h-4" />
+              <span>Sessions</span>
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center space-x-2">
               <Bell className="w-4 h-4" />
@@ -252,36 +307,97 @@ export const UserHistoryManagement: React.FC = () => {
               </div>
             </TabsContent>
             
-            <TabsContent value="account" className="mt-0">
+            <TabsContent value="activities" className="mt-0">
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">
                   Activité du compte
                 </h3>
                 
-                {accountHistory.length === 0 ? (
+                {accountActivities.length === 0 ? (
                   <div className="text-center py-8">
                     <History className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600">Aucune activité enregistrée</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {accountHistory.map((log) => (
-                      <div key={log.id} className="p-4 bg-gray-50 rounded-lg">
+                    {accountActivities.map((activity) => (
+                      <div key={activity.id} className="p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center space-x-3">
                             <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
-                              <Clock className="w-4 h-4 text-gray-600" />
+                              {getActivityIcon(activity.activity_type)}
                             </div>
                             <div>
-                              <div className="font-medium text-gray-900">{log.action}</div>
-                              <div className="text-sm text-gray-500">IP: {log.ip_address}</div>
+                              <div className="font-medium text-gray-900">{activity.activity_type}</div>
+                              <div className="text-sm text-gray-500">
+                                IP: {activity.ip_address || 'N/A'}
+                              </div>
                             </div>
                           </div>
                           <div className="text-sm text-gray-500">
-                            {new Date(log.timestamp).toLocaleString('fr-FR')}
+                            {new Date(activity.created_at).toLocaleString('fr-FR')}
                           </div>
                         </div>
-                        <p className="text-gray-600 text-sm">{log.details}</p>
+                        {activity.description && (
+                          <p className="text-gray-600 text-sm">{activity.description}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="sessions" className="mt-0">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Sessions actives
+                  </h3>
+                </div>
+                
+                {userSessions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Aucune session trouvée</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {userSessions.map((session) => (
+                      <div key={session.id} className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center">
+                              <Shield className="w-4 h-4 text-gray-600" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                Session {session.session_token.substring(0, 8)}...
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                IP: {session.ip_address} • {session.user_agent?.substring(0, 50)}...
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                Dernière activité: {new Date(session.last_activity).toLocaleString('fr-FR')}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge className={session.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                              {session.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                            {session.is_active && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => terminateSession(session.id)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                Terminer
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -19,7 +19,11 @@ import {
   CreditCard,
   Key,
   Save,
-  Edit3
+  Edit3,
+  Phone,
+  Mail,
+  Calendar,
+  Activity
 } from 'lucide-react';
 
 interface UserProfile {
@@ -30,35 +34,39 @@ interface UserProfile {
   subscription_tier: string;
   created_at: string;
   last_login: string | null;
+  is_active: boolean;
+  language: string;
+  timezone: string;
+  avatar_url: string | null;
 }
 
-interface BotOwnerInfo {
-  subscription_plan: string;
-  max_bots: number;
-  created_at: string;
-}
-
-interface UserPermissions {
-  role: string;
-  permissions: string[];
+interface UserStats {
+  total_bots: number;
+  total_messages: number;
+  total_automations: number;
+  unread_notifications: number;
+  role_name: string;
 }
 
 export const AccountPage: React.FC = () => {
-  const { user: authUser } = useAuth();
+  const { user: authUser, updateProfile } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [botOwner, setBotOwner] = useState<BotOwnerInfo | null>(null);
-  const [userPermissions, setUserPermissions] = useState<UserPermissions | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
-    phone: ''
+    phone: '',
+    bio: '',
+    language: 'fr',
+    timezone: 'UTC'
   });
   const { toast } = useToast();
 
   useEffect(() => {
     if (authUser) {
       fetchUserProfile();
+      fetchUserStats();
     }
   }, [authUser]);
 
@@ -67,10 +75,18 @@ export const AccountPage: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Récupérer le profil utilisateur
+      // Récupérer le profil utilisateur complet
       const { data: profileData, error: profileError } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          user_profiles (
+            bio,
+            avatar_url,
+            preferences,
+            social_links
+          )
+        `)
         .eq('id', user.id)
         .single();
 
@@ -80,45 +96,10 @@ export const AccountPage: React.FC = () => {
         setProfile(profileData);
         setFormData({
           full_name: profileData.full_name || '',
-          phone: profileData.phone || ''
-        });
-      }
-
-      // Récupérer les informations bot_owner
-      const { data: ownerData, error: ownerError } = await supabase
-        .from('bot_owners')
-        .select('subscription_plan, max_bots, created_at')
-        .eq('user_id', user.id)
-        .single();
-
-      if (ownerError && ownerError.code !== 'PGRST116') {
-        console.error('Erreur bot_owner:', ownerError);
-      } else if (ownerData) {
-        setBotOwner(ownerData);
-      }
-
-      // Récupérer les rôles et permissions
-      const { data: userRoles } = await supabase
-        .from('user_roles')
-        .select(`
-          roles (
-            name,
-            role_permissions (
-              permissions (name, action, resource)
-            )
-          )
-        `)
-        .eq('user_id', user.id);
-
-      if (userRoles && userRoles.length > 0) {
-        const role = userRoles[0].roles;
-        const permissions = role.role_permissions?.map(rp => 
-          `${rp.permissions.action}:${rp.permissions.resource}`
-        ) || [];
-        
-        setUserPermissions({
-          role: role.name,
-          permissions
+          phone: profileData.phone || '',
+          bio: profileData.user_profiles?.[0]?.bio || '',
+          language: profileData.language || 'fr',
+          timezone: profileData.timezone || 'UTC'
         });
       }
 
@@ -134,7 +115,26 @@ export const AccountPage: React.FC = () => {
     }
   };
 
-  const updateProfile = async () => {
+  const fetchUserStats = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: stats } = await supabase
+        .from('user_stats')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (stats) {
+        setUserStats(stats);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des statistiques:', error);
+    }
+  };
+
+  const updateUserProfile = async () => {
     if (!authUser) return;
 
     setIsUpdating(true);
@@ -142,17 +142,42 @@ export const AccountPage: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
+      // Mettre à jour la table users
+      const { error: userError } = await supabase
         .from('users')
-        .upsert({
-          id: user.id,
-          email: user.email || '',
+        .update({
           full_name: formData.full_name,
           phone: formData.phone,
+          language: formData.language,
+          timezone: formData.timezone,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (userError) throw userError;
+
+      // Mettre à jour ou créer le profil étendu
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: user.id,
+          bio: formData.bio,
           updated_at: new Date().toISOString()
         });
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Enregistrer l'activité de mise à jour
+      await supabase.rpc('log_user_activity', {
+        p_user_id: user.id,
+        p_activity_type: 'profile_updated',
+        p_description: 'Profil utilisateur mis à jour',
+        p_metadata: { 
+          updated_fields: Object.keys(formData).filter(key => 
+            formData[key as keyof typeof formData] !== ''
+          )
+        }
+      });
 
       await fetchUserProfile();
 
@@ -200,7 +225,7 @@ export const AccountPage: React.FC = () => {
       {/* Header */}
       <div>
         <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
-          Mon Compte - {userPermissions?.role || 'Utilisateur'}
+          Mon Compte - {userStats?.role_name || authUser.role}
         </h1>
         <p className="text-gray-600">
           Gérez vos informations personnelles et votre abonnement
@@ -237,7 +262,7 @@ export const AccountPage: React.FC = () => {
                     Informations personnelles
                   </h3>
                   <Button 
-                    onClick={updateProfile}
+                    onClick={updateUserProfile}
                     disabled={isUpdating}
                     className="uniform-button-primary"
                   >
@@ -249,6 +274,7 @@ export const AccountPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <User className="w-4 h-4 inline mr-2" />
                       Nom complet
                     </label>
                     <Input
@@ -260,6 +286,7 @@ export const AccountPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Mail className="w-4 h-4 inline mr-2" />
                       Email
                     </label>
                     <Input
@@ -270,17 +297,19 @@ export const AccountPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Phone className="w-4 h-4 inline mr-2" />
                       Téléphone
                     </label>
                     <Input
                       value={formData.phone}
                       onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="+33 1 23 45 67 89"
+                      placeholder="+229 XX XX XX XX"
                       className="uniform-input"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Calendar className="w-4 h-4 inline mr-2" />
                       Membre depuis
                     </label>
                     <Input
@@ -289,39 +318,104 @@ export const AccountPage: React.FC = () => {
                       className="uniform-input bg-gray-100"
                     />
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Biographie
+                    </label>
+                    <textarea
+                      value={formData.bio}
+                      onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                      placeholder="Parlez-nous de vous..."
+                      className="uniform-input min-h-[100px]"
+                      rows={4}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Langue
+                    </label>
+                    <select
+                      value={formData.language}
+                      onChange={(e) => setFormData(prev => ({ ...prev, language: e.target.value }))}
+                      className="uniform-input"
+                    >
+                      <option value="fr">Français</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fuseau horaire
+                    </label>
+                    <select
+                      value={formData.timezone}
+                      onChange={(e) => setFormData(prev => ({ ...prev, timezone: e.target.value }))}
+                      className="uniform-input"
+                    >
+                      <option value="UTC">UTC</option>
+                      <option value="Africa/Porto-Novo">Afrique/Porto-Novo</option>
+                      <option value="Europe/Paris">Europe/Paris</option>
+                    </select>
+                  </div>
                 </div>
               </Card>
 
               {/* Statistiques du compte */}
               <Card className="uniform-card p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  <Activity className="w-5 h-5 inline mr-2" />
                   Résumé du compte
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {botOwner?.max_bots || 0}
+                    <div className="text-2xl font-bold text-blue-600">
+                      {userStats?.total_bots || 0}
                     </div>
-                    <div className="text-sm text-gray-600">Bots autorisés</div>
+                    <div className="text-sm text-gray-600">Chatbots</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {userPermissions?.role === 'admin' ? 'Admin' : 
-                       userPermissions?.role === 'manager' ? 'Manager' : 'User'}
+                    <div className="text-2xl font-bold text-green-600">
+                      {userStats?.total_messages || 0}
                     </div>
-                    <div className="text-sm text-gray-600">Niveau d'accès</div>
+                    <div className="text-sm text-gray-600">Messages</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {profile?.subscription_tier === 'free' ? 'Gratuit' : 'Premium'}
+                    <div className="text-2xl font-bold text-purple-600">
+                      {userStats?.total_automations || 0}
                     </div>
-                    <div className="text-sm text-gray-600">Plan actuel</div>
+                    <div className="text-sm text-gray-600">Automations</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {userPermissions?.permissions.length || 0}
+                    <div className="text-2xl font-bold text-orange-600">
+                      {userStats?.unread_notifications || 0}
                     </div>
-                    <div className="text-sm text-gray-600">Permissions</div>
+                    <div className="text-sm text-gray-600">Notifications</div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Status du compte */}
+              <Card className="uniform-card p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Status du compte
+                </h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <Badge className={`${profile?.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {profile?.is_active ? 'Actif' : 'Inactif'}
+                    </Badge>
+                    <Badge className="bg-blue-100 text-blue-800">
+                      {userStats?.role_name || authUser.role}
+                    </Badge>
+                    <Badge className="bg-purple-100 text-purple-800">
+                      {profile?.subscription_tier || 'free'}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Dernière connexion: {profile?.last_login ? 
+                      new Date(profile.last_login).toLocaleString('fr-FR') : 
+                      'Jamais'
+                    }
                   </div>
                 </div>
               </Card>
@@ -412,7 +506,7 @@ export const AccountPage: React.FC = () => {
                       <Shield className="w-6 h-6 text-gray-600" />
                       <div>
                         <h4 className="font-semibold text-gray-900 capitalize">
-                          Rôle: {userPermissions?.role || 'Non défini'}
+                          Rôle: {userStats?.role_name || authUser.role}
                         </h4>
                         <p className="text-sm text-gray-600">
                           Niveau d'accès attribué à votre compte
@@ -423,11 +517,11 @@ export const AccountPage: React.FC = () => {
                   
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">
-                      Permissions disponibles ({userPermissions?.permissions.length || 0})
+                      Permissions disponibles ({authUser.permissions.length})
                     </h4>
-                    {userPermissions?.permissions.length ? (
+                    {authUser.permissions.length ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {userPermissions.permissions.map((permission, index) => (
+                        {authUser.permissions.map((permission, index) => (
                           <div key={index} className="flex items-center space-x-2 p-2 bg-white border border-gray-200 rounded">
                             <Key className="w-4 h-4 text-gray-500" />
                             <span className="text-sm text-gray-700">{permission}</span>
