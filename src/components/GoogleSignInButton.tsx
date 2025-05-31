@@ -2,6 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface GoogleSignInButtonProps {
   variant?: 'signin' | 'signup';
@@ -13,9 +14,28 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   disabled = false 
 }) => {
   const { loginWithGoogle, isLoading } = useAuth();
+  const { toast } = useToast();
 
   const handleGoogleAuth = async () => {
-    await loginWithGoogle();
+    try {
+      console.log('Tentative de connexion Google...');
+      const success = await loginWithGoogle();
+      
+      if (!success) {
+        toast({
+          title: "Configuration requise",
+          description: "La connexion Google n'est pas encore configurée. Veuillez configurer OAuth dans Supabase.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du clic Google Auth:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de démarrer la connexion Google",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

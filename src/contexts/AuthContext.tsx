@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -280,17 +279,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
+      // Détecter l'environnement et définir l'URL de redirection appropriée
+      const isLocalhost = window.location.hostname === 'localhost';
+      const redirectTo = isLocalhost 
+        ? 'http://localhost:3000/'
+        : window.location.origin + '/';
+
+      console.log('Google auth redirect URL:', redirectTo);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`
+          redirectTo: redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
 
       if (error) {
+        console.error('Erreur Google Auth:', error);
         toast({
           title: "Erreur de connexion Google",
-          description: error.message,
+          description: `Erreur: ${error.message}. Vérifiez la configuration OAuth dans Supabase.`,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -303,6 +315,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: "Vous allez être redirigé vers Google pour vous connecter",
       });
       
+      // Ne pas désactiver le loading ici car la redirection va se faire
       return true;
     } catch (error) {
       console.error('Erreur de connexion Google:', error);
@@ -311,10 +324,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: "Une erreur est survenue lors de la connexion avec Google",
         variant: "destructive",
       });
+      setIsLoading(false);
+      return false;
     }
-    
-    setIsLoading(false);
-    return false;
   };
 
   const register = async (userData: {
