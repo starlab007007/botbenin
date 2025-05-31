@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,10 +47,16 @@ interface UserStats {
   role_name: string;
 }
 
+interface BotOwner {
+  subscription_plan: string;
+  max_bots: number;
+}
+
 export const AccountPage: React.FC = () => {
   const { user: authUser, updateProfile } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [botOwner, setBotOwner] = useState<BotOwner | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [formData, setFormData] = useState({
@@ -85,6 +90,10 @@ export const AccountPage: React.FC = () => {
             avatar_url,
             preferences,
             social_links
+          ),
+          bot_owners (
+            subscription_plan,
+            max_bots
           )
         `)
         .eq('id', user.id)
@@ -94,6 +103,12 @@ export const AccountPage: React.FC = () => {
         console.error('Erreur profil:', profileError);
       } else if (profileData) {
         setProfile(profileData);
+        
+        // Set bot owner data
+        if (profileData.bot_owners && profileData.bot_owners.length > 0) {
+          setBotOwner(profileData.bot_owners[0]);
+        }
+        
         setFormData({
           full_name: profileData.full_name || '',
           phone: profileData.phone || '',

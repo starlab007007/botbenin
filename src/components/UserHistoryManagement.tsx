@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +33,7 @@ interface AccountActivity {
   activity_type: string;
   description: string;
   created_at: string;
-  ip_address: string;
+  ip_address: string | null;
   metadata: any;
 }
 
@@ -51,8 +50,8 @@ interface UserSession {
   id: string;
   session_token: string;
   last_activity: string;
-  ip_address: string;
-  user_agent: string;
+  ip_address: string | null;
+  user_agent: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -143,7 +142,15 @@ export const UserHistoryManagement: React.FC = () => {
       .limit(100);
 
     if (activities) {
-      setAccountActivities(activities);
+      const formattedActivities: AccountActivity[] = activities.map(activity => ({
+        id: activity.id,
+        activity_type: activity.activity_type,
+        description: activity.description || '',
+        created_at: activity.created_at,
+        ip_address: activity.ip_address ? String(activity.ip_address) : null,
+        metadata: activity.metadata
+      }));
+      setAccountActivities(formattedActivities);
     }
   };
 
@@ -169,7 +176,16 @@ export const UserHistoryManagement: React.FC = () => {
       .limit(20);
 
     if (sessions) {
-      setUserSessions(sessions);
+      const formattedSessions: UserSession[] = sessions.map(session => ({
+        id: session.id,
+        session_token: session.session_token,
+        last_activity: session.last_activity,
+        ip_address: session.ip_address ? String(session.ip_address) : null,
+        user_agent: session.user_agent,
+        is_active: session.is_active,
+        created_at: session.created_at
+      }));
+      setUserSessions(formattedSessions);
     }
   };
 
@@ -375,7 +391,7 @@ export const UserHistoryManagement: React.FC = () => {
                                 Session {session.session_token.substring(0, 8)}...
                               </div>
                               <div className="text-sm text-gray-500">
-                                IP: {session.ip_address} • {session.user_agent?.substring(0, 50)}...
+                                IP: {session.ip_address || 'N/A'} • {session.user_agent?.substring(0, 50) || 'N/A'}...
                               </div>
                               <div className="text-xs text-gray-400">
                                 Dernière activité: {new Date(session.last_activity).toLocaleString('fr-FR')}

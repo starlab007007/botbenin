@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,10 +36,10 @@ interface User {
   timezone: string;
   avatar_url?: string;
   last_activity?: string;
-  user_profiles?: Array<{
+  user_profiles?: {
     bio?: string;
     avatar_url?: string;
-  }>;
+  };
   user_roles?: Array<{
     roles: {
       name: string;
@@ -107,7 +106,12 @@ export const UsersManagementPage: React.FC = () => {
       if (error) throw error;
 
       if (data) {
-        setUsers(data);
+        // Transform the data to match our User interface
+        const transformedUsers: User[] = data.map(user => ({
+          ...user,
+          user_profiles: Array.isArray(user.user_profiles) ? user.user_profiles[0] : user.user_profiles
+        }));
+        setUsers(transformedUsers);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);

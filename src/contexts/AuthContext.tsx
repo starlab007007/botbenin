@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -150,6 +149,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         });
 
+        // Handle bot_owners data safely
+        const botOwnerData = Array.isArray(userData.bot_owners) ? userData.bot_owners[0] : userData.bot_owners;
+        const subscriptionPlan = botOwnerData?.subscription_plan || 'free';
+
         const authUser: AuthUser = {
           id: userData.id,
           name: userData.full_name || '',
@@ -161,7 +164,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           lastLogin: userData.last_login ? new Date(userData.last_login) : undefined,
           createdAt: new Date(userData.created_at),
           subscription: {
-            type: userData.bot_owners?.[0]?.subscription_plan || 'free',
+            type: subscriptionPlan as 'free' | 'pro' | 'enterprise',
             status: 'active'
           },
           profile: userData.user_profiles?.[0] || undefined,
