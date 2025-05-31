@@ -88,6 +88,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('Auth event:', event, session);
         if (session?.user) {
           await loadUserProfile(session.user.id);
+          
+          // Redirection automatique vers Mon Compte après connexion Google
+          if (event === 'SIGNED_IN' && session.user.app_metadata?.provider === 'google') {
+            console.log('Connexion Google réussie, redirection vers Mon Compte...');
+            setTimeout(() => {
+              window.location.href = '/account';
+            }, 1000);
+          }
         } else {
           setUser(null);
         }
@@ -178,6 +186,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
 
         setUser(authUser);
+        
+        // Toast de bienvenue pour les connexions Google
+        if (userData.auth_provider === 'google') {
+          toast({
+            title: "Connexion Google réussie",
+            description: `Bienvenue ${authUser.name} !`,
+          });
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
@@ -281,9 +297,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // Détecter l'environnement et définir l'URL de redirection appropriée
       const isLocalhost = window.location.hostname === 'localhost';
-      const redirectTo = isLocalhost 
-        ? 'http://localhost:3000/'
-        : window.location.origin + '/';
+      const baseUrl = isLocalhost 
+        ? 'http://localhost:3000'
+        : 'https://bot.bj';
+      
+      const redirectTo = `${baseUrl}/account`;
 
       console.log('Google auth redirect URL:', redirectTo);
 

@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { UserProvider } from "@/contexts/UserContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { GoogleAuthHandler } from "@/components/GoogleAuthHandler";
 import { Layout } from "./components/Layout";
 import { HomePage } from "./pages/HomePage";
 import { ChatPage } from "./pages/ChatPage";
@@ -37,6 +38,7 @@ const App: React.FC = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <GoogleAuthHandler />
               <Routes>
                 {/* Routes publiques */}
                 <Route path="/bot/:botId" element={<PublicBotChatPage />} />
