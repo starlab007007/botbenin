@@ -8,11 +8,18 @@ interface AccountStatusProps {
   profile: any;
   userStats: {
     role_name: string;
+    email?: string;
+    full_name?: string;
+    phone?: string;
   } | null;
   authUser: AuthUser;
 }
 
 export const AccountStatus: React.FC<AccountStatusProps> = ({ profile, userStats, authUser }) => {
+  const isDataMasked = (value: string) => {
+    return value && (value.includes('[') && value.includes('masqué'));
+  };
+
   return (
     <Card className="uniform-card p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -29,6 +36,11 @@ export const AccountStatus: React.FC<AccountStatusProps> = ({ profile, userStats
           <Badge className="bg-purple-100 text-purple-800">
             {profile?.subscription_tier || 'free'}
           </Badge>
+          {isDataMasked(userStats?.email || '') && (
+            <Badge className="bg-yellow-100 text-yellow-800">
+              Compte Démo
+            </Badge>
+          )}
         </div>
         <div className="text-sm text-gray-500">
           Dernière connexion: {profile?.last_login ? 
