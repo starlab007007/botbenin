@@ -86,6 +86,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Écouter les changements d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth event:', event, session);
         if (session?.user) {
           await loadUserProfile(session.user.id);
         } else {
@@ -297,6 +298,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // La redirection se fera automatiquement
+      toast({
+        title: "Redirection en cours",
+        description: "Vous allez être redirigé vers Google pour vous connecter",
+      });
+      
       return true;
     } catch (error) {
       console.error('Erreur de connexion Google:', error);
@@ -342,13 +348,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
-      toast({
-        title: "Compte créé avec succès",
-        description: `Bienvenue ${userData.name}! Vérifiez votre email pour activer votre compte.`,
-      });
-      
-      setIsLoading(false);
-      return true;
+      if (data.user) {
+        toast({
+          title: "Compte créé avec succès",
+          description: `Bienvenue ${userData.name}! ${data.user.email_confirmed_at ? 'Votre compte est activé.' : 'Vérifiez votre email pour activer votre compte.'}`,
+        });
+        
+        setIsLoading(false);
+        return true;
+      }
     } catch (error) {
       console.error('Erreur d\'inscription:', error);
       toast({

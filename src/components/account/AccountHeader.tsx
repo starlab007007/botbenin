@@ -11,9 +11,7 @@ interface AccountHeaderProps {
 }
 
 export const AccountHeader: React.FC<AccountHeaderProps> = ({ userStats, authUser }) => {
-  const displayName = userStats?.full_name?.includes('[Nom masqué]') 
-    ? 'Utilisateur Démo' 
-    : userStats?.full_name || authUser.email;
+  const displayName = userStats?.full_name || authUser.name || authUser.email;
 
   return (
     <div>

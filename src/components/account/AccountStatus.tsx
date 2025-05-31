@@ -16,10 +16,6 @@ interface AccountStatusProps {
 }
 
 export const AccountStatus: React.FC<AccountStatusProps> = ({ profile, userStats, authUser }) => {
-  const isDataMasked = (value: string) => {
-    return value && (value.includes('[') && value.includes('masqué'));
-  };
-
   return (
     <Card className="uniform-card p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -36,9 +32,9 @@ export const AccountStatus: React.FC<AccountStatusProps> = ({ profile, userStats
           <Badge className="bg-purple-100 text-purple-800">
             {profile?.subscription_tier || 'free'}
           </Badge>
-          {isDataMasked(userStats?.email || '') && (
-            <Badge className="bg-yellow-100 text-yellow-800">
-              Compte Démo
+          {authUser.authProvider === 'google' && (
+            <Badge className="bg-blue-100 text-blue-800">
+              Connecté via Google
             </Badge>
           )}
         </div>
