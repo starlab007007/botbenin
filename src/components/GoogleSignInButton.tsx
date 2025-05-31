@@ -3,7 +3,6 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
 
 interface GoogleSignInButtonProps {
   variant?: 'signin' | 'signup';
@@ -16,11 +15,16 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 }) => {
   const { loginWithGoogle, isLoading } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   const handleGoogleAuth = async () => {
     try {
-      console.log('Tentative de connexion Google...');
+      console.log('Clic sur le bouton Google Auth...');
+      
+      toast({
+        title: "Redirection vers Google",
+        description: "Veuillez patienter pendant la redirection...",
+      });
+      
       const success = await loginWithGoogle();
       
       if (!success) {
@@ -28,12 +32,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
           title: "Configuration requise",
           description: "La connexion Google n'est pas encore configurée. Veuillez configurer OAuth dans Supabase.",
           variant: "destructive",
-        });
-      } else {
-        // Afficher un message de succès immédiat
-        toast({
-          title: "Redirection vers Google",
-          description: "Connexion en cours...",
         });
       }
     } catch (error) {
