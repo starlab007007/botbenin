@@ -39,9 +39,9 @@ export const Sidebar: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200 overflow-y-auto">
+    <div className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Navigation */}
-      <nav className="p-4 space-y-6">
+      <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
         {/* Main Menu */}
         <div>
           <ul className="space-y-2">
@@ -94,32 +94,32 @@ export const Sidebar: React.FC = () => {
             ))}
           </ul>
         </div>
-
-        {/* Bottom Items */}
-        <div className="absolute bottom-4 left-4 right-4">
-          <ul className="space-y-2">
-            {bottomItems.map((item) => (
-              <li key={item.path}>
-                <NavLink
-                  to={item.path}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
-                    isActive(item.path)
-                      ? 'bg-gray-50 shadow-sm'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
-                    <item.icon className="w-4 h-4 text-white" />
-                  </div>
-                  <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
-                    {item.title}
-                  </span>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </div>
       </nav>
+
+      {/* Bottom Items - Fixed at bottom */}
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <ul className="space-y-2">
+          {bottomItems.map((item) => (
+            <li key={item.path}>
+              <NavLink
+                to={item.path}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                  isActive(item.path)
+                    ? 'bg-gray-50 shadow-sm'
+                    : 'hover:bg-gray-50'
+                }`}
+              >
+                <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
+                  <item.icon className="w-4 h-4 text-white" />
+                </div>
+                <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
+                  {item.title}
+                </span>
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };
