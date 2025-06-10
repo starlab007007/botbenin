@@ -77,9 +77,34 @@ const rolePermissions = {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [testAccountsInitialized, setTestAccountsInitialized] = useState(false);
   const { toast } = useToast();
 
+  // Initialize test accounts on app start
+  const initializeTestAccounts = async () => {
+    if (testAccountsInitialized) return;
+    
+    try {
+      console.log('Initializing test accounts...');
+      const { data, error } = await supabase.functions.invoke('setup-test-accounts');
+      
+      if (error) {
+        console.error('Error initializing test accounts:', error);
+      } else {
+        console.log('Test accounts initialized:', data);
+      }
+      
+      setTestAccountsInitialized(true);
+    } catch (error) {
+      console.error('Error calling setup-test-accounts function:', error);
+      setTestAccountsInitialized(true); // Mark as tried even if failed
+    }
+  };
+
   useEffect(() => {
+    // Initialize test accounts first
+    initializeTestAccounts();
+    
     // Vérifier la session actuelle au chargement
     checkUser();
     
@@ -198,16 +223,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
+      console.log('Tentative de connexion pour:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password
       });
 
       if (error) {
+        console.error('Erreur de connexion:', error);
         let errorMessage = "Une erreur est survenue lors de la connexion";
         
         if (error.message.includes('Invalid login credentials')) {
-          errorMessage = "Email ou mot de passe incorrect";
+          errorMessage = "Email ou mot de passe incorrect. Utilisez 'admin@test.com' / 'admin123456' ou 'user@test.com' / 'user123456'";
         } else if (error.message.includes('Email not confirmed')) {
           errorMessage = "Veuillez confirmer votre email avant de vous connecter";
         } else if (error.message.includes('Too many requests')) {
@@ -224,6 +252,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
+        console.log('Connexion réussie pour:', data.user.email);
+        
         // Mettre à jour la dernière connexion
         await supabase
           .from('users')

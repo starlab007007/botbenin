@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Phone, Eye, EyeOff, User, Lock } from 'lucide-react';
+import { Mail, Phone, Eye, EyeOff, User, Lock, Info } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 
@@ -155,6 +155,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <p className="text-gray-800">Votre assistant IA intelligent</p>
           </div>
 
+          {/* Test Accounts Info */}
+          <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Comptes de test disponibles :</p>
+                <div className="space-y-1 text-xs">
+                  <p><strong>Admin :</strong> admin@test.com / admin123456</p>
+                  <p><strong>Utilisateur :</strong> user@test.com / user123456</p>
+                  <p><strong>Téléphone :</strong> +229 97 00 00 01 ou +229 97 00 00 02</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-yellow-400">
               <TabsTrigger value="login" className="text-black font-medium data-[state=active]:bg-yellow-300">Connexion</TabsTrigger>
@@ -204,7 +219,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       <Input
                         id="email"
                         type="email"
-                        placeholder="votre@email.com ou admin@test.com"
+                        placeholder="admin@test.com ou user@test.com"
                         value={loginData.email}
                         onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                         className={`bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.email ? 'border-red-500' : ''}`}
@@ -232,7 +247,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       <Input
                         id="password"
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="••••••••"
+                        placeholder="admin123456 ou user123456"
                         value={loginData.password}
                         onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                         className={`bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.password ? 'border-red-500' : ''}`}
