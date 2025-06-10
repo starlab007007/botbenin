@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -198,14 +199,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password
       });
 
       if (error) {
+        let errorMessage = "Une erreur est survenue lors de la connexion";
+        
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = "Email ou mot de passe incorrect";
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = "Veuillez confirmer votre email avant de vous connecter";
+        } else if (error.message.includes('Too many requests')) {
+          errorMessage = "Trop de tentatives. Veuillez réessayer dans quelques minutes";
+        }
+
         toast({
           title: "Erreur de connexion",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -220,12 +231,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .eq('id', data.user.id);
 
         // Enregistrer l'activité de connexion
-        await supabase.rpc('log_user_activity', {
-          p_user_id: data.user.id,
-          p_activity_type: 'login',
-          p_description: 'Connexion par email',
-          p_metadata: { method: 'email' }
-        });
+        try {
+          await supabase.rpc('log_user_activity', {
+            p_user_id: data.user.id,
+            p_activity_type: 'login',
+            p_description: 'Connexion par email',
+            p_metadata: { method: 'email' }
+          });
+        } catch (activityError) {
+          console.log('Erreur lors de l\'enregistrement de l\'activité:', activityError);
+        }
 
         toast({
           title: "Connexion réussie",
@@ -256,7 +271,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { data: userData, error: searchError } = await supabase
         .from('users')
         .select('email')
-        .eq('phone', phone)
+        .eq('phone', phone.trim())
         .single();
 
       if (searchError || !userData) {
@@ -270,6 +285,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Utiliser l'email trouvé pour la connexion
+      setIsLoading(false); // Éviter le double loading
       return await login(userData.email, password);
     } catch (error) {
       console.error('Erreur de connexion par téléphone:', error);
@@ -349,21 +365,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
+        email: userData.email.trim(),
         password: userData.password,
         options: {
           data: {
-            full_name: userData.name,
-            phone: userData.phone
+            full_name: userData.name.trim(),
+            phone: userData.phone?.trim()
           },
           emailRedirectTo: `${window.location.origin}/`
         }
       });
 
       if (error) {
+        let errorMessage = "Une erreur est survenue lors de l'inscription";
+        
+        if (error.message.includes('already registered')) {
+          errorMessage = "Un compte existe déjà avec cet email";
+        } else if (error.message.includes('invalid email')) {
+          errorMessage = "Format d'email invalide";
+        } else if (error.message.includes('weak password')) {
+          errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
+        }
+
         toast({
           title: "Erreur d'inscription",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -371,9 +397,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
+        const confirmationMessage = data.user.email_confirmed_at 
+          ? 'Votre compte est activé et vous pouvez vous connecter.'
+          : 'Vérifiez votre email pour activer votre compte.';
+
         toast({
           title: "Compte créé avec succès",
-          description: `Bienvenue ${userData.name}! ${data.user.email_confirmed_at ? 'Votre compte est activé.' : 'Vérifiez votre email pour activer votre compte.'}`,
+          description: `Bienvenue ${userData.name}! ${confirmationMessage}`,
         });
         
         setIsLoading(false);

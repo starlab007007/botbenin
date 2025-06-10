@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,65 +13,32 @@ import {
   Shield, 
   AlertCircle,
   CheckCircle,
-  Settings
+  Settings,
+  Copy,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+
+interface TestAccount {
+  email: string;
+  password: string;
+  role: string;
+  subscription: string;
+}
 
 export const TestAccountSetup: React.FC = () => {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('admin@test.com');
-  const [userEmail, setUserEmail] = useState('user@test.com');
-  const [password, setPassword] = useState('testpassword123');
-  const [results, setResults] = useState<string[]>([]);
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [testAccounts, setTestAccounts] = useState<TestAccount[]>([]);
 
   const hasAdminPermission = () => {
     return currentUser?.permissions?.includes('manage_users') || 
            currentUser?.role === 'admin';
   };
 
-  const createTestAccount = async (email: string, isAdmin: boolean = false) => {
-    try {
-      // Essayer d'abord de créer le compte via Supabase Auth
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: isAdmin ? 'Admin Test' : 'Utilisateur Test'
-          }
-        }
-      });
-
-      if (signUpError && !signUpError.message.includes('already registered')) {
-        throw signUpError;
-      }
-
-      // Attendre un peu pour que l'utilisateur soit créé
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Configurer le compte avec la fonction appropriée
-      const functionName = isAdmin ? 'setup_test_admin_account' : 'setup_test_user_account';
-      const { data, error } = await supabase.rpc(
-        functionName as any, // Type assertion to bypass TypeScript strict typing
-        {
-          test_email: email,
-          test_password: password
-        }
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Erreur lors de la création du compte de test:', error);
-      throw error;
-    }
-  };
-
-  const handleCreateAccounts = async () => {
+  const createTestAccounts = async () => {
     if (!hasAdminPermission()) {
       toast({
         title: "Accès refusé",
@@ -81,45 +49,69 @@ export const TestAccountSetup: React.FC = () => {
     }
 
     setIsLoading(true);
-    setResults([]);
-    const newResults: string[] = [];
+    setTestAccounts([]);
 
     try {
-      // Créer le compte admin
-      toast({
-        title: "Création en cours",
-        description: "Création du compte administrateur...",
-      });
+      const accountsToCreate = [
+        {
+          email: 'admin@test.com',
+          password: 'admin123456',
+          isAdmin: true
+        },
+        {
+          email: 'user@test.com', 
+          password: 'user123456',
+          isAdmin: false
+        }
+      ];
 
-      try {
-        const adminResult = await createTestAccount(adminEmail, true);
-        newResults.push(`✅ Admin: ${adminResult}`);
-      } catch (error: any) {
-        newResults.push(`❌ Admin: ${error.message}`);
+      const createdAccounts: TestAccount[] = [];
+
+      for (const account of accountsToCreate) {
+        try {
+          const { data, error } = await supabase.functions.invoke('setup-test-accounts', {
+            body: {
+              email: account.email,
+              password: account.password,
+              isAdmin: account.isAdmin
+            }
+          });
+
+          if (error) throw error;
+
+          createdAccounts.push({
+            email: account.email,
+            password: account.password,
+            role: account.isAdmin ? 'Administrateur' : 'Utilisateur',
+            subscription: account.isAdmin ? 'Enterprise' : 'Free'
+          });
+
+          toast({
+            title: "Compte créé",
+            description: `Compte ${account.isAdmin ? 'administrateur' : 'utilisateur'} créé avec succès`,
+          });
+
+        } catch (error: any) {
+          console.error(`Erreur lors de la création du compte ${account.email}:`, error);
+          toast({
+            title: "Erreur",
+            description: `Erreur pour ${account.email}: ${error.message}`,
+            variant: "destructive",
+          });
+        }
+
+        // Attendre entre les créations
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // Attendre un peu entre les créations
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      setTestAccounts(createdAccounts);
 
-      // Créer le compte utilisateur
-      toast({
-        title: "Création en cours",
-        description: "Création du compte utilisateur...",
-      });
-
-      try {
-        const userResult = await createTestAccount(userEmail, false);
-        newResults.push(`✅ Utilisateur: ${userResult}`);
-      } catch (error: any) {
-        newResults.push(`❌ Utilisateur: ${error.message}`);
+      if (createdAccounts.length > 0) {
+        toast({
+          title: "Configuration terminée",
+          description: `${createdAccounts.length} compte(s) de test créé(s) avec succès`,
+        });
       }
-
-      setResults(newResults);
-
-      toast({
-        title: "Création terminée",
-        description: "Vérifiez les résultats ci-dessous",
-      });
 
     } catch (error: any) {
       console.error('Erreur générale:', error);
@@ -131,6 +123,14 @@ export const TestAccountSetup: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const copyToClipboard = (text: string, type: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copié",
+      description: `${type} copié dans le presse-papiers`,
+    });
   };
 
   if (!hasAdminPermission()) {
@@ -152,55 +152,14 @@ export const TestAccountSetup: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Configuration des comptes de test</h2>
-            <p className="text-gray-600">Créez des comptes de test pour développement et démonstration</p>
-          </div>
-        </div>
-
-        <div className="space-y-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email administrateur
-            </label>
-            <Input
-              type="email"
-              value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
-              placeholder="admin@test.com"
-              disabled={isLoading}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email utilisateur standard
-            </label>
-            <Input
-              type="email"
-              value={userEmail}
-              onChange={(e) => setUserEmail(e.target.value)}
-              placeholder="user@test.com"
-              disabled={isLoading}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Mot de passe (pour les deux comptes)
-            </label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mot de passe"
-              disabled={isLoading}
-            />
+            <p className="text-gray-600">Créez des comptes de test prêts à l'emploi pour développement et démonstration</p>
           </div>
         </div>
 
         <Button
-          onClick={handleCreateAccounts}
-          disabled={isLoading || !adminEmail || !userEmail || !password}
-          className="w-full bg-blue-600 hover:bg-blue-700"
+          onClick={createTestAccounts}
+          disabled={isLoading}
+          className="w-full bg-blue-600 hover:bg-blue-700 mb-6"
         >
           {isLoading ? (
             <>
@@ -215,31 +174,67 @@ export const TestAccountSetup: React.FC = () => {
           )}
         </Button>
 
-        {results.length > 0 && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-              <Settings className="w-4 h-4 mr-2" />
-              Résultats de la configuration
-            </h3>
-            <div className="space-y-2">
-              {results.map((result, index) => (
-                <div
-                  key={index}
-                  className={`p-3 rounded-lg ${
-                    result.startsWith('✅') 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}
-                >
-                  <div className="flex items-start space-x-2">
-                    {result.startsWith('✅') ? (
-                      <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    )}
-                    <span className="text-sm">{result}</span>
+        {testAccounts.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-gray-900 flex items-center">
+                <Settings className="w-4 h-4 mr-2" />
+                Comptes de test créés
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPasswords(!showPasswords)}
+              >
+                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </Button>
+            </div>
+
+            <div className="grid gap-4">
+              {testAccounts.map((account, index) => (
+                <Card key={index} className="p-4 bg-green-50 border-green-200">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="font-medium text-green-800">{account.role}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {account.subscription}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-1 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-600">Email:</span>
+                          <span className="font-mono">{account.email}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(account.email, 'Email')}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-600">Mot de passe:</span>
+                          <span className="font-mono">
+                            {showPasswords ? account.password : '••••••••••'}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(account.password, 'Mot de passe')}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           </div>
@@ -249,33 +244,41 @@ export const TestAccountSetup: React.FC = () => {
       <Card className="p-6">
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
           <AlertCircle className="w-5 h-5 mr-2 text-amber-500" />
-          Instructions importantes
+          Instructions et informations importantes
         </h3>
         <div className="space-y-3 text-sm text-gray-600">
           <div className="flex items-start space-x-2">
             <Badge variant="outline" className="mt-0.5">1</Badge>
             <p>
-              Les comptes seront créés avec les permissions appropriées selon leur rôle
+              <strong>Compte Administrateur (admin@test.com) :</strong> Accès complet à toutes les fonctionnalités, 
+              abonnement Enterprise, 10 bots maximum, toutes les permissions de gestion.
             </p>
           </div>
           <div className="flex items-start space-x-2">
             <Badge variant="outline" className="mt-0.5">2</Badge>
             <p>
-              <strong>Compte Admin :</strong> Accès complet à toutes les fonctionnalités, 
-              abonnement Enterprise, 10 bots maximum
+              <strong>Compte Utilisateur (user@test.com) :</strong> Accès limité aux modules gratuits, 
+              abonnement Free, 1 bot maximum, permissions de base.
             </p>
           </div>
           <div className="flex items-start space-x-2">
             <Badge variant="outline" className="mt-0.5">3</Badge>
             <p>
-              <strong>Compte Utilisateur :</strong> Accès limité aux modules gratuits, 
-              abonnement Free, 1 bot maximum
+              <strong>Connexion :</strong> Utilisez soit l'email soit le numéro de téléphone (pour les tests, 
+              les numéros sont +229 97 00 00 01 pour l'admin et +229 97 00 00 02 pour l'utilisateur).
             </p>
           </div>
           <div className="flex items-start space-x-2">
             <Badge variant="outline" className="mt-0.5">4</Badge>
             <p>
-              Si les comptes existent déjà, ils seront mis à jour avec les nouveaux paramètres
+              <strong>Fonctionnalités :</strong> Testez l'inscription par email, la connexion par email/téléphone, 
+              Google Auth, et toutes les fonctionnalités selon les permissions de chaque rôle.
+            </p>
+          </div>
+          <div className="flex items-start space-x-2">
+            <Badge variant="outline" className="mt-0.5">5</Badge>
+            <p>
+              Si les comptes existent déjà, ils seront mis à jour avec les nouvelles configurations.
             </p>
           </div>
         </div>
