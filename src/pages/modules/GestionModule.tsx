@@ -1,174 +1,125 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  FolderOpen, 
-  FileText, 
-  Calendar, 
-  DollarSign, 
-  Users, 
-  BarChart,
-  ArrowRight,
-  Database,
-  Settings,
-  Shield
-} from 'lucide-react';
-
-type ViewMode = 'menu' | 'documents' | 'planning' | 'finances' | 'crm' | 'reporting' | 'administration';
+import { FolderOpen, Workflow, Clock, Settings } from 'lucide-react';
 
 export const GestionModule: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ViewMode>('menu');
-
-  const gestionOptions = [
-    {
-      id: 'documents',
-      title: "Gestion Documentaire",
-      description: "Organisez, stockez et partagez vos documents d'entreprise avec un système de classement intelligent et de recherche avancée.",
-      icon: FileText,
-      color: 'bg-blue-100',
-      iconColor: 'text-blue-600'
-    },
-    {
-      id: 'planning',
-      title: "Planning & Ressources",
-      description: "Gérez les emplois du temps, planifiez les ressources et optimisez l'allocation des équipes et des projets.",
-      icon: Calendar,
-      color: 'bg-green-100',
-      iconColor: 'text-green-600'
-    },
-    {
-      id: 'finances',
-      title: "Gestion Financière",
-      description: "Suivez la comptabilité, gérez les budgets, analysez la rentabilité et automatisez la facturation.",
-      icon: DollarSign,
-      color: 'bg-yellow-100',
-      iconColor: 'text-yellow-600'
-    },
-    {
-      id: 'crm',
-      title: "Relation Client (CRM)",
-      description: "Centralisez les données clients, suivez les interactions et optimisez le parcours client avec l'IA.",
-      icon: Users,
-      color: 'bg-purple-100',
-      iconColor: 'text-purple-600'
-    },
-    {
-      id: 'reporting',
-      title: "Tableaux de Bord IA",
-      description: "Analysez les performances avec des rapports intelligents, KPI automatisés et insights prédictifs.",
-      icon: BarChart,
-      color: 'bg-red-100',
-      iconColor: 'text-red-600'
-    },
-    {
-      id: 'administration',
-      title: "Administration Système",
-      description: "Configurez les paramètres, gérez les utilisateurs, les rôles et la sécurité de votre plateforme.",
-      icon: Settings,
-      color: 'bg-gray-100',
-      iconColor: 'text-gray-600'
-    }
+  const workflows = [
+    { name: 'Processus RH - Recrutement', status: 'Actif', executions: 15 },
+    { name: 'Suivi projet commercial', status: 'En pause', executions: 8 },
+    { name: 'Validation documents', status: 'Actif', executions: 23 }
   ];
 
-  const handleOptionSelect = (optionId: string) => {
-    setCurrentView(optionId as ViewMode);
-    console.log('Option gestion sélectionnée:', optionId);
-  };
-
-  const handleBackToMenu = () => {
-    setCurrentView('menu');
-  };
-
-  // Render different views based on current selection
-  if (currentView !== 'menu') {
-    const selectedOption = gestionOptions.find(opt => opt.id === currentView);
-    
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={handleBackToMenu} className="mb-6">
-            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-            Retour au menu
-          </Button>
-          <Card className="p-8 text-center">
-            {selectedOption && (
-              <>
-                <selectedOption.icon className={`w-16 h-16 mx-auto mb-4 ${selectedOption.iconColor}`} />
-                <h2 className="text-2xl font-bold mb-4">{selectedOption.title}</h2>
-                <p className="text-gray-600 mb-6">{selectedOption.description}</p>
-                <p className="text-sm text-gray-500">Cette fonctionnalité sera bientôt disponible.</p>
-                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="p-4 bg-indigo-50 border-indigo-200">
-                    <Database className="w-8 h-8 text-indigo-600 mb-2" />
-                    <h3 className="font-semibold text-indigo-800">Base de Données</h3>
-                    <p className="text-sm text-indigo-600">Stockage sécurisé et structuré</p>
-                  </Card>
-                  <Card className="p-4 bg-green-50 border-green-200">
-                    <Shield className="w-8 h-8 text-green-600 mb-2" />
-                    <h3 className="font-semibold text-green-800">Sécurité Avancée</h3>
-                    <p className="text-sm text-green-600">Protection et conformité RGPD</p>
-                  </Card>
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  // Default menu view
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-8 border border-gray-200 mb-8">
-          <div className="text-center">
-            <FolderOpen className="w-16 h-16 mx-auto mb-4 text-indigo-600" />
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Agent IA Gestion</h1>
-            <p className="text-gray-600 text-lg">
-              Optimisez votre gestion d'entreprise avec des outils intelligents
-            </p>
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-8">
+          <div className="flex items-center mb-4">
+            <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mr-4">
+              <FolderOpen className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Agent IA Gestion</h1>
+              <p className="text-gray-600 text-lg mt-1">
+                Automatisez vos flux métiers et créez des workflows personnalisés avec l'interface visuelle.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Options Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {gestionOptions.map((option) => (
-            <Card 
-              key={option.id}
-              className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer group h-full"
-              onClick={() => handleOptionSelect(option.id)}
-            >
-              <div className="flex flex-col items-center text-center space-y-4 h-full">
-                <div className={`w-16 h-16 ${option.color} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                  <option.icon className={`w-8 h-8 ${option.iconColor}`} />
-                </div>
-                
-                <div className="flex-1 flex flex-col justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-indigo-600 transition-colors">
-                    {option.title}
-                  </h3>
-                  <p className="text-gray-600 text-sm leading-relaxed">
-                    {option.description}
-                  </p>
-                </div>
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-gray-600 mb-1 font-medium">Workflows actifs</h3>
+                <div className="text-3xl font-bold text-gray-900">8</div>
+              </div>
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Workflow className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-gray-600 mb-1 font-medium">Exécutions ce mois</h3>
+                <div className="text-3xl font-bold text-gray-900">142</div>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Settings className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-gray-600 mb-1 font-medium">Temps économisé</h3>
+                <div className="text-3xl font-bold text-gray-900">24h</div>
+              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <Clock className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </Card>
+        </div>
 
-                <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowRight className="w-5 h-5 text-indigo-600" />
+        {/* Create Workflow */}
+        <Card className="p-6 mb-8 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Créer un nouveau workflow</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-6 bg-purple-50 border border-purple-200 rounded-lg cursor-pointer hover:bg-purple-100 transition-colors">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mx-auto mb-3">
+                  <Workflow className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-semibold mb-1 text-gray-900">Éditeur visuel</h3>
+                <p className="text-sm text-gray-600">Interface drag & drop</p>
+              </div>
+            </div>
+            <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mx-auto mb-3">
+                  <Settings className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="font-semibold mb-1 text-gray-900">Template prédéfini</h3>
+                <p className="text-sm text-gray-600">Modèles métiers</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Active Workflows */}
+        <Card className="p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Workflows en cours</h2>
+          <div className="space-y-4">
+            {workflows.map((workflow, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
+                    <Workflow className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{workflow.name}</h3>
+                    <p className="text-gray-600 text-sm">{workflow.status}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="text-center">
+                    <div className="text-green-600 font-semibold">{workflow.executions}</div>
+                    <p className="text-gray-500 text-xs">Exécutions</p>
+                  </div>
+                  <Button variant="outline" className="border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg">
+                    <Clock className="w-4 h-4 mr-2" />
+                    Historique
+                  </Button>
                 </div>
               </div>
-            </Card>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-center mt-12">
-          <p className="text-gray-500 text-sm">
-            Sélectionnez une option ci-dessus pour commencer votre gestion intelligente
-          </p>
-        </div>
+            ))}
+          </div>
+        </Card>
       </div>
     </div>
   );
