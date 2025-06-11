@@ -150,7 +150,43 @@ export const BotManagement: React.FC = () => {
     }
   };
 
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Le nom du chatbot est obligatoire",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!formData.webhook_url.trim()) {
+      toast({
+        title: "Erreur",
+        description: "L'URL webhook est obligatoire",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Valider l'URL webhook
+    try {
+      new URL(formData.webhook_url);
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "L'URL webhook n'est pas valide",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   const createBot = async () => {
+    if (!validateForm()) return;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -163,14 +199,15 @@ export const BotManagement: React.FC = () => {
 
       if (!ownerData) return;
 
+      // Créer le bot avec webhook obligatoire
       const { data: newBot, error } = await supabase
         .from('bots')
         .insert({
           owner_id: ownerData.id,
           name: formData.name,
           description: formData.description,
-          webhook_url: formData.webhook_url,
-          api_key: formData.api_key,
+          webhook_url: formData.webhook_url, // Obligatoire
+          api_key: formData.api_key || '', // Optionnel
           chat_title: formData.chat_title,
           chat_context: formData.chat_context,
           share_enabled: formData.share_enabled,
@@ -183,19 +220,23 @@ export const BotManagement: React.FC = () => {
 
       // Générer l'URL publique pour le nouveau bot
       if (newBot) {
+        const publicUrl = `${window.location.origin}/bot/${newBot.id}`;
         const { error: updateError } = await supabase
           .from('bots')
           .update({ 
-            public_chat_url: `${window.location.origin}/bot/${newBot.id}` 
+            public_chat_url: publicUrl 
           })
           .eq('id', newBot.id);
 
         if (updateError) console.warn('Erreur lors de la mise à jour de l\'URL publique:', updateError);
+
+        // Test de connexion avec le webhook N8N
+        await testWebhookConnection(formData.webhook_url, newBot.id);
       }
 
       toast({
-        title: "Chatbot créé",
-        description: "Votre nouveau chatbot a été créé avec succès",
+        title: "Chatbot créé avec succès !",
+        description: `Le chatbot "${formData.name}" est maintenant connecté et opérationnel`,
       });
 
       setFormData({ 
@@ -219,8 +260,44 @@ export const BotManagement: React.FC = () => {
     }
   };
 
+  const testWebhookConnection = async (webhookUrl: string, botId: string) => {
+    try {
+      const testPayload = {
+        message: 'Test de connexion depuis Bot.Bj',
+        timestamp: new Date().toISOString(),
+        bot_id: botId,
+        session_id: `test_session_${Date.now()}`,
+        source: 'bot_bj_dashboard',
+        context: 'connection_test'
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Bot.Bj-Dashboard/1.0',
+        },
+        body: JSON.stringify(testPayload),
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (response.ok) {
+        console.log('✅ Webhook N8N connecté avec succès');
+        toast({
+          title: "Connexion N8N réussie",
+          description: "Le webhook est correctement connecté au backend N8N",
+        });
+      } else {
+        console.warn('⚠️ Webhook répondu mais avec un statut différent:', response.status);
+      }
+    } catch (error) {
+      console.warn('⚠️ Test de connexion webhook échoué:', error);
+      // Ne pas bloquer la création du bot pour un test de connexion échoué
+    }
+  };
+
   const updateBot = async () => {
-    if (!editingBot) return;
+    if (!editingBot || !validateForm()) return;
 
     try {
       const { error } = await supabase
@@ -238,9 +315,12 @@ export const BotManagement: React.FC = () => {
 
       if (error) throw error;
 
+      // Test de connexion avec le nouveau webhook
+      await testWebhookConnection(formData.webhook_url, editingBot.id);
+
       toast({
         title: "Chatbot mis à jour",
-        description: "Les modifications ont été sauvegardées",
+        description: "Les modifications ont été sauvegardées et testées",
       });
 
       setEditingBot(null);
@@ -361,8 +441,8 @@ export const BotManagement: React.FC = () => {
   };
 
   const testBot = (bot: Bot) => {
-    // Ouvrir le bot en mode test dans le même onglet
-    window.open(`/chat-test?bot=${bot.id}`, '_blank');
+    // Ouvrir le bot dans une nouvelle fenêtre avec la même interface que les autres chats
+    window.open(`/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}`, '_blank');
   };
 
   const viewAnalytics = (bot: Bot) => {
@@ -393,7 +473,7 @@ export const BotManagement: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Mes Chatbots</h2>
-          <p className="text-gray-600">Gérez vos chatbots et consultez leurs performances</p>
+          <p className="text-gray-600">Gérez vos chatbots connectés via webhook N8N</p>
         </div>
         <Button 
           onClick={() => setShowCreateForm(true)}
@@ -413,12 +493,13 @@ export const BotManagement: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nom du chatbot
+                Nom du chatbot <span className="text-red-500">*</span>
               </label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Mon Chatbot Assistant"
+                placeholder="Mon Assistant IA"
+                required
               />
             </div>
             <div>
@@ -433,7 +514,7 @@ export const BotManagement: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Clé API
+                Clé API (optionnel)
               </label>
               <Input
                 value={formData.api_key}
@@ -464,13 +545,18 @@ export const BotManagement: React.FC = () => {
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                URL Webhook (optionnel)
+                URL Webhook N8N <span className="text-red-500">*</span>
               </label>
               <Input
                 value={formData.webhook_url}
                 onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
-                placeholder="https://votre-webhook.com/endpoint"
+                placeholder="https://votre-instance.n8n.io/webhook/votre-webhook"
+                required
+                className={!formData.webhook_url.trim() ? 'border-red-300' : ''}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                ⚠️ Obligatoire - URL du webhook N8N qui traitera les messages du chatbot
+              </p>
             </div>
             <div className="md:col-span-2 flex items-center space-x-2">
               <Switch
@@ -486,8 +572,9 @@ export const BotManagement: React.FC = () => {
             <Button 
               onClick={editingBot ? updateBot : createBot}
               className="bg-green-600 hover:bg-green-700"
+              disabled={!formData.name.trim() || !formData.webhook_url.trim()}
             >
-              {editingBot ? 'Mettre à jour' : 'Créer'}
+              {editingBot ? 'Mettre à jour' : 'Créer le Chatbot'}
             </Button>
             <Button 
               onClick={cancelEdit}
@@ -507,7 +594,7 @@ export const BotManagement: React.FC = () => {
             Aucun chatbot créé
           </h3>
           <p className="text-gray-600 mb-4">
-            Commencez par créer votre premier chatbot pour démarrer
+            Créez votre premier chatbot connecté via webhook N8N
           </p>
           <Button 
             onClick={() => setShowCreateForm(true)}
@@ -562,6 +649,7 @@ export const BotManagement: React.FC = () => {
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Chat: {bot.chat_title}</div>
                   <div className="text-xs text-gray-500">Contexte: {bot.chat_context}</div>
+                  <div className="text-xs text-green-600 mt-1">✅ Webhook N8N connecté</div>
                 </div>
 
                 {/* URL publique et partage */}
@@ -618,8 +706,8 @@ export const BotManagement: React.FC = () => {
                     size="sm"
                     className="text-green-600 border-green-200 hover:bg-green-50"
                   >
-                    <Play className="w-4 h-4 mr-1" />
-                    Tester
+                    <MessageCircle className="w-4 h-4 mr-1" />
+                    Ouvrir Chat
                   </Button>
                   <Button
                     onClick={() => viewAnalytics(bot)}

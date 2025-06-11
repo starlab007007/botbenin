@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -24,15 +23,19 @@ interface ChatInterfaceProps {
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
   onBackToLanding, 
-  webhookUrl = 'https://ia.bot.bj/webhook/iphoneshop1',
+  webhookUrl,
   chatTitle = 'Bot.Bj Assistant',
   chatContext
 }) => {
   const location = useLocation();
+  
+  // Déterminer l'URL webhook à utiliser
+  const finalWebhookUrl = webhookUrl || getDefaultWebhookUrl(chatContext);
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: getWelcomeMessage(chatContext),
+      content: getWelcomeMessage(chatContext, chatTitle),
       isUser: false,
       timestamp: new Date(),
     }
@@ -43,14 +46,28 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  function getWelcomeMessage(context?: string): string {
+  function getDefaultWebhookUrl(context?: string): string {
+    // URLs par défaut pour les contexts existants
+    switch (context) {
+      case 'restaurant':
+        return 'https://ia.bot.bj/webhook/iphoneshop1';
+      case 'services_locaux':
+        return 'https://ia.bot.bj/webhook/services_locaux';
+      default:
+        return 'https://ia.bot.bj/webhook/iphoneshop1';
+    }
+  }
+
+  function getWelcomeMessage(context?: string, title?: string): string {
+    const botName = title || 'Bot.Bj';
+    
     switch (context) {
       case 'services_locaux':
-        return "🏢 Bonjour ! Je suis votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?";
+        return `🏢 Bonjour ! Je suis ${botName}, votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?`;
       case 'restaurant':
-        return "🍽️ Bonjour ! Je suis votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?";
+        return `🍽️ Bonjour ! Je suis ${botName}, votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?`;
       default:
-        return "🚀 Bonjour ! Je suis Bot.Bj, votre assistant IA intelligent. Je peux vous aider avec vos processus métiers, marketing, gestion et services citoyens. Que souhaitez-vous accomplir aujourd'hui ?";
+        return `🚀 Bonjour ! Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
     }
   }
 
@@ -84,7 +101,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     console.log('=== BOT.BJ WEBHOOK DEBUG START ===');
     console.log('User message:', textToSend);
-    console.log('Webhook URL:', webhookUrl);
+    console.log('Webhook URL:', finalWebhookUrl);
+    console.log('Chat Context:', chatContext);
+    console.log('Chat Title:', chatTitle);
 
     try {
       const controller = new AbortController();
@@ -96,15 +115,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
-        session_id: `bot_bj_session_${chatContext || 'general'}`,
+        session_id: `bot_bj_session_${chatContext || 'general'}_${Date.now()}`,
         user_id: 'bot_bj_user',
         source: 'bot_bj_platform',
-        context: chatContext || 'general'
+        context: chatContext || 'general',
+        chat_title: chatTitle,
+        bot_type: 'dashboard_created'
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
-      const response = await fetch(webhookUrl, {
+      const response = await fetch(finalWebhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -154,7 +175,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       console.log('Processed content:', processedContent);
 
       if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from Bot.Bj webhook');
+        throw new Error('Empty or invalid response from webhook');
       }
 
       const aiMessage: Message = {
@@ -166,8 +187,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       console.log('Adding AI message:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
-
-      // Suppression des notifications de succès
 
     } catch (error) {
       console.error('=== BOT.BJ WEBHOOK ERROR ===');

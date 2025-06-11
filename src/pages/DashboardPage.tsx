@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -47,12 +46,12 @@ export const DashboardPage: React.FC = () => {
     activeToday: 0
   });
   const [permissions, setPermissions] = useState<UserPermissions>({
-    canCreateBots: false,
+    canCreateBots: true, // Activé par défaut pour permettre la création de bots
     canCreateAutomations: false,
     canAccessBusiness: false,
     canAccessMarketing: false,
     canAccessManagement: false,
-    maxBots: 0,
+    maxBots: 5, // Augmenté pour permettre plus de créations
     role: 'user'
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -87,12 +86,12 @@ export const DashboardPage: React.FC = () => {
       const userRole = userRoles?.[0]?.roles?.name || 'user';
       
       setPermissions({
-        canCreateBots: ['admin', 'manager', 'user'].includes(userRole),
+        canCreateBots: true, // Toujours autorisé pour les chatbots webhook
         canCreateAutomations: ['admin', 'manager'].includes(userRole),
         canAccessBusiness: ['admin', 'manager'].includes(userRole),
         canAccessMarketing: ['admin', 'manager'].includes(userRole),
         canAccessManagement: ['admin'].includes(userRole),
-        maxBots: ownerData?.max_bots || 1,
+        maxBots: ownerData?.max_bots || 5,
         role: userRole
       });
 
@@ -162,29 +161,29 @@ export const DashboardPage: React.FC = () => {
       value: stats.totalBots.toString(), 
       limit: permissions.maxBots,
       icon: Bot, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100'
     },
     { 
       title: 'Messages Total', 
       value: stats.totalMessages.toString(), 
       icon: MessageCircle, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+      color: 'text-green-600',
+      bgColor: 'bg-green-100'
     },
     { 
       title: 'Utilisateurs', 
       value: stats.totalUsers.toString(), 
       icon: Users, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-100'
     },
     { 
       title: 'Actifs Aujourd\'hui', 
       value: stats.activeToday.toString(), 
       icon: TrendingUp, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100'
     }
   ];
 
@@ -211,7 +210,7 @@ export const DashboardPage: React.FC = () => {
           Tableau de bord - Profil {permissions.role}
         </h1>
         <p className="text-gray-600">
-          Gérez vos fonctionnalités selon vos permissions
+          Créez et gérez vos chatbots connectés via webhook N8N
         </p>
       </div>
 
@@ -233,18 +232,16 @@ export const DashboardPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Permissions Available */}
+      {/* Fonctionnalités disponibles */}
       <Card className="uniform-card p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Fonctionnalités disponibles
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateBots ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <Bot className={`w-8 h-8 mb-2 ${permissions.canCreateBots ? 'text-green-600' : 'text-gray-400'}`} />
-            <div className="text-sm font-medium text-gray-900">Chatbots</div>
-            <div className="text-xs text-gray-600">
-              {permissions.canCreateBots ? 'Disponible' : 'Non autorisé'}
-            </div>
+          <div className="p-4 rounded-lg border-2 border-green-200 bg-green-50">
+            <Bot className="w-8 h-8 mb-2 text-green-600" />
+            <div className="text-sm font-medium text-gray-900">Chatbots Webhook</div>
+            <div className="text-xs text-gray-600">Toujours disponible</div>
           </div>
           
           <div className={`p-4 rounded-lg border-2 ${permissions.canCreateAutomations ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
@@ -285,7 +282,7 @@ export const DashboardPage: React.FC = () => {
       <Card className="uniform-card">
         <Tabs defaultValue="bots" className="w-full">
           <TabsList className="grid w-full grid-cols-4 p-1 bg-gray-100 rounded-t-xl">
-            <TabsTrigger value="bots" className="flex items-center space-x-2" disabled={!permissions.canCreateBots}>
+            <TabsTrigger value="bots" className="flex items-center space-x-2">
               <Bot className="w-4 h-4" />
               <span>Chatbots</span>
             </TabsTrigger>
@@ -305,19 +302,7 @@ export const DashboardPage: React.FC = () => {
           
           <div className="p-6">
             <TabsContent value="bots" className="mt-0">
-              {permissions.canCreateBots ? (
-                <BotManagement />
-              ) : (
-                <div className="text-center py-8">
-                  <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Accès restreint
-                  </h3>
-                  <p className="text-gray-600">
-                    Vous n'avez pas les permissions pour créer des chatbots
-                  </p>
-                </div>
-              )}
+              <BotManagement />
             </TabsContent>
             
             <TabsContent value="messages" className="mt-0">
