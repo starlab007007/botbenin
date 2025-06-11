@@ -47,17 +47,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const { toast } = useToast();
 
   function getDefaultWebhookUrl(context?: string): string {
-    // URLs par défaut pour les contexts existants
+    // URLs par défaut pour les contexts existants - utiliser les mêmes URLs que les bots du module citoyen
     switch (context) {
       case 'restaurant':
-        return 'https://ia.bot.bj/webhook/iphoneshop1';
+        return 'https://ia.bot.bj/webhook/restau1';
       case 'services_locaux':
-        return 'https://ia.bot.bj/webhook/services_locaux';
+        return 'https://ia.bot.bj/webhook/immo1';
       case 'automation':
-        // Pour les bots automatisés, utiliser l'URL fournie ou une URL par défaut
-        return 'https://ia.bot.bj/webhook/automation';
+        // Pour les bots automatisés, utiliser la même URL que les bots restaurant par défaut
+        return 'https://ia.bot.bj/webhook/restau1';
       default:
-        return 'https://ia.bot.bj/webhook/iphoneshop1';
+        return 'https://ia.bot.bj/webhook/restau1';
     }
   }
 
@@ -117,6 +117,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         controller.abort();
       }, 30000);
 
+      // Utiliser le même format de payload que le bot restaurant du module citoyen
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
@@ -126,7 +127,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         context: chatContext || 'general',
         chat_title: chatTitle,
         bot_type: chatContext === 'automation' ? 'dashboard_created' : 'predefined',
-        interface_type: 'full_chat_interface'
+        interface_type: 'full_chat_interface',
+        // Ajouter les mêmes paramètres que le bot restaurant
+        module: 'citoyen',
+        service_type: chatContext === 'automation' ? 'automation' : 'restaurant',
+        platform: 'bot_bj'
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
@@ -137,6 +142,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
           'User-Agent': 'Bot.Bj-Platform/1.0',
+          // Ajouter les mêmes headers que le bot restaurant
+          'X-Bot-Platform': 'bot_bj',
+          'X-Bot-Version': '1.0'
         },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,

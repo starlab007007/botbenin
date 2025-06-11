@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,8 @@ interface BotAutomationCreatorProps {
 }
 
 export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBack, onBotCreated }) => {
-  const [webhookUrl, setWebhookUrl] = useState('');
+  // Utiliser l'URL par défaut du bot restaurant comme base pour les bots d'automatisation
+  const [webhookUrl, setWebhookUrl] = useState('https://ia.bot.bj/webhook/restau1');
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
@@ -137,11 +139,11 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         throw new Error(`Limite atteinte: ${ownerData.max_bots} chatbots maximum`);
       }
 
-      // Préparer les données du bot
+      // Préparer les données du bot avec la même structure que le bot restaurant
       const botData = {
         owner_id: ownerData.id,
         name: botName.trim(),
-        description: `Chatbot automatisé créé le ${new Date().toLocaleDateString('fr-FR')}`,
+        description: `Chatbot automatisé créé le ${new Date().toLocaleDateString('fr-FR')} avec connectivité N8N identique au bot restaurant`,
         webhook_url: webhookUrl.trim(),
         api_key: '',
         chat_title: `Assistant ${botName}`,
@@ -187,7 +189,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
 
       toast({
         title: "Chatbot créé avec succès !",
-        description: `Le chatbot "${botName}" est maintenant opérationnel`,
+        description: `Le chatbot "${botName}" est maintenant opérationnel avec la même connectivité que le bot restaurant`,
       });
 
       // Tester la connexion webhook en arrière-plan (ne pas bloquer la création)
@@ -224,16 +226,22 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     }
 
     try {
+      // Utiliser le même format de test que le bot restaurant
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Bot-Platform': 'bot_bj',
+          'X-Bot-Version': '1.0'
         },
         body: JSON.stringify({
-          message: 'Test de connexion depuis Bot.Bj',
+          message: 'Test de connexion depuis Bot.Bj - Configuration identique au bot restaurant',
           timestamp: new Date().toISOString(),
           bot_id: botId,
-          source: 'bot_bj_automation_test'
+          source: 'bot_bj_automation_test',
+          module: 'citoyen',
+          service_type: 'automation',
+          platform: 'bot_bj'
         }),
         signal: AbortSignal.timeout(10000)
       });
@@ -241,7 +249,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       if (response.ok) {
         toast({
           title: "Webhook testé avec succès !",
-          description: "La connexion avec N8N fonctionne correctement",
+          description: "La connexion avec N8N fonctionne correctement avec la même configuration que le bot restaurant",
         });
       } else {
         toast({
@@ -267,7 +275,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         </Button>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Nouveau Chatbot</h2>
-          <p className="text-gray-600">Créez un chatbot via webhook N8N</p>
+          <p className="text-gray-600">Créez un chatbot avec la même connectivité N8N que le bot restaurant</p>
         </div>
       </div>
 
@@ -312,12 +320,12 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             <Input
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder="https://votre-instance.n8n.io/webhook/votre-webhook"
+              placeholder="https://ia.bot.bj/webhook/votre-webhook"
               className="w-full"
               disabled={!isAuthenticated}
             />
             <p className="text-xs text-gray-500">
-              L'URL webhook de votre workflow N8N qui traitera les messages du bot
+              L'URL webhook de votre workflow N8N qui traitera les messages du bot (pré-configurée avec l'URL du bot restaurant)
             </p>
           </div>
 
@@ -345,14 +353,26 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             </Button>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">Fonctionnalités incluses :</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Interface de chat identique aux boutons "Réserver restaurant" et "Services Locaux"</li>
-              <li>• Connexion directe avec votre workflow N8N</li>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h4 className="font-medium text-green-900 mb-2">Fonctionnalités garanties :</h4>
+            <ul className="text-sm text-green-800 space-y-1">
+              <li>• Interface de chat identique aux bots "Réserver restaurant" et "Services Locaux"</li>
+              <li>• Connexion directe avec votre workflow N8N utilisant la même configuration</li>
+              <li>• Mêmes headers HTTP et format de payload que le bot restaurant</li>
               <li>• URL publique générée automatiquement pour partage</li>
               <li>• Gestion complète depuis le tableau de bord</li>
               <li>• Statistiques et analytics en temps réel</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">Configuration de connectivité :</h4>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• URL webhook pré-configurée : {webhookUrl}</li>
+              <li>• Headers HTTP identiques au bot restaurant</li>
+              <li>• Format de payload JSON standardisé</li>
+              <li>• Timeout de 30 secondes comme les autres bots</li>
+              <li>• Gestion d'erreurs et fallback intégrés</li>
             </ul>
           </div>
         </CardContent>
