@@ -42,13 +42,6 @@ export type Database = {
             foreignKeyName: "access_logs_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "access_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -80,13 +73,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "analytics_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "analytics_user_id_fkey"
             columns: ["user_id"]
@@ -141,13 +127,6 @@ export type Database = {
             foreignKeyName: "appointments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "appointments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -194,13 +173,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "automations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "automations_user_id_fkey"
             columns: ["user_id"]
@@ -392,13 +364,6 @@ export type Database = {
             foreignKeyName: "campaigns_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campaigns_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -559,13 +524,6 @@ export type Database = {
             foreignKeyName: "contacts_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -597,13 +555,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "conversations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "conversations_user_id_fkey"
             columns: ["user_id"]
@@ -653,13 +604,6 @@ export type Database = {
             foreignKeyName: "file_folders_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_folders_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -700,13 +644,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "files_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "files_user_id_fkey"
             columns: ["user_id"]
@@ -885,13 +822,6 @@ export type Database = {
             foreignKeyName: "messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -960,13 +890,6 @@ export type Database = {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "notifications_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1028,13 +951,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "prospect_databases_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "prospect_databases_user_id_fkey"
             columns: ["user_id"]
@@ -1114,13 +1030,6 @@ export type Database = {
             columns: ["database_id"]
             isOneToOne: false
             referencedRelation: "prospect_databases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prospects_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
             referencedColumns: ["id"]
           },
           {
@@ -1241,13 +1150,6 @@ export type Database = {
             foreignKeyName: "subscriber_messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscriber_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1303,13 +1205,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "subscribers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "subscribers_user_id_fkey"
             columns: ["user_id"]
@@ -1401,61 +1296,6 @@ export type Database = {
             foreignKeyName: "subscriptions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_activities: {
-        Row: {
-          activity_type: string
-          created_at: string | null
-          description: string | null
-          id: string
-          ip_address: unknown | null
-          metadata: Json | null
-          user_agent: string | null
-          user_id: string
-        }
-        Insert: {
-          activity_type: string
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          ip_address?: unknown | null
-          metadata?: Json | null
-          user_agent?: string | null
-          user_id: string
-        }
-        Update: {
-          activity_type?: string
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          ip_address?: unknown | null
-          metadata?: Json | null
-          user_agent?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_activities_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_activities_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1522,13 +1362,6 @@ export type Database = {
             foreignKeyName: "user_files_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_files_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1574,61 +1407,6 @@ export type Database = {
             foreignKeyName: "user_module_access_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_module_access_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_profiles: {
-        Row: {
-          avatar_url: string | null
-          bio: string | null
-          created_at: string | null
-          id: string
-          preferences: Json | null
-          social_links: Json | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string | null
-          id?: string
-          preferences?: Json | null
-          social_links?: Json | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          avatar_url?: string | null
-          bio?: string | null
-          created_at?: string | null
-          id?: string
-          preferences?: Json | null
-          social_links?: Json | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1663,64 +1441,6 @@ export type Database = {
           },
           {
             foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_sessions: {
-        Row: {
-          created_at: string | null
-          expires_at: string
-          id: string
-          ip_address: unknown | null
-          is_active: boolean | null
-          last_activity: string | null
-          session_token: string
-          user_agent: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          expires_at: string
-          id?: string
-          ip_address?: unknown | null
-          is_active?: boolean | null
-          last_activity?: string | null
-          session_token: string
-          user_agent?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          expires_at?: string
-          id?: string
-          ip_address?: unknown | null
-          is_active?: boolean | null
-          last_activity?: string | null
-          session_token?: string
-          user_agent?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_sessions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -1764,13 +1484,6 @@ export type Database = {
             foreignKeyName: "user_settings_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1778,54 +1491,39 @@ export type Database = {
       }
       users: {
         Row: {
-          avatar_url: string | null
           bio: string | null
           company: string | null
           created_at: string
           email: string
           full_name: string
           id: string
-          is_active: boolean | null
-          language: string | null
-          last_activity: string | null
           last_login: string | null
           phone: string | null
           subscription_tier: string | null
-          timezone: string | null
           updated_at: string
         }
         Insert: {
-          avatar_url?: string | null
           bio?: string | null
           company?: string | null
           created_at?: string
           email: string
           full_name: string
           id: string
-          is_active?: boolean | null
-          language?: string | null
-          last_activity?: string | null
           last_login?: string | null
           phone?: string | null
           subscription_tier?: string | null
-          timezone?: string | null
           updated_at?: string
         }
         Update: {
-          avatar_url?: string | null
           bio?: string | null
           company?: string | null
           created_at?: string
           email?: string
           full_name?: string
           id?: string
-          is_active?: boolean | null
-          language?: string | null
-          last_activity?: string | null
           last_login?: string | null
           phone?: string | null
           subscription_tier?: string | null
-          timezone?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1882,13 +1580,6 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_integrations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_automations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
             referencedColumns: ["id"]
           },
           {
@@ -1977,13 +1668,6 @@ export type Database = {
             foreignKeyName: "whatsapp_campaigns_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_campaigns_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -2041,13 +1725,6 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_integrations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_contacts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
             referencedColumns: ["id"]
           },
           {
@@ -2125,13 +1802,6 @@ export type Database = {
             foreignKeyName: "whatsapp_conversations_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_conversations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -2178,13 +1848,6 @@ export type Database = {
           webhook_verify_token?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "whatsapp_integrations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "whatsapp_integrations_user_id_fkey"
             columns: ["user_id"]
@@ -2265,13 +1928,6 @@ export type Database = {
             foreignKeyName: "whatsapp_messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -2331,13 +1987,6 @@ export type Database = {
             foreignKeyName: "whatsapp_templates_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_templates_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -2365,24 +2014,6 @@ export type Database = {
           },
         ]
       }
-      user_stats: {
-        Row: {
-          created_at: string | null
-          email: string | null
-          full_name: string | null
-          id: string | null
-          is_active: boolean | null
-          last_login: string | null
-          phone: string | null
-          role_name: string | null
-          subscription_tier: string | null
-          total_automations: number | null
-          total_bots: number | null
-          total_messages: number | null
-          unread_notifications: number | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       create_bot_user_if_not_exists: {
@@ -2401,15 +2032,6 @@ export type Database = {
       is_admin: {
         Args: { user_uuid?: string }
         Returns: boolean
-      }
-      log_user_activity: {
-        Args: {
-          p_user_id: string
-          p_activity_type: string
-          p_description?: string
-          p_metadata?: Json
-        }
-        Returns: string
       }
       transfer_local_businesses_to_prospects: {
         Args: { business_ids: string[]; target_database_id: string }
