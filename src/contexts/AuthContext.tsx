@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -547,5 +548,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
-</edits_to_apply>
