@@ -49,9 +49,9 @@ export const useUsers = () => {
         id: user.id,
         name: user.full_name || 'Unknown User',
         email: user.email || '',
-        role: user.role_name || 'user',
+        role: (user.role_name || 'user') as 'admin' | 'manager' | 'user' | 'viewer',
         permissions: rolePermissions[user.role_name as keyof typeof rolePermissions] || rolePermissions.user,
-        status: user.is_active ? 'active' : 'inactive',
+        status: (user.is_active ? 'active' : 'inactive') as 'active' | 'inactive' | 'pending',
         lastLogin: user.last_login ? new Date(user.last_login) : undefined,
         createdAt: new Date(user.created_at || Date.now()),
       })) || [];
