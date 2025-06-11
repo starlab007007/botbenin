@@ -2,202 +2,154 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BotManagement } from '@/components/BotManagement';
-import { MessagesOverview } from '@/components/MessagesOverview';
-import { SubscriptionManagement } from '@/components/SubscriptionManagement';
+import { 
+  BarChart3, 
+  Users, 
+  MessageSquare, 
+  Bot, 
+  TrendingUp,
+  Calendar,
+  Bell,
+  Settings,
+  Plus,
+  Activity,
+  ChevronRight
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Bot,
-  MessageCircle,
-  Star,
-  Zap,
-  BarChart3,
-  Users,
-  TrendingUp,
-  Settings,
-  History,
-  Bell
-} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface DashboardStats {
-  totalBots: number;
-  totalMessages: number;
   totalUsers: number;
+  totalMessages: number;
+  totalBots: number;
+  totalAutomations: number;
   activeToday: number;
-}
-
-interface UserPermissions {
-  canCreateBots: boolean;
-  canCreateAutomations: boolean;
-  canAccessBusiness: boolean;
-  canAccessMarketing: boolean;
-  canAccessManagement: boolean;
-  maxBots: number;
-  role: string;
+  unreadNotifications: number;
 }
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [stats, setStats] = useState<DashboardStats>({
-    totalBots: 0,
-    totalMessages: 0,
     totalUsers: 0,
-    activeToday: 0
+    totalMessages: 0,
+    totalBots: 0,
+    totalAutomations: 0,
+    activeToday: 0,
+    unreadNotifications: 0
   });
-  const [permissions, setPermissions] = useState<UserPermissions>({
-    canCreateBots: false,
-    canCreateAutomations: false,
-    canAccessBusiness: false,
-    canAccessMarketing: false,
-    canAccessManagement: false,
-    maxBots: 0,
-    role: 'user'
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
-      fetchDashboardStats();
-      fetchUserPermissions();
+      fetchDashboardData();
     }
   }, [user]);
 
-  const fetchUserPermissions = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
+      setLoading(true);
 
-      // Récupérer les rôles utilisateur
-      const { data: userRoles } = await supabase
-        .from('user_roles')
-        .select(`
-          roles (name)
-        `)
-        .eq('user_id', authUser.id);
-
-      // Récupérer le bot_owner pour les permissions spécifiques
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('subscription_plan, max_bots')
-        .eq('user_id', authUser.id)
+      // Fetch user stats
+      const { data: userStats, error: userStatsError } = await supabase
+        .from('user_stats')
+        .select('*')
+        .eq('id', user?.id)
         .single();
 
-      const userRole = userRoles?.[0]?.roles?.name || 'user';
-      
-      setPermissions({
-        canCreateBots: ['admin', 'manager', 'user'].includes(userRole),
-        canCreateAutomations: ['admin', 'manager'].includes(userRole),
-        canAccessBusiness: ['admin', 'manager'].includes(userRole),
-        canAccessMarketing: ['admin', 'manager'].includes(userRole),
-        canAccessManagement: ['admin'].includes(userRole),
-        maxBots: ownerData?.max_bots || 1,
-        role: userRole
-      });
+      if (userStatsError && userStatsError.code !== 'PGRST116') {
+        throw userStatsError;
+      }
 
-    } catch (error) {
-      console.error('Erreur lors du chargement des permissions:', error);
-    }
-  };
+      // Fetch bot stats
+      const { data: botStats, error: botStatsError } = await supabase
+        .from('bot_stats')
+        .select('*')
+        .eq('owner_id', user?.id);
 
-  const fetchDashboardStats = async () => {
-    try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
+      if (botStatsError && botStatsError.code !== 'PGRST116') {
+        throw botStatsError;
+      }
 
-      // Récupérer le bot_owner
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', authUser.id)
-        .single();
+      // Fetch recent activities
+      const { data: activities, error: activitiesError } = await supabase
+        .from('user_activities')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
 
-      if (!ownerData) return;
-
-      // Statistiques des bots
-      const { data: botsData } = await supabase
-        .from('bots')
-        .select('id')
-        .eq('owner_id', ownerData.id);
-
-      const botIds = botsData?.map(bot => bot.id) || [];
-
-      // Statistiques des messages
-      const { data: messagesData } = await supabase
-        .from('chat_messages')
-        .select('id, created_at')
-        .in('bot_id', botIds);
-
-      // Statistiques des utilisateurs uniques
-      const { data: usersData } = await supabase
-        .from('bot_users')
-        .select('id, last_active')
-        .in('bot_id', botIds);
-
-      // Activité d'aujourd'hui
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const activeToday = usersData?.filter(user => 
-        new Date(user.last_active) >= today
-      ).length || 0;
+      if (activitiesError && activitiesError.code !== 'PGRST116') {
+        throw activitiesError;
+      }
 
       setStats({
-        totalBots: botsData?.length || 0,
-        totalMessages: messagesData?.length || 0,
-        totalUsers: usersData?.length || 0,
-        activeToday: activeToday
+        totalUsers: userStats?.total_bots || 0,
+        totalMessages: userStats?.total_messages || 0,
+        totalBots: userStats?.total_bots || 0,
+        totalAutomations: userStats?.total_automations || 0,
+        activeToday: botStats?.reduce((sum: number, bot: any) => sum + (bot.active_today || 0), 0) || 0,
+        unreadNotifications: userStats?.unread_notifications || 0
       });
 
+      setRecentActivities(activities || []);
+
     } catch (error) {
-      console.error('Erreur lors du chargement des statistiques:', error);
+      console.error('Error fetching dashboard data:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les données du tableau de bord",
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const quickStats = [
-    { 
-      title: 'Mes Chatbots', 
-      value: stats.totalBots.toString(), 
-      limit: permissions.maxBots,
-      icon: Bot, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+  const statCards = [
+    {
+      title: 'Bots Actifs',
+      value: stats.totalBots,
+      icon: Bot,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100',
+      change: '+12%'
     },
-    { 
-      title: 'Messages Total', 
-      value: stats.totalMessages.toString(), 
-      icon: MessageCircle, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+    {
+      title: 'Messages Aujourd\'hui',
+      value: stats.activeToday,
+      icon: MessageSquare,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100',
+      change: '+8%'
     },
-    { 
-      title: 'Utilisateurs', 
-      value: stats.totalUsers.toString(), 
-      icon: Users, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+    {
+      title: 'Total Messages',
+      value: stats.totalMessages,
+      icon: Activity,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-100',
+      change: '+23%'
     },
-    { 
-      title: 'Actifs Aujourd\'hui', 
-      value: stats.activeToday.toString(), 
-      icon: TrendingUp, 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100'
+    {
+      title: 'Automatisations',
+      value: stats.totalAutomations,
+      icon: Settings,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100',
+      change: '+5%'
     }
   ];
 
   if (!user) {
     return (
-      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-        <Card className="uniform-card p-8 text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Connexion requise
-          </h2>
-          <p className="text-gray-600">
-            Veuillez vous connecter pour accéder au tableau de bord
-          </p>
+      <div className="p-4 lg:p-8 bg-gray-50 min-h-screen">
+        <Card className="p-8 text-center">
+          <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Non connecté</h2>
+          <p className="text-gray-600">Vous devez être connecté pour accéder au tableau de bord.</p>
         </Card>
       </div>
     );
@@ -206,180 +158,137 @@ export const DashboardPage: React.FC = () => {
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
-          Tableau de bord - Profil {permissions.role}
-        </h1>
-        <p className="text-gray-600">
-          Gérez vos fonctionnalités selon vos permissions
-        </p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+            Tableau de bord
+          </h1>
+          <p className="text-gray-600">
+            Bienvenue {user.name}, voici un aperçu de votre activité.
+          </p>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button variant="outline" size="sm">
+            <Calendar className="w-4 h-4 mr-2" />
+            Derniers 30 jours
+          </Button>
+          <Button className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="w-4 h-4 mr-2" />
+            Nouveau Bot
+          </Button>
+        </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {quickStats.map((stat, index) => (
-          <Card key={index} className="uniform-stats-card">
-            <div className="flex items-center justify-between mb-3">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((stat, index) => (
+          <Card key={index} className="p-6 bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
+                <p className="text-2xl font-bold text-gray-900">{stat.value.toLocaleString()}</p>
+                <div className="flex items-center mt-2">
+                  <TrendingUp className="w-4 h-4 text-green-600 mr-1" />
+                  <span className="text-sm text-green-600 font-medium">{stat.change}</span>
+                </div>
+              </div>
               <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
               </div>
-            </div>
-            <h3 className="text-gray-600 text-sm mb-1">{stat.title}</h3>
-            <div className="text-2xl font-bold text-gray-900">
-              {stat.value}
-              {stat.limit && <span className="text-sm text-gray-500">/{stat.limit}</span>}
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Permissions Available */}
-      <Card className="uniform-card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Fonctionnalités disponibles
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateBots ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <Bot className={`w-8 h-8 mb-2 ${permissions.canCreateBots ? 'text-green-600' : 'text-gray-400'}`} />
-            <div className="text-sm font-medium text-gray-900">Chatbots</div>
-            <div className="text-xs text-gray-600">
-              {permissions.canCreateBots ? 'Disponible' : 'Non autorisé'}
-            </div>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Chart Area */}
+        <Card className="lg:col-span-2 p-6 bg-white border border-gray-200 rounded-xl">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">Activité des Messages</h2>
+            <Button variant="outline" size="sm">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Voir détails
+            </Button>
           </div>
           
-          <div className={`p-4 rounded-lg border-2 ${permissions.canCreateAutomations ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <Zap className={`w-8 h-8 mb-2 ${permissions.canCreateAutomations ? 'text-green-600' : 'text-gray-400'}`} />
-            <div className="text-sm font-medium text-gray-900">Automatisations</div>
-            <div className="text-xs text-gray-600">
-              {permissions.canCreateAutomations ? 'Disponible' : 'Non autorisé'}
+          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+            <div className="text-center">
+              <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-600">Graphique des messages</p>
+              <p className="text-sm text-gray-500">Données en cours de chargement...</p>
             </div>
+          </div>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Activité Récente</h2>
+            <Button variant="ghost" size="sm">
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
           
-          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessBusiness ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <BarChart3 className={`w-8 h-8 mb-2 ${permissions.canAccessBusiness ? 'text-green-600' : 'text-gray-400'}`} />
-            <div className="text-sm font-medium text-gray-900">IA Business</div>
-            <div className="text-xs text-gray-600">
-              {permissions.canAccessBusiness ? 'Disponible' : 'Non autorisé'}
-            </div>
+          <div className="space-y-4">
+            {recentActivities.length > 0 ? (
+              recentActivities.map((activity, index) => (
+                <div key={index} className="flex items-start space-x-3">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900">{activity.description}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(activity.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">Aucune activité récente</p>
+              </div>
+            )}
           </div>
-          
-          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessMarketing ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <TrendingUp className={`w-8 h-8 mb-2 ${permissions.canAccessMarketing ? 'text-green-600' : 'text-gray-400'}`} />
-            <div className="text-sm font-medium text-gray-900">IA Marketing</div>
-            <div className="text-xs text-gray-600">
-              {permissions.canAccessMarketing ? 'Disponible' : 'Non autorisé'}
-            </div>
-          </div>
-          
-          <div className={`p-4 rounded-lg border-2 ${permissions.canAccessManagement ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-            <Settings className={`w-8 h-8 mb-2 ${permissions.canAccessManagement ? 'text-green-600' : 'text-gray-400'}`} />
-            <div className="text-sm font-medium text-gray-900">IA Gestion</div>
-            <div className="text-xs text-gray-600">
-              {permissions.canAccessManagement ? 'Disponible' : 'Non autorisé'}
-            </div>
-          </div>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions Rapides</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Button className="h-20 flex-col space-y-2 bg-blue-600 hover:bg-blue-700">
+            <Bot className="w-6 h-6" />
+            <span>Créer un Bot</span>
+          </Button>
+          <Button variant="outline" className="h-20 flex-col space-y-2">
+            <MessageSquare className="w-6 h-6" />
+            <span>Voir Messages</span>
+          </Button>
+          <Button variant="outline" className="h-20 flex-col space-y-2">
+            <Settings className="w-6 h-6" />
+            <span>Automatisations</span>
+          </Button>
         </div>
       </Card>
 
-      {/* Main Content Tabs */}
-      <Card className="uniform-card">
-        <Tabs defaultValue="bots" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 p-1 bg-gray-100 rounded-t-xl">
-            <TabsTrigger value="bots" className="flex items-center space-x-2" disabled={!permissions.canCreateBots}>
-              <Bot className="w-4 h-4" />
-              <span>Chatbots</span>
-            </TabsTrigger>
-            <TabsTrigger value="messages" className="flex items-center space-x-2">
-              <MessageCircle className="w-4 h-4" />
-              <span>Messages</span>
-            </TabsTrigger>
-            <TabsTrigger value="automations" className="flex items-center space-x-2" disabled={!permissions.canCreateAutomations}>
-              <Zap className="w-4 h-4" />
-              <span>Automatisations</span>
-            </TabsTrigger>
-            <TabsTrigger value="subscription" className="flex items-center space-x-2">
-              <Star className="w-4 h-4" />
-              <span>Abonnement</span>
-            </TabsTrigger>
-          </TabsList>
-          
-          <div className="p-6">
-            <TabsContent value="bots" className="mt-0">
-              {permissions.canCreateBots ? (
-                <BotManagement />
-              ) : (
-                <div className="text-center py-8">
-                  <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Accès restreint
-                  </h3>
-                  <p className="text-gray-600">
-                    Vous n'avez pas les permissions pour créer des chatbots
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="messages" className="mt-0">
-              <MessagesOverview />
-            </TabsContent>
-            
-            <TabsContent value="automations" className="mt-0">
-              {permissions.canCreateAutomations ? (
-                <div className="text-center py-8">
-                  <Zap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Automatisations
-                  </h3>
-                  <p className="text-gray-600 mb-4">
-                    Créez et gérez vos automatisations IA
-                  </p>
-                  <Button className="uniform-button-primary">
-                    Créer une automatisation
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Zap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Accès restreint
-                  </h3>
-                  <p className="text-gray-600">
-                    Vous n'avez pas les permissions pour les automatisations
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="subscription" className="mt-0">
-              <SubscriptionManagement />
-            </TabsContent>
+      {/* Notifications */}
+      {stats.unreadNotifications > 0 && (
+        <Card className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center space-x-3">
+            <Bell className="w-5 h-5 text-blue-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-900">
+                Vous avez {stats.unreadNotifications} notification(s) non lue(s)
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="border-blue-300 text-blue-700">
+              Voir tout
+            </Button>
           </div>
-        </Tabs>
-      </Card>
-
-      {/* Actions rapides */}
-      <Card className="uniform-card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button className="uniform-button-secondary flex items-center space-x-2">
-            <History className="w-4 h-4" />
-            <span>Historique</span>
-          </Button>
-          <Button className="uniform-button-secondary flex items-center space-x-2">
-            <Bell className="w-4 h-4" />
-            <span>Notifications</span>
-          </Button>
-          <Button className="uniform-button-secondary flex items-center space-x-2">
-            <Settings className="w-4 h-4" />
-            <span>Paramètres</span>
-          </Button>
-          <Button className="uniform-button-secondary flex items-center space-x-2">
-            <BarChart3 className="w-4 h-4" />
-            <span>Analyses</span>
-          </Button>
-        </div>
-      </Card>
+        </Card>
+      )}
     </div>
   );
 };
