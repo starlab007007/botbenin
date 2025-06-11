@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Bot, Workflow, ArrowLeft, Globe, MessageSquare } from 'lucide-react';
 
 interface BotAutomationCreatorProps {
@@ -17,6 +18,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
 
   const validateWebhookUrl = (url: string): boolean => {
     if (!url.trim()) return false;
@@ -28,20 +30,12 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     }
   };
 
-  const extractBotNameFromUrl = (url: string): string => {
-    try {
-      const parsedUrl = new URL(url);
-      const pathSegments = parsedUrl.pathname.split('/').filter(segment => segment);
-      return pathSegments[pathSegments.length - 1] || 'Bot Automatisé';
-    } catch {
-      return 'Bot Automatisé';
-    }
-  };
-
   const createBotFromWebhook = async () => {
     console.log('=== DÉBUT CRÉATION BOT ===');
     console.log('Webhook URL:', webhookUrl);
     console.log('Bot Name:', botName);
+    console.log('Auth Context User:', user);
+    console.log('Is Authenticated:', isAuthenticated);
 
     if (!webhookUrl.trim()) {
       toast({
@@ -70,23 +64,27 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       return;
     }
 
+    if (!isAuthenticated || !user) {
+      toast({
+        title: "Authentification requise",
+        description: "Vous devez être connecté pour créer un chatbot",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsCreating(true);
 
     try {
-      // Récupérer l'utilisateur connecté
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      console.log('User:', user);
-      
-      if (authError || !user) {
-        console.error('Auth error:', authError);
-        throw new Error('Utilisateur non connecté');
-      }
+      // Pour la démo, on utilise l'ID de l'utilisateur connecté
+      const userId = user.id;
+      console.log('User ID from AuthContext:', userId);
 
-      // Récupérer ou créer le bot_owner
+      // Créer ou récupérer le bot_owner en utilisant l'ID de l'AuthContext
       let { data: ownerData, error: ownerSelectError } = await supabase
         .from('bot_owners')
         .select('id, max_bots')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single();
 
       console.log('Owner data:', ownerData);
@@ -98,7 +96,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         const { data: newOwner, error: ownerCreateError } = await supabase
           .from('bot_owners')
           .insert({ 
-            user_id: user.id,
+            user_id: userId,
             subscription_plan: 'free',
             max_bots: 5
           })
@@ -274,6 +272,16 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         </div>
       </div>
 
+      {!isAuthenticated && (
+        <Card className="max-w-2xl border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <p className="text-red-800">
+              Vous devez être connecté pour créer un chatbot. Veuillez vous connecter et réessayer.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -291,6 +299,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               onChange={(e) => setBotName(e.target.value)}
               placeholder="Mon Assistant IA"
               className="w-full"
+              disabled={!isAuthenticated}
             />
             <p className="text-xs text-gray-500">
               Le nom qui apparaîtra dans votre tableau de bord
@@ -306,6 +315,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               onChange={(e) => setWebhookUrl(e.target.value)}
               placeholder="https://votre-instance.n8n.io/webhook/votre-webhook"
               className="w-full"
+              disabled={!isAuthenticated}
             />
             <p className="text-xs text-gray-500">
               L'URL webhook de votre workflow N8N qui traitera les messages du bot
@@ -316,7 +326,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             <Button
               onClick={() => testWebhookConnection(webhookUrl, 'test')}
               variant="outline"
-              disabled={!webhookUrl.trim() || isCreating}
+              disabled={!webhookUrl.trim() || isCreating || !isAuthenticated}
               className="flex-1"
             >
               <Globe className="w-4 h-4 mr-2" />
@@ -324,7 +334,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             </Button>
             <Button
               onClick={createBotFromWebhook}
-              disabled={!webhookUrl.trim() || !botName.trim() || isCreating}
+              disabled={!webhookUrl.trim() || !botName.trim() || isCreating || !isAuthenticated}
               className="flex-1 bg-blue-600 hover:bg-blue-700"
             >
               {isCreating ? (
