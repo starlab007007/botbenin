@@ -9,7 +9,6 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { GoogleAuthHandler } from "@/components/GoogleAuthHandler";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 import { HomePage } from "./pages/HomePage";
 import { ChatPage } from "./pages/ChatPage";
@@ -28,6 +27,7 @@ import { UsersManagementPage } from "./pages/UsersManagementPage";
 import { ProspectsPage } from "./pages/ProspectsPage";
 import NotFound from "./pages/NotFound";
 import { TestAccountsPage } from "./pages/TestAccountsPage";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -45,9 +45,11 @@ const App: React.FC = () => (
                 {/* Routes publiques */}
                 <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                 
-                {/* Routes avec layout et protection */}
+                {/* Routes avec layout */}
                 <Route path="/" element={<Layout />}>
                   <Route index element={<HomePage />} />
+                  
+                  {/* Routes protégées nécessitant une authentification */}
                   <Route path="chat" element={
                     <ProtectedRoute>
                       <ChatPage />
@@ -59,7 +61,7 @@ const App: React.FC = () => (
                     </ProtectedRoute>
                   } />
                   <Route path="automatisations" element={
-                    <ProtectedRoute requirePermissions={['manage_automations']}>
+                    <ProtectedRoute>
                       <AutomationsPage />
                     </ProtectedRoute>
                   } />
@@ -78,18 +80,20 @@ const App: React.FC = () => (
                       <ProspectsPage />
                     </ProtectedRoute>
                   } />
+                  
+                  {/* Modules IA - Accessibles à tous les utilisateurs authentifiés */}
                   <Route path="modules/business" element={
-                    <ProtectedRoute requirePermissions={['access_business_modules']}>
+                    <ProtectedRoute>
                       <BusinessModule />
                     </ProtectedRoute>
                   } />
                   <Route path="modules/marketing" element={
-                    <ProtectedRoute requirePermissions={['access_business_modules']}>
+                    <ProtectedRoute>
                       <MarketingModule />
                     </ProtectedRoute>
                   } />
                   <Route path="modules/gestion" element={
-                    <ProtectedRoute requireRole="admin">
+                    <ProtectedRoute>
                       <GestionModule />
                     </ProtectedRoute>
                   } />
@@ -98,6 +102,8 @@ const App: React.FC = () => (
                       <CitoyenModule />
                     </ProtectedRoute>
                   } />
+                  
+                  {/* Pages utilisateur */}
                   <Route path="account" element={
                     <ProtectedRoute>
                       <AccountPage />
@@ -108,13 +114,15 @@ const App: React.FC = () => (
                       <SupportPage />
                     </ProtectedRoute>
                   } />
+                  
+                  {/* Pages admin */}
                   <Route path="users" element={
                     <ProtectedRoute requirePermissions={['manage_users']}>
                       <UsersManagementPage />
                     </ProtectedRoute>
                   } />
                   <Route path="test-accounts" element={
-                    <ProtectedRoute requireRole="admin">
+                    <ProtectedRoute requirePermissions={['manage_users']}>
                       <TestAccountsPage />
                     </ProtectedRoute>
                   } />

@@ -13,7 +13,8 @@ import {
   Users as UsersIcon, 
   User, 
   HelpCircle,
-  Settings
+  Settings,
+  Database
 } from 'lucide-react';
 
 const menuItems = [
@@ -21,6 +22,7 @@ const menuItems = [
   { title: 'Chat', path: '/chat', icon: MessageCircle, color: 'bg-green-500' },
   { title: 'Automatisations', path: '/automatisations', icon: Workflow, color: 'bg-purple-500' },
   { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3, color: 'bg-gray-500' },
+  { title: 'Prospects', path: '/prospects', icon: Database, color: 'bg-cyan-500' },
 ];
 
 const aiModules = [
@@ -42,7 +44,7 @@ const adminItems = [
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
   const hasAdminAccess = user?.role === 'admin' || user?.permissions?.includes('manage_users');
@@ -76,7 +78,7 @@ export const Sidebar: React.FC = () => {
           </ul>
         </div>
 
-        {/* AI Modules */}
+        {/* AI Modules - Toujours visibles, mais avec protection d'accès */}
         <div>
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
             Modules IA
@@ -90,7 +92,7 @@ export const Sidebar: React.FC = () => {
                     isActive(item.path)
                       ? 'bg-gray-50 shadow-sm'
                       : 'hover:bg-gray-50'
-                  }`}
+                  } ${!isAuthenticated ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                     <item.icon className="w-4 h-4 text-white" />
@@ -98,6 +100,9 @@ export const Sidebar: React.FC = () => {
                   <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
                     {item.title}
                   </span>
+                  {!isAuthenticated && (
+                    <span className="text-xs text-gray-400 ml-auto">Connexion requise</span>
+                  )}
                 </NavLink>
               </li>
             ))}
@@ -105,7 +110,7 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Admin Section */}
-        {hasAdminAccess && (
+        {isAuthenticated && hasAdminAccess && (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
               Administration
@@ -146,7 +151,7 @@ export const Sidebar: React.FC = () => {
                   isActive(item.path)
                     ? 'bg-gray-50 shadow-sm'
                     : 'hover:bg-gray-50'
-                }`}
+                } ${!isAuthenticated ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                   <item.icon className="w-4 h-4 text-white" />
@@ -154,6 +159,9 @@ export const Sidebar: React.FC = () => {
                 <span className={`text-sm font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
                   {item.title}
                 </span>
+                {!isAuthenticated && (
+                  <span className="text-xs text-gray-400 ml-auto">Connexion requise</span>
+                )}
               </NavLink>
             </li>
           ))}
