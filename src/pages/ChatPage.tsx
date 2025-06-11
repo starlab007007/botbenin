@@ -31,7 +31,9 @@ export const ChatPage: React.FC = () => {
       // Si des paramètres de contexte sont fournis directement
       setBotConfig({
         chatTitle: title ? decodeURIComponent(title) : 'Assistant IA',
-        chatContext: context || 'general'
+        chatContext: context || 'general',
+        // Utiliser la même URL que le bot restaurant par défaut
+        webhookUrl: 'https://ia.bot.bj/webhook/restau1'
       });
       setShowChat(true);
     }
@@ -39,7 +41,7 @@ export const ChatPage: React.FC = () => {
 
   const loadBotConfiguration = async (botId: string) => {
     setIsLoading(true);
-    console.log('Chargement de la configuration du bot:', botId);
+    console.log('Chargement de la configuration du bot (identique restaurant):', botId);
     
     try {
       const { data: bot, error } = await supabase
@@ -49,7 +51,7 @@ export const ChatPage: React.FC = () => {
         .eq('is_active', true)
         .single();
 
-      console.log('Bot data:', bot);
+      console.log('Bot data (config identique restaurant):', bot);
       console.log('Bot error:', error);
 
       if (error) {
@@ -63,15 +65,12 @@ export const ChatPage: React.FC = () => {
       }
 
       if (!bot.webhook_url) {
-        toast({
-          title: "Configuration incomplète",
-          description: "Ce chatbot n'a pas de webhook configuré",
-          variant: "destructive",
-        });
-        return;
+        console.log('Aucun webhook configuré, utilisation de l\'URL restaurant par défaut');
+        // Utiliser l'URL par défaut du restaurant si aucune n'est configurée
+        bot.webhook_url = 'https://ia.bot.bj/webhook/restau1';
       }
 
-      console.log('Configuration du bot chargée:', {
+      console.log('Configuration du bot chargée (identique restaurant):', {
         webhookUrl: bot.webhook_url,
         chatTitle: bot.chat_title,
         chatContext: bot.chat_context

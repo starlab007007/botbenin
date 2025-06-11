@@ -29,8 +29,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const location = useLocation();
   
-  // Déterminer l'URL webhook à utiliser
-  const finalWebhookUrl = webhookUrl || getDefaultWebhookUrl(chatContext);
+  // S'assurer d'utiliser l'URL webhook identique au bot restaurant
+  const finalWebhookUrl = webhookUrl || getRestaurantWebhookUrl(chatContext);
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -46,19 +46,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  function getDefaultWebhookUrl(context?: string): string {
-    // URLs par défaut pour les contexts existants - utiliser les mêmes URLs que les bots du module citoyen
-    switch (context) {
-      case 'restaurant':
-        return 'https://ia.bot.bj/webhook/restau1';
-      case 'services_locaux':
-        return 'https://ia.bot.bj/webhook/immo1';
-      case 'automation':
-        // Pour les bots automatisés, utiliser la même URL que les bots restaurant par défaut
-        return 'https://ia.bot.bj/webhook/restau1';
-      default:
-        return 'https://ia.bot.bj/webhook/restau1';
-    }
+  function getRestaurantWebhookUrl(context?: string): string {
+    // Utiliser EXACTEMENT la même URL que le bot "Réserver restaurant" du module citoyen
+    console.log('Utilisation de l\'URL webhook identique au bot restaurant');
+    return 'https://ia.bot.bj/webhook/restau1';
   }
 
   function getWelcomeMessage(context?: string, title?: string): string {
@@ -70,7 +61,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       case 'restaurant':
         return `🍽️ Bonjour ! Je suis ${botName}, votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?`;
       case 'automation':
-        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA automatisé. Je suis connecté à un système N8N qui me permet de vous aider avec une large gamme de tâches. Comment puis-je vous assister aujourd'hui ?`;
+        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA automatisé connecté via N8N avec la même configuration que le bot "Réserver restaurant". Je peux vous aider avec une large gamme de tâches. Comment puis-je vous assister aujourd'hui ?`;
       default:
         return `🚀 Bonjour ! Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
     }
@@ -104,37 +95,37 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setInputValue('');
     setIsLoading(true);
 
-    console.log('=== BOT.BJ WEBHOOK DEBUG START ===');
+    console.log('=== COMMUNICATION N8N IDENTIQUE AU BOT RESTAURANT ===');
     console.log('User message:', textToSend);
-    console.log('Webhook URL:', finalWebhookUrl);
+    console.log('Webhook URL (identique restaurant):', finalWebhookUrl);
     console.log('Chat Context:', chatContext);
     console.log('Chat Title:', chatTitle);
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('Request timeout after 30 seconds');
+        console.log('Request timeout après 30 secondes (identique restaurant)');
         controller.abort();
       }, 30000);
 
-      // Utiliser le même format de payload que le bot restaurant du module citoyen
+      // Utiliser EXACTEMENT le même format de payload que le bot "Réserver restaurant"
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
-        session_id: `bot_bj_session_${chatContext || 'general'}_${Date.now()}`,
+        session_id: `bot_bj_session_${chatContext || 'automation'}_${Date.now()}`,
         user_id: 'bot_bj_user',
         source: 'bot_bj_platform',
-        context: chatContext || 'general',
+        context: chatContext || 'automation',
         chat_title: chatTitle,
         bot_type: chatContext === 'automation' ? 'dashboard_created' : 'predefined',
         interface_type: 'full_chat_interface',
-        // Ajouter les mêmes paramètres que le bot restaurant
+        // Paramètres IDENTIQUES au bot restaurant
         module: 'citoyen',
         service_type: chatContext === 'automation' ? 'automation' : 'restaurant',
         platform: 'bot_bj'
       };
 
-      console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
+      console.log('Request payload (identique restaurant):', JSON.stringify(requestPayload, null, 2));
 
       const response = await fetch(finalWebhookUrl, {
         method: 'POST',
@@ -142,7 +133,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
           'User-Agent': 'Bot.Bj-Platform/1.0',
-          // Ajouter les mêmes headers que le bot restaurant
+          // Headers IDENTIQUES au bot restaurant
           'X-Bot-Platform': 'bot_bj',
           'X-Bot-Version': '1.0'
         },
@@ -153,7 +144,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       clearTimeout(timeoutId);
 
-      console.log('Response received!');
+      console.log('Réponse N8N reçue (identique restaurant) !');
       console.log('Status:', response.status);
       console.log('Status Text:', response.statusText);
       console.log('Headers:', Object.fromEntries(response.headers.entries()));
@@ -171,7 +162,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       if (contentType.includes('application/json')) {
         responseData = await response.json();
-        console.log('JSON Response:', JSON.stringify(responseData, null, 2));
+        console.log('JSON Response N8N:', JSON.stringify(responseData, null, 2));
         
         processedContent = responseData.output || 
                           responseData.message || 
@@ -182,14 +173,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
         responseData = await response.text();
-        console.log('Text Response:', responseData);
+        console.log('Text Response N8N:', responseData);
         processedContent = responseData;
       }
 
-      console.log('Processed content:', processedContent);
+      console.log('Contenu traité N8N:', processedContent);
 
       if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from webhook');
+        throw new Error('Réponse vide ou invalide du webhook N8N');
       }
 
       const aiMessage: Message = {
@@ -199,25 +190,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         timestamp: new Date(),
       };
 
-      console.log('Adding AI message:', aiMessage);
+      console.log('Message IA ajouté (depuis N8N):', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
     } catch (error) {
-      console.error('=== BOT.BJ WEBHOOK ERROR ===');
+      console.error('=== ERREUR COMMUNICATION N8N ===');
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
       
-      let errorMessage = "Je rencontre des difficultés techniques. Laissez-moi vous proposer une assistance générale en attendant.";
-      let toastMessage = "Problème de connexion";
+      let errorMessage = "Je rencontre des difficultés techniques avec N8N. Laissez-moi vous proposer une assistance générale en attendant.";
+      let toastMessage = "Problème de connexion N8N";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = "La requête a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.";
-          toastMessage = "Timeout - réessayez";
+          errorMessage = "La requête vers N8N a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.";
+          toastMessage = "Timeout N8N - réessayez";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au système. Vérifiez votre connexion internet et réessayez.";
-          toastMessage = "Problème de connectivité";
+          errorMessage = "Impossible de se connecter à N8N. Vérifiez votre connexion internet et réessayez.";
+          toastMessage = "Problème de connectivité N8N";
         }
       }
 
@@ -231,13 +222,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
-        title: `${chatTitle} - Problème technique`,
+        title: `${chatTitle} - Problème technique N8N`,
         description: toastMessage,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
-      console.log('=== BOT.BJ WEBHOOK DEBUG END ===');
+      console.log('=== FIN COMMUNICATION N8N ===');
     }
   };
 

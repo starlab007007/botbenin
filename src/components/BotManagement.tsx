@@ -150,18 +150,19 @@ export const BotManagement: React.FC = () => {
   };
 
   const handleBotCreated = (botId: string) => {
-    console.log('Bot créé:', botId);
+    console.log('Bot créé avec config identique au restaurant:', botId);
     setShowAutomationCreator(false);
     fetchBots(); // Recharger la liste des bots
     toast({
       title: "Succès !",
-      description: "Votre chatbot a été créé et est maintenant opérationnel",
+      description: "Votre chatbot a été créé avec la même connectivité N8N que le bot restaurant",
     });
   };
 
   const testBot = (bot: Bot) => {
     // Ouvrir le bot dans une nouvelle fenêtre avec la même interface que les autres chats
     const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}`;
+    console.log('Test du bot avec config identique restaurant:', chatUrl);
     window.open(chatUrl, '_blank');
   };
 
@@ -272,7 +273,7 @@ export const BotManagement: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Mes Chatbots</h2>
-          <p className="text-gray-600">Créez et gérez vos chatbots connectés via webhook N8N</p>
+          <p className="text-gray-600">Créez et gérez vos chatbots avec connectivité N8N identique au bot restaurant</p>
         </div>
         <Button 
           onClick={() => setShowAutomationCreator(true)}
@@ -291,7 +292,7 @@ export const BotManagement: React.FC = () => {
             Aucun chatbot créé
           </h3>
           <p className="text-gray-600 mb-4">
-            Créez votre premier chatbot connecté via webhook N8N
+            Créez votre premier chatbot avec connectivité N8N identique au bot restaurant
           </p>
           <Button 
             onClick={() => setShowAutomationCreator(true)}
@@ -346,7 +347,8 @@ export const BotManagement: React.FC = () => {
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Chat: {bot.chat_title}</div>
                   <div className="text-xs text-gray-500">Contexte: {bot.chat_context}</div>
-                  <div className="text-xs text-green-600 mt-1">✅ Webhook N8N connecté</div>
+                  <div className="text-xs text-green-600 mt-1">✅ N8N connecté (identique restaurant)</div>
+                  <div className="text-xs text-blue-600">🔗 Webhook: {bot.webhook_url}</div>
                 </div>
 
                 {/* URL publique et partage */}
