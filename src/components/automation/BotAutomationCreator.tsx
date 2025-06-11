@@ -14,7 +14,6 @@ interface BotAutomationCreatorProps {
 }
 
 export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBack, onBotCreated }) => {
-  // Utiliser EXACTEMENT la même URL que le bot "Réserver restaurant" du module citoyen
   const [webhookUrl, setWebhookUrl] = useState('https://ia.bot.bj/webhook/restau1');
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -32,8 +31,8 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   };
 
   const createBotFromWebhook = async () => {
-    console.log('=== DÉBUT CRÉATION BOT IDENTIQUE AU BOT RESTAURANT ===');
-    console.log('Webhook URL (EXACTEMENT identique restaurant):', webhookUrl);
+    console.log('=== DÉBUT CRÉATION BOT ===');
+    console.log('Webhook URL:', webhookUrl);
     console.log('Bot Name:', botName);
     console.log('Auth Context User:', user);
     console.log('Is Authenticated:', isAuthenticated);
@@ -92,7 +91,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       console.log('Owner select error:', ownerSelectError);
 
       if (!ownerData) {
-        // Aucun owner trouvé, en créer un
         console.log('Création du bot_owner...');
         const { data: newOwner, error: ownerCreateError } = await supabase
           .from('bot_owners')
@@ -139,12 +137,12 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         throw new Error(`Limite atteinte: ${ownerData.max_bots} chatbots maximum`);
       }
 
-      // Configuration EXACTEMENT IDENTIQUE au bot restaurant du module citoyen
+      // Configuration du bot
       const botData = {
         owner_id: ownerData.id,
         name: botName.trim(),
-        description: `Chatbot automatisé avec connectivité N8N EXACTEMENT identique au bot "Réserver restaurant" - Créé le ${new Date().toLocaleDateString('fr-FR')}`,
-        webhook_url: 'https://ia.bot.bj/webhook/restau1', // URL FIXE identique au restaurant
+        description: `Chatbot automatisé avec connectivité N8N - Créé le ${new Date().toLocaleDateString('fr-FR')}`,
+        webhook_url: webhookUrl.trim(),
         api_key: '',
         chat_title: `${botName} Assistant`,
         chat_context: 'automation',
@@ -152,16 +150,16 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         is_active: true
       };
 
-      console.log('Bot data (config EXACTEMENT identique restaurant):', botData);
+      console.log('Bot data:', botData);
 
-      // Créer le bot avec la même configuration que le restaurant
+      // Créer le bot
       const { data: newBot, error: botError } = await supabase
         .from('bots')
         .insert(botData)
         .select('*')
         .single();
 
-      console.log('New bot (EXACTEMENT identique restaurant):', newBot);
+      console.log('New bot:', newBot);
       console.log('Bot error:', botError);
 
       if (botError) {
@@ -185,15 +183,15 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         console.warn('Erreur mise à jour URL publique:', updateError);
       }
 
-      console.log('Bot créé avec configuration EXACTEMENT identique au restaurant:', newBot.id);
+      console.log('Bot créé avec succès:', newBot.id);
 
       toast({
         title: "Chatbot créé avec succès !",
-        description: `Le chatbot "${botName}" utilise EXACTEMENT la même connectivité N8N que le bot "Réserver restaurant"`,
+        description: `Le chatbot "${botName}" a été créé et configuré`,
       });
 
-      // Tester immédiatement la connexion avec les mêmes paramètres que le restaurant
-      testWebhookConnectionExactlyLikeRestaurant('https://ia.bot.bj/webhook/restau1', newBot.id, newBot.chat_title).catch(console.warn);
+      // Tester la connexion webhook
+      testWebhookConnection(webhookUrl, newBot.id, newBot.chat_title).catch(console.warn);
 
       onBotCreated(newBot.id);
 
@@ -215,7 +213,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     }
   };
 
-  const testWebhookConnectionExactlyLikeRestaurant = async (webhookUrl: string, botId: string, chatTitle: string) => {
+  const testWebhookConnection = async (webhookUrl: string, botId: string, chatTitle: string) => {
     if (!validateWebhookUrl(webhookUrl)) {
       toast({
         title: "URL invalide",
@@ -225,15 +223,14 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       return;
     }
 
-    console.log('=== TEST WEBHOOK EXACTEMENT IDENTIQUE AU BOT RESTAURANT ===');
-    console.log('Webhook URL (EXACTEMENT identique):', webhookUrl);
+    console.log('=== TEST WEBHOOK ===');
+    console.log('Webhook URL:', webhookUrl);
     console.log('Bot ID:', botId);
     console.log('Chat Title:', chatTitle);
 
     try {
-      // Utiliser EXACTEMENT le même format que le bot restaurant
       const testPayload = {
-        message: 'Test de connexion depuis Bot.Bj - Configuration EXACTEMENT identique au bot "Réserver restaurant"',
+        message: 'Test de connexion depuis Bot.Bj',
         timestamp: new Date().toISOString(),
         session_id: `bot_bj_session_automation_${Date.now()}`,
         user_id: 'bot_bj_user',
@@ -248,7 +245,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         bot_id: botId
       };
 
-      console.log('Test payload (EXACTEMENT identique restaurant):', JSON.stringify(testPayload, null, 2));
+      console.log('Test payload:', JSON.stringify(testPayload, null, 2));
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -273,19 +270,19 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         
         toast({
           title: "✅ Webhook testé avec succès !",
-          description: "La connexion N8N fonctionne EXACTEMENT comme le bot restaurant",
+          description: "La connexion fonctionne correctement",
         });
       } else {
         toast({
           title: "⚠️ Test partiellement réussi",
-          description: `Réponse reçue (${response.status}), connexion établie comme le bot restaurant`,
+          description: `Réponse reçue (${response.status}), connexion établie`,
         });
       }
     } catch (error) {
       console.error('Erreur test webhook:', error);
       toast({
         title: "Test du webhook",
-        description: "Test effectué, le bot est configuré EXACTEMENT comme le restaurant",
+        description: "Test effectué, le bot est configuré",
         variant: "destructive",
       });
     } finally {
@@ -302,7 +299,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         </Button>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Nouveau Chatbot</h2>
-          <p className="text-gray-600">Connectivité N8N EXACTEMENT identique au bot "Réserver restaurant"</p>
+          <p className="text-gray-600">Créez un chatbot automatisé avec connectivité N8N</p>
         </div>
       </div>
 
@@ -347,18 +344,18 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             <Input
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
-              placeholder="https://ia.bot.bj/webhook/restau1"
+              placeholder="https://votre-webhook.n8n.cloud/webhook/..."
               className="w-full"
-              disabled={true}
+              disabled={!isAuthenticated}
             />
             <p className="text-xs text-gray-500">
-              ✅ URL FIXE - EXACTEMENT identique au bot "Réserver restaurant"
+              L'URL de votre webhook N8N pour la connectivité
             </p>
           </div>
 
           <div className="flex space-x-3">
             <Button
-              onClick={() => testWebhookConnectionExactlyLikeRestaurant(webhookUrl, 'test', botName || 'Test Bot')}
+              onClick={() => testWebhookConnection(webhookUrl, 'test', botName || 'Test Bot')}
               variant="outline"
               disabled={!webhookUrl.trim() || isCreating || !isAuthenticated}
               className="flex-1"
@@ -380,25 +377,13 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             </Button>
           </div>
 
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <h4 className="font-medium text-green-900 mb-2">✅ Configuration EXACTEMENT identique au bot restaurant :</h4>
-            <ul className="text-sm text-green-800 space-y-1">
-              <li>• URL webhook FIXE : https://ia.bot.bj/webhook/restau1</li>
-              <li>• Headers HTTP et User-Agent identiques</li>
-              <li>• Format de payload JSON identique</li>
-              <li>• Timeout de 30 secondes identique</li>
-              <li>• Paramètres de contexte et module identiques</li>
-              <li>• Interface de chat identique</li>
-            </ul>
-          </div>
-
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">🔗 Connectivité N8N garantie identique :</h4>
+            <h4 className="font-medium text-blue-900 mb-2">🔗 Connectivité N8N garantie :</h4>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• Headers X-Bot-Platform et X-Bot-Version identiques</li>
-              <li>• Payload avec module: 'citoyen' et service_type: 'automation'</li>
-              <li>• Session ID et user_id au même format</li>
-              <li>• Gestion d'erreurs et fallback identiques</li>
+              <li>• Payload avec module et service_type configurés</li>
+              <li>• Session ID et user_id au format standard</li>
+              <li>• Gestion d'erreurs et fallback intégrés</li>
               <li>• Logs détaillés pour debugging</li>
             </ul>
           </div>
