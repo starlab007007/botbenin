@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -8,6 +9,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { GoogleAuthHandler } from "@/components/GoogleAuthHandler";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "./components/Layout";
 import { HomePage } from "./pages/HomePage";
 import { ChatPage } from "./pages/ChatPage";
@@ -43,23 +45,79 @@ const App: React.FC = () => (
                 {/* Routes publiques */}
                 <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                 
-                {/* Routes avec layout */}
+                {/* Routes avec layout et protection */}
                 <Route path="/" element={<Layout />}>
                   <Route index element={<HomePage />} />
-                  <Route path="chat" element={<ChatPage />} />
-                  <Route path="chat-test" element={<BotTestPage />} />
-                  <Route path="automatisations" element={<AutomationsPage />} />
-                  <Route path="bots" element={<BotManagementPage />} />
-                  <Route path="dashboard" element={<DashboardPage />} />
-                  <Route path="prospects" element={<ProspectsPage />} />
-                  <Route path="modules/business" element={<BusinessModule />} />
-                  <Route path="modules/marketing" element={<MarketingModule />} />
-                  <Route path="modules/gestion" element={<GestionModule />} />
-                  <Route path="modules/citoyen" element={<CitoyenModule />} />
-                  <Route path="account" element={<AccountPage />} />
-                  <Route path="support" element={<SupportPage />} />
-                  <Route path="users" element={<UsersManagementPage />} />
-                  <Route path="test-accounts" element={<TestAccountsPage />} />
+                  <Route path="chat" element={
+                    <ProtectedRoute>
+                      <ChatPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="chat-test" element={
+                    <ProtectedRoute>
+                      <BotTestPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="automatisations" element={
+                    <ProtectedRoute requirePermissions={['manage_automations']}>
+                      <AutomationsPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="bots" element={
+                    <ProtectedRoute>
+                      <BotManagementPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="dashboard" element={
+                    <ProtectedRoute>
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="prospects" element={
+                    <ProtectedRoute>
+                      <ProspectsPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="modules/business" element={
+                    <ProtectedRoute requirePermissions={['access_business_modules']}>
+                      <BusinessModule />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="modules/marketing" element={
+                    <ProtectedRoute requirePermissions={['access_business_modules']}>
+                      <MarketingModule />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="modules/gestion" element={
+                    <ProtectedRoute requireRole="admin">
+                      <GestionModule />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="modules/citoyen" element={
+                    <ProtectedRoute>
+                      <CitoyenModule />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="account" element={
+                    <ProtectedRoute>
+                      <AccountPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="support" element={
+                    <ProtectedRoute>
+                      <SupportPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="users" element={
+                    <ProtectedRoute requirePermissions={['manage_users']}>
+                      <UsersManagementPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="test-accounts" element={
+                    <ProtectedRoute requireRole="admin">
+                      <TestAccountsPage />
+                    </ProtectedRoute>
+                  } />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -9,7 +9,8 @@ import {
   Settings, 
   Shield, 
   Home,
-  Users
+  Users,
+  BarChart3
 } from 'lucide-react';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -23,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 
 export const TopHeader: React.FC = () => {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -34,8 +36,8 @@ export const TopHeader: React.FC = () => {
     navigate('/');
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
@@ -43,7 +45,20 @@ export const TopHeader: React.FC = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  const hasAdminAccess = user?.permissions.includes('manage_users');
+  const hasAdminAccess = user?.permissions.includes('manage_users') || user?.role === 'admin';
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'manager':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'user':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
 
   return (
     <>
@@ -79,29 +94,58 @@ export const TopHeader: React.FC = () => {
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 h-10">
+                <Button variant="ghost" className="flex items-center space-x-2 h-10 hover:bg-gray-50">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm">
+                    <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium">
                       {getUserInitials(user!.name)}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:block text-sm font-medium text-gray-700">
-                    {user!.name}
-                  </span>
+                  <div className="hidden sm:block text-left">
+                    <div className="text-sm font-medium text-gray-900">
+                      {user!.name}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {user!.email}
+                    </div>
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
               
-              <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-200 shadow-lg">
-                <div className="px-3 py-2 border-b border-gray-100">
+              <DropdownMenuContent align="end" className="w-64 bg-white border border-gray-200 shadow-lg">
+                <div className="px-3 py-3 border-b border-gray-100">
                   <p className="text-sm font-medium text-gray-900">{user!.name}</p>
-                  <p className="text-xs text-gray-500">{user!.email}</p>
-                  <p className="text-xs text-blue-600 capitalize">{user!.role}</p>
+                  <p className="text-xs text-gray-500 mb-2">{user!.email}</p>
+                  <div className="flex items-center space-x-2">
+                    <Badge className={`text-xs ${getRoleColor(user!.role)}`}>
+                      {user!.role.charAt(0).toUpperCase() + user!.role.slice(1)}
+                    </Badge>
+                    {user!.authProvider === 'google' && (
+                      <Badge className="bg-blue-100 text-blue-800 border border-blue-200 text-xs">
+                        Google
+                      </Badge>
+                    )}
+                    {user!.emailVerified && (
+                      <Badge className="bg-green-100 text-green-800 border border-green-200 text-xs">
+                        Vérifié
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Abonnement: <span className="font-medium capitalize">{user!.subscription?.type}</span>
+                  </div>
                 </div>
                 
                 <DropdownMenuItem asChild>
                   <Link to="/" className="flex items-center cursor-pointer">
                     <Home className="w-4 h-4 mr-2" />
                     Accueil
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard" className="flex items-center cursor-pointer">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Tableau de bord
                   </Link>
                 </DropdownMenuItem>
                 
@@ -121,11 +165,17 @@ export const TopHeader: React.FC = () => {
                         Gestion Utilisateurs
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/test-accounts" className="flex items-center cursor-pointer">
+                        <Settings className="w-4 h-4 mr-2" />
+                        Comptes de Test
+                      </Link>
+                    </DropdownMenuItem>
                   </>
                 )}
                 
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-700 focus:bg-red-50">
                   <LogOut className="w-4 h-4 mr-2" />
                   Déconnexion
                 </DropdownMenuItem>
