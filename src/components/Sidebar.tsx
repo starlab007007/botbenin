@@ -11,14 +11,20 @@ import {
   FolderOpen, 
   Users as UsersIcon, 
   User, 
-  HelpCircle
+  HelpCircle,
+  Bot,
+  UserPlus
 } from 'lucide-react';
 
 const menuItems = [
   { title: 'Accueil', path: '/', icon: Home, color: 'bg-blue-500' },
   { title: 'Chat', path: '/chat', icon: MessageCircle, color: 'bg-green-500' },
+  { title: 'Test Bot', path: '/chat-test', icon: Bot, color: 'bg-purple-500' },
+  { title: 'Gestion des Bots', path: '/bots', icon: Bot, color: 'bg-indigo-500' },
   { title: 'Automatisations', path: '/automatisations', icon: Workflow, color: 'bg-purple-500' },
   { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3, color: 'bg-gray-500' },
+  { title: 'Prospects', path: '/prospects', icon: UserPlus, color: 'bg-orange-500' },
+  { title: 'Gestion Utilisateurs', path: '/users', icon: UsersIcon, color: 'bg-red-500' },
 ];
 
 const aiModules = [
