@@ -29,8 +29,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const location = useLocation();
   
-  // S'assurer d'utiliser l'URL webhook identique au bot restaurant
-  const finalWebhookUrl = webhookUrl || getRestaurantWebhookUrl(chatContext);
+  // S'assurer d'utiliser EXACTEMENT la même URL webhook que le bot restaurant
+  const finalWebhookUrl = getExactRestaurantWebhookUrl();
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -46,9 +46,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  function getRestaurantWebhookUrl(context?: string): string {
+  function getExactRestaurantWebhookUrl(): string {
     // Utiliser EXACTEMENT la même URL que le bot "Réserver restaurant" du module citoyen
-    console.log('Utilisation de l\'URL webhook identique au bot restaurant');
+    console.log('Utilisation de l\'URL webhook EXACTEMENT identique au bot restaurant');
     return 'https://ia.bot.bj/webhook/restau1';
   }
 
@@ -61,7 +61,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       case 'restaurant':
         return `🍽️ Bonjour ! Je suis ${botName}, votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?`;
       case 'automation':
-        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA automatisé connecté via N8N avec la même configuration que le bot "Réserver restaurant". Je peux vous aider avec une large gamme de tâches. Comment puis-je vous assister aujourd'hui ?`;
+        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA automatisé connecté via N8N avec EXACTEMENT la même configuration que le bot "Réserver restaurant". Je peux vous aider avec une large gamme de tâches. Comment puis-je vous assister aujourd'hui ?`;
       default:
         return `🚀 Bonjour ! Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
     }
@@ -95,16 +95,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setInputValue('');
     setIsLoading(true);
 
-    console.log('=== COMMUNICATION N8N IDENTIQUE AU BOT RESTAURANT ===');
+    console.log('=== COMMUNICATION N8N EXACTEMENT IDENTIQUE AU BOT RESTAURANT ===');
     console.log('User message:', textToSend);
-    console.log('Webhook URL (identique restaurant):', finalWebhookUrl);
+    console.log('Webhook URL (EXACTEMENT identique restaurant):', finalWebhookUrl);
     console.log('Chat Context:', chatContext);
     console.log('Chat Title:', chatTitle);
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('Request timeout après 30 secondes (identique restaurant)');
+        console.log('Request timeout après 30 secondes (EXACTEMENT identique restaurant)');
         controller.abort();
       }, 30000);
 
@@ -119,13 +119,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         chat_title: chatTitle,
         bot_type: chatContext === 'automation' ? 'dashboard_created' : 'predefined',
         interface_type: 'full_chat_interface',
-        // Paramètres IDENTIQUES au bot restaurant
+        // Paramètres EXACTEMENT IDENTIQUES au bot restaurant
         module: 'citoyen',
         service_type: chatContext === 'automation' ? 'automation' : 'restaurant',
         platform: 'bot_bj'
       };
 
-      console.log('Request payload (identique restaurant):', JSON.stringify(requestPayload, null, 2));
+      console.log('Request payload (EXACTEMENT identique restaurant):', JSON.stringify(requestPayload, null, 2));
 
       const response = await fetch(finalWebhookUrl, {
         method: 'POST',
@@ -133,7 +133,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
           'User-Agent': 'Bot.Bj-Platform/1.0',
-          // Headers IDENTIQUES au bot restaurant
+          // Headers EXACTEMENT IDENTIQUES au bot restaurant
           'X-Bot-Platform': 'bot_bj',
           'X-Bot-Version': '1.0'
         },
@@ -144,7 +144,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       clearTimeout(timeoutId);
 
-      console.log('Réponse N8N reçue (identique restaurant) !');
+      console.log('Réponse N8N reçue (EXACTEMENT identique restaurant) !');
       console.log('Status:', response.status);
       console.log('Status Text:', response.statusText);
       console.log('Headers:', Object.fromEntries(response.headers.entries()));
