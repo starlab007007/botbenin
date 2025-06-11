@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,9 +36,6 @@ interface User {
   timezone: string;
   avatar_url?: string;
   last_activity?: string;
-  auth_provider?: string;
-  google_id?: string;
-  email_verified?: boolean;
   user_profiles?: {
     bio?: string;
     avatar_url?: string;
@@ -110,11 +106,10 @@ export const UsersManagementPage: React.FC = () => {
       if (error) throw error;
 
       if (data) {
-        // Transform the data to match our User interface safely
+        // Transform the data to match our User interface
         const transformedUsers: User[] = data.map(user => ({
           ...user,
-          user_profiles: Array.isArray(user.user_profiles) ? user.user_profiles[0] : user.user_profiles,
-          bot_owners: Array.isArray(user.bot_owners) ? user.bot_owners : []
+          user_profiles: Array.isArray(user.user_profiles) ? user.user_profiles[0] : user.user_profiles
         }));
         setUsers(transformedUsers);
       }
@@ -254,14 +249,6 @@ export const UsersManagementPage: React.FC = () => {
     return isActive ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200';
   };
 
-  const getAuthProviderBadge = (provider?: string) => {
-    switch (provider) {
-      case 'google': return <Badge className="bg-blue-100 text-blue-800">Google</Badge>;
-      case 'email': return <Badge className="bg-gray-100 text-gray-800">Email</Badge>;
-      default: return <Badge className="bg-gray-100 text-gray-800">Email</Badge>;
-    }
-  };
-
   if (!hasPermission('manage_users')) {
     return (
       <div className="p-4 lg:p-8 bg-gray-50 min-h-screen">
@@ -384,105 +371,94 @@ export const UsersManagementPage: React.FC = () => {
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Utilisateur</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Rôle</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Statut</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Authentification</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Dernière activité</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-600">Abonnement</th>
                 <th className="text-right py-3 px-4 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user) => {
-                const botOwnerData = Array.isArray(user.bot_owners) && user.bot_owners.length > 0 
-                  ? user.bot_owners[0] 
-                  : null;
-                
-                return (
-                  <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-4 px-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                          <span className="text-white font-semibold">
-                            {user.full_name?.split(' ').map(n => n[0]).join('').substring(0, 2) || 'U'}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">{user.full_name || 'Nom non défini'}</div>
-                          <div className="text-sm text-gray-500 flex items-center space-x-2">
-                            <Mail className="w-3 h-3" />
-                            <span>{user.email}</span>
-                            {user.email_verified && <span className="text-green-600">✓</span>}
-                          </div>
-                          {user.phone && (
-                            <div className="text-sm text-gray-500 flex items-center space-x-2">
-                              <Phone className="w-3 h-3" />
-                              <span>{user.phone}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <Badge className={getRoleBadgeColor(user.user_roles?.[0]?.roles?.name || 'user')}>
-                        {user.user_roles?.[0]?.roles?.name || 'user'}
-                      </Badge>
-                    </td>
-                    <td className="py-4 px-4">
-                      <Badge className={getStatusBadgeColor(user.is_active)}>
-                        {user.is_active ? 'Actif' : 'Inactif'}
-                      </Badge>
-                    </td>
-                    <td className="py-4 px-4">
-                      {getAuthProviderBadge(user.auth_provider)}
-                    </td>
-                    <td className="py-4 px-4 text-gray-600">
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-3 h-3" />
-                        <span className="text-sm">
-                          {user.last_activity ? 
-                            new Date(user.last_activity).toLocaleDateString('fr-FR') : 
-                            user.last_login ? 
-                            new Date(user.last_login).toLocaleDateString('fr-FR') : 
-                            'Jamais'
-                          }
+              {filteredUsers.map((user) => (
+                <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="py-4 px-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                        <span className="text-white font-semibold">
+                          {user.full_name?.split(' ').map(n => n[0]).join('').substring(0, 2) || 'U'}
                         </span>
                       </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <Badge className="bg-purple-100 text-purple-800">
-                        {botOwnerData?.subscription_plan || user.subscription_tier || 'free'}
-                      </Badge>
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end space-x-2">
-                        <Button variant="ghost" size="sm" className="p-2">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="p-2">
-                          <Edit3 className="w-4 h-4" />
-                        </Button>
+                      <div>
+                        <div className="font-medium text-gray-900">{user.full_name || 'Nom non défini'}</div>
+                        <div className="text-sm text-gray-500 flex items-center space-x-2">
+                          <Mail className="w-3 h-3" />
+                          <span>{user.email}</span>
+                        </div>
+                        {user.phone && (
+                          <div className="text-sm text-gray-500 flex items-center space-x-2">
+                            <Phone className="w-3 h-3" />
+                            <span>{user.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4">
+                    <Badge className={getRoleBadgeColor(user.user_roles?.[0]?.roles?.name || 'user')}>
+                      {user.user_roles?.[0]?.roles?.name || 'user'}
+                    </Badge>
+                  </td>
+                  <td className="py-4 px-4">
+                    <Badge className={getStatusBadgeColor(user.is_active)}>
+                      {user.is_active ? 'Actif' : 'Inactif'}
+                    </Badge>
+                  </td>
+                  <td className="py-4 px-4 text-gray-600">
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-3 h-3" />
+                      <span className="text-sm">
+                        {user.last_activity ? 
+                          new Date(user.last_activity).toLocaleDateString('fr-FR') : 
+                          user.last_login ? 
+                          new Date(user.last_login).toLocaleDateString('fr-FR') : 
+                          'Jamais'
+                        }
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4">
+                    <Badge className="bg-purple-100 text-purple-800">
+                      {user.bot_owners?.[0]?.subscription_plan || user.subscription_tier || 'free'}
+                    </Badge>
+                  </td>
+                  <td className="py-4 px-4 text-right">
+                    <div className="flex items-center justify-end space-x-2">
+                      <Button variant="ghost" size="sm" className="p-2">
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="p-2">
+                        <Edit3 className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="p-2"
+                        onClick={() => updateUserStatus(user.id, !user.is_active)}
+                      >
+                        <Activity className={`w-4 h-4 ${user.is_active ? 'text-red-600' : 'text-green-600'}`} />
+                      </Button>
+                      {user.id !== currentUser?.id && (
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="p-2"
-                          onClick={() => updateUserStatus(user.id, !user.is_active)}
+                          className="p-2 text-red-600 hover:text-red-700"
+                          onClick={() => deleteUser(user.id)}
                         >
-                          <Activity className={`w-4 h-4 ${user.is_active ? 'text-red-600' : 'text-green-600'}`} />
+                          <Trash2 className="w-4 h-4" />
                         </Button>
-                        {user.id !== currentUser?.id && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="p-2 text-red-600 hover:text-red-700"
-                            onClick={() => deleteUser(user.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

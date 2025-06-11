@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,8 +33,6 @@ export interface AuthUser {
       timestamp: Date;
     }>;
   }>;
-  authProvider?: 'email' | 'google';
-  emailVerified?: boolean;
 }
 
 interface AuthContextType {
@@ -43,7 +40,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
-  loginWithGoogle: () => Promise<boolean>;
   register: (userData: {
     name: string;
     email: string;
@@ -172,9 +168,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             status: 'active'
           },
           profile: userData.user_profiles?.[0] || undefined,
-          chatHistory: [],
-          authProvider: userData.auth_provider === 'google' ? 'google' : 'email',
-          emailVerified: userData.email_verified || false
+          chatHistory: []
         };
 
         setUser(authUser);
@@ -275,42 +269,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return false;
   };
 
-  const loginWithGoogle = async (): Promise<boolean> => {
-    setIsLoading(true);
-    
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`
-        }
-      });
-
-      if (error) {
-        toast({
-          title: "Erreur de connexion Google",
-          description: error.message,
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return false;
-      }
-
-      // La redirection se fera automatiquement
-      return true;
-    } catch (error) {
-      console.error('Erreur de connexion Google:', error);
-      toast({
-        title: "Erreur de connexion Google",
-        description: "Une erreur est survenue lors de la connexion avec Google",
-        variant: "destructive",
-      });
-    }
-    
-    setIsLoading(false);
-    return false;
-  };
-
   const register = async (userData: {
     name: string;
     email: string;
@@ -327,8 +285,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           data: {
             full_name: userData.name,
             phone: userData.phone
-          },
-          emailRedirectTo: `${window.location.origin}/`
+          }
         }
       });
 
@@ -344,7 +301,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       toast({
         title: "Compte créé avec succès",
-        description: `Bienvenue ${userData.name}! Vérifiez votre email pour activer votre compte.`,
+        description: `Bienvenue ${userData.name}!`,
       });
       
       setIsLoading(false);
@@ -429,7 +386,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthenticated: !!user,
       login,
       loginWithPhone,
-      loginWithGoogle,
       register,
       logout,
       updateProfile,
