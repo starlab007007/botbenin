@@ -30,11 +30,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     }
   };
 
-  const isValidUUID = (uuid: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuid);
-  };
-
   const createBotFromWebhook = async () => {
     console.log('=== DÉBUT CRÉATION BOT ===');
     console.log('Webhook URL:', webhookUrl);
@@ -81,22 +76,9 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     setIsCreating(true);
 
     try {
-      // Récupérer l'utilisateur authentifié actuel depuis Supabase
-      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !authUser) {
-        console.error('Erreur auth:', authError);
-        throw new Error('Impossible de récupérer l\'utilisateur authentifié');
-      }
-
-      const userId = authUser.id;
-      console.log('User ID from Supabase Auth:', userId);
-
-      // Vérifier que l'ID est un UUID valide
-      if (!isValidUUID(userId)) {
-        console.error('Invalid UUID format:', userId);
-        throw new Error('Format d\'identifiant utilisateur invalide');
-      }
+      // Utiliser l'ID de l'utilisateur du contexte d'authentification
+      const userId = user.id;
+      console.log('User ID from AuthContext:', userId);
 
       // Créer ou récupérer le bot_owner
       let { data: ownerData, error: ownerSelectError } = await supabase
@@ -138,12 +120,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         throw new Error('Impossible de récupérer les données du propriétaire');
       }
 
-      // Vérifier que l'owner_id est un UUID valide
-      if (!isValidUUID(ownerData.id)) {
-        console.error('Invalid owner UUID format:', ownerData.id);
-        throw new Error('Format d\'identifiant propriétaire invalide');
-      }
-
       // Vérifier le nombre de bots existants
       const { count: botsCount, error: countError } = await supabase
         .from('bots')
@@ -162,9 +138,9 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         throw new Error(`Limite atteinte: ${ownerData.max_bots} chatbots maximum`);
       }
 
-      // Préparer les données du bot avec validation
+      // Préparer les données du bot
       const botData = {
-        owner_id: ownerData.id, // UUID validé
+        owner_id: ownerData.id,
         name: botName.trim(),
         description: `Chatbot automatisé créé le ${new Date().toLocaleDateString('fr-FR')}`,
         webhook_url: webhookUrl.trim(),
