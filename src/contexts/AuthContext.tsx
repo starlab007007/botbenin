@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -85,17 +86,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Écouter les changements d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event, session);
         if (session?.user) {
           await loadUserProfile(session.user.id);
-          
-          // Redirection automatique vers Mon Compte après connexion Google
-          if (event === 'SIGNED_IN' && session.user.app_metadata?.provider === 'google') {
-            console.log('Connexion Google réussie, redirection vers Mon Compte...');
-            setTimeout(() => {
-              window.location.href = '/account';
-            }, 1000);
-          }
         } else {
           setUser(null);
         }
@@ -186,14 +178,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
 
         setUser(authUser);
-        
-        // Toast de bienvenue pour les connexions Google
-        if (userData.auth_provider === 'google') {
-          toast({
-            title: "Connexion Google réussie",
-            description: `Bienvenue ${authUser.name} !`,
-          });
-        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
@@ -295,32 +279,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
-      // Détecter l'environnement et définir l'URL de redirection appropriée
-      const isLocalhost = window.location.hostname === 'localhost';
-      const baseUrl = isLocalhost 
-        ? 'http://localhost:3000'
-        : 'https://bot.bj';
-      
-      const redirectTo = `${baseUrl}/account`;
-
-      console.log('Google auth redirect URL:', redirectTo);
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectTo,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
+          redirectTo: `${window.location.origin}/`
         }
       });
 
       if (error) {
-        console.error('Erreur Google Auth:', error);
         toast({
           title: "Erreur de connexion Google",
-          description: `Erreur: ${error.message}. Vérifiez la configuration OAuth dans Supabase.`,
+          description: error.message,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -328,12 +297,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // La redirection se fera automatiquement
-      toast({
-        title: "Redirection en cours",
-        description: "Vous allez être redirigé vers Google pour vous connecter",
-      });
-      
-      // Ne pas désactiver le loading ici car la redirection va se faire
       return true;
     } catch (error) {
       console.error('Erreur de connexion Google:', error);
@@ -342,9 +305,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: "Une erreur est survenue lors de la connexion avec Google",
         variant: "destructive",
       });
-      setIsLoading(false);
-      return false;
     }
+    
+    setIsLoading(false);
+    return false;
   };
 
   const register = async (userData: {
@@ -378,15 +342,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
-      if (data.user) {
-        toast({
-          title: "Compte créé avec succès",
-          description: `Bienvenue ${userData.name}! ${data.user.email_confirmed_at ? 'Votre compte est activé.' : 'Vérifiez votre email pour activer votre compte.'}`,
-        });
-        
-        setIsLoading(false);
-        return true;
-      }
+      toast({
+        title: "Compte créé avec succès",
+        description: `Bienvenue ${userData.name}! Vérifiez votre email pour activer votre compte.`,
+      });
+      
+      setIsLoading(false);
+      return true;
     } catch (error) {
       console.error('Erreur d\'inscription:', error);
       toast({

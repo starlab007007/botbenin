@@ -613,42 +613,6 @@ export type Database = {
           },
         ]
       }
-      demo_accounts: {
-        Row: {
-          created_at: string | null
-          id: string
-          is_demo: boolean | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          is_demo?: boolean | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          is_demo?: boolean | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "demo_accounts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "demo_accounts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       file_folders: {
         Row: {
           created_at: string | null
@@ -2430,10 +2394,6 @@ export type Database = {
       }
     }
     Functions: {
-      can_view_user_data: {
-        Args: { target_user_id: string }
-        Returns: boolean
-      }
       create_bot_user_if_not_exists: {
         Args: {
           p_bot_id: string
@@ -2445,10 +2405,6 @@ export type Database = {
       }
       generate_public_chat_url: {
         Args: { bot_id: string }
-        Returns: string
-      }
-      hide_demo_account_data: {
-        Args: { user_id: string; data_value: string }
         Returns: string
       }
       is_admin: {
