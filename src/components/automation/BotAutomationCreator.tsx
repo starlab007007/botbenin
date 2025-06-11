@@ -17,7 +17,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, session } = useAuth();
 
   const validateWebhookUrl = (url: string): boolean => {
     if (!url.trim()) return false;
@@ -35,6 +35,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     console.log('Bot Name:', botName);
     console.log('Auth Context User:', user);
     console.log('Is Authenticated:', isAuthenticated);
+    console.log('Supabase Session:', session);
 
     if (!webhookUrl.trim()) {
       toast({
@@ -63,7 +64,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       return;
     }
 
-    if (!isAuthenticated || !user) {
+    if (!isAuthenticated || !session) {
       toast({
         title: "Authentification requise",
         description: "Vous devez être connecté pour créer un chatbot",
@@ -75,17 +76,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     setIsCreating(true);
 
     try {
-      // Vérifier l'utilisateur authentifié Supabase
-      const { data: { user: supabaseUser }, error: authError } = await supabase.auth.getUser();
-      
-      console.log('Supabase Auth User:', supabaseUser);
-      console.log('Auth Error:', authError);
-
-      if (authError || !supabaseUser) {
-        throw new Error('Utilisateur non authentifié dans Supabase');
-      }
-
-      const userId = supabaseUser.id;
+      const userId = session.user.id;
       console.log('Supabase User ID:', userId);
 
       // Créer ou récupérer le bot_owner
