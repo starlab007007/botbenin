@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BotAnalytics } from '@/components/BotAnalytics';
+import { BotAutomationCreator } from '@/components/automation/BotAutomationCreator';
 import { 
   Bot, 
   Plus, 
@@ -52,6 +54,7 @@ export const BotManagement: React.FC = () => {
   const [botStats, setBotStats] = useState<Record<string, BotStats>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showAutomationCreator, setShowAutomationCreator] = useState(false);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
   const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<Bot | null>(null);
   const [formData, setFormData] = useState({
@@ -75,7 +78,7 @@ export const BotManagement: React.FC = () => {
       if (!user) return;
 
       // Récupérer le bot_owner
-      const { data: ownerData } = await supabase
+      let { data: ownerData } = await supabase
         .from('bot_owners')
         .select('id')
         .eq('user_id', user.id)
@@ -89,20 +92,16 @@ export const BotManagement: React.FC = () => {
           .select('id')
           .single();
         
-        if (!newOwner) return;
+        ownerData = newOwner;
       }
 
-      const ownerId = ownerData?.id || (await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single()).data?.id;
+      if (!ownerData) return;
 
       // Récupérer les bots
       const { data: botsData, error } = await supabase
         .from('bots')
         .select('*')
-        .eq('owner_id', ownerId)
+        .eq('owner_id', ownerData.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -150,195 +149,33 @@ export const BotManagement: React.FC = () => {
     }
   };
 
-  const validateForm = () => {
-    if (!formData.name.trim()) {
-      toast({
-        title: "Erreur",
-        description: "Le nom du chatbot est obligatoire",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if (!formData.webhook_url.trim()) {
-      toast({
-        title: "Erreur",
-        description: "L'URL webhook est obligatoire",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Valider l'URL webhook
-    try {
-      new URL(formData.webhook_url);
-    } catch {
-      toast({
-        title: "Erreur",
-        description: "L'URL webhook n'est pas valide",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    return true;
+  const handleBotCreated = (botId: string) => {
+    console.log('Bot créé:', botId);
+    setShowAutomationCreator(false);
+    fetchBots(); // Recharger la liste des bots
+    toast({
+      title: "Succès !",
+      description: "Votre chatbot a été créé et est maintenant opérationnel",
+    });
   };
 
-  const createBot = async () => {
-    if (!validateForm()) return;
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return;
-
-      // Créer le bot avec webhook obligatoire
-      const { data: newBot, error } = await supabase
-        .from('bots')
-        .insert({
-          owner_id: ownerData.id,
-          name: formData.name,
-          description: formData.description,
-          webhook_url: formData.webhook_url, // Obligatoire
-          api_key: formData.api_key || '', // Optionnel
-          chat_title: formData.chat_title,
-          chat_context: formData.chat_context,
-          share_enabled: formData.share_enabled,
-          is_active: true
-        })
-        .select('*')
-        .single();
-
-      if (error) throw error;
-
-      // Générer l'URL publique pour le nouveau bot
-      if (newBot) {
-        const publicUrl = `${window.location.origin}/bot/${newBot.id}`;
-        const { error: updateError } = await supabase
-          .from('bots')
-          .update({ 
-            public_chat_url: publicUrl 
-          })
-          .eq('id', newBot.id);
-
-        if (updateError) console.warn('Erreur lors de la mise à jour de l\'URL publique:', updateError);
-
-        // Test de connexion avec le webhook N8N
-        await testWebhookConnection(formData.webhook_url, newBot.id);
-      }
-
-      toast({
-        title: "Chatbot créé avec succès !",
-        description: `Le chatbot "${formData.name}" est maintenant connecté et opérationnel`,
-      });
-
-      setFormData({ 
-        name: '', 
-        description: '', 
-        webhook_url: '', 
-        api_key: '',
-        chat_title: 'Assistant IA',
-        chat_context: 'general',
-        share_enabled: true
-      });
-      setShowCreateForm(false);
-      fetchBots();
-    } catch (error) {
-      console.error('Erreur lors de la création:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de créer le chatbot",
-        variant: "destructive",
-      });
-    }
+  const testBot = (bot: Bot) => {
+    // Ouvrir le bot dans une nouvelle fenêtre avec la même interface que les autres chats
+    const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}`;
+    window.open(chatUrl, '_blank');
   };
 
-  const testWebhookConnection = async (webhookUrl: string, botId: string) => {
+  const copyToClipboard = async (text: string, label: string) => {
     try {
-      const testPayload = {
-        message: 'Test de connexion depuis Bot.Bj',
-        timestamp: new Date().toISOString(),
-        bot_id: botId,
-        session_id: `test_session_${Date.now()}`,
-        source: 'bot_bj_dashboard',
-        context: 'connection_test'
-      };
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Bot.Bj-Dashboard/1.0',
-        },
-        body: JSON.stringify(testPayload),
-        signal: AbortSignal.timeout(10000)
-      });
-
-      if (response.ok) {
-        console.log('✅ Webhook N8N connecté avec succès');
-        toast({
-          title: "Connexion N8N réussie",
-          description: "Le webhook est correctement connecté au backend N8N",
-        });
-      } else {
-        console.warn('⚠️ Webhook répondu mais avec un statut différent:', response.status);
-      }
-    } catch (error) {
-      console.warn('⚠️ Test de connexion webhook échoué:', error);
-      // Ne pas bloquer la création du bot pour un test de connexion échoué
-    }
-  };
-
-  const updateBot = async () => {
-    if (!editingBot || !validateForm()) return;
-
-    try {
-      const { error } = await supabase
-        .from('bots')
-        .update({
-          name: formData.name,
-          description: formData.description,
-          webhook_url: formData.webhook_url,
-          api_key: formData.api_key,
-          chat_title: formData.chat_title,
-          chat_context: formData.chat_context,
-          share_enabled: formData.share_enabled
-        })
-        .eq('id', editingBot.id);
-
-      if (error) throw error;
-
-      // Test de connexion avec le nouveau webhook
-      await testWebhookConnection(formData.webhook_url, editingBot.id);
-
+      await navigator.clipboard.writeText(text);
       toast({
-        title: "Chatbot mis à jour",
-        description: "Les modifications ont été sauvegardées et testées",
+        title: "Copié !",
+        description: `${label} copié dans le presse-papiers`,
       });
-
-      setEditingBot(null);
-      setFormData({ 
-        name: '', 
-        description: '', 
-        webhook_url: '', 
-        api_key: '',
-        chat_title: 'Assistant IA',
-        chat_context: 'general',
-        share_enabled: true
-      });
-      fetchBots();
     } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de mettre à jour le chatbot",
+        description: "Impossible de copier dans le presse-papiers",
         variant: "destructive",
       });
     }
@@ -396,59 +233,21 @@ export const BotManagement: React.FC = () => {
     }
   };
 
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "Copié !",
-        description: `${label} copié dans le presse-papiers`,
-      });
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de copier dans le presse-papiers",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const startEdit = (bot: Bot) => {
-    setEditingBot(bot);
-    setFormData({
-      name: bot.name,
-      description: bot.description,
-      webhook_url: bot.webhook_url,
-      api_key: bot.api_key,
-      chat_title: bot.chat_title || 'Assistant IA',
-      chat_context: bot.chat_context || 'general',
-      share_enabled: bot.share_enabled ?? true
-    });
-    setShowCreateForm(true);
-  };
-
-  const cancelEdit = () => {
-    setEditingBot(null);
-    setFormData({ 
-      name: '', 
-      description: '', 
-      webhook_url: '', 
-      api_key: '',
-      chat_title: 'Assistant IA',
-      chat_context: 'general',
-      share_enabled: true
-    });
-    setShowCreateForm(false);
-  };
-
-  const testBot = (bot: Bot) => {
-    // Ouvrir le bot dans une nouvelle fenêtre avec la même interface que les autres chats
-    window.open(`/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}`, '_blank');
-  };
-
   const viewAnalytics = (bot: Bot) => {
     setSelectedBotForAnalytics(bot);
   };
 
+  // Afficher le créateur d'automatisation
+  if (showAutomationCreator) {
+    return (
+      <BotAutomationCreator
+        onBack={() => setShowAutomationCreator(false)}
+        onBotCreated={handleBotCreated}
+      />
+    );
+  }
+
+  // Afficher les analytics
   if (selectedBotForAnalytics) {
     return (
       <BotAnalytics
@@ -473,118 +272,16 @@ export const BotManagement: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Mes Chatbots</h2>
-          <p className="text-gray-600">Gérez vos chatbots connectés via webhook N8N</p>
+          <p className="text-gray-600">Créez et gérez vos chatbots connectés via webhook N8N</p>
         </div>
         <Button 
-          onClick={() => setShowCreateForm(true)}
+          onClick={() => setShowAutomationCreator(true)}
           className="bg-blue-600 hover:bg-blue-700"
         >
           <Plus className="w-4 h-4 mr-2" />
           Nouveau Chatbot
         </Button>
       </div>
-
-      {/* Formulaire de création/édition */}
-      {showCreateForm && (
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">
-            {editingBot ? 'Modifier le chatbot' : 'Créer un nouveau chatbot'}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nom du chatbot <span className="text-red-500">*</span>
-              </label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Mon Assistant IA"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Titre du chat
-              </label>
-              <Input
-                value={formData.chat_title}
-                onChange={(e) => setFormData(prev => ({ ...prev, chat_title: e.target.value }))}
-                placeholder="Assistant IA"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Clé API (optionnel)
-              </label>
-              <Input
-                value={formData.api_key}
-                onChange={(e) => setFormData(prev => ({ ...prev, api_key: e.target.value }))}
-                placeholder="sk-..."
-                type="password"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Contexte du chat
-              </label>
-              <Input
-                value={formData.chat_context}
-                onChange={(e) => setFormData(prev => ({ ...prev, chat_context: e.target.value }))}
-                placeholder="general"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <Input
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Assistant intelligent pour..."
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                URL Webhook N8N <span className="text-red-500">*</span>
-              </label>
-              <Input
-                value={formData.webhook_url}
-                onChange={(e) => setFormData(prev => ({ ...prev, webhook_url: e.target.value }))}
-                placeholder="https://votre-instance.n8n.io/webhook/votre-webhook"
-                required
-                className={!formData.webhook_url.trim() ? 'border-red-300' : ''}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                ⚠️ Obligatoire - URL du webhook N8N qui traitera les messages du chatbot
-              </p>
-            </div>
-            <div className="md:col-span-2 flex items-center space-x-2">
-              <Switch
-                checked={formData.share_enabled}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, share_enabled: checked }))}
-              />
-              <label className="text-sm font-medium text-gray-700">
-                Autoriser le partage public
-              </label>
-            </div>
-          </div>
-          <div className="flex space-x-3">
-            <Button 
-              onClick={editingBot ? updateBot : createBot}
-              className="bg-green-600 hover:bg-green-700"
-              disabled={!formData.name.trim() || !formData.webhook_url.trim()}
-            >
-              {editingBot ? 'Mettre à jour' : 'Créer le Chatbot'}
-            </Button>
-            <Button 
-              onClick={cancelEdit}
-              variant="outline"
-            >
-              Annuler
-            </Button>
-          </div>
-        </Card>
-      )}
 
       {/* Liste des chatbots */}
       {bots.length === 0 ? (
@@ -597,7 +294,7 @@ export const BotManagement: React.FC = () => {
             Créez votre premier chatbot connecté via webhook N8N
           </p>
           <Button 
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => setShowAutomationCreator(true)}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -723,14 +420,6 @@ export const BotManagement: React.FC = () => {
                 {/* Actions secondaires */}
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                   <div className="flex space-x-2">
-                    <Button
-                      onClick={() => startEdit(bot)}
-                      variant="ghost"
-                      size="sm"
-                      className="p-2"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </Button>
                     <Button
                       onClick={() => deleteBot(bot.id)}
                       variant="ghost"

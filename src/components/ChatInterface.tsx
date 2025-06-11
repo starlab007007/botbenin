@@ -53,6 +53,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         return 'https://ia.bot.bj/webhook/iphoneshop1';
       case 'services_locaux':
         return 'https://ia.bot.bj/webhook/services_locaux';
+      case 'automation':
+        // Pour les bots automatisés, utiliser l'URL fournie ou une URL par défaut
+        return 'https://ia.bot.bj/webhook/automation';
       default:
         return 'https://ia.bot.bj/webhook/iphoneshop1';
     }
@@ -66,13 +69,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         return `🏢 Bonjour ! Je suis ${botName}, votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?`;
       case 'restaurant':
         return `🍽️ Bonjour ! Je suis ${botName}, votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?`;
+      case 'automation':
+        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA automatisé. Je suis connecté à un système N8N qui me permet de vous aider avec une large gamme de tâches. Comment puis-je vous assister aujourd'hui ?`;
       default:
         return `🚀 Bonjour ! Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
     }
   }
 
   // Determine user context based on current route or provided context
-  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general' => {
+  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general' => {
     if (chatContext) return chatContext as any;
     const path = location.pathname;
     if (path.includes('business')) return 'business';
@@ -120,7 +125,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         source: 'bot_bj_platform',
         context: chatContext || 'general',
         chat_title: chatTitle,
-        bot_type: 'dashboard_created'
+        bot_type: chatContext === 'automation' ? 'dashboard_created' : 'predefined',
+        interface_type: 'full_chat_interface'
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));

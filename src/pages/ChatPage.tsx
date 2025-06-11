@@ -22,6 +22,8 @@ export const ChatPage: React.FC = () => {
     const context = searchParams.get('context');
     const title = searchParams.get('title');
 
+    console.log('ChatPage params:', { botId, context, title });
+
     if (botId) {
       // Si un bot ID est fourni, charger la configuration du bot
       loadBotConfiguration(botId);
@@ -37,6 +39,8 @@ export const ChatPage: React.FC = () => {
 
   const loadBotConfiguration = async (botId: string) => {
     setIsLoading(true);
+    console.log('Chargement de la configuration du bot:', botId);
+    
     try {
       const { data: bot, error } = await supabase
         .from('bots')
@@ -45,7 +49,11 @@ export const ChatPage: React.FC = () => {
         .eq('is_active', true)
         .single();
 
+      console.log('Bot data:', bot);
+      console.log('Bot error:', error);
+
       if (error) {
+        console.error('Erreur lors du chargement du bot:', error);
         toast({
           title: "Bot non trouvé",
           description: "Le chatbot demandé n'existe pas ou n'est pas actif",
@@ -63,10 +71,16 @@ export const ChatPage: React.FC = () => {
         return;
       }
 
+      console.log('Configuration du bot chargée:', {
+        webhookUrl: bot.webhook_url,
+        chatTitle: bot.chat_title,
+        chatContext: bot.chat_context
+      });
+
       setBotConfig({
         webhookUrl: bot.webhook_url,
         chatTitle: bot.chat_title || 'Assistant IA',
-        chatContext: bot.chat_context || 'general'
+        chatContext: bot.chat_context || 'automation'
       });
       setShowChat(true);
 
