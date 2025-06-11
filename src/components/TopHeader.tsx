@@ -29,14 +29,17 @@ import { Badge } from '@/components/ui/badge';
 export const TopHeader: React.FC = () => {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  console.log('TopHeader: État d\'auth - isAuthenticated:', isAuthenticated, 'user:', user?.email, 'isLoading:', isLoading);
 
   const handleLogoClick = () => {
     navigate('/');
   };
 
   const handleLogout = async () => {
+    console.log('TopHeader: Déconnexion demandée');
     await logout();
     navigate('/');
   };
@@ -91,21 +94,29 @@ export const TopHeader: React.FC = () => {
         <div className="flex items-center space-x-2 lg:space-x-4">
           <ThemeToggle />
           
-          {isAuthenticated ? (
+          {/* Afficher un indicateur de chargement si nécessaire */}
+          {isLoading && (
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span>Chargement...</span>
+            </div>
+          )}
+          
+          {isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 h-10 hover:bg-gray-50">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium">
-                      {getUserInitials(user!.name)}
+                      {getUserInitials(user.name)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden sm:block text-left">
                     <div className="text-sm font-medium text-gray-900">
-                      {user!.name}
+                      {user.name}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {user!.email}
+                      {user.email}
                     </div>
                   </div>
                 </Button>
@@ -113,25 +124,25 @@ export const TopHeader: React.FC = () => {
               
               <DropdownMenuContent align="end" className="w-64 bg-white border border-gray-200 shadow-lg">
                 <div className="px-3 py-3 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-900">{user!.name}</p>
-                  <p className="text-xs text-gray-500 mb-2">{user!.email}</p>
+                  <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                  <p className="text-xs text-gray-500 mb-2">{user.email}</p>
                   <div className="flex items-center space-x-2">
-                    <Badge className={`text-xs ${getRoleColor(user!.role)}`}>
-                      {user!.role.charAt(0).toUpperCase() + user!.role.slice(1)}
+                    <Badge className={`text-xs ${getRoleColor(user.role)}`}>
+                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                     </Badge>
-                    {user!.authProvider === 'google' && (
+                    {user.authProvider === 'google' && (
                       <Badge className="bg-blue-100 text-blue-800 border border-blue-200 text-xs">
                         Google
                       </Badge>
                     )}
-                    {user!.emailVerified && (
+                    {user.emailVerified && (
                       <Badge className="bg-green-100 text-green-800 border border-green-200 text-xs">
                         Vérifié
                       </Badge>
                     )}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    Abonnement: <span className="font-medium capitalize">{user!.subscription?.type}</span>
+                    Abonnement: <span className="font-medium capitalize">{user.subscription?.type}</span>
                   </div>
                 </div>
                 
@@ -182,14 +193,16 @@ export const TopHeader: React.FC = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button
-              onClick={() => setShowAuthModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              size="sm"
-            >
-              <User className="w-4 h-4 mr-2" />
-              Connexion
-            </Button>
+            !isLoading && (
+              <Button
+                onClick={() => setShowAuthModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                size="sm"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Connexion
+              </Button>
+            )
           )}
         </div>
       </header>
