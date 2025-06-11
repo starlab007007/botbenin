@@ -9,23 +9,16 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requirePermissions?: string[];
   requireRole?: string;
-  requireAuth?: boolean;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requirePermissions = [],
-  requireRole,
-  requireAuth = true
+  requireRole
 }) => {
   const { user, isAuthenticated } = useAuth();
 
-  // If authentication is not required, render children directly
-  if (!requireAuth) {
-    return <>{children}</>;
-  }
-
-  // Redirect to auth page if not authenticated and auth is required
+  // Redirect to login if not authenticated
   if (!isAuthenticated || !user) {
     return <Navigate to="/auth" replace />;
   }
@@ -39,8 +32,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Accès restreint</h2>
           <p className="text-gray-600">
             Vous n'avez pas le rôle nécessaire pour accéder à cette page.
-            <br />
-            Rôle requis: <strong>{requireRole}</strong>
           </p>
         </Card>
       </div>
@@ -61,8 +52,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Accès restreint</h2>
             <p className="text-gray-600">
               Vous n'avez pas les permissions nécessaires pour accéder à cette page.
-              <br />
-              Permissions requises: <strong>{requirePermissions.join(', ')}</strong>
             </p>
           </Card>
         </div>
