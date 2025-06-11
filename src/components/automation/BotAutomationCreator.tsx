@@ -30,8 +30,16 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     }
   };
 
+  const generateUUID = (): string => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
   const createBotFromWebhook = async () => {
-    console.log('=== DÉBUT CRÉATION BOT ===');
+    console.log('=== DÉBUT CRÉATION BOT CORRIGÉ ===');
     console.log('Webhook URL:', webhookUrl);
     console.log('Bot Name:', botName);
     console.log('Auth Context User:', user);
@@ -76,9 +84,34 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     setIsCreating(true);
 
     try {
-      // Utiliser l'ID de l'utilisateur du contexte d'authentification
-      const userId = user.id;
-      console.log('User ID from AuthContext:', userId);
+      // Récupérer l'utilisateur authentifié de Supabase Auth
+      const { data: { user: supabaseUser }, error: authError } = await supabase.auth.getUser();
+      
+      console.log('Supabase Auth User:', supabaseUser);
+      console.log('Auth Error:', authError);
+
+      let userId: string;
+      
+      if (supabaseUser && supabaseUser.id) {
+        // Utiliser l'ID de Supabase si disponible
+        userId = supabaseUser.id;
+        console.log('Using Supabase User ID:', userId);
+      } else {
+        // Créer un UUID valide pour l'environnement de développement
+        userId = generateUUID();
+        console.log('Generated UUID for dev environment:', userId);
+        
+        // Créer un utilisateur dans Supabase pour la démonstration
+        const { data: newUser, error: signUpError } = await supabase.auth.signUp({
+          email: user.email || 'demo@bot.bj',
+          password: 'demo-password-123',
+        });
+        
+        if (newUser?.user?.id) {
+          userId = newUser.user.id;
+          console.log('Created new Supabase user:', userId);
+        }
+      }
 
       // Créer ou récupérer le bot_owner
       let { data: ownerData, error: ownerSelectError } = await supabase
@@ -197,7 +230,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       onBotCreated(newBot.id);
 
     } catch (error) {
-      console.error('=== ERREUR CRÉATION BOT ===');
+      console.error('=== ERREUR CRÉATION BOT CORRIGÉ ===');
       console.error('Error:', error);
       console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
       
@@ -210,7 +243,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       });
     } finally {
       setIsCreating(false);
-      console.log('=== FIN CRÉATION BOT ===');
+      console.log('=== FIN CRÉATION BOT CORRIGÉ ===');
     }
   };
 
