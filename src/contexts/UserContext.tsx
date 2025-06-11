@@ -1,6 +1,5 @@
 
-import React, { createContext, useContext, ReactNode } from 'react';
-import { useAuth } from './AuthContext';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export interface User {
   id: string;
@@ -27,42 +26,91 @@ export interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+const rolePermissions = {
+  admin: [
+    'read_all', 'write_all', 'delete_all', 'manage_users', 'manage_roles',
+    'view_analytics', 'manage_automations', 'access_all_modules'
+  ],
+  manager: [
+    'read_all', 'write_most', 'manage_team', 'view_analytics', 
+    'manage_automations', 'access_business_modules'
+  ],
+  user: [
+    'read_own', 'write_own', 'use_automations', 'access_basic_modules'
+  ],
+  viewer: [
+    'read_limited', 'view_dashboards'
+  ]
+};
+
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user: authUser, updateProfile } = useAuth();
+  const [currentUser, setCurrentUser] = useState<User | null>({
+    id: '1',
+    name: 'Utilisateur Admin',
+    email: 'admin@bot.bj',
+    role: 'admin',
+    permissions: rolePermissions.admin,
+    status: 'active',
+    createdAt: new Date(),
+    lastLogin: new Date()
+  });
 
-  // Convert AuthUser to User format for backward compatibility
-  const currentUser: User | null = authUser ? {
-    id: authUser.id,
-    name: authUser.name,
-    email: authUser.email,
-    role: authUser.role,
-    avatar: authUser.avatar,
-    permissions: authUser.permissions,
-    status: authUser.status,
-    lastLogin: authUser.lastLogin,
-    createdAt: authUser.createdAt
-  } : null;
-
-  const users: User[] = currentUser ? [currentUser] : [];
-
-  const setCurrentUser = (user: User | null) => {
-    // This is handled by the AuthContext
-  };
+  const [users, setUsers] = useState<User[]>([
+    {
+      id: '1',
+      name: 'Utilisateur Admin',
+      email: 'admin@bot.bj',
+      role: 'admin',
+      permissions: rolePermissions.admin,
+      status: 'active',
+      createdAt: new Date(),
+      lastLogin: new Date()
+    },
+    {
+      id: '2',
+      name: 'Manager Commercial',
+      email: 'manager@bot.bj',
+      role: 'manager',
+      permissions: rolePermissions.manager,
+      status: 'active',
+      createdAt: new Date(),
+      lastLogin: new Date(Date.now() - 86400000)
+    },
+    {
+      id: '3',
+      name: 'Utilisateur Standard',
+      email: 'user@bot.bj',
+      role: 'user',
+      permissions: rolePermissions.user,
+      status: 'active',
+      createdAt: new Date(),
+      lastLogin: new Date(Date.now() - 172800000)
+    }
+  ]);
 
   const addUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
-    // This would be handled by admin functions
-    console.log('Add user:', userData);
+    const newUser: User = {
+      ...userData,
+      id: Date.now().toString(),
+      createdAt: new Date()
+    };
+    setUsers(prev => [...prev, newUser]);
   };
 
   const updateUser = (id: string, updates: Partial<User>) => {
+    setUsers(prev => prev.map(user => 
+      user.id === id ? { ...user, ...updates } : user
+    ));
     if (currentUser && currentUser.id === id) {
-      updateProfile(updates as any);
+      setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
   };
 
   const deleteUser = (id: string) => {
-    // This would be handled by admin functions
-    console.log('Delete user:', id);
+    setUsers(prev => prev.filter(user => user.id !== id));
+    if (currentUser && currentUser.id === id) {
+      setCurrentUser(null);
+    }
   };
 
   const hasPermission = (permission: string) => {
@@ -70,8 +118,15 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const switchRole = (role: User['role']) => {
-    // This would be handled by admin functions
-    console.log('Switch role:', role);
+    if (currentUser) {
+      const updatedUser = {
+        ...currentUser,
+        role,
+        permissions: rolePermissions[role]
+      };
+      setCurrentUser(updatedUser);
+      updateUser(currentUser.id, { role, permissions: rolePermissions[role] });
+    }
   };
 
   return (

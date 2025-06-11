@@ -1,8 +1,6 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
 
 export interface AuthUser {
   id: string;
@@ -45,7 +43,6 @@ interface AuthContextType {
   logout: () => void;
   updateProfile: (updates: Partial<AuthUser>) => void;
   isLoading: boolean;
-  session: Session | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -67,127 +64,87 @@ const rolePermissions = {
   ]
 };
 
+// Mock users database
+const mockUsers: AuthUser[] = [
+  {
+    id: '1',
+    name: 'Administrateur Principal',
+    email: 'admin@bot.bj',
+    phone: '+22997123456',
+    role: 'admin',
+    permissions: rolePermissions.admin,
+    status: 'active',
+    createdAt: new Date('2024-01-01'),
+    lastLogin: new Date(),
+    subscription: {
+      type: 'enterprise',
+      status: 'active'
+    },
+    chatHistory: []
+  },
+  {
+    id: '2',
+    name: 'Manager Commercial',
+    email: 'manager@bot.bj',
+    phone: '+22997654321',
+    role: 'manager',
+    permissions: rolePermissions.manager,
+    status: 'active',
+    createdAt: new Date('2024-01-15'),
+    lastLogin: new Date(Date.now() - 86400000),
+    subscription: {
+      type: 'pro',
+      status: 'active'
+    },
+    chatHistory: []
+  }
+];
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Convert Supabase user to AuthUser
-  const convertToAuthUser = async (supabaseUser: User): Promise<AuthUser> => {
-    // Get user profile data
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', supabaseUser.id)
-      .single();
-
-    // Get user role
-    const { data: userRole } = await supabase
-      .from('user_roles')
-      .select('roles(name)')
-      .eq('user_id', supabaseUser.id)
-      .single();
-
-    const role = (userRole?.roles as any)?.name || 'user';
-
-    return {
-      id: supabaseUser.id,
-      name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'User',
-      email: supabaseUser.email || '',
-      phone: supabaseUser.phone,
-      role: role as 'admin' | 'manager' | 'user' | 'viewer',
-      permissions: rolePermissions[role as keyof typeof rolePermissions] || rolePermissions.user,
-      status: 'active',
-      lastLogin: new Date(supabaseUser.last_sign_in_at || supabaseUser.created_at),
-      createdAt: new Date(supabaseUser.created_at),
-      subscription: {
-        type: 'free',
-        status: 'active'
-      },
-      chatHistory: []
-    };
-  };
-
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session);
-        setSession(session);
-        
-        if (session?.user) {
-          try {
-            const authUser = await convertToAuthUser(session.user);
-            setUser(authUser);
-          } catch (error) {
-            console.error('Error converting user:', error);
-            setUser(null);
-          }
-        } else {
-          setUser(null);
-        }
-        setIsLoading(false);
+    // Check for stored auth on mount
+    const storedUser = localStorage.getItem('bot_bj_user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+      } catch (error) {
+        localStorage.removeItem('bot_bj_user');
       }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        try {
-          const authUser = await convertToAuthUser(session.user);
-          setUser(authUser);
-        } catch (error) {
-          console.error('Error converting user:', error);
-          setUser(null);
-        }
-      }
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    }
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        toast({
-          title: "Erreur de connexion",
-          description: error.message,
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return false;
-      }
-
-      if (data.user) {
-        const authUser = await convertToAuthUser(data.user);
-        setUser(authUser);
-        
-        toast({
-          title: "Connexion réussie",
-          description: `Bienvenue ${authUser.name}!`,
-        });
-        
-        setIsLoading(false);
-        return true;
-      }
-    } catch (error) {
-      console.error('Login error:', error);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const foundUser = mockUsers.find(u => u.email === email);
+    
+    if (foundUser && password === 'password123') {
+      const updatedUser = { ...foundUser, lastLogin: new Date() };
+      setUser(updatedUser);
+      localStorage.setItem('bot_bj_user', JSON.stringify(updatedUser));
+      
       toast({
-        title: "Erreur de connexion",
-        description: "Une erreur inattendue s'est produite",
-        variant: "destructive",
+        title: "Connexion réussie",
+        description: `Bienvenue ${foundUser.name}!`,
       });
+      
+      setIsLoading(false);
+      return true;
     }
+    
+    toast({
+      title: "Erreur de connexion",
+      description: "Email ou mot de passe incorrect",
+      variant: "destructive",
+    });
     
     setIsLoading(false);
     return false;
@@ -196,42 +153,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginWithPhone = async (phone: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        phone,
-        password,
-      });
-
-      if (error) {
-        toast({
-          title: "Erreur de connexion",
-          description: error.message,
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return false;
-      }
-
-      if (data.user) {
-        const authUser = await convertToAuthUser(data.user);
-        setUser(authUser);
-        
-        toast({
-          title: "Connexion réussie",
-          description: `Bienvenue ${authUser.name}!`,
-        });
-        
-        setIsLoading(false);
-        return true;
-      }
-    } catch (error) {
-      console.error('Login with phone error:', error);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const foundUser = mockUsers.find(u => u.phone === phone);
+    
+    if (foundUser && password === 'password123') {
+      const updatedUser = { ...foundUser, lastLogin: new Date() };
+      setUser(updatedUser);
+      localStorage.setItem('bot_bj_user', JSON.stringify(updatedUser));
+      
       toast({
-        title: "Erreur de connexion",
-        description: "Une erreur inattendue s'est produite",
-        variant: "destructive",
+        title: "Connexion réussie",
+        description: `Bienvenue ${foundUser.name}!`,
       });
+      
+      setIsLoading(false);
+      return true;
     }
+    
+    toast({
+      title: "Erreur de connexion",
+      description: "Téléphone ou mot de passe incorrect",
+      variant: "destructive",
+    });
     
     setIsLoading(false);
     return false;
@@ -245,110 +189,55 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }): Promise<boolean> => {
     setIsLoading(true);
     
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        phone: userData.phone,
-        options: {
-          data: {
-            full_name: userData.name,
-          },
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
-
-      if (error) {
-        toast({
-          title: "Erreur d'inscription",
-          description: error.message,
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return false;
-      }
-
-      if (data.user) {
-        toast({
-          title: "Compte créé avec succès",
-          description: `Bienvenue ${userData.name}! Vérifiez votre email pour confirmer votre compte.`,
-        });
-        
-        setIsLoading(false);
-        return true;
-      }
-    } catch (error) {
-      console.error('Register error:', error);
-      toast({
-        title: "Erreur d'inscription",
-        description: "Une erreur inattendue s'est produite",
-        variant: "destructive",
-      });
-    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const newUser: AuthUser = {
+      id: Date.now().toString(),
+      name: userData.name,
+      email: userData.email,
+      phone: userData.phone,
+      role: 'user',
+      permissions: rolePermissions.user,
+      status: 'active',
+      createdAt: new Date(),
+      subscription: {
+        type: 'free',
+        status: 'active'
+      },
+      chatHistory: []
+    };
+    
+    mockUsers.push(newUser);
+    setUser(newUser);
+    localStorage.setItem('bot_bj_user', JSON.stringify(newUser));
+    
+    toast({
+      title: "Compte créé avec succès",
+      description: `Bienvenue ${newUser.name}!`,
+    });
     
     setIsLoading(false);
-    return false;
+    return true;
   };
 
-  const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      toast({
-        title: "Déconnexion",
-        description: "Vous avez été déconnecté avec succès",
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast({
-        title: "Erreur de déconnexion",
-        description: "Une erreur s'est produite lors de la déconnexion",
-        variant: "destructive",
-      });
-    }
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('bot_bj_user');
+    toast({
+      title: "Déconnexion",
+      description: "Vous avez été déconnecté avec succès",
+    });
   };
 
-  const updateProfile = async (updates: Partial<AuthUser>) => {
-    if (!user || !session) return;
-
-    try {
-      // Update user metadata
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          full_name: updates.name || user.name,
-        }
-      });
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      // Update profile in database
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .update({
-          bio: updates.name || user.name,
-        })
-        .eq('user_id', user.id);
-
-      if (profileError) {
-        throw profileError;
-      }
-
+  const updateProfile = (updates: Partial<AuthUser>) => {
+    if (user) {
       const updatedUser = { ...user, ...updates };
       setUser(updatedUser);
+      localStorage.setItem('bot_bj_user', JSON.stringify(updatedUser));
       
       toast({
         title: "Profil mis à jour",
         description: "Vos informations ont été mises à jour avec succès",
-      });
-    } catch (error) {
-      console.error('Update profile error:', error);
-      toast({
-        title: "Erreur de mise à jour",
-        description: "Impossible de mettre à jour le profil",
-        variant: "destructive",
       });
     }
   };
@@ -356,8 +245,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider value={{
       user,
-      session,
-      isAuthenticated: !!session,
+      isAuthenticated: !!user,
       login,
       loginWithPhone,
       register,

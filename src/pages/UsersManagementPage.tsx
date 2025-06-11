@@ -13,21 +13,14 @@ import {
   Trash2,
   Search,
   Filter,
-  MoreVertical,
-  Loader2
+  MoreVertical
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useUsers } from '@/hooks/useUsers';
+import { useUser } from '@/contexts/UserContext';
 
 export const UsersManagementPage: React.FC = () => {
-  const { user: currentUser } = useAuth();
-  const { users, loading, updateUser, deleteUser } = useUsers();
+  const { users, currentUser, addUser, updateUser, deleteUser, hasPermission } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
-
-  const hasPermission = (permission: string) => {
-    return currentUser?.permissions.includes(permission) || false;
-  };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -70,17 +63,6 @@ export const UsersManagementPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Accès restreint</h2>
           <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
         </Card>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="p-4 lg:p-8 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Chargement des utilisateurs...</span>
-        </div>
       </div>
     );
   }
@@ -235,12 +217,7 @@ export const UsersManagementPage: React.FC = () => {
                         <Edit3 className="w-4 h-4" />
                       </Button>
                       {user.id !== currentUser?.id && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="p-2 text-red-600 hover:text-red-700"
-                          onClick={() => deleteUser(user.id)}
-                        >
+                        <Button variant="ghost" size="sm" className="p-2 text-red-600 hover:text-red-700">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
