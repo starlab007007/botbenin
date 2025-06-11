@@ -18,7 +18,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const { login, loginWithPhone, register, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
   
   // Login form state
   const [loginData, setLoginData] = useState({
@@ -36,47 +35,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     confirmPassword: ''
   });
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const validatePhone = (phone: string) => {
-    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({});
-    
-    // Validation
-    const newErrors: {[key: string]: string} = {};
-    
-    if (loginMethod === 'email') {
-      if (!loginData.email) {
-        newErrors.email = 'Email requis';
-      } else if (!validateEmail(loginData.email)) {
-        newErrors.email = 'Format email invalide';
-      }
-    } else {
-      if (!loginData.phone) {
-        newErrors.phone = 'Numéro de téléphone requis';
-      } else if (!validatePhone(loginData.phone)) {
-        newErrors.phone = 'Format de numéro invalide';
-      }
-    }
-    
-    if (!loginData.password) {
-      newErrors.password = 'Mot de passe requis';
-    } else if (loginData.password.length < 6) {
-      newErrors.password = 'Le mot de passe doit contenir au moins 6 caractères';
-    }
-    
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
     
     let success = false;
     if (loginMethod === 'email') {
@@ -88,50 +48,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     if (success) {
       onClose();
       setLoginData({ email: '', phone: '', password: '' });
-      setErrors({});
     }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({});
     
-    // Validation
-    const newErrors: {[key: string]: string} = {};
-    
-    if (!registerData.name.trim()) {
-      newErrors.name = 'Nom requis';
-    }
-    
-    if (!registerData.email) {
-      newErrors.email = 'Email requis';
-    } else if (!validateEmail(registerData.email)) {
-      newErrors.email = 'Format email invalide';
-    }
-    
-    if (registerData.phone && !validatePhone(registerData.phone)) {
-      newErrors.phone = 'Format de numéro invalide';
-    }
-    
-    if (!registerData.password) {
-      newErrors.password = 'Mot de passe requis';
-    } else if (registerData.password.length < 6) {
-      newErrors.password = 'Le mot de passe doit contenir au moins 6 caractères';
-    }
-    
-    if (!registerData.confirmPassword) {
-      newErrors.confirmPassword = 'Confirmation du mot de passe requise';
-    } else if (registerData.password !== registerData.confirmPassword) {
-      newErrors.confirmPassword = 'Les mots de passe ne correspondent pas';
-    }
-    
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    if (registerData.password !== registerData.confirmPassword) {
       return;
     }
     
     const success = await register({
-      name: registerData.name.trim(),
+      name: registerData.name,
       email: registerData.email,
       phone: registerData.phone || undefined,
       password: registerData.password
@@ -140,7 +68,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     if (success) {
       onClose();
       setRegisterData({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
-      setErrors({});
     }
   };
 
@@ -163,6 +90,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
             <TabsContent value="login">
               <div className="space-y-4">
+                {/* Google Sign In Button */}
                 <GoogleSignInButton variant="signin" disabled={isLoading} />
                 
                 <div className="relative">
@@ -204,12 +132,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       <Input
                         id="email"
                         type="email"
-                        placeholder="votre@email.com ou admin@test.com"
+                        placeholder="votre@email.com"
                         value={loginData.email}
                         onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                        className={`bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.email ? 'border-red-500' : ''}`}
+                        required
+                        className="bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       />
-                      {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
                     </div>
                   ) : (
                     <div>
@@ -217,12 +145,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       <Input
                         id="phone"
                         type="tel"
-                        placeholder="+229 97 00 00 01 ou +229 97 00 00 02"
+                        placeholder="+229 XX XX XX XX"
                         value={loginData.phone}
                         onChange={(e) => setLoginData({ ...loginData, phone: e.target.value })}
-                        className={`bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.phone ? 'border-red-500' : ''}`}
+                        required
+                        className="bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       />
-                      {errors.phone && <p className="text-red-600 text-sm mt-1">{errors.phone}</p>}
                     </div>
                   )}
 
@@ -235,7 +163,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         placeholder="••••••••"
                         value={loginData.password}
                         onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                        className={`bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.password ? 'border-red-500' : ''}`}
+                        required
+                        className="bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                       />
                       <Button
                         type="button"
@@ -247,7 +176,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </div>
-                    {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password}</p>}
                   </div>
 
                   <Button
@@ -263,6 +191,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
             <TabsContent value="register">
               <div className="space-y-4">
+                {/* Google Sign In Button for Registration */}
                 <GoogleSignInButton variant="signup" disabled={isLoading} />
                 
                 <div className="relative">
@@ -283,12 +212,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         id="name"
                         type="text"
                         placeholder="Votre nom complet"
-                        className={`pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.name ? 'border-red-500' : ''}`}
+                        className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                         value={registerData.name}
                         onChange={(e) => setRegisterData({ ...registerData, name: e.target.value })}
+                        required
                       />
                     </div>
-                    {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
                   </div>
 
                   <div>
@@ -299,12 +228,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         id="reg-email"
                         type="email"
                         placeholder="votre@email.com"
-                        className={`pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.email ? 'border-red-500' : ''}`}
+                        className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                         value={registerData.email}
                         onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                        required
                       />
                     </div>
-                    {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
                   </div>
 
                   <div>
@@ -315,12 +244,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         id="reg-phone"
                         type="tel"
                         placeholder="+229 XX XX XX XX"
-                        className={`pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.phone ? 'border-red-500' : ''}`}
+                        className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                         value={registerData.phone}
                         onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
                       />
                     </div>
-                    {errors.phone && <p className="text-red-600 text-sm mt-1">{errors.phone}</p>}
                   </div>
 
                   <div>
@@ -331,9 +259,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         id="reg-password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder="••••••••"
-                        className={`pl-10 pr-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.password ? 'border-red-500' : ''}`}
+                        className="pl-10 pr-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                         value={registerData.password}
                         onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                        required
                       />
                       <Button
                         type="button"
@@ -345,7 +274,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </div>
-                    {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password}</p>}
                   </div>
 
                   <div>
@@ -356,12 +284,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         id="confirm-password"
                         type="password"
                         placeholder="••••••••"
-                        className={`pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700 ${errors.confirmPassword ? 'border-red-500' : ''}`}
+                        className="pl-10 bg-yellow-400 border-gray-400 text-black placeholder:text-gray-700"
                         value={registerData.confirmPassword}
                         onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
+                        required
                       />
                     </div>
-                    {errors.confirmPassword && <p className="text-red-600 text-sm mt-1">{errors.confirmPassword}</p>}
                   </div>
 
                   <Button

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,13 +85,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Écouter les changements d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event, session?.user?.email);
-        
+        console.log('Auth event:', event, session);
         if (session?.user) {
-          console.log('Session utilisateur détectée, chargement du profil...');
           await loadUserProfile(session.user.id);
+          
+          // Redirection automatique vers Mon Compte après connexion Google
+          if (event === 'SIGNED_IN' && session.user.app_metadata?.provider === 'google') {
+            console.log('Connexion Google réussie, redirection vers Mon Compte...');
+            setTimeout(() => {
+              window.location.href = '/account';
+            }, 1000);
+          }
         } else {
-          console.log('Aucune session, réinitialisation de l\'utilisateur');
           setUser(null);
         }
       }
@@ -105,7 +109,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        console.log('Session existante trouvée:', session.user.email);
         await loadUserProfile(session.user.id);
       }
     } catch (error) {
@@ -115,8 +118,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loadUserProfile = async (userId: string) => {
     try {
-      console.log('Chargement du profil pour:', userId);
-      
       // Récupérer les données utilisateur depuis la table users
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -144,14 +145,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .eq('id', userId)
         .single();
 
-      if (userError && userError.code !== 'PGRST116') {
+      if (userError) {
         console.error('Erreur lors du chargement du profil:', userError);
         return;
       }
 
       if (userData) {
-        console.log('Données utilisateur chargées:', userData.email);
-        
         // Construire les permissions à partir des rôles
         const permissions: string[] = [];
         const roleName = userData.user_roles?.[0]?.roles?.name || 'user';
@@ -186,8 +185,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           emailVerified: userData.email_verified || false
         };
 
-        console.log('Profil utilisateur construit:', authUser.email, authUser.authProvider);
         setUser(authUser);
+        
+        // Toast de bienvenue pour les connexions Google
+        if (userData.auth_provider === 'google') {
+          toast({
+            title: "Connexion Google réussie",
+            description: `Bienvenue ${authUser.name} !`,
+          });
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement du profil:', error);
@@ -199,24 +205,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email,
         password
       });
 
       if (error) {
-        let errorMessage = "Une erreur est survenue lors de la connexion";
-        
-        if (error.message.includes('Invalid login credentials')) {
-          errorMessage = "Email ou mot de passe incorrect";
-        } else if (error.message.includes('Email not confirmed')) {
-          errorMessage = "Veuillez confirmer votre email avant de vous connecter";
-        } else if (error.message.includes('Too many requests')) {
-          errorMessage = "Trop de tentatives. Veuillez réessayer dans quelques minutes";
-        }
-
         toast({
           title: "Erreur de connexion",
-          description: errorMessage,
+          description: error.message,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -231,16 +227,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           .eq('id', data.user.id);
 
         // Enregistrer l'activité de connexion
-        try {
-          await supabase.rpc('log_user_activity', {
-            p_user_id: data.user.id,
-            p_activity_type: 'login',
-            p_description: 'Connexion par email',
-            p_metadata: { method: 'email' }
-          });
-        } catch (activityError) {
-          console.log('Erreur lors de l\'enregistrement de l\'activité:', activityError);
-        }
+        await supabase.rpc('log_user_activity', {
+          p_user_id: data.user.id,
+          p_activity_type: 'login',
+          p_description: 'Connexion par email',
+          p_metadata: { method: 'email' }
+        });
 
         toast({
           title: "Connexion réussie",
@@ -271,7 +263,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { data: userData, error: searchError } = await supabase
         .from('users')
         .select('email')
-        .eq('phone', phone.trim())
+        .eq('phone', phone)
         .single();
 
       if (searchError || !userData) {
@@ -285,7 +277,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Utiliser l'email trouvé pour la connexion
-      setIsLoading(false); // Éviter le double loading
       return await login(userData.email, password);
     } catch (error) {
       console.error('Erreur de connexion par téléphone:', error);
@@ -304,8 +295,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
-      console.log('Démarrage de la connexion Google...');
-      
       // Détecter l'environnement et définir l'URL de redirection appropriée
       const isLocalhost = window.location.hostname === 'localhost';
       const baseUrl = isLocalhost 
@@ -339,7 +328,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // La redirection se fera automatiquement
-      console.log('Redirection Google initiée avec succès');
+      toast({
+        title: "Redirection en cours",
+        description: "Vous allez être redirigé vers Google pour vous connecter",
+      });
       
       // Ne pas désactiver le loading ici car la redirection va se faire
       return true;
@@ -365,31 +357,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: userData.email.trim(),
+        email: userData.email,
         password: userData.password,
         options: {
           data: {
-            full_name: userData.name.trim(),
-            phone: userData.phone?.trim()
+            full_name: userData.name,
+            phone: userData.phone
           },
           emailRedirectTo: `${window.location.origin}/`
         }
       });
 
       if (error) {
-        let errorMessage = "Une erreur est survenue lors de l'inscription";
-        
-        if (error.message.includes('already registered')) {
-          errorMessage = "Un compte existe déjà avec cet email";
-        } else if (error.message.includes('invalid email')) {
-          errorMessage = "Format d'email invalide";
-        } else if (error.message.includes('weak password')) {
-          errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
-        }
-
         toast({
           title: "Erreur d'inscription",
-          description: errorMessage,
+          description: error.message,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -397,13 +379,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
-        const confirmationMessage = data.user.email_confirmed_at 
-          ? 'Votre compte est activé et vous pouvez vous connecter.'
-          : 'Vérifiez votre email pour activer votre compte.';
-
         toast({
           title: "Compte créé avec succès",
-          description: `Bienvenue ${userData.name}! ${confirmationMessage}`,
+          description: `Bienvenue ${userData.name}! ${data.user.email_confirmed_at ? 'Votre compte est activé.' : 'Vérifiez votre email pour activer votre compte.'}`,
         });
         
         setIsLoading(false);

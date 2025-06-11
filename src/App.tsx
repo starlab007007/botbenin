@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -5,8 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { AuthProvider } from "@/contexts/AuthContext";
 import { UserProvider } from "@/contexts/UserContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { GoogleAuthHandler } from "@/components/GoogleAuthHandler";
 import { Layout } from "./components/Layout";
 import { HomePage } from "./pages/HomePage";
@@ -25,19 +26,18 @@ import { SupportPage } from "./pages/SupportPage";
 import { UsersManagementPage } from "./pages/UsersManagementPage";
 import { ProspectsPage } from "./pages/ProspectsPage";
 import NotFound from "./pages/NotFound";
-import { TestAccountsPage } from "./pages/TestAccountsPage";
 
 const queryClient = new QueryClient();
 
 const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="system">
-      <BrowserRouter>
-        <AuthProvider>
-          <UserProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
+      <AuthProvider>
+        <UserProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
               <GoogleAuthHandler />
               <Routes>
                 {/* Routes publiques */}
@@ -59,14 +59,13 @@ const App: React.FC = () => (
                   <Route path="account" element={<AccountPage />} />
                   <Route path="support" element={<SupportPage />} />
                   <Route path="users" element={<UsersManagementPage />} />
-                  <Route path="test-accounts" element={<TestAccountsPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </TooltipProvider>
-          </UserProvider>
-        </AuthProvider>
-      </BrowserRouter>
+            </BrowserRouter>
+          </TooltipProvider>
+        </UserProvider>
+      </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );
