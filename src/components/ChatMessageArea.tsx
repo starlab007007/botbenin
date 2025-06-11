@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ChatMessage } from '@/components/ChatMessage';
@@ -14,7 +15,7 @@ interface Message {
 interface ChatMessageAreaProps {
   messages: Message[];
   showSuggestions: boolean;
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general';
   isLoading: boolean;
   onToggleBookmark: (messageId: string) => void;
   onSuggestionClick: (suggestion: any) => void;
