@@ -1,3 +1,4 @@
+
 name: Deploy React App botbj
 
 on:
@@ -26,8 +27,21 @@ jobs:
             echo "🛑 Arrêt des anciens conteneurs..."
             docker compose down
 
-            echo "🔨 Construction et redémarrage des services..."
-            docker compose up -d --build --force-recreate
+            echo "🧹 Nettoyage des caches Docker..."
+            docker system prune -f
+            docker volume prune -f
 
-            echo "🧹 Nettoyage des anciennes images inutilisées...."
+            echo "🔨 Construction et redémarrage des services..."
+            docker compose build --no-cache
+            docker compose up -d --force-recreate
+
+            echo "🔍 Vérification du statut des conteneurs..."
+            docker compose ps
+
+            echo "📋 Logs des conteneurs..."
+            docker compose logs --tail=50
+
+            echo "🧹 Nettoyage des anciennes images inutilisées..."
             docker image prune -af
+
+            echo "✅ Déploiement terminé avec succès!"

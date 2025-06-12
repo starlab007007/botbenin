@@ -23,14 +23,24 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'terser',
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
           router: ['react-router-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+          query: ['@tanstack/react-query'],
         },
       },
     },
   },
   base: '/',
+  publicDir: 'public',
+  // Configuration pour SPA routing
+  preview: {
+    port: 8080,
+    strictPort: true,
+  },
 }));
