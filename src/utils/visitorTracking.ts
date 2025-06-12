@@ -27,8 +27,10 @@ const getWebGLFingerprint = (): string => {
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     if (!gl) return 'no-webgl';
     
-    const renderer = gl.getParameter(gl.RENDERER);
-    const vendor = gl.getParameter(gl.VENDOR);
+    // Fix: Cast to WebGLRenderingContext to access WebGL methods
+    const webglContext = gl as WebGLRenderingContext;
+    const renderer = webglContext.getParameter(webglContext.RENDERER);
+    const vendor = webglContext.getParameter(webglContext.VENDOR);
     return `${vendor}-${renderer}`;
   } catch {
     return 'webgl-error';

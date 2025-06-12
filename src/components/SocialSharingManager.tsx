@@ -79,7 +79,24 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCampaigns(data || []);
+      
+      // Fix: Properly type the data to handle Json types
+      const typedCampaigns: SocialCampaign[] = (data || []).map(campaign => ({
+        id: campaign.id,
+        campaign_name: campaign.campaign_name,
+        campaign_description: campaign.campaign_description,
+        target_platforms: Array.isArray(campaign.target_platforms) 
+          ? campaign.target_platforms 
+          : typeof campaign.target_platforms === 'string' 
+            ? [campaign.target_platforms]
+            : [],
+        custom_message: campaign.custom_message,
+        tracking_parameters: campaign.tracking_parameters,
+        is_active: campaign.is_active,
+        created_at: campaign.created_at
+      }));
+      
+      setCampaigns(typedCampaigns);
     } catch (error) {
       console.error('Erreur lors du chargement des campagnes:', error);
       toast({
