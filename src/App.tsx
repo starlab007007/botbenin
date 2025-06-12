@@ -12,7 +12,7 @@ import Index from "./pages/Index";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 
-// Pages principales - Lazy loading optimisé
+// Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
 const ChatPage = lazy(() => import("./pages/ChatPage").then(module => ({ default: module.ChatPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage })));
