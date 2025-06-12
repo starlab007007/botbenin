@@ -11,6 +11,7 @@ import { BotAutomationCreator } from '@/components/automation/BotAutomationCreat
 import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 import { OwnerDashboard } from '@/components/OwnerDashboard';
 import { ShortenedLinksManager } from '@/components/ShortenedLinksManager';
+import { ConversationManager } from '@/components/ConversationManager';
 import { 
   Bot, 
   Plus, 
@@ -29,7 +30,8 @@ import {
   Play,
   MessageCircle,
   Home,
-  Link
+  Link,
+  Mail
 } from 'lucide-react';
 
 interface Bot {
@@ -53,7 +55,7 @@ interface BotStats {
   activeToday: number;
 }
 
-type ViewType = 'dashboard' | 'list' | 'create' | 'analytics' | 'share';
+type ViewType = 'dashboard' | 'list' | 'create' | 'analytics' | 'share' | 'conversations';
 
 export const BotManagement: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
@@ -267,6 +269,13 @@ export const BotManagement: React.FC = () => {
         <Bot className="w-4 h-4 mr-2" />
         Mes Bots
       </Button>
+      <Button
+        variant={currentView === 'conversations' ? 'default' : 'outline'}
+        onClick={() => setCurrentView('conversations')}
+      >
+        <Mail className="w-4 h-4 mr-2" />
+        Conversations
+      </Button>
     </div>
   );
 
@@ -320,6 +329,14 @@ export const BotManagement: React.FC = () => {
           onViewAnalytics={viewAnalytics}
         />
       </div>
+    );
+  }
+
+  if (currentView === 'conversations') {
+    return (
+      <ConversationManager
+        onBack={() => setCurrentView('dashboard')}
+      />
     );
   }
 

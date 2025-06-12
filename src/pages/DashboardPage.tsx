@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BotManagement } from '@/components/BotManagement';
 import { MessagesOverview } from '@/components/MessagesOverview';
 import { SubscriptionManagement } from '@/components/SubscriptionManagement';
+import { ConversationManager } from '@/components/ConversationManager';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -17,7 +19,8 @@ import {
   TrendingUp,
   Settings,
   History,
-  Bell
+  Bell,
+  Mail
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -55,6 +58,7 @@ export const DashboardPage: React.FC = () => {
     role: 'user'
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [showConversations, setShowConversations] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -202,6 +206,14 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
+  if (showConversations) {
+    return (
+      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+        <ConversationManager onBack={() => setShowConversations(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
@@ -231,6 +243,43 @@ export const DashboardPage: React.FC = () => {
           </Card>
         ))}
       </div>
+
+      {/* Accès rapide aux conversations */}
+      <Card className="uniform-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Gestion Centralisée</h3>
+            <p className="text-gray-600">Accédez à toutes vos conversations et contacts</p>
+          </div>
+          <Button 
+            onClick={() => setShowConversations(true)}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Mail className="w-4 h-4 mr-2" />
+            Voir toutes les conversations
+          </Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg border-2 border-blue-200 bg-blue-50">
+            <MessageCircle className="w-8 h-8 mb-2 text-blue-600" />
+            <div className="text-sm font-medium text-gray-900">Conversations</div>
+            <div className="text-xs text-gray-600">Toutes les sessions de chat</div>
+          </div>
+          
+          <div className="p-4 rounded-lg border-2 border-green-200 bg-green-50">
+            <Users className="w-8 h-8 mb-2 text-green-600" />
+            <div className="text-sm font-medium text-gray-900">Contacts</div>
+            <div className="text-xs text-gray-600">Base de données utilisateurs</div>
+          </div>
+          
+          <div className="p-4 rounded-lg border-2 border-purple-200 bg-purple-50">
+            <Mail className="w-8 h-8 mb-2 text-purple-600" />
+            <div className="text-sm font-medium text-gray-900">Messagerie</div>
+            <div className="text-xs text-gray-600">Contacter vos utilisateurs</div>
+          </div>
+        </div>
+      </Card>
 
       {/* Fonctionnalités disponibles */}
       <Card className="uniform-card p-6">
@@ -347,6 +396,13 @@ export const DashboardPage: React.FC = () => {
       <Card className="uniform-card p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Button 
+            className="uniform-button-secondary flex items-center space-x-2"
+            onClick={() => setShowConversations(true)}
+          >
+            <Mail className="w-4 h-4" />
+            <span>Conversations</span>
+          </Button>
           <Button className="uniform-button-secondary flex items-center space-x-2">
             <History className="w-4 h-4" />
             <span>Historique</span>
@@ -358,10 +414,6 @@ export const DashboardPage: React.FC = () => {
           <Button className="uniform-button-secondary flex items-center space-x-2">
             <Settings className="w-4 h-4" />
             <span>Paramètres</span>
-          </Button>
-          <Button className="uniform-button-secondary flex items-center space-x-2">
-            <BarChart3 className="w-4 h-4" />
-            <span>Analyses</span>
           </Button>
         </div>
       </Card>
