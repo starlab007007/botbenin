@@ -10,6 +10,7 @@ import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import Index from "./pages/Index";
 import { MainLayout } from "./components/layouts/MainLayout";
+import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 
 // Pages principales - Lazy loading with correct export handling
@@ -22,9 +23,6 @@ const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(mo
 const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.AutomationsPage })));
 const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.BotTestPage })));
 const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.PublicBotChatPage })));
-
-// CRM et Prospects
-const ProspectsPage = lazy(() => import("./pages/ProspectsPage").then(module => ({ default: module.ProspectsPage })));
 
 // Support et compte
 const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.SupportPage })));
@@ -66,8 +64,11 @@ const App = () => (
                   {/* Route d'accueil sans layout */}
                   <Route path="/" element={<Index />} />
                   
-                  {/* Route de chat publique sans layout - AJOUTÉ */}
+                  {/* Route de chat publique sans layout */}
                   <Route path="/chat" element={<ChatPage />} />
+                  
+                  {/* Route prospects directe avec layout minimal */}
+                  <Route path="/prospects" element={<ProspectsLayout />} />
                   
                   {/* Routes avec layout principal */}
                   <Route path="/app" element={<MainLayout />}>
@@ -79,9 +80,6 @@ const App = () => (
                     {/* Gestion des bots */}
                     <Route path="bots" element={<BotManagementPage />} />
                     <Route path="automations" element={<AutomationsPage />} />
-                    
-                    {/* CRM */}
-                    <Route path="prospects" element={<ProspectsPage />} />
                     
                     {/* Modules IA */}
                     <Route path="modules">
