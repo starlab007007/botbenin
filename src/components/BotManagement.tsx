@@ -242,6 +242,26 @@ export const BotManagement: React.FC = () => {
     setCurrentView('analytics');
   };
 
+  // Navigation Renderer Component
+  const renderNavigation = () => (
+    <div className="flex space-x-2">
+      <Button
+        variant={currentView === 'dashboard' ? 'default' : 'outline'}
+        onClick={() => setCurrentView('dashboard')}
+      >
+        <Home className="w-4 h-4 mr-2" />
+        Dashboard
+      </Button>
+      <Button
+        variant={currentView === 'list' ? 'default' : 'outline'}
+        onClick={() => setCurrentView('list')}
+      >
+        <Bot className="w-4 h-4 mr-2" />
+        Mes Bots
+      </Button>
+    </div>
+  );
+
   // Gestion des vues
   if (currentView === 'create') {
     return (
@@ -270,22 +290,7 @@ export const BotManagement: React.FC = () => {
       <div className="space-y-6">
         {/* Navigation entre les vues */}
         <div className="flex items-center justify-between">
-          <div className="flex space-x-2">
-            <Button
-              variant={currentView === 'dashboard' ? 'default' : 'outline'}
-              onClick={() => setCurrentView('dashboard')}
-            >
-              <Home className="w-4 h-4 mr-2" />
-              Dashboard
-            </Button>
-            <Button
-              variant={currentView === 'list' ? 'default' : 'outline'}
-              onClick={() => setCurrentView('list')}
-            >
-              <Bot className="w-4 h-4 mr-2" />
-              Mes Bots
-            </Button>
-          </div>
+          {renderNavigation()}
           <Button 
             onClick={() => setCurrentView('create')}
             className="bg-blue-600 hover:bg-blue-700"
@@ -312,22 +317,7 @@ export const BotManagement: React.FC = () => {
     <div className="space-y-6">
       {/* Navigation entre les vues */}
       <div className="flex items-center justify-between">
-        <div className="flex space-x-2">
-          <Button
-            variant={currentView === 'dashboard' ? 'default' : 'outline'}
-            onClick={() => setCurrentView('dashboard')}
-          >
-            <Home className="w-4 h-4 mr-2" />
-            Dashboard
-          </Button>
-          <Button
-            variant={currentView === 'list' ? 'default' : 'outline'}
-            onClick={() => setCurrentView('list')}
-          >
-            <Bot className="w-4 h-4 mr-2" />
-            Mes Bots
-          </Button>
-        </div>
+        {renderNavigation()}
         <Button 
           onClick={() => setCurrentView('create')}
           className="bg-blue-600 hover:bg-blue-700"
