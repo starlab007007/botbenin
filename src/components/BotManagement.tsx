@@ -13,6 +13,7 @@ import { ShortenedLinksManager } from '@/components/ShortenedLinksManager';
 import { ConversationManager } from '@/components/ConversationManager';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 import { FaWhatsapp } from 'react-icons/fa';
+import QRCode from 'qrcode';
 import { 
   Bot, 
   Plus, 
@@ -34,7 +35,9 @@ import {
   Link,
   Mail,
   Activity,
-  Phone
+  Phone,
+  QrCode,
+  Download
 } from 'lucide-react';
 
 interface Bot {
@@ -68,6 +71,8 @@ export const BotManagement: React.FC = () => {
   const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<{ id: string; name: string } | null>(null);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
   const [selectedBotForSharing, setSelectedBotForSharing] = useState<{ id: string; name: string } | null>(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const [showQrCode, setShowQrCode] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -262,7 +267,7 @@ export const BotManagement: React.FC = () => {
       return;
     }
 
-    // Messages personnalisés simplifiés selon le contexte du bot
+    // Messages personnalisés simplifiés et nettoyés
     let customMessage = '';
     const botDomain = bot.chat_context === 'restaurant' ? 'Restaurant' : 
                      bot.chat_context === 'services_locaux' ? 'Services Locaux' :
@@ -270,9 +275,9 @@ export const BotManagement: React.FC = () => {
                      bot.chat_context === 'marketing' ? 'Marketing' :
                      bot.chat_context === 'gestion' ? 'Gestion' :
                      bot.chat_context === 'citoyen' ? 'Services Citoyens' :
-                     'Automation';
+                     'Assistant';
     
-    customMessage = `🤖 Découvrez ${bot.name} - Assistant IA intelligent ${botDomain} disponible 24/7 ! Cliquez sur ce lien pour commencer une conversation :`;
+    customMessage = `Découvrez ${bot.name} - Assistant IA intelligent ${botDomain} disponible 24/7 ! Cliquez sur ce lien pour commencer une conversation :`;
 
     const fullMessage = `${customMessage} ${bot.public_chat_url}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fullMessage)}`;
@@ -284,6 +289,84 @@ export const BotManagement: React.FC = () => {
       title: `Partage WhatsApp - ${bot.name}`,
       description: "WhatsApp s'ouvre avec votre message personnalisé et le lien direct du bot",
     });
+  };
+
+  const generateQRCode = async (url: string, botName: string) => {
+    try {
+      const qrCodeDataUrl = await QRCode.toDataURL(url, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      });
+      
+      setQrCodeUrl(qrCodeDataUrl);
+      setShowQrCode(url);
+      
+      toast({
+        title: "QR Code généré",
+        description: `QR Code créé pour ${botName}`,
+      });
+    } catch (error) {
+      console.error('Erreur lors de la génération du QR Code:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de générer le QR Code",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadQRCode = (botName: string) => {
+    if (!qrCodeUrl) return;
+    
+    const link = document.createElement('a');
+    link.download = `qr-code-${botName.toLowerCase().replace(/\s+/g, '-')}.png`;
+    link.href = qrCodeUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "QR Code téléchargé",
+      description: `QR Code de ${botName} téléchargé avec succès`,
+    });
+  };
+
+  const shareQRCode = async (botName: string) => {
+    if (!qrCodeUrl) return;
+    
+    try {
+      // Convertir le data URL en blob
+      const response = await fetch(qrCodeUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `qr-code-${botName}.png`, { type: 'image/png' });
+      
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `QR Code - ${botName}`,
+          text: `Scannez ce QR Code pour accéder à ${botName}`,
+          files: [file]
+        });
+        
+        toast({
+          title: "QR Code partagé",
+          description: `QR Code de ${botName} partagé avec succès`,
+        });
+      } else {
+        // Fallback: copier l'URL dans le presse-papiers
+        await copyToClipboard(qrCodeUrl, 'QR Code');
+      }
+    } catch (error) {
+      console.error('Erreur lors du partage du QR Code:', error);
+      toast({
+        title: "Erreur de partage",
+        description: "Impossible de partager le QR Code",
+        variant: "destructive",
+      });
+    }
   };
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -494,6 +577,52 @@ export const BotManagement: React.FC = () => {
         </Button>
       </div>
 
+      {/* QR Code Modal */}
+      {showQrCode && qrCodeUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="p-6 max-w-md w-full mx-4">
+            <div className="text-center space-y-4">
+              <h3 className="text-lg font-semibold">QR Code du Chatbot</h3>
+              <img src={qrCodeUrl} alt="QR Code" className="mx-auto" />
+              <p className="text-sm text-gray-600">
+                Scannez ce QR Code pour accéder directement au chat
+              </p>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => downloadQRCode(bots.find(bot => bot.public_chat_url === showQrCode)?.name || 'bot')}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Télécharger
+                </Button>
+                <Button
+                  onClick={() => shareQRCode(bots.find(bot => bot.public_chat_url === showQrCode)?.name || 'bot')}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Partager
+                </Button>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowQrCode(null);
+                  setQrCodeUrl('');
+                }}
+                variant="ghost"
+                size="sm"
+                className="w-full"
+              >
+                Fermer
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Vue liste des bots */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Mes Chatbots</h2>
@@ -582,6 +711,15 @@ export const BotManagement: React.FC = () => {
                           title="Partager sur WhatsApp avec message personnalisé"
                         >
                           <FaWhatsapp className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          onClick={() => generateQRCode(bot.public_chat_url, bot.name)}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1 h-6 w-6 bg-purple-500 hover:bg-purple-600 text-white rounded"
+                          title="Générer QR Code"
+                        >
+                          <QrCode className="w-3 h-3" />
                         </Button>
                         <Button
                           onClick={() => copyToClipboard(bot.public_chat_url, 'Lien public')}

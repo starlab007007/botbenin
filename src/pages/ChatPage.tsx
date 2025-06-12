@@ -17,6 +17,7 @@ interface BotConfig {
 
 export const ChatPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [botConfig, setBotConfig] = useState<BotConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [useLiveChatSystem, setUseLiveChatSystem] = useState(false);
@@ -24,11 +25,13 @@ export const ChatPage: React.FC = () => {
 
   useEffect(() => {
     initializeChatPage();
-  }, [searchParams]);
+  }, [searchParams, location]);
 
   const initializeChatPage = async () => {
     try {
       console.log('=== INITIALISATION CHAT PAGE ===');
+      console.log('URL complète:', window.location.href);
+      console.log('Pathname:', location.pathname);
       
       // Récupérer les paramètres de l'URL
       const botId = searchParams.get('bot');
@@ -47,9 +50,15 @@ export const ChatPage: React.FC = () => {
         isTest
       });
 
+      // Détecter si on vient d'un lien public (avec botId dans l'URL)
+      const pathBotId = location.pathname.split('/').pop();
+      const finalBotId = botId || pathBotId;
+
+      console.log('Bot ID final:', finalBotId);
+
       // Si on a un botId spécifique, récupérer sa configuration depuis la base
-      if (botId) {
-        await loadBotConfiguration(botId, webhookUrl, chatContext, chatTitle, botName);
+      if (finalBotId) {
+        await loadBotConfiguration(finalBotId, webhookUrl, chatContext, chatTitle, botName);
       } else {
         // Utiliser le système de chat live par défaut
         console.log('Aucun bot spécifique, utilisation du LiveChatSystem');
@@ -92,11 +101,22 @@ export const ChatPage: React.FC = () => {
 
       console.log('Configuration bot chargée:', botData);
 
-      // Vérifier que le bot est actif
+      // Vérifier que le bot est actif et partageable
       if (!botData.is_active) {
         toast({
           title: "Bot inactif",
           description: `Le bot "${botData.name}" est actuellement désactivé.`,
+          variant: "destructive",
+        });
+        setUseLiveChatSystem(true);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!botData.share_enabled && !location.pathname.includes('/chat')) {
+        toast({
+          title: "Bot non partageable",
+          description: `Le bot "${botData.name}" n'est pas configuré pour le partage public.`,
           variant: "destructive",
         });
         setUseLiveChatSystem(true);
