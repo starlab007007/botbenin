@@ -12,6 +12,7 @@ import { OwnerDashboard } from '@/components/OwnerDashboard';
 import { ShortenedLinksManager } from '@/components/ShortenedLinksManager';
 import { ConversationManager } from '@/components/ConversationManager';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { FaWhatsapp } from 'react-icons/fa';
 import { 
   Bot, 
   Plus, 
@@ -261,89 +262,17 @@ export const BotManagement: React.FC = () => {
       return;
     }
 
-    // Messages personnalisés selon le contexte du bot
+    // Messages personnalisés simplifiés selon le contexte du bot
     let customMessage = '';
+    const botDomain = bot.chat_context === 'restaurant' ? 'Restaurant' : 
+                     bot.chat_context === 'services_locaux' ? 'Services Locaux' :
+                     bot.chat_context === 'business' ? 'Business' :
+                     bot.chat_context === 'marketing' ? 'Marketing' :
+                     bot.chat_context === 'gestion' ? 'Gestion' :
+                     bot.chat_context === 'citoyen' ? 'Services Citoyens' :
+                     'Automation';
     
-    switch (bot.chat_context) {
-      case 'restaurant':
-        customMessage = `🍽️ Découvrez ${bot.name} - Votre assistant IA pour réserver facilement votre table ! 
-        
-✨ Trouvez le restaurant parfait
-📅 Réservez en quelques secondes
-🎯 Recommandations personnalisées
-
-Commencez votre réservation maintenant :`;
-        break;
-        
-      case 'services_locaux':
-        customMessage = `🏢 ${bot.name} - Votre guide intelligent des services locaux !
-        
-🔍 Trouvez tous les services près de chez vous
-⭐ Recommandations vérifiées
-📍 Géolocalisation précise
-
-Explorez votre région dès maintenant :`;
-        break;
-        
-      case 'automation':
-        customMessage = `🤖 ${bot.name} - Assistant IA automatisé de nouvelle génération !
-        
-⚡ Automatisation intelligente
-🔗 Connecté via N8N
-💬 Conversations naturelles
-
-Découvrez l'automatisation intelligente :`;
-        break;
-        
-      case 'business':
-        customMessage = `💼 ${bot.name} - Boostez votre business avec l'IA !
-        
-📈 Optimisation des performances
-🎯 Stratégies personnalisées
-📊 Analytics avancées
-
-Transformez votre entreprise :`;
-        break;
-        
-      case 'marketing':
-        customMessage = `📢 ${bot.name} - Révolutionnez votre marketing avec l'IA !
-        
-🚀 Campagnes intelligentes
-🎨 Créativité assistée par IA
-📈 ROI optimisé
-
-Lancez votre stratégie marketing :`;
-        break;
-        
-      case 'gestion':
-        customMessage = `📋 ${bot.name} - Simplifiez votre gestion avec l'intelligence artificielle !
-        
-⚙️ Processus automatisés
-📊 Tableaux de bord intelligents
-🎯 Efficacité maximale
-
-Optimisez votre gestion :`;
-        break;
-        
-      case 'citoyen':
-        customMessage = `🏛️ ${bot.name} - Votre assistant citoyen intelligent !
-        
-📝 Démarches simplifiées
-ℹ️ Informations officielles
-🎯 Aide personnalisée
-
-Facilitez vos démarches citoyennes :`;
-        break;
-        
-      default:
-        customMessage = `🚀 ${bot.name} - Votre assistant IA de nouvelle génération !
-        
-💡 Intelligence artificielle avancée
-💬 Conversations naturelles
-🎯 Solutions personnalisées
-
-Commencez votre conversation intelligente :`;
-    }
+    customMessage = `🤖 Découvrez ${bot.name} - Assistant IA intelligent ${botDomain} disponible 24/7 ! Cliquez sur ce lien pour commencer une conversation :`;
 
     const fullMessage = `${customMessage} ${bot.public_chat_url}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fullMessage)}`;
@@ -652,7 +581,7 @@ Commencez votre conversation intelligente :`;
                           className="p-1 h-6 w-6 bg-green-500 hover:bg-green-600 text-white rounded"
                           title="Partager sur WhatsApp avec message personnalisé"
                         >
-                          <Phone className="w-3 h-3" />
+                          <FaWhatsapp className="w-3 h-3" />
                         </Button>
                         <Button
                           onClick={() => copyToClipboard(bot.public_chat_url, 'Lien public')}
