@@ -32,7 +32,8 @@ import {
   Home,
   Link,
   Mail,
-  Activity
+  Activity,
+  Phone
 } from 'lucide-react';
 
 interface Bot {
@@ -183,6 +184,28 @@ export const BotManagement: React.FC = () => {
       const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}&test=true`;
       window.open(chatUrl, '_blank');
     }
+  };
+
+  const shareOnWhatsApp = (bot: Bot) => {
+    if (!bot.public_chat_url) {
+      toast({
+        title: "Erreur",
+        description: "Ce bot n'a pas de lien public configuré",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const message = `Découvrez ${bot.name} - Assistant IA intelligent ! Cliquez sur ce lien pour commencer une conversation : ${bot.public_chat_url}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    
+    // Ouvrir WhatsApp avec le message pré-rempli
+    window.open(whatsappUrl, '_blank');
+    
+    toast({
+      title: "Partage WhatsApp",
+      description: "WhatsApp s'ouvre avec le lien de votre bot pré-rempli",
+    });
   };
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -473,6 +496,15 @@ export const BotManagement: React.FC = () => {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-medium text-blue-700">Lien public</span>
                       <div className="flex space-x-1">
+                        <Button
+                          onClick={() => shareOnWhatsApp(bot)}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1 h-6 w-6 bg-green-500 hover:bg-green-600 text-white rounded"
+                          title="Partager sur WhatsApp"
+                        >
+                          <Phone className="w-3 h-3" />
+                        </Button>
                         <Button
                           onClick={() => copyToClipboard(bot.public_chat_url, 'Lien public')}
                           variant="ghost"
