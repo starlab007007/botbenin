@@ -66,6 +66,9 @@ const App = () => (
                   {/* Route d'accueil sans layout */}
                   <Route path="/" element={<Index />} />
                   
+                  {/* Route de chat publique sans layout - AJOUTÉ */}
+                  <Route path="/chat" element={<ChatPage />} />
+                  
                   {/* Routes avec layout principal */}
                   <Route path="/app" element={<MainLayout />}>
                     <Route index element={<HomePage />} />
