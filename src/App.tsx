@@ -11,26 +11,26 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import Index from "./pages/Index";
 import { Layout } from "./components/Layout";
 
-// Lazy loading optimisé avec syntaxe correcte pour les exports
-const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.default })));
+// Lazy loading with correct import syntax for different export types
+const HomePage = lazy(() => import("./pages/HomePage"));
 const ChatPage = lazy(() => import("./pages/ChatPage").then(module => ({ default: module.ChatPage })));
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage })));
 const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(module => ({ default: module.BotManagementPage })));
-const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.default })));
+const AutomationsPage = lazy(() => import("./pages/AutomationsPage"));
 const ProspectsPage = lazy(() => import("./pages/ProspectsPage").then(module => ({ default: module.ProspectsPage })));
-const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.default })));
-const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ default: module.default })));
+const SupportPage = lazy(() => import("./pages/SupportPage"));
+const AccountPage = lazy(() => import("./pages/AccountPage"));
 const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.UsersManagementPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.default })));
-const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.default })));
+const BotTestPage = lazy(() => import("./pages/BotTestPage"));
+const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage"));
 
 // Pages modulaires
-const BusinessModule = lazy(() => import("./pages/modules/BusinessModule").then(module => ({ default: module.default })));
-const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").then(module => ({ default: module.default })));
-const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(module => ({ default: module.default })));
-const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.default })));
+const BusinessModule = lazy(() => import("./pages/modules/BusinessModule"));
+const MarketingModule = lazy(() => import("./pages/modules/MarketingModule"));
+const GestionModule = lazy(() => import("./pages/modules/GestionModule"));
+const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule"));
 
 const queryClient = new QueryClient();
 
