@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,13 +79,13 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
 
       if (error) throw error;
       
-      // Fix: Properly type the data to handle Json types
+      // Fix: Properly convert Supabase Json types to TypeScript types
       const typedCampaigns: SocialCampaign[] = (data || []).map(campaign => ({
         id: campaign.id,
         campaign_name: campaign.campaign_name,
         campaign_description: campaign.campaign_description,
         target_platforms: Array.isArray(campaign.target_platforms) 
-          ? campaign.target_platforms 
+          ? (campaign.target_platforms as string[])
           : typeof campaign.target_platforms === 'string' 
             ? [campaign.target_platforms]
             : [],
