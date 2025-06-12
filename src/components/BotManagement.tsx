@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,14 +23,13 @@ import {
   BarChart3,
   Users,
   MessageSquare,
-  Share,
+  Share2,
   Copy,
   ExternalLink,
   Play,
   MessageCircle,
   Home,
-  Link,
-  Share
+  Link
 } from 'lucide-react';
 
 interface Bot {
@@ -501,7 +501,7 @@ export const BotManagement: React.FC = () => {
                     size="sm"
                     className="text-purple-600 border-purple-200 hover:bg-purple-50"
                   >
-                    <Share className="w-4 h-4 mr-1" />
+                    <Share2 className="w-4 h-4 mr-1" />
                     Partage
                   </Button>
                   <Button

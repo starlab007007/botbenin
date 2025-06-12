@@ -11,32 +11,32 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import Index from "./pages/Index";
 import { Layout } from "./components/Layout";
 
-// Lazy loading pour optimiser les performances
-const HomePage = lazy(() => import("./pages/HomePage"));
-const ChatPage = lazy(() => import("./pages/ChatPage").then(module => ({ default: module.ChatPage })));
-const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
-const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage })));
-const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(module => ({ default: module.BotManagementPage })));
-const AutomationsPage = lazy(() => import("./pages/AutomationsPage"));
-const ProspectsPage = lazy(() => import("./pages/ProspectsPage"));
-const SupportPage = lazy(() => import("./pages/SupportPage"));
-const AccountPage = lazy(() => import("./pages/AccountPage"));
-const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const BotTestPage = lazy(() => import("./pages/BotTestPage"));
-const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage"));
+// Lazy loading pour optimiser les performances - corrections des imports
+const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.default || module.HomePage || module })));
+const ChatPage = lazy(() => import("./pages/ChatPage").then(module => ({ default: module.ChatPage || module.default || module })));
+const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage || module.default || module })));
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage || module.default || module })));
+const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(module => ({ default: module.BotManagementPage || module.default || module })));
+const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.default || module.AutomationsPage || module })));
+const ProspectsPage = lazy(() => import("./pages/ProspectsPage").then(module => ({ default: module.default || module.ProspectsPage || module })));
+const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.default || module.SupportPage || module })));
+const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ default: module.default || module.AccountPage || module })));
+const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.default || module.UsersManagementPage || module })));
+const NotFound = lazy(() => import("./pages/NotFound").then(module => ({ default: module.default || module.NotFound || module })));
+const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.default || module.BotTestPage || module })));
+const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.default || module.PublicBotChatPage || module })));
 
 // Pages modulaires
-const BusinessModule = lazy(() => import("./pages/modules/BusinessModule"));
-const MarketingModule = lazy(() => import("./pages/modules/MarketingModule"));
-const GestionModule = lazy(() => import("./pages/modules/GestionModule"));
-const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule"));
+const BusinessModule = lazy(() => import("./pages/modules/BusinessModule").then(module => ({ default: module.default || module.BusinessModule || module })));
+const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").then(module => ({ default: module.default || module.MarketingModule || module })));
+const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(module => ({ default: module.default || module.GestionModule || module })));
+const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.default || module.CitoyenModule || module })));
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light" storageKey="ui-theme">
+    <ThemeProvider defaultTheme="light">
       <TooltipProvider>
         <Toaster />
         <Sonner />
