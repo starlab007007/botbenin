@@ -297,6 +297,13 @@ export type Database = {
             foreignKeyName: "bot_users_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_users_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -478,6 +485,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -549,6 +563,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "chat_sessions_bot_id_fkey"
@@ -705,6 +726,126 @@ export type Database = {
           },
         ]
       }
+      enhanced_chat_sessions: {
+        Row: {
+          bot_id: string
+          bot_messages: number | null
+          bot_user_id: string
+          ended_at: string | null
+          entry_point: string | null
+          id: string
+          ip_address: unknown | null
+          is_active: boolean | null
+          last_activity: string | null
+          referrer_url: string | null
+          session_duration_minutes: number | null
+          session_metadata: Json | null
+          session_token: string
+          shortened_link_id: string | null
+          started_at: string | null
+          total_messages: number | null
+          user_agent: string | null
+          user_messages: number | null
+        }
+        Insert: {
+          bot_id: string
+          bot_messages?: number | null
+          bot_user_id: string
+          ended_at?: string | null
+          entry_point?: string | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          referrer_url?: string | null
+          session_duration_minutes?: number | null
+          session_metadata?: Json | null
+          session_token: string
+          shortened_link_id?: string | null
+          started_at?: string | null
+          total_messages?: number | null
+          user_agent?: string | null
+          user_messages?: number | null
+        }
+        Update: {
+          bot_id?: string
+          bot_messages?: number | null
+          bot_user_id?: string
+          ended_at?: string | null
+          entry_point?: string | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          referrer_url?: string | null
+          session_duration_minutes?: number | null
+          session_metadata?: Json | null
+          session_token?: string
+          shortened_link_id?: string | null
+          started_at?: string | null
+          total_messages?: number | null
+          user_agent?: string | null
+          user_messages?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_conversation_history"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_shortened_link_id_fkey"
+            columns: ["shortened_link_id"]
+            isOneToOne: false
+            referencedRelation: "shortened_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       file_folders: {
         Row: {
           created_at: string | null
@@ -804,6 +945,47 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      link_clicks: {
+        Row: {
+          city: string | null
+          clicked_at: string | null
+          country: string | null
+          id: string
+          ip_address: unknown | null
+          referrer: string | null
+          shortened_link_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          city?: string | null
+          clicked_at?: string | null
+          country?: string | null
+          id?: string
+          ip_address?: unknown | null
+          referrer?: string | null
+          shortened_link_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          city?: string | null
+          clicked_at?: string | null
+          country?: string | null
+          id?: string
+          ip_address?: unknown | null
+          referrer?: string | null
+          shortened_link_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_clicks_shortened_link_id_fkey"
+            columns: ["shortened_link_id"]
+            isOneToOne: false
+            referencedRelation: "shortened_links"
             referencedColumns: ["id"]
           },
         ]
@@ -1277,6 +1459,85 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      shortened_links: {
+        Row: {
+          bot_id: string
+          click_count: number | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          original_url: string
+          owner_id: string
+          short_code: string
+          updated_at: string | null
+        }
+        Insert: {
+          bot_id: string
+          click_count?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          original_url: string
+          owner_id: string
+          short_code: string
+          updated_at?: string | null
+        }
+        Update: {
+          bot_id?: string
+          click_count?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          original_url?: string
+          owner_id?: string
+          short_code?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shortened_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "shortened_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "shortened_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shortened_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "shortened_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "shortened_links_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscriber_messages: {
         Row: {
@@ -2503,6 +2764,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -2542,6 +2810,42 @@ export type Database = {
           owner_id: string | null
           total_messages: number | null
           total_users: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complete_bot_analytics: {
+        Row: {
+          active_sessions: number | null
+          active_users_24h: number | null
+          active_users_30d: number | null
+          active_users_7d: number | null
+          avg_messages_per_session: number | null
+          avg_session_duration_minutes: number | null
+          bot_created_at: string | null
+          bot_id: string | null
+          bot_messages: number | null
+          bot_name: string | null
+          is_active: boolean | null
+          last_message_at: string | null
+          last_session_activity: string | null
+          last_user_activity: string | null
+          messages_24h: number | null
+          owner_id: string | null
+          sessions_24h: number | null
+          total_link_clicks: number | null
+          total_messages: number | null
+          total_sessions: number | null
+          total_short_links: number | null
+          total_unique_users: number | null
+          user_messages: number | null
         }
         Relationships: [
           {
@@ -2618,8 +2922,16 @@ export type Database = {
         }
         Returns: string
       }
+      create_shortened_link: {
+        Args: { p_bot_id: string; p_owner_id: string }
+        Returns: string
+      }
       generate_public_chat_url: {
         Args: { bot_id: string }
+        Returns: string
+      }
+      generate_short_code: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       get_bot_detailed_history: {
@@ -2673,6 +2985,15 @@ export type Database = {
           p_activity_type: string
           p_description?: string
           p_metadata?: Json
+        }
+        Returns: string
+      }
+      track_link_click: {
+        Args: {
+          p_short_code: string
+          p_ip_address?: unknown
+          p_user_agent?: string
+          p_referrer?: string
         }
         Returns: string
       }

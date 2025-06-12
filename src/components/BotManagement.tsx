@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,8 +7,9 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BotAutomationCreator } from '@/components/automation/BotAutomationCreator';
-import { DetailedBotAnalytics } from '@/components/DetailedBotAnalytics';
+import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 import { OwnerDashboard } from '@/components/OwnerDashboard';
+import { ShortenedLinksManager } from '@/components/ShortenedLinksManager';
 import { 
   Bot, 
   Plus, 
@@ -27,7 +27,9 @@ import {
   ExternalLink,
   Play,
   MessageCircle,
-  Home
+  Home,
+  Link,
+  Share
 } from 'lucide-react';
 
 interface Bot {
@@ -51,7 +53,7 @@ interface BotStats {
   activeToday: number;
 }
 
-type ViewType = 'dashboard' | 'list' | 'create' | 'analytics';
+type ViewType = 'dashboard' | 'list' | 'create' | 'analytics' | 'share';
 
 export const BotManagement: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
@@ -60,6 +62,7 @@ export const BotManagement: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<{ id: string; name: string } | null>(null);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
+  const [selectedBotForSharing, setSelectedBotForSharing] = useState<{ id: string; name: string } | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -242,6 +245,11 @@ export const BotManagement: React.FC = () => {
     setCurrentView('analytics');
   };
 
+  const viewSharing = (botId: string, botName: string) => {
+    setSelectedBotForSharing({ id: botId, name: botName });
+    setCurrentView('share');
+  };
+
   // Navigation Renderer Component
   const renderNavigation = () => (
     <div className="flex space-x-2">
@@ -274,7 +282,7 @@ export const BotManagement: React.FC = () => {
 
   if (currentView === 'analytics' && selectedBotForAnalytics) {
     return (
-      <DetailedBotAnalytics
+      <CompleteBotAnalytics
         botId={selectedBotForAnalytics.id}
         botName={selectedBotForAnalytics.name}
         onBack={() => {
@@ -282,6 +290,36 @@ export const BotManagement: React.FC = () => {
           setSelectedBotForAnalytics(null);
         }}
       />
+    );
+  }
+
+  if (currentView === 'share' && selectedBotForSharing) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setCurrentView('list');
+                setSelectedBotForSharing(null);
+              }}
+            >
+              ← Retour
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Partage et Liens</h1>
+              <p className="text-gray-600">{selectedBotForSharing.name}</p>
+            </div>
+          </div>
+        </div>
+        
+        <ShortenedLinksManager
+          botId={selectedBotForSharing.id}
+          botName={selectedBotForSharing.name}
+          onViewAnalytics={viewAnalytics}
+        />
+      </div>
     );
   }
 
@@ -447,7 +485,7 @@ export const BotManagement: React.FC = () => {
                 </div>
 
                 {/* Actions principales */}
-                <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   <Button
                     onClick={() => testBot(bot)}
                     variant="outline"
@@ -455,7 +493,16 @@ export const BotManagement: React.FC = () => {
                     className="text-green-600 border-green-200 hover:bg-green-50"
                   >
                     <MessageCircle className="w-4 h-4 mr-1" />
-                    Ouvrir Chat
+                    Chat
+                  </Button>
+                  <Button
+                    onClick={() => viewSharing(bot.id, bot.name)}
+                    variant="outline"
+                    size="sm"
+                    className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                  >
+                    <Share className="w-4 h-4 mr-1" />
+                    Partage
                   </Button>
                   <Button
                     onClick={() => viewAnalytics(bot.id, bot.name)}
