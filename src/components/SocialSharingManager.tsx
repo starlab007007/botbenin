@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,9 @@ import {
   Edit3,
   Trash2,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Smartphone,
+  MessageSquare
 } from 'lucide-react';
 
 interface SocialCampaign {
@@ -44,7 +47,6 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
   const [campaigns, setCampaigns] = useState<SocialCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingCampaign, setEditingCampaign] = useState<SocialCampaign | null>(null);
   const [formData, setFormData] = useState({
     campaign_name: '',
     campaign_description: '',
@@ -54,14 +56,62 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
   const { toast } = useToast();
 
   const platforms = [
-    { id: 'whatsapp', name: 'WhatsApp', icon: '📱', color: 'bg-green-500' },
-    { id: 'telegram', name: 'Telegram', icon: '✈️', color: 'bg-blue-500' },
-    { id: 'facebook', name: 'Facebook', icon: '📘', color: 'bg-blue-600' },
-    { id: 'messenger', name: 'Messenger', icon: '💬', color: 'bg-blue-600' },
-    { id: 'twitter', name: 'Twitter/X', icon: '🐦', color: 'bg-sky-500' },
-    { id: 'linkedin', name: 'LinkedIn', icon: '💼', color: 'bg-blue-700' },
-    { id: 'tiktok', name: 'TikTok', icon: '🎵', color: 'bg-black' },
-    { id: 'instagram', name: 'Instagram', icon: '📷', color: 'bg-pink-500' }
+    { 
+      id: 'whatsapp', 
+      name: 'WhatsApp', 
+      icon: '📱', 
+      color: 'bg-green-500',
+      description: 'Partage direct vers WhatsApp'
+    },
+    { 
+      id: 'telegram', 
+      name: 'Telegram', 
+      icon: '✈️', 
+      color: 'bg-blue-500',
+      description: 'Partage direct vers Telegram'
+    },
+    { 
+      id: 'facebook', 
+      name: 'Facebook', 
+      icon: '📘', 
+      color: 'bg-blue-600',
+      description: 'Partage sur Facebook'
+    },
+    { 
+      id: 'messenger', 
+      name: 'Messenger', 
+      icon: '💬', 
+      color: 'bg-blue-600',
+      description: 'Partage via Facebook Messenger'
+    },
+    { 
+      id: 'twitter', 
+      name: 'Twitter/X', 
+      icon: '🐦', 
+      color: 'bg-sky-500',
+      description: 'Partage sur Twitter/X'
+    },
+    { 
+      id: 'linkedin', 
+      name: 'LinkedIn', 
+      icon: '💼', 
+      color: 'bg-blue-700',
+      description: 'Partage professionnel LinkedIn'
+    },
+    { 
+      id: 'tiktok', 
+      name: 'TikTok', 
+      icon: '🎵', 
+      color: 'bg-black',
+      description: 'Partage sur TikTok'
+    },
+    { 
+      id: 'instagram', 
+      name: 'Instagram', 
+      icon: '📷', 
+      color: 'bg-pink-500',
+      description: 'Partage Instagram (copie du lien)'
+    }
   ];
 
   useEffect(() => {
@@ -79,7 +129,6 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
 
       if (error) throw error;
       
-      // Fix: Properly convert Supabase Json types to TypeScript types
       const typedCampaigns: SocialCampaign[] = (data || []).map(campaign => ({
         id: campaign.id,
         campaign_name: campaign.campaign_name,
@@ -192,28 +241,32 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
   const generateSocialUrl = (platform: string, message: string, campaign?: SocialCampaign) => {
     const trackingUrl = campaign 
       ? `${shortUrl}?utm_source=social_campaign&utm_medium=${platform}&utm_campaign=${campaign.campaign_name.toLowerCase().replace(/\s+/g, '_')}`
-      : shortUrl;
+      : `${shortUrl}?utm_source=social&utm_medium=${platform}`;
     
     const encodedMessage = encodeURIComponent(message);
     const encodedUrl = encodeURIComponent(trackingUrl);
 
     switch (platform) {
       case 'whatsapp':
-        return `https://wa.me/?text=${encodedMessage}`;
+        return `https://wa.me/?text=${encodedMessage}%20${encodedUrl}`;
       case 'telegram':
         return `https://t.me/share/url?url=${encodedUrl}&text=${encodedMessage}`;
       case 'facebook':
         return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedMessage}`;
       case 'messenger':
-        return `https://www.facebook.com/dialog/send?link=${encodedUrl}&app_id=YOUR_APP_ID`;
+        return `https://www.facebook.com/dialog/send?link=${encodedUrl}&app_id=264046217437751`;
       case 'twitter':
         return `https://twitter.com/intent/tweet?text=${encodedMessage}&url=${encodedUrl}`;
       case 'linkedin':
-        return `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
+        return `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&summary=${encodedMessage}`;
       case 'tiktok':
-        return `https://www.tiktok.com/share?url=${encodedUrl}`;
+        // TikTok ne supporte pas le partage direct par URL, on copie le lien
+        navigator.clipboard.writeText(`${message} ${trackingUrl}`);
+        return null;
       case 'instagram':
-        return `https://www.instagram.com/`; // Instagram ne supporte pas les liens directs
+        // Instagram ne supporte pas les liens directs, on copie le lien
+        navigator.clipboard.writeText(`${message} ${trackingUrl}`);
+        return null;
       default:
         return '#';
     }
@@ -221,7 +274,34 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
 
   const shareOnPlatform = (platform: string, message: string, campaign?: SocialCampaign) => {
     const url = generateSocialUrl(platform, message, campaign);
-    window.open(url, '_blank', 'width=600,height=400');
+    
+    if (platform === 'tiktok' || platform === 'instagram') {
+      toast({
+        title: "Lien copié !",
+        description: `Le lien pour ${platforms.find(p => p.id === platform)?.name} a été copié. Collez-le dans votre post.`,
+      });
+      return;
+    }
+    
+    if (url && url !== '#') {
+      window.open(url, '_blank', 'width=600,height=400');
+      
+      // Tracking de l'événement de partage
+      trackSharingEvent(platform, campaign?.id);
+    }
+  };
+
+  const trackSharingEvent = async (platform: string, campaignId?: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Ici on pourrait ajouter une table pour tracker les événements de partage
+      console.log(`Partage sur ${platform}`, { campaignId, botId, userId: user.id });
+      
+    } catch (error) {
+      console.error('Erreur lors du tracking du partage:', error);
+    }
   };
 
   const copyToClipboard = async (text: string) => {
@@ -269,23 +349,44 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Share2 className="w-5 h-5 text-blue-600" />
-            <span>Partage Rapide</span>
+            <span>Partage Rapide sur les Réseaux Sociaux</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {platforms.map((platform) => (
-              <Button
-                key={platform.id}
-                onClick={() => shareOnPlatform(platform.id, `Découvrez ${botName} - Assistant IA intelligent ! ${shortUrl}`)}
-                variant="outline"
-                size="sm"
-                className="flex items-center space-x-2 h-12"
-              >
-                <span className="text-lg">{platform.icon}</span>
-                <span className="text-xs">{platform.name}</span>
-              </Button>
+              <Card key={platform.id} className="p-4 hover:shadow-md transition-shadow cursor-pointer border-2 hover:border-blue-200">
+                <div className="text-center space-y-3">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${platform.color} text-white`}>
+                    <span className="text-2xl">{platform.icon}</span>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{platform.name}</h4>
+                    <p className="text-xs text-gray-500 mt-1">{platform.description}</p>
+                  </div>
+                  <Button
+                    onClick={() => shareOnPlatform(platform.id, `Découvrez ${botName} - Assistant IA intelligent !`)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Partager
+                  </Button>
+                </div>
+              </Card>
             ))}
+          </div>
+          
+          {/* Message par défaut personnalisable */}
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <h4 className="font-medium text-gray-900 mb-2">Message de partage par défaut :</h4>
+            <p className="text-sm text-gray-700 bg-white p-3 rounded border">
+              "Découvrez {botName} - Assistant IA intelligent ! {shortUrl}"
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Créez une campagne personnalisée ci-dessous pour modifier ce message
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -296,7 +397,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-2">
               <BarChart3 className="w-5 h-5 text-purple-600" />
-              <span>Campagnes de Partage</span>
+              <span>Campagnes de Partage Personnalisées</span>
             </CardTitle>
             <Button
               onClick={() => setShowCreateForm(true)}
@@ -311,7 +412,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
         <CardContent>
           {showCreateForm && (
             <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-              <h4 className="text-lg font-semibold mb-4">Créer une Campagne</h4>
+              <h4 className="text-lg font-semibold mb-4">Créer une Campagne Personnalisée</h4>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Nom de la campagne</label>
@@ -334,14 +435,14 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
                 
                 <div>
                   <label className="block text-sm font-medium mb-2">Plateformes cibles</label>
-                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     {platforms.map((platform) => (
                       <Button
                         key={platform.id}
                         onClick={() => togglePlatform(platform.id)}
                         variant={formData.target_platforms.includes(platform.id) ? "default" : "outline"}
                         size="sm"
-                        className="flex items-center space-x-1"
+                        className="flex items-center space-x-1 justify-start"
                       >
                         <span>{platform.icon}</span>
                         <span className="text-xs">{platform.name}</span>
@@ -355,13 +456,20 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
                   <Textarea
                     value={formData.custom_message}
                     onChange={(e) => setFormData({ ...formData, custom_message: e.target.value })}
-                    placeholder="Votre message de partage..."
+                    placeholder="Votre message de partage personnalisé..."
                     rows={3}
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Le lien raccourci sera automatiquement ajouté à la fin du message
+                  </p>
                 </div>
                 
                 <div className="flex space-x-2">
-                  <Button onClick={createCampaign} disabled={!formData.campaign_name || formData.target_platforms.length === 0}>
+                  <Button 
+                    onClick={createCampaign} 
+                    disabled={!formData.campaign_name || formData.target_platforms.length === 0}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
                     Créer la Campagne
                   </Button>
                   <Button onClick={() => setShowCreateForm(false)} variant="outline">
@@ -376,16 +484,16 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
             <div className="text-center py-8">
               <Share2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Aucune campagne de partage
+                Aucune campagne personnalisée
               </h3>
               <p className="text-gray-600">
-                Créez votre première campagne pour organiser vos partages sociaux
+                Créez votre première campagne pour organiser vos partages sociaux avec des messages personnalisés
               </p>
             </div>
           ) : (
             <div className="space-y-4">
               {campaigns.map((campaign) => (
-                <div key={campaign.id} className="p-4 border rounded-lg">
+                <div key={campaign.id} className="p-4 border rounded-lg bg-white">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <h4 className="font-semibold text-gray-900">{campaign.campaign_name}</h4>
@@ -421,7 +529,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
                     <p className="text-sm text-gray-700">{campaign.custom_message}</p>
                   </div>
                   
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2">
                     {campaign.target_platforms.map((platformId) => {
                       const platform = platforms.find(p => p.id === platformId);
                       return platform ? (
@@ -433,7 +541,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
                           className="flex items-center space-x-1"
                         >
                           <span>{platform.icon}</span>
-                          <span>Partager</span>
+                          <span>Partager sur {platform.name}</span>
                         </Button>
                       ) : null;
                     })}

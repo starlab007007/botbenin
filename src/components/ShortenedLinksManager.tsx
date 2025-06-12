@@ -17,7 +17,8 @@ import {
   Eye,
   MessageCircle,
   Users,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react';
 
 interface ShortenedLink {
@@ -77,22 +78,52 @@ export const ShortenedLinksManager: React.FC<ShortenedLinksManagerProps> = ({
       setIsCreating(true);
 
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast({
+          title: "Erreur d'authentification",
+          description: "Vous devez être connecté pour créer un lien raccourci",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      const { data: ownerData } = await supabase
+      // Récupérer l'owner avec une requête plus robuste
+      let { data: ownerData, error: ownerError } = await supabase
         .from('bot_owners')
         .select('id')
         .eq('user_id', user.id)
         .single();
 
-      if (!ownerData) return;
+      if (ownerError || !ownerData) {
+        // Créer un owner si il n'existe pas
+        const { data: newOwner, error: createOwnerError } = await supabase
+          .from('bot_owners')
+          .insert({ user_id: user.id })
+          .select('id')
+          .single();
+        
+        if (createOwnerError) {
+          console.error('Erreur lors de la création du bot owner:', createOwnerError);
+          throw createOwnerError;
+        }
+        
+        ownerData = newOwner;
+      }
 
-      const { data, error } = await supabase.rpc('create_shortened_link', {
+      if (!ownerData) {
+        throw new Error('Impossible de créer ou récupérer le bot owner');
+      }
+
+      // Utiliser la fonction RPC pour créer le lien raccourci
+      const { data: shortUrl, error } = await supabase.rpc('create_shortened_link', {
         p_bot_id: botId,
         p_owner_id: ownerData.id
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erreur RPC create_shortened_link:', error);
+        throw error;
+      }
 
       toast({
         title: "Lien raccourci créé !",
@@ -106,7 +137,7 @@ export const ShortenedLinksManager: React.FC<ShortenedLinksManagerProps> = ({
       console.error('Erreur lors de la création du lien raccourci:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de créer le lien raccourci",
+        description: `Impossible de créer le lien raccourci: ${error.message}`,
         variant: "destructive",
       });
     } finally {
@@ -132,6 +163,14 @@ export const ShortenedLinksManager: React.FC<ShortenedLinksManagerProps> = ({
 
   const getShortUrl = () => {
     return shortenedLink ? `https://ia.bot.bj/s/${shortenedLink.short_code}` : '';
+  };
+
+  const refreshLink = async () => {
+    await fetchShortenedLink();
+    toast({
+      title: "Actualisé",
+      description: "Les données du lien ont été actualisées",
+    });
   };
 
   if (isLoading) {
@@ -166,13 +205,27 @@ export const ShortenedLinksManager: React.FC<ShortenedLinksManagerProps> = ({
               <p className="text-gray-600 mb-4">
                 Créez un lien public court et personnalisé avec tracking avancé des visiteurs
               </p>
-              <Button 
-                onClick={createShortenedLink}
-                disabled={isCreating}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {isCreating ? 'Création...' : 'Créer un lien raccourci'}
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  onClick={createShortenedLink}
+                  disabled={isCreating}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isCreating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Création...
+                    </>
+                  ) : (
+                    'Créer un lien raccourci'
+                  )}
+                </Button>
+                {isCreating && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Configuration du tracking et génération du code unique...
+                  </p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -200,10 +253,19 @@ export const ShortenedLinksManager: React.FC<ShortenedLinksManagerProps> = ({
           <TabsContent value="link" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Link className="w-5 h-5 text-blue-600" />
-                  <span>Lien Public Raccourci</span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <Link className="w-5 h-5 text-blue-600" />
+                    <span>Lien Public Raccourci</span>
+                  </CardTitle>
+                  <Button
+                    onClick={refreshLink}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Lien raccourci principal */}
