@@ -34,12 +34,13 @@ export const SubscriptionManagement: React.FC = () => {
       id: 'free',
       name: 'Gratuit',
       price: 0,
-      maxBots: 1,
+      maxBots: 5,
       features: [
-        '1 chatbot',
-        '100 messages/mois',
+        '5 chatbots',
+        '500 messages/mois',
         'Support communautaire',
-        'Intégration webhook basique'
+        'Intégration webhook basique',
+        'Analytics de base'
       ],
       color: 'bg-gray-500',
       icon: <Zap className="w-5 h-5" />
@@ -48,14 +49,15 @@ export const SubscriptionManagement: React.FC = () => {
       id: 'pro',
       name: 'Pro',
       price: 17400,
-      maxBots: 5,
+      maxBots: 15,
       features: [
-        '5 chatbots',
+        '15 chatbots',
         '5,000 messages/mois',
         'Support prioritaire',
         'Analytics avancées',
         'API complète',
-        'Intégrations multiples'
+        'Intégrations multiples',
+        'Webhooks personnalisés'
       ],
       color: 'bg-blue-500',
       icon: <Crown className="w-5 h-5" />
@@ -66,13 +68,14 @@ export const SubscriptionManagement: React.FC = () => {
       price: 59400,
       maxBots: 50,
       features: [
-        'Chatbots illimités',
+        '50 chatbots',
         'Messages illimités',
         'Support dédié 24/7',
         'Analytics personnalisées',
         'Intégrations sur mesure',
         'Formation équipe',
-        'SLA garanti'
+        'SLA garanti',
+        'Branding personnalisé'
       ],
       color: 'bg-purple-500',
       icon: <Rocket className="w-5 h-5" />
@@ -134,7 +137,7 @@ export const SubscriptionManagement: React.FC = () => {
 
       toast({
         title: "Abonnement mis à jour",
-        description: `Vous êtes maintenant abonné au plan ${newPlan}`,
+        description: `Vous êtes maintenant abonné au plan ${newPlan} avec ${maxBots} chatbots maximum`,
       });
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error);
@@ -166,14 +169,32 @@ export const SubscriptionManagement: React.FC = () => {
                 Plan {botOwner.subscription_plan}
               </Badge>
               <span className="text-gray-600">
-                {botOwner.max_bots} bot(s) maximum
+                {botOwner.max_bots} chatbot(s) maximum
               </span>
+              <Badge variant="outline" className="text-green-600 border-green-200">
+                Limite augmentée !
+              </Badge>
             </div>
             <div className="text-sm text-gray-500">
               Depuis le {new Date(botOwner.created_at).toLocaleDateString('fr-FR')}
             </div>
           </div>
         )}
+      </Card>
+
+      {/* Notification de mise à jour */}
+      <Card className="p-4 bg-green-50 border-green-200">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+            <Check className="w-4 h-4 text-green-600" />
+          </div>
+          <div>
+            <h3 className="font-medium text-green-900">Limites augmentées !</h3>
+            <p className="text-sm text-green-700">
+              Tous les plans ont été mis à jour avec de nouvelles limites plus généreuses pour les chatbots.
+            </p>
+          </div>
+        </div>
       </Card>
 
       {/* Plans disponibles */}
@@ -205,6 +226,11 @@ export const SubscriptionManagement: React.FC = () => {
                       {plan.price.toLocaleString()} CFA
                     </span>
                     <span className="text-gray-600">/mois</span>
+                  </div>
+                  <div className="mt-1">
+                    <Badge variant="outline" className="text-xs text-green-600 border-green-200">
+                      {plan.maxBots} chatbots
+                    </Badge>
                   </div>
                 </div>
 
@@ -242,6 +268,7 @@ export const SubscriptionManagement: React.FC = () => {
           <p>• Facturation mensuelle automatique</p>
           <p>• Annulation possible à tout moment</p>
           <p>• Support client disponible pour toute question</p>
+          <p>• <strong>Nouvelles limites</strong> : Plan gratuit 5 bots, Pro 15 bots, Enterprise 50 bots</p>
         </div>
       </Card>
     </div>
