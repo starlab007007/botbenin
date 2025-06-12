@@ -32,8 +32,8 @@ export const ChatPage: React.FC = () => {
       setBotConfig({
         chatTitle: title ? decodeURIComponent(title) : 'Assistant IA',
         chatContext: context || 'general',
-        // Utiliser l'URL par défaut seulement si aucun bot spécifique n'est demandé
-        webhookUrl: 'https://ia.bot.bj/webhook/restau1'
+        // NE PAS utiliser d'URL par défaut - laisser vide pour forcer la configuration
+        webhookUrl: undefined
       });
       setShowChat(true);
     }
@@ -65,20 +65,26 @@ export const ChatPage: React.FC = () => {
       }
 
       if (!bot.webhook_url) {
-        console.log('Aucun webhook configuré, utilisation de l\'URL par défaut');
-        // Utiliser l'URL par défaut si aucune n'est configurée
-        bot.webhook_url = 'https://ia.bot.bj/webhook/restau1';
+        console.error('ATTENTION: Bot sans webhook URL configuré !', bot);
+        toast({
+          title: "Configuration incomplète",
+          description: "Ce bot n'a pas d'URL webhook configuré. Veuillez configurer le webhook dans les paramètres du bot.",
+          variant: "destructive",
+        });
+        // Ne pas utiliser d'URL par défaut - laisser l'erreur apparaître
       }
 
       console.log('Configuration du bot chargée:', {
         webhookUrl: bot.webhook_url,
         chatTitle: bot.chat_title,
-        chatContext: bot.chat_context
+        chatContext: bot.chat_context,
+        botId: bot.id,
+        botName: bot.name
       });
 
       setBotConfig({
-        webhookUrl: bot.webhook_url,
-        chatTitle: bot.chat_title || 'Assistant IA',
+        webhookUrl: bot.webhook_url, // Utiliser exactement l'URL du bot
+        chatTitle: bot.chat_title || bot.name || 'Assistant IA',
         chatContext: bot.chat_context || 'automation'
       });
       setShowChat(true);

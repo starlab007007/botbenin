@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -29,8 +30,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const location = useLocation();
   
-  // Use the provided webhook URL or fallback to the default restaurant URL
-  const finalWebhookUrl = webhookUrl || 'https://ia.bot.bj/webhook/restau1';
+  console.log('=== INITIALISATION CHATINTERFACE ===');
+  console.log('Webhook URL reçue:', webhookUrl);
+  console.log('Chat Title:', chatTitle);
+  console.log('Chat Context:', chatContext);
+  
+  // IMPORTANT: Ne pas utiliser d'URL par défaut si aucune n'est fournie
+  if (!webhookUrl) {
+    console.warn('ATTENTION: Aucun webhook URL fourni pour ce bot !');
+  }
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -76,6 +84,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isLoading) return;
 
+    // Vérifier qu'un webhook URL est disponible
+    if (!webhookUrl) {
+      console.error('ERREUR: Aucun webhook URL configuré pour ce bot');
+      toast({
+        title: `${chatTitle} - Configuration manquante`,
+        description: "Aucun webhook URL configuré pour ce bot. Veuillez configurer le webhook dans les paramètres du bot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setShowSuggestions(false);
 
     const userMessage: Message = {
@@ -91,7 +110,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     console.log('=== COMMUNICATION N8N ===');
     console.log('User message:', textToSend);
-    console.log('Webhook URL utilisée:', finalWebhookUrl);
+    console.log('Webhook URL utilisée:', webhookUrl);
     console.log('Chat Context:', chatContext);
     console.log('Chat Title:', chatTitle);
 
@@ -102,7 +121,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         controller.abort();
       }, 30000);
 
-      // Utiliser le format de payload standard pour tous les bots
+      // Utiliser le webhook URL spécifique du bot
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
@@ -119,15 +138,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
+      console.log('Envoi vers webhook spécifique:', webhookUrl);
 
-      const response = await fetch(finalWebhookUrl, {
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
           'User-Agent': 'Bot.Bj-Platform/1.0',
           'X-Bot-Platform': 'bot_bj',
-          'X-Bot-Version': '1.0'
+          'X-Bot-Version': '1.0',
+          'X-Bot-ID': chatTitle || 'unknown',
+          'X-Webhook-Source': 'bot_specific'
         },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
@@ -190,16 +212,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
+      console.error('Webhook URL utilisé:', webhookUrl);
       
-      let errorMessage = "Je rencontre des difficultés techniques avec N8N. Laissez-moi vous proposer une assistance générale en attendant.";
-      let toastMessage = "Problème de connexion N8N";
+      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré (${webhookUrl}). Veuillez vérifier la configuration de votre webhook.`;
+      let toastMessage = "Problème de connexion N8N - Webhook spécifique";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorMessage = "La requête vers N8N a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.";
           toastMessage = "Timeout N8N - réessayez";
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter à N8N. Vérifiez votre connexion internet et réessayez.";
+          errorMessage = `Impossible de se connecter à N8N via l'URL: ${webhookUrl}. Vérifiez que l'URL est correcte et accessible.`;
           toastMessage = "Problème de connectivité N8N";
         }
       }
