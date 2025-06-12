@@ -64,9 +64,6 @@ const App = () => (
                   {/* Route d'accueil avec redirection vers home */}
                   <Route path="/" element={<Navigate to="/home" replace />} />
                   
-                  {/* Route de chat publique sans layout */}
-                  <Route path="/chat" element={<ChatPage />} />
-                  
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     <Route path="/home" element={<HomePage />} />
