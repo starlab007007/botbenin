@@ -24,7 +24,13 @@ export default defineConfig(({ mode }) => ({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    minify: 'terser',
+    minify: mode === 'production' ? 'terser' : false,
+    terserOptions: mode === 'production' ? {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      }
+    } : undefined,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -38,7 +44,6 @@ export default defineConfig(({ mode }) => ({
   },
   base: '/',
   publicDir: 'public',
-  // Configuration pour SPA routing
   preview: {
     port: 8080,
     strictPort: true,

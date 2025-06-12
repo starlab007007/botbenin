@@ -15,17 +15,46 @@
     <!-- Meta tags pour SEO et partage social -->
     <meta name="description" content="Bot.BJ - Assistant IA intelligent pour vos besoins quotidiens" />
     <meta name="author" content="Bot.BJ" />
+    <meta name="keywords" content="Bot IA, Assistant intelligent, Bénin, Automatisation" />
     <meta property="og:title" content="Bot.BJ - Assistant IA" />
     <meta property="og:description" content="Assistant IA intelligent pour vos besoins quotidiens" />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://bot.bj" />
     
-    <!-- Cache busting pour les assets -->
+    <!-- Optimisations pour le cache et les performances -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+    
+    <!-- Sécurité -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:;">
+    
+    <!-- PWA et mobile -->
+    <meta name="theme-color" content="#3B82F6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   </head>
   <body>
-    <div id="root"></div>
+    <noscript>
+      <div style="text-align: center; padding: 50px; font-family: Arial, sans-serif;">
+        <h1>JavaScript requis</h1>
+        <p>Cette application nécessite JavaScript pour fonctionner correctement.</p>
+        <p>Veuillez activer JavaScript dans votre navigateur et recharger la page.</p>
+      </div>
+    </noscript>
+    <div id="root">
+      <!-- Indicateur de chargement -->
+      <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; font-family: Arial, sans-serif;">
+        <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3B82F6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+        <p style="color: #666; margin: 0;">Chargement de Bot.BJ...</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
   </body>
 </html>

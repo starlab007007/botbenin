@@ -22,26 +22,45 @@ jobs:
             cd /home/debian/botbenin/
 
             echo "📥 Mise à jour du code..."
-            git pull origin main
+            git pull origin main || { echo "❌ Erreur lors du git pull"; exit 1; }
 
             echo "🛑 Arrêt des anciens conteneurs..."
-            docker compose down
+            docker compose down || echo "⚠️ Aucun conteneur à arrêter"
 
-            echo "🧹 Nettoyage des caches Docker..."
-            docker system prune -f
-            docker volume prune -f
+            echo "🧹 Nettoyage complet..."
+            docker system prune -af --volumes || echo "⚠️ Nettoyage partiel"
+            docker builder prune -af || echo "⚠️ Nettoyage builder partiel"
 
-            echo "🔨 Construction et redémarrage des services..."
-            docker compose build --no-cache
-            docker compose up -d --force-recreate
+            echo "🔨 Construction des images..."
+            docker compose build --no-cache --pull || { echo "❌ Erreur lors du build"; exit 1; }
+
+            echo "🚀 Démarrage des services..."
+            docker compose up -d --force-recreate || { echo "❌ Erreur lors du démarrage"; exit 1; }
+
+            echo "⏳ Attente du démarrage complet..."
+            sleep 30
 
             echo "🔍 Vérification du statut des conteneurs..."
             docker compose ps
 
-            echo "📋 Logs des conteneurs..."
-            docker compose logs --tail=50
+            echo "🧪 Test de santé du service..."
+            for i in {1..10}; do
+              if curl -f http://localhost:80 > /dev/null 2>&1; then
+                echo "✅ Service accessible"
+                break
+              fi
+              echo "⏳ Tentative $i/10..."
+              sleep 5
+            done
 
-            echo "🧹 Nettoyage des anciennes images inutilisées..."
-            docker image prune -af
+            echo "📋 Logs des conteneurs (dernières 100 lignes)..."
+            docker compose logs --tail=100
+
+            echo "🔍 Vérification des fichiers dans le conteneur..."
+            docker compose exec -T web ls -la /usr/share/nginx/html/ || echo "⚠️ Impossible de lister les fichiers"
+
+            echo "🧹 Nettoyage final des images inutilisées..."
+            docker image prune -af || echo "⚠️ Nettoyage final partiel"
 
             echo "✅ Déploiement terminé avec succès!"
+            echo "🌐 Application accessible sur: http://bot.bj"
