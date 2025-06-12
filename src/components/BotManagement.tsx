@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +11,7 @@ import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 import { OwnerDashboard } from '@/components/OwnerDashboard';
 import { ShortenedLinksManager } from '@/components/ShortenedLinksManager';
 import { ConversationManager } from '@/components/ConversationManager';
+import { initializeVisitorTracking } from '@/utils/visitorTracking';
 import { 
   Bot, 
   Plus, 
@@ -31,7 +31,8 @@ import {
   MessageCircle,
   Home,
   Link,
-  Mail
+  Mail,
+  Activity
 } from 'lucide-react';
 
 interface Bot {
@@ -163,15 +164,25 @@ export const BotManagement: React.FC = () => {
     fetchBots(); // Recharger la liste des bots
     toast({
       title: "Succès !",
-      description: "Votre chatbot a été créé avec la même connectivité N8N que le bot restaurant",
+      description: "Votre chatbot a été créé avec tracking avancé des visiteurs et connectivité N8N",
     });
   };
 
-  const testBot = (bot: Bot) => {
-    // Ouvrir le bot dans une nouvelle fenêtre avec la même interface que les autres chats
-    const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}`;
-    console.log('Test du bot avec config identique restaurant:', chatUrl);
-    window.open(chatUrl, '_blank');
+  const testBot = async (bot: Bot) => {
+    try {
+      // Initialiser le tracking du visiteur pour ce test
+      await initializeVisitorTracking(bot.id, 'bot_test');
+      
+      // Ouvrir le bot dans une nouvelle fenêtre avec la même interface que les autres chats
+      const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}&test=true`;
+      console.log('Test du bot avec tracking visiteurs activé:', chatUrl);
+      window.open(chatUrl, '_blank');
+    } catch (error) {
+      console.warn('Erreur lors de l\'initialisation du tracking pour le test:', error);
+      // Continuer avec le test même si le tracking échoue
+      const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}&test=true`;
+      window.open(chatUrl, '_blank');
+    }
   };
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -317,7 +328,7 @@ export const BotManagement: React.FC = () => {
               ← Retour
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Partage et Liens</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Partage et Tracking</h1>
               <p className="text-gray-600">{selectedBotForSharing.name}</p>
             </div>
           </div>
@@ -385,7 +396,7 @@ export const BotManagement: React.FC = () => {
       {/* Vue liste des bots */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Mes Chatbots</h2>
-        <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec connectivité N8N identique au bot restaurant</p>
+        <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec tracking avancé et connectivité N8N</p>
       </div>
 
       {/* Liste des chatbots */}
@@ -396,7 +407,7 @@ export const BotManagement: React.FC = () => {
             Aucun chatbot créé
           </h3>
           <p className="text-gray-600 mb-4">
-            Créez votre premier chatbot avec connectivité N8N identique au bot restaurant
+            Créez votre premier chatbot avec tracking avancé des visiteurs et connectivité N8N
           </p>
           <Button 
             onClick={() => setCurrentView('create')}
@@ -451,8 +462,9 @@ export const BotManagement: React.FC = () => {
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Chat: {bot.chat_title}</div>
                   <div className="text-xs text-gray-500">Contexte: {bot.chat_context}</div>
-                  <div className="text-xs text-green-600 mt-1">✅ N8N connecté (identique restaurant)</div>
+                  <div className="text-xs text-green-600 mt-1">✅ N8N connecté</div>
                   <div className="text-xs text-blue-600">🔗 Webhook: {bot.webhook_url}</div>
+                  <div className="text-xs text-purple-600 mt-1">📊 Tracking visiteurs activé</div>
                 </div>
 
                 {/* URL publique et partage */}
@@ -518,8 +530,8 @@ export const BotManagement: React.FC = () => {
                     size="sm"
                     className="text-purple-600 border-purple-200 hover:bg-purple-50"
                   >
-                    <Share2 className="w-4 h-4 mr-1" />
-                    Partage
+                    <Activity className="w-4 h-4 mr-1" />
+                    Tracking
                   </Button>
                   <Button
                     onClick={() => viewAnalytics(bot.id, bot.name)}

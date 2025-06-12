@@ -96,6 +96,125 @@ export type Database = {
           },
         ]
       }
+      anonymous_visitor_sessions: {
+        Row: {
+          bot_id: string
+          converted_to_lead: boolean | null
+          ended_at: string | null
+          entry_point: string | null
+          fingerprint_id: string | null
+          geolocation: Json | null
+          id: string
+          ip_address: unknown | null
+          is_active: boolean | null
+          last_activity: string | null
+          lead_info: Json | null
+          pages_visited: number | null
+          referrer_url: string | null
+          session_token: string
+          started_at: string | null
+          time_spent_seconds: number | null
+          total_interactions: number | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          bot_id: string
+          converted_to_lead?: boolean | null
+          ended_at?: string | null
+          entry_point?: string | null
+          fingerprint_id?: string | null
+          geolocation?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          lead_info?: Json | null
+          pages_visited?: number | null
+          referrer_url?: string | null
+          session_token: string
+          started_at?: string | null
+          time_spent_seconds?: number | null
+          total_interactions?: number | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          bot_id?: string
+          converted_to_lead?: boolean | null
+          ended_at?: string | null
+          entry_point?: string | null
+          fingerprint_id?: string | null
+          geolocation?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          lead_info?: Json | null
+          pages_visited?: number | null
+          referrer_url?: string | null
+          session_token?: string
+          started_at?: string | null
+          time_spent_seconds?: number | null
+          total_interactions?: number | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "anonymous_visitor_sessions_fingerprint_id_fkey"
+            columns: ["fingerprint_id"]
+            isOneToOne: false
+            referencedRelation: "visitor_fingerprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           attendees: Json
@@ -290,6 +409,13 @@ export type Database = {
             foreignKeyName: "bot_users_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_users_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
           },
@@ -478,6 +604,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
           },
@@ -555,6 +688,13 @@ export type Database = {
             columns: ["bot_id"]
             isOneToOne: false
             referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
             referencedColumns: ["bot_id"]
           },
           {
@@ -800,6 +940,13 @@ export type Database = {
             columns: ["bot_id"]
             isOneToOne: false
             referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
             referencedColumns: ["bot_id"]
           },
           {
@@ -1513,6 +1660,13 @@ export type Database = {
             foreignKeyName: "shortened_links_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "shortened_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
           },
@@ -1532,6 +1686,98 @@ export type Database = {
           },
           {
             foreignKeyName: "shortened_links_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_sharing_campaigns: {
+        Row: {
+          bot_id: string
+          campaign_description: string | null
+          campaign_name: string
+          created_at: string | null
+          custom_message: string | null
+          id: string
+          is_active: boolean | null
+          owner_id: string
+          target_platforms: Json
+          tracking_parameters: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          bot_id: string
+          campaign_description?: string | null
+          campaign_name: string
+          created_at?: string | null
+          custom_message?: string | null
+          id?: string
+          is_active?: boolean | null
+          owner_id: string
+          target_platforms?: Json
+          tracking_parameters?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          bot_id?: string
+          campaign_description?: string | null
+          campaign_name?: string
+          created_at?: string | null
+          custom_message?: string | null
+          id?: string
+          is_active?: boolean | null
+          owner_id?: string
+          target_platforms?: Json
+          tracking_parameters?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "social_sharing_campaigns_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "bot_owners"
@@ -2192,6 +2438,130 @@ export type Database = {
         }
         Relationships: []
       }
+      visitor_fingerprints: {
+        Row: {
+          browser_info: Json
+          created_at: string | null
+          fingerprint_hash: string
+          id: string
+          language: string | null
+          last_seen: string | null
+          platform: string | null
+          screen_info: Json
+          timezone: string | null
+          updated_at: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          browser_info?: Json
+          created_at?: string | null
+          fingerprint_hash: string
+          id?: string
+          language?: string | null
+          last_seen?: string | null
+          platform?: string | null
+          screen_info?: Json
+          timezone?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          browser_info?: Json
+          created_at?: string | null
+          fingerprint_hash?: string
+          id?: string
+          language?: string | null
+          last_seen?: string | null
+          platform?: string | null
+          screen_info?: Json
+          timezone?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      visitor_progressive_data: {
+        Row: {
+          collected_at: string | null
+          collection_method: string
+          confidence_score: number | null
+          data_type: string
+          data_value: string
+          id: string
+          verified: boolean | null
+          visitor_session_id: string
+        }
+        Insert: {
+          collected_at?: string | null
+          collection_method: string
+          confidence_score?: number | null
+          data_type: string
+          data_value: string
+          id?: string
+          verified?: boolean | null
+          visitor_session_id: string
+        }
+        Update: {
+          collected_at?: string | null
+          collection_method?: string
+          confidence_score?: number | null
+          data_type?: string
+          data_value?: string
+          id?: string
+          verified?: boolean | null
+          visitor_session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_progressive_data_visitor_session_id_fkey"
+            columns: ["visitor_session_id"]
+            isOneToOne: false
+            referencedRelation: "anonymous_visitor_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visitor_tracking_events: {
+        Row: {
+          element_class: string | null
+          element_id: string | null
+          event_data: Json
+          event_type: string
+          id: string
+          page_url: string | null
+          timestamp: string | null
+          visitor_session_id: string
+        }
+        Insert: {
+          element_class?: string | null
+          element_id?: string | null
+          event_data?: Json
+          event_type: string
+          id?: string
+          page_url?: string | null
+          timestamp?: string | null
+          visitor_session_id: string
+        }
+        Update: {
+          element_class?: string | null
+          element_id?: string | null
+          event_data?: Json
+          event_type?: string
+          id?: string
+          page_url?: string | null
+          timestamp?: string | null
+          visitor_session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_tracking_events_visitor_session_id_fkey"
+            columns: ["visitor_session_id"]
+            isOneToOne: false
+            referencedRelation: "anonymous_visitor_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_automations: {
         Row: {
           actions: Json | null
@@ -2757,6 +3127,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
           },
@@ -2810,6 +3187,39 @@ export type Database = {
           owner_id: string | null
           total_messages: number | null
           total_users: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_visitor_analytics: {
+        Row: {
+          active_sessions: number | null
+          avg_interactions_per_session: number | null
+          avg_pages_per_session: number | null
+          avg_time_spent_seconds: number | null
+          bot_id: string | null
+          bot_name: string | null
+          conversion_rate_percent: number | null
+          converted_sessions: number | null
+          last_visitor_activity: string | null
+          owner_id: string | null
+          sessions_24h: number | null
+          sessions_30d: number | null
+          sessions_7d: number | null
+          sessions_direct: number | null
+          sessions_from_short_links: number | null
+          sessions_from_social: number | null
+          total_sessions: number | null
+          unique_visitors: number | null
+          unique_visitors_24h: number | null
+          unique_visitors_7d: number | null
         }
         Relationships: [
           {
@@ -2913,12 +3323,47 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: boolean
       }
+      collect_visitor_data: {
+        Args: {
+          p_session_id: string
+          p_data_type: string
+          p_data_value: string
+          p_collection_method?: string
+          p_confidence_score?: number
+        }
+        Returns: string
+      }
+      create_anonymous_visitor_session: {
+        Args: {
+          p_fingerprint_id: string
+          p_bot_id: string
+          p_entry_point?: string
+          p_referrer_url?: string
+          p_utm_source?: string
+          p_utm_medium?: string
+          p_utm_campaign?: string
+          p_ip_address?: unknown
+        }
+        Returns: string
+      }
       create_bot_user_if_not_exists: {
         Args: {
           p_bot_id: string
           p_session_id: string
           p_user_name?: string
           p_user_email?: string
+        }
+        Returns: string
+      }
+      create_or_get_visitor_fingerprint: {
+        Args: {
+          p_fingerprint_hash: string
+          p_browser_info?: Json
+          p_screen_info?: Json
+          p_timezone?: string
+          p_language?: string
+          p_platform?: string
+          p_user_agent?: string
         }
         Returns: string
       }
@@ -2994,6 +3439,17 @@ export type Database = {
           p_ip_address?: unknown
           p_user_agent?: string
           p_referrer?: string
+        }
+        Returns: string
+      }
+      track_visitor_event: {
+        Args: {
+          p_session_id: string
+          p_event_type: string
+          p_event_data?: Json
+          p_page_url?: string
+          p_element_id?: string
+          p_element_class?: string
         }
         Returns: string
       }

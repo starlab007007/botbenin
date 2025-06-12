@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Bot, ExternalLink } from 'lucide-react';
+import { initializeVisitorTracking } from '@/utils/visitorTracking';
 
 export const ShortLinkRedirectPage: React.FC = () => {
   const { shortCode } = useParams<{ shortCode: string }>();
@@ -27,7 +28,6 @@ export const ShortLinkRedirectPage: React.FC = () => {
       // Collecter les informations de tracking
       const userAgent = navigator.userAgent;
       const referrer = document.referrer;
-      const ipAddress = null; // Sera géré côté serveur si nécessaire
 
       console.log('Redirection lien raccourci:', shortCode);
 
@@ -45,6 +45,14 @@ export const ShortLinkRedirectPage: React.FC = () => {
       }
 
       console.log('Redirection vers le bot:', botId);
+
+      // Initialiser le tracking du visiteur avec le point d'entrée "shortened_link"
+      try {
+        await initializeVisitorTracking(botId, 'shortened_link');
+      } catch (trackingError) {
+        console.warn('Erreur lors de l\'initialisation du tracking:', trackingError);
+        // Continuer même si le tracking échoue
+      }
 
       // Rediriger vers la page de chat avec le bot ID
       const chatUrl = `/chat?bot=${botId}&entry=shortened_link&ref=${shortCode}`;
@@ -66,9 +74,12 @@ export const ShortLinkRedirectPage: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Redirection en cours...
           </h2>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-4">
             Nous vous redirigeons vers votre assistant IA
           </p>
+          <div className="text-xs text-gray-500">
+            Tracking des visiteurs activé pour améliorer votre expérience
+          </div>
           <div className="mt-6">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           </div>
