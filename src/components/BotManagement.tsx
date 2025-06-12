@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,14 +23,14 @@ import {
   BarChart3,
   Users,
   MessageSquare,
-  Share,
   Copy,
   ExternalLink,
   Play,
   MessageCircle,
   Home,
-  Link,
-  Share
+  Link2,
+  Sparkles,
+  Zap
 } from 'lucide-react';
 
 interface Bot {
@@ -256,16 +257,18 @@ export const BotManagement: React.FC = () => {
       <Button
         variant={currentView === 'dashboard' ? 'default' : 'outline'}
         onClick={() => setCurrentView('dashboard')}
+        className="flex items-center space-x-2"
       >
-        <Home className="w-4 h-4 mr-2" />
-        Dashboard
+        <Home className="w-4 h-4" />
+        <span>Dashboard</span>
       </Button>
       <Button
         variant={currentView === 'list' ? 'default' : 'outline'}
         onClick={() => setCurrentView('list')}
+        className="flex items-center space-x-2"
       >
-        <Bot className="w-4 h-4 mr-2" />
-        Mes Bots
+        <Bot className="w-4 h-4" />
+        <span>Mes Bots</span>
       </Button>
     </div>
   );
@@ -304,11 +307,14 @@ export const BotManagement: React.FC = () => {
                 setCurrentView('list');
                 setSelectedBotForSharing(null);
               }}
+              className="hover:bg-blue-50 hover:text-blue-600 transition-colors"
             >
               ← Retour
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Partage et Liens</h1>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Partage et Liens
+              </h1>
               <p className="text-gray-600">{selectedBotForSharing.name}</p>
             </div>
           </div>
@@ -331,9 +337,10 @@ export const BotManagement: React.FC = () => {
           {renderNavigation()}
           <Button 
             onClick={() => setCurrentView('create')}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
           >
             <Plus className="w-4 h-4 mr-2" />
+            <Sparkles className="w-4 h-4 mr-2" />
             Nouveau Chatbot
           </Button>
         </div>
@@ -358,35 +365,45 @@ export const BotManagement: React.FC = () => {
         {renderNavigation()}
         <Button 
           onClick={() => setCurrentView('create')}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
         >
           <Plus className="w-4 h-4 mr-2" />
+          <Sparkles className="w-4 h-4 mr-2" />
           Nouveau Chatbot
         </Button>
       </div>
 
       {/* Vue liste des bots */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Mes Chatbots</h2>
-        <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec connectivité N8N identique au bot restaurant</p>
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-100">
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+          Mes Chatbots IA
+        </h2>
+        <p className="text-gray-600 mb-6 flex items-center">
+          <Zap className="w-4 h-4 mr-2 text-blue-600" />
+          Créez et gérez vos chatbots avec connectivité N8N identique au bot restaurant
+        </p>
       </div>
 
       {/* Liste des chatbots */}
       {bots.length === 0 ? (
-        <Card className="p-8 text-center">
-          <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        <Card className="p-8 text-center bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-lg">
+          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Bot className="w-10 h-10 text-white" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-3">
             Aucun chatbot créé
           </h3>
-          <p className="text-gray-600 mb-4">
-            Créez votre premier chatbot avec connectivité N8N identique au bot restaurant
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            Créez votre premier chatbot IA avec connectivité N8N identique au bot restaurant pour automatiser vos conversations
           </p>
           <Button 
             onClick={() => setCurrentView('create')}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
+            size="lg"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Créer mon premier chatbot
+            <Sparkles className="w-4 h-4 mr-2" />
+            Créer mon premier chatbot IA
           </Button>
         </Card>
       ) : (
@@ -395,19 +412,24 @@ export const BotManagement: React.FC = () => {
             const stats = botStats[bot.id] || { totalMessages: 0, totalUsers: 0, activeToday: 0 };
             
             return (
-              <Card key={bot.id} className="p-6 hover:shadow-lg transition-shadow">
+              <Card key={bot.id} className="p-6 hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 border border-gray-200 group">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      bot.is_active ? 'bg-green-100' : 'bg-gray-100'
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 ${
+                      bot.is_active 
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 group-hover:scale-110' 
+                        : 'bg-gradient-to-r from-gray-400 to-gray-500'
                     }`}>
-                      <Bot className={`w-5 h-5 ${
-                        bot.is_active ? 'text-green-600' : 'text-gray-400'
-                      }`} />
+                      <Bot className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{bot.name}</h3>
-                      <Badge variant={bot.is_active ? "default" : "secondary"}>
+                      <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                        {bot.name}
+                      </h3>
+                      <Badge 
+                        variant={bot.is_active ? "default" : "secondary"}
+                        className={bot.is_active ? "bg-green-100 text-green-800" : ""}
+                      >
                         {bot.is_active ? 'Actif' : 'Inactif'}
                       </Badge>
                     </div>
@@ -416,7 +438,7 @@ export const BotManagement: React.FC = () => {
                     onClick={() => toggleBotStatus(bot)}
                     variant="ghost"
                     size="sm"
-                    className="p-2"
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     {bot.is_active ? (
                       <PowerOff className="w-4 h-4 text-red-500" />
@@ -431,24 +453,33 @@ export const BotManagement: React.FC = () => {
                 </p>
 
                 {/* Titre et contexte du chat */}
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 mb-1">Chat: {bot.chat_title}</div>
-                  <div className="text-xs text-gray-500">Contexte: {bot.chat_context}</div>
-                  <div className="text-xs text-green-600 mt-1">✅ N8N connecté (identique restaurant)</div>
-                  <div className="text-xs text-blue-600">🔗 Webhook: {bot.webhook_url}</div>
+                <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
+                  <div className="text-xs text-blue-700 mb-1 font-medium">Chat: {bot.chat_title}</div>
+                  <div className="text-xs text-purple-700 mb-2">Contexte: {bot.chat_context}</div>
+                  <div className="flex items-center text-xs text-green-600 mb-1">
+                    <Zap className="w-3 h-3 mr-1" />
+                    N8N connecté (identique restaurant)
+                  </div>
+                  <div className="flex items-center text-xs text-blue-600">
+                    <Link2 className="w-3 h-3 mr-1" />
+                    Webhook actif
+                  </div>
                 </div>
 
                 {/* URL publique et partage */}
                 {bot.share_enabled && bot.public_chat_url && (
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                  <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-100">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-blue-700">Lien public</span>
+                      <span className="text-xs font-medium text-green-700 flex items-center">
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        Lien public
+                      </span>
                       <div className="flex space-x-1">
                         <Button
                           onClick={() => copyToClipboard(bot.public_chat_url, 'Lien public')}
                           variant="ghost"
                           size="sm"
-                          className="p-1 h-6 w-6"
+                          className="p-1 h-6 w-6 hover:bg-green-100"
                         >
                           <Copy className="w-3 h-3" />
                         </Button>
@@ -456,7 +487,7 @@ export const BotManagement: React.FC = () => {
                           onClick={() => window.open(bot.public_chat_url, '_blank')}
                           variant="ghost"
                           size="sm"
-                          className="p-1 h-6 w-6"
+                          className="p-1 h-6 w-6 hover:bg-blue-100"
                         >
                           <ExternalLink className="w-3 h-3" />
                         </Button>
@@ -470,17 +501,17 @@ export const BotManagement: React.FC = () => {
 
                 {/* Statistiques */}
                 <div className="grid grid-cols-3 gap-2 mb-4">
-                  <div className="text-center">
+                  <div className="text-center p-2 bg-blue-50 rounded-lg">
                     <div className="text-lg font-bold text-blue-600">{stats.totalMessages}</div>
-                    <div className="text-xs text-gray-500">Messages</div>
+                    <div className="text-xs text-blue-500">Messages</div>
                   </div>
-                  <div className="text-center">
+                  <div className="text-center p-2 bg-green-50 rounded-lg">
                     <div className="text-lg font-bold text-green-600">{stats.totalUsers}</div>
-                    <div className="text-xs text-gray-500">Utilisateurs</div>
+                    <div className="text-xs text-green-500">Utilisateurs</div>
                   </div>
-                  <div className="text-center">
+                  <div className="text-center p-2 bg-purple-50 rounded-lg">
                     <div className="text-lg font-bold text-purple-600">{stats.activeToday}</div>
-                    <div className="text-xs text-gray-500">Actifs</div>
+                    <div className="text-xs text-purple-500">Actifs</div>
                   </div>
                 </div>
 
@@ -490,7 +521,7 @@ export const BotManagement: React.FC = () => {
                     onClick={() => testBot(bot)}
                     variant="outline"
                     size="sm"
-                    className="text-green-600 border-green-200 hover:bg-green-50"
+                    className="text-green-600 border-green-200 hover:bg-green-50 transition-colors"
                   >
                     <MessageCircle className="w-4 h-4 mr-1" />
                     Chat
@@ -499,16 +530,16 @@ export const BotManagement: React.FC = () => {
                     onClick={() => viewSharing(bot.id, bot.name)}
                     variant="outline"
                     size="sm"
-                    className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                    className="text-purple-600 border-purple-200 hover:bg-purple-50 transition-colors"
                   >
-                    <Share className="w-4 h-4 mr-1" />
+                    <Link2 className="w-4 h-4 mr-1" />
                     Partage
                   </Button>
                   <Button
                     onClick={() => viewAnalytics(bot.id, bot.name)}
                     variant="outline"
                     size="sm"
-                    className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                    className="text-blue-600 border-blue-200 hover:bg-blue-50 transition-colors"
                   >
                     <BarChart3 className="w-4 h-4 mr-1" />
                     Analytics
@@ -522,7 +553,7 @@ export const BotManagement: React.FC = () => {
                       onClick={() => deleteBot(bot.id)}
                       variant="ghost"
                       size="sm"
-                      className="p-2 text-red-500 hover:text-red-700"
+                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
