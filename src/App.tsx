@@ -38,26 +38,35 @@ const App: React.FC = () => (
             <Sonner />
             <BrowserRouter>
               <Routes>
-                {/* Routes publiques */}
+                {/* Route publique pour les bots */}
                 <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                 
-                {/* Routes avec layout */}
+                {/* Routes avec layout principal */}
                 <Route path="/" element={<Layout />}>
+                  {/* Page d'accueil */}
                   <Route index element={<HomePage />} />
+                  
+                  {/* Pages principales */}
                   <Route path="chat" element={<ChatPage />} />
                   <Route path="chat-test" element={<BotTestPage />} />
                   <Route path="automatisations" element={<AutomationsPage />} />
                   <Route path="bots" element={<BotManagementPage />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="prospects" element={<ProspectsPage />} />
+                  
+                  {/* Modules IA */}
                   <Route path="modules/business" element={<BusinessModule />} />
                   <Route path="modules/marketing" element={<MarketingModule />} />
                   <Route path="modules/gestion" element={<GestionModule />} />
                   <Route path="modules/citoyen" element={<CitoyenModule />} />
+                  
+                  {/* Pages utilisateur */}
                   <Route path="account" element={<AccountPage />} />
                   <Route path="support" element={<SupportPage />} />
                   <Route path="users" element={<UsersManagementPage />} />
                 </Route>
+                
+                {/* Route 404 - doit être en dernier */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
