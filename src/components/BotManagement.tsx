@@ -261,15 +261,99 @@ export const BotManagement: React.FC = () => {
       return;
     }
 
-    const message = `Découvrez ${bot.name} - Assistant IA intelligent ! Cliquez sur ce lien pour commencer une conversation : ${bot.public_chat_url}`;
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    // Messages personnalisés selon le contexte du bot
+    let customMessage = '';
+    
+    switch (bot.chat_context) {
+      case 'restaurant':
+        customMessage = `🍽️ Découvrez ${bot.name} - Votre assistant IA pour réserver facilement votre table ! 
+        
+✨ Trouvez le restaurant parfait
+📅 Réservez en quelques secondes
+🎯 Recommandations personnalisées
+
+Commencez votre réservation maintenant :`;
+        break;
+        
+      case 'services_locaux':
+        customMessage = `🏢 ${bot.name} - Votre guide intelligent des services locaux !
+        
+🔍 Trouvez tous les services près de chez vous
+⭐ Recommandations vérifiées
+📍 Géolocalisation précise
+
+Explorez votre région dès maintenant :`;
+        break;
+        
+      case 'automation':
+        customMessage = `🤖 ${bot.name} - Assistant IA automatisé de nouvelle génération !
+        
+⚡ Automatisation intelligente
+🔗 Connecté via N8N
+💬 Conversations naturelles
+
+Découvrez l'automatisation intelligente :`;
+        break;
+        
+      case 'business':
+        customMessage = `💼 ${bot.name} - Boostez votre business avec l'IA !
+        
+📈 Optimisation des performances
+🎯 Stratégies personnalisées
+📊 Analytics avancées
+
+Transformez votre entreprise :`;
+        break;
+        
+      case 'marketing':
+        customMessage = `📢 ${bot.name} - Révolutionnez votre marketing avec l'IA !
+        
+🚀 Campagnes intelligentes
+🎨 Créativité assistée par IA
+📈 ROI optimisé
+
+Lancez votre stratégie marketing :`;
+        break;
+        
+      case 'gestion':
+        customMessage = `📋 ${bot.name} - Simplifiez votre gestion avec l'intelligence artificielle !
+        
+⚙️ Processus automatisés
+📊 Tableaux de bord intelligents
+🎯 Efficacité maximale
+
+Optimisez votre gestion :`;
+        break;
+        
+      case 'citoyen':
+        customMessage = `🏛️ ${bot.name} - Votre assistant citoyen intelligent !
+        
+📝 Démarches simplifiées
+ℹ️ Informations officielles
+🎯 Aide personnalisée
+
+Facilitez vos démarches citoyennes :`;
+        break;
+        
+      default:
+        customMessage = `🚀 ${bot.name} - Votre assistant IA de nouvelle génération !
+        
+💡 Intelligence artificielle avancée
+💬 Conversations naturelles
+🎯 Solutions personnalisées
+
+Commencez votre conversation intelligente :`;
+    }
+
+    const fullMessage = `${customMessage} ${bot.public_chat_url}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fullMessage)}`;
     
     // Ouvrir WhatsApp avec le message pré-rempli
     window.open(whatsappUrl, '_blank');
     
     toast({
-      title: "Partage WhatsApp",
-      description: "WhatsApp s'ouvre avec le lien de votre bot pré-rempli",
+      title: `Partage WhatsApp - ${bot.name}`,
+      description: "WhatsApp s'ouvre avec votre message personnalisé et le lien direct du bot",
     });
   };
 
@@ -566,7 +650,7 @@ export const BotManagement: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           className="p-1 h-6 w-6 bg-green-500 hover:bg-green-600 text-white rounded"
-                          title="Partager sur WhatsApp"
+                          title="Partager sur WhatsApp avec message personnalisé"
                         >
                           <Phone className="w-3 h-3" />
                         </Button>
@@ -611,7 +695,7 @@ export const BotManagement: React.FC = () => {
                 </div>
 
                 {/* Actions principales */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="grid grid-cols-2 gap-2 mb-4">
                   <Button
                     onClick={() => testBot(bot)}
                     variant="outline"
@@ -620,15 +704,6 @@ export const BotManagement: React.FC = () => {
                   >
                     <MessageCircle className="w-4 h-4 mr-1" />
                     Chat
-                  </Button>
-                  <Button
-                    onClick={() => viewSharing(bot.id, bot.name)}
-                    variant="outline"
-                    size="sm"
-                    className="text-purple-600 border-purple-200 hover:bg-purple-50"
-                  >
-                    <Activity className="w-4 h-4 mr-1" />
-                    Tracking
                   </Button>
                   <Button
                     onClick={() => viewAnalytics(bot.id, bot.name)}
