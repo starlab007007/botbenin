@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -72,7 +72,7 @@ const App = () => (
                   
                   {/* Routes avec layout principal */}
                   <Route path="/app" element={<MainLayout />}>
-                    <Route index element={<HomePage />} />
+                    <Route index element={<Navigate to="/app/home" replace />} />
                     <Route path="home" element={<HomePage />} />
                     <Route path="chat" element={<ChatPage />} />
                     <Route path="dashboard" element={<DashboardPage />} />

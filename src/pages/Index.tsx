@@ -14,7 +14,7 @@ const Index = () => {
   useEffect(() => {
     if (isAuthenticated && !showChat) {
       const timer = setTimeout(() => {
-        navigate('/app');
+        navigate('/app/home');
       }, 1000);
       return () => clearTimeout(timer);
     }

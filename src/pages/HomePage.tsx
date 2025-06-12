@@ -9,17 +9,15 @@ import {
   Bot, 
   BarChart3, 
   Zap,
-  Users,
   Briefcase,
   Megaphone,
   Target,
   ArrowRight,
   TrendingUp,
-  Clock,
-  CheckCircle,
   Star
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { IABenefitsCards } from '@/components/IABenefitsCards';
 
 const quickActions = [
   {
@@ -48,7 +46,7 @@ const quickActions = [
     title: 'Prospects',
     description: 'Gérez votre pipeline commercial',
     icon: Target,
-    path: '/app/prospects',
+    path: '/prospects',
     color: 'from-pink-500 to-pink-600'
   }
 ];
@@ -77,30 +75,6 @@ const aiModules = [
     path: '/app/automations',
     stats: '12 automatisations',
     badge: 'Pro'
-  }
-];
-
-const recentActivities = [
-  {
-    title: 'Nouveau prospect ajouté',
-    description: 'TechCorp - Secteur IT',
-    time: 'Il y a 2h',
-    icon: Users,
-    type: 'success'
-  },
-  {
-    title: 'Automatisation terminée',
-    description: 'Campagne email - 95% de succès',
-    time: 'Il y a 4h',
-    icon: CheckCircle,
-    type: 'info'
-  },
-  {
-    title: 'Bot IA déployé',
-    description: 'Bot support client mis en ligne',
-    time: 'Il y a 6h',
-    icon: Bot,
-    type: 'success'
   }
 ];
 
@@ -182,9 +156,9 @@ export const HomePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
         {/* Modules IA */}
-        <div className="xl:col-span-2">
+        <div>
           <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Modules IA spécialisés</h2>
           <div className="space-y-4">
             {aiModules.map((module) => (
@@ -223,58 +197,9 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Activité récente */}
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Activité récente</h2>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base sm:text-lg">Dernières actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {recentActivities.map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      activity.type === 'success' ? 'bg-green-100 text-green-600' :
-                      activity.type === 'info' ? 'bg-blue-100 text-blue-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      <activity.icon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm">{activity.title}</p>
-                      <p className="text-gray-600 text-sm truncate">{activity.description}</p>
-                      <div className="flex items-center text-xs text-gray-500 mt-1">
-                        <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
-                        {activity.time}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Statistiques rapides */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Aperçu aujourd'hui</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 text-sm">Messages IA</span>
-                <span className="font-semibold">47</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 text-sm">Automatisations</span>
-                <span className="font-semibold">12</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600 text-sm">Prospects traités</span>
-                <span className="font-semibold">8</span>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Nouvelle section avec les avantages IA */}
+        <div>
+          <IABenefitsCards />
         </div>
       </div>
     </div>
