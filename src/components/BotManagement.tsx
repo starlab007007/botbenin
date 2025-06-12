@@ -171,18 +171,83 @@ export const BotManagement: React.FC = () => {
 
   const testBot = async (bot: Bot) => {
     try {
+      console.log('=== OUVERTURE CHAT BOT SPÉCIFIQUE ===');
+      console.log('Bot sélectionné:', {
+        id: bot.id,
+        name: bot.name,
+        webhook_url: bot.webhook_url,
+        chat_title: bot.chat_title,
+        chat_context: bot.chat_context,
+        is_active: bot.is_active
+      });
+
+      // Vérifier que le bot est actif
+      if (!bot.is_active) {
+        toast({
+          title: "Bot inactif",
+          description: `Le bot "${bot.name}" est actuellement désactivé. Activez-le pour pouvoir le tester.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Vérifier que le webhook URL existe
+      if (!bot.webhook_url || bot.webhook_url.trim() === '') {
+        toast({
+          title: "Configuration manquante",
+          description: `Le bot "${bot.name}" n'a pas de webhook URL configuré.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Initialiser le tracking du visiteur pour ce test
       await initializeVisitorTracking(bot.id, 'bot_test');
       
-      // Ouvrir le bot dans une nouvelle fenêtre avec la même interface que les autres chats
-      const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}&test=true`;
-      console.log('Test du bot avec tracking visiteurs activé:', chatUrl);
-      window.open(chatUrl, '_blank');
+      // Construire l'URL avec tous les paramètres spécifiques du bot
+      const chatParams = new URLSearchParams({
+        bot: bot.id,
+        webhook: encodeURIComponent(bot.webhook_url),
+        context: bot.chat_context || 'automation',
+        title: bot.chat_title || bot.name,
+        test: 'true',
+        bot_name: bot.name
+      });
+
+      const chatUrl = `/chat?${chatParams.toString()}`;
+      
+      console.log('URL de chat générée:', chatUrl);
+      console.log('Paramètres transmis:', {
+        botId: bot.id,
+        webhookUrl: bot.webhook_url,
+        chatTitle: bot.chat_title,
+        chatContext: bot.chat_context,
+        botName: bot.name
+      });
+
+      // Ouvrir le chat dans une nouvelle fenêtre
+      const chatWindow = window.open(chatUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+      
+      if (!chatWindow) {
+        toast({
+          title: "Popup bloqué",
+          description: "Veuillez autoriser les popups pour ouvrir le chat en nouvelle fenêtre.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: `Chat ouvert - ${bot.name}`,
+          description: "Le chat du bot s'ouvre dans une nouvelle fenêtre",
+        });
+      }
+      
     } catch (error) {
-      console.warn('Erreur lors de l\'initialisation du tracking pour le test:', error);
-      // Continuer avec le test même si le tracking échoue
-      const chatUrl = `/chat?bot=${bot.id}&context=${bot.chat_context}&title=${encodeURIComponent(bot.chat_title)}&test=true`;
-      window.open(chatUrl, '_blank');
+      console.error('Erreur lors de l\'ouverture du chat:', error);
+      toast({
+        title: "Erreur",
+        description: `Impossible d'ouvrir le chat pour "${bot.name}"`,
+        variant: "destructive",
+      });
     }
   };
 
