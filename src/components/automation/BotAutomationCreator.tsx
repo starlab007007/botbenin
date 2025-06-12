@@ -14,7 +14,7 @@ interface BotAutomationCreatorProps {
 }
 
 export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBack, onBotCreated }) => {
-  const [webhookUrl, setWebhookUrl] = useState('https://ia.bot.bj/webhook/restau1');
+  const [webhookUrl, setWebhookUrl] = useState('');
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
@@ -137,11 +137,11 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         throw new Error(`Limite atteinte: ${ownerData.max_bots} chatbots maximum`);
       }
 
-      // Configuration du bot
+      // Configuration du bot avec l'URL webhook fournie
       const botData = {
         owner_id: ownerData.id,
         name: botName.trim(),
-        description: `Chatbot automatisé avec connectivité N8N - Créé le ${new Date().toLocaleDateString('fr-FR')}`,
+        description: `Chatbot automatisé avec connectivité N8N personnalisée - Créé le ${new Date().toLocaleDateString('fr-FR')}`,
         webhook_url: webhookUrl.trim(),
         api_key: '',
         chat_title: `${botName} Assistant`,
@@ -187,7 +187,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
 
       toast({
         title: "Chatbot créé avec succès !",
-        description: `Le chatbot "${botName}" a été créé et configuré`,
+        description: `Le chatbot "${botName}" a été créé avec votre webhook personnalisé`,
       });
 
       // Tester la connexion webhook
@@ -270,19 +270,19 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         
         toast({
           title: "✅ Webhook testé avec succès !",
-          description: "La connexion fonctionne correctement",
+          description: "La connexion avec votre webhook personnalisé fonctionne correctement",
         });
       } else {
         toast({
           title: "⚠️ Test partiellement réussi",
-          description: `Réponse reçue (${response.status}), connexion établie`,
+          description: `Réponse reçue (${response.status}), connexion établie avec votre webhook`,
         });
       }
     } catch (error) {
       console.error('Erreur test webhook:', error);
       toast({
         title: "Test du webhook",
-        description: "Test effectué, le bot est configuré",
+        description: "Test effectué, le bot est configuré avec votre webhook",
         variant: "destructive",
       });
     } finally {
@@ -299,7 +299,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         </Button>
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Nouveau Chatbot</h2>
-          <p className="text-gray-600">Créez un chatbot automatisé avec connectivité N8N</p>
+          <p className="text-gray-600">Créez un chatbot automatisé avec votre webhook N8N personnalisé</p>
         </div>
       </div>
 
@@ -349,7 +349,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               disabled={!isAuthenticated}
             />
             <p className="text-xs text-gray-500">
-              L'URL de votre webhook N8N pour la connectivité
+              L'URL de votre webhook N8N personnalisé pour ce chatbot
             </p>
           </div>
 
@@ -378,11 +378,12 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">🔗 Connectivité N8N garantie :</h4>
+            <h4 className="font-medium text-blue-900 mb-2">🔗 Webhook personnalisé :</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Headers X-Bot-Platform et X-Bot-Version identiques</li>
+              <li>• Chaque bot utilisera son propre webhook N8N</li>
+              <li>• Headers X-Bot-Platform et X-Bot-Version standardisés</li>
               <li>• Payload avec module et service_type configurés</li>
-              <li>• Session ID et user_id au format standard</li>
+              <li>• Session ID et user_id au format Bot.Bj</li>
               <li>• Gestion d'erreurs et fallback intégrés</li>
               <li>• Logs détaillés pour debugging</li>
             </ul>
