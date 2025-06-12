@@ -11,71 +11,69 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import Index from "./pages/Index";
 import { Layout } from "./components/Layout";
 
-// Lazy loading components - using correct syntax for named exports
-const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
+// Lazy loading pour optimiser les performances
+const HomePage = lazy(() => import("./pages/HomePage"));
 const ChatPage = lazy(() => import("./pages/ChatPage").then(module => ({ default: module.ChatPage })));
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage })));
 const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(module => ({ default: module.BotManagementPage })));
-const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.AutomationsPage })));
-const ProspectsPage = lazy(() => import("./pages/ProspectsPage").then(module => ({ default: module.ProspectsPage })));
-const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.SupportPage })));
-const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ default: module.AccountPage })));
-const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.UsersManagementPage })));
+const AutomationsPage = lazy(() => import("./pages/AutomationsPage"));
+const ProspectsPage = lazy(() => import("./pages/ProspectsPage"));
+const SupportPage = lazy(() => import("./pages/SupportPage"));
+const AccountPage = lazy(() => import("./pages/AccountPage"));
+const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.BotTestPage })));
-const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.PublicBotChatPage })));
+const BotTestPage = lazy(() => import("./pages/BotTestPage"));
+const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage"));
 
 // Pages modulaires
-const BusinessModule = lazy(() => import("./pages/modules/BusinessModule").then(module => ({ default: module.BusinessModule })));
-const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").then(module => ({ default: module.MarketingModule })));
-const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(module => ({ default: module.GestionModule })));
-const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.CitoyenModule })));
+const BusinessModule = lazy(() => import("./pages/modules/BusinessModule"));
+const MarketingModule = lazy(() => import("./pages/modules/MarketingModule"));
+const GestionModule = lazy(() => import("./pages/modules/GestionModule"));
+const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule"));
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light">
+    <ThemeProvider defaultTheme="light" storageKey="ui-theme">
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
             <UserProvider>
-              <Suspense fallback={
-                <div className="flex items-center justify-center min-h-screen">
-                  <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-                </div>
-              }>
-                <Routes>
-                  <Route path="/" element={<Layout />}>
-                    <Route index element={<Index />} />
-                    <Route path="home" element={<HomePage />} />
-                    <Route path="chat" element={<ChatPage />} />
-                    <Route path="dashboard" element={<DashboardPage />} />
-                    <Route path="bots" element={<BotManagementPage />} />
-                    <Route path="automations" element={<AutomationsPage />} />
-                    <Route path="prospects" element={<ProspectsPage />} />
-                    <Route path="support" element={<SupportPage />} />
-                    <Route path="account" element={<AccountPage />} />
-                    <Route path="users" element={<UsersManagementPage />} />
+              <Layout>
+                <Suspense fallback={
+                  <div className="flex items-center justify-center min-h-screen">
+                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+                  </div>
+                }>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/home" element={<HomePage />} />
+                    <Route path="/chat" element={<ChatPage />} />
+                    <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/bots" element={<BotManagementPage />} />
+                    <Route path="/automations" element={<AutomationsPage />} />
+                    <Route path="/prospects" element={<ProspectsPage />} />
+                    <Route path="/support" element={<SupportPage />} />
+                    <Route path="/account" element={<AccountPage />} />
+                    <Route path="/users" element={<UsersManagementPage />} />
+                    <Route path="/bot-test/:botId" element={<BotTestPage />} />
+                    <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                     
                     {/* Modules */}
-                    <Route path="business" element={<BusinessModule />} />
-                    <Route path="marketing" element={<MarketingModule />} />
-                    <Route path="gestion" element={<GestionModule />} />
-                    <Route path="citoyen" element={<CitoyenModule />} />
+                    <Route path="/business" element={<BusinessModule />} />
+                    <Route path="/marketing" element={<MarketingModule />} />
+                    <Route path="/gestion" element={<GestionModule />} />
+                    <Route path="/citoyen" element={<CitoyenModule />} />
                     
                     <Route path="*" element={<NotFound />} />
-                  </Route>
-                  
-                  {/* Routes sans Layout */}
-                  <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
-                  <Route path="/bot-test/:botId" element={<BotTestPage />} />
-                  <Route path="/bot/:botId" element={<PublicBotChatPage />} />
-                </Routes>
-              </Suspense>
+                  </Routes>
+                </Suspense>
+              </Layout>
             </UserProvider>
           </AuthProvider>
         </BrowserRouter>
