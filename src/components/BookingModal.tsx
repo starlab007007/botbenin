@@ -24,15 +24,6 @@ const timeSlots = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
 ];
 
-const revenueRanges = [
-  { value: '0-10k', label: '0-10k' },
-  { value: '10-20k', label: '10-20k' },
-  { value: '20-50k', label: '20-50k' },
-  { value: '50-100k', label: '50-100k' },
-  { value: '100-200k', label: '100-200k' },
-  { value: 'plus-200k', label: 'Plus de 200k' }
-];
-
 export const BookingModal: React.FC<BookingModalProps> = ({ isOpen, onClose }) => {
   const [step, setStep] = useState<'calendar' | 'form'>('calendar');
   const [selectedDate, setSelectedDate] = useState<Date>();
@@ -43,7 +34,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({ isOpen, onClose }) =
     phone: '+229',
     isCompany: '',
     companyType: '',
-    revenue: '',
     acceptTerms: false
   });
   const { toast } = useToast();
@@ -98,7 +88,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({ isOpen, onClose }) =
       phone: '+229',
       isCompany: '',
       companyType: '',
-      revenue: '',
       acceptTerms: false
     });
   };
@@ -273,28 +262,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({ isOpen, onClose }) =
                       </Select>
                     </div>
                   )}
-
-                  <div>
-                    <Label>Quel est votre chiffre d'affaires mensuel actuel ? *</Label>
-                    <div className="space-y-2 mt-2">
-                      {revenueRanges.map((range) => (
-                        <div key={range.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={range.value}
-                            checked={formData.revenue === range.value}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                handleInputChange('revenue', range.value);
-                              }
-                            }}
-                          />
-                          <Label htmlFor={range.value} className="text-sm">
-                            {range.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
 
                   <div className="bg-blue-50 p-4 rounded-lg">
                     <div className="flex items-center space-x-2 mb-2">

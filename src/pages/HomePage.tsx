@@ -21,14 +21,12 @@ export const HomePage: React.FC = () => {
       {/* Actions rapides - responsive grid */}
       <QuickActions />
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
-        {/* Modules IA */}
-        <AIModules />
+      {/* Modules IA */}
+      <AIModules />
 
-        {/* Nouvelle section avec les avantages IA */}
-        <div>
-          <IABenefitsCards />
-        </div>
+      {/* Section "L'IA est faite pour vous si" en bas */}
+      <div>
+        <IABenefitsCards />
       </div>
     </div>
   );
