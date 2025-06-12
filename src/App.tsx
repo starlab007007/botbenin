@@ -22,7 +22,7 @@ const ProspectsPage = lazy(() => import("./pages/ProspectsPage").then(module => 
 const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.SupportPage })));
 const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ default: module.AccountPage })));
 const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.UsersManagementPage })));
-const NotFound = lazy(() => import("./pages/NotFound").then(module => ({ default: module.NotFound })));
+const NotFound = lazy(() => import("./pages/NotFound"));
 const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.BotTestPage })));
 const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.PublicBotChatPage })));
 
