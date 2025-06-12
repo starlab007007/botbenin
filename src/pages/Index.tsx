@@ -1,43 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { LandingHero } from '@/components/LandingHero';
 import { ChatInterface } from '@/components/ChatInterface';
-import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const [showChat, setShowChat] = useState(false);
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-
-  // Rediriger vers l'app si l'utilisateur est connecté
-  useEffect(() => {
-    if (isAuthenticated && !showChat) {
-      const timer = setTimeout(() => {
-        navigate('/app');
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [isAuthenticated, navigate, showChat]);
-
-  const handleStartChat = () => {
-    if (isAuthenticated) {
-      navigate('/app/chat');
-    } else {
-      setShowChat(true);
-    }
-  };
-
-  const handleBackToLanding = () => {
-    setShowChat(false);
-  };
 
   return (
     <div className="min-h-screen gradient-warm">
       {!showChat ? (
-        <LandingHero onStartChat={handleStartChat} />
+        <LandingHero onStartChat={() => setShowChat(true)} />
       ) : (
-        <ChatInterface onBackToLanding={handleBackToLanding} />
+        <ChatInterface onBackToLanding={() => setShowChat(false)} />
       )}
     </div>
   );
