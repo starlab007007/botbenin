@@ -7,8 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { BotAnalytics } from '@/components/BotAnalytics';
 import { BotAutomationCreator } from '@/components/automation/BotAutomationCreator';
+import { DetailedBotAnalytics } from '@/components/DetailedBotAnalytics';
+import { OwnerDashboard } from '@/components/OwnerDashboard';
 import { 
   Bot, 
   Plus, 
@@ -25,7 +26,8 @@ import {
   Copy,
   ExternalLink,
   Play,
-  MessageCircle
+  MessageCircle,
+  Home
 } from 'lucide-react';
 
 interface Bot {
@@ -53,10 +55,9 @@ export const BotManagement: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
   const [botStats, setBotStats] = useState<Record<string, BotStats>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showAutomationCreator, setShowAutomationCreator] = useState(false);
+  const [currentView, setCurrentView] = useState<'dashboard' | 'list' | 'create' | 'analytics'>('dashboard');
+  const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<{ id: string; name: string } | null>(null);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
-  const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<Bot | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -108,9 +109,9 @@ export const BotManagement: React.FC = () => {
 
       setBots(botsData || []);
 
-      // Récupérer les statistiques
+      // Récupérer les statistiques depuis la nouvelle vue
       if (botsData && botsData.length > 0) {
-        await fetchBotsStatsOptimized(botsData.map(bot => bot.id));
+        await fetchBotsStatsFromView(botsData.map(bot => bot.id));
       }
 
     } catch (error) {
@@ -125,11 +126,11 @@ export const BotManagement: React.FC = () => {
     }
   };
 
-  const fetchBotsStatsOptimized = async (botIds: string[]) => {
+  const fetchBotsStatsFromView = async (botIds: string[]) => {
     try {
       const { data: statsData, error } = await supabase
-        .from('bot_stats')
-        .select('*')
+        .from('detailed_bot_stats')
+        .select('bot_id, total_unique_users, total_messages, messages_24h')
         .in('bot_id', botIds);
 
       if (error) throw error;
@@ -138,8 +139,8 @@ export const BotManagement: React.FC = () => {
       statsData?.forEach(stat => {
         stats[stat.bot_id] = {
           totalMessages: stat.total_messages || 0,
-          totalUsers: stat.total_users || 0,
-          activeToday: stat.active_today || 0
+          totalUsers: stat.total_unique_users || 0,
+          activeToday: stat.messages_24h || 0
         };
       });
 
@@ -151,7 +152,7 @@ export const BotManagement: React.FC = () => {
 
   const handleBotCreated = (botId: string) => {
     console.log('Bot créé avec config identique au restaurant:', botId);
-    setShowAutomationCreator(false);
+    setCurrentView('list');
     fetchBots(); // Recharger la liste des bots
     toast({
       title: "Succès !",
@@ -234,28 +235,66 @@ export const BotManagement: React.FC = () => {
     }
   };
 
-  const viewAnalytics = (bot: Bot) => {
-    setSelectedBotForAnalytics(bot);
+  const viewAnalytics = (botId: string, botName: string) => {
+    setSelectedBotForAnalytics({ id: botId, name: botName });
+    setCurrentView('analytics');
   };
 
-  // Afficher le créateur d'automatisation
-  if (showAutomationCreator) {
+  // Gestion des vues
+  if (currentView === 'create') {
     return (
       <BotAutomationCreator
-        onBack={() => setShowAutomationCreator(false)}
+        onBack={() => setCurrentView('list')}
         onBotCreated={handleBotCreated}
       />
     );
   }
 
-  // Afficher les analytics
-  if (selectedBotForAnalytics) {
+  if (currentView === 'analytics' && selectedBotForAnalytics) {
     return (
-      <BotAnalytics
+      <DetailedBotAnalytics
         botId={selectedBotForAnalytics.id}
         botName={selectedBotForAnalytics.name}
-        onBack={() => setSelectedBotForAnalytics(null)}
+        onBack={() => {
+          setCurrentView('dashboard');
+          setSelectedBotForAnalytics(null);
+        }}
       />
+    );
+  }
+
+  if (currentView === 'dashboard') {
+    return (
+      <div className="space-y-6">
+        {/* Navigation entre les vues */}
+        <div className="flex items-center justify-between">
+          <div className="flex space-x-2">
+            <Button
+              variant={currentView === 'dashboard' ? 'default' : 'outline'}
+              onClick={() => setCurrentView('dashboard')}
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Dashboard
+            </Button>
+            <Button
+              variant={currentView === 'list' ? 'default' : 'outline'}
+              onClick={() => setCurrentView('list')}
+            >
+              <Bot className="w-4 h-4 mr-2" />
+              Mes Bots
+            </Button>
+          </div>
+          <Button 
+            onClick={() => setCurrentView('create')}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nouveau Chatbot
+          </Button>
+        </div>
+
+        <OwnerDashboard onViewBotAnalytics={viewAnalytics} />
+      </div>
     );
   }
 
@@ -269,19 +308,37 @@ export const BotManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* En-tête avec bouton de création */}
+      {/* Navigation entre les vues */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Mes Chatbots</h2>
-          <p className="text-gray-600">Créez et gérez vos chatbots avec connectivité N8N identique au bot restaurant</p>
+        <div className="flex space-x-2">
+          <Button
+            variant={currentView === 'dashboard' ? 'default' : 'outline'}
+            onClick={() => setCurrentView('dashboard')}
+          >
+            <Home className="w-4 h-4 mr-2" />
+            Dashboard
+          </Button>
+          <Button
+            variant={currentView === 'list' ? 'default' : 'outline'}
+            onClick={() => setCurrentView('list')}
+          >
+            <Bot className="w-4 h-4 mr-2" />
+            Mes Bots
+          </Button>
         </div>
         <Button 
-          onClick={() => setShowAutomationCreator(true)}
+          onClick={() => setCurrentView('create')}
           className="bg-blue-600 hover:bg-blue-700"
         >
           <Plus className="w-4 h-4 mr-2" />
           Nouveau Chatbot
         </Button>
+      </div>
+
+      {/* Vue liste des bots */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Mes Chatbots</h2>
+        <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec connectivité N8N identique au bot restaurant</p>
       </div>
 
       {/* Liste des chatbots */}
@@ -295,7 +352,7 @@ export const BotManagement: React.FC = () => {
             Créez votre premier chatbot avec connectivité N8N identique au bot restaurant
           </p>
           <Button 
-            onClick={() => setShowAutomationCreator(true)}
+            onClick={() => setCurrentView('create')}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -409,7 +466,7 @@ export const BotManagement: React.FC = () => {
                     Ouvrir Chat
                   </Button>
                   <Button
-                    onClick={() => viewAnalytics(bot)}
+                    onClick={() => viewAnalytics(bot.id, bot.name)}
                     variant="outline"
                     size="sm"
                     className="text-blue-600 border-blue-200 hover:bg-blue-50"
