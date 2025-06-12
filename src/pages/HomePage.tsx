@@ -115,59 +115,59 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header de bienvenue */}
-      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-2xl p-8 text-white">
-        <div className="flex items-center justify-between">
+    <div className="w-full space-y-6 sm:space-y-8">
+      {/* Header de bienvenue - responsive */}
+      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-xl lg:rounded-2xl p-6 sm:p-8 text-white">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between space-y-4 lg:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
               {getGreeting()}, {user?.name || 'Utilisateur'} ! 👋
             </h1>
-            <p className="text-blue-100 text-lg">
+            <p className="text-blue-100 text-base sm:text-lg">
               Prêt à optimiser votre productivité avec l'IA ?
             </p>
           </div>
-          <div className="hidden lg:flex items-center space-x-4">
-            <div className="text-right">
-              <div className="text-2xl font-bold">24</div>
-              <div className="text-sm text-blue-200">Bots actifs</div>
+          <div className="flex items-center space-x-6 lg:space-x-4">
+            <div className="text-center lg:text-right">
+              <div className="text-xl sm:text-2xl font-bold">24</div>
+              <div className="text-xs sm:text-sm text-blue-200">Bots actifs</div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">156</div>
-              <div className="text-sm text-blue-200">Prospects</div>
+            <div className="text-center lg:text-right">
+              <div className="text-xl sm:text-2xl font-bold">156</div>
+              <div className="text-xs sm:text-sm text-blue-200">Prospects</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Actions rapides */}
+      {/* Actions rapides - responsive grid */}
       <div>
-        <h2 className="text-2xl font-semibold text-gray-900 mb-6">Actions rapides</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Actions rapides</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {quickActions.map((action) => (
             <Card 
               key={action.path} 
               className={`group hover:shadow-lg transition-all duration-200 cursor-pointer border-0 bg-gradient-to-br ${action.color} text-white relative overflow-hidden ${
-                action.featured ? 'lg:col-span-2' : ''
+                action.featured ? 'sm:col-span-2' : ''
               }`}
             >
               <Link to={action.path} className="block h-full">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <action.icon className="w-8 h-8 text-white/90" />
+                    <action.icon className="w-6 h-6 sm:w-8 sm:h-8 text-white/90" />
                     {action.featured && (
-                      <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
+                      <Badge variant="secondary" className="bg-white/20 text-white border-white/30 text-xs">
                         <Star className="w-3 h-3 mr-1" />
                         Recommandé
                       </Badge>
                     )}
                   </div>
-                  <CardTitle className="text-white text-lg">
+                  <CardTitle className="text-white text-base sm:text-lg">
                     {action.title}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription className="text-white/80 mb-4">
+                  <CardDescription className="text-white/80 mb-4 text-sm">
                     {action.description}
                   </CardDescription>
                   <div className="flex items-center text-white/90 text-sm">
@@ -175,45 +175,45 @@ export const HomePage: React.FC = () => {
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </CardContent>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-white/10 rounded-full -translate-y-12 translate-x-12 sm:-translate-y-16 sm:translate-x-16"></div>
               </Link>
             </Card>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
         {/* Modules IA */}
-        <div className="lg:col-span-2">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Modules IA spécialisés</h2>
+        <div className="xl:col-span-2">
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Modules IA spécialisés</h2>
           <div className="space-y-4">
             {aiModules.map((module) => (
               <Card key={module.path} className="group hover:shadow-md transition-all duration-200">
                 <Link to={module.path}>
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl flex items-center justify-center">
-                          <module.icon className="w-6 h-6 text-gray-600" />
+                      <div className="flex items-center space-x-3 sm:space-x-4">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <module.icon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
                         </div>
-                        <div>
-                          <CardTitle className="text-lg group-hover:text-blue-600 transition-colors">
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="text-base sm:text-lg group-hover:text-blue-600 transition-colors">
                             {module.title}
                             {module.badge && (
-                              <Badge variant="secondary" className="ml-2 text-xs">
+                              <Badge variant="secondary" className="ml-2 text-xs px-2 py-0.5">
                                 {module.badge}
                               </Badge>
                             )}
                           </CardTitle>
-                          <CardDescription>{module.description}</CardDescription>
+                          <CardDescription className="text-sm">{module.description}</CardDescription>
                         </div>
                       </div>
-                      <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center text-sm text-gray-600">
-                      <TrendingUp className="w-4 h-4 mr-2" />
+                      <TrendingUp className="w-4 h-4 mr-2 flex-shrink-0" />
                       {module.stats}
                     </div>
                   </CardContent>
@@ -224,51 +224,53 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Activité récente */}
-        <div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">Activité récente</h2>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Dernières actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {recentActivities.map((activity, index) => (
-                <div key={index} className="flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    activity.type === 'success' ? 'bg-green-100 text-green-600' :
-                    activity.type === 'info' ? 'bg-blue-100 text-blue-600' :
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    <activity.icon className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 text-sm">{activity.title}</p>
-                    <p className="text-gray-600 text-sm">{activity.description}</p>
-                    <div className="flex items-center text-xs text-gray-500 mt-1">
-                      <Clock className="w-3 h-3 mr-1" />
-                      {activity.time}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Activité récente</h2>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base sm:text-lg">Dernières actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {recentActivities.map((activity, index) => (
+                  <div key={index} className="flex items-start space-x-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      activity.type === 'success' ? 'bg-green-100 text-green-600' :
+                      activity.type === 'info' ? 'bg-blue-100 text-blue-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      <activity.icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-sm">{activity.title}</p>
+                      <p className="text-gray-600 text-sm truncate">{activity.description}</p>
+                      <div className="flex items-center text-xs text-gray-500 mt-1">
+                        <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
+                        {activity.time}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Statistiques rapides */}
-          <Card className="mt-6">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Aperçu aujourd'hui</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Aperçu aujourd'hui</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Messages IA</span>
+                <span className="text-gray-600 text-sm">Messages IA</span>
                 <span className="font-semibold">47</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Automatisations</span>
+                <span className="text-gray-600 text-sm">Automatisations</span>
                 <span className="font-semibold">12</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Prospects traités</span>
+                <span className="text-gray-600 text-sm">Prospects traités</span>
                 <span className="font-semibold">8</span>
               </div>
             </CardContent>

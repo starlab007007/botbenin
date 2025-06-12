@@ -23,13 +23,14 @@ export const MainLayout: React.FC = () => {
           onClose={() => setSidebarOpen(false)}
         />
         
-        {/* Contenu principal */}
+        {/* Contenu principal avec dimensions standardisées */}
         <main className="flex-1 lg:ml-64 min-h-[calc(100vh-4rem)]">
-          <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3">
+          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
             <Breadcrumbs />
           </div>
           
-          <div className="p-4 lg:p-6">
+          {/* Container avec largeur maximale et responsive padding */}
+          <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
             <Outlet />
           </div>
         </main>

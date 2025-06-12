@@ -34,11 +34,15 @@ const Index = () => {
 
   return (
     <div className="min-h-screen gradient-warm">
-      {!showChat ? (
-        <LandingHero onStartChat={handleStartChat} />
-      ) : (
-        <ChatInterface onBackToLanding={handleBackToLanding} />
-      )}
+      <div className="w-full max-w-[1440px] mx-auto">
+        {!showChat ? (
+          <LandingHero onStartChat={handleStartChat} />
+        ) : (
+          <div className="px-4 sm:px-6 lg:px-8">
+            <ChatInterface onBackToLanding={handleBackToLanding} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
