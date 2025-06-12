@@ -51,11 +51,13 @@ interface BotStats {
   activeToday: number;
 }
 
+type ViewType = 'dashboard' | 'list' | 'create' | 'analytics';
+
 export const BotManagement: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
   const [botStats, setBotStats] = useState<Record<string, BotStats>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'list' | 'create' | 'analytics'>('dashboard');
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<{ id: string; name: string } | null>(null);
   const [editingBot, setEditingBot] = useState<Bot | null>(null);
   const [formData, setFormData] = useState({
