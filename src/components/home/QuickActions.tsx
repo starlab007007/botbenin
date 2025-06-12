@@ -17,7 +17,7 @@ const quickActions = [
     title: 'Chat IA',
     description: 'Discutez avec notre assistant intelligent',
     icon: MessageCircle,
-    path: '/app/chat',
+    path: '/chat',
     color: 'from-green-500 to-green-600',
     featured: true
   },
@@ -25,14 +25,14 @@ const quickActions = [
     title: 'Créer un Bot',
     description: 'Configurez un nouveau bot automatisé',
     icon: Bot,
-    path: '/app/bots',
+    path: '/bots',
     color: 'from-blue-500 to-blue-600'
   },
   {
     title: 'Dashboard',
     description: 'Consultez vos statistiques',
     icon: BarChart3,
-    path: '/app/dashboard',
+    path: '/dashboard',
     color: 'from-purple-500 to-purple-600'
   },
   {

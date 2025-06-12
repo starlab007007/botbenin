@@ -16,7 +16,7 @@ const aiModules = [
     title: 'IA Business',
     description: 'Solutions B2B et prospection automatisée',
     icon: Briefcase,
-    path: '/app/modules/business',
+    path: '/modules/business',
     stats: '156 prospects générés',
     badge: 'Populaire'
   },
@@ -24,7 +24,7 @@ const aiModules = [
     title: 'IA Marketing',
     description: 'Campagnes et génération de leads',
     icon: Megaphone,
-    path: '/app/modules/marketing',
+    path: '/modules/marketing',
     stats: '23 campagnes actives',
     badge: 'Nouveau'
   },
@@ -32,7 +32,7 @@ const aiModules = [
     title: 'Automatisations',
     description: 'Workflows et processus automatisés',
     icon: Zap,
-    path: '/app/automations',
+    path: '/automations',
     stats: '12 automatisations',
     badge: 'Pro'
   }

@@ -33,21 +33,21 @@ interface ModernSidebarProps {
 const mainMenuItems = [
   { 
     title: 'Accueil', 
-    path: '/app/home', 
+    path: '/home', 
     icon: Home, 
     color: 'from-blue-500 to-blue-600',
     description: 'Vue d\'ensemble'
   },
   { 
     title: 'Chat IA', 
-    path: '/app/chat', 
+    path: '/chat', 
     icon: MessageCircle, 
     color: 'from-green-500 to-green-600',
     description: 'Assistant intelligent'
   },
   { 
     title: 'Dashboard', 
-    path: '/app/dashboard', 
+    path: '/dashboard', 
     icon: BarChart3, 
     color: 'from-purple-500 to-purple-600',
     description: 'Tableaux de bord'
@@ -57,14 +57,14 @@ const mainMenuItems = [
 const botManagementItems = [
   { 
     title: 'Mes Bots', 
-    path: '/app/bots', 
+    path: '/bots', 
     icon: Bot, 
     color: 'from-indigo-500 to-indigo-600',
     badge: 'Pro'
   },
   { 
     title: 'Automatisations', 
-    path: '/app/automations', 
+    path: '/automations', 
     icon: Zap, 
     color: 'from-orange-500 to-orange-600',
     badge: 'New'
@@ -74,7 +74,7 @@ const botManagementItems = [
 const crmItems = [
   { 
     title: 'Prospects', 
-    path: '/app/prospects', 
+    path: '/prospects', 
     icon: Target, 
     color: 'from-pink-500 to-pink-600',
     description: 'Gestion CRM'
@@ -84,28 +84,28 @@ const crmItems = [
 const aiModules = [
   { 
     title: 'IA Business', 
-    path: '/app/modules/business', 
+    path: '/modules/business', 
     icon: Briefcase, 
     color: 'from-blue-600 to-blue-700',
     description: 'Solutions B2B'
   },
   { 
     title: 'IA Marketing', 
-    path: '/app/modules/marketing', 
+    path: '/modules/marketing', 
     icon: Megaphone, 
     color: 'from-pink-500 to-pink-600',
     description: 'Campagnes & Lead'
   },
   { 
     title: 'IA Gestion', 
-    path: '/app/modules/gestion', 
+    path: '/modules/gestion', 
     icon: FolderOpen, 
     color: 'from-indigo-500 to-indigo-600',
     description: 'Organisation'
   },
   { 
     title: 'IA Citoyen', 
-    path: '/app/modules/citoyen', 
+    path: '/modules/citoyen', 
     icon: Building, 
     color: 'from-teal-500 to-teal-600',
     description: 'Services publics'
@@ -115,13 +115,13 @@ const aiModules = [
 const bottomItems = [
   { 
     title: 'Support', 
-    path: '/app/support', 
+    path: '/support', 
     icon: HelpCircle, 
     color: 'from-gray-500 to-gray-600' 
   },
   { 
     title: 'Mon Compte', 
-    path: '/app/account', 
+    path: '/account', 
     icon: User, 
     color: 'from-gray-500 to-gray-600' 
   },
@@ -132,8 +132,8 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
   const { user } = useAuth();
 
   const isActive = (path: string) => {
-    if (path === '/app/home') {
-      return location.pathname === '/app' || location.pathname === '/app/home';
+    if (path === '/home') {
+      return location.pathname === '/' || location.pathname === '/home';
     }
     return location.pathname.startsWith(path);
   };
@@ -246,10 +246,10 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
             </h3>
             <div className="space-y-2">
               <NavLink
-                to="/app/admin/users"
+                to="/admin/users"
                 onClick={onClose}
                 className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                  isActive('/app/admin/users')
+                  isActive('/admin/users')
                     ? 'bg-white shadow-md border border-gray-100'
                     : 'hover:bg-white/60 hover:shadow-sm'
                 }`}
@@ -258,7 +258,7 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
                   <Shield className="w-5 h-5 text-white" />
                 </div>
                 <span className={`font-medium ${
-                  isActive('/app/admin/users') ? 'text-gray-900' : 'text-gray-700'
+                  isActive('/admin/users') ? 'text-gray-900' : 'text-gray-700'
                 }`}>
                   Utilisateurs
                 </span>

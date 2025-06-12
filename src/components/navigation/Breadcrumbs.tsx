@@ -4,7 +4,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
 
 const pathNames: { [key: string]: string } = {
-  'app': 'Application',
   'home': 'Accueil',
   'chat': 'Chat IA',
   'dashboard': 'Dashboard',
@@ -50,13 +49,13 @@ export const Breadcrumbs: React.FC = () => {
   return (
     <nav className="flex items-center space-x-2 text-sm">
       <Link 
-        to="/app" 
+        to="/home" 
         className="flex items-center text-gray-500 hover:text-gray-700 transition-colors"
       >
         <Home className="w-4 h-4" />
       </Link>
       
-      {breadcrumbs.slice(1).map((breadcrumb, index) => (
+      {breadcrumbs.map((breadcrumb, index) => (
         <React.Fragment key={breadcrumb.path}>
           <ChevronRight className="w-4 h-4 text-gray-400" />
           {breadcrumb.isLast ? (

@@ -52,7 +52,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
   const location = useLocation();
 
   const handleLogoClick = () => {
-    navigate('/app');
+    navigate('/home');
   };
 
   const handleLogout = () => {
@@ -67,11 +67,11 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
   const hasAdminAccess = user?.permissions.includes('manage_users');
 
   const quickActions = [
-    { name: 'Accueil', path: '/app/home', icon: Home },
-    { name: 'Chat IA', path: '/app/chat', icon: Command },
-    { name: 'Dashboard', path: '/app/dashboard', icon: Palette },
-    { name: 'Bots', path: '/app/bots', icon: Settings },
-    { name: 'Prospects', path: '/app/prospects', icon: Users },
+    { name: 'Accueil', path: '/home', icon: Home },
+    { name: 'Chat IA', path: '/chat', icon: Command },
+    { name: 'Dashboard', path: '/dashboard', icon: Palette },
+    { name: 'Bots', path: '/bots', icon: Settings },
+    { name: 'Prospects', path: '/prospects', icon: Users },
   ];
 
   React.useEffect(() => {
@@ -174,21 +174,21 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
                 </div>
                 
                 <DropdownMenuItem asChild>
-                  <Link to="/app/home" className="flex items-center cursor-pointer">
+                  <Link to="/home" className="flex items-center cursor-pointer">
                     <Home className="w-4 h-4 mr-2" />
                     Accueil
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem asChild>
-                  <Link to="/app/account" className="flex items-center cursor-pointer">
+                  <Link to="/account" className="flex items-center cursor-pointer">
                     <User className="w-4 h-4 mr-2" />
                     Mon Profil
                   </Link>
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild>
-                  <Link to="/app/account" className="flex items-center cursor-pointer">
+                  <Link to="/account" className="flex items-center cursor-pointer">
                     <Settings className="w-4 h-4 mr-2" />
                     Paramètres
                   </Link>
@@ -198,7 +198,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link to="/app/admin/users" className="flex items-center cursor-pointer">
+                      <Link to="/admin/users" className="flex items-center cursor-pointer">
                         <Users className="w-4 h-4 mr-2" />
                         Administration
                       </Link>

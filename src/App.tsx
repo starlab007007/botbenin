@@ -61,42 +61,37 @@ const App = () => (
             <UserProvider>
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
-                  {/* Route d'accueil sans layout */}
-                  <Route path="/" element={<Index />} />
+                  {/* Route d'accueil avec redirection vers home */}
+                  <Route path="/" element={<Navigate to="/home" replace />} />
                   
                   {/* Route de chat publique sans layout */}
                   <Route path="/chat" element={<ChatPage />} />
                   
-                  {/* Route prospects directe avec layout minimal */}
-                  <Route path="/prospects" element={<ProspectsLayout />} />
-                  
                   {/* Routes avec layout principal */}
-                  <Route path="/app" element={<MainLayout />}>
-                    <Route index element={<Navigate to="/app/home" replace />} />
-                    <Route path="home" element={<HomePage />} />
-                    <Route path="chat" element={<ChatPage />} />
-                    <Route path="dashboard" element={<DashboardPage />} />
+                  <Route element={<MainLayout />}>
+                    <Route path="/home" element={<HomePage />} />
+                    <Route path="/chat" element={<ChatPage />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
                     
                     {/* Gestion des bots */}
-                    <Route path="bots" element={<BotManagementPage />} />
-                    <Route path="automations" element={<AutomationsPage />} />
+                    <Route path="/bots" element={<BotManagementPage />} />
+                    <Route path="/automations" element={<AutomationsPage />} />
                     
                     {/* Modules IA */}
-                    <Route path="modules">
-                      <Route path="business" element={<BusinessModule />} />
-                      <Route path="marketing" element={<MarketingModule />} />
-                      <Route path="gestion" element={<GestionModule />} />
-                      <Route path="citoyen" element={<CitoyenModule />} />
-                    </Route>
+                    <Route path="/modules/business" element={<BusinessModule />} />
+                    <Route path="/modules/marketing" element={<MarketingModule />} />
+                    <Route path="/modules/gestion" element={<GestionModule />} />
+                    <Route path="/modules/citoyen" element={<CitoyenModule />} />
                     
                     {/* Support et compte */}
-                    <Route path="support" element={<SupportPage />} />
-                    <Route path="account" element={<AccountPage />} />
+                    <Route path="/support" element={<SupportPage />} />
+                    <Route path="/account" element={<AccountPage />} />
                     
                     {/* Administration */}
-                    <Route path="admin">
-                      <Route path="users" element={<UsersManagementPage />} />
-                    </Route>
+                    <Route path="/admin/users" element={<UsersManagementPage />} />
+                    
+                    {/* Prospects avec layout spécial */}
+                    <Route path="/prospects" element={<ProspectsLayout />} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
