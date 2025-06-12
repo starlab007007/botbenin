@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { 
   Users, 
   Plus, 
@@ -13,20 +14,41 @@ import {
   Trash2,
   Search,
   Filter,
-  MoreVertical
+  MoreVertical,
+  UserCheck,
+  UserX,
+  UserPlus,
+  Crown,
+  AlertTriangle
 } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export const UsersManagementPage: React.FC = () => {
   const { users, currentUser, addUser, updateUser, deleteUser, hasPermission } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === 'all' || user.role === filterRole;
-    return matchesSearch && matchesRole;
+    const matchesStatus = filterStatus === 'all' || user.status === filterStatus;
+    return matchesSearch && matchesRole && matchesStatus;
   });
 
   const getRoleBadgeColor = (role: string) => {
@@ -48,209 +70,241 @@ export const UsersManagementPage: React.FC = () => {
     }
   };
 
-  const roles = [
-    { id: 'admin', name: 'Administrateur', permissions: 8, color: 'text-red-600' },
-    { id: 'manager', name: 'Manager', permissions: 6, color: 'text-blue-600' },
-    { id: 'user', name: 'Utilisateur', permissions: 4, color: 'text-green-600' },
-    { id: 'viewer', name: 'Observateur', permissions: 2, color: 'text-gray-600' }
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'active': return UserCheck;
+      case 'inactive': return UserX;
+      case 'pending': return UserPlus;
+      default: return Users;
+    }
+  };
+
+  const stats = [
+    {
+      title: 'Total utilisateurs',
+      value: users.length,
+      icon: Users,
+      color: 'from-blue-500 to-blue-600',
+      change: '+3 ce mois'
+    },
+    {
+      title: 'Utilisateurs actifs',
+      value: users.filter(u => u.status === 'active').length,
+      icon: UserCheck,
+      color: 'from-green-500 to-green-600',
+      change: '98% du total'
+    },
+    {
+      title: 'Administrateurs',
+      value: users.filter(u => u.role === 'admin').length,
+      icon: Crown,
+      color: 'from-red-500 to-red-600',
+      change: 'Accès complet'
+    },
+    {
+      title: 'En attente',
+      value: users.filter(u => u.status === 'pending').length,
+      icon: AlertTriangle,
+      color: 'from-yellow-500 to-yellow-600',
+      change: 'À valider'
+    }
   ];
 
   if (!hasPermission('manage_users')) {
     return (
-      <div className="p-4 lg:p-8 bg-gray-50 min-h-screen">
-        <Card className="p-8 text-center">
-          <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Accès restreint</h2>
-          <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full mx-4">
+          <CardContent className="p-8 text-center">
+            <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <CardTitle className="text-xl text-gray-900 mb-2">Accès restreint</CardTitle>
+            <CardDescription>
+              Vous n'avez pas les permissions nécessaires pour accéder à cette page.
+            </CardDescription>
+          </CardContent>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Gestion des utilisateurs</h1>
-          <p className="text-gray-600">Gérez les utilisateurs, rôles et permissions de votre plateforme.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Gestion des utilisateurs</h1>
+          <p className="text-gray-600 mt-1">
+            Gérez les utilisateurs, rôles et permissions de votre plateforme
+          </p>
         </div>
-        <Button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3">
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3">
           <Plus className="w-4 h-4 mr-2" />
           Nouvel utilisateur
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Total utilisateurs</h3>
-              <div className="text-2xl font-bold text-gray-900">{users.length}</div>
-            </div>
-            <Users className="w-8 h-8 text-blue-500" />
-          </div>
-        </Card>
-        
-        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Utilisateurs actifs</h3>
-              <div className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.status === 'active').length}
+      {/* Statistiques */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat, index) => (
+          <Card key={index} className="relative overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                {stat.title}
+              </CardTitle>
+              <div className={`w-10 h-10 bg-gradient-to-r ${stat.color} rounded-lg flex items-center justify-center`}>
+                <stat.icon className="h-5 w-5 text-white" />
               </div>
-            </div>
-            <Shield className="w-8 h-8 text-green-500" />
-          </div>
-        </Card>
-        
-        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">Administrateurs</h3>
-              <div className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.role === 'admin').length}
-              </div>
-            </div>
-            <Settings className="w-8 h-8 text-red-500" />
-          </div>
-        </Card>
-        
-        <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-1">En attente</h3>
-              <div className="text-2xl font-bold text-gray-900">
-                {users.filter(u => u.status === 'pending').length}
-              </div>
-            </div>
-            <Eye className="w-8 h-8 text-yellow-500" />
-          </div>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
+              <p className="text-xs text-gray-500">{stat.change}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Filters */}
-      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
+      {/* Filtres et recherche */}
+      <Card className="p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 flex-1">
+            <div className="relative w-full sm:w-80">
               <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-              <input
+              <Input
                 type="text"
                 placeholder="Rechercher un utilisateur..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10"
               />
             </div>
             
-            <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">Tous les rôles</option>
-              <option value="admin">Administrateur</option>
-              <option value="manager">Manager</option>
-              <option value="user">Utilisateur</option>
-              <option value="viewer">Observateur</option>
-            </select>
+            <Select value={filterRole} onValueChange={setFilterRole}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filtrer par rôle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les rôles</SelectItem>
+                <SelectItem value="admin">Administrateur</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="user">Utilisateur</SelectItem>
+                <SelectItem value="viewer">Observateur</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filtrer par statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="active">Actif</SelectItem>
+                <SelectItem value="inactive">Inactif</SelectItem>
+                <SelectItem value="pending">En attente</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
-          <Button variant="outline" className="border-gray-300 text-gray-700">
+          <Button variant="outline">
             <Filter className="w-4 h-4 mr-2" />
-            Filtres avancés
+            Plus de filtres
           </Button>
         </div>
       </Card>
 
-      {/* Users Table */}
-      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-        <h2 className="text-xl font-semibold mb-6 text-gray-900">Liste des utilisateurs</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Utilisateur</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Rôle</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Statut</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-600">Dernière connexion</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-4 px-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                        <span className="text-white font-semibold">
-                          {user.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <Badge className={getRoleBadgeColor(user.role)}>
-                      {user.role}
-                    </Badge>
-                  </td>
-                  <td className="py-4 px-4">
-                    <Badge className={getStatusBadgeColor(user.status)}>
-                      {user.status}
-                    </Badge>
-                  </td>
-                  <td className="py-4 px-4 text-gray-600">
-                    {user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Jamais'}
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <div className="flex items-center justify-end space-x-2">
-                      <Button variant="ghost" size="sm" className="p-2">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="p-2">
-                        <Edit3 className="w-4 h-4" />
-                      </Button>
-                      {user.id !== currentUser?.id && (
-                        <Button variant="ghost" size="sm" className="p-2 text-red-600 hover:text-red-700">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
+      {/* Liste des utilisateurs */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">
+            Utilisateurs ({filteredUsers.length})
+          </CardTitle>
+          <CardDescription>
+            Gérez les accès et permissions de vos utilisateurs
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">Utilisateur</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">Rôle</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">Statut</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">Dernière connexion</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-600">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* Roles Management */}
-      <Card className="p-6 bg-white border border-gray-200 rounded-xl">
-        <h2 className="text-xl font-semibold mb-6 text-gray-900">Gestion des rôles</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {roles.map((role) => (
-            <div key={role.id} className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className={`font-semibold ${role.color}`}>{role.name}</h3>
-                <Button variant="ghost" size="sm" className="p-1">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </div>
-              <p className="text-sm text-gray-600 mb-2">
-                {role.permissions} permissions
-              </p>
-              <div className="text-sm text-gray-500">
-                {users.filter(u => u.role === role.id).length} utilisateur(s)
-              </div>
-            </div>
-          ))}
-        </div>
+              </thead>
+              <tbody>
+                {filteredUsers.map((user) => {
+                  const StatusIcon = getStatusIcon(user.status);
+                  return (
+                    <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                            <span className="text-white font-semibold text-sm">
+                              {user.name.split(' ').map(n => n[0]).join('')}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">{user.name}</div>
+                            <div className="text-sm text-gray-500">{user.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <Badge className={getRoleBadgeColor(user.role)}>
+                          {user.role}
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center space-x-2">
+                          <StatusIcon className="w-4 h-4 text-gray-500" />
+                          <Badge className={getStatusBadgeColor(user.status)}>
+                            {user.status}
+                          </Badge>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-gray-600">
+                        {user.lastLogin ? user.lastLogin.toLocaleDateString('fr-FR') : 'Jamais'}
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Eye className="w-4 h-4 mr-2" />
+                              Voir le profil
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Edit3 className="w-4 h-4 mr-2" />
+                              Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Settings className="w-4 h-4 mr-2" />
+                              Permissions
+                            </DropdownMenuItem>
+                            {user.id !== currentUser?.id && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-red-600">
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Supprimer
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
       </Card>
     </div>
   );

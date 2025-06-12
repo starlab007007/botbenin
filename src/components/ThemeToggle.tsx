@@ -48,11 +48,11 @@ export const ThemeToggle: React.FC = () => {
       variant="ghost"
       size="sm"
       onClick={toggleTheme}
-      className="flex items-center space-x-2 px-3 py-2 text-sm hover:bg-gray-100 rounded-xl transition-all duration-300"
+      className="flex items-center space-x-2 w-full justify-start px-3 py-2 text-sm font-body hover:bg-muted/50 rounded-xl transition-all duration-300"
       title={getLabel()}
     >
       {getIcon()}
-      <span className="text-gray-600 hidden lg:block">{getLabel()}</span>
+      <span className="text-muted-foreground">{getLabel()}</span>
     </Button>
   );
 };
