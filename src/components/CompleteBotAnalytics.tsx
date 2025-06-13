@@ -47,8 +47,9 @@ interface BotAnalytics {
   total_short_links: number;
   total_link_clicks: number;
   last_user_activity: string;
-  last_session_activity: string;
   last_message_at: string;
+  engagement_rate_7d: number;
+  response_rate_percent: number;
 }
 
 export const CompleteBotAnalytics: React.FC<CompleteBotAnalyticsProps> = ({

@@ -45,7 +45,8 @@ interface BotStats {
   avg_messages_per_session: number;
   user_messages: number;
   bot_messages: number;
-  total_conversation_hours: number;
+  active_sessions: number;
+  avg_session_duration_minutes: number;
 }
 
 interface PerformanceMetric {
@@ -358,12 +359,16 @@ export const DetailedBotAnalytics: React.FC<DetailedBotAnalyticsProps> = ({
                   </div>
 
                   <div className="space-y-4">
-                    <h4 className="font-medium text-gray-900">Temps de conversation</h4>
+                    <h4 className="font-medium text-gray-900">Activité</h4>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Total heures</span>
+                        <span className="text-gray-600">Sessions actives</span>
+                        <span className="font-medium">{botStats.active_sessions}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Durée moyenne</span>
                         <span className="font-medium">
-                          {Math.round(botStats.total_conversation_hours || 0)}h
+                          {Math.round(botStats.avg_session_duration_minutes || 0)}min
                         </span>
                       </div>
                       <div className="flex justify-between">
