@@ -632,13 +632,6 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_user_id_fkey"
             columns: ["bot_user_id"]
             isOneToOne: false
-            referencedRelation: "bot_conversation_history"
-            referencedColumns: ["bot_user_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
             referencedRelation: "bot_users"
             referencedColumns: ["id"]
           },
@@ -717,13 +710,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "chat_sessions_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_conversation_history"
-            referencedColumns: ["bot_user_id"]
           },
           {
             foreignKeyName: "chat_sessions_bot_user_id_fkey"
@@ -969,13 +955,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_conversation_history"
-            referencedColumns: ["bot_user_id"]
           },
           {
             foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
@@ -3103,13 +3082,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "bots_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owners"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
@@ -3150,6 +3122,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_users"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3243,13 +3222,15 @@ export type Database = {
           bot_id: string | null
           bot_messages: number | null
           bot_name: string | null
+          engagement_rate_7d: number | null
           is_active: boolean | null
           last_message_at: string | null
-          last_session_activity: string | null
           last_user_activity: string | null
           messages_24h: number | null
           owner_id: string | null
+          response_rate_percent: number | null
           sessions_24h: number | null
+          share_enabled: boolean | null
           total_link_clicks: number | null
           total_messages: number | null
           total_sessions: number | null
@@ -3269,9 +3250,11 @@ export type Database = {
       }
       detailed_bot_stats: {
         Row: {
+          active_sessions: number | null
           active_users_24h: number | null
           active_users_7d: number | null
           avg_messages_per_session: number | null
+          avg_session_duration_minutes: number | null
           bot_created_at: string | null
           bot_id: string | null
           bot_messages: number | null
@@ -3283,9 +3266,10 @@ export type Database = {
           owner_id: string | null
           sessions_24h: number | null
           share_enabled: boolean | null
-          total_conversation_hours: number | null
+          total_link_clicks: number | null
           total_messages: number | null
           total_sessions: number | null
+          total_short_links: number | null
           total_unique_users: number | null
           user_messages: number | null
         }

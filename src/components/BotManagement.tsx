@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -126,7 +125,7 @@ export const BotManagement: React.FC = () => {
 
       setBots(botsData || []);
 
-      // Récupérer les statistiques depuis la nouvelle vue
+      // Récupérer les statistiques depuis la nouvelle vue detailed_bot_stats
       if (botsData && botsData.length > 0) {
         await fetchBotsStatsFromView(botsData.map(bot => bot.id));
       }
@@ -145,22 +144,30 @@ export const BotManagement: React.FC = () => {
 
   const fetchBotsStatsFromView = async (botIds: string[]) => {
     try {
+      console.log('Récupération des statistiques pour les bots:', botIds);
+      
       const { data: statsData, error } = await supabase
         .from('detailed_bot_stats')
-        .select('bot_id, total_unique_users, total_messages, messages_24h')
+        .select('bot_id, total_unique_users, total_messages, active_users_24h')
         .in('bot_id', botIds);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erreur lors du chargement des statistiques:', error);
+        return;
+      }
+
+      console.log('Statistiques récupérées:', statsData);
 
       const stats: Record<string, BotStats> = {};
       statsData?.forEach(stat => {
         stats[stat.bot_id] = {
           totalMessages: stat.total_messages || 0,
           totalUsers: stat.total_unique_users || 0,
-          activeToday: stat.messages_24h || 0
+          activeToday: stat.active_users_24h || 0
         };
       });
 
+      console.log('Statistiques formatées:', stats);
       setBotStats(stats);
     } catch (error) {
       console.error('Erreur lors du chargement des statistiques:', error);

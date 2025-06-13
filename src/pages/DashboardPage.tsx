@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -116,41 +115,52 @@ export const DashboardPage: React.FC = () => {
         .eq('user_id', authUser.id)
         .single();
 
-      if (!ownerData) return;
+      if (!ownerData) {
+        console.log('Aucun bot_owner trouvé pour cet utilisateur');
+        setIsLoading(false);
+        return;
+      }
 
-      // Statistiques des bots
-      const { data: botsData } = await supabase
-        .from('bots')
-        .select('id')
+      // Utiliser la nouvelle vue detailed_bot_stats pour obtenir les statistiques
+      const { data: statsData, error: statsError } = await supabase
+        .from('detailed_bot_stats')
+        .select('*')
         .eq('owner_id', ownerData.id);
 
-      const botIds = botsData?.map(bot => bot.id) || [];
+      if (statsError) {
+        console.error('Erreur lors du chargement des statistiques:', statsError);
+        setIsLoading(false);
+        return;
+      }
 
-      // Statistiques des messages
-      const { data: messagesData } = await supabase
-        .from('chat_messages')
-        .select('id, created_at')
-        .in('bot_id', botIds);
+      console.log('Données statistiques reçues:', statsData);
 
-      // Statistiques des utilisateurs uniques
-      const { data: usersData } = await supabase
-        .from('bot_users')
-        .select('id, last_active')
-        .in('bot_id', botIds);
+      if (statsData && statsData.length > 0) {
+        // Agréger les statistiques de tous les bots de l'utilisateur
+        const aggregatedStats = statsData.reduce((acc, bot) => ({
+          totalBots: acc.totalBots + 1,
+          totalMessages: acc.totalMessages + (bot.total_messages || 0),
+          totalUsers: acc.totalUsers + (bot.total_unique_users || 0),
+          activeToday: acc.activeToday + (bot.active_users_24h || 0)
+        }), {
+          totalBots: 0,
+          totalMessages: 0,
+          totalUsers: 0,
+          activeToday: 0
+        });
 
-      // Activité d'aujourd'hui
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const activeToday = usersData?.filter(user => 
-        new Date(user.last_active) >= today
-      ).length || 0;
-
-      setStats({
-        totalBots: botsData?.length || 0,
-        totalMessages: messagesData?.length || 0,
-        totalUsers: usersData?.length || 0,
-        activeToday: activeToday
-      });
+        console.log('Statistiques agrégées:', aggregatedStats);
+        setStats(aggregatedStats);
+      } else {
+        console.log('Aucune donnée statistique trouvée');
+        // L'utilisateur n'a pas encore de bots, garder les stats à 0
+        setStats({
+          totalBots: 0,
+          totalMessages: 0,
+          totalUsers: 0,
+          activeToday: 0
+        });
+      }
 
     } catch (error) {
       console.error('Erreur lors du chargement des statistiques:', error);
