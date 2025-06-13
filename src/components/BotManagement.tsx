@@ -12,6 +12,7 @@ import { OwnerDashboard } from '@/components/OwnerDashboard';
 import { ShortenedLinksManager } from '@/components/ShortenedLinksManager';
 import { ConversationManager } from '@/components/ConversationManager';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { copyToClipboard } from '@/lib/utils';
 import { FaWhatsapp } from 'react-icons/fa';
 import QRCode from 'qrcode';
 import { 
@@ -320,6 +321,15 @@ export const BotManagement: React.FC = () => {
     toast({
       title: `Partage WhatsApp - ${bot.name}`,
       description: "WhatsApp s'ouvre avec votre message personnalisé et le lien direct du bot",
+    });
+  };
+
+  const handleCopyToClipboard = async (text: string, description: string) => {
+    const result = await copyToClipboard(text, description);
+    toast({
+      title: result.success ? "Copié !" : "Erreur",
+      description: result.message,
+      variant: result.success ? "default" : "destructive",
     });
   };
 
@@ -704,7 +714,7 @@ export const BotManagement: React.FC = () => {
                           <QrCode className="w-3 h-3" />
                         </Button>
                         <Button
-                          onClick={() => copyToClipboard(bot.public_chat_url, 'Lien public')}
+                          onClick={() => handleCopyToClipboard(bot.public_chat_url, 'Lien public')}
                           variant="ghost"
                           size="sm"
                           className="p-1 h-6 w-6"
