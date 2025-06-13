@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -23,46 +24,53 @@ interface ChatInterfaceProps {
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
   onBackToLanding, 
-  webhookUrl,
-  chatTitle = 'Bot.Bj Assistant',
-  chatContext
+  webhookUrl: propWebhookUrl,
+  chatTitle: propChatTitle = 'Bot.Bj Assistant',
+  chatContext: propChatContext
 }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   
   console.log('=== INITIALISATION CHATINTERFACE ===');
-  console.log('Props reçues:', {
+  
+  // Récupérer les paramètres de l'URL (priorité sur les props)
+  const urlBotId = searchParams.get('bot');
+  const urlWebhookUrl = searchParams.get('webhook');
+  const urlBotName = searchParams.get('bot_name');
+  const urlChatTitle = searchParams.get('title');
+  const urlChatContext = searchParams.get('context');
+  const isTest = searchParams.get('test') === 'true';
+  const isPublic = searchParams.get('public') === 'true';
+
+  // Utiliser les paramètres URL en priorité, puis les props
+  const webhookUrl = urlWebhookUrl ? decodeURIComponent(urlWebhookUrl) : propWebhookUrl;
+  const chatTitle = urlChatTitle || urlBotName || propChatTitle;
+  const chatContext = urlChatContext || propChatContext;
+
+  console.log('Paramètres ChatInterface:', {
+    urlBotId,
+    urlBotName,
+    urlChatTitle,
+    urlChatContext,
     webhookUrl,
     chatTitle,
     chatContext,
-    onBackToLanding: !!onBackToLanding
-  });
-
-  // Récupérer les paramètres supplémentaires de l'URL si disponibles
-  const urlBotId = searchParams.get('bot');
-  const urlBotName = searchParams.get('bot_name');
-  const isTest = searchParams.get('test') === 'true';
-
-  console.log('Paramètres URL ChatInterface:', {
-    urlBotId,
-    urlBotName,
     isTest,
+    isPublic,
     finalWebhookUrl: webhookUrl
   });
   
   // IMPORTANT: Vérifier que le webhook URL est bien fourni
   if (!webhookUrl) {
     console.error('ERREUR CRITIQUE: Aucun webhook URL fourni pour ce bot !');
-    console.error('Props reçues:', { webhookUrl, chatTitle, chatContext });
+    console.error('Props reçues:', { propWebhookUrl, propChatTitle, propChatContext });
+    console.error('URL Params:', { urlWebhookUrl, urlChatTitle, urlChatContext });
   }
-  
-  // Utiliser le nom du bot depuis l'URL si disponible
-  const finalChatTitle = urlBotName || chatTitle;
   
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: getWelcomeMessage(chatContext, finalChatTitle),
+      content: getWelcomeMessage(chatContext, chatTitle),
       isUser: false,
       timestamp: new Date(),
     }
@@ -99,6 +107,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     return 'general';
   };
 
+  // Fonction de retour adaptée selon le contexte
+  const handleBackToLanding = () => {
+    if (isPublic) {
+      // Pour un accès public, rediriger vers bot.bj
+      console.log('Fermeture du chat public - redirection vers bot.bj');
+      window.location.href = 'https://bot.bj';
+    } else {
+      // Pour les utilisateurs connectés, utiliser la fonction fournie
+      console.log('Retour via fonction onBackToLanding');
+      onBackToLanding();
+    }
+  };
+
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isLoading) return;
@@ -106,11 +127,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     // Vérification critique du webhook URL
     if (!webhookUrl) {
       console.error('ERREUR CRITIQUE: Aucun webhook URL configuré pour ce bot');
-      console.error('ChatInterface Props:', { webhookUrl, chatTitle, chatContext });
-      console.error('URL Params:', { urlBotId, urlBotName, isTest });
+      console.error('ChatInterface Props:', { propWebhookUrl, propChatTitle, propChatContext });
+      console.error('URL Params:', { urlWebhookUrl, urlChatTitle, urlChatContext });
       
       toast({
-        title: `${finalChatTitle} - Configuration manquante`,
+        title: `${chatTitle} - Configuration manquante`,
         description: "Aucun webhook URL configuré pour ce bot. Veuillez configurer le webhook dans les paramètres du bot.",
         variant: "destructive",
       });
@@ -132,12 +153,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     console.log('=== COMMUNICATION N8N POUR BOT SPÉCIFIQUE ===');
     console.log('Bot ID:', urlBotId);
-    console.log('Bot Name:', urlBotName || finalChatTitle);
+    console.log('Bot Name:', urlBotName || chatTitle);
     console.log('User message:', textToSend);
     console.log('Webhook URL utilisée:', webhookUrl);
     console.log('Chat Context:', chatContext);
-    console.log('Chat Title:', finalChatTitle);
+    console.log('Chat Title:', chatTitle);
     console.log('Is Test Mode:', isTest);
+    console.log('Is Public Access:', isPublic);
 
     try {
       const controller = new AbortController();
@@ -154,15 +176,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         user_id: `bot_bj_user_${urlBotId || 'unknown'}`,
         source: 'bot_bj_platform',
         context: chatContext || 'automation',
-        chat_title: finalChatTitle,
+        chat_title: chatTitle,
         bot_id: urlBotId,
-        bot_name: urlBotName || finalChatTitle,
+        bot_name: urlBotName || chatTitle,
         bot_type: chatContext === 'automation' ? 'dashboard_created' : 'predefined',
         interface_type: 'full_chat_interface',
         module: chatContext === 'automation' ? 'automation' : 'citoyen',
         service_type: chatContext || 'automation',
         platform: 'bot_bj',
         is_test_mode: isTest,
+        is_public_access: isPublic,
         webhook_source: 'bot_specific_config'
       };
 
@@ -178,10 +201,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           'X-Bot-Platform': 'bot_bj',
           'X-Bot-Version': '1.0',
           'X-Bot-ID': urlBotId || 'unknown',
-          'X-Bot-Name': encodeURIComponent(urlBotName || finalChatTitle),
+          'X-Bot-Name': encodeURIComponent(urlBotName || chatTitle),
           'X-Webhook-Source': 'bot_specific',
           'X-Chat-Context': chatContext || 'automation',
-          'X-Is-Test': isTest ? 'true' : 'false'
+          'X-Is-Test': isTest ? 'true' : 'false',
+          'X-Is-Public': isPublic ? 'true' : 'false'
         },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
@@ -242,22 +266,22 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     } catch (error) {
       console.error('=== ERREUR COMMUNICATION N8N BOT SPÉCIFIQUE ===');
       console.error('Bot ID:', urlBotId);
-      console.error('Bot Name:', urlBotName || finalChatTitle);
+      console.error('Bot Name:', urlBotName || chatTitle);
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
       console.error('Webhook URL utilisé:', webhookUrl);
       
-      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || finalChatTitle}" (${webhookUrl}). Veuillez vérifier la configuration de votre webhook.`;
-      let toastMessage = `Problème de connexion N8N - ${urlBotName || finalChatTitle}`;
+      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || chatTitle}" (${webhookUrl}). Veuillez vérifier la configuration de votre webhook.`;
+      let toastMessage = `Problème de connexion N8N - ${urlBotName || chatTitle}`;
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = `La requête vers N8N pour "${urlBotName || finalChatTitle}" a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.`;
-          toastMessage = `Timeout N8N - ${urlBotName || finalChatTitle}`;
+          errorMessage = `La requête vers N8N pour "${urlBotName || chatTitle}" a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.`;
+          toastMessage = `Timeout N8N - ${urlBotName || chatTitle}`;
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = `Impossible de se connecter à N8N pour "${urlBotName || finalChatTitle}" via l'URL: ${webhookUrl}. Vérifiez que l'URL est correcte et accessible.`;
-          toastMessage = `Problème de connectivité N8N - ${urlBotName || finalChatTitle}`;
+          errorMessage = `Impossible de se connecter à N8N pour "${urlBotName || chatTitle}" via l'URL: ${webhookUrl}. Vérifiez que l'URL est correcte et accessible.`;
+          toastMessage = `Problème de connectivité N8N - ${urlBotName || chatTitle}`;
         }
       }
 
@@ -271,7 +295,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
-        title: `${finalChatTitle} - Problème technique N8N`,
+        title: `${chatTitle} - Problème technique N8N`,
         description: toastMessage,
         variant: "destructive",
       });
@@ -316,11 +340,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   return (
     <div className="h-full flex flex-col gradient-warm">
       <ChatHeader
-        onBackToLanding={onBackToLanding}
+        onBackToLanding={handleBackToLanding}
         isLoading={isLoading}
         bookmarkedCount={bookmarkedMessages.length}
         onShowBookmarks={() => setShowBookmarks(true)}
-        title={finalChatTitle}
+        title={chatTitle}
       />
       
       <ChatMessageArea
