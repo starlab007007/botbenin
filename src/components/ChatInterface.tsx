@@ -102,10 +102,10 @@ Comment puis-je vous assister aujourd'hui ?`;
     }
   }
 
-  // Contexte utilisateur simplifié pour public
-  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general' | 'public' => {
-    if (isPublicAccess) return 'public';
-    if (chatContext) return chatContext as any;
+  // Contexte utilisateur simplifié pour public - Fixed to map 'public' to 'general'
+  const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general' => {
+    if (isPublicAccess || chatContext === 'public') return 'general';
+    if (chatContext) return chatContext as 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general';
     return 'general';
   };
 
