@@ -257,6 +257,49 @@ export const BotManagement: React.FC = () => {
     }
   };
 
+  const shareQRCode = async (botName: string) => {
+    if (!qrCodeUrl) return;
+    
+    try {
+      // Message personnalisé pour le partage du QR Code
+      const customMessage = `🔗 Scannez ce QR Code pour accéder directement à ${botName} - votre assistant IA intelligent disponible 24/7 !`;
+      
+      // Convertir le data URL en blob
+      const response = await fetch(qrCodeUrl);
+      const blob = await response.blob();
+      const file = new File([blob], `qr-code-${botName}.png`, { type: 'image/png' });
+      
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `QR Code - ${botName}`,
+          text: customMessage,
+          files: [file]
+        });
+        
+        toast({
+          title: "QR Code partagé",
+          description: `QR Code de ${botName} partagé avec succès`,
+        });
+      } else {
+        // Fallback: partager via WhatsApp avec le message personnalisé
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(customMessage)}`;
+        window.open(whatsappUrl, '_blank');
+        
+        toast({
+          title: "Partage WhatsApp",
+          description: `Message personnalisé envoyé via WhatsApp pour ${botName}`,
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du partage du QR Code:', error);
+      toast({
+        title: "Erreur de partage",
+        description: "Impossible de partager le QR Code",
+        variant: "destructive",
+      });
+    }
+  };
+
   const shareOnWhatsApp = (bot: Bot) => {
     if (!bot.public_chat_url) {
       toast({
@@ -267,20 +310,9 @@ export const BotManagement: React.FC = () => {
       return;
     }
 
-    // Messages personnalisés simplifiés et nettoyés
-    let customMessage = '';
-    const botDomain = bot.chat_context === 'restaurant' ? 'Restaurant' : 
-                     bot.chat_context === 'services_locaux' ? 'Services Locaux' :
-                     bot.chat_context === 'business' ? 'Business' :
-                     bot.chat_context === 'marketing' ? 'Marketing' :
-                     bot.chat_context === 'gestion' ? 'Gestion' :
-                     bot.chat_context === 'citoyen' ? 'Services Citoyens' :
-                     'Assistant';
-    
-    customMessage = `Découvrez ${bot.name} - Assistant IA intelligent ${botDomain} disponible 24/7 ! Cliquez sur ce lien pour commencer une conversation :`;
-
-    const fullMessage = `${customMessage} ${bot.public_chat_url}`;
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fullMessage)}`;
+    // Message simplifié pour WhatsApp
+    const customMessage = `Découvrez ${bot.name} - votre assistant IA intelligent disponible 24/7 ! ${bot.public_chat_url}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(customMessage)}`;
     
     // Ouvrir WhatsApp avec le message pré-rempli
     window.open(whatsappUrl, '_blank');
@@ -333,56 +365,6 @@ export const BotManagement: React.FC = () => {
       title: "QR Code téléchargé",
       description: `QR Code de ${botName} téléchargé avec succès`,
     });
-  };
-
-  const shareQRCode = async (botName: string) => {
-    if (!qrCodeUrl) return;
-    
-    try {
-      // Convertir le data URL en blob
-      const response = await fetch(qrCodeUrl);
-      const blob = await response.blob();
-      const file = new File([blob], `qr-code-${botName}.png`, { type: 'image/png' });
-      
-      if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `QR Code - ${botName}`,
-          text: `Scannez ce QR Code pour accéder à ${botName}`,
-          files: [file]
-        });
-        
-        toast({
-          title: "QR Code partagé",
-          description: `QR Code de ${botName} partagé avec succès`,
-        });
-      } else {
-        // Fallback: copier l'URL dans le presse-papiers
-        await copyToClipboard(qrCodeUrl, 'QR Code');
-      }
-    } catch (error) {
-      console.error('Erreur lors du partage du QR Code:', error);
-      toast({
-        title: "Erreur de partage",
-        description: "Impossible de partager le QR Code",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "Copié !",
-        description: `${label} copié dans le presse-papiers`,
-      });
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de copier dans le presse-papiers",
-        variant: "destructive",
-      });
-    }
   };
 
   const toggleBotStatus = async (bot: Bot) => {
@@ -601,10 +583,10 @@ export const BotManagement: React.FC = () => {
                   onClick={() => shareQRCode(bots.find(bot => bot.public_chat_url === showQrCode)?.name || 'bot')}
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
                 >
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Partager
+                  <FaWhatsapp className="w-4 h-4 mr-2" />
+                  WhatsApp
                 </Button>
               </div>
               <Button

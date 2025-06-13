@@ -101,22 +101,11 @@ export const ChatPage: React.FC = () => {
 
       console.log('Configuration bot chargée:', botData);
 
-      // Vérifier que le bot est actif et partageable
+      // Vérifier que le bot est actif
       if (!botData.is_active) {
         toast({
           title: "Bot inactif",
           description: `Le bot "${botData.name}" est actuellement désactivé.`,
-          variant: "destructive",
-        });
-        setUseLiveChatSystem(true);
-        setIsLoading(false);
-        return;
-      }
-
-      if (!botData.share_enabled && !location.pathname.includes('/chat')) {
-        toast({
-          title: "Bot non partageable",
-          description: `Le bot "${botData.name}" n'est pas configuré pour le partage public.`,
           variant: "destructive",
         });
         setUseLiveChatSystem(true);
