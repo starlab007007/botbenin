@@ -45,6 +45,7 @@ export const ChatPage: React.FC = () => {
       console.log('URL complète:', window.location.href);
       console.log('Est mobile:', isMobileDevice());
       console.log('Pathname:', location.pathname);
+      console.log('Search params:', Object.fromEntries(searchParams.entries()));
       
       // Récupérer les paramètres de l'URL
       const botId = searchParams.get('bot');
@@ -60,44 +61,40 @@ export const ChatPage: React.FC = () => {
         botId,
         webhookUrl: webhookUrl ? decodeURIComponent(webhookUrl) : null,
         chatContext,
-        chatTitle,
+        chatTitle: chatTitle ? decodeURIComponent(chatTitle) : null,
         botName,
         isTest,
         entryPoint,
         refCode
       });
 
-      // Détecter si on vient d'un lien public (avec botId dans l'URL)
-      const pathBotId = location.pathname.split('/').pop();
-      const finalBotId = botId || pathBotId;
+      // Si on a un botId spécifique, c'est un lien partagé
+      if (botId && botId !== 'chat') {
+        console.log('Bot ID détecté dans l\'URL:', botId);
+        
+        // Détecter si c'est un lien partagé (vient d'un lien raccourci ou d'un partage)
+        const isFromSharedLink = entryPoint === 'shortened_link' || !!refCode || !!webhookUrl || !!chatContext;
+        setIsSharedLink(isFromSharedLink);
 
-      console.log('Bot ID final:', finalBotId);
+        // Sur mobile avec lien partagé, forcer le mode plein écran
+        if (isMobileDevice() && isFromSharedLink) {
+          console.log('Mode mobile détecté avec lien partagé - optimisation affichage');
+          document.body.style.overflow = 'hidden';
+          document.documentElement.style.overflow = 'hidden';
+        }
 
-      // Détecter si c'est un lien partagé (vient d'un lien raccourci ou d'un partage)
-      const isFromSharedLink = entryPoint === 'shortened_link' || !!refCode || !!webhookUrl || location.pathname.includes('/chat/');
-      setIsSharedLink(isFromSharedLink);
-
-      // Sur mobile avec lien partagé, forcer le mode plein écran
-      if (isMobileDevice() && isFromSharedLink) {
-        console.log('Mode mobile détecté avec lien partagé - optimisation affichage');
-        document.body.style.overflow = 'hidden';
-        document.documentElement.style.overflow = 'hidden';
-      }
-
-      // Si on a un botId spécifique, gérer l'authentification visiteur et charger la config
-      if (finalBotId && finalBotId !== 'chat') {
         // Enable visitor mode for shared links
         if (isFromSharedLink) {
           console.log('Activation du mode visiteur pour lien partagé');
-          const visitorAuth = createVisitorAuth(finalBotId);
+          const visitorAuth = createVisitorAuth(botId);
           setIsVisitorMode(true);
           console.log('Visitor Auth créé:', visitorAuth);
         }
         
-        await loadBotConfiguration(finalBotId, webhookUrl, chatContext, chatTitle, botName, entryPoint);
+        await loadBotConfiguration(botId, webhookUrl, chatContext, chatTitle, botName, entryPoint);
       } else {
         // Utiliser le système de chat live par défaut (accès depuis le menu)
-        console.log('Accès depuis le menu - utilisation du LiveChatSystem');
+        console.log('Aucun Bot ID - utilisation du LiveChatSystem');
         setUseLiveChatSystem(true);
         setIsLoading(false);
       }
@@ -118,7 +115,8 @@ export const ChatPage: React.FC = () => {
     entryPoint?: string
   ) => {
     try {
-      console.log('Chargement configuration bot ID:', botId);
+      console.log('=== CHARGEMENT CONFIGURATION BOT ===');
+      console.log('Bot ID:', botId);
 
       // Récupérer la configuration complète du bot depuis la base
       const { data: botData, error } = await supabase
@@ -176,12 +174,14 @@ export const ChatPage: React.FC = () => {
         id: botData.id,
         name: botName || botData.name,
         webhook_url: webhookUrl ? decodeURIComponent(webhookUrl) : botData.webhook_url,
-        chat_title: chatTitle || botData.chat_title,
+        chat_title: chatTitle ? decodeURIComponent(chatTitle) : botData.chat_title,
         chat_context: chatContext || botData.chat_context,
         is_active: botData.is_active
       };
 
-      console.log('Configuration finale du bot:', finalConfig);
+      console.log('=== CONFIGURATION FINALE DU BOT ===');
+      console.log('Configuration finale:', finalConfig);
+      console.log('Webhook URL qui sera utilisé:', finalConfig.webhook_url);
 
       setBotConfig(finalConfig);
       setUseLiveChatSystem(false);
@@ -196,8 +196,8 @@ export const ChatPage: React.FC = () => {
 
     } catch (error) {
       console.error('Erreur lors du chargement de la configuration du bot:', error);
-      // Ne pas afficher d'erreur si on accède depuis le menu, utiliser simplement le chat par défaut
-      console.log('Utilisation du LiveChatSystem par défaut');
+      // En cas d'erreur, utiliser le chat par défaut
+      console.log('Utilisation du LiveChatSystem par défaut suite à l\'erreur');
       setUseLiveChatSystem(true);
       setIsLoading(false);
     }
@@ -259,6 +259,11 @@ export const ChatPage: React.FC = () => {
 
   // Utiliser le chat spécifique du bot si configuré
   if (botConfig && !useLiveChatSystem) {
+    console.log('=== RENDU CHAT INTERFACE BOT SPÉCIFIQUE ===');
+    console.log('Bot Config:', botConfig);
+    console.log('Webhook URL:', botConfig.webhook_url);
+    console.log('Is Visitor Mode:', isVisitorMode);
+    
     return (
       <div className={
         isMobile && isSharedLink 
@@ -280,6 +285,7 @@ export const ChatPage: React.FC = () => {
   }
 
   // Utiliser le système de chat live par défaut
+  console.log('=== RENDU LIVE CHAT SYSTEM PAR DÉFAUT ===');
   return (
     <div className="h-[calc(100vh-8rem)]">
       <LiveChatSystem />
