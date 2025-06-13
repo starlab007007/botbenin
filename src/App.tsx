@@ -64,15 +64,15 @@ const App = () => (
                   {/* Route d'accueil avec redirection vers home */}
                   <Route path="/" element={<Navigate to="/home" replace />} />
                   
-                  {/* Routes publiques SANS layout - doivent être en premier pour éviter les conflits */}
+                  {/* Routes publiques SANS layout - accessibles sans authentification */}
                   <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
                   <Route path="/bot-test/:botId" element={<BotTestPage />} />
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
                   
-                  {/* Routes avec layout principal */}
+                  {/* Routes avec layout principal - nécessitent authentification */}
                   <Route element={<MainLayout />}>
                     <Route path="/home" element={<HomePage />} />
-                    <Route path="/chat" element={<ChatPage />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
                     
                     {/* Gestion des bots */}
