@@ -310,21 +310,28 @@ export const BotManagement: React.FC = () => {
   };
 
   const shareOnWhatsApp = (bot: Bot) => {
-    if (!bot.public_chat_url) {
-      toast({
-        title: "Erreur",
-        description: "Ce bot n'a pas de lien public configuré",
-        variant: "destructive",
-      });
-      return;
+    // S'assurer qu'on a un lien public valide
+    let shareUrl = bot.public_chat_url;
+    
+    // Si pas de lien public, créer un lien vers le bot public
+    if (!shareUrl) {
+      shareUrl = `https://bot.bj/bot/${bot.id}`;
     }
+    
+    // Nettoyer le lien pour enlever "ia." si présent
+    shareUrl = shareUrl.replace(/https:\/\/ia\.bot\.bj/g, 'https://bot.bj');
+    
+    console.log('=== PARTAGE WHATSAPP ===');
+    console.log('Bot:', bot.name);
+    console.log('Lien public original:', bot.public_chat_url);
+    console.log('Lien nettoyé pour partage:', shareUrl);
 
-    // Message personnalisé pour WhatsApp avec le lien public du bot
+    // Message personnalisé pour WhatsApp avec le lien nettoyé
     const customMessage = `🤖 Découvrez ${bot.name} - votre assistant IA intelligent disponible 24/7 ! 
 
-💬 Cliquez ici pour démarrer la conversation : ${bot.public_chat_url}
+💬 Cliquez ici pour démarrer la conversation : ${shareUrl}
 
-✨ Assistance instantanée et personnalisée`;
+✨ Assistance instantanée et personnalisée - Aucune inscription requise !`;
     
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(customMessage)}`;
     
@@ -333,7 +340,7 @@ export const BotManagement: React.FC = () => {
     
     toast({
       title: `Partage WhatsApp - ${bot.name}`,
-      description: "WhatsApp s'ouvre avec le lien public du bot et un message personnalisé",
+      description: "WhatsApp s'ouvre avec le lien public nettoyé et un message personnalisé",
     });
   };
 
@@ -348,7 +355,10 @@ export const BotManagement: React.FC = () => {
 
   const generateQRCode = async (url: string, botName: string) => {
     try {
-      const qrCodeDataUrl = await QRCode.toDataURL(url, {
+      // Nettoyer l'URL pour le QR Code aussi
+      const cleanUrl = url.replace(/https:\/\/ia\.bot\.bj/g, 'https://bot.bj');
+      
+      const qrCodeDataUrl = await QRCode.toDataURL(cleanUrl, {
         width: 300,
         margin: 2,
         color: {
@@ -358,11 +368,11 @@ export const BotManagement: React.FC = () => {
       });
       
       setQrCodeUrl(qrCodeDataUrl);
-      setShowQrCode(url);
+      setShowQrCode(cleanUrl);
       
       toast({
         title: "QR Code généré",
-        description: `QR Code créé pour ${botName}`,
+        description: `QR Code créé pour ${botName} avec lien nettoyé`,
       });
     } catch (error) {
       console.error('Erreur lors de la génération du QR Code:', error);
