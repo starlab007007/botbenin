@@ -54,7 +54,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   // 1. Il a un webhook URL configuré ET accessible, OU
   // 2. C'est un accès public (même sans webhook - mode démo)
   const hasWorkingWebhook = Boolean(webhookUrl && webhookUrl.trim() !== '' && webhookUrl !== 'undefined');
-  const isPublicAccess = isPublic || urlBotId; // Considérer tout accès avec bot ID comme potentiellement public
+  const isPublicAccess = Boolean(isPublic || urlBotId); // Convertir explicitement en boolean
   const canChatFunction = hasWorkingWebhook; // Seuls les bots avec webhook peuvent vraiment fonctionner
   const canShowDemo = isPublicAccess; // Les accès publics peuvent au moins montrer l'interface
 
