@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { LiveChatSystem } from '@/components/support/LiveChatSystem';
@@ -26,7 +27,7 @@ export const ChatPage: React.FC = () => {
   const location = useLocation();
   const [botConfig, setBotConfig] = useState<BotConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [useLiveChatSystem, setUseLiveChatSystem] = useState(false);
+  const [useLiveChatSystem, setUseLiveChatSystem] = useState(true); // Par défaut: utiliser LiveChatSystem
   const [isSharedLink, setIsSharedLink] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
@@ -39,7 +40,7 @@ export const ChatPage: React.FC = () => {
 
   const initializeChatPage = async () => {
     try {
-      console.log('=== INITIALISATION CHAT PAGE MOBILE ===');
+      console.log('=== INITIALISATION CHAT PAGE POUR ACCÈS ANONYME ===');
       console.log('URL complète:', window.location.href);
       console.log('Est mobile:', isMobileDevice());
       console.log('Pathname:', location.pathname);
@@ -65,13 +66,33 @@ export const ChatPage: React.FC = () => {
         refCode
       });
 
-      // Détecter si on vient d'un lien public (avec botId dans l'URL)
+      // Si on a des paramètres spécifiques d'un bot (webhook, bot_name, etc.), essayer de l'utiliser
+      if (webhookUrl && (botName || chatTitle)) {
+        console.log('Configuration de bot fournie via URL - utilisation directe');
+        
+        const finalConfig: BotConfig = {
+          id: botId || 'anonymous_bot',
+          name: botName || chatTitle || 'Assistant IA',
+          webhook_url: decodeURIComponent(webhookUrl),
+          chat_title: chatTitle || botName || 'Assistant IA',
+          chat_context: chatContext || 'general',
+          is_active: true
+        };
+
+        console.log('Configuration bot direct:', finalConfig);
+        setBotConfig(finalConfig);
+        setUseLiveChatSystem(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // Détecter si c'est un lien partagé (avec botId dans l'URL)
       const pathBotId = location.pathname.split('/').pop();
       const finalBotId = botId || pathBotId;
 
       console.log('Bot ID final:', finalBotId);
 
-      // Détecter si c'est un lien partagé (vient d'un lien raccourci ou d'un partage)
+      // Détecter si c'est un lien partagé
       const isFromSharedLink = entryPoint === 'shortened_link' || !!refCode || !!webhookUrl || location.pathname.includes('/chat/');
       setIsSharedLink(isFromSharedLink);
 
@@ -82,18 +103,26 @@ export const ChatPage: React.FC = () => {
         document.documentElement.style.overflow = 'hidden';
       }
 
-      // Si on a un botId spécifique, récupérer sa configuration depuis la base
+      // Si on a un botId spécifique, essayer de récupérer sa configuration
       if (finalBotId && finalBotId !== 'chat') {
-        await loadBotConfiguration(finalBotId, webhookUrl, chatContext, chatTitle, botName, entryPoint);
+        try {
+          await loadBotConfiguration(finalBotId, webhookUrl, chatContext, chatTitle, botName, entryPoint);
+        } catch (error) {
+          console.log('Impossible de charger le bot spécifique, utilisation du chat par défaut');
+          // En cas d'erreur, utiliser le LiveChatSystem par défaut (accès anonyme)
+          setUseLiveChatSystem(true);
+          setIsLoading(false);
+        }
       } else {
-        // Utiliser le système de chat live par défaut (accès depuis le menu)
-        console.log('Accès depuis le menu - utilisation du LiveChatSystem');
+        // Accès direct à /chat sans paramètres - utiliser LiveChatSystem (accès anonyme)
+        console.log('Accès direct au chat - utilisation du LiveChatSystem pour accès anonyme');
         setUseLiveChatSystem(true);
         setIsLoading(false);
       }
 
     } catch (error) {
-      console.error('Erreur lors de l\'initialisation:', error);
+      console.error('Erreur lors de l\'initialisation, utilisation du chat par défaut:', error);
+      // En cas d'erreur, toujours permettre l'accès au LiveChatSystem
       setUseLiveChatSystem(true);
       setIsLoading(false);
     }
@@ -108,17 +137,19 @@ export const ChatPage: React.FC = () => {
     entryPoint?: string
   ) => {
     try {
-      console.log('Chargement configuration bot ID:', botId);
+      console.log('Tentative de chargement configuration bot ID:', botId);
 
-      // Récupérer la configuration complète du bot depuis la base
+      // Récupérer la configuration complète du bot depuis la base (sans auth requise)
       const { data: botData, error } = await supabase
         .from('bots')
         .select('*')
         .eq('id', botId)
+        .eq('share_enabled', true)
+        .eq('is_active', true)
         .single();
 
       if (error) {
-        console.error('Erreur lors du chargement du bot:', error);
+        console.log('Bot non trouvé ou non public, utilisation du chat par défaut');
         throw error;
       }
 
@@ -128,37 +159,18 @@ export const ChatPage: React.FC = () => {
 
       console.log('Configuration bot chargée:', botData);
 
-      // Vérifier que le bot est actif
-      if (!botData.is_active) {
-        toast({
-          title: "Bot inactif",
-          description: `Le bot "${botData.name}" est actuellement désactivé.`,
-          variant: "destructive",
-        });
-        setUseLiveChatSystem(true);
-        setIsLoading(false);
-        return;
-      }
-
       // Vérifier que le webhook URL existe
       if (!botData.webhook_url || botData.webhook_url.trim() === '') {
-        toast({
-          title: "Configuration manquante",
-          description: `Le bot "${botData.name}" n'a pas de webhook URL configuré.`,
-          variant: "destructive",
-        });
-        setUseLiveChatSystem(true);
-        setIsLoading(false);
-        return;
+        console.log('Bot sans webhook configuré, utilisation du chat par défaut');
+        throw new Error('Webhook manquant');
       }
 
-      // Initialiser le tracking du visiteur
+      // Initialiser le tracking du visiteur (optionnel pour l'accès anonyme)
       try {
         await initializeVisitorTracking(botId, entryPoint || 'direct');
         console.log('Tracking visiteur initialisé');
       } catch (trackingError) {
-        console.warn('Erreur lors de l\'initialisation du tracking:', trackingError);
-        // Continuer même si le tracking échoue
+        console.warn('Erreur tracking (ignorée pour accès anonyme):', trackingError);
       }
 
       // Utiliser les paramètres de l'URL ou ceux de la base de données
@@ -177,19 +189,9 @@ export const ChatPage: React.FC = () => {
       setUseLiveChatSystem(false);
       setIsLoading(false);
 
-      if (!isSharedLink) {
-        toast({
-          title: `Chat initialisé - ${finalConfig.name}`,
-          description: "Le chat du bot est prêt à utiliser",
-        });
-      }
-
     } catch (error) {
-      console.error('Erreur lors du chargement de la configuration du bot:', error);
-      // Ne pas afficher d'erreur si on accède depuis le menu, utiliser simplement le chat par défaut
-      console.log('Utilisation du LiveChatSystem par défaut');
-      setUseLiveChatSystem(true);
-      setIsLoading(false);
+      console.log('Erreur lors du chargement du bot, utilisation du chat par défaut');
+      throw error;
     }
   };
 
@@ -265,7 +267,7 @@ export const ChatPage: React.FC = () => {
     );
   }
 
-  // Utiliser le système de chat live par défaut
+  // Utiliser le système de chat live par défaut (ACCÈS ANONYME AUTORISÉ)
   return (
     <div className="h-[calc(100vh-8rem)]">
       <LiveChatSystem />
