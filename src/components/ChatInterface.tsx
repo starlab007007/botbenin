@@ -23,51 +23,46 @@ interface ChatInterfaceProps {
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
   onBackToLanding, 
-  webhookUrl: propWebhookUrl,
-  chatTitle: propChatTitle = 'Bot.Bj Assistant',
-  chatContext: propChatContext
+  webhookUrl,
+  chatTitle = 'Bot.Bj Assistant',
+  chatContext
 }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   
-  console.log('=== CHATINTERFACE - ACCÈS PUBLIC SIMPLIFIÉ ===');
-  
-  // Récupérer les paramètres de l'URL
-  const urlBotId = searchParams.get('bot');
-  const urlWebhookUrl = searchParams.get('webhook');
-  const urlBotName = searchParams.get('bot_name');
-  const urlChatTitle = searchParams.get('title');
-  const urlChatContext = searchParams.get('context');
-  const isPublic = searchParams.get('public') === 'true';
-  const shareEnabled = searchParams.get('share_enabled') === 'true';
-  const isConfigured = searchParams.get('configured') === 'true';
-
-  // Configuration finale - PRIORITÉ AU PUBLIC
-  const webhookUrl = urlWebhookUrl ? decodeURIComponent(urlWebhookUrl) : propWebhookUrl;
-  const chatTitle = urlChatTitle || urlBotName || propChatTitle;
-  const chatContext = urlChatContext || propChatContext || 'public';
-  
-  // LOGIQUE PUBLIQUE SIMPLIFIÉE : Si c'est public, c'est toujours fonctionnel
-  const isPublicAccess = isPublic && shareEnabled;
-  const hasWebhook = Boolean(webhookUrl && webhookUrl.trim() !== '');
-  const canChat = isPublicAccess || hasWebhook; // Public = toujours OK
-
-  console.log('=== CONFIGURATION FINALE ===', {
-    botId: urlBotId,
+  console.log('=== INITIALISATION CHATINTERFACE ===');
+  console.log('Props reçues:', {
+    webhookUrl,
     chatTitle,
     chatContext,
-    isPublic,
-    shareEnabled,
-    isConfigured,
-    hasWebhook,
-    canChat: canChat ? 'OUI' : 'NON',
-    webhookUrl: webhookUrl || 'AUCUN'
+    onBackToLanding: !!onBackToLanding
   });
+
+  // Récupérer les paramètres supplémentaires de l'URL si disponibles
+  const urlBotId = searchParams.get('bot');
+  const urlBotName = searchParams.get('bot_name');
+  const isTest = searchParams.get('test') === 'true';
+
+  console.log('Paramètres URL ChatInterface:', {
+    urlBotId,
+    urlBotName,
+    isTest,
+    finalWebhookUrl: webhookUrl
+  });
+  
+  // IMPORTANT: Vérifier que le webhook URL est bien fourni
+  if (!webhookUrl) {
+    console.error('ERREUR CRITIQUE: Aucun webhook URL fourni pour ce bot !');
+    console.error('Props reçues:', { webhookUrl, chatTitle, chatContext });
+  }
+  
+  // Utiliser le nom du bot depuis l'URL si disponible
+  const finalChatTitle = urlBotName || chatTitle;
   
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: getWelcomeMessage(chatContext, chatTitle, isPublicAccess),
+      content: getWelcomeMessage(chatContext, finalChatTitle),
       isUser: false,
       timestamp: new Date(),
     }
@@ -78,50 +73,51 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  function getWelcomeMessage(context?: string, title?: string, isPublicAccess?: boolean): string {
-    const botName = title || 'Assistant Public';
-    const publicPrefix = isPublicAccess ? '🌐 ' : '';
-    
-    if (isPublicAccess) {
-      return `${publicPrefix}🚀 Bonjour ! Je suis ${botName}, votre assistant IA public.
-
-✨ **Accès libre** : Aucune inscription requise !
-💬 **Chat instantané** : Posez-moi toutes vos questions
-🤖 **IA avancée** : Je suis là pour vous aider
-
-Comment puis-je vous assister aujourd'hui ?`;
-    }
+  function getWelcomeMessage(context?: string, title?: string): string {
+    const botName = title || 'Bot.Bj';
     
     switch (context) {
       case 'services_locaux':
-        return `🏢 Bonjour ! Je suis ${botName}, votre assistant pour les services locaux. Comment puis-je vous aider ?`;
+        return `🏢 Bonjour ! Je suis ${botName}, votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?`;
       case 'restaurant':
-        return `🍽️ Bonjour ! Je suis ${botName}, votre assistant pour les restaurants. Que recherchez-vous ?`;
+        return `🍽️ Bonjour ! Je suis ${botName}, votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?`;
+      case 'automation':
+        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA automatisé connecté via N8N. Je peux vous aider avec une large gamme de tâches selon ma configuration personnalisée. Comment puis-je vous assister aujourd'hui ?`;
       default:
-        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA. Comment puis-je vous aider ?`;
+        return `🚀 Bonjour ! Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
     }
   }
 
-  // Contexte utilisateur simplifié pour public - Fixed to map 'public' to 'general'
+  // Determine user context based on current route or provided context
   const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general' => {
-    if (isPublicAccess || chatContext === 'public') return 'general';
-    if (chatContext) return chatContext as 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general';
+    if (chatContext) return chatContext as any;
+    const path = location.pathname;
+    if (path.includes('business')) return 'business';
+    if (path.includes('marketing')) return 'marketing';
+    if (path.includes('gestion')) return 'gestion';
+    if (path.includes('citoyen')) return 'citoyen';
     return 'general';
-  };
-
-  // Gestion du retour
-  const handleBackToLanding = () => {
-    if (isPublicAccess) {
-      console.log('Fermeture du chat public');
-      window.location.href = 'https://bot.bj';
-    } else {
-      onBackToLanding();
-    }
   };
 
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isLoading) return;
+
+    // Vérification critique du webhook URL
+    if (!webhookUrl) {
+      console.error('ERREUR CRITIQUE: Aucun webhook URL configuré pour ce bot');
+      console.error('ChatInterface Props:', { webhookUrl, chatTitle, chatContext });
+      console.error('URL Params:', { urlBotId, urlBotName, isTest });
+      
+      toast({
+        title: `${finalChatTitle} - Configuration manquante`,
+        description: "Aucun webhook URL configuré pour ce bot. Veuillez configurer le webhook dans les paramètres du bot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowSuggestions(false);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -132,132 +128,156 @@ Comment puis-je vous assister aujourd'hui ?`;
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
-    setShowSuggestions(false);
     setIsLoading(true);
 
-    console.log('=== ENVOI MESSAGE PUBLIC ===');
-    console.log('Message:', textToSend);
+    console.log('=== COMMUNICATION N8N POUR BOT SPÉCIFIQUE ===');
     console.log('Bot ID:', urlBotId);
-    console.log('Accès public:', isPublicAccess);
-    console.log('Webhook disponible:', hasWebhook);
+    console.log('Bot Name:', urlBotName || finalChatTitle);
+    console.log('User message:', textToSend);
+    console.log('Webhook URL utilisée:', webhookUrl);
+    console.log('Chat Context:', chatContext);
+    console.log('Chat Title:', finalChatTitle);
+    console.log('Is Test Mode:', isTest);
 
     try {
-      let responseMessage: Message;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout après 30 secondes');
+        controller.abort();
+      }, 30000);
 
-      // Si on a un webhook, l'utiliser
-      if (hasWebhook && webhookUrl) {
-        console.log('=== COMMUNICATION WEBHOOK ===');
-        console.log('URL Webhook:', webhookUrl);
+      // Payload enrichi avec les informations spécifiques du bot
+      const requestPayload = {
+        message: textToSend,
+        timestamp: new Date().toISOString(),
+        session_id: `bot_${urlBotId || 'unknown'}_${chatContext || 'automation'}_${Date.now()}`,
+        user_id: `bot_bj_user_${urlBotId || 'unknown'}`,
+        source: 'bot_bj_platform',
+        context: chatContext || 'automation',
+        chat_title: finalChatTitle,
+        bot_id: urlBotId,
+        bot_name: urlBotName || finalChatTitle,
+        bot_type: chatContext === 'automation' ? 'dashboard_created' : 'predefined',
+        interface_type: 'full_chat_interface',
+        module: chatContext === 'automation' ? 'automation' : 'citoyen',
+        service_type: chatContext || 'automation',
+        platform: 'bot_bj',
+        is_test_mode: isTest,
+        webhook_source: 'bot_specific_config'
+      };
 
-        const requestPayload = {
-          message: textToSend,
-          timestamp: new Date().toISOString(),
-          session_id: `public_${urlBotId || 'bot'}_${Date.now()}`,
-          user_id: `public_user_${Date.now()}`,
-          source: 'bot_bj_public',
-          context: chatContext || 'public',
-          chat_title: chatTitle,
-          bot_id: urlBotId,
-          bot_name: chatTitle,
-          platform: 'bot_bj',
-          is_public_access: true,
-          access_type: 'public_no_auth'
-        };
+      console.log('Request payload enrichi:', JSON.stringify(requestPayload, null, 2));
+      console.log('Envoi vers webhook spécifique du bot:', webhookUrl);
 
-        const response = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json, text/plain, */*',
-            'User-Agent': 'Bot.Bj-Public/1.0',
-            'X-Bot-Platform': 'bot_bj',
-            'X-Access-Type': 'public',
-            'X-Bot-ID': urlBotId || 'public-bot',
-            'X-Is-Public': 'true'
-          },
-          body: JSON.stringify(requestPayload),
-          signal: AbortSignal.timeout(30000)
-        });
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'Bot.Bj-Platform/1.0',
+          'X-Bot-Platform': 'bot_bj',
+          'X-Bot-Version': '1.0',
+          'X-Bot-ID': urlBotId || 'unknown',
+          'X-Bot-Name': encodeURIComponent(urlBotName || finalChatTitle),
+          'X-Webhook-Source': 'bot_specific',
+          'X-Chat-Context': chatContext || 'automation',
+          'X-Is-Test': isTest ? 'true' : 'false'
+        },
+        body: JSON.stringify(requestPayload),
+        signal: controller.signal,
+        mode: 'cors',
+      });
 
-        if (!response.ok) {
-          throw new Error(`Webhook error: ${response.status}`);
-        }
+      clearTimeout(timeoutId);
 
-        const contentType = response.headers.get('content-type') || '';
-        let responseData;
+      console.log('=== RÉPONSE N8N BOT SPÉCIFIQUE ===');
+      console.log('Status:', response.status);
+      console.log('Status Text:', response.statusText);
+      console.log('Headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Response OK:', response.ok);
 
-        if (contentType.includes('application/json')) {
-          responseData = await response.json();
-          const content = responseData.output || 
-                         responseData.message || 
-                         responseData.response || 
-                         responseData.text || 
-                         responseData.content ||
-                         responseData.reply ||
-                         JSON.stringify(responseData);
-          
-          responseMessage = {
-            id: (Date.now() + 1).toString(),
-            content: content.trim(),
-            isUser: false,
-            timestamp: new Date(),
-          };
-        } else {
-          const textResponse = await response.text();
-          responseMessage = {
-            id: (Date.now() + 1).toString(),
-            content: textResponse.trim(),
-            isUser: false,
-            timestamp: new Date(),
-          };
-        }
-      } else {
-        // Mode démo pour accès public sans webhook
-        console.log('=== MODE DÉMO PUBLIC ===');
-        
-        responseMessage = {
-          id: (Date.now() + 1).toString(),
-          content: `Merci pour votre message ! 
-
-🌐 **Accès public actif** : Vous utilisez ${chatTitle} en mode public.
-
-💬 **Votre message** : "${textToSend}"
-
-🤖 **Réponse** : Je suis un assistant IA public. ${hasWebhook ? 'Le webhook est en cours de configuration.' : 'L\'accès est libre et sans restriction !'}
-
-✨ Continuez à me poser vos questions, je suis là pour vous aider !`,
-          isUser: false,
-          timestamp: new Date(),
-        };
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      setMessages(prev => [...prev, responseMessage]);
+      const contentType = response.headers.get('content-type') || '';
+      console.log('Content-Type:', contentType);
 
-    } catch (error) {
-      console.error('Erreur lors de l\'envoi du message:', error);
-      
-      const errorMessage: Message = {
+      let responseData;
+      let processedContent;
+
+      if (contentType.includes('application/json')) {
+        responseData = await response.json();
+        console.log('JSON Response N8N:', JSON.stringify(responseData, null, 2));
+        
+        processedContent = responseData.output || 
+                          responseData.message || 
+                          responseData.response || 
+                          responseData.text || 
+                          responseData.content ||
+                          responseData.reply ||
+                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+      } else {
+        responseData = await response.text();
+        console.log('Text Response N8N:', responseData);
+        processedContent = responseData;
+      }
+
+      console.log('Contenu traité N8N:', processedContent);
+
+      if (!processedContent || processedContent.trim() === '') {
+        throw new Error('Réponse vide ou invalide du webhook N8N');
+      }
+
+      const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `⚠️ Une erreur temporaire s'est produite avec ${chatTitle}.
-
-🔧 **Statut** : ${hasWebhook ? 'Problème de connexion webhook' : 'Mode démo actif'}
-🌐 **Accès public** : Toujours disponible
-🔄 **Solution** : Réessayez votre message
-
-L'accès public reste ouvert à tous !`,
+        content: processedContent.trim(),
         isUser: false,
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, errorMessage]);
+      console.log('Message IA ajouté (depuis N8N):', aiMessage);
+      setMessages(prev => [...prev, aiMessage]);
+
+    } catch (error) {
+      console.error('=== ERREUR COMMUNICATION N8N BOT SPÉCIFIQUE ===');
+      console.error('Bot ID:', urlBotId);
+      console.error('Bot Name:', urlBotName || finalChatTitle);
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error?.message);
+      console.error('Full error:', error);
+      console.error('Webhook URL utilisé:', webhookUrl);
+      
+      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || finalChatTitle}" (${webhookUrl}). Veuillez vérifier la configuration de votre webhook.`;
+      let toastMessage = `Problème de connexion N8N - ${urlBotName || finalChatTitle}`;
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = `La requête vers N8N pour "${urlBotName || finalChatTitle}" a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.`;
+          toastMessage = `Timeout N8N - ${urlBotName || finalChatTitle}`;
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = `Impossible de se connecter à N8N pour "${urlBotName || finalChatTitle}" via l'URL: ${webhookUrl}. Vérifiez que l'URL est correcte et accessible.`;
+          toastMessage = `Problème de connectivité N8N - ${urlBotName || finalChatTitle}`;
+        }
+      }
+
+      const fallbackMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: errorMessage,
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
-        title: "Erreur temporaire",
-        description: "Problème de connexion. Réessayez dans un moment.",
-        variant: "default",
+        title: `${finalChatTitle} - Problème technique N8N`,
+        description: toastMessage,
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
+      console.log('=== FIN COMMUNICATION N8N BOT SPÉCIFIQUE ===');
     }
   };
 
@@ -296,11 +316,11 @@ L'accès public reste ouvert à tous !`,
   return (
     <div className="h-full flex flex-col gradient-warm">
       <ChatHeader
-        onBackToLanding={handleBackToLanding}
+        onBackToLanding={onBackToLanding}
         isLoading={isLoading}
         bookmarkedCount={bookmarkedMessages.length}
         onShowBookmarks={() => setShowBookmarks(true)}
-        title={chatTitle}
+        title={finalChatTitle}
       />
       
       <ChatMessageArea
