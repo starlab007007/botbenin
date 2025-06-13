@@ -3,7 +3,6 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
-  MessageCircle, 
   Workflow, 
   BarChart3, 
   Briefcase, 
@@ -16,7 +15,6 @@ import {
 
 const menuItems = [
   { title: 'Accueil', path: '/', icon: Home, color: 'bg-blue-500' },
-  { title: 'Chat', path: '/chat', icon: MessageCircle, color: 'bg-green-500' },
   { title: 'Automatisations', path: '/automatisations', icon: Workflow, color: 'bg-purple-500' },
   { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3, color: 'bg-gray-500' },
 ];

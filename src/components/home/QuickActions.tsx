@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
-  MessageCircle, 
   Bot, 
   BarChart3, 
   Target,
@@ -14,19 +13,12 @@ import {
 
 const quickActions = [
   {
-    title: 'Chat IA',
-    description: 'Discutez avec notre assistant intelligent',
-    icon: MessageCircle,
-    path: '/chat',
-    color: 'from-green-500 to-green-600',
-    featured: true
-  },
-  {
     title: 'Créer un Bot',
     description: 'Configurez un nouveau bot automatisé',
     icon: Bot,
     path: '/bots',
-    color: 'from-blue-500 to-blue-600'
+    color: 'from-blue-500 to-blue-600',
+    featured: true
   },
   {
     title: 'Dashboard',
@@ -48,7 +40,7 @@ export const QuickActions: React.FC = () => {
   return (
     <div>
       <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Actions rapides</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {quickActions.map((action) => (
           <Card 
             key={action.path} 
