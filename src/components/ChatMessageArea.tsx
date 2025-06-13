@@ -1,8 +1,8 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ChatMessage } from '@/components/ChatMessage';
 import { SuggestionCards } from '@/components/SuggestionCards';
+import { useSearchParams } from 'react-router-dom';
 
 interface Message {
   id: string;
@@ -21,6 +21,12 @@ interface ChatMessageAreaProps {
   onSuggestionClick: (suggestion: any) => void;
 }
 
+// Utilitaire pour détecter les appareils mobiles
+const isMobileDevice = (): boolean => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         window.innerWidth <= 768;
+};
+
 export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
   messages,
   showSuggestions,
@@ -31,6 +37,15 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [usedSuggestions, setUsedSuggestions] = useState<Set<string>>(new Set());
+  const [searchParams] = useSearchParams();
+  
+  // Détecter si c'est un lien partagé
+  const isSharedLink = searchParams.get('entry') === 'shortened_link' || 
+                      !!searchParams.get('ref') || 
+                      !!searchParams.get('webhook') ||
+                      window.location.pathname.includes('/chat/');
+  
+  const isMobile = isMobileDevice();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,8 +55,13 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
     scrollToBottom();
   }, [messages]);
 
-  // Banque de suggestions avec catégories
+  // Banque de suggestions optimisées pour mobile
   const suggestionBank = {
+    initial_mobile: [
+      { action: "Que pouvez-vous faire ?", category: "découverte" },
+      { action: "Aide-moi", category: "assistance" },
+      { action: "Commencer", category: "démarrage" }
+    ],
     initial: [
       { action: "Quoi de neuf aujourd'hui", category: "général" },
       { action: "Les bons plans de la journée", category: "catalogue" },
@@ -119,8 +139,12 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
     } else if (content.includes('livraison') || content.includes('délai')) {
       suggestionsPool = [...suggestionBank.livraison, ...suggestionBank.prix];
     } else {
-      // Suggestions générales si aucune catégorie spécifique
-      suggestionsPool = [
+      // Suggestions générales adaptées au mobile/desktop
+      suggestionsPool = isMobile && isSharedLink ? [
+        { action: "Plus d'infos", category: "général" },
+        { action: "Comment faire ?", category: "général" },
+        { action: "Autres options ?", category: "général" }
+      ] : [
         { action: "Pouvez-vous me donner plus de détails ?", category: "général" },
         { action: "Quelles sont les options disponibles ?", category: "général" },
         { action: "Comment puis-je procéder ?", category: "général" },
@@ -157,8 +181,24 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
   const lastBotMessage = messages.slice().reverse().find(msg => !msg.isUser);
   const showDynamicSuggestions = messages.length > 1 && lastBotMessage && !isLoading;
 
+  // Choisir les suggestions initiales selon le contexte
+  const getInitialSuggestions = () => {
+    if (isMobile && isSharedLink) {
+      return suggestionBank.initial_mobile;
+    }
+    
+    switch (userContext) {
+      case 'restaurant':
+        return suggestionBank.restaurant;
+      case 'services_locaux':
+        return suggestionBank.services_locaux;
+      default:
+        return suggestionBank.initial;
+    }
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+    <div className={`flex-1 overflow-y-auto bg-gray-50 ${isMobile && isSharedLink ? 'p-3' : 'p-6'}`}>
       <div className="max-w-full mx-auto space-y-4">
         {/* Welcome message and suggestions */}
         {messages.length <= 1 && (
@@ -166,18 +206,16 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
             <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-white font-semibold text-lg">🤖</span>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className={`${isMobile ? 'text-lg' : 'text-lg'} font-semibold text-gray-900 mb-2`}>
               Comment puis-je vous aider?
             </h3>
-            <p className="text-gray-600 text-sm mb-6">
+            <p className={`text-gray-600 ${isMobile ? 'text-sm' : 'text-sm'} mb-6`}>
               Voici quelques suggestions pour commencer
             </p>
             
-            {/* Suggestion buttons initiales */}
-            <div className="space-y-3 max-w-sm mx-auto">
-              {(userContext === 'restaurant' ? suggestionBank.restaurant : 
-                userContext === 'services_locaux' ? suggestionBank.services_locaux : 
-                suggestionBank.initial).map((suggestion, index) => (
+            {/* Suggestion buttons initiales adaptées au mobile */}
+            <div className={`space-y-3 ${isMobile ? 'max-w-xs' : 'max-w-sm'} mx-auto`}>
+              {getInitialSuggestions().map((suggestion, index) => (
                 <button 
                   key={suggestion.action}
                   onClick={() => handleSuggestionClick(suggestion)}
@@ -185,7 +223,7 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
                     index === 0 
                       ? 'bg-blue-600 text-white hover:bg-blue-700' 
                       : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-                  } rounded-2xl py-4 px-6 text-sm font-medium transition-colors`}
+                  } rounded-2xl ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6 text-sm'} font-medium transition-colors`}
                 >
                   {suggestion.action}
                 </button>
@@ -206,19 +244,23 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
         {/* Suggestions dynamiques après chaque réponse */}
         {showDynamicSuggestions && (
           <div className="flex flex-col items-center mt-6">
-            <p className="text-sm text-gray-500 mb-3">Suggestions personnalisées :</p>
-            <div className="flex flex-wrap gap-2 justify-center max-w-md">
+            <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-3`}>
+              Suggestions personnalisées :
+            </p>
+            <div className={`flex flex-wrap gap-2 justify-center ${isMobile ? 'max-w-xs' : 'max-w-md'}`}>
               {generateDynamicSuggestions(lastBotMessage.content).map((suggestion, index) => (
                 <button
                   key={`${suggestion.action}-${index}`}
                   onClick={() => handleSuggestionClick(suggestion)}
-                  className="bg-white border border-gray-200 text-gray-700 rounded-full py-2 px-4 text-xs font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                  className={`bg-white border border-gray-200 text-gray-700 rounded-full ${
+                    isMobile ? 'py-2 px-3 text-xs' : 'py-2 px-4 text-xs'
+                  } font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-200 shadow-sm hover:shadow-md`}
                 >
                   {suggestion.action}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-400 mt-2">
+            <p className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-400 mt-2`}>
               Suggestions adaptées à votre conversation
             </p>
           </div>
@@ -227,14 +269,16 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
         {/* Loading State */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white rounded-2xl rounded-bl-lg p-4 shadow-sm border border-gray-100 max-w-xs">
+            <div className={`bg-white rounded-2xl rounded-bl-lg ${isMobile ? 'p-3' : 'p-4'} shadow-sm border border-gray-100 max-w-xs`}>
               <div className="flex items-center space-x-3">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
-                <span className="text-sm text-gray-500">En train d'écrire...</span>
+                <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500`}>
+                  En train d'écrire...
+                </span>
               </div>
             </div>
           </div>

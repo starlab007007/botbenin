@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { LiveChatSystem } from '@/components/support/LiveChatSystem';
@@ -16,6 +15,12 @@ interface BotConfig {
   is_active: boolean;
 }
 
+// Utilitaire pour détecter les appareils mobiles
+const isMobileDevice = (): boolean => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         window.innerWidth <= 768;
+};
+
 export const ChatPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -23,16 +28,20 @@ export const ChatPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [useLiveChatSystem, setUseLiveChatSystem] = useState(false);
   const [isSharedLink, setIsSharedLink] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
+    // Détecter si c'est un appareil mobile
+    setIsMobile(isMobileDevice());
     initializeChatPage();
   }, [searchParams, location]);
 
   const initializeChatPage = async () => {
     try {
-      console.log('=== INITIALISATION CHAT PAGE ===');
+      console.log('=== INITIALISATION CHAT PAGE MOBILE ===');
       console.log('URL complète:', window.location.href);
+      console.log('Est mobile:', isMobileDevice());
       console.log('Pathname:', location.pathname);
       
       // Récupérer les paramètres de l'URL
@@ -63,8 +72,15 @@ export const ChatPage: React.FC = () => {
       console.log('Bot ID final:', finalBotId);
 
       // Détecter si c'est un lien partagé (vient d'un lien raccourci ou d'un partage)
-      const isFromSharedLink = entryPoint === 'shortened_link' || !!refCode || !!webhookUrl;
+      const isFromSharedLink = entryPoint === 'shortened_link' || !!refCode || !!webhookUrl || location.pathname.includes('/chat/');
       setIsSharedLink(isFromSharedLink);
+
+      // Sur mobile avec lien partagé, forcer le mode plein écran
+      if (isMobileDevice() && isFromSharedLink) {
+        console.log('Mode mobile détecté avec lien partagé - optimisation affichage');
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overflow = 'hidden';
+      }
 
       // Si on a un botId spécifique, récupérer sa configuration depuis la base
       if (finalBotId && finalBotId !== 'chat') {
@@ -178,22 +194,46 @@ export const ChatPage: React.FC = () => {
   };
 
   const handleBackToLanding = () => {
-    // Si c'est un lien partagé et qu'on est dans une popup, fermer la fenêtre
-    if (isSharedLink && window.opener) {
-      window.close();
-    } else {
-      // Sinon, fermer la fenêtre ou rediriger selon le contexte
-      if (window.history.length > 1) {
+    // Sur mobile avec lien partagé, essayer de fermer la fenêtre/tab
+    if (isMobile && isSharedLink) {
+      console.log('Tentative de fermeture sur mobile');
+      
+      // Restaurer le scroll normal
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      
+      // Essayer différentes méthodes de fermeture
+      if (window.opener) {
+        window.close();
+      } else if (window.history.length > 1) {
         window.history.back();
       } else {
+        // Si aucune méthode ne fonctionne, essayer de fermer quand même
+        try {
+          window.close();
+        } catch (e) {
+          console.log('Impossible de fermer automatiquement la fenêtre');
+          // En dernier recours, rediriger vers une page de confirmation
+          window.location.href = 'about:blank';
+        }
+      }
+    } else {
+      // Comportement normal pour desktop
+      if (window.opener) {
         window.close();
+      } else {
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.close();
+        }
       }
     }
   };
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50">
+      <div className={`${isMobile && isSharedLink ? 'h-screen w-screen' : 'h-screen'} flex items-center justify-center bg-gray-50`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -208,7 +248,13 @@ export const ChatPage: React.FC = () => {
   // Utiliser le chat spécifique du bot si configuré
   if (botConfig && !useLiveChatSystem) {
     return (
-      <div className={isSharedLink ? "h-screen w-screen overflow-hidden" : "h-[calc(100vh-8rem)]"}>
+      <div className={
+        isMobile && isSharedLink 
+          ? "h-screen w-screen overflow-hidden fixed inset-0 z-50" 
+          : isSharedLink 
+            ? "h-screen w-screen overflow-hidden" 
+            : "h-[calc(100vh-8rem)]"
+      }>
         <ChatInterface 
           onBackToLanding={handleBackToLanding}
           webhookUrl={botConfig.webhook_url}
