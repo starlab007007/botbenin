@@ -3,6 +3,7 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
+  MessageCircle, 
   Workflow, 
   BarChart3, 
   Briefcase, 
@@ -36,6 +37,13 @@ const mainMenuItems = [
     icon: Home, 
     color: 'from-blue-500 to-blue-600',
     description: 'Vue d\'ensemble'
+  },
+  { 
+    title: 'Chat IA', 
+    path: '/chat', 
+    icon: MessageCircle, 
+    color: 'from-green-500 to-green-600',
+    description: 'Assistant intelligent'
   },
   { 
     title: 'Dashboard', 

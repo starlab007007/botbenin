@@ -15,6 +15,7 @@ import { LoadingSpinner } from "./components/LoadingSpinner";
 
 // Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
+const ChatPage = lazy(() => import("./pages/ChatPage").then(module => ({ default: module.ChatPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage })));
 
 // Gestion des bots et automatisations
@@ -66,6 +67,7 @@ const App = () => (
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     <Route path="/home" element={<HomePage />} />
+                    <Route path="/chat" element={<ChatPage />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
                     
                     {/* Gestion des bots */}

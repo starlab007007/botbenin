@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { X, Home, Workflow, BarChart3, Briefcase, Megaphone, FolderOpen, Users, User, HelpCircle } from 'lucide-react';
+import { X, Home, MessageCircle, Workflow, BarChart3, Briefcase, Megaphone, FolderOpen, Users, User, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MobileSidebarProps {
@@ -11,6 +11,7 @@ interface MobileSidebarProps {
 
 const menuItems = [
   { title: 'Accueil', path: '/', icon: Home },
+  { title: 'Chat', path: '/chat', icon: MessageCircle },
   { title: 'Automatisations', path: '/automatisations', icon: Workflow },
   { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3 },
 ];
