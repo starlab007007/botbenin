@@ -75,13 +75,6 @@ export const PublicBotChatPage: React.FC = () => {
         share_enabled: botData.share_enabled
       });
 
-      // Vérifier que le webhook est configuré
-      if (!botData.webhook_url || botData.webhook_url.trim() === '') {
-        console.error('Bot sans webhook URL configuré');
-        setError('Ce chatbot n\'est pas correctement configuré.');
-        return;
-      }
-
       // Initialiser le tracking du visiteur pour ce bot public
       try {
         await initializeVisitorTracking(botId, 'public_link_direct');
@@ -91,30 +84,34 @@ export const PublicBotChatPage: React.FC = () => {
         // Continuer même si le tracking échoue
       }
 
-      // Construire l'URL de chat avec tous les paramètres du bot
+      // Construire l'URL de chat avec TOUS les paramètres du bot - CRITIQUE pour éviter l'erreur webhook
       const chatParams = new URLSearchParams({
         bot: botData.id,
-        webhook: encodeURIComponent(botData.webhook_url),
+        webhook: encodeURIComponent(botData.webhook_url || ''), // Toujours inclure, même si vide
         context: botData.chat_context || 'automation',
         title: botData.chat_title || botData.name,
         bot_name: botData.name,
-        public: 'true'
+        public: 'true',
+        // Paramètres supplémentaires pour assurer le bon fonctionnement
+        configured: botData.webhook_url ? 'true' : 'false', // Indique si le bot est configuré
+        share_enabled: 'true' // Confirme que c'est un accès public autorisé
       });
 
       const chatUrl = `/chat?${chatParams.toString()}`;
       
-      console.log('=== REDIRECTION VERS CHAT DIRECT ===');
+      console.log('=== REDIRECTION VERS CHAT AVEC PARAMÈTRES COMPLETS ===');
       console.log('URL de redirection:', chatUrl);
       console.log('Paramètres transmis:', {
         botId: botData.id,
-        webhookUrl: botData.webhook_url,
+        webhookUrl: botData.webhook_url || 'NON_CONFIGURE',
         chatTitle: botData.chat_title,
         chatContext: botData.chat_context,
         botName: botData.name,
-        isPublic: true
+        isPublic: true,
+        isConfigured: !!botData.webhook_url
       });
 
-      // Rediriger immédiatement vers la page de chat avec les paramètres
+      // Rediriger immédiatement vers la page de chat avec les paramètres complets
       navigate(chatUrl, { replace: true });
       
     } catch (error) {
@@ -171,6 +168,5 @@ export const PublicBotChatPage: React.FC = () => {
     );
   }
 
-  // Ne devrait jamais être atteint car on redirige avant
   return null;
 };
