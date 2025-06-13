@@ -64,6 +64,11 @@ const App = () => (
                   {/* Route d'accueil avec redirection vers home */}
                   <Route path="/" element={<Navigate to="/home" replace />} />
                   
+                  {/* Routes publiques SANS layout - doivent être en premier pour éviter les conflits */}
+                  <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
+                  <Route path="/bot-test/:botId" element={<BotTestPage />} />
+                  <Route path="/bot/:botId" element={<PublicBotChatPage />} />
+                  
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     <Route path="/home" element={<HomePage />} />
@@ -90,11 +95,6 @@ const App = () => (
                     {/* Prospects avec layout spécial */}
                     <Route path="/prospects" element={<ProspectsLayout />} />
                   </Route>
-                  
-                  {/* Routes publiques sans layout */}
-                  <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
-                  <Route path="/bot-test/:botId" element={<BotTestPage />} />
-                  <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                   
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />
