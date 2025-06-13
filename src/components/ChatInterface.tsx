@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -7,7 +6,7 @@ import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -51,14 +50,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const chatTitle = urlChatTitle || urlBotName || propChatTitle;
   const chatContext = urlChatContext || propChatContext;
   
-  // LOGIQUE CRITIQUE : Un bot est considéré comme fonctionnel si :
-  // 1. Il a un webhook URL configuré, OU
-  // 2. C'est un accès public avec share_enabled = true (même sans webhook)
-  const hasWorkingWebhook = Boolean(webhookUrl && webhookUrl.trim() !== '');
-  const isPublicShareEnabled = isPublic && shareEnabled;
-  const canChatFunction = hasWorkingWebhook || isPublicShareEnabled;
+  // LOGIQUE AMÉLIORÉE : Un bot est considéré comme fonctionnel si :
+  // 1. Il a un webhook URL configuré ET accessible, OU
+  // 2. C'est un accès public (même sans webhook - mode démo)
+  const hasWorkingWebhook = Boolean(webhookUrl && webhookUrl.trim() !== '' && webhookUrl !== 'undefined');
+  const isPublicAccess = isPublic || urlBotId; // Considérer tout accès avec bot ID comme potentiellement public
+  const canChatFunction = hasWorkingWebhook; // Seuls les bots avec webhook peuvent vraiment fonctionner
+  const canShowDemo = isPublicAccess; // Les accès publics peuvent au moins montrer l'interface
 
-  console.log('=== ANALYSE ÉTAT DU BOT ===', {
+  console.log('=== ANALYSE ÉTAT DU BOT AMÉLIORÉE ===', {
     urlBotId,
     urlBotName,
     urlChatTitle,
@@ -71,14 +71,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     isConfigured,
     shareEnabled,
     hasWorkingWebhook,
-    isPublicShareEnabled,
-    canChatFunction: canChatFunction ? 'OUI' : 'NON'
+    isPublicAccess,
+    canChatFunction: canChatFunction ? 'OUI' : 'NON',
+    canShowDemo: canShowDemo ? 'OUI' : 'NON'
   });
   
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: getWelcomeMessage(chatContext, chatTitle, canChatFunction, isPublic),
+      content: getWelcomeMessage(chatContext, chatTitle, canChatFunction, isPublicAccess, hasWorkingWebhook),
       isUser: false,
       timestamp: new Date(),
     }
@@ -89,15 +90,28 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  function getWelcomeMessage(context?: string, title?: string, canFunction?: boolean, isPublicAccess?: boolean): string {
+  function getWelcomeMessage(context?: string, title?: string, canFunction?: boolean, isPublicAccess?: boolean, hasWebhook?: boolean): string {
     const botName = title || 'Bot.Bj';
     
     if (!canFunction) {
-      return `👋 Bonjour ! Je suis ${botName}.
+      if (isPublicAccess) {
+        return `👋 Bonjour ! Je suis **${botName}**.
 
-⚠️ **Configuration en cours** : Ce bot est en cours de configuration. ${isPublicAccess ? 'L\'administrateur doit finaliser les paramètres pour activer toutes les fonctionnalités.' : 'Veuillez configurer l\'URL du webhook dans les paramètres du bot.'}
+🌟 **Interface de démonstration** : Vous pouvez explorer cette interface et voir comment elle fonctionne !
+
+${hasWebhook ? 
+  '⚙️ **Configuration en cours** : Ce bot est en cours de finalisation par l\'administrateur. Toutes les fonctionnalités seront bientôt disponibles.' :
+  '🔧 **Configuration requise** : L\'administrateur doit configurer l\'URL webhook pour activer les réponses automatiques.'
+}
+
+💬 N'hésitez pas à taper un message pour tester l'interface !`;
+      } else {
+        return `👋 Bonjour ! Je suis ${botName}.
+
+⚠️ **Configuration en cours** : Ce bot est en cours de configuration. Veuillez configurer l'URL du webhook dans les paramètres du bot.
 
 💬 Vous pouvez tout de même explorer l'interface et voir comment elle fonctionne !`;
+      }
     }
     
     const publicIndicator = isPublicAccess ? '🌐 ' : '';
@@ -127,7 +141,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   // Fonction de retour adaptée selon le contexte
   const handleBackToLanding = () => {
-    if (isPublic) {
+    if (isPublicAccess) {
       // Pour un accès public, rediriger vers bot.bj
       console.log('Fermeture du chat public - redirection vers bot.bj');
       window.location.href = 'https://bot.bj';
@@ -154,51 +168,52 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setInputValue('');
     setShowSuggestions(false);
 
-    // Si le bot ne peut pas fonctionner (pas de webhook ET pas d'accès public autorisé)
+    // Si le bot ne peut pas fonctionner (pas de webhook)
     if (!canChatFunction) {
-      console.log('Bot non fonctionnel - message informatif');
+      console.log('Bot sans webhook - réponse de démonstration');
       
-      const infoMessage: Message = {
+      // Réponse adaptée selon le contexte
+      let demoResponse = '';
+      
+      if (isPublicAccess) {
+        demoResponse = `Merci pour votre message : "${textToSend}" !
+
+🎯 **Interface de démonstration** : Cette interface vous montre à quoi ressemble une conversation avec ${chatTitle}.
+
+${hasWorkingWebhook ? 
+  '⏳ **Activation en cours** : L\'administrateur finalise actuellement la configuration. Toutes les fonctionnalités seront bientôt disponibles !' :
+  '🔧 **Configuration nécessaire** : L\'administrateur doit configurer l\'URL webhook pour activer les réponses automatiques.'
+}
+
+✨ **Fonctionnalités à venir** :
+• Réponses intelligentes personnalisées
+• Intégration avec les systèmes métier
+• Suivi des conversations
+• Et bien plus encore !
+
+💡 **Vous êtes administrateur ?** Configurez l'URL webhook dans les paramètres du bot pour activer toutes les fonctionnalités.`;
+      } else {
+        demoResponse = `Je vois que vous voulez discuter avec moi ! 
+
+🔧 **Configuration requise** : Ce bot n'a pas encore de webhook configuré pour les réponses automatiques.
+
+💡 **Pour l'administrateur** : Configurez l'URL du webhook dans les paramètres du bot pour activer les réponses IA.
+
+🎯 **Interface fonctionnelle** : Vous pouvez continuer à explorer cette interface pour voir comment elle fonctionne !`;
+      }
+
+      const demoMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `Je vois que vous voulez discuter avec moi ! ${isPublic ? 'Ce bot est actuellement en configuration.' : 'Malheureusement, ce bot n\'a pas encore de webhook configuré.'} 
-
-🔧 **Pour l'administrateur** : ${isPublic ? 'Finalisez la configuration dans les paramètres du bot.' : 'Veuillez configurer l\'URL du webhook dans les paramètres du bot pour activer les réponses automatiques.'}
-
-💡 **En attendant** : Vous pouvez explorer l'interface et tester l'expérience utilisateur !`,
+        content: demoResponse,
         isUser: false,
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, infoMessage]);
+      setMessages(prev => [...prev, demoMessage]);
       
       toast({
-        title: `${chatTitle} - ${isPublic ? 'Configuration en cours' : 'Configuration requise'}`,
-        description: isPublic ? "Bot en cours de finalisation par l'administrateur." : "Webhook manquant. L'interface est disponible mais les réponses automatiques ne sont pas activées.",
-        variant: "default",
-      });
-      return;
-    }
-
-    // Si pas de webhook mais accès public autorisé - simuler une réponse
-    if (!hasWorkingWebhook && isPublicShareEnabled) {
-      console.log('Accès public sans webhook - réponse simulée');
-      
-      const simulatedMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: `Merci pour votre message ! ${chatTitle} est configuré pour l'accès public mais les réponses automatiques ne sont pas encore pleinement activées.
-
-🔧 **Configuration en cours** : L'administrateur finalise actuellement les paramètres de ce bot.
-
-💬 **Bientôt disponible** : Toutes les fonctionnalités seront actives une fois la configuration terminée !`,
-        isUser: false,
-        timestamp: new Date(),
-      };
-
-      setMessages(prev => [...prev, simulatedMessage]);
-      
-      toast({
-        title: `${chatTitle} - Accès public`,
-        description: "Fonctionnalités en cours d'activation par l'administrateur.",
+        title: `${chatTitle} - ${isPublicAccess ? 'Mode démonstration' : 'Configuration requise'}`,
+        description: isPublicAccess ? "Interface de démonstration - Configuration en cours" : "Webhook manquant - Interface disponible pour test",
         variant: "default",
       });
       return;
@@ -212,19 +227,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     console.log('Bot Name:', urlBotName || chatTitle);
     console.log('User message:', textToSend);
     console.log('Webhook URL utilisée:', webhookUrl);
-    console.log('Chat Context:', chatContext);
-    console.log('Chat Title:', chatTitle);
-    console.log('Is Test Mode:', isTest);
-    console.log('Is Public Access:', isPublic);
 
     try {
+      // ... keep existing code (webhook communication logic)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.log('Request timeout après 30 secondes');
         controller.abort();
       }, 30000);
 
-      // Payload enrichi avec les informations spécifiques du bot
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
@@ -241,12 +252,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         service_type: chatContext || 'automation',
         platform: 'bot_bj',
         is_test_mode: isTest,
-        is_public_access: isPublic,
+        is_public_access: isPublicAccess,
         webhook_source: 'bot_specific_config'
       };
 
       console.log('Request payload enrichi:', JSON.stringify(requestPayload, null, 2));
-      console.log('Envoi vers webhook spécifique du bot:', webhookUrl);
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -261,7 +271,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           'X-Webhook-Source': 'bot_specific',
           'X-Chat-Context': chatContext || 'automation',
           'X-Is-Test': isTest ? 'true' : 'false',
-          'X-Is-Public': isPublic ? 'true' : 'false'
+          'X-Is-Public': isPublicAccess ? 'true' : 'false'
         },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
@@ -270,26 +280,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       clearTimeout(timeoutId);
 
-      console.log('=== RÉPONSE N8N BOT SPÉCIFIQUE ===');
-      console.log('Status:', response.status);
-      console.log('Status Text:', response.statusText);
-      console.log('Headers:', Object.fromEntries(response.headers.entries()));
-      console.log('Response OK:', response.ok);
-
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const contentType = response.headers.get('content-type') || '';
-      console.log('Content-Type:', contentType);
-
       let responseData;
       let processedContent;
 
       if (contentType.includes('application/json')) {
         responseData = await response.json();
-        console.log('JSON Response N8N:', JSON.stringify(responseData, null, 2));
-        
         processedContent = responseData.output || 
                           responseData.message || 
                           responseData.response || 
@@ -299,11 +299,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
         responseData = await response.text();
-        console.log('Text Response N8N:', responseData);
         processedContent = responseData;
       }
-
-      console.log('Contenu traité N8N:', processedContent);
 
       if (!processedContent || processedContent.trim() === '') {
         throw new Error('Réponse vide ou invalide du webhook N8N');
@@ -316,28 +313,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         timestamp: new Date(),
       };
 
-      console.log('Message IA ajouté (depuis N8N):', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
     } catch (error) {
-      console.error('=== ERREUR COMMUNICATION N8N BOT SPÉCIFIQUE ===');
-      console.error('Bot ID:', urlBotId);
-      console.error('Bot Name:', urlBotName || chatTitle);
-      console.error('Error type:', error?.constructor?.name);
-      console.error('Error message:', error?.message);
-      console.error('Full error:', error);
-      console.error('Webhook URL utilisé:', webhookUrl);
+      console.error('=== ERREUR COMMUNICATION N8N ===', error);
       
-      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || chatTitle}". Veuillez vérifier la configuration de votre webhook.`;
-      let toastMessage = `Problème de connexion N8N - ${urlBotName || chatTitle}`;
+      let errorMessage = `Je rencontre des difficultés techniques avec le webhook configuré pour "${chatTitle}".`;
+      let toastMessage = `Problème de connexion webhook`;
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = `La requête vers N8N pour "${urlBotName || chatTitle}" a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.`;
-          toastMessage = `Timeout N8N - ${urlBotName || chatTitle}`;
+          errorMessage = `La requête a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.`;
+          toastMessage = `Timeout webhook`;
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = `Impossible de se connecter à N8N pour "${urlBotName || chatTitle}". Vérifiez que l'URL webhook est correcte et accessible.`;
-          toastMessage = `Problème de connectivité N8N - ${urlBotName || chatTitle}`;
+          errorMessage = `Impossible de se connecter au webhook. Vérifiez que l'URL est correcte et accessible.`;
+          toastMessage = `Problème de connectivité webhook`;
         }
       }
 
@@ -351,13 +341,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       setMessages(prev => [...prev, fallbackMessage]);
       
       toast({
-        title: `${chatTitle} - Problème technique N8N`,
+        title: `${chatTitle} - Problème technique`,
         description: toastMessage,
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
-      console.log('=== FIN COMMUNICATION N8N BOT SPÉCIFIQUE ===');
     }
   };
 
@@ -403,19 +392,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         title={chatTitle}
       />
       
-      {/* Affichage de l'état du bot */}
+      {/* Affichage de l'état du bot amélioré */}
       {!hasWorkingWebhook && (
-        <Alert className={`mx-4 mt-4 border-amber-200 bg-amber-50 ${isPublicShareEnabled ? 'border-blue-200 bg-blue-50' : ''}`}>
-          {isPublicShareEnabled ? (
-            <CheckCircle className="h-4 w-4 text-blue-600" />
+        <Alert className="mx-4 mt-4 border-blue-200 bg-blue-50">
+          {canShowDemo ? (
+            <Info className="h-4 w-4 text-blue-600" />
           ) : (
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           )}
-          <AlertDescription className={isPublicShareEnabled ? 'text-blue-800' : 'text-amber-800'}>
-            {isPublicShareEnabled ? (
+          <AlertDescription className="text-blue-800">
+            {canShowDemo ? (
               <>
-                <strong>Accès public activé :</strong> Ce bot est accessible publiquement. 
-                Les fonctionnalités avancées seront disponibles une fois la configuration finalisée.
+                <strong>Interface de démonstration :</strong> Ce bot est accessible publiquement. 
+                Explorez l'interface et découvrez les fonctionnalités à venir !
+                {hasWorkingWebhook ? ' Configuration en cours par l\'administrateur.' : ' Configuration du webhook requise pour les réponses automatiques.'}
               </>
             ) : (
               <>
