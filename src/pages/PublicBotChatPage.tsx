@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bot, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { initializeVisitorTracking } from '@/utils/visitorTracking';
 
 interface PublicBot {
   id: string;
@@ -38,6 +39,9 @@ export const PublicBotChatPage: React.FC = () => {
     try {
       setIsLoading(true);
       
+      console.log('=== CHARGEMENT BOT PUBLIC ===');
+      console.log('Bot ID demandé:', botId);
+      
       const { data: botData, error } = await supabase
         .from('bots')
         .select('*')
@@ -47,6 +51,7 @@ export const PublicBotChatPage: React.FC = () => {
         .single();
 
       if (error) {
+        console.error('Erreur lors du chargement du bot:', error);
         if (error.code === 'PGRST116') {
           setError('Ce bot n\'existe pas ou n\'est pas disponible publiquement.');
         } else {
@@ -55,65 +60,49 @@ export const PublicBotChatPage: React.FC = () => {
         return;
       }
 
+      console.log('Bot public chargé:', botData);
       setBot(botData);
       
-      // Enregistrer l'interaction
-      await recordBotInteraction(botId!);
+      // Initialiser le tracking du visiteur pour ce bot
+      try {
+        await initializeVisitorTracking(botId, 'public_chat');
+        console.log('Tracking visiteur initialisé pour le bot public');
+      } catch (trackingError) {
+        console.warn('Erreur lors de l\'initialisation du tracking:', trackingError);
+        // Continuer même si le tracking échoue
+      }
       
     } catch (error) {
-      console.error('Erreur lors du chargement du bot:', error);
+      console.error('Erreur lors du chargement du bot public:', error);
       setError('Impossible de charger ce bot. Veuillez réessayer plus tard.');
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger le bot",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const recordBotInteraction = async (botId: string) => {
-    try {
-      // Créer ou récupérer l'utilisateur bot
-      const sessionId = `public_session_${Date.now()}_${Math.random()}`;
-      
-      const { data: botUser } = await supabase.rpc('create_bot_user_if_not_exists', {
-        p_bot_id: botId,
-        p_session_id: sessionId,
-        p_user_name: 'Visiteur Public',
-        p_user_email: null
-      });
-
-      // Créer une session de chat
-      await supabase
-        .from('chat_sessions')
-        .insert({
-          bot_id: botId,
-          bot_user_id: botUser,
-          session_token: sessionId,
-          session_metadata: {
-            source: 'public_chat',
-            user_agent: navigator.userAgent,
-            timestamp: new Date().toISOString()
-          }
-        });
-
-    } catch (error) {
-      console.error('Erreur lors de l\'enregistrement de l\'interaction:', error);
-    }
-  };
-
   const handleBackToLanding = () => {
-    navigate('/');
+    // Fermer la fenêtre si c'est un popup, sinon rediriger
+    if (window.opener) {
+      window.close();
+    } else {
+      navigate('/');
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement du bot...</p>
+          <Bot className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-pulse" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Chargement du chat...
+          </h2>
+          <p className="text-gray-600">
+            Préparation de votre assistant IA
+          </p>
+          <div className="mt-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
         </div>
       </div>
     );
@@ -121,7 +110,7 @@ export const PublicBotChatPage: React.FC = () => {
 
   if (error || !bot) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -132,15 +121,16 @@ export const PublicBotChatPage: React.FC = () => {
           </p>
           <Button onClick={handleBackToLanding} className="w-full">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour à l'accueil
+            Retour
           </Button>
         </Card>
       </div>
     );
   }
 
+  // Afficher uniquement l'interface de chat du bot - plein écran
   return (
-    <div className="h-screen bg-gray-50">
+    <div className="h-screen w-screen overflow-hidden">
       <ChatInterface
         onBackToLanding={handleBackToLanding}
         webhookUrl={bot.webhook_url}

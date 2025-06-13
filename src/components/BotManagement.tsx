@@ -311,8 +311,14 @@ export const BotManagement: React.FC = () => {
       return;
     }
 
-    // Message simplifié pour WhatsApp
-    const customMessage = `Découvrez ${bot.name} - votre assistant IA intelligent disponible 24/7 ! ${bot.public_chat_url}`;
+    // Message personnalisé pour WhatsApp avec le lien direct du bot
+    const directChatUrl = `https://ia.bot.bj/chat?bot=${bot.id}&entry=whatsapp_share`;
+    const customMessage = `🤖 Découvrez ${bot.name} - votre assistant IA intelligent disponible 24/7 ! 
+
+💬 Cliquez ici pour démarrer la conversation : ${directChatUrl}
+
+✨ Assistance instantanée et personnalisée`;
+    
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(customMessage)}`;
     
     // Ouvrir WhatsApp avec le message pré-rempli
@@ -320,7 +326,7 @@ export const BotManagement: React.FC = () => {
     
     toast({
       title: `Partage WhatsApp - ${bot.name}`,
-      description: "WhatsApp s'ouvre avec votre message personnalisé et le lien direct du bot",
+      description: "WhatsApp s'ouvre avec le lien direct du chat et un message personnalisé",
     });
   };
 
