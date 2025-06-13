@@ -57,11 +57,11 @@ export const ChatPage: React.FC = () => {
       console.log('Bot ID final:', finalBotId);
 
       // Si on a un botId spécifique, récupérer sa configuration depuis la base
-      if (finalBotId) {
+      if (finalBotId && finalBotId !== 'chat') {
         await loadBotConfiguration(finalBotId, webhookUrl, chatContext, chatTitle, botName);
       } else {
-        // Utiliser le système de chat live par défaut
-        console.log('Aucun bot spécifique, utilisation du LiveChatSystem');
+        // Utiliser le système de chat live par défaut (accès depuis le menu)
+        console.log('Accès depuis le menu - utilisation du LiveChatSystem');
         setUseLiveChatSystem(true);
         setIsLoading(false);
       }
@@ -148,11 +148,8 @@ export const ChatPage: React.FC = () => {
 
     } catch (error) {
       console.error('Erreur lors du chargement de la configuration du bot:', error);
-      toast({
-        title: "Erreur de configuration",
-        description: "Impossible de charger la configuration du bot. Utilisation du chat par défaut.",
-        variant: "destructive",
-      });
+      // Ne pas afficher d'erreur si on accède depuis le menu, utiliser simplement le chat par défaut
+      console.log('Utilisation du LiveChatSystem par défaut');
       setUseLiveChatSystem(true);
       setIsLoading(false);
     }
