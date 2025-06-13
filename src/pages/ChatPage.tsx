@@ -63,7 +63,7 @@ export const ChatPage: React.FC = () => {
       console.log('Bot ID final:', finalBotId);
 
       // Détecter si c'est un lien partagé (vient d'un lien raccourci ou d'un partage)
-      const isFromSharedLink = entryPoint === 'shortened_link' || refCode || webhookUrl;
+      const isFromSharedLink = entryPoint === 'shortened_link' || !!refCode || !!webhookUrl;
       setIsSharedLink(isFromSharedLink);
 
       // Si on a un botId spécifique, récupérer sa configuration depuis la base
