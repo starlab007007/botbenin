@@ -67,20 +67,68 @@ export const ChatPage: React.FC = () => {
         isPublic
       });
 
-      // CORRECTION PRINCIPALE: Si on a des paramètres spécifiques d'un bot, l'utiliser DIRECTEMENT
-      if (webhookUrl && (botName || chatTitle || botId)) {
-        console.log('Configuration de bot fournie via URL - utilisation directe');
+      // CORRECTION PRINCIPALE: Prioriser absolument les paramètres d'URL pour les bots
+      // Si on a un webhook URL OU un botId dans l'URL, utiliser ChatInterface
+      if (webhookUrl || botId || botName || chatTitle) {
+        console.log('Paramètres de bot détectés dans URL - FORCER ChatInterface');
         
-        const finalConfig: BotConfig = {
-          id: botId || 'anonymous_bot',
+        let finalConfig: BotConfig;
+        
+        // Si on a un webhook URL direct, l'utiliser immédiatement
+        if (webhookUrl) {
+          finalConfig = {
+            id: botId || 'anonymous_bot',
+            name: botName || chatTitle || 'Assistant IA',
+            webhook_url: decodeURIComponent(webhookUrl),
+            chat_title: chatTitle || botName || 'Assistant IA',
+            chat_context: chatContext || 'general',
+            is_active: true
+          };
+          
+          console.log('Configuration directe depuis webhook URL:', finalConfig);
+          setBotConfig(finalConfig);
+          setUseLiveChatSystem(false);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Si on a un botId, essayer de charger depuis la DB mais créer un fallback
+        if (botId) {
+          try {
+            await loadBotConfiguration(botId, webhookUrl, chatContext, chatTitle, botName, entryPoint);
+            return; // Si succès, la fonction se charge du reste
+          } catch (error) {
+            console.log('Échec chargement DB, création config fallback pour botId:', botId);
+            
+            // Créer une configuration fallback même sans webhook
+            finalConfig = {
+              id: botId,
+              name: botName || chatTitle || `Bot ${botId}`,
+              webhook_url: '', // Sera vide mais on essaiera quand même
+              chat_title: chatTitle || botName || `Assistant ${botId}`,
+              chat_context: chatContext || 'general',
+              is_active: true
+            };
+            
+            console.log('Configuration fallback créée:', finalConfig);
+            setBotConfig(finalConfig);
+            setUseLiveChatSystem(false);
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // Si on a seulement un nom de bot ou titre, créer une config basique
+        finalConfig = {
+          id: 'custom_bot',
           name: botName || chatTitle || 'Assistant IA',
-          webhook_url: decodeURIComponent(webhookUrl),
+          webhook_url: '', // Sera vide mais on affichera l'interface
           chat_title: chatTitle || botName || 'Assistant IA',
           chat_context: chatContext || 'general',
           is_active: true
         };
-
-        console.log('Configuration bot direct pour accès anonyme:', finalConfig);
+        
+        console.log('Configuration basique depuis nom/titre:', finalConfig);
         setBotConfig(finalConfig);
         setUseLiveChatSystem(false);
         setIsLoading(false);
@@ -89,9 +137,9 @@ export const ChatPage: React.FC = () => {
 
       // Détecter si c'est un lien partagé (avec botId dans l'URL)
       const pathBotId = location.pathname.split('/').pop();
-      const finalBotId = botId || pathBotId;
+      const finalBotId = pathBotId && pathBotId !== 'chat' ? pathBotId : null;
 
-      console.log('Bot ID final:', finalBotId);
+      console.log('Bot ID final depuis path:', finalBotId);
 
       // Détecter si c'est un lien partagé
       const isFromSharedLink = entryPoint === 'shortened_link' || !!refCode || !!webhookUrl || location.pathname.includes('/chat/') || isPublic;
@@ -104,41 +152,35 @@ export const ChatPage: React.FC = () => {
         document.documentElement.style.overflow = 'hidden';
       }
 
-      // Si on a un botId spécifique, essayer de récupérer sa configuration
-      if (finalBotId && finalBotId !== 'chat') {
+      // Si on a un botId spécifique depuis le path, essayer de le charger
+      if (finalBotId) {
         try {
           await loadBotConfiguration(finalBotId, webhookUrl, chatContext, chatTitle, botName, entryPoint);
+          return;
         } catch (error) {
-          console.log('Bot spécifique non trouvé dans la DB, création configuration fallback');
+          console.log('Bot spécifique du path non trouvé, création fallback');
           
-          // CORRECTION: Même si le bot n'est pas trouvé en DB, utiliser ChatInterface avec config basique
-          if (finalBotId) {
-            const fallbackConfig: BotConfig = {
-              id: finalBotId,
-              name: botName || chatTitle || `Bot ${finalBotId}`,
-              webhook_url: webhookUrl ? decodeURIComponent(webhookUrl) : '',
-              chat_title: chatTitle || botName || `Assistant ${finalBotId}`,
-              chat_context: chatContext || 'general',
-              is_active: true
-            };
-            
-            console.log('Utilisation configuration fallback pour accès anonyme:', fallbackConfig);
-            setBotConfig(fallbackConfig);
-            setUseLiveChatSystem(false);
-            setIsLoading(false);
-            return;
-          }
+          const fallbackConfig: BotConfig = {
+            id: finalBotId,
+            name: `Bot ${finalBotId}`,
+            webhook_url: '',
+            chat_title: `Assistant ${finalBotId}`,
+            chat_context: 'general',
+            is_active: true
+          };
           
-          // Sinon utiliser LiveChatSystem
-          setUseLiveChatSystem(true);
+          console.log('Configuration fallback pour path bot:', fallbackConfig);
+          setBotConfig(fallbackConfig);
+          setUseLiveChatSystem(false);
           setIsLoading(false);
+          return;
         }
-      } else {
-        // Accès direct à /chat sans paramètres - utiliser LiveChatSystem
-        console.log('Accès direct au chat sans paramètres - utilisation du LiveChatSystem');
-        setUseLiveChatSystem(true);
-        setIsLoading(false);
       }
+
+      // SEULEMENT si aucun paramètre de bot n'est détecté, utiliser LiveChatSystem
+      console.log('Aucun paramètre de bot détecté - utilisation du LiveChatSystem');
+      setUseLiveChatSystem(true);
+      setIsLoading(false);
 
     } catch (error) {
       console.error('Erreur lors de l\'initialisation, utilisation du chat par défaut:', error);
@@ -178,13 +220,8 @@ export const ChatPage: React.FC = () => {
 
       console.log('Configuration bot chargée depuis DB:', botData);
 
-      // CORRECTION: Toujours prioriser le webhook URL de l'URL si fourni
+      // Prioriser le webhook URL de l'URL si fourni, sinon utiliser celui de la DB
       const finalWebhookUrl = webhookUrl ? decodeURIComponent(webhookUrl) : botData.webhook_url;
-      
-      if (!finalWebhookUrl || finalWebhookUrl.trim() === '') {
-        console.error('Aucun webhook URL disponible - ni dans URL ni dans DB');
-        throw new Error('Webhook manquant');
-      }
 
       // Initialiser le tracking du visiteur (optionnel pour l'accès anonyme)
       try {
@@ -198,7 +235,7 @@ export const ChatPage: React.FC = () => {
       const finalConfig: BotConfig = {
         id: botData.id,
         name: botName || botData.name,
-        webhook_url: finalWebhookUrl,
+        webhook_url: finalWebhookUrl || '', // Peut être vide
         chat_title: chatTitle || botData.chat_title,
         chat_context: chatContext || botData.chat_context,
         is_active: botData.is_active
@@ -268,19 +305,8 @@ export const ChatPage: React.FC = () => {
     );
   }
 
-  // CORRECTION: Vérifier que le botConfig a bien un webhook URL avant de l'utiliser
+  // CORRECTION: Toujours utiliser ChatInterface si on a une config de bot (même sans webhook)
   if (botConfig && !useLiveChatSystem) {
-    // Vérification finale du webhook URL
-    if (!botConfig.webhook_url || botConfig.webhook_url.trim() === '') {
-      console.error('Configuration bot sans webhook URL valide:', botConfig);
-      // Retourner au LiveChatSystem si pas de webhook
-      return (
-        <div className="h-[calc(100vh-8rem)]">
-          <LiveChatSystem />
-        </div>
-      );
-    }
-
     return (
       <div className={
         isMobile && isSharedLink 
@@ -299,7 +325,7 @@ export const ChatPage: React.FC = () => {
     );
   }
 
-  // Utiliser le système de chat live par défaut (ACCÈS ANONYME AUTORISÉ)
+  // Utiliser le système de chat live seulement si aucune config de bot n'est disponible
   return (
     <div className="h-[calc(100vh-8rem)]">
       <LiveChatSystem />
