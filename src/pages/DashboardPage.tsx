@@ -49,12 +49,12 @@ export const DashboardPage: React.FC = () => {
     activeToday: 0
   });
   const [permissions, setPermissions] = useState<UserPermissions>({
-    canCreateBots: true, // Activé par défaut pour permettre la création de bots
+    canCreateBots: true,
     canCreateAutomations: false,
     canAccessBusiness: false,
     canAccessMarketing: false,
     canAccessManagement: false,
-    maxBots: 5, // Augmenté pour permettre plus de créations
+    maxBots: 5,
     role: 'user'
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -90,7 +90,7 @@ export const DashboardPage: React.FC = () => {
       const userRole = userRoles?.[0]?.roles?.name || 'user';
       
       setPermissions({
-        canCreateBots: true, // Toujours autorisé pour les chatbots webhook
+        canCreateBots: true,
         canCreateAutomations: ['admin', 'manager'].includes(userRole),
         canAccessBusiness: ['admin', 'manager'].includes(userRole),
         canAccessMarketing: ['admin', 'manager'].includes(userRole),
@@ -222,7 +222,7 @@ export const DashboardPage: React.FC = () => {
           Tableau de bord - Profil {permissions.role}
         </h1>
         <p className="text-gray-600">
-          Créez et gérez vos chatbots connectés via webhook N8N
+          Créez et gérez vos chatbots connectés via webhook
         </p>
       </div>
 
@@ -230,13 +230,13 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {quickStats.map((stat, index) => (
           <Card key={index} className="uniform-stats-card">
-            <div className="flex items-center justify-between mb-3">
-              <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center`}>
+            <div className="flex flex-col items-center justify-center mb-3">
+              <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center mb-3`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
               </div>
             </div>
-            <h3 className="text-gray-600 text-sm mb-1">{stat.title}</h3>
-            <div className="text-2xl font-bold text-gray-900">
+            <h3 className="text-gray-600 text-sm mb-1 text-center">{stat.title}</h3>
+            <div className="text-2xl font-bold text-gray-900 text-center">
               {stat.value}
               {stat.limit && <span className="text-sm text-gray-500">/{stat.limit}</span>}
             </div>

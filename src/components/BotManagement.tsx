@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -167,12 +168,12 @@ export const BotManagement: React.FC = () => {
   };
 
   const handleBotCreated = (botId: string) => {
-    console.log('Bot créé avec config identique au restaurant:', botId);
+    console.log('Bot créé avec tracking avancé:', botId);
     setCurrentView('list');
-    fetchBots(); // Recharger la liste des bots
+    fetchBots();
     toast({
       title: "Succès !",
-      description: "Votre chatbot a été créé avec tracking avancé des visiteurs et connectivité N8N",
+      description: "Votre chatbot a été créé avec tracking avancé des visiteurs",
     });
   };
 
@@ -624,7 +625,7 @@ export const BotManagement: React.FC = () => {
       {/* Vue liste des bots */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Mes Chatbots</h2>
-        <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec tracking avancé et connectivité N8N</p>
+        <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec tracking avancé</p>
       </div>
 
       {/* Liste des chatbots */}
@@ -635,7 +636,7 @@ export const BotManagement: React.FC = () => {
             Aucun chatbot créé
           </h3>
           <p className="text-gray-600 mb-4">
-            Créez votre premier chatbot avec tracking avancé des visiteurs et connectivité N8N
+            Créez votre premier chatbot avec tracking avancé des visiteurs
           </p>
           <Button 
             onClick={() => setCurrentView('create')}
@@ -686,13 +687,9 @@ export const BotManagement: React.FC = () => {
                   {bot.description || 'Aucune description'}
                 </p>
 
-                {/* Titre et contexte du chat */}
+                {/* Titre du chat seulement */}
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <div className="text-xs text-gray-500 mb-1">Chat: {bot.chat_title}</div>
-                  <div className="text-xs text-gray-500">Contexte: {bot.chat_context}</div>
-                  <div className="text-xs text-green-600 mt-1">✅ N8N connecté</div>
-                  <div className="text-xs text-blue-600">🔗 Webhook: {bot.webhook_url}</div>
-                  <div className="text-xs text-purple-600 mt-1">📊 Tracking visiteurs activé</div>
                 </div>
 
                 {/* URL publique et partage */}
