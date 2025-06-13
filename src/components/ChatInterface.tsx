@@ -6,6 +6,8 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -46,6 +48,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const webhookUrl = urlWebhookUrl ? decodeURIComponent(urlWebhookUrl) : propWebhookUrl;
   const chatTitle = urlChatTitle || urlBotName || propChatTitle;
   const chatContext = urlChatContext || propChatContext;
+  const hasWebhook = Boolean(webhookUrl && webhookUrl.trim() !== '');
 
   console.log('Paramètres ChatInterface:', {
     urlBotId,
@@ -57,20 +60,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     chatContext,
     isTest,
     isPublic,
-    finalWebhookUrl: webhookUrl
+    hasWebhook
   });
-  
-  // IMPORTANT: Vérifier que le webhook URL est bien fourni
-  if (!webhookUrl) {
-    console.error('ERREUR CRITIQUE: Aucun webhook URL fourni pour ce bot !');
-    console.error('Props reçues:', { propWebhookUrl, propChatTitle, propChatContext });
-    console.error('URL Params:', { urlWebhookUrl, urlChatTitle, urlChatContext });
-  }
   
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: getWelcomeMessage(chatContext, chatTitle),
+      content: getWelcomeMessage(chatContext, chatTitle, hasWebhook),
       isUser: false,
       timestamp: new Date(),
     }
@@ -81,8 +77,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  function getWelcomeMessage(context?: string, title?: string): string {
+  function getWelcomeMessage(context?: string, title?: string, hasWebhook?: boolean): string {
     const botName = title || 'Bot.Bj';
+    
+    if (!hasWebhook) {
+      return `👋 Bonjour ! Je suis ${botName}. 
+
+⚠️ **Configuration requise** : Ce bot n'a pas encore de webhook configuré. Pour que je puisse répondre à vos questions, l'administrateur doit configurer l'URL du webhook dans les paramètres du bot.
+
+En attendant, vous pouvez explorer l'interface et voir comment elle fonctionne !`;
+    }
     
     switch (context) {
       case 'services_locaux':
@@ -124,16 +128,35 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isLoading) return;
 
-    // Vérification critique du webhook URL
-    if (!webhookUrl) {
-      console.error('ERREUR CRITIQUE: Aucun webhook URL configuré pour ce bot');
-      console.error('ChatInterface Props:', { propWebhookUrl, propChatTitle, propChatContext });
-      console.error('URL Params:', { urlWebhookUrl, urlChatTitle, urlChatContext });
+    // Si pas de webhook, afficher un message d'information
+    if (!hasWebhook) {
+      console.log('Aucun webhook configuré - message informatif');
+      
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        content: textToSend,
+        isUser: true,
+        timestamp: new Date(),
+      };
+
+      const infoMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `Je vois que vous voulez discuter avec moi ! Malheureusement, ce bot n'a pas encore de webhook configuré, donc je ne peux pas traiter vos messages pour le moment.
+
+🔧 **Pour l'administrateur** : Veuillez configurer l'URL du webhook dans les paramètres du bot pour activer les réponses automatiques.
+
+💡 **En attendant** : Vous pouvez explorer l'interface et tester l'expérience utilisateur !`,
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, userMessage, infoMessage]);
+      setInputValue('');
       
       toast({
-        title: `${chatTitle} - Configuration manquante`,
-        description: "Aucun webhook URL configuré pour ce bot. Veuillez configurer le webhook dans les paramètres du bot.",
-        variant: "destructive",
+        title: `${chatTitle} - Configuration requise`,
+        description: "Webhook manquant. L'interface est disponible mais les réponses automatiques ne sont pas activées.",
+        variant: "default",
       });
       return;
     }
@@ -272,7 +295,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       console.error('Full error:', error);
       console.error('Webhook URL utilisé:', webhookUrl);
       
-      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || chatTitle}" (${webhookUrl}). Veuillez vérifier la configuration de votre webhook.`;
+      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || chatTitle}". Veuillez vérifier la configuration de votre webhook.`;
       let toastMessage = `Problème de connexion N8N - ${urlBotName || chatTitle}`;
       
       if (error instanceof Error) {
@@ -280,7 +303,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           errorMessage = `La requête vers N8N pour "${urlBotName || chatTitle}" a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.`;
           toastMessage = `Timeout N8N - ${urlBotName || chatTitle}`;
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = `Impossible de se connecter à N8N pour "${urlBotName || chatTitle}" via l'URL: ${webhookUrl}. Vérifiez que l'URL est correcte et accessible.`;
+          errorMessage = `Impossible de se connecter à N8N pour "${urlBotName || chatTitle}". Vérifiez que l'URL webhook est correcte et accessible.`;
           toastMessage = `Problème de connectivité N8N - ${urlBotName || chatTitle}`;
         }
       }
@@ -346,6 +369,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         onShowBookmarks={() => setShowBookmarks(true)}
         title={chatTitle}
       />
+      
+      {!hasWebhook && (
+        <Alert className="mx-4 mt-4 border-amber-200 bg-amber-50">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800">
+            <strong>Configuration requise :</strong> Ce bot n'a pas de webhook configuré. 
+            L'interface est fonctionnelle mais les réponses automatiques ne sont pas activées.
+          </AlertDescription>
+        </Alert>
+      )}
       
       <ChatMessageArea
         messages={messages}

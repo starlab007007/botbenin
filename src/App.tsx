@@ -68,12 +68,14 @@ const App = () => (
                   <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
                   <Route path="/bot-test/:botId" element={<BotTestPage />} />
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
-                  <Route path="/chat" element={<ChatPage />} />
                   
                   {/* Routes avec layout principal - nécessitent authentification */}
                   <Route element={<MainLayout />}>
                     <Route path="/home" element={<HomePage />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
+                    
+                    {/* Chat avec menu latéral pour utilisateurs connectés */}
+                    <Route path="/chat" element={<ChatPage />} />
                     
                     {/* Gestion des bots */}
                     <Route path="/bots" element={<BotManagementPage />} />
