@@ -5,6 +5,7 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { createVisitorAuth, isVisitorAuthenticated } from '@/utils/visitorAuth';
 
 interface BotConfig {
   id: string;
@@ -29,6 +30,7 @@ export const ChatPage: React.FC = () => {
   const [useLiveChatSystem, setUseLiveChatSystem] = useState(false);
   const [isSharedLink, setIsSharedLink] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isVisitorMode, setIsVisitorMode] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export const ChatPage: React.FC = () => {
 
   const initializeChatPage = async () => {
     try {
-      console.log('=== INITIALISATION CHAT PAGE MOBILE ===');
+      console.log('=== INITIALISATION CHAT PAGE AVEC AUTH VISITEUR ===');
       console.log('URL complète:', window.location.href);
       console.log('Est mobile:', isMobileDevice());
       console.log('Pathname:', location.pathname);
@@ -82,8 +84,16 @@ export const ChatPage: React.FC = () => {
         document.documentElement.style.overflow = 'hidden';
       }
 
-      // Si on a un botId spécifique, récupérer sa configuration depuis la base
+      // Si on a un botId spécifique, gérer l'authentification visiteur et charger la config
       if (finalBotId && finalBotId !== 'chat') {
+        // Enable visitor mode for shared links
+        if (isFromSharedLink) {
+          console.log('Activation du mode visiteur pour lien partagé');
+          const visitorAuth = createVisitorAuth(finalBotId);
+          setIsVisitorMode(true);
+          console.log('Visitor Auth créé:', visitorAuth);
+        }
+        
         await loadBotConfiguration(finalBotId, webhookUrl, chatContext, chatTitle, botName, entryPoint);
       } else {
         // Utiliser le système de chat live par défaut (accès depuis le menu)
@@ -180,7 +190,7 @@ export const ChatPage: React.FC = () => {
       if (!isSharedLink) {
         toast({
           title: `Chat initialisé - ${finalConfig.name}`,
-          description: "Le chat du bot est prêt à utiliser",
+          description: isVisitorMode ? "Chat visiteur prêt" : "Le chat du bot est prêt à utiliser",
         });
       }
 
@@ -239,7 +249,9 @@ export const ChatPage: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Chargement du chat...
           </h2>
-          <p className="text-gray-600">Préparation de votre assistant IA</p>
+          <p className="text-gray-600">
+            {isVisitorMode ? 'Préparation de votre session visiteur' : 'Préparation de votre assistant IA'}
+          </p>
         </div>
       </div>
     );
@@ -260,6 +272,8 @@ export const ChatPage: React.FC = () => {
           webhookUrl={botConfig.webhook_url}
           chatTitle={botConfig.chat_title}
           chatContext={botConfig.chat_context}
+          isVisitorMode={isVisitorMode}
+          botId={botConfig.id}
         />
       </div>
     );

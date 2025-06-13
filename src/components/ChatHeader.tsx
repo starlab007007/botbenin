@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Bot, Bookmark } from 'lucide-react';
+import { ArrowLeft, Bookmark, MessageSquare, User, UserCheck } from 'lucide-react';
 
 interface ChatHeaderProps {
   onBackToLanding: () => void;
@@ -9,53 +9,69 @@ interface ChatHeaderProps {
   bookmarkedCount: number;
   onShowBookmarks: () => void;
   title?: string;
+  isVisitorMode?: boolean;
 }
 
-export const ChatHeader: React.FC<ChatHeaderProps> = ({
-  onBackToLanding,
-  isLoading,
-  bookmarkedCount,
-  onShowBookmarks,
-  title = 'Bot.Bj',
+export const ChatHeader: React.FC<ChatHeaderProps> = ({ 
+  onBackToLanding, 
+  isLoading, 
+  bookmarkedCount, 
+  onShowBookmarks, 
+  title = 'Assistant IA',
+  isVisitorMode = false
 }) => {
   return (
-    <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 flex items-center justify-between">
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-          <Bot className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h1 className="font-semibold text-lg">{title}</h1>
-          <p className="text-sm text-white/90 italic">votre assistant virtuel</p>
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full transition-colors ${isLoading ? 'bg-yellow-300 animate-pulse' : 'bg-green-300'}`} />
-            <span className="text-sm text-white/80">{isLoading ? 'En cours...' : 'En ligne'}</span>
+    <div className="flex items-center justify-between p-4 border-b bg-white/80 backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBackToLanding}
+          className="text-gray-600 hover:text-gray-800"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+            <MessageSquare className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-900 text-sm">{title}</h2>
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              {isVisitorMode ? (
+                <>
+                  <UserCheck className="w-3 h-3 text-green-500" />
+                  <span className="text-green-600">Mode Visiteur</span>
+                </>
+              ) : (
+                <>
+                  <User className="w-3 h-3" />
+                  <span>Utilisateur</span>
+                </>
+              )}
+              {isLoading && (
+                <span className="ml-2 text-blue-500">• Réflexion...</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
-      
-      <div className="flex items-center space-x-2">
+
+      <div className="flex items-center gap-2">
         {bookmarkedCount > 0 && (
           <Button
             variant="ghost"
             size="sm"
             onClick={onShowBookmarks}
-            className="text-white hover:bg-white/20 rounded-lg h-10 w-10 p-0 relative"
+            className="text-gray-600 hover:text-gray-800 relative"
           >
-            <Bookmark className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            <Bookmark className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
               {bookmarkedCount}
             </span>
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBackToLanding}
-          className="text-white hover:bg-white/20 rounded-lg h-10 w-10 p-0"
-        >
-          <X className="w-5 h-5" />
-        </Button>
       </div>
     </div>
   );

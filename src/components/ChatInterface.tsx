@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -5,6 +6,7 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { getVisitorSessionData, isVisitorAuthenticated } from '@/utils/visitorAuth';
 
 interface Message {
   id: string;
@@ -19,13 +21,17 @@ interface ChatInterfaceProps {
   webhookUrl?: string;
   chatTitle?: string;
   chatContext?: string;
+  isVisitorMode?: boolean;
+  botId?: string;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
   onBackToLanding, 
   webhookUrl,
   chatTitle = 'Bot.Bj Assistant',
-  chatContext
+  chatContext,
+  isVisitorMode = false,
+  botId
 }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -35,11 +41,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     webhookUrl,
     chatTitle,
     chatContext,
+    isVisitorMode,
+    botId,
     onBackToLanding: !!onBackToLanding
   });
 
   // Récupérer les paramètres supplémentaires de l'URL si disponibles
-  const urlBotId = searchParams.get('bot');
+  const urlBotId = searchParams.get('bot') || botId;
   const urlBotName = searchParams.get('bot_name');
   const isTest = searchParams.get('test') === 'true';
 
@@ -62,7 +70,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: getWelcomeMessage(chatContext, finalChatTitle),
+      content: getWelcomeMessage(chatContext, finalChatTitle, isVisitorMode),
       isUser: false,
       timestamp: new Date(),
     }
@@ -73,18 +81,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const { toast } = useToast();
 
-  function getWelcomeMessage(context?: string, title?: string): string {
+  function getWelcomeMessage(context?: string, title?: string, visitorMode?: boolean): string {
     const botName = title || 'Bot.Bj';
+    const greetingPrefix = visitorMode ? '👋 Bonjour visiteur ! ' : '🚀 Bonjour ! ';
     
     switch (context) {
       case 'services_locaux':
-        return `🏢 Bonjour ! Je suis ${botName}, votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?`;
+        return `🏢 ${greetingPrefix}Je suis ${botName}, votre assistant IA pour les services locaux. Je peux vous aider à trouver des restaurants, hôtels, commerces et autres services dans votre région. Que recherchez-vous aujourd'hui ?`;
       case 'restaurant':
-        return `🍽️ Bonjour ! Je suis ${botName}, votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?`;
+        return `🍽️ ${greetingPrefix}Je suis ${botName}, votre assistant IA pour la réservation de restaurants. Je peux vous aider à trouver le restaurant parfait, vérifier les disponibilités et faire votre réservation. Quel type de restaurant recherchez-vous ?`;
       case 'automation':
-        return `🤖 Bonjour ! Je suis ${botName}, votre assistant IA automatisé connecté via N8N. Je peux vous aider avec une large gamme de tâches selon ma configuration personnalisée. Comment puis-je vous assister aujourd'hui ?`;
+        return `🤖 ${greetingPrefix}Je suis ${botName}, votre assistant IA automatisé connecté via N8N. Je peux vous aider avec une large gamme de tâches selon ma configuration personnalisée. Comment puis-je vous assister aujourd'hui ?`;
       default:
-        return `🚀 Bonjour ! Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
+        return `🚀 ${greetingPrefix}Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
     }
   }
 
@@ -130,14 +139,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setInputValue('');
     setIsLoading(true);
 
-    console.log('=== COMMUNICATION N8N POUR BOT SPÉCIFIQUE ===');
+    console.log('=== COMMUNICATION N8N AVEC AUTHENTIFICATION VISITEUR ===');
     console.log('Bot ID:', urlBotId);
     console.log('Bot Name:', urlBotName || finalChatTitle);
     console.log('User message:', textToSend);
     console.log('Webhook URL utilisée:', webhookUrl);
+    console.log('Is Visitor Mode:', isVisitorMode);
     console.log('Chat Context:', chatContext);
-    console.log('Chat Title:', finalChatTitle);
-    console.log('Is Test Mode:', isTest);
 
     try {
       const controller = new AbortController();
@@ -146,12 +154,23 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         controller.abort();
       }, 30000);
 
-      // Payload enrichi avec les informations spécifiques du bot
+      // Get visitor session data if in visitor mode
+      let visitorSessionData = null;
+      if (isVisitorMode && urlBotId) {
+        visitorSessionData = getVisitorSessionData(urlBotId);
+        console.log('Visitor Session Data:', visitorSessionData);
+      }
+
+      // Payload enrichi avec les informations visiteur
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
-        session_id: `bot_${urlBotId || 'unknown'}_${chatContext || 'automation'}_${Date.now()}`,
-        user_id: `bot_bj_user_${urlBotId || 'unknown'}`,
+        session_id: isVisitorMode && visitorSessionData 
+          ? visitorSessionData.session_token
+          : `bot_${urlBotId || 'unknown'}_${chatContext || 'automation'}_${Date.now()}`,
+        user_id: isVisitorMode && visitorSessionData 
+          ? visitorSessionData.visitor_id 
+          : `bot_bj_user_${urlBotId || 'unknown'}`,
         source: 'bot_bj_platform',
         context: chatContext || 'automation',
         chat_title: finalChatTitle,
@@ -163,10 +182,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         service_type: chatContext || 'automation',
         platform: 'bot_bj',
         is_test_mode: isTest,
-        webhook_source: 'bot_specific_config'
+        webhook_source: 'bot_specific_config',
+        // Visitor authentication data
+        is_visitor_mode: isVisitorMode,
+        visitor_authenticated: isVisitorMode ? true : false,
+        visitor_session: visitorSessionData,
+        user_type: isVisitorMode ? 'anonymous_visitor' : 'authenticated_user',
+        auth_method: isVisitorMode ? 'automatic_visitor_auth' : 'standard_auth'
       };
 
-      console.log('Request payload enrichi:', JSON.stringify(requestPayload, null, 2));
+      console.log('Request payload avec auth visiteur:', JSON.stringify(requestPayload, null, 2));
       console.log('Envoi vers webhook spécifique du bot:', webhookUrl);
 
       const response = await fetch(webhookUrl, {
@@ -181,7 +206,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           'X-Bot-Name': encodeURIComponent(urlBotName || finalChatTitle),
           'X-Webhook-Source': 'bot_specific',
           'X-Chat-Context': chatContext || 'automation',
-          'X-Is-Test': isTest ? 'true' : 'false'
+          'X-Is-Test': isTest ? 'true' : 'false',
+          'X-Is-Visitor': isVisitorMode ? 'true' : 'false',
+          'X-Visitor-ID': visitorSessionData?.visitor_id || '',
+          'X-Session-Token': visitorSessionData?.session_token || '',
+          'X-User-Type': isVisitorMode ? 'anonymous_visitor' : 'authenticated_user'
         },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
@@ -190,7 +219,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       clearTimeout(timeoutId);
 
-      console.log('=== RÉPONSE N8N BOT SPÉCIFIQUE ===');
+      console.log('=== RÉPONSE N8N BOT SPÉCIFIQUE (VISITEUR) ===');
       console.log('Status:', response.status);
       console.log('Status Text:', response.statusText);
       console.log('Headers:', Object.fromEntries(response.headers.entries()));
@@ -236,13 +265,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         timestamp: new Date(),
       };
 
-      console.log('Message IA ajouté (depuis N8N):', aiMessage);
+      console.log('Message IA ajouté (depuis N8N avec auth visiteur):', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
     } catch (error) {
-      console.error('=== ERREUR COMMUNICATION N8N BOT SPÉCIFIQUE ===');
+      console.error('=== ERREUR COMMUNICATION N8N BOT SPÉCIFIQUE (VISITEUR) ===');
       console.error('Bot ID:', urlBotId);
       console.error('Bot Name:', urlBotName || finalChatTitle);
+      console.error('Is Visitor Mode:', isVisitorMode);
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
@@ -277,7 +307,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       });
     } finally {
       setIsLoading(false);
-      console.log('=== FIN COMMUNICATION N8N BOT SPÉCIFIQUE ===');
+      console.log('=== FIN COMMUNICATION N8N BOT SPÉCIFIQUE (VISITEUR) ===');
     }
   };
 
@@ -321,6 +351,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         bookmarkedCount={bookmarkedMessages.length}
         onShowBookmarks={() => setShowBookmarks(true)}
         title={finalChatTitle}
+        isVisitorMode={isVisitorMode}
       />
       
       <ChatMessageArea
