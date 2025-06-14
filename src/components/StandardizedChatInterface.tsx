@@ -31,7 +31,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   isTest = false,
   refCode
 }) => {
-  const { isGuest, guestUser } = useAuth();
+  const { isGuest, guestUser, isAuthenticated } = useAuth();
   const [botConfig, setBotConfig] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -41,6 +41,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [apiAccessLog, setApiAccessLog] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -56,13 +57,27 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       console.log('Bot ID:', botId);
       console.log('Entry Point:', entryPoint);
       console.log('Is Test:', isTest);
+      console.log('Contexte auth:', {
+        isAuthenticated,
+        isGuest,
+        guestUser,
+      });
 
-      // Vérifier l'accès public au bot
+      // Vérifier l'accès public au bot; log le retour brut
       const accessCheck = await BotConfigService.checkPublicAccess(botId);
-      
+
+      setApiAccessLog(accessCheck); // Pour inspection dans l'UI de debug
+
+      console.log('Résultat checkPublicAccess:', accessCheck);
+
       if (!accessCheck.accessible) {
         setHasError(true);
-        setErrorMessage(accessCheck.error || 'Bot non accessible');
+        // Si renvoi error et non guest: donner msg explicite
+        if (accessCheck.error && accessCheck.error.toLowerCase().includes('auth')) {
+          setErrorMessage("Ce bot n'est pas public ou une authentification est exigée.");
+        } else {
+          setErrorMessage(accessCheck.error || 'Bot non accessible');
+        }
         return;
       }
 
@@ -290,9 +305,15 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Bot non disponible
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-4">
             {errorMessage}
           </p>
+          {/* Bloc debug si accès logué */}
+          {apiAccessLog && (
+            <pre className="bg-red-50 text-xs text-gray-700 rounded p-2 my-2 text-left max-h-40 overflow-auto">
+              {JSON.stringify(apiAccessLog, null, 2)}
+            </pre>
+          )}
           <button
             onClick={onBackToLanding}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
