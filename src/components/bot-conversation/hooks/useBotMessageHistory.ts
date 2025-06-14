@@ -143,7 +143,7 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
       return;
     }
 
-    const channelName = `bot-session-${botId}-${sessionToken}`;
+    const channelName = `chat-channel-for-user:${botUserId}`;
     console.log(`Subscribing to real-time channel: ${channelName} with bot_user_id: ${botUserId}`);
     
     const channel = supabase
