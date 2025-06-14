@@ -66,7 +66,7 @@ export const DashboardPage: React.FC = () => {
   const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
   const [showBotAnalytics, setShowBotAnalytics] = useState(false);
   const [myBots, setMyBots] = useState<Array<{ id: string, name: string }>>([]);
-  
+
   useEffect(() => {
     if (user) {
       fetchDashboardStats();
@@ -200,11 +200,22 @@ export const DashboardPage: React.FC = () => {
         .select('id, name')
         .eq('owner_id', ownerData.id);
 
+      // LOG: Liste des bots récupérés
+      console.log("[DASHBOARD] Bots de l'utilisateur :", bots);
+
       setMyBots(bots || []);
     } catch (error) {
       console.error('Erreur chargement bots utilisateur:', error);
     }
   };
+
+  useEffect(() => {
+    if (selectedBotId || selectedBotName) {
+      console.log(
+        `[DASHBOARD] Bot sélectionné : ${selectedBotName || ''} (id: ${selectedBotId || ''})`
+      );
+    }
+  }, [selectedBotId, selectedBotName]);
 
   const quickStats = [
     { 
@@ -262,6 +273,8 @@ export const DashboardPage: React.FC = () => {
   }
 
   if (showBotAnalytics && selectedBotId && selectedBotName) {
+    // LOG: Ouverture du panel analytics détaillé avec le bon bot
+    console.log("[DASHBOARD] Ouverture analytics bot :", { selectedBotId, selectedBotName });
     return (
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
         <CompleteBotAnalytics botId={selectedBotId} botName={selectedBotName} onBack={() => setShowBotAnalytics(false)} />
@@ -391,7 +404,13 @@ export const DashboardPage: React.FC = () => {
                 key={bot.id}
                 variant="outline"
                 className={selectedBotId === bot.id ? "border-blue-600" : ""}
-                onClick={() => { setSelectedBotId(bot.id); setSelectedBotName(bot.name); setShowBotAnalytics(true); }}
+                onClick={() => {
+                  // LOG: Click utilisateur sur un bot
+                  console.log(`[DASHBOARD] Click bot: ${bot.name} (id: ${bot.id})`);
+                  setSelectedBotId(bot.id);
+                  setSelectedBotName(bot.name);
+                  setShowBotAnalytics(true);
+                }}
               >
                 {bot.name}
               </Button>

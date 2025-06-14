@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -61,6 +60,11 @@ export const CompleteBotAnalytics: React.FC<CompleteBotAnalyticsProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  // LOG: Props reçues
+  useEffect(() => {
+    console.log(`[CompleteBotAnalytics] Chargement analytics pour: botId=${botId}, botName=${botName}`);
+  }, [botId, botName]);
+
   useEffect(() => {
     fetchAnalytics();
   }, [botId]);
@@ -68,16 +72,38 @@ export const CompleteBotAnalytics: React.FC<CompleteBotAnalyticsProps> = ({
   const fetchAnalytics = async () => {
     try {
       setIsLoading(true);
-      
+      // LOG: Requête analytics Supabase
+      console.log(`[CompleteBotAnalytics] Requête Supabase pour bot_id: `, botId);
+
       const { data, error } = await supabase
         .from('complete_bot_analytics')
         .select('*')
         .eq('bot_id', botId)
         .single();
 
+      // LOG: Résultat brut
+      console.log(`[CompleteBotAnalytics] Résultat analytics récupéré:`, data, error);
+
       if (error) throw error;
 
       setAnalytics(data);
+
+      // LOG: Statistiques principales (si data bien reçue)
+      if (data) {
+        const msg = `
+[CompleteBotAnalytics] Statistiques clés:
+- Utilisateurs uniques: ${data.total_unique_users}
+- Utilisateurs actifs 24h: ${data.active_users_24h}
+- Utilisateurs actifs 7j: ${data.active_users_7d}
+- Messages totaux: ${data.total_messages}
+- Sessions: ${data.total_sessions}
+- Sessions actives: ${data.active_sessions}
+- Dernière activité: ${data.last_user_activity}
+- Taux d'engagement 7j: ${data.engagement_rate_7d}
+- Taux de réponse: ${data.response_rate_percent}
+        `;
+        console.log(msg);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des analytics:', error);
       toast({
