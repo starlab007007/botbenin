@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -98,15 +99,22 @@ export const BotConversationControl: React.FC = () => {
         console.error("[BotConversationControl] Erreur récupération sessions publiques :", error);
         setSessions([]);
       } else {
-        // Normalize ip_address so it is always string|null (for TypeScript)
-        const normalized = (sessData || []).map((s: any) => ({
-          ...s,
+        // FIX: Build BotSession objects explicitly to avoid TS type inference depth issues
+        const normalized: BotSession[] = (sessData || []).map((s: any) => ({
+          id: s.id,
+          session_token: s.session_token,
+          last_activity: s.last_activity,
+          started_at: s.started_at,
+          is_active: s.is_active,
+          entry_point: s.entry_point,
+          user_agent: typeof s.user_agent === "string" ? s.user_agent : null,
           ip_address:
             typeof s.ip_address === "string"
               ? s.ip_address
               : s.ip_address === null || s.ip_address === undefined
                 ? null
-                : String(s.ip_address)
+                : String(s.ip_address),
+          bot_user_id: typeof s.bot_user_id === "string" ? s.bot_user_id : null
         }));
         setSessions(normalized);
       }
