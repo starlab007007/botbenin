@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { GuestAuthService, GuestUser } from "@/services/GuestAuthService";
 
 export interface AuthUser {
   id: string;
@@ -36,6 +36,10 @@ interface AuthContextType {
   supabaseUser: SupabaseUser | null;
   session: Session | null;
   isAuthenticated: boolean;
+  isGuest: boolean;
+  guestUser: GuestUser | null;
+  enableGuestMode: () => void;
+  disableGuestMode: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
   register: (userData: {
@@ -73,17 +77,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestUser, setGuestUser] = useState<GuestUser | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session);
+    const runAuthInit = async () => {
+      // Si déjà connecté => pas de mode guest
+      supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
         setSupabaseUser(session?.user ?? null);
-        
+        setIsLoading(false);
+      });
+    };
+    runAuthInit();
+    
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setSupabaseUser(session?.user ?? null);
         if (session?.user) {
+          setIsGuest(false);
+          setGuestUser(null);
           // Create AuthUser from Supabase user
           const authUser: AuthUser = {
             id: session.user.id,
@@ -102,18 +118,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           };
           setUser(authUser);
         } else {
-          setUser(null);
+          // Pas de session : conserver l’état guest si configuré
         }
         setIsLoading(false);
       }
     );
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setSupabaseUser(session?.user ?? null);
-      setIsLoading(false);
-    });
 
     return () => subscription.unsubscribe();
   }, []);
@@ -244,12 +253,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const enableGuestMode = () => {
+    // Si déjà authentifié, on ne fait rien
+    if (supabaseUser || user) return;
+    const guest = GuestAuthService.getGuestUser();
+    setIsGuest(true);
+    setGuestUser(guest);
+    setUser(null);
+    setSupabaseUser(null);
+    setSession(null);
+    setIsLoading(false);
+  };
+  const disableGuestMode = () => {
+    GuestAuthService.clearGuest();
+    setIsGuest(false);
+    setGuestUser(null);
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       supabaseUser,
       session,
       isAuthenticated: !!session && !!supabaseUser,
+      isGuest,
+      guestUser,
+      enableGuestMode,
+      disableGuestMode,
       login,
       loginWithPhone,
       register,

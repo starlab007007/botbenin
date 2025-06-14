@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -7,6 +6,7 @@ import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { BotConfigService } from '@/services/botConfigService';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -24,13 +24,14 @@ interface StandardizedChatInterfaceProps {
   refCode?: string;
 }
 
-export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps> = ({ 
+export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps> = ({
   botId,
   onBackToLanding,
   entryPoint = 'direct',
   isTest = false,
   refCode
 }) => {
+  const { isGuest, guestUser } = useAuth();
   const [botConfig, setBotConfig] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -125,11 +126,18 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
     setShowSuggestions(false);
 
+    // Utilise le nom du guest comme nom dans l’historique local (possible customisation Supabase à faire côté backend si besoin)
+    const userDisplay = isGuest && guestUser
+      ? guestUser.displayName
+      : undefined;
+
     const userMessage: Message = {
       id: Date.now().toString(),
       content: textToSend,
       isUser: true,
       timestamp: new Date(),
+      // customisation
+      ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
     setMessages(prev => [...prev, userMessage]);

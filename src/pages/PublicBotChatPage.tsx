@@ -5,32 +5,34 @@ import { StandardizedChatInterface } from '@/components/StandardizedChatInterfac
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bot, AlertCircle, ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const PublicBotChatPage: React.FC = () => {
   const { botId } = useParams<{ botId: string }>();
   const navigate = useNavigate();
   const [isValidating, setIsValidating] = useState(true);
   const [hasValidBot, setHasValidBot] = useState(false);
+  const { isGuest, enableGuestMode } = useAuth();
 
   useEffect(() => {
+    // Activer le mode Guest si l’utilisateur n’est pas déjà authentifié
+    if (!isGuest) {
+      enableGuestMode();
+    }
     if (botId) {
       validateBotAccess();
     } else {
       setIsValidating(false);
     }
-  }, [botId]);
+  // On vérifie sur botId ET isGuest, et l’absence de supabaseUser sera traitée dans le AuthContext
+  }, [botId, isGuest]);
 
   const validateBotAccess = async () => {
     try {
       setIsValidating(true);
-      
-      console.log('=== VALIDATION ACCÈS BOT PUBLIC ===');
+      console.log('=== VALIDATION ACCÈS BOT PUBLIC (Mode guest prêt) ===');
       console.log('Bot ID:', botId);
-      
-      // La validation est maintenant gérée par le StandardizedChatInterface
-      // On passe directement à l'affichage
       setHasValidBot(true);
-      
     } catch (error) {
       console.error('Erreur lors de la validation:', error);
       setHasValidBot(false);
