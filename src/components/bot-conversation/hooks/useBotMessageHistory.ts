@@ -11,30 +11,43 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
   
   const { messages, loadingMessages, errorMessages, fetchMessages, setMessages } = useMessageFetcher(botId, botUserId);
 
+  // Clear messages when botId or sessionToken changes
   useEffect(() => {
     if (!botId || !sessionToken) {
+      console.log('[useBotMessageHistory] Clearing messages due to missing botId or sessionToken');
       setMessages([]);
     }
   }, [botId, sessionToken, setMessages]);
 
-  useEffect(() => {
-    if (botUserId) {
-      fetchMessages();
-    }
-  }, [botUserId, fetchMessages]);
-
-  const { realtimeError } = useRealtimeMessages(botUserId, fetchMessages);
+  const { realtimeError, isConnected } = useRealtimeMessages(botUserId, fetchMessages);
 
   const { sendManualResponse } = useSendManualResponse(botId, sessionToken);
 
   const loading = loadingBotUserId || loadingMessages;
-  const error = useMemo(() => [errorBotUserId, errorMessages, realtimeError].filter(Boolean).join(', '), [errorBotUserId, errorMessages, realtimeError]);
+  const error = useMemo(() => {
+    const errors = [errorBotUserId, errorMessages, realtimeError].filter(Boolean);
+    return errors.length > 0 ? errors.join(', ') : null;
+  }, [errorBotUserId, errorMessages, realtimeError]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[useBotMessageHistory] State update:', {
+      botId,
+      sessionToken,
+      botUserId,
+      messagesCount: messages.length,
+      loading,
+      error,
+      isConnected
+    });
+  }, [botId, sessionToken, botUserId, messages.length, loading, error, isConnected]);
 
   return {
     messages,
     loading,
-    error: error || null,
-    sendManualResponse
+    error,
+    sendManualResponse,
+    isConnected
   };
 };
 

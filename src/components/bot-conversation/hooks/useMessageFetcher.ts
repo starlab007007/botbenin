@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BotMessageHistoryItem } from "../types";
 
@@ -10,13 +10,14 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
 
   const fetchMessages = useCallback(async () => {
     if (!botId || !botUserId) {
-        setMessages([]);
-        return;
+      console.log('[useMessageFetcher] Missing botId or botUserId, clearing messages');
+      setMessages([]);
+      return;
     }
 
     setLoading(true);
     setError(null);
-    console.log(`Fetching messages for bot ${botId} and bot_user_id ${botUserId}`);
+    console.log(`[useMessageFetcher] Fetching messages for bot ${botId} and bot_user_id ${botUserId}`);
 
     try {
       const { data, error } = await supabase
@@ -47,16 +48,18 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('Error fetching chat messages:', error);
+        console.error('[useMessageFetcher] Error fetching chat messages:', error);
         setError(error.message);
         return;
       }
       
       if (!data) {
+        console.log('[useMessageFetcher] No data returned, setting empty array');
         setMessages([]);
-        setLoading(false);
         return;
       }
+
+      console.log(`[useMessageFetcher] Found ${data.length} messages`);
 
       const typedMessages = data.map((msg: any) => ({
         message_id: msg.id,
@@ -78,13 +81,19 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
       })) as BotMessageHistoryItem[];
 
       setMessages(typedMessages);
+      console.log(`[useMessageFetcher] Successfully set ${typedMessages.length} messages`);
     } catch (err) {
-      console.error('Error in fetchMessages:', err);
+      console.error('[useMessageFetcher] Error in fetchMessages:', err);
       setError('Failed to fetch message history');
     } finally {
       setLoading(false);
     }
   }, [botId, botUserId]);
+
+  // Auto-fetch when dependencies change
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
 
   return { messages, loadingMessages: loading, errorMessages: error, fetchMessages, setMessages };
 };
