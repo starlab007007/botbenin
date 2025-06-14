@@ -51,6 +51,21 @@ function normalizeSession(s: any): BotSession {
   };
 }
 
+// --- FIX: Extract and strongly type filter logic to avoid TS deep instantiation error ---
+function filterSessionsList(
+  sessions: BotSession[],
+  query: string
+): BotSession[] {
+  if (!Array.isArray(sessions) || !sessions.length) return [];
+  if (!query) return sessions;
+  const lowerQuery = query.toLowerCase();
+  return sessions.filter((s) =>
+    (s.session_token && s.session_token.toLowerCase().includes(lowerQuery)) ||
+    (s.user_agent && s.user_agent.toLowerCase().includes(lowerQuery)) ||
+    (s.ip_address && String(s.ip_address).includes(query))
+  );
+}
+
 export const BotConversationControl: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
   const [loadingBots, setLoadingBots] = useState(true);
@@ -160,15 +175,8 @@ export const BotConversationControl: React.FC = () => {
 
   // Recherche sur sessions : session_token, entry_point, ip...
 
-  // --- FIX for TypeScript deep/infinite instantiation error ---
-  // Copy sessions to a new array, ensuring it's a plain BotSession[]
-  const sessionsArray: BotSession[] = Array.isArray(sessions) ? [...sessions] : [];
-  const filteredSessions = sessionsArray.filter((s) =>
-    !query ||
-    (s.session_token && s.session_token.toLowerCase().includes(query.toLowerCase())) ||
-    (s.user_agent && s.user_agent.toLowerCase().includes(query.toLowerCase())) ||
-    (s.ip_address && s.ip_address.includes(query))
-  );
+  // --- USE the standalone filter function to avoid inference error ---
+  const filteredSessions = filterSessionsList(sessions, query);
 
   return (
     <div className="flex gap-2 h-[70vh]">
