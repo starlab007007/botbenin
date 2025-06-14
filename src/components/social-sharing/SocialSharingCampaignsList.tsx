@@ -10,7 +10,18 @@ import { AdvancedCampaignDashboard } from "./AdvancedCampaignDashboard";
 import { ImageUploader } from "./ImageUploader";
 import { supabase } from "@/integrations/supabase/client";
 
-const initialForm = { name: "", description: "" };
+const initialForm = { name: "", description: "", customMessage: "", platforms: [] as string[] };
+
+const PLATFORMS = [
+  { name: "WhatsApp", key: "whatsapp", color: "bg-green-100 text-green-700", icon: "💬" },
+  { name: "Telegram", key: "telegram", color: "bg-blue-100 text-blue-700", icon: "📢" },
+  { name: "Facebook", key: "facebook", color: "bg-blue-50 text-blue-700", icon: "🌐" },
+  { name: "Messenger", key: "messenger", color: "bg-blue-200 text-blue-900", icon: "💬" },
+  { name: "Twitter/X", key: "twitter", color: "bg-neutral-100 text-black", icon: "🐦" },
+  { name: "LinkedIn", key: "linkedin", color: "bg-blue-50 text-blue-800", icon: "💼" },
+  { name: "TikTok", key: "tiktok", color: "bg-black text-white", icon: "🎵" },
+  { name: "Instagram", key: "instagram", color: "bg-pink-100 text-pink-700", icon: "📸" },
+];
 
 export const SocialSharingCampaignsList: React.FC = () => {
   const { campaigns, isLoading, createCampaign, fetchCampaigns } = useSocialSharingCampaigns();
@@ -18,7 +29,7 @@ export const SocialSharingCampaignsList: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
 
-  // New: manage preview image upload state
+  // Upload de vignettes/images
   const [previewImageFiles, setPreviewImageFiles] = useState<(File | null)[]>([null, null, null]);
   const [previewImageUrls, setPreviewImageUrls] = useState<(string | null)[]>([null, null, null]);
   const [isUploading, setIsUploading] = useState(false);
@@ -31,6 +42,15 @@ export const SocialSharingCampaignsList: React.FC = () => {
     setForm(f => ({
       ...f,
       [e.target.name]: e.target.value,
+    }));
+  };
+
+  const handlePlatformsChange = (key: string) => {
+    setForm(f => ({
+      ...f,
+      platforms: f.platforms.includes(key)
+        ? f.platforms.filter(p => p !== key)
+        : [...f.platforms, key],
     }));
   };
 
@@ -67,17 +87,18 @@ export const SocialSharingCampaignsList: React.FC = () => {
       toast({title: "Nom requis", description: "Donnez un nom à la campagne.", variant: "destructive"});
       return;
     }
-    // If some files are present but not yet uploaded, force the upload before submitting
     if (previewImageFiles.some((f, i) => f && !previewImageUrls[i])) {
       toast({ title: "Veuillez uploader toutes les vignettes", variant: "destructive" });
       return;
     }
     const filteredUrls = previewImageUrls.filter(Boolean).slice(0, 3) as string[];
-    // Save with previewImages
-    const res = await createCampaign({ 
-      name: form.name, 
+    // Enregistrer avec previewImages, plateformes, et customMessage
+    const res = await createCampaign({
+      name: form.name,
       description: form.description,
-      previewImages: filteredUrls 
+      previewImages: filteredUrls,
+      targetPlatforms: form.platforms,
+      customMessage: form.customMessage
     });
     setForm(initialForm);
     setPreviewImageFiles([null, null, null]);
@@ -135,21 +156,56 @@ export const SocialSharingCampaignsList: React.FC = () => {
       </div>
 
       {showForm && (
-        <Card className="mb-4 p-4 max-w-md">
+        <Card className="mb-4 p-6 max-w-2xl mx-auto">
+          <h3 className="text-xl font-semibold mb-4">Créer une Campagne Personnalisée</h3>
           <form onSubmit={handleCreate}>
-            <div>
-              <label className="block text-xs font-medium">Nom*</label>
-              <Input name="name" value={form.name} onChange={handleChange} required />
+            {/* Nom de la campagne */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium mb-1">Nom de la campagne</label>
+              <Input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                placeholder="Ex: Lancement Bot Restaurant"
+                required
+                autoFocus
+              />
             </div>
-            <div className="mt-2">
-              <label className="block text-xs">Description</label>
-              <Input name="description" value={form.description} onChange={handleChange} />
+            {/* Description */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium mb-1">Description</label>
+              <Input
+                name="description"
+                value={form.description}
+                onChange={handleChange}
+                placeholder="Description de la campagne..."
+              />
             </div>
-            <div className="mt-2">
-              <div className="flex items-center gap-2 mb-1">
-                <ImageIcon className="h-4 w-4" />
-                <span className="text-xs font-medium">Vignettes de campagne (maxi 3)</span>
+            {/* Plateformes cibles */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium mb-1">Plateformes cibles</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {PLATFORMS.map(platform => (
+                  <button
+                    type="button"
+                    key={platform.key}
+                    className={`flex items-center justify-center rounded border px-2 py-2 gap-2 text-xs transition ring-1 ${
+                      form.platforms.includes(platform.key) ? "ring-2 border-primary bg-primary/10" : "border-muted"
+                    } ${platform.color}`}
+                    onClick={() => handlePlatformsChange(platform.key)}
+                  >
+                    <span>{platform.icon}</span>
+                    {platform.name}
+                  </button>
+                ))}
               </div>
+            </div>
+            {/* Vignettes / Images */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium mb-1 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Vignettes de campagne (maxi 3)
+              </label>
               <ImageUploader
                 max={3}
                 files={previewImageFiles}
@@ -162,13 +218,28 @@ export const SocialSharingCampaignsList: React.FC = () => {
                 Ajoutez jusqu'à 3 images de vignette (format carré recommandé pour l'aperçu).
               </p>
             </div>
-            <div className="flex space-x-2 mt-3">
+            {/* Message personnalisé */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium mb-1">Message personnalisé</label>
+              <textarea
+                name="customMessage"
+                value={form.customMessage}
+                onChange={handleChange}
+                className="block w-full border rounded px-2 py-1 min-h-[60px] text-sm"
+                placeholder="Votre message à partager, liens, mentions, etc."
+              />
+              <span className="text-xs text-muted-foreground mt-1 block">
+                Le lien raccourci sera automatiquement ajouté à la fin du message
+              </span>
+            </div>
+            <div className="flex space-x-2 mt-4">
               <Button type="submit" disabled={isUploading}>
                 {isUploading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
-                Ajouter
+                Créer la Campagne
               </Button>
               <Button type="button" variant="outline" onClick={() => {
                 setShowForm(false);
+                setForm(initialForm);
                 setPreviewImageFiles([null, null, null]);
                 setPreviewImageUrls([null, null, null]);
               }}>Annuler</Button>
@@ -218,6 +289,11 @@ export const SocialSharingCampaignsList: React.FC = () => {
             </div>
             <div className="text-xs text-gray-600 mb-1">{c.description}</div>
             <div className="text-xs">Créée le {new Date(c.createdAt).toLocaleDateString()}</div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(c.targetPlatforms || []).map((p: string) => (
+                <span key={p} className="px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-700">{PLATFORMS.find(pl => pl.key === p)?.name || p}</span>
+              ))}
+            </div>
           </Card>
         ))}
         {isLoading && <div className="text-gray-500">Chargement...</div>}
