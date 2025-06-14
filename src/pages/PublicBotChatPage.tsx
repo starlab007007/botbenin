@@ -1,87 +1,45 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChatInterface } from '@/components/ChatInterface';
-import { supabase } from '@/integrations/supabase/client';
+import { StandardizedChatInterface } from '@/components/StandardizedChatInterface';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bot, AlertCircle, ArrowLeft } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { initializeVisitorTracking } from '@/utils/visitorTracking';
-
-interface PublicBot {
-  id: string;
-  name: string;
-  description: string;
-  webhook_url: string;
-  api_key: string;
-  chat_title: string;
-  chat_context: string;
-  share_enabled: boolean;
-  is_active: boolean;
-}
 
 export const PublicBotChatPage: React.FC = () => {
   const { botId } = useParams<{ botId: string }>();
   const navigate = useNavigate();
-  const [bot, setBot] = useState<PublicBot | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const [isValidating, setIsValidating] = useState(true);
+  const [hasValidBot, setHasValidBot] = useState(false);
 
   useEffect(() => {
     if (botId) {
-      fetchBot();
+      validateBotAccess();
+    } else {
+      setIsValidating(false);
     }
   }, [botId]);
 
-  const fetchBot = async () => {
+  const validateBotAccess = async () => {
     try {
-      setIsLoading(true);
+      setIsValidating(true);
       
-      console.log('=== CHARGEMENT BOT PUBLIC ===');
-      console.log('Bot ID demandé:', botId);
+      console.log('=== VALIDATION ACCÈS BOT PUBLIC ===');
+      console.log('Bot ID:', botId);
       
-      const { data: botData, error } = await supabase
-        .from('bots')
-        .select('*')
-        .eq('id', botId)
-        .eq('share_enabled', true)
-        .eq('is_active', true)
-        .single();
-
-      if (error) {
-        console.error('Erreur lors du chargement du bot:', error);
-        if (error.code === 'PGRST116') {
-          setError('Ce bot n\'existe pas ou n\'est pas disponible publiquement.');
-        } else {
-          throw error;
-        }
-        return;
-      }
-
-      console.log('Bot public chargé:', botData);
-      setBot(botData);
-      
-      // Initialiser le tracking du visiteur pour ce bot
-      try {
-        await initializeVisitorTracking(botId, 'public_chat');
-        console.log('Tracking visiteur initialisé pour le bot public');
-      } catch (trackingError) {
-        console.warn('Erreur lors de l\'initialisation du tracking:', trackingError);
-        // Continuer même si le tracking échoue
-      }
+      // La validation est maintenant gérée par le StandardizedChatInterface
+      // On passe directement à l'affichage
+      setHasValidBot(true);
       
     } catch (error) {
-      console.error('Erreur lors du chargement du bot public:', error);
-      setError('Impossible de charger ce bot. Veuillez réessayer plus tard.');
+      console.error('Erreur lors de la validation:', error);
+      setHasValidBot(false);
     } finally {
-      setIsLoading(false);
+      setIsValidating(false);
     }
   };
 
   const handleBackToLanding = () => {
-    // Fermer la fenêtre si c'est un popup, sinon rediriger
     if (window.opener) {
       window.close();
     } else {
@@ -89,16 +47,16 @@ export const PublicBotChatPage: React.FC = () => {
     }
   };
 
-  if (isLoading) {
+  if (isValidating) {
     return (
       <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Bot className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-pulse" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Chargement du chat...
+            Validation de l'accès...
           </h2>
           <p className="text-gray-600">
-            Préparation de votre assistant IA
+            Vérification de l'accessibilité du bot
           </p>
           <div className="mt-6">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -108,16 +66,16 @@ export const PublicBotChatPage: React.FC = () => {
     );
   }
 
-  if (error || !bot) {
+  if (!botId || !hasValidBot) {
     return (
       <div className="h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Bot non disponible
+            Accès non autorisé
           </h2>
           <p className="text-gray-600 mb-6">
-            {error || 'Ce bot n\'est pas accessible publiquement.'}
+            Ce bot n'est pas accessible publiquement ou n'existe pas.
           </p>
           <Button onClick={handleBackToLanding} className="w-full">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -128,14 +86,12 @@ export const PublicBotChatPage: React.FC = () => {
     );
   }
 
-  // Afficher uniquement l'interface de chat du bot - plein écran
   return (
     <div className="h-screen w-screen overflow-hidden">
-      <ChatInterface
+      <StandardizedChatInterface
+        botId={botId}
         onBackToLanding={handleBackToLanding}
-        webhookUrl={bot.webhook_url}
-        chatTitle={bot.chat_title}
-        chatContext={bot.chat_context}
+        entryPoint="public_chat"
       />
     </div>
   );
