@@ -162,8 +162,8 @@ export const BotConversationControl: React.FC = () => {
   }, [selectedSession, selectedBot]);
 
   // Recherche sur sessions : session_token, entry_point, ip...
-  // ---------- INLINE FILTER, REMOVE filterSessionsList FUNCTION ----------
-  const filteredSessions = React.useMemo(() => {
+  // ---------- FIX: Explicitly type the useMemo result to avoid deep type inference problems ----------
+  const filteredSessions = React.useMemo<BotSession[]>(() => {
     if (!Array.isArray(sessions) || !sessions.length) return [];
     if (!query) return sessions;
     const lowerQuery = query.toLowerCase();
