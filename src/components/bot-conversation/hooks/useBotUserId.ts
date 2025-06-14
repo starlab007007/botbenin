@@ -8,7 +8,7 @@ export const useBotUserId = (botId: string | null, sessionToken: string | null) 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchBotUserId = async () => {
+    const fetchAndEnsureBotUser = async () => {
       if (!botId || !sessionToken) {
         console.log('[useBotUserId] Missing botId or sessionToken, clearing botUserId');
         setBotUserId(null);
@@ -18,34 +18,28 @@ export const useBotUserId = (botId: string | null, sessionToken: string | null) 
       setLoading(true);
       setError(null);
       
-      console.log(`[useBotUserId] Fetching bot_user_id for bot ${botId} and session ${sessionToken}`);
+      console.log(`[useBotUserId] Ensuring bot_user exists for bot ${botId} and session ${sessionToken}`);
       
       try {
-        const { data, error } = await supabase
-          .from('bot_users')
-          .select('id')
-          .eq('bot_id', botId)
-          .eq('session_id', sessionToken)
-          .single();
+        const { data, error: rpcError } = await supabase.rpc('create_bot_user_if_not_exists', {
+          p_bot_id: botId,
+          p_session_id: sessionToken
+        });
 
-        if (error) {
-          if (error.code === 'PGRST116') {
-            console.warn('[useBotUserId] No bot_user found, this might be expected for new sessions');
-            setError('No bot user found for this session');
-          } else {
-            console.error('[useBotUserId] Error fetching bot_user_id:', error);
-            setError(error.message);
-          }
+        if (rpcError) {
+          console.error('[useBotUserId] Error calling create_bot_user_if_not_exists RPC:', rpcError);
+          setError(rpcError.message);
           setBotUserId(null);
         } else if (data) {
-          console.log(`[useBotUserId] Found bot_user_id: ${data.id}`);
-          setBotUserId(data.id);
+          console.log(`[useBotUserId] Ensured bot_user_id exists: ${data}`);
+          setBotUserId(data);
         } else {
-          console.log('[useBotUserId] No data returned');
+          console.log('[useBotUserId] No data returned from RPC');
+          setError('Failed to get or create bot user.');
           setBotUserId(null);
         }
       } catch (e: any) {
-        console.error('[useBotUserId] Exception in fetchBotUserId:', e);
+        console.error('[useBotUserId] Exception in fetchAndEnsureBotUser:', e);
         setError(e.message);
         setBotUserId(null);
       } finally {
@@ -53,7 +47,7 @@ export const useBotUserId = (botId: string | null, sessionToken: string | null) 
       }
     };
 
-    fetchBotUserId();
+    fetchAndEnsureBotUser();
   }, [botId, sessionToken]);
 
   return { botUserId, loadingBotUserId: loading, errorBotUserId: error };
