@@ -26,6 +26,7 @@ interface MessagesListProps {
   loadingMessages: boolean;
   selectedSession: BotSession;
   onDebugSession: () => void;
+  debugInfo?: any; // Ajouté pour passer les infos de debug
 }
 
 export const MessagesList: React.FC<MessagesListProps> = ({
@@ -33,6 +34,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
   loadingMessages,
   selectedSession,
   onDebugSession,
+  debugInfo
 }) => {
   if (loadingMessages) {
     return (
@@ -48,6 +50,7 @@ export const MessagesList: React.FC<MessagesListProps> = ({
       <EmptyMessageState 
         selectedSession={selectedSession}
         onDebugSession={onDebugSession}
+        debugInfo={debugInfo}
       />
     );
   }

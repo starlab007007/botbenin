@@ -31,6 +31,7 @@ interface UnifiedMessageListProps {
   loadingMessages: boolean;
   selectedBot: any;
   onMessagesUpdate: (messages: BotMessage[]) => void;
+  debugInfo?: any; // Ajouté pour recevoir les infos de debug
 }
 
 export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
@@ -39,15 +40,16 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
   loadingMessages,
   selectedBot,
   onMessagesUpdate,
+  debugInfo
 }) => {
-  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [localDebugInfo, setLocalDebugInfo] = useState<any>(null);
 
   // Fonction de débogage pour voir les informations de la base de données
   const handleDebugSession = async () => {
     if (!selectedSession || !selectedBot) return;
 
     try {
-      console.log("=== DÉBOGAGE SESSION ===");
+      console.log("=== DÉBOGAGE SESSION APPROFONDI ===");
       
       // 1. Vérifier la session dans enhanced_chat_sessions
       const { data: enhancedSession, error: enhancedError } = await supabase
@@ -55,36 +57,49 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
         .select("*")
         .eq("session_token", selectedSession.session_token);
 
-      console.log("Enhanced sessions:", enhancedSession, enhancedError);
-
-      // 2. Vérifier les bot_users liés
+      // 2. Vérifier les bot_users liés à ce bot
       const { data: botUsers, error: usersError } = await supabase
         .from("bot_users")
         .select("*")
         .eq("bot_id", selectedBot.id);
 
-      console.log("Bot users:", botUsers, usersError);
-
-      // 3. Vérifier tous les messages du bot
-      const { data: allMessages, error: messagesError } = await supabase
+      // 3. Compter tous les messages du bot
+      const { data: allMessages, error: messagesError, count } = await supabase
         .from("chat_messages")
-        .select("*")
+        .select("id, message_content, created_at, message_type, bot_user_id, metadata", { count: 'exact' })
         .eq("bot_id", selectedBot.id)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(5);
 
-      console.log("Tous les messages:", allMessages, messagesError);
+      // 4. Vérifier les sessions anonymes
+      const { data: anonSessions, error: anonError } = await supabase
+        .from("anonymous_visitor_sessions")
+        .select("*")
+        .eq("bot_id", selectedBot.id)
+        .eq("session_token", selectedSession.session_token);
 
-      setDebugInfo({
-        enhancedSession,
-        botUsers,
-        allMessages,
+      const combinedDebugInfo = {
+        enhancedSession: enhancedSession || [],
+        botUsers: botUsers || [],
+        allMessages: allMessages || [],
+        totalMessageCount: count || 0,
+        anonSessions: anonSessions || [],
         sessionToken: selectedSession.session_token,
-        botId: selectedBot.id
-      });
+        botId: selectedBot.id,
+        errors: {
+          enhanced: enhancedError,
+          users: usersError,
+          messages: messagesError,
+          anon: anonError
+        }
+      };
+
+      console.log("Debug complet:", combinedDebugInfo);
+      setLocalDebugInfo(combinedDebugInfo);
 
     } catch (error) {
       console.error("Erreur débogage:", error);
+      setLocalDebugInfo({ error: error });
     }
   };
 
@@ -98,6 +113,8 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
     );
   }
 
+  const displayDebugInfo = debugInfo || localDebugInfo;
+
   return (
     <Card className="w-1/2 flex flex-col px-3 py-4 items-stretch overflow-auto">
       <MessageListHeader 
@@ -106,8 +123,8 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
       />
 
       <DebugPanel 
-        debugInfo={debugInfo}
-        onClose={() => setDebugInfo(null)}
+        debugInfo={displayDebugInfo}
+        onClose={() => setLocalDebugInfo(null)}
       />
 
       {/* Liste des messages */}
@@ -117,6 +134,7 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
           loadingMessages={loadingMessages}
           selectedSession={selectedSession}
           onDebugSession={handleDebugSession}
+          debugInfo={displayDebugInfo}
         />
       </div>
 

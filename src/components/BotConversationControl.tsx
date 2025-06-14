@@ -39,7 +39,7 @@ export const BotConversationControl: React.FC = () => {
   const [query, setQuery] = useState("");
 
   const { sessions, loadingSessions } = useBotSessions(selectedBot);
-  const { messages, loadingMessages, setMessages } = useBotMessages(selectedBot, selectedSession);
+  const { messages, loadingMessages, setMessages, debugInfo } = useBotMessages(selectedBot, selectedSession);
 
   const handleBotSelect = (bot: Bot) => {
     console.log(`[BotConversationControl] Bot sélectionné: ${bot.name} (id: ${bot.id})`);
@@ -80,6 +80,7 @@ export const BotConversationControl: React.FC = () => {
         loadingMessages={loadingMessages}
         selectedBot={selectedBot}
         onMessagesUpdate={handleMessagesUpdate}
+        debugInfo={debugInfo}
       />
     </div>
   );
