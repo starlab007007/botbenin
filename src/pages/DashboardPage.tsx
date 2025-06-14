@@ -67,6 +67,7 @@ export const DashboardPage: React.FC = () => {
   const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
   const [showBotAnalytics, setShowBotAnalytics] = useState(false);
   const [myBots, setMyBots] = useState<Array<{ id: string, name: string }>>([]);
+  const [showConversationControlPanel, setShowConversationControlPanel] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -323,15 +324,21 @@ export const DashboardPage: React.FC = () => {
             <p className="text-gray-600">Accédez à toutes vos conversations et contacts</p>
           </div>
           <Button 
-            onClick={() => setSelectedTab("conversations")}
+            onClick={() => setShowConversationControlPanel((v) => !v)}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Mail className="w-4 h-4 mr-2" />
             Contrôle Conversations
           </Button>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* NEW: affiche le contrôle des conversations si demandé */}
+        {showConversationControlPanel && (
+          <div className="mt-8">
+            <BotConversationControl />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
           <div className="p-4 rounded-lg border-2 border-blue-200 bg-blue-50">
             <MessageCircle className="w-8 h-8 mb-2 text-blue-600" />
             <div className="text-sm font-medium text-gray-900">Conversations</div>
@@ -422,10 +429,10 @@ export const DashboardPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Main Content Tabs */}
+      {/* Main Content Tabs - retrait onglet "conversations" */}
       <Card className="uniform-card">
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-8 p-1 bg-gray-100 rounded-t-xl">
+          <TabsList className="grid w-full grid-cols-7 p-1 bg-gray-100 rounded-t-xl">{/* -1 colonne */}
             <TabsTrigger value="bots" className="flex items-center space-x-2">
               <Bot className="w-4 h-4" />
               <span>Chatbots</span>
@@ -454,27 +461,19 @@ export const DashboardPage: React.FC = () => {
               <BarChart3 className="w-4 h-4" />
               <span>Insights</span>
             </TabsTrigger>
-            <TabsTrigger value="conversations" className="flex items-center space-x-2">
-              <MessageCircle className="w-4 h-4" />
-              <span>Contrôle Conversations</span>
-            </TabsTrigger>
+            {/* Onglet "conversations" supprimé */}
           </TabsList>
-          
           <div className="p-6">
             <TabsContent value="bots" className="mt-0">
               <BotManagement />
             </TabsContent>
-            
             <TabsContent value="messages" className="mt-0">
               <MessagesOverview />
             </TabsContent>
-            
             <TabsContent value="automations" className="mt-0"></TabsContent>
-            
             <TabsContent value="subscription" className="mt-0">
               <SubscriptionManagement />
             </TabsContent>
-            
             <TabsContent value="leads" className="mt-0">
               <LeadsManager />
             </TabsContent>
@@ -484,9 +483,7 @@ export const DashboardPage: React.FC = () => {
             <TabsContent value="insights" className="mt-0">
               <ConversationInsightsPanel />
             </TabsContent>
-            <TabsContent value="conversations" className="mt-0">
-              <BotConversationControl />
-            </TabsContent>
+            {/* TabContent "conversations" supprimé */}
           </div>
         </Tabs>
       </Card>
