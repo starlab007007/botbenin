@@ -25,7 +25,7 @@ export const useMessages = (
     setLoadingMessages(true);
 
     const fetchMessages = async () => {
-      // We do not pass a type param to .select() and let it be 'any'
+      // EXPLICITLY type the response as any[] to avoid TS deep type recursion
       const { data, error } = await supabase
         .from("chat_messages")
         .select("id, message_content, created_at, message_type")
@@ -34,11 +34,13 @@ export const useMessages = (
         .order("created_at", { ascending: true })
         .limit(100);
 
+      const dataArray = data as any[] | null; // THIS breaks deep inference
+
       if (error) {
         console.error("[BotConversationControl] Erreur récupération messages session :", error);
         setMessages([]);
-      } else if (Array.isArray(data)) {
-        setMessages(data.map(mapRawToMessage));
+      } else if (Array.isArray(dataArray)) {
+        setMessages(dataArray.map(mapRawToMessage));
       } else {
         setMessages([]);
       }
