@@ -1,10 +1,11 @@
+
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, MessageSquare, Users, CheckCircle, Loader, ChevronRight } from "lucide-react";
+import { Search, MessageSquare, Users, CheckCircle, Loader, ChevronRight, User } from "lucide-react";
 
 interface Bot {
   id: string;
@@ -13,18 +14,22 @@ interface Bot {
 }
 
 interface BotSession {
-  session_id: string;
-  last_message_at: string;
-  status: string;
-  last_message: string;
-  unread: boolean;
+  id: string;
+  session_token: string;
+  last_activity: string;
+  started_at: string;
+  is_active: boolean;
+  entry_point: string;
+  user_agent: string | null;
+  ip_address: string | null;
+  bot_user_id: string | null;
 }
 
 interface Message {
-  message_id: string;
-  content: string;
+  id: string;
+  message_content: string;
   created_at: string;
-  sender: string;
+  message_type: string; // 'bot' | 'user'
 }
 
 export const BotConversationControl: React.FC = () => {
@@ -41,6 +46,12 @@ export const BotConversationControl: React.FC = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [query, setQuery] = useState("");
+
+  // Helper pour formater l'affichage utilisateur/session (anon/auth)
+  const getSessionUserLabel = (session: BotSession) => {
+    if (!session.bot_user_id) return "Visiteur anonyme";
+    return "Utilisateur connecté";
+  };
 
   // Charge la liste des bots de l'utilisateur
   useEffect(() => {
@@ -69,62 +80,68 @@ export const BotConversationControl: React.FC = () => {
     fetchBots();
   }, []);
 
-  // Charge les sessions/conversations pour le bot sélectionné
+  // Charge les sessions/conversations publiques pour le bot sélectionné
   useEffect(() => {
     if (!selectedBot) return;
     setLoadingSessions(true);
 
-    // DEMO/Mock: Remplacer par un appel Supabase réel aux sessions groupées par bot_id
-    setTimeout(() => {
-      setSessions([
-        {
-          session_id: "sess-1",
-          last_message_at: "2024-06-14T12:10:00Z",
-          status: "active",
-          last_message: "Bonjour, je souhaite une démo.",
-          unread: true,
-        },
-        {
-          session_id: "sess-2",
-          last_message_at: "2024-06-13T09:20:00Z",
-          status: "closed",
-          last_message: "Merci de votre réponse.",
-          unread: false,
-        },
-      ]);
+    const fetchSessions = async () => {
+      // On considère seulement les sessions nées d'un lien public/shortened_link
+      const { data: sessData, error } = await supabase
+        .from("enhanced_chat_sessions")
+        .select("id, session_token, last_activity, started_at, is_active, entry_point, user_agent, ip_address, bot_user_id")
+        .eq("bot_id", selectedBot.id)
+        .in("entry_point", ["shortened_link", "public_url"])
+        .order("last_activity", { ascending: false })
+        .limit(100);
+
+      if (error) {
+        console.error("[BotConversationControl] Erreur récupération sessions publiques :", error);
+        setSessions([]);
+      } else {
+        setSessions(sessData || []);
+      }
       setLoadingSessions(false);
-    }, 500);
+      setSelectedSession(null);
+      setMessages([]);
+    };
+
+    fetchSessions();
   }, [selectedBot]);
 
-  // Charge les messages pour la session sélectionnée
+  // Charge les messages pour la session sélectionnée (filtrage par session_token)
   useEffect(() => {
     if (!selectedSession) return;
     setLoadingMessages(true);
-    // DEMO/mock, à remplacer par fetch réel Supabase
-    setTimeout(() => {
-      setMessages([
-        {
-          message_id: "msg-1",
-          content: "Bonjour, je souhaite une démo.",
-          created_at: "2024-06-14T12:10:00Z",
-          sender: "user"
-        },
-        {
-          message_id: "msg-2",
-          content: "Bonjour ! Je suis votre assistant virtuel. Comment puis-je vous aider ?",
-          created_at: "2024-06-14T12:10:10Z",
-          sender: "bot"
-        },
-      ]);
-      setLoadingMessages(false);
-    }, 500);
-  }, [selectedSession]);
 
-  // Recherche simple sur les sessions
-  const filteredSessions = sessions.filter(c =>
+    const fetchMessages = async () => {
+      // NB : Les messages doivent avoir été associés à la session_token
+      const { data: msgData, error } = await supabase
+        .from("chat_messages")
+        .select("id, message_content, created_at, message_type")
+        .eq("bot_id", selectedBot?.id || "")
+        .eq("session_token", selectedSession.session_token)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (error) {
+        console.error("[BotConversationControl] Erreur récupération messages session :", error);
+        setMessages([]);
+      } else {
+        setMessages(msgData || []);
+      }
+      setLoadingMessages(false);
+    };
+
+    fetchMessages();
+  }, [selectedSession, selectedBot]);
+
+  // Recherche sur sessions : session_token, entry_point, ip...
+  const filteredSessions = sessions.filter(s =>
     !query ||
-    c.last_message.toLowerCase().includes(query.toLowerCase()) ||
-    c.session_id.toLowerCase().includes(query.toLowerCase())
+    (s.session_token && s.session_token.toLowerCase().includes(query.toLowerCase())) ||
+    (s.user_agent && s.user_agent.toLowerCase().includes(query.toLowerCase())) ||
+    (s.ip_address && s.ip_address.includes(query))
   );
 
   return (
@@ -156,14 +173,14 @@ export const BotConversationControl: React.FC = () => {
         )}
       </Card>
 
-      {/* Colonne Conversations */}
+      {/* Colonne Sessions publiques */}
       <Card className="w-1/3 flex flex-col gap-2 px-3 py-4 overflow-auto">
         <div className="flex items-center gap-2 mb-2">
           <MessageSquare className="text-primary w-4 h-4" />
-          <span className="font-semibold">Conversations</span>
+          <span className="font-semibold">Conversations publiques</span>
           <Input
             className="ml-auto max-w-[130px]"
-            placeholder="Rechercher..."
+            placeholder="Rechercher…"
             value={query}
             onChange={e => setQuery(e.target.value)}
             size={20}
@@ -172,40 +189,43 @@ export const BotConversationControl: React.FC = () => {
         {loadingSessions && <Loader className="animate-spin mx-auto my-8" />}
         {!loadingSessions && filteredSessions.length === 0 && (
           <div className="text-gray-500 text-sm text-center mt-8">
-            Aucune conversation trouvée
+            Aucune session publique trouvée
           </div>
         )}
         {!loadingSessions &&
           filteredSessions.map(s => (
             <button
               type="button"
-              key={s.session_id}
+              key={s.id}
               className={cn(
                 "p-3 mb-2 w-full bg-gray-50 hover:bg-blue-50 flex flex-col border transition cursor-pointer rounded-lg text-left",
-                selectedSession?.session_id === s.session_id && "border-blue-600 shadow"
+                selectedSession?.id === s.id && "border-blue-600 shadow"
               )}
               onClick={() => setSelectedSession(s)}
             >
               <div className="flex items-center justify-between">
                 <div className="font-medium truncate">
-                  Session {s.session_id}
+                  Session {s.session_token.slice(0, 10)}…
                 </div>
                 <div className={cn("text-xs rounded px-2 py-0.5 ml-2",
-                  s.status === "active"
+                  s.is_active
                     ? "bg-green-100 text-green-700"
                     : "bg-gray-200 text-gray-500"
                 )}>
-                  {s.status}
+                  {s.is_active ? "active" : "terminée"}
                 </div>
-                {s.unread && (
-                  <span className="ml-2 w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                )}
-              </div>
-              <div className="text-xs text-gray-600 truncate">
-                {s.last_message}
+                <span className="ml-2 flex items-center text-xs">
+                  <User className="w-3 h-3 mr-1" />
+                  {getSessionUserLabel(s)}
+                </span>
               </div>
               <div className="text-[10px] text-gray-400">
-                {new Date(s.last_message_at).toLocaleString()}
+                {s.last_activity
+                  ? new Date(s.last_activity).toLocaleString()
+                  : ""}
+              </div>
+              <div className="truncate text-xs text-gray-600">
+                Entrée : {s.entry_point}
               </div>
             </button>
           ))}
@@ -215,12 +235,12 @@ export const BotConversationControl: React.FC = () => {
       <Card className="w-1/2 flex flex-col px-3 py-4 items-stretch overflow-auto">
         {!selectedSession ? (
           <div className="flex flex-1 items-center justify-center text-gray-400 text-lg h-full">
-            <ChevronRight className="w-6 h-6 mr-1" /> Sélectionnez une conversation
+            <ChevronRight className="w-6 h-6 mr-1" /> Sélectionnez une session
           </div>
         ) : (
           <>
             <div className="mb-2 font-semibold text-lg text-primary flex items-center">
-              Détails de la session {selectedSession.session_id}
+              Détails de la session {selectedSession.session_token.slice(0, 10)}…
             </div>
             <div className="flex-1 overflow-y-auto max-h-[48vh] space-y-2">
               {loadingMessages ? (
@@ -228,34 +248,25 @@ export const BotConversationControl: React.FC = () => {
               ) : (
                 messages.map(msg => (
                   <div
-                    key={msg.message_id}
+                    key={msg.id}
                     className={cn(
                       "p-2 rounded shadow-sm my-1 max-w-[75%]",
-                      msg.sender === "user"
+                      msg.message_type === "user"
                         ? "ml-0 bg-blue-100 text-right self-start"
                         : "ml-auto bg-gray-200 self-end"
                     )}
                   >
-                    <div className="text-xs text-gray-500 mb-1">{msg.sender === "user" ? "Utilisateur" : "Bot"}</div>
-                    <div className="text-sm">{msg.content}</div>
-                    <div className="text-xs text-gray-400 text-right">{new Date(msg.created_at).toLocaleTimeString()}</div>
+                    <div className="text-xs text-gray-500 mb-1">
+                      {msg.message_type === "user" ? "Visiteur/utilisateur" : "Bot"}
+                    </div>
+                    <div className="text-sm">{msg.message_content}</div>
+                    <div className="text-xs text-gray-400 text-right">
+                      {new Date(msg.created_at).toLocaleTimeString()}
+                    </div>
                   </div>
                 ))
               )}
             </div>
-            {/* Zone réponse rapide */}
-            {selectedSession.status === "active" && (
-              <form
-                className="flex items-center gap-2 mt-4"
-                onSubmit={e => {
-                  e.preventDefault();
-                  // TODO: Envoyer une réponse (manuel pour MVP)
-                }}
-              >
-                <Input className="flex-1" placeholder="Répondre..." disabled />
-                <Button type="submit" disabled>Envoyer</Button>
-              </form>
-            )}
           </>
         )}
       </Card>
