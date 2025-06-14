@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, CheckCircle2, Settings, Sparkles, Image as ImageIcon, Loader2, X } from "lucide-react";
 import { AdvancedCampaignDashboard } from "./AdvancedCampaignDashboard";
 import { ImageUploader } from "./ImageUploader";
+import { CampaignDetailsModal } from "./CampaignDetailsModal";
 import { supabase } from "@/integrations/supabase/client";
 
 const initialForm = { name: "", description: "", customMessage: "", platforms: [] as string[] };
@@ -24,7 +24,7 @@ const PLATFORMS = [
 ];
 
 export const SocialSharingCampaignsList: React.FC = () => {
-  const { campaigns, isLoading, createCampaign, fetchCampaigns } = useSocialSharingCampaigns();
+  const { campaigns, isLoading, createCampaign, fetchCampaigns, updateCampaign, deleteCampaign } = useSocialSharingCampaigns();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
@@ -37,6 +37,16 @@ export const SocialSharingCampaignsList: React.FC = () => {
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Pour gérer l'affichage du détail
+  const [selectedDetail, setSelectedDetail] = useState<string | null>(null);
+
+  // Pour la modification (édition)
+  const [editId, setEditId] = useState<string | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+
+  // Pour la suppression
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm(f => ({
@@ -112,6 +122,66 @@ export const SocialSharingCampaignsList: React.FC = () => {
     setTimeout(() => setJustAdded(null), 2000);
   };
 
+  const handleEdit = (c: any) => {
+    setEditId(c.id);
+    setForm({
+      name: c.name,
+      description: c.description,
+      customMessage: c.customMessage || "",
+      platforms: c.targetPlatforms || [],
+    });
+    setPreviewImageFiles([null, null, null]);
+    setPreviewImageUrls((c.previewImages || [null, null, null]).slice(0, 3));
+    setShowEditForm(true);
+    setShowForm(false);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editId) return;
+    if (!form.name) {
+      toast({title: "Nom requis", description: "Donnez un nom à la campagne.", variant: "destructive"});
+      return;
+    }
+    if (previewImageFiles.some((f, i) => f && !previewImageUrls[i])) {
+      toast({ title: "Veuillez uploader toutes les vignettes", variant: "destructive" });
+      return;
+    }
+    const filteredUrls = previewImageUrls.filter(Boolean).slice(0, 3) as string[];
+    const { error } = await updateCampaign(editId, {
+      name: form.name,
+      description: form.description,
+      previewImages: filteredUrls,
+      targetPlatforms: form.platforms,
+      customMessage: form.customMessage
+    });
+    if (!error) {
+      toast({title: "Modifié", description: "La campagne a été mise à jour."});
+      setShowEditForm(false);
+      setEditId(null);
+      setForm(initialForm);
+      setPreviewImageFiles([null, null, null]);
+      setPreviewImageUrls([null, null, null]);
+      fetchCampaigns();
+    } else {
+      toast({title: "Erreur modification", description: error.message, variant: "destructive"});
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    const { error } = await deleteCampaign(id);
+    if (!error) {
+      toast({ title: "Supprimée", description: "La campagne a été supprimée." });
+      fetchCampaigns();
+      setDeletingId(null);
+      setShowEditForm(false);
+    } else {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      setDeletingId(null);
+    }
+  };
+
   const handleAdvancedFeatures = (campaignId: string) => {
     setSelectedCampaignId(campaignId);
     setShowAdvanced(true);
@@ -135,6 +205,8 @@ export const SocialSharingCampaignsList: React.FC = () => {
     );
   }
 
+  const selectedCampaignObj = campaigns.find(c => c.id === selectedDetail) || null;
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
@@ -155,10 +227,12 @@ export const SocialSharingCampaignsList: React.FC = () => {
         </Button>
       </div>
 
-      {showForm && (
+      {showForm || showEditForm && (
         <Card className="mb-4 p-6 max-w-2xl mx-auto">
-          <h3 className="text-xl font-semibold mb-4">Créer une Campagne Personnalisée</h3>
-          <form onSubmit={handleCreate}>
+          <h3 className="text-xl font-semibold mb-4">
+            {showForm ? "Créer une Campagne Personnalisée" : "Modifier la Campagne"}
+          </h3>
+          <form onSubmit={showForm ? handleCreate : handleUpdate}>
             {/* Nom de la campagne */}
             <div className="mb-3">
               <label className="block text-xs font-medium mb-1">Nom de la campagne</label>
@@ -236,14 +310,20 @@ export const SocialSharingCampaignsList: React.FC = () => {
             <div className="flex space-x-2 mt-4">
               <Button type="submit" disabled={isUploading}>
                 {isUploading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
-                Créer la Campagne
+                {showForm ? "Créer la Campagne" : "Enregistrer"}
               </Button>
-              <Button type="button" variant="outline" onClick={() => {
-                setShowForm(false);
-                setForm(initialForm);
-                setPreviewImageFiles([null, null, null]);
-                setPreviewImageUrls([null, null, null]);
-              }}>Annuler</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowForm(false);
+                  setShowEditForm(false);
+                  setEditId(null);
+                  setForm(initialForm);
+                  setPreviewImageFiles([null, null, null]);
+                  setPreviewImageUrls([null, null, null]);
+                }}
+              >Annuler</Button>
             </div>
           </form>
         </Card>
@@ -253,9 +333,9 @@ export const SocialSharingCampaignsList: React.FC = () => {
         {campaigns.map((c) => (
           <Card
             key={c.id}
-            className={`p-4 transition-all duration-300 ${justAdded === c.id ? 'border-green-500 bg-green-50' : ''}`}
+            className={`p-4 transition-all duration-300 flex flex-col justify-between ${justAdded === c.id ? 'border-green-500 bg-green-50' : ''}`}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center font-semibold gap-2">
                 {Array.isArray(c.previewImages) && c.previewImages.length > 0 && (
                   <div className="flex gap-1">
@@ -274,16 +354,44 @@ export const SocialSharingCampaignsList: React.FC = () => {
                       ))}
                   </div>
                 )}
-                <span>{c.name}</span>
+                <span className="font-medium">{c.name}</span>
                 {justAdded === c.id && <CheckCircle2 className="ml-2 text-green-600 w-4 h-4" />}
               </div>
-              <div className="flex space-x-2">
-                <Button 
-                  size="sm" 
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title="Voir les détails"
+                  onClick={() => setSelectedDetail(c.id)}
+                >
+                  <Sparkles className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
                   variant="outline"
-                  onClick={() => handleAdvancedFeatures(c.id)}
+                  onClick={() => handleEdit(c)}
+                  title="Modifier"
                 >
                   <Settings className="w-4 h-4 mr-1" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={deletingId === c.id}
+                  onClick={() => {
+                    if (window.confirm("Voulez-vous supprimer cette campagne ?")) {
+                      handleDelete(c.id);
+                    }
+                  }}
+                  title="Supprimer"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleAdvancedFeatures(c.id)}
+                >
                   Gérer
                 </Button>
               </div>
@@ -300,6 +408,11 @@ export const SocialSharingCampaignsList: React.FC = () => {
         {isLoading && <div className="text-gray-500">Chargement...</div>}
         {!isLoading && campaigns.length === 0 && <div className="text-gray-400">Aucune campagne pour l'instant.</div>}
       </div>
+      <CampaignDetailsModal
+        open={!!selectedDetail}
+        campaign={selectedCampaignObj}
+        onClose={() => setSelectedDetail(null)}
+      />
     </div>
   );
 };

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -110,7 +109,25 @@ export function useSocialSharingCampaigns() {
     return inserted ? mapDbRowToCampaign(inserted) : null;
   }
 
-  // Add other methods as needed!
+  async function updateCampaign(id: string, data: Partial<SocialSharingCampaign>) {
+    const { error, data: updated } = await supabase
+      .from("social_sharing_campaigns")
+      .update(mapCampaignToDbInsert(data))
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+    if (error) return { error, updated: null };
+    return { error: null, updated: updated ? mapDbRowToCampaign(updated) : null };
+  }
 
-  return { campaigns, isLoading, error, createCampaign, fetchCampaigns };
+  async function deleteCampaign(id: string) {
+    const { error } = await supabase
+      .from("social_sharing_campaigns")
+      .delete()
+      .eq("id", id);
+    if (error) return { error };
+    return { error: null };
+  }
+
+  return { campaigns, isLoading, error, createCampaign, fetchCampaigns, updateCampaign, deleteCampaign };
 }
