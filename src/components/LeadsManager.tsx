@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,10 +89,29 @@ export const LeadsManager: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // Ensure required fields are present
+    const { full_name, status, email, phone, company, source, notes, tags } = form;
+    if (!full_name) {
+      toast({ title: "Erreur", description: "Nom complet requis.", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
     if (editingLead) {
       const { error } = await supabase
         .from("leads")
-        .update({ ...form, tags: form.tags ?? [], updated_at: new Date().toISOString() })
+        .update({
+          full_name,
+          status: status ?? "new",
+          email: email ?? "",
+          phone: phone ?? "",
+          company: company ?? "",
+          source: source ?? "",
+          notes: notes ?? "",
+          tags: tags ?? [],
+          updated_at: new Date().toISOString()
+        })
         .eq("id", editingLead.id);
       if (error) {
         toast({ title: "Erreur", description: "Échec lors de la mise à jour", variant: "destructive" });
@@ -102,17 +122,28 @@ export const LeadsManager: React.FC = () => {
         fetchLeads();
       }
     } else {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) return;
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) {
+        toast({ title: "Erreur", description: "Utilisateur non authentifié", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      // Explicitly provide all required fields
+      const insertObj = {
+        user_id: userId,
+        full_name,
+        status: status ?? "new",
+        email: email ?? "",
+        phone: phone ?? "",
+        company: company ?? "",
+        source: source ?? "",
+        notes: notes ?? "",
+        tags: tags ?? []
+      };
       const { error } = await supabase
         .from("leads")
-        .insert([
-          {
-            ...form,
-            user_id: userId,
-            tags: form.tags ?? []
-          }
-        ]);
+        .insert([insertObj]);
       if (error) {
         toast({ title: "Erreur", description: "Échec lors de la création", variant: "destructive" });
       } else {
@@ -250,3 +281,4 @@ export const LeadsManager: React.FC = () => {
     </div>
   );
 };
+// End of LeadsManager.tsx

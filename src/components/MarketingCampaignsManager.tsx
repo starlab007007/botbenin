@@ -56,14 +56,25 @@ export const MarketingCampaignsManager: React.FC = () => {
     e.preventDefault();
     setLoading(true);
 
+    // Ensure required fields are present
+    const { name, type, status, start_date, end_date, segment, results } = form;
+    if (!name || !type || !status || !start_date) {
+      toast({ title: "Erreur", description: "Nom, type, statut et date de début requis.", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
     if (editing) {
       const { error } = await supabase
         .from("campaigns")
         .update({
-          ...form,
-          // Ensure required JSON columns
-          segment: form.segment ?? {},
-          results: form.results ?? {},
+          name,
+          type,
+          status,
+          start_date,
+          end_date: end_date || null,
+          segment: segment ?? {},
+          results: results ?? {},
           updated_at: new Date().toISOString()
         })
         .eq("id", editing.id);
@@ -76,18 +87,27 @@ export const MarketingCampaignsManager: React.FC = () => {
         fetchCampaigns();
       }
     } else {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) return;
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) {
+        toast({ title: "Erreur", description: "Utilisateur non authentifié", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      // Explicitly provide all required fields
+      const insertObj = {
+        user_id: userId,
+        name,
+        type,
+        status,
+        start_date,
+        end_date: end_date || null,
+        segment: segment ?? {},
+        results: results ?? {},
+      };
       const { error } = await supabase
         .from("campaigns")
-        .insert([
-          {
-            ...form,
-            user_id: userId,
-            segment: form.segment ?? {},
-            results: form.results ?? {}
-          }
-        ]);
+        .insert([insertObj]);
       if (error) {
         toast({ title: "Erreur", description: "Échec lors de la création", variant: "destructive" });
       } else {
@@ -192,3 +212,4 @@ export const MarketingCampaignsManager: React.FC = () => {
     </div>
   );
 };
+// End of MarketingCampaignsManager.tsx
