@@ -7,7 +7,7 @@ import { AIContentGenerator } from "./AIContentGenerator";
 import { AudienceSegmentManager } from "./AudienceSegmentManager";
 import { useSocialSharingCampaigns } from "@/hooks/useSocialSharingCampaigns";
 import { 
-  Template, 
+  FileText, 
   Sparkles, 
   Users, 
   Calendar, 
@@ -45,7 +45,7 @@ export const AdvancedCampaignDashboard: React.FC<AdvancedCampaignDashboardProps>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="templates" className="flex items-center space-x-2">
-            <Template className="w-4 h-4" />
+            <FileText className="w-4 h-4" />
             <span>Templates</span>
           </TabsTrigger>
           <TabsTrigger value="ai-content" className="flex items-center space-x-2">
