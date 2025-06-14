@@ -4086,7 +4086,6 @@ export type Database = {
           p_bot_id: string
           p_session_token: string
           p_message_content: string
-          p_admin_user_id?: string
         }
         Returns: string
       }
