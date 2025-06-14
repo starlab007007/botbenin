@@ -38,7 +38,6 @@ export const CampaignTemplatesManager: React.FC = () => {
   });
   const [activeTab, setActiveTab] = useState("templates");
 
-  // Modals & actions
   const [showPreviewTemplate, setShowPreviewTemplate] = useState<null | any>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,42 +65,27 @@ export const CampaignTemplatesManager: React.FC = () => {
 
   const handleDelete = async (tpl: any) => {
     if (!window.confirm(`Supprimer définitivement le template "${tpl.name}" ?`)) return;
-    // Ici on pourrait rajouter une méthode deleteTemplate côté hook, pour le démo on retire localement
-    // Ajoutez la méthode au hook si stockage côté backend
     toast({ title: "Suppression non implémentée", description: "En démo: suppression locale." });
-    // DEMO: suppression locale
-    // fetchTemplates(); // dans la vraie vie, réactivez la liste après suppression
   };
 
-  // UI du badge de catégorie, couleur claire par défaut
+  // Badge Catégorie
   const CategoryBadge = ({ value }: { value: string }) => (
     <span className="bg-gray-100 px-2 py-0.5 text-xs rounded text-gray-700 mr-1">{CATEGORIES.find(c => c.value === value)?.label || value}</span>
   );
 
   return (
     <div className="space-y-4">
-      <div className="mb-4">
-        <button 
-          onClick={() => window.history.back()}
-          className="px-3 py-1 mr-2 border rounded text-sm bg-white hover:bg-gray-50"
-        >← Retour aux campagnes</button>
-
-        <h2 className="inline text-3xl font-bold text-gray-900 ml-1 align-middle">Campagnes de Partage Personnalisées</h2>
-        <div className="text-gray-600 mb-1">
-          Créez et gérez vos campagnes de partage social avec des fonctionnalités avancées d'IA et d'automatisation.
-        </div>
-      </div>
-
+      {/* Le header et sous-titre sont gérés en haut de page */}
+      {/* TABS plus discrets et compacts */}
       <div>
-        <h2 className="mb-2 text-2xl font-semibold">Fonctionnalités Avancées</h2>
-        <div className="flex gap-2 flex-wrap md:flex-nowrap border-b">
+        <div className="flex gap-2 flex-wrap border-b bg-white mb-2 px-1">
           {TABS.map(t => (
             <button
               key={t.key}
-              className={`flex items-center rounded-t px-3 py-2 mr-2 transition text-sm font-medium ${
+              className={`flex items-center rounded-t px-3 py-1.5 text-sm font-medium border transition ${
                 activeTab === t.key ?
-                  "bg-white border-x border-t border-b-0 border-gray-200 shadow text-primary outline outline-2 outline-offset-[-2px]"
-                  : "bg-muted/50 text-gray-600 hover:bg-white/75"
+                  "bg-white border-x border-t border-b-0 border-primary text-primary font-semibold" :
+                  "bg-muted/50 text-gray-600 border-transparent hover:bg-white/85"
               }`}
               style={{marginBottom: "-1px"}}
               onClick={() => setActiveTab(t.key)}
@@ -113,22 +97,22 @@ export const CampaignTemplatesManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Affichage que pour l’onglet Templates */}
       {activeTab === "templates" && (
-        <>
-          <div className="flex flex-wrap justify-between items-center mt-4 mb-5">
-            <h3 className="text-lg font-semibold">Templates de Campagne</h3>
-            <Button onClick={() => setShowForm(!showForm)}>
-              <Plus className="w-4 h-4 mr-2" />
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-base font-semibold text-gray-800">Templates de Campagne</h3>
+            <Button onClick={() => setShowForm(!showForm)} size="sm">
+              <Plus className="w-4 h-4 mr-1" />
               Nouveau Template
             </Button>
           </div>
 
+          {/* Formulaire plus léger */}
           {showForm && (
             <Card className="p-4 max-w-md mx-auto mb-3">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Nom*</label>
+                  <label className="block text-xs font-medium mb-1">Nom*</label>
                   <Input
                     value={form.name}
                     onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
@@ -136,7 +120,7 @@ export const CampaignTemplatesManager: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <label className="block text-xs font-medium mb-1">Description</label>
                   <Textarea
                     value={form.description}
                     onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
@@ -144,7 +128,7 @@ export const CampaignTemplatesManager: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Catégorie</label>
+                  <label className="block text-xs font-medium mb-1">Catégorie</label>
                   <Select value={form.category} onValueChange={(value) => setForm(f => ({ ...f, category: value }))}>
                     <SelectTrigger>
                       <SelectValue />
@@ -157,24 +141,22 @@ export const CampaignTemplatesManager: React.FC = () => {
                   </Select>
                 </div>
                 <div className="flex space-x-2">
-                  <Button type="submit">Créer</Button>
-                  <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Annuler</Button>
+                  <Button type="submit" size="sm">Créer</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>Annuler</Button>
                 </div>
               </form>
             </Card>
           )}
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {templates.map((template) => (
               <Card
                 key={template.id}
                 className="p-4 flex flex-col justify-between"
-                style={{minHeight: 150}}
+                style={{minHeight: 130}}
               >
                 <div className="flex justify-between mb-2">
-                  <div>
-                    <h4 className="font-semibold text-base mb-2">{template.name}</h4>
-                  </div>
+                  <h4 className="font-medium text-sm">{template.name}</h4>
                   <div className="flex space-x-0.5">
                     <Button
                       size="icon"
@@ -199,7 +181,7 @@ export const CampaignTemplatesManager: React.FC = () => {
                     ><Trash2 size={18}/></Button>
                   </div>
                 </div>
-                <div className="mb-2 text-sm text-gray-700">{template.description}</div>
+                <div className="mb-2 text-xs text-gray-700">{template.description}</div>
                 <div className="flex items-end justify-between mt-2 text-xs text-gray-600">
                   <CategoryBadge value={template.category} />
                   <span>{template.usageCount ?? 0} utilisations</span>
@@ -208,11 +190,11 @@ export const CampaignTemplatesManager: React.FC = () => {
             ))}
           </div>
 
-          {isLoading && <div className="text-center text-gray-500">Chargement...</div>}
+          {isLoading && <div className="text-center text-gray-500 py-3">Chargement…</div>}
           {!isLoading && templates.length === 0 && (
-            <div className="text-center text-gray-400">Aucun template pour l'instant.</div>
+            <div className="text-center text-gray-400 py-3">Aucun template pour l'instant.</div>
           )}
-        </>
+        </div>
       )}
 
       {/* MODAL Aperçu */}
@@ -230,7 +212,7 @@ export const CampaignTemplatesManager: React.FC = () => {
               className="absolute top-2 right-2 text-gray-400 text-lg"
             >×</button>
             <h4 className="font-bold text-xl mb-2">{showPreviewTemplate.name}</h4>
-            <div className="text-sm text-gray-600 mb-2">
+            <div className="text-xs text-gray-600 mb-2">
               <CategoryBadge value={showPreviewTemplate.category} />
             </div>
             <div className="mb-2">{showPreviewTemplate.description || <em className="text-gray-400">Aucune description</em>}</div>
@@ -239,7 +221,7 @@ export const CampaignTemplatesManager: React.FC = () => {
             </div>
             <div className="mt-2 text-xs text-gray-500">
               <strong>Data :</strong><br />
-              <pre className="rounded bg-muted/50 p-2">
+              <pre className="rounded bg-muted/50 p-2 max-h-40 overflow-auto">
                 {JSON.stringify(showPreviewTemplate.templateData || {}, null, 2)}
               </pre>
             </div>
