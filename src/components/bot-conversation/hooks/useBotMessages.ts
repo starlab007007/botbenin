@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Bot } from '../types';
 import { messagesByBotUserId, messagesBySessionTokenMetadata, messagesByRecent } from "./messageSearchStrategies";
@@ -6,7 +5,7 @@ import { findBotUserIdFromSession } from "./sessionHelpers";
 import { supabase } from "@/integrations/supabase/client";
 import { mapSessionToMessages } from "./utils/sessionMessageDebug";
 
-interface BotMessage {
+export interface BotMessage {
   id: string;
   message_content: string;
   created_at: string;
@@ -17,7 +16,7 @@ interface BotMessage {
   metadata?: any;
 }
 
-interface BotSession {
+export interface BotSession {
   id: string;
   session_token: string;
   source_type: 'anonymous' | 'authenticated';
@@ -165,4 +164,3 @@ export const useBotMessages = (
 
   return { messages, loadingMessages, setMessages, debugInfo };
 };
-
