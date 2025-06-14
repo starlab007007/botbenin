@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -99,7 +98,17 @@ export const BotConversationControl: React.FC = () => {
         console.error("[BotConversationControl] Erreur récupération sessions publiques :", error);
         setSessions([]);
       } else {
-        setSessions(sessData || []);
+        // Normalize ip_address so it is always string|null (for TypeScript)
+        const normalized = (sessData || []).map((s: any) => ({
+          ...s,
+          ip_address:
+            typeof s.ip_address === "string"
+              ? s.ip_address
+              : s.ip_address === null || s.ip_address === undefined
+                ? null
+                : String(s.ip_address)
+        }));
+        setSessions(normalized);
       }
       setLoadingSessions(false);
       setSelectedSession(null);
