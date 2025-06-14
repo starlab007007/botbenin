@@ -12,10 +12,10 @@ export const useMessages = (selectedBot: Bot | null, selectedSession: BotSession
     setLoadingMessages(true);
 
     const fetchMessages = async () => {
-      // EXPLICIT TYPE: get the result as Message[]
+      // Only select columns as string, not with a type parameter
       const { data: msgData, error } = await supabase
         .from("chat_messages")
-        .select<Message>("id, message_content, created_at, message_type")
+        .select("id, message_content, created_at, message_type")
         .eq("bot_id", selectedBot?.id || "")
         .eq("session_token", selectedSession.session_token)
         .order("created_at", { ascending: true })
