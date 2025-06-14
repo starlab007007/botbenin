@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,11 @@ import {
   Copy,
   ExternalLink,
   Smartphone,
-  MessageSquare
+  MessageSquare,
+  Facebook,
+  Instagram,
+  Linkedin,
+  Twitter,
 } from 'lucide-react';
 
 interface SocialCampaign {
@@ -39,6 +42,39 @@ interface SocialSharingManagerProps {
   shortUrl: string;
 }
 
+// Custom SVGs for platforms not in lucide-react
+const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="12" fill="#25D366"/>
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.472-.148-.67.15-.198.297-.767.967-.94 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.131-.606.135-.135.298-.349.446-.523.149-.173.198-.297.298-.495.099-.198.05-.372-.025-.521-.074-.149-.669-1.614-.918-2.217-.242-.581-.487-.501-.67-.51-.173-.008-.372-.01-.571-.01-.198 0-.52.074-.792.372-.297.297-1.039 1.017-1.039 2.479 0 1.462 1.064 2.875 1.214 3.072.149.198 2.1 3.205 5.367 4.368.751.258 1.337.412 1.793.527.754.191 1.442.164 1.985.1.606-.07 1.858-.758 2.123-1.49.262-.726.262-1.347.183-1.49-.08-.143-.272-.23-.57-.38z" fill="#fff"/>
+  </svg>
+);
+
+const TelegramIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="12" fill="#259CD8"/>
+    <path d="M17.67 7.338a.617.617 0 0 0-.64-.1l-9.62 3.8a.617.617 0 0 0 .04 1.167l2.45.86 1.11 3.37a.617.617 0 0 0 1.06.21l1.47-2.08 2.36 1.74a.616.616 0 0 0 .96-.35l1.62-6.15a.617.617 0 0 0-.42-.747zm-7.84 4.247 6.03-2.38-2.9 2.23a.617.617 0 0 0-.19.65l.53 2.04-1.8-1.33a.617.617 0 0 0-.74.13l-1.11 1.33.18-2.67z" fill="#fff"/>
+  </svg>
+);
+
+const MessengerIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="12" fill="#006AFF"/>
+    <path d="M20 10.763c0-3.272-2.866-5.704-6.002-5.704-3.195 0-5.997 2.509-5.997 5.796 0 1.799.866 3.412 2.216 4.517.097.08.162.197.203.313l.384 1.102c.09.257.402.34.606.176l1.203-.943c.106-.082.251-.103.378-.058a6.288 6.288 0 0 0 1.007.175c.13.016.234.127.273.266l.28.98c.078.273.382.392.603.205l1.001-.853a4.339 4.339 0 0 0 3.845-4.266z" fill="#fff"/>
+    <path d="M8.97 15.559a.44.44 0 0 1-.363-.171l-.382-1.1a1.124 1.124 0 0 0-.362-.477C6.381 12.85 5.5 11.121 5.5 9.268c0-3.054 2.67-5.236 6.001-5.236 3.267 0 5.999 2.269 5.999 5.295 0 2.283-1.409 4.313-3.57 5.165a3.014 3.014 0 0 1-1.429.197c-.176-.018-.35.066-.468.228L11.072 15.5a.438.438 0 0 1-.362.059c-.07-.014-.136-.032-.198-.111l.458.111zM7.33 11.924c.039.051.093.09.153.11a.44.44 0 0 0 .38-.066l2.097-1.682c.11-.088.261-.093.375-.012l2.06 1.465c.137.098.344.038.42-.111l2.053-3.664c.107-.191-.153-.38-.343-.265l-6.244 3.868a.223.223 0 0 0-.047.357l.096.09z" fill="#006AFF"/>
+  </svg>
+);
+
+const TikTokIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="12" fill="#000"/>
+    <g>
+      <path d="M15.137 8.02V14.2c0 2.007-1.417 3.06-3.065 3.06-1.57 0-3.072-1.22-3.072-3.075 0-1.733 1.37-3.033 3.04-3.033.273 0 .538.032.787.09V8.02h1.18zm-1.179 6.04v-2.31c-.184-.038-.374-.06-.574-.06-1.161 0-1.908.843-1.908 1.969 0 1.05.794 1.788 1.868 1.788 1.016 0 1.614-.615 1.614-1.387z" fill="#FFF"/>
+      <path d="M17.37 8.02a3.098 3.098 0 0 1-1.338-.377c-.428-.239-.712-.587-.823-.854V14.2c0 2.36-1.663 4.06-4.067 4.06C8.06 18.26 6 16.143 6 13.726c0-2.3 1.59-4.063 4.015-4.063.248 0 .492.02.728.056V6.877h2.394c.002.516.254.907.68 1.148.262.15.641.243 1.036.243h.517V8.02z" fill="#25F4EE"/>
+    </g>
+  </svg>
+);
+
 export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({ 
   botId, 
   botName, 
@@ -55,60 +91,61 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
   });
   const { toast } = useToast();
 
+  // Les vraies icônes pour chaque plateforme
   const platforms = [
     { 
       id: 'whatsapp', 
       name: 'WhatsApp', 
-      icon: '📱', 
+      icon: <WhatsAppIcon className="w-8 h-8" />,
       color: 'bg-green-500',
       description: 'Partage direct vers WhatsApp'
     },
     { 
       id: 'telegram', 
       name: 'Telegram', 
-      icon: '✈️', 
+      icon: <TelegramIcon className="w-8 h-8" />,
       color: 'bg-blue-500',
       description: 'Partage direct vers Telegram'
     },
     { 
       id: 'facebook', 
       name: 'Facebook', 
-      icon: '📘', 
+      icon: <Facebook className="w-8 h-8" />,
       color: 'bg-blue-600',
       description: 'Partage sur Facebook'
     },
     { 
       id: 'messenger', 
       name: 'Messenger', 
-      icon: '💬', 
-      color: 'bg-blue-600',
+      icon: <MessengerIcon className="w-8 h-8" />,
+      color: 'bg-blue-400',
       description: 'Partage via Facebook Messenger'
     },
     { 
       id: 'twitter', 
       name: 'Twitter/X', 
-      icon: '🐦', 
+      icon: <Twitter className="w-8 h-8" />,
       color: 'bg-sky-500',
       description: 'Partage sur Twitter/X'
     },
     { 
       id: 'linkedin', 
       name: 'LinkedIn', 
-      icon: '💼', 
+      icon: <Linkedin className="w-8 h-8" />,
       color: 'bg-blue-700',
       description: 'Partage professionnel LinkedIn'
     },
     { 
       id: 'tiktok', 
       name: 'TikTok', 
-      icon: '🎵', 
+      icon: <TikTokIcon className="w-8 h-8" />,
       color: 'bg-black',
       description: 'Partage sur TikTok'
     },
     { 
       id: 'instagram', 
       name: 'Instagram', 
-      icon: '📷', 
+      icon: <Instagram className="w-8 h-8" />,
       color: 'bg-pink-500',
       description: 'Partage Instagram (copie du lien)'
     }
@@ -239,6 +276,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
   };
 
   const generateSocialUrl = (platform: string, message: string, campaign?: SocialCampaign) => {
+    // Ajout correct des UTM dans l'url
     const trackingUrl = campaign 
       ? `${shortUrl}?utm_source=social_campaign&utm_medium=${platform}&utm_campaign=${campaign.campaign_name.toLowerCase().replace(/\s+/g, '_')}`
       : `${shortUrl}?utm_source=social&utm_medium=${platform}`;
@@ -260,12 +298,8 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
       case 'linkedin':
         return `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&summary=${encodedMessage}`;
       case 'tiktok':
-        // TikTok ne supporte pas le partage direct par URL, on copie le lien
-        navigator.clipboard.writeText(`${message} ${trackingUrl}`);
-        return null;
       case 'instagram':
-        // Instagram ne supporte pas les liens directs, on copie le lien
-        navigator.clipboard.writeText(`${message} ${trackingUrl}`);
+        navigator.clipboard.writeText(`${message} ${trackingUrl}`); // copie dans le presse-papier
         return null;
       default:
         return '#';
@@ -285,8 +319,6 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
     
     if (url && url !== '#') {
       window.open(url, '_blank', 'width=600,height=400');
-      
-      // Tracking de l'événement de partage
       trackSharingEvent(platform, campaign?.id);
     }
   };
@@ -358,7 +390,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
               <Card key={platform.id} className="p-4 hover:shadow-md transition-shadow cursor-pointer border-2 hover:border-blue-200">
                 <div className="text-center space-y-3">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${platform.color} text-white`}>
-                    <span className="text-2xl">{platform.icon}</span>
+                    {platform.icon}
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900">{platform.name}</h4>
@@ -444,7 +476,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
                         size="sm"
                         className="flex items-center space-x-1 justify-start"
                       >
-                        <span>{platform.icon}</span>
+                        {platform.icon}
                         <span className="text-xs">{platform.name}</span>
                       </Button>
                     ))}
@@ -517,7 +549,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
                         const platform = platforms.find(p => p.id === platformId);
                         return platform ? (
                           <Badge key={platformId} variant="outline" className="flex items-center space-x-1">
-                            <span>{platform.icon}</span>
+                            {platform.icon}
                             <span>{platform.name}</span>
                           </Badge>
                         ) : null;
@@ -540,7 +572,7 @@ export const SocialSharingManager: React.FC<SocialSharingManagerProps> = ({
                           size="sm"
                           className="flex items-center space-x-1"
                         >
-                          <span>{platform.icon}</span>
+                          {platform.icon}
                           <span>Partager sur {platform.name}</span>
                         </Button>
                       ) : null;
