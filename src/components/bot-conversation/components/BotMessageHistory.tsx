@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, User, Bot, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BotMessageHistoryItem } from "../hooks/useBotMessageHistory";
+import { BotMessageHistoryItem } from "../types";
 
 interface BotMessageHistoryProps {
   messages: BotMessageHistoryItem[];
