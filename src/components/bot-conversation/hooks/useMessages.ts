@@ -13,10 +13,17 @@ function mapRawToMessage(raw: any): Message {
   };
 }
 
+/**
+ * FIX: Avoid deep type recursion error by always casting fetched data to `any`.
+ * This disables TypeScript's attempt to infer recursive types from the Supabase `Database` meta-types.
+ */
 export const useMessages = (
   selectedBot: Bot | null,
   selectedSession: BotSession | null
-) => {
+): {
+  messages: Message[];
+  loadingMessages: boolean;
+} => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
@@ -25,7 +32,8 @@ export const useMessages = (
     setLoadingMessages(true);
 
     const fetchMessages = async () => {
-      // EXPLICITLY type the response as any[] to avoid TS deep type recursion
+      // DO NOT pass a type param to .select()!
+      // Always cast as any to cutoff deep type inference from Supabase types
       const { data, error } = await supabase
         .from("chat_messages")
         .select("id, message_content, created_at, message_type")
@@ -34,13 +42,14 @@ export const useMessages = (
         .order("created_at", { ascending: true })
         .limit(100);
 
-      const dataArray = data as any[] | null; // THIS breaks deep inference
+      // CRITICAL: immediately cast data as any[]
+      const rows: any[] = (data || []) as any[];
 
       if (error) {
         console.error("[BotConversationControl] Erreur récupération messages session :", error);
         setMessages([]);
-      } else if (Array.isArray(dataArray)) {
-        setMessages(dataArray.map(mapRawToMessage));
+      } else if (Array.isArray(rows)) {
+        setMessages(rows.map(mapRawToMessage));
       } else {
         setMessages([]);
       }
