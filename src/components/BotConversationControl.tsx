@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -177,13 +176,12 @@ export const BotConversationControl: React.FC = () => {
           </div>
         )}
         {!loadingSessions &&
-          filteredSessions
-            .map(s => (
-            <Card
-              as="button"
+          filteredSessions.map(s => (
+            <button
+              type="button"
               key={s.session_id}
               className={cn(
-                "p-3 mb-2 w-full bg-gray-50 hover:bg-blue-50 flex flex-col border transition cursor-pointer",
+                "p-3 mb-2 w-full bg-gray-50 hover:bg-blue-50 flex flex-col border transition cursor-pointer rounded-lg text-left",
                 selectedSession?.session_id === s.session_id && "border-blue-600 shadow"
               )}
               onClick={() => setSelectedSession(s)}
@@ -209,7 +207,7 @@ export const BotConversationControl: React.FC = () => {
               <div className="text-[10px] text-gray-400">
                 {new Date(s.last_message_at).toLocaleString()}
               </div>
-            </Card>
+            </button>
           ))}
       </Card>
 
