@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarIcon, Clock, Plus, Image as ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { ImageUploader } from "./ImageUploader";
+import { supabase } from "@/integrations/supabase/client"; // Pour gestion des uploads
 
 interface CampaignSchedulerProps {
   campaignId?: string;
@@ -28,6 +29,11 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
     mediaUrls: ["", "", ""] as string[]
   });
 
+  // Nouveau: gestion des images uploadées localement (File) et URLs finales
+  const [imageFiles, setImageFiles] = useState<(File | null)[]>([null, null, null]);
+  const [uploadedUrls, setUploadedUrls] = useState<(string | null)[]>([null, null, null]);
+  const [isUploading, setIsUploading] = useState(false);
+
   const platforms = [
     { value: "facebook", label: "Facebook" },
     { value: "instagram", label: "Instagram" },
@@ -43,30 +49,84 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
       return;
     }
 
+    // S'il reste des images non uploadées, empêcher submit
+    if (imageFiles.some((f, idx) => f && !uploadedUrls[idx])) {
+      toast({ title: "Veuillez uploader toutes les images", variant: "destructive" });
+      return;
+    }
+
     const scheduledDateTime = new Date(selectedDate);
     if (form.scheduledTime) {
       const [hours, minutes] = form.scheduledTime.split(":");
       scheduledDateTime.setHours(parseInt(hours), parseInt(minutes));
     }
 
-    // Take max 3 non-empty, trimmed URLs
-    const imageUrls = form.mediaUrls.map(url => url.trim()).filter(Boolean).slice(0, 3);
+    // On ne prend que les URLs réellement uploadées
+    const imageUrls = uploadedUrls.filter(Boolean).slice(0, 3) as string[];
 
     const result = await createScheduledPost({
       campaignId,
       platform: form.platform,
       content: form.content,
       scheduledAt: scheduledDateTime.toISOString(),
-      mediaUrl: imageUrls[0] || "", // keep for backward compatibility or remove if not used anymore
-      mediaUrls: imageUrls // NEW: pass array
+      mediaUrl: imageUrls[0] || "", // keep for compatibilité ou à ignorer si obsolète
+      mediaUrls: imageUrls
     });
 
     if (result) {
       setForm({ platform: "", content: "", scheduledTime: "", mediaUrls: ["", "", ""] });
       setSelectedDate(undefined);
       setShowForm(false);
+      setImageFiles([null, null, null]);
+      setUploadedUrls([null, null, null]);
       toast({ title: "Post programmé", description: "Votre publication a été programmée avec succès." });
     }
+  };
+
+  const handleUploadImages = async (files: File[]) => {
+    setIsUploading(true);
+    // On crée le dossier "scheduled_posts/{campaignId}/" sinon "scheduled_posts/misc/"
+    const storagePathBase = `scheduled_posts/${campaignId || "misc"}`;
+    const uploaded: (string | null)[] = [null, null, null];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const ext = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${i}.${ext}`;
+      const filePath = `${storagePathBase}/${fileName}`;
+      const { error } = await supabase.storage.from("public-media").upload(filePath, file, {
+        upsert: true,
+      });
+      if (!error) {
+        // Génère URL publique directe
+        const { data } = supabase.storage.from("public-media").getPublicUrl(filePath);
+        uploaded[i] = data.publicUrl;
+      } else {
+        uploaded[i] = null;
+        toast({ title: `Erreur upload image #${i + 1}`, variant: "destructive" });
+      }
+    }
+    // On conserve les URLs à la bonne place dans uploadedUrls
+    // On fusionne avec les anciennes si pas tous remplacés
+    setUploadedUrls(prev => {
+      const merged: (string | null)[] = [...prev];
+      uploaded.forEach((url, idx) => {
+        if (url) merged[idx] = url;
+      });
+      return merged;
+    });
+    setIsUploading(false);
+    // On peut remplir le champ mediaUrls du form avec les liens uploadés
+    setForm(f => ({ ...f, mediaUrls: uploaded.map(u => u || "") }));
+  };
+
+  const handleFormImagesChange = (filesArr: (File | null)[], urlsArr: (string | null)[]) => {
+    setImageFiles(filesArr);
+    setUploadedUrls(urlsArr);
+    // Pour éviter l'incohérence, on met à jour mediaUrls du form avec celles déjà uploadées
+    setForm(f => ({
+      ...f,
+      mediaUrls: urlsArr.map(u => u ?? "")
+    }));
   };
 
   return (
@@ -182,8 +242,23 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
                 </p>
               </div>
 
+              <div>
+                <ImageUploader
+                  max={3}
+                  files={imageFiles}
+                  urls={uploadedUrls}
+                  isUploading={isUploading}
+                  onChange={handleFormImagesChange}
+                  onUpload={handleUploadImages}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ajoutez jusqu'à 3 images (JPG/PNG recommandés, format carré ou paysage pour les réseaux sociaux).
+                  Les images seront formatées pour l'affichage optimal lors du partage.
+                </p>
+              </div>
+
               <div className="flex space-x-2">
-                <Button type="submit" disabled={isLoading}>Programmer</Button>
+                <Button type="submit" disabled={isLoading || isUploading}>Programmer</Button>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Annuler
                 </Button>
@@ -195,9 +270,10 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
 
       <div className="space-y-3">
         <h4 className="font-medium">Publications programmées</h4>
+        {/* AFFICHAGE des images : social style grid */}
         {scheduledPosts.map(post => (
           <Card key={post.id} className="p-4">
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
@@ -214,7 +290,7 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
                 </div>
                 <p className="text-sm mb-2">{post.content}</p>
                 {Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0 && (
-                  <div className="flex gap-2 mb-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
                     {post.mediaUrls
                       .filter((url: string) => !!url)
                       .slice(0, 3)
@@ -223,8 +299,9 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
                           key={url + idx}
                           src={url}
                           alt={`media-${idx+1}`}
-                          className="h-14 w-14 object-cover rounded border"
-                          onError={e => e.currentTarget.style.display = "none"}
+                          className="rounded-lg object-cover border w-28 h-28 transition-all hover:scale-105"
+                          style={{ aspectRatio: '1/1', maxHeight: 120, maxWidth: 120 }}
+                          onError={e => (e.currentTarget.style.display = "none")}
                         />
                       ))}
                   </div>
