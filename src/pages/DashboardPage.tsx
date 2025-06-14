@@ -24,6 +24,7 @@ import {
   Bell,
   Mail
 } from 'lucide-react';
+import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 
 interface DashboardStats {
   totalBots: number;
@@ -61,7 +62,11 @@ export const DashboardPage: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [showConversations, setShowConversations] = useState(false);
-
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
+  const [showBotAnalytics, setShowBotAnalytics] = useState(false);
+  const [myBots, setMyBots] = useState<Array<{ id: string, name: string }>>([]);
+  
   useEffect(() => {
     if (user) {
       fetchDashboardStats();
@@ -172,6 +177,35 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (user) {
+      fetchMyBots();
+    }
+  }, [user]);
+
+  const fetchMyBots = async () => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+      // On récupère l'id du bot_owner
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', authUser.id)
+        .single();
+
+      if (!ownerData) return;
+      const { data: bots } = await supabase
+        .from('bots')
+        .select('id, name')
+        .eq('owner_id', ownerData.id);
+
+      setMyBots(bots || []);
+    } catch (error) {
+      console.error('Erreur chargement bots utilisateur:', error);
+    }
+  };
+
   const quickStats = [
     { 
       title: 'Mes Chatbots', 
@@ -223,6 +257,14 @@ export const DashboardPage: React.FC = () => {
     return (
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
         <ConversationManager onBack={() => setShowConversations(false)} />
+      </div>
+    );
+  }
+
+  if (showBotAnalytics && selectedBotId && selectedBotName) {
+    return (
+      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+        <CompleteBotAnalytics botId={selectedBotId} botName={selectedBotName} onBack={() => setShowBotAnalytics(false)} />
       </div>
     );
   }
@@ -340,6 +382,24 @@ export const DashboardPage: React.FC = () => {
         </div>
       </Card>
 
+      {myBots.length > 0 && (
+        <Card className="uniform-card p-6 mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Voir les analytics d'un bot</h3>
+          <div className="flex flex-wrap gap-2">
+            {myBots.map(bot => (
+              <Button
+                key={bot.id}
+                variant="outline"
+                className={selectedBotId === bot.id ? "border-blue-600" : ""}
+                onClick={() => { setSelectedBotId(bot.id); setSelectedBotName(bot.name); setShowBotAnalytics(true); }}
+              >
+                {bot.name}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Main Content Tabs */}
       <Card className="uniform-card">
         <Tabs defaultValue="bots" className="w-full">
@@ -383,9 +443,7 @@ export const DashboardPage: React.FC = () => {
               <MessagesOverview />
             </TabsContent>
             
-            <TabsContent value="automations" className="mt-0">
-              {/* ... keep existing code ... */}
-            </TabsContent>
+            <TabsContent value="automations" className="mt-0"></TabsContent>
             
             <TabsContent value="subscription" className="mt-0">
               <SubscriptionManagement />
