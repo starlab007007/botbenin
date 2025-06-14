@@ -87,7 +87,7 @@ export const useBotMessages = (
             .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent, metadata")
             .eq("bot_id", selectedBot.id)
             .order("created_at", { ascending: false })
-            .limit(500); // Augmenté pour une recherche plus large
+            .limit(500);
 
           searchResults.strategy2_token_metadata_search = {
             data: allMessages,
@@ -145,12 +145,6 @@ export const useBotMessages = (
           error: allError
         };
 
-        // Si toujours aucun message, utiliser les messages récents comme fallback pour le debug
-        if (sessionMessages.length === 0 && recentMessages && recentMessages.length > 0) {
-          console.log(`[Fallback] Affichage des ${recentMessages.length} messages récents du bot`);
-          sessionMessages = recentMessages.reverse();
-        }
-
         searchResults.final_result = sessionMessages;
 
         console.log(`[useBotMessages] 🏁 RÉSULTAT FINAL: ${sessionMessages.length} messages`);
@@ -169,6 +163,28 @@ export const useBotMessages = (
     };
 
     fetchMessages();
+
+    // Écouter les changements en temps réel pour ce bot
+    const channel = supabase
+      .channel('chat_messages_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `bot_id=eq.${selectedBot.id}`
+        },
+        (payload) => {
+          console.log('[useBotMessages] Changement détecté:', payload);
+          fetchMessages(); // Refetch messages when changes occur
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedSession, selectedBot]);
 
   return { messages, loadingMessages, setMessages, debugInfo };

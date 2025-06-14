@@ -7,6 +7,7 @@ import { MessageListHeader } from "./MessageListHeader";
 import { DebugPanel } from "./DebugPanel";
 import { MessagesList } from "./MessagesList";
 import { ReplyForm } from "./ReplyForm";
+import { CreateTestMessagesModal } from "./CreateTestMessagesModal";
 
 interface BotMessage {
   id: string;
@@ -31,7 +32,7 @@ interface UnifiedMessageListProps {
   loadingMessages: boolean;
   selectedBot: any;
   onMessagesUpdate: (messages: BotMessage[]) => void;
-  debugInfo?: any; // Ajouté pour recevoir les infos de debug
+  debugInfo?: any;
 }
 
 export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
@@ -43,6 +44,7 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
   debugInfo
 }) => {
   const [localDebugInfo, setLocalDebugInfo] = useState<any>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Fonction de débogage pour voir les informations de la base de données
   const handleDebugSession = async () => {
@@ -103,6 +105,18 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
     }
   };
 
+  const handleCreateTestMessages = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleMessagesCreated = () => {
+    // Rafraîchir la liste des messages après création
+    if (onMessagesUpdate) {
+      // Déclencher un refresh des messages
+      handleDebugSession();
+    }
+  };
+
   if (!selectedSession) {
     return (
       <Card className="w-1/2 flex flex-col px-3 py-4 items-stretch overflow-auto">
@@ -116,35 +130,46 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
   const displayDebugInfo = debugInfo || localDebugInfo;
 
   return (
-    <Card className="w-1/2 flex flex-col px-3 py-4 items-stretch overflow-auto">
-      <MessageListHeader 
-        selectedSession={selectedSession}
-        onDebugSession={handleDebugSession}
-      />
-
-      <DebugPanel 
-        debugInfo={displayDebugInfo}
-        onClose={() => setLocalDebugInfo(null)}
-      />
-
-      {/* Liste des messages */}
-      <div className="flex-1 overflow-y-auto max-h-[35vh] space-y-2 mb-4">
-        <MessagesList
-          messages={messages}
-          loadingMessages={loadingMessages}
+    <>
+      <Card className="w-1/2 flex flex-col px-3 py-4 items-stretch overflow-auto">
+        <MessageListHeader 
           selectedSession={selectedSession}
           onDebugSession={handleDebugSession}
-          debugInfo={displayDebugInfo}
         />
-      </div>
 
-      {/* Zone de réponse manuelle */}
-      <ReplyForm
-        selectedSession={selectedSession}
+        <DebugPanel 
+          debugInfo={displayDebugInfo}
+          onClose={() => setLocalDebugInfo(null)}
+        />
+
+        {/* Liste des messages */}
+        <div className="flex-1 overflow-y-auto max-h-[35vh] space-y-2 mb-4">
+          <MessagesList
+            messages={messages}
+            loadingMessages={loadingMessages}
+            selectedSession={selectedSession}
+            onDebugSession={handleDebugSession}
+            onCreateTestMessages={handleCreateTestMessages}
+            debugInfo={displayDebugInfo}
+          />
+        </div>
+
+        {/* Zone de réponse manuelle */}
+        <ReplyForm
+          selectedSession={selectedSession}
+          selectedBot={selectedBot}
+          messages={messages}
+          onMessagesUpdate={onMessagesUpdate}
+        />
+      </Card>
+
+      <CreateTestMessagesModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
         selectedBot={selectedBot}
-        messages={messages}
-        onMessagesUpdate={onMessagesUpdate}
+        selectedSession={selectedSession}
+        onMessagesCreated={handleMessagesCreated}
       />
-    </Card>
+    </>
   );
 };

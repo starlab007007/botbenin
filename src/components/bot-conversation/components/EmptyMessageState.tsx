@@ -1,7 +1,7 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, AlertTriangle, Database } from "lucide-react";
+import { MessageSquare, AlertTriangle, Database, Plus } from "lucide-react";
 
 interface BotSession {
   id: string;
@@ -13,16 +13,17 @@ interface BotSession {
 interface EmptyMessageStateProps {
   selectedSession: BotSession;
   onDebugSession: () => void;
+  onCreateTestMessages?: () => void;
   debugInfo?: any;
 }
 
 export const EmptyMessageState: React.FC<EmptyMessageStateProps> = ({
   selectedSession,
   onDebugSession,
+  onCreateTestMessages,
   debugInfo
 }) => {
   const hasDebugInfo = debugInfo && debugInfo.final_result;
-  const hasRecentMessages = debugInfo?.strategy3_recent_messages?.count > 0;
   const totalBotMessages = debugInfo?.strategy4_all_bot_messages?.total_count || 0;
 
   return (
@@ -41,7 +42,12 @@ export const EmptyMessageState: React.FC<EmptyMessageStateProps> = ({
       
       <div className="text-sm text-gray-600 mb-4 space-y-1">
         {totalBotMessages === 0 ? (
-          <p>Ce bot n'a encore reçu aucun message</p>
+          <>
+            <p>Ce bot n'a encore reçu aucun message</p>
+            <p className="text-xs text-blue-600">
+              💡 Pour tester l'affichage des messages, vous pouvez créer des messages de test
+            </p>
+          </>
         ) : (
           <>
             <p>Cette session n'a pas encore de messages de conversation</p>
@@ -68,22 +74,29 @@ export const EmptyMessageState: React.FC<EmptyMessageStateProps> = ({
         </div>
       )}
 
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onDebugSession}
-        className="text-xs"
-      >
-        <AlertTriangle className="w-3 h-3 mr-1" />
-        {hasDebugInfo ? "Actualiser debug" : "Analyser la session"}
-      </Button>
+      <div className="flex gap-2 flex-wrap justify-center">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onDebugSession}
+          className="text-xs"
+        >
+          <AlertTriangle className="w-3 h-3 mr-1" />
+          {hasDebugInfo ? "Actualiser debug" : "Analyser la session"}
+        </Button>
 
-      {hasRecentMessages && (
-        <p className="text-xs text-blue-600 mt-2">
-          ℹ️ Il y a {debugInfo.strategy3_recent_messages.count} messages récents dans ce bot, 
-          mais aucun ne correspond à cette session
-        </p>
-      )}
+        {totalBotMessages === 0 && onCreateTestMessages && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={onCreateTestMessages}
+            className="text-xs bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            Créer des messages de test
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
