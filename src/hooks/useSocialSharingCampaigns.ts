@@ -18,6 +18,7 @@ export type SocialSharingCampaign = {
   trackingParameters: any;
 };
 
+// Map a DB row (snake_case) to SocialSharingCampaign (camelCase)
 function mapDbRowToCampaign(row: any): SocialSharingCampaign {
   return {
     id: row.id,
@@ -38,20 +39,20 @@ function mapDbRowToCampaign(row: any): SocialSharingCampaign {
   };
 }
 
+// Map camelCase campaign object to DB insert/update (snake_case)
 function mapCampaignToDbInsert(
   data: Partial<SocialSharingCampaign> & { botId?: string }
-  // You can pass botId for new campaign creation
 ) {
   return {
-    owner_id: data.ownerId,
     bot_id: data.botId,
+    owner_id: data.ownerId,
     campaign_name: data.name,
     campaign_description: data.description,
     custom_message: data.customMessage ?? "",
     is_active: data.isActive ?? true,
     target_platforms: data.targetPlatforms ?? [],
     tracking_parameters: data.trackingParameters ?? {},
-    // The DB will =DEFAULT timestamps
+    // DB handles timestamps
   };
 }
 
@@ -62,6 +63,7 @@ export function useSocialSharingCampaigns() {
 
   useEffect(() => {
     fetchCampaigns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchCampaigns() {
@@ -74,11 +76,7 @@ export function useSocialSharingCampaigns() {
 
     if (error) setError(error);
 
-    setCampaigns(
-      Array.isArray(data)
-        ? data.map(mapDbRowToCampaign)
-        : []
-    );
+    setCampaigns(Array.isArray(data) ? data.map(mapDbRowToCampaign) : []);
     setIsLoading(false);
   }
 
@@ -91,7 +89,6 @@ export function useSocialSharingCampaigns() {
       setIsLoading(false);
       return null;
     }
-
     // fill required owner_id from current user
     const dbInsert = mapCampaignToDbInsert({
       ...data,

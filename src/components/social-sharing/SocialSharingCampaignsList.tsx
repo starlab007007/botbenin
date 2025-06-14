@@ -66,7 +66,7 @@ export const SocialSharingCampaignsList: React.FC = () => {
           <Card key={c.id} className="p-4">
             <div className="font-semibold">{c.name}</div>
             <div className="text-xs text-gray-600 mb-1">{c.description}</div>
-            <div className="text-xs">Créée le {new Date(c.created_at).toLocaleDateString()}</div>
+            <div className="text-xs">Créée le {new Date(c.createdAt).toLocaleDateString()}</div>
           </Card>
         ))}
         {isLoading && <div className="text-gray-500">Chargement...</div>}
