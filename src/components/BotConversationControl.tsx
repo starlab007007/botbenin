@@ -159,8 +159,11 @@ export const BotConversationControl: React.FC = () => {
   }, [selectedSession, selectedBot]);
 
   // Recherche sur sessions : session_token, entry_point, ip...
-  // Avoid TypeScript deep type inference issues by casting to BotSession[] right before filter
-  const filteredSessions = (sessions as BotSession[]).filter((s) =>
+
+  // --- FIX for TypeScript deep/infinite instantiation error ---
+  // Copy sessions to a new array, ensuring it's a plain BotSession[]
+  const sessionsArray: BotSession[] = Array.isArray(sessions) ? [...sessions] : [];
+  const filteredSessions = sessionsArray.filter((s) =>
     !query ||
     (s.session_token && s.session_token.toLowerCase().includes(query.toLowerCase())) ||
     (s.user_agent && s.user_agent.toLowerCase().includes(query.toLowerCase())) ||
