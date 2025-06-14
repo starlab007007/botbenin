@@ -54,6 +54,50 @@ export type Database = {
           },
         ]
       }
+      ai_generated_assets: {
+        Row: {
+          approved: boolean | null
+          asset_type: string | null
+          campaign_id: string | null
+          created_at: string | null
+          generated_content: Json
+          id: string
+          metadata: Json | null
+          prompt_used: string | null
+          quality_score: number | null
+        }
+        Insert: {
+          approved?: boolean | null
+          asset_type?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          generated_content: Json
+          id?: string
+          metadata?: Json | null
+          prompt_used?: string | null
+          quality_score?: number | null
+        }
+        Update: {
+          approved?: boolean | null
+          asset_type?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          generated_content?: Json
+          id?: string
+          metadata?: Json | null
+          prompt_used?: string | null
+          quality_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_ai_assets_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_sharing_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analytics: {
         Row: {
           event_data: Json
@@ -268,6 +312,101 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audience_segments: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          estimated_size: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          owner_id: string
+          performance_metrics: Json | null
+          platforms: Json | null
+          segment_criteria: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          estimated_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          owner_id: string
+          performance_metrics?: Json | null
+          platforms?: Json | null
+          segment_criteria: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          estimated_size?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          owner_id?: string
+          performance_metrics?: Json | null
+          platforms?: Json | null
+          segment_criteria?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      automation_workflows: {
+        Row: {
+          actions: Json
+          campaign_id: string | null
+          created_at: string | null
+          execution_count: number | null
+          id: string
+          is_active: boolean | null
+          last_executed: string | null
+          name: string
+          owner_id: string
+          success_rate: number | null
+          trigger_conditions: Json
+          updated_at: string | null
+        }
+        Insert: {
+          actions: Json
+          campaign_id?: string | null
+          created_at?: string | null
+          execution_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_executed?: string | null
+          name: string
+          owner_id: string
+          success_rate?: number | null
+          trigger_conditions: Json
+          updated_at?: string | null
+        }
+        Update: {
+          actions?: Json
+          campaign_id?: string | null
+          created_at?: string | null
+          execution_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_executed?: string | null
+          name?: string
+          owner_id?: string
+          success_rate?: number | null
+          trigger_conditions?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_workflows_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_sharing_campaigns"
             referencedColumns: ["id"]
           },
         ]
@@ -493,6 +632,101 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      campaign_performance_predictions: {
+        Row: {
+          actual_results: Json | null
+          campaign_id: string | null
+          confidence_score: number | null
+          created_at: string | null
+          id: string
+          platform: string
+          predicted_clicks: number | null
+          predicted_conversions: number | null
+          predicted_engagement: number | null
+          predicted_reach: number | null
+          prediction_factors: Json | null
+        }
+        Insert: {
+          actual_results?: Json | null
+          campaign_id?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          platform: string
+          predicted_clicks?: number | null
+          predicted_conversions?: number | null
+          predicted_engagement?: number | null
+          predicted_reach?: number | null
+          prediction_factors?: Json | null
+        }
+        Update: {
+          actual_results?: Json | null
+          campaign_id?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          platform?: string
+          predicted_clicks?: number | null
+          predicted_conversions?: number | null
+          predicted_engagement?: number | null
+          predicted_reach?: number | null
+          prediction_factors?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_predictions_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_sharing_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_templates: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_public: boolean | null
+          name: string
+          owner_id: string
+          preview_image: string | null
+          tags: Json | null
+          template_data: Json
+          updated_at: string | null
+          usage_count: number | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_public?: boolean | null
+          name: string
+          owner_id: string
+          preview_image?: string | null
+          tags?: Json | null
+          template_data?: Json
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_public?: boolean | null
+          name?: string
+          owner_id?: string
+          preview_image?: string | null
+          tags?: Json | null
+          template_data?: Json
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Relationships: []
       }
       campaigns: {
         Row: {
@@ -1987,40 +2221,64 @@ export type Database = {
       }
       social_sharing_campaigns: {
         Row: {
+          ai_settings: Json | null
+          audience_segments: Json | null
+          automation_rules: Json | null
           bot_id: string
+          brand_guidelines: Json | null
           campaign_description: string | null
           campaign_name: string
+          compliance_settings: Json | null
           created_at: string | null
           custom_message: string | null
           id: string
           is_active: boolean | null
+          media_library: Json | null
           owner_id: string
+          performance_goals: Json | null
+          scheduling_settings: Json | null
           target_platforms: Json
           tracking_parameters: Json | null
           updated_at: string | null
         }
         Insert: {
+          ai_settings?: Json | null
+          audience_segments?: Json | null
+          automation_rules?: Json | null
           bot_id: string
+          brand_guidelines?: Json | null
           campaign_description?: string | null
           campaign_name: string
+          compliance_settings?: Json | null
           created_at?: string | null
           custom_message?: string | null
           id?: string
           is_active?: boolean | null
+          media_library?: Json | null
           owner_id: string
+          performance_goals?: Json | null
+          scheduling_settings?: Json | null
           target_platforms?: Json
           tracking_parameters?: Json | null
           updated_at?: string | null
         }
         Update: {
+          ai_settings?: Json | null
+          audience_segments?: Json | null
+          automation_rules?: Json | null
           bot_id?: string
+          brand_guidelines?: Json | null
           campaign_description?: string | null
           campaign_name?: string
+          compliance_settings?: Json | null
           created_at?: string | null
           custom_message?: string | null
           id?: string
           is_active?: boolean | null
+          media_library?: Json | null
           owner_id?: string
+          performance_goals?: Json | null
+          scheduling_settings?: Json | null
           target_platforms?: Json
           tracking_parameters?: Json | null
           updated_at?: string | null
