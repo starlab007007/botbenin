@@ -51,7 +51,24 @@ function normalizeSession(s: any): BotSession {
   };
 }
 
-// --- FIX: Extract and strongly type filter logic to avoid TS deep instantiation error ---
+// Simple filter function to avoid deep type inference
+function filterSessions(sessions: BotSession[], query: string): BotSession[] {
+  if (!Array.isArray(sessions) || !sessions.length) return [];
+  if (!query) return sessions;
+  
+  const lowerQuery = query.toLowerCase();
+  
+  return sessions.filter(s => {
+    const sessionToken = s.session_token?.toLowerCase() || '';
+    const userAgent = s.user_agent?.toLowerCase() || '';
+    const ipAddress = s.ip_address || '';
+    
+    return sessionToken.includes(lowerQuery) ||
+           userAgent.includes(lowerQuery) ||
+           ipAddress.includes(query);
+  });
+}
+
 export const BotConversationControl: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
   const [loadingBots, setLoadingBots] = useState(true);
@@ -161,18 +178,8 @@ export const BotConversationControl: React.FC = () => {
     fetchMessages();
   }, [selectedSession, selectedBot]);
 
-  // Recherche sur sessions : session_token, entry_point, ip...
-  // ---------- FIX: Explicitly type the useMemo result to avoid deep type inference problems ----------
-  const filteredSessions = React.useMemo<BotSession[]>(() => {
-    if (!Array.isArray(sessions) || !sessions.length) return [];
-    if (!query) return sessions;
-    const lowerQuery = query.toLowerCase();
-    return sessions.filter(s =>
-      (s.session_token && s.session_token.toLowerCase().includes(lowerQuery)) ||
-      (s.user_agent && s.user_agent.toLowerCase().includes(lowerQuery)) ||
-      (s.ip_address && String(s.ip_address).includes(query))
-    );
-  }, [sessions, query]);
+  // Use the simple filter function
+  const filteredSessions = filterSessions(sessions, query);
 
   return (
     <div className="flex gap-2 h-[70vh]">
@@ -255,7 +262,7 @@ export const BotConversationControl: React.FC = () => {
                   : ""}
               </div>
               <div className="truncate text-xs text-gray-600">
-                Entrée : {s.entry_point}
+                Entrée : {s.entry_point}
               </div>
             </button>
           ))}
