@@ -1,7 +1,9 @@
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Bot } from '../types';
+import { messagesByBotUserId, messagesBySessionTokenMetadata, messagesByRecent } from "./messageSearchStrategies";
+import { findBotUserIdFromSession } from "./sessionHelpers";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BotMessage {
   id: string;
@@ -37,154 +39,72 @@ export const useBotMessages = (
 
     setLoadingMessages(true);
 
+    // new debug context
+    const searchResults: any = {
+      strategy1_bot_user_search: null,
+      strategy2_token_metadata_search: null,
+      strategy3_recent_messages: null,
+      final_result: []
+    };
+
     const fetchMessages = async () => {
       try {
-        console.log(`[useBotMessages] === RECHERCHE MESSAGES AMÉLIORÉE ===`);
-        console.log(`Session token: ${selectedSession.session_token}`);
-        console.log(`Bot ID: ${selectedBot.id}`);
-        console.log(`Session type: ${selectedSession.source_type}`);
-
         let sessionMessages: BotMessage[] = [];
-        const searchResults: any = {
-          strategy1_bot_user_search: null,
-          strategy2_token_metadata_search: null,
-          strategy3_recent_messages: null,
-          strategy4_all_bot_messages: null,
-          final_result: []
-        };
+        let byUser: BotMessage[] = [];
+        let byToken: BotMessage[] = [];
 
-        // Stratégie 1: Recherche par bot_user_id si disponible
+        // Strategy 1: direct bot_user_id
         if (selectedSession.bot_user_id) {
-          console.log(`[Stratégie 1] Recherche par bot_user_id: ${selectedSession.bot_user_id}`);
-          
-          const { data: messagesByUser, error: userError } = await supabase
-            .from("chat_messages")
-            .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
-            .eq("bot_id", selectedBot.id)
-            .eq("bot_user_id", selectedSession.bot_user_id)
-            .order("created_at", { ascending: true });
-
+          byUser = await messagesByBotUserId(selectedBot.id, selectedSession.bot_user_id);
           searchResults.strategy1_bot_user_search = {
-            data: messagesByUser,
-            error: userError,
-            count: messagesByUser?.length || 0
+            usedBotUserId: selectedSession.bot_user_id,
+            count: byUser.length,
           };
-
-          if (userError) {
-            console.error("[Stratégie 1] Erreur:", userError);
-          } else if (messagesByUser && messagesByUser.length > 0) {
-            sessionMessages = messagesByUser;
-            console.log(`[Stratégie 1] ✅ ${sessionMessages.length} messages trouvés`);
+          if (byUser.length > 0) {
+            sessionMessages = byUser;
           }
         }
 
-        // Stratégie 2 AMÉLIORÉE: Recherche par session_token dans les métadonnées OU par bot_user_id associé au token
+        // Strategy 2: try to lookup bot_user_id from sessionToken
         if (sessionMessages.length === 0) {
-          console.log(`[Stratégie 2] Recherche améliorée par session_token`);
-          
-          // D'abord, chercher un bot_user avec ce session_id
-          const { data: botUser, error: botUserError } = await supabase
-            .from("bot_users")
-            .select("id")
-            .eq("bot_id", selectedBot.id)
-            .eq("session_id", selectedSession.session_token)
-            .maybeSingle();
-
-          if (botUser && !botUserError) {
-            console.log(`[Stratégie 2a] Bot user trouvé pour le token: ${botUser.id}`);
-            
-            // Rechercher les messages par ce bot_user_id
-            const { data: messagesByBotUser, error: msgError } = await supabase
-              .from("chat_messages")
-              .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
-              .eq("bot_id", selectedBot.id)
-              .eq("bot_user_id", botUser.id)
-              .order("created_at", { ascending: true });
-
-            if (messagesByBotUser && !msgError && messagesByBotUser.length > 0) {
-              sessionMessages = messagesByBotUser;
-              console.log(`[Stratégie 2a] ✅ ${sessionMessages.length} messages trouvés par bot_user_id`);
-            }
-          }
-
-          // Si toujours pas de messages, rechercher dans les métadonnées
-          if (sessionMessages.length === 0) {
-            console.log(`[Stratégie 2b] Recherche dans les métadonnées`);
-            
-            const { data: allMessages, error: metaError } = await supabase
-              .from("chat_messages")
-              .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent, metadata")
-              .eq("bot_id", selectedBot.id)
-              .order("created_at", { ascending: false })
-              .limit(500);
-
-            searchResults.strategy2_token_metadata_search = {
-              data: allMessages,
-              error: metaError,
-              count: allMessages?.length || 0,
-              searched_token: selectedSession.session_token
+          const inferredBotUserId = await findBotUserIdFromSession(selectedBot.id, selectedSession.session_token);
+          if (inferredBotUserId) {
+            byUser = await messagesByBotUserId(selectedBot.id, inferredBotUserId);
+            searchResults.strategy1_bot_user_search = {
+              usedBotUserId: inferredBotUserId,
+              count: byUser.length,
+              inferred: true,
             };
-
-            if (metaError) {
-              console.error("[Stratégie 2b] Erreur:", metaError);
-            } else if (allMessages) {
-              console.log(`[Stratégie 2b] ${allMessages.length} messages à filtrer`);
-              
-              const filteredMessages = allMessages.filter(msg => {
-                if (msg.metadata && typeof msg.metadata === 'object') {
-                  const metadata = msg.metadata as any;
-                  const hasSessionToken = metadata.session_token === selectedSession.session_token ||
-                                        metadata.sessionToken === selectedSession.session_token;
-                  return hasSessionToken;
-                }
-                return false;
-              });
-              
-              if (filteredMessages.length > 0) {
-                sessionMessages = filteredMessages.reverse();
-                console.log(`[Stratégie 2b] ✅ ${sessionMessages.length} messages trouvés dans métadonnées`);
-              }
+            if (byUser.length > 0) {
+              sessionMessages = byUser;
             }
           }
         }
 
-        // Stratégie 3: Messages récents du bot (pour debug)
-        console.log(`[Stratégie 3] Recherche messages récents du bot`);
-        const { data: recentMessages, error: recentError } = await supabase
-          .from("chat_messages")
-          .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
-          .eq("bot_id", selectedBot.id)
-          .order("created_at", { ascending: false })
-          .limit(10);
+        // Strategy 3: fallback to scanning metadata for session_token
+        if (sessionMessages.length === 0) {
+          byToken = await messagesBySessionTokenMetadata(selectedBot.id, selectedSession.session_token);
+          searchResults.strategy2_token_metadata_search = {
+            searchedToken: selectedSession.session_token,
+            count: byToken.length
+          };
+          if (byToken.length > 0) {
+            sessionMessages = byToken;
+          }
+        }
 
+        // Strategy 4: show recent (for debugging)
+        const recent = await messagesByRecent(selectedBot.id, 10);
         searchResults.strategy3_recent_messages = {
-          data: recentMessages,
-          error: recentError,
-          count: recentMessages?.length || 0
-        };
-
-        // Stratégie 4: TOUS les messages du bot (pour debug complet)
-        console.log(`[Stratégie 4] Comptage total des messages du bot`);
-        const { data: allBotMessages, error: allError, count } = await supabase
-          .from("chat_messages")
-          .select("id", { count: 'exact' })
-          .eq("bot_id", selectedBot.id);
-
-        searchResults.strategy4_all_bot_messages = {
-          total_count: count,
-          error: allError
+          count: recent.length
         };
 
         searchResults.final_result = sessionMessages;
-
-        console.log(`[useBotMessages] 🏁 RÉSULTAT FINAL: ${sessionMessages.length} messages`);
-        console.log(`[useBotMessages] Détails de recherche:`, searchResults);
 
         setMessages(sessionMessages);
         setDebugInfo(searchResults);
 
       } catch (error) {
-        console.error("[useBotMessages] Erreur générale:", error);
         setMessages([]);
         setDebugInfo({ error: error });
       } finally {
@@ -194,7 +114,7 @@ export const useBotMessages = (
 
     fetchMessages();
 
-    // Écouter les changements en temps réel pour ce bot
+    // Realtime updates for this bot
     const channel = supabase
       .channel('chat_messages_changes')
       .on(
@@ -205,9 +125,8 @@ export const useBotMessages = (
           table: 'chat_messages',
           filter: `bot_id=eq.${selectedBot.id}`
         },
-        (payload) => {
-          console.log('[useBotMessages] Changement détecté:', payload);
-          fetchMessages(); // Refetch messages when changes occur
+        (_payload) => {
+          fetchMessages();
         }
       )
       .subscribe();
@@ -215,6 +134,7 @@ export const useBotMessages = (
     return () => {
       supabase.removeChannel(channel);
     };
+
   }, [selectedSession, selectedBot]);
 
   return { messages, loadingMessages, setMessages, debugInfo };
