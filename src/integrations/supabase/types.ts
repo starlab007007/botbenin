@@ -2073,6 +2073,7 @@ export type Database = {
           created_at: string | null
           id: string
           media_asset_id: string | null
+          media_urls: string[] | null
           owner_id: string
           platform: string
           posted_at: string | null
@@ -2087,6 +2088,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           media_asset_id?: string | null
+          media_urls?: string[] | null
           owner_id: string
           platform: string
           posted_at?: string | null
@@ -2101,6 +2103,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           media_asset_id?: string | null
+          media_urls?: string[] | null
           owner_id?: string
           platform?: string
           posted_at?: string | null

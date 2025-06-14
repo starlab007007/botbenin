@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAdvancedCampaignFeatures } from "@/hooks/useAdvancedCampaignFeatures";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar as CalendarIcon, Clock, Plus } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Image as ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -25,7 +25,7 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
     platform: "",
     content: "",
     scheduledTime: "",
-    mediaUrl: ""
+    mediaUrls: ["", "", ""] as string[]
   });
 
   const platforms = [
@@ -45,20 +45,24 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
 
     const scheduledDateTime = new Date(selectedDate);
     if (form.scheduledTime) {
-      const [hours, minutes] = form.scheduledTime.split(':');
+      const [hours, minutes] = form.scheduledTime.split(":");
       scheduledDateTime.setHours(parseInt(hours), parseInt(minutes));
     }
+
+    // Take max 3 non-empty, trimmed URLs
+    const imageUrls = form.mediaUrls.map(url => url.trim()).filter(Boolean).slice(0, 3);
 
     const result = await createScheduledPost({
       campaignId,
       platform: form.platform,
       content: form.content,
       scheduledAt: scheduledDateTime.toISOString(),
-      mediaUrl: form.mediaUrl
+      mediaUrl: imageUrls[0] || "", // keep for backward compatibility or remove if not used anymore
+      mediaUrls: imageUrls // NEW: pass array
     });
 
     if (result) {
-      setForm({ platform: "", content: "", scheduledTime: "", mediaUrl: "" });
+      setForm({ platform: "", content: "", scheduledTime: "", mediaUrls: ["", "", ""] });
       setSelectedDate(undefined);
       setShowForm(false);
       toast({ title: "Post programmé", description: "Votre publication a été programmée avec succès." });
@@ -93,7 +97,7 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Plateforme*</label>
-                <Select value={form.platform} onValueChange={(value) => setForm(f => ({ ...f, platform: value }))}>
+                <Select value={form.platform} onValueChange={value => setForm(f => ({ ...f, platform: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir une plateforme" />
                   </SelectTrigger>
@@ -113,7 +117,7 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
                   className="w-full p-2 border rounded-md"
                   rows={4}
                   value={form.content}
-                  onChange={(e) => setForm(f => ({ ...f, content: e.target.value }))}
+                  onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                   placeholder="Rédigez votre message..."
                   required
                 />
@@ -145,23 +149,41 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
                   <Input
                     type="time"
                     value={form.scheduledTime}
-                    onChange={(e) => setForm(f => ({ ...f, scheduledTime: e.target.value }))}
+                    onChange={e => setForm(f => ({ ...f, scheduledTime: e.target.value }))}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">URL du média (optionnel)</label>
-                <Input
-                  type="url"
-                  value={form.mediaUrl}
-                  onChange={(e) => setForm(f => ({ ...f, mediaUrl: e.target.value }))}
-                  placeholder="https://..."
-                />
+                <label className="block text-sm font-medium mb-1 flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  URLs des médias (jusqu'à 3 images)
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {[0, 1, 2].map(i => (
+                    <Input
+                      key={i}
+                      type="url"
+                      value={form.mediaUrls[i] || ""}
+                      onChange={e =>
+                        setForm(f => {
+                          const newUrls = [...f.mediaUrls];
+                          newUrls[i] = e.target.value;
+                          return { ...f, mediaUrls: newUrls };
+                        })
+                      }
+                      placeholder={`https://... (Image #${i + 1})`}
+                      className="mb-1"
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ajoutez jusqu'à 3 liens d'images. Formats recommandés : JPG/PNG, taille adaptée aux réseaux sociaux.
+                </p>
               </div>
 
               <div className="flex space-x-2">
-                <Button type="submit">Programmer</Button>
+                <Button type="submit" disabled={isLoading}>Programmer</Button>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Annuler
                 </Button>
@@ -173,7 +195,7 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
 
       <div className="space-y-3">
         <h4 className="font-medium">Publications programmées</h4>
-        {scheduledPosts.map((post) => (
+        {scheduledPosts.map(post => (
           <Card key={post.id} className="p-4">
             <div className="flex justify-between items-start">
               <div className="flex-1">
@@ -191,6 +213,22 @@ export const CampaignScheduler: React.FC<CampaignSchedulerProps> = ({ campaignId
                   </span>
                 </div>
                 <p className="text-sm mb-2">{post.content}</p>
+                {Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0 && (
+                  <div className="flex gap-2 mb-2">
+                    {post.mediaUrls
+                      .filter((url: string) => !!url)
+                      .slice(0, 3)
+                      .map((url: string, idx: number) => (
+                        <img
+                          key={url + idx}
+                          src={url}
+                          alt={`media-${idx+1}`}
+                          className="h-14 w-14 object-cover rounded border"
+                          onError={e => e.currentTarget.style.display = "none"}
+                        />
+                      ))}
+                  </div>
+                )}
                 <p className="text-xs text-gray-500">
                   {post.scheduledAt ? format(new Date(post.scheduledAt), "PPP à HH:mm", { locale: fr }) : 'Non programmé'}
                 </p>
