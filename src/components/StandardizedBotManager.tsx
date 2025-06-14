@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { BotConfigService, StandardBotConfig } from '@/services/botConfigService';
 import { supabase } from '@/integrations/supabase/client';
-import { Bot, CheckCircle, XCircle, AlertTriangle, Save, Test } from 'lucide-react';
+import { Bot, CheckCircle, XCircle, AlertTriangle, Save, Zap } from 'lucide-react';
 
 interface StandardizedBotManagerProps {
   botId?: string;
@@ -88,13 +88,21 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       if (!ownerData) throw new Error('Propriétaire non trouvé');
 
       if (botId) {
-        // Mise à jour
+        // Mise à jour - ensure name is required
+        const updateData = {
+          name: formData.name || '',
+          description: formData.description || '',
+          webhook_url: formData.webhook_url || '',
+          chat_title: formData.chat_title || '',
+          chat_context: formData.chat_context || 'general',
+          share_enabled: formData.share_enabled || false,
+          is_active: formData.is_active !== false,
+          updated_at: new Date().toISOString()
+        };
+
         const { data, error } = await supabase
           .from('bots')
-          .update({
-            ...formData,
-            updated_at: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('id', botId)
           .eq('owner_id', ownerData.id)
           .select()
@@ -109,13 +117,21 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
 
         if (onSave) onSave(data);
       } else {
-        // Création
+        // Création - ensure name is required
+        const insertData = {
+          name: formData.name || '',
+          description: formData.description || '',
+          webhook_url: formData.webhook_url || '',
+          chat_title: formData.chat_title || '',
+          chat_context: formData.chat_context || 'general',
+          share_enabled: formData.share_enabled || false,
+          is_active: formData.is_active !== false,
+          owner_id: ownerData.id
+        };
+
         const { data, error } = await supabase
           .from('bots')
-          .insert({
-            ...formData,
-            owner_id: ownerData.id
-          })
+          .insert(insertData)
           .select()
           .single();
 
@@ -308,7 +324,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
                 {isTesting ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
                 ) : (
-                  <Test className="w-4 h-4" />
+                  <Zap className="w-4 h-4" />
                 )}
               </Button>
             </div>
