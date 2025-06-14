@@ -195,7 +195,7 @@ export class BotConfigService {
         };
       }
 
-      if (!data || data.length === 0) {
+      if (!data || !Array.isArray(data) || data.length === 0) {
         return { 
           accessible: false, 
           error: 'Aucune réponse de la fonction de vérification d\'accès' 
@@ -205,21 +205,28 @@ export class BotConfigService {
       const result = data[0];
       console.log('Résultat de la fonction check_bot_public_access:', result);
 
-      if (!result.accessible) {
+      if (!result || !result.accessible) {
         return { 
           accessible: false, 
-          error: result.error_message || 'Bot non accessible' 
+          error: (result && result.error_message) || 'Bot non accessible' 
         };
       }
 
-      // Extraire les données du bot depuis le JSONB
-      const botData = result.bot_data;
-      if (!botData) {
+      // Extraire et vérifier le type des données du bot depuis le JSONB
+      const botDataRaw = result.bot_data;
+      if (
+        !botDataRaw ||
+        typeof botDataRaw !== "object" ||
+        Array.isArray(botDataRaw)
+      ) {
         return { 
           accessible: false, 
-          error: 'Données du bot non trouvées' 
+          error: 'Données du bot non trouvées ou mal formatées' 
         };
       }
+
+      // Cast to StandardBotConfig using unknown first (TypeScript best practice)
+      const botData = botDataRaw as unknown as StandardBotConfig;
 
       console.log('Bot trouvé et accessible:', {
         id: botData.id,
@@ -230,7 +237,7 @@ export class BotConfigService {
 
       return { 
         accessible: true, 
-        config: botData as StandardBotConfig 
+        config: botData
       };
 
     } catch (error) {
