@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -169,11 +168,6 @@ const CampaignSummaryStep = ({ data, previewImageUrls, onPrev, onFinish, isLoadi
         <strong>Message :</strong>
         <div className="whitespace-pre-wrap">{data.customMessage}</div>
       </div>}
-      {data.scheduleDate &&
-        <div>
-          <strong>Date prévue :</strong> {data.scheduleDate}
-        </div>
-      }
     </div>
     <div className="flex justify-between">
       <Button type="button" variant="outline" onClick={onPrev}>Retour</Button>
@@ -278,8 +272,7 @@ export const SocialSharingCampaignWizard: React.FC<{
           description: data.description,
           previewImages: filteredUrls,
           targetPlatforms: data.platforms,
-          customMessage: data.customMessage,
-          scheduleDate: data.scheduleDate
+          customMessage: data.customMessage
         });
         await fetchCampaigns();
         setIsLoading(false);
