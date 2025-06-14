@@ -2239,6 +2239,7 @@ export type Database = {
           media_library: Json | null
           owner_id: string
           performance_goals: Json | null
+          preview_images: string[] | null
           scheduling_settings: Json | null
           target_platforms: Json
           tracking_parameters: Json | null
@@ -2260,6 +2261,7 @@ export type Database = {
           media_library?: Json | null
           owner_id: string
           performance_goals?: Json | null
+          preview_images?: string[] | null
           scheduling_settings?: Json | null
           target_platforms?: Json
           tracking_parameters?: Json | null
@@ -2281,6 +2283,7 @@ export type Database = {
           media_library?: Json | null
           owner_id?: string
           performance_goals?: Json | null
+          preview_images?: string[] | null
           scheduling_settings?: Json | null
           target_platforms?: Json
           tracking_parameters?: Json | null

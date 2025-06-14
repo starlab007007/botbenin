@@ -5,8 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useSocialSharingCampaigns } from "@/hooks/useSocialSharingCampaigns";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, CheckCircle2, Settings, Sparkles } from "lucide-react";
+import { Plus, CheckCircle2, Settings, Sparkles, Image as ImageIcon, Loader2, X } from "lucide-react";
 import { AdvancedCampaignDashboard } from "./AdvancedCampaignDashboard";
+import { ImageUploader } from "./ImageUploader";
+import { supabase } from "@/integrations/supabase/client";
 
 const initialForm = { name: "", description: "" };
 
@@ -15,6 +17,12 @@ export const SocialSharingCampaignsList: React.FC = () => {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
+
+  // New: manage preview image upload state
+  const [previewImageFiles, setPreviewImageFiles] = useState<(File | null)[]>([null, null, null]);
+  const [previewImageUrls, setPreviewImageUrls] = useState<(string | null)[]>([null, null, null]);
+  const [isUploading, setIsUploading] = useState(false);
+
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -26,14 +34,54 @@ export const SocialSharingCampaignsList: React.FC = () => {
     }));
   };
 
+  // Upload selected preview images to Supabase bucket & fill URLs
+  const handleUploadPreviewImages = async (files: File[]) => {
+    setIsUploading(true);
+    const uploaded: (string | null)[] = [null, null, null];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const ext = file.name.split('.').pop();
+      const fileName = `${Date.now()}_preview_${i}.${ext}`;
+      const filePath = `campaign_previews/${fileName}`;
+      const { error } = await supabase.storage.from("public-media").upload(filePath, file, { upsert: true });
+      if (!error) {
+        const { data } = supabase.storage.from("public-media").getPublicUrl(filePath);
+        uploaded[i] = data.publicUrl;
+      } else {
+        uploaded[i] = null;
+        toast({ title: `Erreur upload vignette #${i + 1}`, variant: "destructive" });
+      }
+    }
+    setPreviewImageUrls(uploaded);
+    setIsUploading(false);
+  };
+
+  const handleFormImagesChange = (filesArr: (File | null)[], urlsArr: (string | null)[]) => {
+    setPreviewImageFiles(filesArr);
+    setPreviewImageUrls(urlsArr);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name) {
       toast({title: "Nom requis", description: "Donnez un nom à la campagne.", variant: "destructive"});
       return;
     }
-    const res = await createCampaign({ name: form.name, description: form.description });
+    // If some files are present but not yet uploaded, force the upload before submitting
+    if (previewImageFiles.some((f, i) => f && !previewImageUrls[i])) {
+      toast({ title: "Veuillez uploader toutes les vignettes", variant: "destructive" });
+      return;
+    }
+    const filteredUrls = previewImageUrls.filter(Boolean).slice(0, 3) as string[];
+    // Save with previewImages
+    const res = await createCampaign({ 
+      name: form.name, 
+      description: form.description,
+      previewImages: filteredUrls 
+    });
     setForm(initialForm);
+    setPreviewImageFiles([null, null, null]);
+    setPreviewImageUrls([null, null, null]);
     setShowForm(false);
     if (res && res.id) {
       setJustAdded(res.id);
@@ -97,9 +145,33 @@ export const SocialSharingCampaignsList: React.FC = () => {
               <label className="block text-xs">Description</label>
               <Input name="description" value={form.description} onChange={handleChange} />
             </div>
+            <div className="mt-2">
+              <div className="flex items-center gap-2 mb-1">
+                <ImageIcon className="h-4 w-4" />
+                <span className="text-xs font-medium">Vignettes de campagne (maxi 3)</span>
+              </div>
+              <ImageUploader
+                max={3}
+                files={previewImageFiles}
+                urls={previewImageUrls}
+                isUploading={isUploading}
+                onChange={handleFormImagesChange}
+                onUpload={handleUploadPreviewImages}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ajoutez jusqu'à 3 images de vignette (format carré recommandé pour l'aperçu).
+              </p>
+            </div>
             <div className="flex space-x-2 mt-3">
-              <Button type="submit">Ajouter</Button>
-              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Annuler</Button>
+              <Button type="submit" disabled={isUploading}>
+                {isUploading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
+                Ajouter
+              </Button>
+              <Button type="button" variant="outline" onClick={() => {
+                setShowForm(false);
+                setPreviewImageFiles([null, null, null]);
+                setPreviewImageUrls([null, null, null]);
+              }}>Annuler</Button>
             </div>
           </form>
         </Card>
@@ -112,8 +184,25 @@ export const SocialSharingCampaignsList: React.FC = () => {
             className={`p-4 transition-all duration-300 ${justAdded === c.id ? 'border-green-500 bg-green-50' : ''}`}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center font-semibold">
-                {c.name}
+              <div className="flex items-center font-semibold gap-2">
+                {Array.isArray(c.previewImages) && c.previewImages.length > 0 && (
+                  <div className="flex gap-1">
+                    {c.previewImages
+                      .filter(url => !!url)
+                      .slice(0, 3)
+                      .map((url, i) => (
+                        <img
+                          key={url + i}
+                          src={url}
+                          alt={`preview-img-${i+1}`}
+                          className="object-cover rounded-md border w-9 h-9"
+                          style={{ aspectRatio: "1/1", maxWidth: 36, maxHeight: 36 }}
+                          onError={e => (e.currentTarget.style.display = "none")}
+                        />
+                      ))}
+                  </div>
+                )}
+                <span>{c.name}</span>
                 {justAdded === c.id && <CheckCircle2 className="ml-2 text-green-600 w-4 h-4" />}
               </div>
               <div className="flex space-x-2">

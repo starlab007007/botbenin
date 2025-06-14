@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Internal "friendly" type for campaigns (used by UI)
-// Matches camelCase and only the fields you want in the app
 export type SocialSharingCampaign = {
   id: string;
   botId: string;
@@ -16,6 +15,7 @@ export type SocialSharingCampaign = {
   isActive: boolean;
   targetPlatforms: string[];
   trackingParameters: any;
+  previewImages?: string[]; // NEW: up to 3 preview URLs
 };
 
 // Map a DB row (snake_case) to SocialSharingCampaign (camelCase)
@@ -36,6 +36,7 @@ function mapDbRowToCampaign(row: any): SocialSharingCampaign {
       ? row.target_platforms[0]
       : row.target_platforms ?? [],
     trackingParameters: row.tracking_parameters ?? {},
+    previewImages: Array.isArray(row.preview_images) ? row.preview_images : [],
   };
 }
 
@@ -52,6 +53,7 @@ function mapCampaignToDbInsert(
     is_active: data.isActive ?? true,
     target_platforms: data.targetPlatforms ?? [],
     tracking_parameters: data.trackingParameters ?? {},
+    preview_images: data.previewImages ?? [],
     // DB handles timestamps
   };
 }
