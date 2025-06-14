@@ -73,6 +73,16 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       return;
     }
 
+    // Ensure required fields are present
+    if (!formData.name?.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Le nom du bot est obligatoire",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsLoading(true);
 
@@ -88,12 +98,12 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       if (!ownerData) throw new Error('Propriétaire non trouvé');
 
       if (botId) {
-        // Mise à jour - ensure name is required
+        // Mise à jour - ensure all required fields are properly typed
         const updateData = {
-          name: formData.name || '',
-          description: formData.description || '',
-          webhook_url: formData.webhook_url || '',
-          chat_title: formData.chat_title || '',
+          name: formData.name.trim(),
+          description: formData.description?.trim() || '',
+          webhook_url: formData.webhook_url?.trim() || '',
+          chat_title: formData.chat_title?.trim() || '',
           chat_context: formData.chat_context || 'general',
           share_enabled: formData.share_enabled || false,
           is_active: formData.is_active !== false,
@@ -117,12 +127,12 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
 
         if (onSave) onSave(data);
       } else {
-        // Création - ensure name is required
+        // Création - ensure all required fields are properly typed
         const insertData = {
-          name: formData.name || '',
-          description: formData.description || '',
-          webhook_url: formData.webhook_url || '',
-          chat_title: formData.chat_title || '',
+          name: formData.name.trim(),
+          description: formData.description?.trim() || '',
+          webhook_url: formData.webhook_url?.trim() || '',
+          chat_title: formData.chat_title?.trim() || '',
           chat_context: formData.chat_context || 'general',
           share_enabled: formData.share_enabled || false,
           is_active: formData.is_active !== false,
@@ -407,7 +417,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
           <div className="flex space-x-4 pt-4">
             <Button
               type="submit"
-              disabled={!validation.isValid || isLoading}
+              disabled={!validation.isValid || isLoading || !formData.name?.trim()}
               className="flex-1"
             >
               {isLoading ? (
