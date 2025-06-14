@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,6 +25,34 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
   const [messages, setMessages] = useState<BotMessageHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [botUserId, setBotUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchBotUserId = async () => {
+      if (!botId || !sessionToken) {
+        setBotUserId(null);
+        return;
+      }
+      console.log(`Fetching bot_user_id for bot ${botId} and session ${sessionToken}`);
+      const { data, error } = await supabase
+        .from('bot_users')
+        .select('id')
+        .eq('bot_id', botId)
+        .eq('session_id', sessionToken)
+        .single();
+
+      if (error) {
+        console.error('Error fetching bot_user_id:', error);
+      } else if (data) {
+        console.log('Fetched bot_user_id:', data.id);
+        setBotUserId(data.id);
+      } else {
+        setBotUserId(null);
+      }
+    };
+
+    fetchBotUserId();
+  }, [botId, sessionToken]);
 
   const fetchMessages = useCallback(async () => {
     if (!botId || !sessionToken) return;
@@ -71,8 +100,13 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
 
     fetchMessages();
 
+    if (!botUserId) {
+      console.log("Waiting for botUserId to subscribe to realtime channel.");
+      return;
+    }
+
     const channelName = `bot-session-${botId}-${sessionToken}`;
-    console.log(`Subscribing to real-time channel: ${channelName}`);
+    console.log(`Subscribing to real-time channel: ${channelName} with bot_user_id: ${botUserId}`);
     
     const channel = supabase
       .channel(channelName)
@@ -82,23 +116,10 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
           event: '*',
           schema: 'public',
           table: 'chat_messages',
-          filter: `bot_id=eq.${botId}`
+          filter: `bot_user_id=eq.${botUserId}`
         },
         (payload) => {
           console.log('Real-time: chat_messages change received!', payload);
-          fetchMessages();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'bot_users',
-          filter: `bot_id=eq.${botId}&session_id=eq.${sessionToken}`
-        },
-        (payload) => {
-          console.log('Real-time: bot_users change received for this session!', payload);
           fetchMessages();
         }
       )
@@ -121,7 +142,7 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
       console.log(`Unsubscribing from channel: ${channelName}`);
       supabase.removeChannel(channel);
     };
-  }, [botId, sessionToken, fetchMessages]);
+  }, [botId, sessionToken, fetchMessages, botUserId]);
 
   const sendManualResponse = async (messageContent: string) => {
     if (!botId || !sessionToken) {
