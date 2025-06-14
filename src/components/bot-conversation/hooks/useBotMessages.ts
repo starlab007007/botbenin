@@ -17,6 +17,7 @@ interface BotSession {
   id: string;
   session_token: string;
   source_type: 'anonymous' | 'authenticated';
+  bot_user_id?: string | null;
 }
 
 export const useBotMessages = (
@@ -38,57 +39,50 @@ export const useBotMessages = (
       try {
         console.log(`[useBotMessages] Recherche messages pour session: ${selectedSession.session_token} (type: ${selectedSession.source_type})`);
 
-        // Stratégie 1: Rechercher par session_token dans chat_messages
-        let { data: messagesByToken, error: tokenError } = await supabase
-          .from("chat_messages")
-          .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
-          .eq("bot_id", selectedBot.id)
-          .order("created_at", { ascending: true })
-          .limit(100);
-
-        if (tokenError) {
-          console.error("[useBotMessages] Erreur requête messages :", tokenError);
-          setMessages([]);
-          setLoadingMessages(false);
-          return;
-        }
-
-        // Filtrer les messages qui correspondent à notre session
         let sessionMessages: BotMessage[] = [];
 
-        if (messagesByToken && messagesByToken.length > 0) {
-          // Pour les sessions anonymes, on ne peut pas faire de lien direct
-          // On va prendre tous les messages récents du bot
-          if (selectedSession.source_type === 'anonymous') {
-            // Prendre les messages dans la fenêtre de temps de la session
-            const sessionStart = new Date(selectedSession.session_token.includes('_') ? 
-              selectedSession.session_token.split('_')[1] : Date.now() - 3600000); // 1h par défaut
-            
-            sessionMessages = messagesByToken.filter(msg => {
-              const msgTime = new Date(msg.created_at);
-              return msgTime >= sessionStart;
-            }).slice(0, 20); // Limiter à 20 messages récents
-          } else {
-            // Pour les sessions authentifiées, chercher par bot_user_id si disponible
-            if (selectedSession.id) {
-              // Récupérer le bot_user_id de enhanced_chat_sessions
-              const { data: sessionData } = await supabase
-                .from("enhanced_chat_sessions")
-                .select("bot_user_id")
-                .eq("id", selectedSession.id)
-                .single();
+        if (selectedSession.source_type === 'authenticated' && selectedSession.bot_user_id) {
+          // Pour les sessions authentifiées, chercher par bot_user_id
+          const { data: messagesByUser, error: userError } = await supabase
+            .from("chat_messages")
+            .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
+            .eq("bot_id", selectedBot.id)
+            .eq("bot_user_id", selectedSession.bot_user_id)
+            .order("created_at", { ascending: true });
 
-              if (sessionData?.bot_user_id) {
-                sessionMessages = messagesByToken.filter(msg => 
-                  msg.bot_user_id === sessionData.bot_user_id
-                );
-              }
-            }
+          if (userError) {
+            console.error("[useBotMessages] Erreur requête messages par user :", userError);
+          } else {
+            sessionMessages = messagesByUser || [];
+          }
+        } else {
+          // Pour les sessions anonymes, utiliser une approche temporelle
+          // Récupérer tous les messages récents du bot et filtrer par proximité temporelle
+          const sessionTime = new Date(selectedSession.session_token.includes('_') ? 
+            parseInt(selectedSession.session_token.split('_')[1]) * 1000 : 
+            Date.now() - 3600000);
+
+          const startTime = new Date(sessionTime.getTime() - 30 * 60 * 1000); // 30 min avant
+          const endTime = new Date(sessionTime.getTime() + 2 * 60 * 60 * 1000); // 2h après
+
+          const { data: messagesByTime, error: timeError } = await supabase
+            .from("chat_messages")
+            .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
+            .eq("bot_id", selectedBot.id)
+            .gte("created_at", startTime.toISOString())
+            .lte("created_at", endTime.toISOString())
+            .order("created_at", { ascending: true });
+
+          if (timeError) {
+            console.error("[useBotMessages] Erreur requête messages par temps :", timeError);
+          } else {
+            // Filtrer pour garder les messages les plus pertinents (limiter à 20)
+            sessionMessages = (messagesByTime || []).slice(0, 20);
           }
         }
 
         console.log(`[useBotMessages] ${sessionMessages.length} messages trouvés pour la session`);
-        setMessages(sessionMessages || []);
+        setMessages(sessionMessages);
 
       } catch (error) {
         console.error("[useBotMessages] Erreur lors de la récupération des messages :", error);
@@ -101,5 +95,5 @@ export const useBotMessages = (
     fetchMessages();
   }, [selectedSession, selectedBot]);
 
-  return { messages, loadingMessages };
+  return { messages, loadingMessages, setMessages };
 };
