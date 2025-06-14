@@ -13,19 +13,23 @@ function mapRawToMessage(raw: any): Message {
   };
 }
 
-export const useMessages = (selectedBot: Bot | null, selectedSession: BotSession | null) => {
+export const useMessages = (
+  selectedBot: Bot | null,
+  selectedSession: BotSession | null
+) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   useEffect(() => {
-    if (!selectedSession) return;
+    if (!selectedSession || !selectedBot) return;
     setLoadingMessages(true);
 
     const fetchMessages = async () => {
-      const { data: msgData, error } = await supabase
+      // We do not pass a type param to .select() and let it be 'any'
+      const { data, error } = await supabase
         .from("chat_messages")
         .select("id, message_content, created_at, message_type")
-        .eq("bot_id", selectedBot?.id || "")
+        .eq("bot_id", selectedBot.id)
         .eq("session_token", selectedSession.session_token)
         .order("created_at", { ascending: true })
         .limit(100);
@@ -33,8 +37,8 @@ export const useMessages = (selectedBot: Bot | null, selectedSession: BotSession
       if (error) {
         console.error("[BotConversationControl] Erreur récupération messages session :", error);
         setMessages([]);
-      } else if (Array.isArray(msgData)) {
-        setMessages(msgData.map(mapRawToMessage));
+      } else if (Array.isArray(data)) {
+        setMessages(data.map(mapRawToMessage));
       } else {
         setMessages([]);
       }
