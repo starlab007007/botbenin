@@ -502,6 +502,8 @@ export type Database = {
           id: string
           metrics: Json
           name: string
+          results: Json | null
+          segment: Json | null
           start_date: string
           status: string
           type: string
@@ -515,6 +517,8 @@ export type Database = {
           id?: string
           metrics?: Json
           name: string
+          results?: Json | null
+          segment?: Json | null
           start_date: string
           status: string
           type: string
@@ -528,6 +532,8 @@ export type Database = {
           id?: string
           metrics?: Json
           name?: string
+          results?: Json | null
+          segment?: Json | null
           start_date?: string
           status?: string
           type?: string
@@ -773,6 +779,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      conversation_insights: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          summary: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: string
+          summary?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          summary?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       conversations: {
         Row: {
@@ -1074,6 +1107,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      leads: {
+        Row: {
+          company: string | null
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          owner_id: string | null
+          phone: string | null
+          source: string | null
+          status: string
+          tags: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string
+          tags?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string
+          tags?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       link_clicks: {
         Row: {

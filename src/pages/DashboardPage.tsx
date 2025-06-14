@@ -6,6 +6,9 @@ import { BotManagement } from '@/components/BotManagement';
 import { MessagesOverview } from '@/components/MessagesOverview';
 import { SubscriptionManagement } from '@/components/SubscriptionManagement';
 import { ConversationManager } from '@/components/ConversationManager';
+import { LeadsManager } from "@/components/LeadsManager";
+import { MarketingCampaignsManager } from "@/components/MarketingCampaignsManager";
+import { ConversationInsightsPanel } from "@/components/ConversationInsightsPanel";
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -340,7 +343,7 @@ export const DashboardPage: React.FC = () => {
       {/* Main Content Tabs */}
       <Card className="uniform-card">
         <Tabs defaultValue="bots" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 p-1 bg-gray-100 rounded-t-xl">
+          <TabsList className="grid w-full grid-cols-7 p-1 bg-gray-100 rounded-t-xl">
             <TabsTrigger value="bots" className="flex items-center space-x-2">
               <Bot className="w-4 h-4" />
               <span>Chatbots</span>
@@ -357,6 +360,18 @@ export const DashboardPage: React.FC = () => {
               <Star className="w-4 h-4" />
               <span>Abonnement</span>
             </TabsTrigger>
+            <TabsTrigger value="leads" className="flex items-center space-x-2">
+              <Users className="w-4 h-4" />
+              <span>Leads</span>
+            </TabsTrigger>
+            <TabsTrigger value="campaigns" className="flex items-center space-x-2">
+              <TrendingUp className="w-4 h-4" />
+              <span>Campagnes Marketing</span>
+            </TabsTrigger>
+            <TabsTrigger value="insights" className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Insights</span>
+            </TabsTrigger>
           </TabsList>
           
           <div className="p-6">
@@ -369,34 +384,21 @@ export const DashboardPage: React.FC = () => {
             </TabsContent>
             
             <TabsContent value="automations" className="mt-0">
-              {permissions.canCreateAutomations ? (
-                <div className="text-center py-8">
-                  <Zap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Automatisations
-                  </h3>
-                  <p className="text-gray-600 mb-4">
-                    Créez et gérez vos automatisations IA
-                  </p>
-                  <Button className="uniform-button-primary">
-                    Créer une automatisation
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Zap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Accès restreint
-                  </h3>
-                  <p className="text-gray-600">
-                    Vous n'avez pas les permissions pour les automatisations
-                  </p>
-                </div>
-              )}
+              {/* ... keep existing code ... */}
             </TabsContent>
             
             <TabsContent value="subscription" className="mt-0">
               <SubscriptionManagement />
+            </TabsContent>
+            
+            <TabsContent value="leads" className="mt-0">
+              <LeadsManager />
+            </TabsContent>
+            <TabsContent value="campaigns" className="mt-0">
+              <MarketingCampaignsManager />
+            </TabsContent>
+            <TabsContent value="insights" className="mt-0">
+              <ConversationInsightsPanel />
             </TabsContent>
           </div>
         </Tabs>
