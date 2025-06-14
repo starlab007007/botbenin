@@ -780,6 +780,60 @@ export type Database = {
           },
         ]
       }
+      content_variations: {
+        Row: {
+          a_b_test_variant: string | null
+          ai_generated: boolean | null
+          campaign_id: string
+          content: string
+          created_at: string | null
+          hashtags: Json | null
+          id: string
+          media_asset_id: string | null
+          platform: string | null
+          predicted_performance: number | null
+        }
+        Insert: {
+          a_b_test_variant?: string | null
+          ai_generated?: boolean | null
+          campaign_id: string
+          content: string
+          created_at?: string | null
+          hashtags?: Json | null
+          id?: string
+          media_asset_id?: string | null
+          platform?: string | null
+          predicted_performance?: number | null
+        }
+        Update: {
+          a_b_test_variant?: string | null
+          ai_generated?: boolean | null
+          campaign_id?: string
+          content?: string
+          created_at?: string | null
+          hashtags?: Json | null
+          id?: string
+          media_asset_id?: string | null
+          platform?: string | null
+          predicted_performance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_variation_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_sharing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_variation_media"
+            columns: ["media_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_insights: {
         Row: {
           created_at: string
@@ -1326,6 +1380,56 @@ export type Database = {
         }
         Relationships: []
       }
+      media_assets: {
+        Row: {
+          ai_generated: boolean | null
+          campaign_id: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          original_url: string
+          owner_id: string
+          platform_optimized_versions: Json | null
+          storage_path: string | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          ai_generated?: boolean | null
+          campaign_id: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          original_url: string
+          owner_id: string
+          platform_optimized_versions?: Json | null
+          storage_path?: string | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          ai_generated?: boolean | null
+          campaign_id?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          original_url?: string
+          owner_id?: string
+          platform_optimized_versions?: Json | null
+          storage_path?: string | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_media_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_sharing_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -1449,6 +1553,67 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      performance_predictions: {
+        Row: {
+          campaign_id: string
+          created_at: string | null
+          id: string
+          owner_id: string
+          predicted_ctr: number | null
+          predicted_engagement: number | null
+          predicted_reach: number | null
+          prediction_details: Json | null
+          scheduled_post_id: string | null
+          variation_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string | null
+          id?: string
+          owner_id: string
+          predicted_ctr?: number | null
+          predicted_engagement?: number | null
+          predicted_reach?: number | null
+          prediction_details?: Json | null
+          scheduled_post_id?: string | null
+          variation_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string | null
+          id?: string
+          owner_id?: string
+          predicted_ctr?: number | null
+          predicted_engagement?: number | null
+          predicted_reach?: number | null
+          prediction_details?: Json | null
+          scheduled_post_id?: string | null
+          variation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_pred_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_sharing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_pred_post"
+            columns: ["scheduled_post_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_pred_variation"
+            columns: ["variation_id"]
+            isOneToOne: false
+            referencedRelation: "content_variations"
             referencedColumns: ["id"]
           },
         ]
@@ -1666,6 +1831,73 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      scheduled_posts: {
+        Row: {
+          analytics: Json | null
+          campaign_id: string
+          created_at: string | null
+          id: string
+          media_asset_id: string | null
+          owner_id: string
+          platform: string
+          posted_at: string | null
+          result: string | null
+          scheduled_at: string | null
+          status: string | null
+          variation_id: string | null
+        }
+        Insert: {
+          analytics?: Json | null
+          campaign_id: string
+          created_at?: string | null
+          id?: string
+          media_asset_id?: string | null
+          owner_id: string
+          platform: string
+          posted_at?: string | null
+          result?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          variation_id?: string | null
+        }
+        Update: {
+          analytics?: Json | null
+          campaign_id?: string
+          created_at?: string | null
+          id?: string
+          media_asset_id?: string | null
+          owner_id?: string
+          platform?: string
+          posted_at?: string | null
+          result?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          variation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_post_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "social_sharing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_post_media"
+            columns: ["media_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_post_variation"
+            columns: ["variation_id"]
+            isOneToOne: false
+            referencedRelation: "content_variations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shortened_links: {
         Row: {
