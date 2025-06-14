@@ -118,8 +118,9 @@ export const BotConversationControl: React.FC = () => {
         console.error("[BotConversationControl] Erreur récupération sessions publiques :", error);
         setSessions([]);
       } else {
-        // Use the extracted helper to normalize data and guide TS
-        const normalized = (sessData || []).map(normalizeSession);
+        // Explicitly cast sessData to any[] before mapping, and as BotSession[]
+        const sessionsRaw: any[] = sessData ?? [];
+        const normalized = sessionsRaw.map(normalizeSession) as BotSession[];
         setSessions(normalized);
       }
       setLoadingSessions(false);
