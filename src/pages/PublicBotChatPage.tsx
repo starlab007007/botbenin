@@ -12,26 +12,43 @@ export const PublicBotChatPage: React.FC = () => {
   const navigate = useNavigate();
   const [isValidating, setIsValidating] = useState(true);
   const [hasValidBot, setHasValidBot] = useState(false);
-  const { isGuest, enableGuestMode } = useAuth();
+  const [guestReady, setGuestReady] = useState(false);
 
+  const { isGuest, enableGuestMode, isAuthenticated, isLoading } = useAuth();
+
+  // Nouvelle gestion : attendre le contexte invité prêt AVANT la validation d'accès 
   useEffect(() => {
-    // Activer le mode Guest si l’utilisateur n’est pas déjà authentifié
-    if (!isGuest) {
+    if (!isAuthenticated && !isGuest) {
       enableGuestMode();
     }
-    if (botId) {
-      validateBotAccess();
-    } else {
+  // On surveille isGuest et isAuthenticated pour avancer ensuite
+  }, [isGuest, isAuthenticated, enableGuestMode]);
+
+  // Une fois invité ou connecté = prêt pour valider le bot
+  useEffect(() => {
+    if (!botId) {
       setIsValidating(false);
+      setHasValidBot(false);
+      return;
     }
-  // On vérifie sur botId ET isGuest, et l’absence de supabaseUser sera traitée dans le AuthContext
-  }, [botId, isGuest]);
+    // Attendre que l'auth se soit stabilisée
+    if (isAuthenticated || isGuest) {
+      setGuestReady(true);
+    }
+  }, [botId, isAuthenticated, isGuest]);
+
+  useEffect(() => {
+    if (!guestReady || !botId) return;
+    validateBotAccess();
+    // eslint-disable-next-line
+  }, [guestReady, botId]);
 
   const validateBotAccess = async () => {
     try {
       setIsValidating(true);
-      console.log('=== VALIDATION ACCÈS BOT PUBLIC (Mode guest prêt) ===');
+      console.log('=== VALIDATION ACCÈS BOT PUBLIC (Contexte prêt) ===');
       console.log('Bot ID:', botId);
+      // Laisser la logique à StandardizedChatInterface : juste confirmer qu’on a un botId pour y accéder
       setHasValidBot(true);
     } catch (error) {
       console.error('Erreur lors de la validation:', error);
@@ -48,6 +65,26 @@ export const PublicBotChatPage: React.FC = () => {
       navigate('/');
     }
   };
+
+  // Attente explicite de l'initialisation du contexte invité ou authentifié
+  if (isLoading || (!isAuthenticated && !isGuest)) {
+    return (
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Bot className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-pulse" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Initialisation de la session...
+          </h2>
+          <p className="text-gray-600">
+            Préparation de l’accès invité
+          </p>
+          <div className="mt-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isValidating) {
     return (
