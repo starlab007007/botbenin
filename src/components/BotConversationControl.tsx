@@ -72,7 +72,9 @@ export const BotConversationControl: React.FC = () => {
 
   const [selectedBot, setSelectedBot] = useState<Bot | null>(null);
 
+  // BELOW: add type annotation to useState and enforce casts after fetch
   const [sessions, setSessions] = useState<BotSession[]>([]);
+
   const [loadingSessions, setLoadingSessions] = useState(false);
 
   const [selectedSession, setSelectedSession] = useState<BotSession | null>(null);
@@ -176,7 +178,7 @@ export const BotConversationControl: React.FC = () => {
   // Recherche sur sessions : session_token, entry_point, ip...
 
   // --- USE the standalone filter function to avoid inference error ---
-  const filteredSessions = filterSessionsList(sessions, query);
+  const filteredSessions: BotSession[] = filterSessionsList(sessions, query);
 
   return (
     <div className="flex gap-2 h-[70vh]">
