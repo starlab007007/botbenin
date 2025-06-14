@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { ChevronRight, Loader, MessageSquare, Send, Bot, User } from "lucide-react";
+import { ChevronRight, Loader, MessageSquare, Send, Bot, User, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -85,7 +85,11 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
           message_content: replyText,
           message_type: "bot",
           ip_address: "admin_response",
-          user_agent: "admin_panel"
+          user_agent: "admin_panel",
+          metadata: {
+            session_token: selectedSession.session_token,
+            source: "admin_manual_reply"
+          }
         })
         .select()
         .single();
@@ -148,6 +152,11 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
       
       <div className="text-xs text-gray-600 mb-3">
         Token: {selectedSession.session_token.slice(0, 20)}...
+        {selectedSession.bot_user_id && (
+          <div className="mt-1">
+            User ID: {selectedSession.bot_user_id.slice(0, 8)}...
+          </div>
+        )}
       </div>
 
       {/* Liste des messages */}
@@ -155,54 +164,71 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
         {loadingMessages ? (
           <div className="flex items-center justify-center py-8">
             <Loader className="animate-spin w-6 h-6" />
+            <span className="ml-2 text-sm text-gray-500">Chargement des messages...</span>
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            <MessageSquare className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p>Aucun message trouvé pour cette session</p>
+            <AlertCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+            <p className="font-medium">Aucun message trouvé</p>
             <p className="text-xs mt-1">
-              Commencez par envoyer un message de bienvenue
+              Cette session n'a pas encore de messages de conversation
+            </p>
+            <p className="text-xs mt-2 text-gray-400">
+              Session: {selectedSession.source_type} • Token: {selectedSession.session_token.slice(0, 12)}...
             </p>
           </div>
         ) : (
-          messages.map(msg => (
-            <div
-              key={msg.id}
-              className={cn(
-                "p-3 rounded-lg shadow-sm my-2 border flex items-start gap-2",
-                msg.message_type === "user"
-                  ? "bg-blue-50 border-blue-200"
-                  : "bg-green-50 border-green-200"
-              )}
-            >
-              <div className="flex-shrink-0 mt-1">
-                {msg.message_type === "user" ? (
-                  <User className="w-4 h-4 text-blue-600" />
-                ) : (
-                  <Bot className="w-4 h-4 text-green-600" />
-                )}
-              </div>
-              
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-xs font-medium text-gray-700">
-                    {msg.message_type === "user" ? "Utilisateur" : "Bot"}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {new Date(msg.created_at).toLocaleTimeString('fr-FR')}
-                  </div>
-                </div>
-                
-                <div className="text-sm text-gray-800 leading-relaxed">
-                  {msg.message_content}
-                </div>
-                
-                <div className="text-xs text-gray-400 mt-1">
-                  {new Date(msg.created_at).toLocaleDateString('fr-FR')} à {new Date(msg.created_at).toLocaleTimeString('fr-FR')}
-                </div>
-              </div>
+          <>
+            <div className="text-xs text-green-600 mb-2 flex items-center gap-1">
+              <MessageSquare className="w-3 h-3" />
+              {messages.length} message(s) trouvé(s)
             </div>
-          ))
+            {messages.map(msg => (
+              <div
+                key={msg.id}
+                className={cn(
+                  "p-3 rounded-lg shadow-sm my-2 border flex items-start gap-2",
+                  msg.message_type === "user"
+                    ? "bg-blue-50 border-blue-200"
+                    : "bg-green-50 border-green-200"
+                )}
+              >
+                <div className="flex-shrink-0 mt-1">
+                  {msg.message_type === "user" ? (
+                    <User className="w-4 h-4 text-blue-600" />
+                  ) : (
+                    <Bot className="w-4 h-4 text-green-600" />
+                  )}
+                </div>
+                
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs font-medium text-gray-700">
+                      {msg.message_type === "user" ? "Utilisateur" : "Bot"}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {new Date(msg.created_at).toLocaleTimeString('fr-FR')}
+                    </div>
+                  </div>
+                  
+                  <div className="text-sm text-gray-800 leading-relaxed">
+                    {msg.message_content}
+                  </div>
+                  
+                  <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                    <span>
+                      {new Date(msg.created_at).toLocaleDateString('fr-FR')} à {new Date(msg.created_at).toLocaleTimeString('fr-FR')}
+                    </span>
+                    {msg.bot_user_id && (
+                      <span className="bg-gray-100 px-1 rounded">
+                        ID: {msg.bot_user_id.slice(0, 8)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
         )}
       </div>
 
