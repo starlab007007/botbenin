@@ -3307,6 +3307,14 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: boolean
       }
+      check_bot_public_access: {
+        Args: { bot_uuid: string }
+        Returns: {
+          accessible: boolean
+          bot_data: Json
+          error_message: string
+        }[]
+      }
       collect_visitor_data: {
         Args: {
           p_session_id: string

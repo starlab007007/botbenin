@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface StandardBotConfig {
@@ -14,6 +13,7 @@ export interface StandardBotConfig {
   owner_id: string;
   created_at: string;
   updated_at: string;
+  public_chat_url?: string;
 }
 
 export interface BotValidationResult {
@@ -75,7 +75,7 @@ export class BotConfigService {
       webhook_url: '',
       chat_title: 'Assistant IA',
       chat_context: 'general',
-      share_enabled: false,
+      share_enabled: true,
       is_active: true
     };
   }
@@ -176,28 +176,63 @@ export class BotConfigService {
     }
   }
 
-  // Vérification de l'accessibilité publique d'un bot
+  // Vérification de l'accessibilité publique d'un bot utilisant la nouvelle fonction de base de données
   static async checkPublicAccess(botId: string): Promise<{ accessible: boolean; config?: StandardBotConfig; error?: string }> {
     try {
-      const { data, error } = await supabase
-        .from('bots')
-        .select('*')
-        .eq('id', botId)
-        .eq('share_enabled', true)
-        .eq('is_active', true)
-        .single();
+      console.log('=== VÉRIFICATION ACCÈS PUBLIC AVEC NOUVELLE FONCTION ===');
+      console.log('Bot ID:', botId);
+
+      // Utiliser la nouvelle fonction de base de données qui simplifie l'accès
+      const { data, error } = await supabase.rpc('check_bot_public_access', {
+        bot_uuid: botId
+      });
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          return { 
-            accessible: false, 
-            error: 'Ce bot n\'existe pas ou n\'est pas disponible publiquement.' 
-          };
-        }
-        throw error;
+        console.error('Erreur lors de l\'appel de la fonction check_bot_public_access:', error);
+        return { 
+          accessible: false, 
+          error: `Erreur de base de données: ${error.message}` 
+        };
       }
 
-      return { accessible: true, config: data as StandardBotConfig };
+      if (!data || data.length === 0) {
+        return { 
+          accessible: false, 
+          error: 'Aucune réponse de la fonction de vérification d\'accès' 
+        };
+      }
+
+      const result = data[0];
+      console.log('Résultat de la fonction check_bot_public_access:', result);
+
+      if (!result.accessible) {
+        return { 
+          accessible: false, 
+          error: result.error_message || 'Bot non accessible' 
+        };
+      }
+
+      // Extraire les données du bot depuis le JSONB
+      const botData = result.bot_data;
+      if (!botData) {
+        return { 
+          accessible: false, 
+          error: 'Données du bot non trouvées' 
+        };
+      }
+
+      console.log('Bot trouvé et accessible:', {
+        id: botData.id,
+        name: botData.name,
+        is_active: botData.is_active,
+        share_enabled: botData.share_enabled
+      });
+
+      return { 
+        accessible: true, 
+        config: botData as StandardBotConfig 
+      };
+
     } catch (error) {
       console.error('Erreur lors de la vérification de l\'accès public:', error);
       return { 
