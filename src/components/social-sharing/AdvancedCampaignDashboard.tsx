@@ -5,6 +5,9 @@ import { Card } from "@/components/ui/card";
 import { CampaignTemplatesManager } from "./CampaignTemplatesManager";
 import { AIContentGenerator } from "./AIContentGenerator";
 import { AudienceSegmentManager } from "./AudienceSegmentManager";
+import { CampaignScheduler } from "./CampaignScheduler";
+import { CampaignAnalytics } from "./CampaignAnalytics";
+import { AutomationWorkflows } from "./AutomationWorkflows";
 import { useSocialSharingCampaigns } from "@/hooks/useSocialSharingCampaigns";
 import { 
   FileText, 
@@ -12,7 +15,6 @@ import {
   Users, 
   Calendar, 
   BarChart3, 
-  Settings,
   Bot,
   Target
 } from "lucide-react";
@@ -95,39 +97,15 @@ export const AdvancedCampaignDashboard: React.FC<AdvancedCampaignDashboardProps>
         </TabsContent>
 
         <TabsContent value="scheduling">
-          <Card className="p-8 text-center">
-            <Calendar className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">
-              Planification Avancée
-            </h3>
-            <p className="text-gray-500">
-              Fonctionnalité de planification en cours de développement.
-            </p>
-          </Card>
+          <CampaignScheduler campaignId={selectedCampaignId} />
         </TabsContent>
 
         <TabsContent value="analytics">
-          <Card className="p-8 text-center">
-            <BarChart3 className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">
-              Analytics Avancées
-            </h3>
-            <p className="text-gray-500">
-              Tableau de bord analytique en cours de développement.
-            </p>
-          </Card>
+          <CampaignAnalytics campaignId={selectedCampaignId} />
         </TabsContent>
 
         <TabsContent value="automation">
-          <Card className="p-8 text-center">
-            <Bot className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">
-              Automation Intelligente
-            </h3>
-            <p className="text-gray-500">
-              Workflows d'automation en cours de développement.
-            </p>
-          </Card>
+          <AutomationWorkflows campaignId={selectedCampaignId} />
         </TabsContent>
       </Tabs>
     </div>
