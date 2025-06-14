@@ -464,7 +464,7 @@ export const BotManagement: React.FC = () => {
 
   // Navigation Renderer Component
   const renderNavigation = () => (
-    <div className="flex space-x-2">
+    <div className="flex flex-wrap gap-2">
       <Button
         variant={currentView === 'dashboard' ? 'default' : 'outline'}
         onClick={() => setCurrentView('dashboard')}
@@ -554,11 +554,11 @@ export const BotManagement: React.FC = () => {
     return (
       <div className="space-y-6">
         {/* Navigation entre les vues */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           {renderNavigation()}
           <Button 
             onClick={() => setCurrentView('create')}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             Nouveau Chatbot
@@ -581,11 +581,11 @@ export const BotManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Navigation entre les vues */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         {renderNavigation()}
         <Button 
           onClick={() => setCurrentView('create')}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4 mr-2" />
           Nouveau Chatbot
@@ -711,7 +711,7 @@ export const BotManagement: React.FC = () => {
                 {/* URL publique et partage */}
                 {bot.share_enabled && bot.public_chat_url && (
                   <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
                       <span className="text-xs font-medium text-blue-700">Lien public</span>
                       <div className="flex space-x-1">
                         <Button

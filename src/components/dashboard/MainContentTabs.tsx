@@ -33,7 +33,7 @@ export const MainContentTabs: React.FC<MainContentTabsProps> = ({
   return (
     <Card className="uniform-card">
       <Tabs value={selectedTab} onValueChange={onTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 p-1 bg-gray-100 rounded-t-xl">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 p-1 bg-gray-100 rounded-t-xl">
           <TabsTrigger value="bots" className="flex items-center space-x-2">
             <Bot className="w-4 h-4" />
             <span>Chatbots</span>

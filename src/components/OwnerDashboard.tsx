@@ -152,12 +152,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Tableau de bord</h2>
           <p className="text-gray-600">Vue d'ensemble de vos chatbots et analytics</p>
         </div>
-        <Button variant="outline" onClick={fetchDashboardData}>
+        <Button variant="outline" onClick={fetchDashboardData} className="w-full sm:w-auto">
           <RefreshCw className="w-4 h-4 mr-2" />
           Actualiser
         </Button>
@@ -317,7 +317,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
           ) : (
             <div className="space-y-4">
               {botsSummary.map((bot) => (
-                <div key={bot.bot_id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div key={bot.bot_id} className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-gray-50 rounded-lg gap-4">
                   <div className="flex items-center space-x-4">
                     <div className={`w-3 h-3 rounded-full ${
                       bot.is_active ? 'bg-green-500' : 'bg-gray-400'
@@ -329,8 +329,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <div className="text-right">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+                    <div className="text-left sm:text-right">
                       <div className="text-sm font-medium text-gray-900">
                         {bot.messages_24h} msgs aujourd'hui
                       </div>
@@ -345,6 +345,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
                       size="sm"
                       variant="outline"
                       onClick={() => onViewBotAnalytics(bot.bot_id, bot.bot_name)}
+                      className="flex-shrink-0"
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Analytics
