@@ -42,6 +42,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [apiAccessLog, setApiAccessLog] = useState<any>(null);
+  const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null); // trace brute de la réponse de checkPublicAccess
+  const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,31 +55,40 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       setIsLoading(true);
       setHasError(false);
 
-      console.log('=== INITIALISATION BOT STANDARDISÉ ===');
+      // Trace avancée de la demande
+      console.log('=== INITIALISATION BOT STANDARDISÉ [debug complet] ===');
       console.log('Bot ID:', botId);
-      console.log('Entry Point:', entryPoint);
-      console.log('Is Test:', isTest);
-      console.log('Contexte auth:', {
-        isAuthenticated,
-        isGuest,
-        guestUser,
-      });
+      console.log('Entry Point:', entryPoint, ' // Test:', isTest);
+      console.log('Auth ctx:', { isAuthenticated, isGuest, guestUser });
 
-      // Vérifier l'accès public au bot; log le retour brut
+      // Log « brut » réponse Supabase
       const accessCheck = await BotConfigService.checkPublicAccess(botId);
+      setApiAccessLog(accessCheck);
+      setAccessCheckRaw(accessCheck);
 
-      setApiAccessLog(accessCheck); // Pour inspection dans l'UI de debug
+      // Nouvelle trace : on exp(l)oite le détail du fetch (y compris erreurs SQL Supabase)
+      if (accessCheck && accessCheck.config) {
+        setSupabaseDebugInfo({
+          received: accessCheck.config,
+          share_enabled: accessCheck.config.share_enabled,
+          is_active: accessCheck.config.is_active,
+          webhook_url: accessCheck.config.webhook_url,
+          error: accessCheck.error,
+        });
+      } else {
+        setSupabaseDebugInfo({ ...accessCheck, no_config: true });
+      }
 
       console.log('Résultat checkPublicAccess:', accessCheck);
 
       if (!accessCheck.accessible) {
         setHasError(true);
-        // Si renvoi error et non guest: donner msg explicite
+        // Explicite si l’erreur vient d’un souci auth, RLS, non-public, etc.
+        let errMsg = accessCheck.error || 'Bot non accessible';
         if (accessCheck.error && accessCheck.error.toLowerCase().includes('auth')) {
-          setErrorMessage("Ce bot n'est pas public ou une authentification est exigée.");
-        } else {
-          setErrorMessage(accessCheck.error || 'Bot non accessible');
+          errMsg = "Ce bot n'est pas public ou une authentification est exigée.";
         }
+        setErrorMessage(errMsg);
         return;
       }
 
@@ -88,12 +99,10 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       const validation = BotConfigService.validateBotConfig(config);
       if (!validation.isValid) {
         console.warn('Configuration du bot invalide:', validation.errors);
-        // Continuer avec des valeurs par défaut si nécessaire
       }
 
       setBotConfig(config);
 
-      // Initialiser le message de bienvenue standardisé
       const welcomeMessage = BotConfigService.getStandardWelcomeMessage(
         config.name || config.chat_title,
         config.chat_context
@@ -106,18 +115,19 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         timestamp: new Date(),
       }]);
 
-      // Initialiser le tracking du visiteur
+      // Tracking visiteur
       try {
         await initializeVisitorTracking(botId, entryPoint);
         console.log('Tracking visiteur initialisé');
       } catch (trackingError) {
-        console.warn('Erreur lors de l\'initialisation du tracking:', trackingError);
+        console.warn('Erreur lors du tracking:', trackingError);
       }
-
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors de l\'initialisation du bot:', error);
       setHasError(true);
-      setErrorMessage('Impossible de charger ce bot. Veuillez réessayer plus tard.');
+      // Erreur brute SQL si retour error postgrest ou json
+      const errorContent = (typeof error === 'object' && error?.message) ? error.message : (typeof error === 'string' ? error : '');
+      setErrorMessage('Impossible de charger ce bot. ' + (errorContent ? `(Erreur: ${errorContent})` : 'Veuillez réessayer plus tard.'));
     } finally {
       setIsLoading(false);
     }
@@ -298,7 +308,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   if (hasError) {
     return (
       <div className="h-full flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
+        <div className="text-center max-w-md w-full">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-red-500 text-2xl">⚠️</span>
           </div>
@@ -308,15 +318,43 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           <p className="text-gray-600 mb-4">
             {errorMessage}
           </p>
-          {/* Bloc debug si accès logué */}
           {apiAccessLog && (
-            <pre className="bg-red-50 text-xs text-gray-700 rounded p-2 my-2 text-left max-h-40 overflow-auto">
+            <pre className="bg-red-50 text-xs text-gray-700 rounded p-2 my-2 text-left max-h-64 overflow-auto">
               {JSON.stringify(apiAccessLog, null, 2)}
             </pre>
           )}
+          {supabaseDebugInfo && (
+            <div className="my-2 p-2 rounded bg-yellow-50 text-xs text-left max-h-64 overflow-auto border border-yellow-200 text-yellow-800">
+              <b>Debug table bots:</b><br />
+              <span>
+                <b>is_active:</b> {String(supabaseDebugInfo.share_enabled === undefined ? 'Non reçu' : supabaseDebugInfo.is_active + '')} 
+                {' / '} <b>share_enabled:</b> {String(supabaseDebugInfo.share_enabled === undefined ? 'Non reçu' : supabaseDebugInfo.share_enabled + '')}
+                <br />
+                <b>webhook_url:</b> {supabaseDebugInfo.webhook_url ?? "Non reçu"}
+                <br />
+                <b>Erreur SQL brute:</b> {supabaseDebugInfo?.error ?? 'aucune'}
+                <br />
+                <b>Payload complète:</b><br />
+                <pre className="bg-transparent">{JSON.stringify(supabaseDebugInfo, null, 2)}</pre>
+              </span>
+            </div>
+          )}
+          {/* Ajout d'un bouton de reload du check */}
+          <button
+            onClick={() => { 
+              setApiAccessLog(null); 
+              setSupabaseDebugInfo(null); 
+              setHasError(false); 
+              setErrorMessage(''); 
+              initializeBot(); 
+            }}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 mt-3 transition-colors"
+          >
+            Re-tester l’accès public
+          </button>
           <button
             onClick={onBackToLanding}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors mt-4 ml-2"
           >
             Retour
           </button>
