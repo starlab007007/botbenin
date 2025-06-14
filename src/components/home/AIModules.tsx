@@ -8,7 +8,8 @@ import {
   Megaphone,
   Zap,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  Share2
 } from 'lucide-react';
 
 const aiModules = [
@@ -27,6 +28,14 @@ const aiModules = [
     path: '/modules/marketing',
     stats: '23 campagnes actives',
     badge: 'Nouveau'
+  },
+  {
+    title: 'Campagnes Sociales',
+    description: 'Partage personnalisé multi-plateformes',
+    icon: Share2,
+    path: '/social-campaigns',
+    stats: 'Nouvelle fonctionnalité',
+    badge: 'New'
   },
   {
     title: 'Automatisations',

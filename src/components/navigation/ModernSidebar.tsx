@@ -19,7 +19,8 @@ import {
   Target,
   Building,
   Shield,
-  X
+  X,
+  Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +68,17 @@ const botManagementItems = [
     path: '/automations', 
     icon: Zap, 
     color: 'from-orange-500 to-orange-600',
+    badge: 'New'
+  },
+];
+
+const marketingItems = [
+  { 
+    title: 'Campagnes Sociales', 
+    path: '/social-campaigns', 
+    icon: Share2, 
+    color: 'from-emerald-500 to-emerald-600',
+    description: 'Partage personnalisé',
     badge: 'New'
   },
 ];
@@ -210,6 +222,18 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           <div className="space-y-2">
             {botManagementItems.map((item) => (
               <NavItem key={item.path} item={item} />
+            ))}
+          </div>
+        </div>
+
+        {/* Marketing */}
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+            Marketing & Social
+          </h3>
+          <div className="space-y-2">
+            {marketingItems.map((item) => (
+              <NavItem key={item.path} item={item} showDescription />
             ))}
           </div>
         </div>

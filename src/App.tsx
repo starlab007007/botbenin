@@ -37,6 +37,9 @@ const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").the
 const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(module => ({ default: module.GestionModule })));
 const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.CitoyenModule })));
 
+// Campagnes de partage
+const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.SocialSharingCampaignsPage })));
+
 // Pages spéciales
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -73,6 +76,9 @@ const App = () => (
                     {/* Gestion des bots */}
                     <Route path="/bots" element={<BotManagementPage />} />
                     <Route path="/automations" element={<AutomationsPage />} />
+                    
+                    {/* Campagnes de partage */}
+                    <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
                     
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
