@@ -25,6 +25,7 @@ import {
   Mail
 } from 'lucide-react';
 import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
+import { BotConversationControl } from "@/components/BotConversationControl";
 
 interface DashboardStats {
   totalBots: number;
@@ -422,7 +423,7 @@ export const DashboardPage: React.FC = () => {
       {/* Main Content Tabs */}
       <Card className="uniform-card">
         <Tabs defaultValue="bots" className="w-full">
-          <TabsList className="grid w-full grid-cols-7 p-1 bg-gray-100 rounded-t-xl">
+          <TabsList className="grid w-full grid-cols-8 p-1 bg-gray-100 rounded-t-xl">
             <TabsTrigger value="bots" className="flex items-center space-x-2">
               <Bot className="w-4 h-4" />
               <span>Chatbots</span>
@@ -451,6 +452,10 @@ export const DashboardPage: React.FC = () => {
               <BarChart3 className="w-4 h-4" />
               <span>Insights</span>
             </TabsTrigger>
+            <TabsTrigger value="conversations" className="flex items-center space-x-2">
+              <MessageCircle className="w-4 h-4" />
+              <span>Contrôle Conversations</span>
+            </TabsTrigger>
           </TabsList>
           
           <div className="p-6">
@@ -476,6 +481,9 @@ export const DashboardPage: React.FC = () => {
             </TabsContent>
             <TabsContent value="insights" className="mt-0">
               <ConversationInsightsPanel />
+            </TabsContent>
+            <TabsContent value="conversations" className="mt-0">
+              <BotConversationControl />
             </TabsContent>
           </div>
         </Tabs>
