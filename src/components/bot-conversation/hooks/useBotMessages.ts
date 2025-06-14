@@ -13,6 +13,7 @@ interface BotMessage {
   bot_user_id?: string;
   ip_address?: string;
   user_agent?: string;
+  metadata?: any;
 }
 
 interface BotSession {
@@ -44,7 +45,8 @@ export const useBotMessages = (
       strategy1_bot_user_search: null,
       strategy2_token_metadata_search: null,
       strategy3_recent_messages: null,
-      final_result: []
+      final_result: [],
+      recent_messages_dump: []
     };
 
     const fetchMessages = async () => {
@@ -93,11 +95,18 @@ export const useBotMessages = (
           }
         }
 
-        // Strategy 4: show recent (for debugging)
-        const recent = await messagesByRecent(selectedBot.id, 10);
+        // Strategy 4: show recent (for debugging). Ajout du dump complet !
+        const { data: recent, error } = await supabase
+          .from("chat_messages")
+          .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent, metadata")
+          .eq("bot_id", selectedBot.id)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
         searchResults.strategy3_recent_messages = {
-          count: recent.length
+          count: recent?.length || 0
         };
+        searchResults.recent_messages_dump = recent || [];
 
         searchResults.final_result = sessionMessages;
 
