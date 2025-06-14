@@ -3730,6 +3730,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
