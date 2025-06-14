@@ -50,7 +50,13 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
           return;
         }
 
-        setMessages(data || []);
+        // Type assertion to ensure message_type is properly typed
+        const typedMessages = (data || []).map(msg => ({
+          ...msg,
+          message_type: msg.message_type as 'user' | 'bot'
+        })) as BotMessageHistoryItem[];
+
+        setMessages(typedMessages);
       } catch (err) {
         console.error('Error in fetchMessages:', err);
         setError('Failed to fetch message history');
