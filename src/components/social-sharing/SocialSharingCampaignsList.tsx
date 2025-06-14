@@ -9,6 +9,7 @@ import { AdvancedCampaignDashboard } from "./AdvancedCampaignDashboard";
 import { ImageUploader } from "./ImageUploader";
 import { CampaignDetailsModal } from "./CampaignDetailsModal";
 import { supabase } from "@/integrations/supabase/client";
+import { SocialSharingCampaignWizard } from "./SocialSharingCampaignWizard";
 
 const initialForm = { name: "", description: "", customMessage: "", platforms: [] as string[] };
 
@@ -28,6 +29,7 @@ export const SocialSharingCampaignsList: React.FC = () => {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
+  const [showWizard, setShowWizard] = useState(false);
 
   // Upload de vignettes/images (centralisé pour le formulaire)
   const [previewImageFiles, setPreviewImageFiles] = useState<(File | null)[]>([null, null, null]);
@@ -209,6 +211,13 @@ export const SocialSharingCampaignsList: React.FC = () => {
 
   return (
     <div>
+      {/* Wizard modal */}
+      {showWizard &&
+        <SocialSharingCampaignWizard
+          onClose={() => setShowWizard(false)}
+          afterCreate={() => setShowWizard(false)}
+        />
+      }
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center space-x-4">
           <h2 className="text-lg font-bold">Campagnes de Partage Personnalisées</h2>
@@ -221,113 +230,11 @@ export const SocialSharingCampaignsList: React.FC = () => {
             Fonctionnalités Avancées
           </Button>
         </div>
-        <Button onClick={() => setShowForm(val => !val)}>
+        <Button onClick={() => setShowWizard(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Nouvelle campagne
         </Button>
       </div>
-
-      {showForm || showEditForm && (
-        <Card className="mb-4 p-6 max-w-2xl mx-auto">
-          <h3 className="text-xl font-semibold mb-4">
-            {showForm ? "Créer une Campagne Personnalisée" : "Modifier la Campagne"}
-          </h3>
-          <form onSubmit={showForm ? handleCreate : handleUpdate}>
-            {/* Nom de la campagne */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Nom de la campagne</label>
-              <Input
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                placeholder="Ex: Lancement Bot Restaurant"
-                required
-                autoFocus
-              />
-            </div>
-            {/* Description */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Description</label>
-              <textarea
-                name="description"
-                value={form.description}
-                onChange={handleChange}
-                className="block w-full border rounded px-2 py-1 min-h-[40px] text-sm"
-                placeholder="Description de la campagne..."
-              />
-            </div>
-            {/* Vignettes / Images  (AJOUT ICI après 'Description') */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1 flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Vignettes de campagne (maxi 3)
-              </label>
-              <ImageUploader
-                max={3}
-                files={previewImageFiles}
-                urls={previewImageUrls}
-                isUploading={isUploading}
-                onChange={handleFormImagesChange}
-                onUpload={handleUploadPreviewImages}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Ajoutez jusqu'à 3 images de vignette (format carré recommandé pour l'aperçu).
-              </p>
-            </div>
-            {/* Plateformes cibles */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Plateformes cibles</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {PLATFORMS.map(platform => (
-                  <button
-                    type="button"
-                    key={platform.key}
-                    className={`flex items-center justify-center rounded border px-2 py-2 gap-2 text-xs transition ring-1 ${
-                      form.platforms.includes(platform.key) ? "ring-2 border-primary bg-primary/10" : "border-muted"
-                    } ${platform.color}`}
-                    onClick={() => handlePlatformsChange(platform.key)}
-                  >
-                    <span>{platform.icon}</span>
-                    {platform.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Message personnalisé */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1">Message personnalisé</label>
-              <textarea
-                name="customMessage"
-                value={form.customMessage}
-                onChange={handleChange}
-                className="block w-full border rounded px-2 py-1 min-h-[60px] text-sm"
-                placeholder="Votre message à partager, liens, mentions, etc."
-              />
-              <span className="text-xs text-muted-foreground mt-1 block">
-                Le lien raccourci sera automatiquement ajouté à la fin du message
-              </span>
-            </div>
-            <div className="flex space-x-2 mt-4">
-              <Button type="submit" disabled={isUploading}>
-                {isUploading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
-                {showForm ? "Créer la Campagne" : "Enregistrer"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowForm(false);
-                  setShowEditForm(false);
-                  setEditId(null);
-                  setForm(initialForm);
-                  setPreviewImageFiles([null, null, null]);
-                  setPreviewImageUrls([null, null, null]);
-                }}
-              >Annuler</Button>
-            </div>
-          </form>
-        </Card>
-      )}
 
       <div className="grid gap-3">
         {campaigns.map((c) => (
