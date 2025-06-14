@@ -5,15 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useSocialSharingCampaigns } from "@/hooks/useSocialSharingCampaigns";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, CheckCircle2 } from "lucide-react";
 
 const initialForm = { name: "", description: "" };
 
 export const SocialSharingCampaignsList: React.FC = () => {
-  const { campaigns, isLoading, createCampaign } = useSocialSharingCampaigns();
+  const { campaigns, isLoading, createCampaign, fetchCampaigns } = useSocialSharingCampaigns();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm(f => ({
@@ -28,10 +29,17 @@ export const SocialSharingCampaignsList: React.FC = () => {
       toast({title: "Nom requis", description: "Donnez un nom à la campagne.", variant: "destructive"});
       return;
     }
-    await createCampaign({ name: form.name, description: form.description });
+    const res = await createCampaign({ name: form.name, description: form.description });
     setForm(initialForm);
     setShowForm(false);
+    if (res && res.id) {
+      setJustAdded(res.id);
+    }
+    // Recharger la liste après ajout
+    fetchCampaigns();
     toast({title: "Campagne créée", description: "Votre campagne a été ajoutée."});
+    // Enlever le surlignement après 2s
+    setTimeout(() => setJustAdded(null), 2000);
   };
 
   return (
@@ -63,8 +71,14 @@ export const SocialSharingCampaignsList: React.FC = () => {
       )}
       <div className="grid gap-3">
         {campaigns.map((c) => (
-          <Card key={c.id} className="p-4">
-            <div className="font-semibold">{c.name}</div>
+          <Card
+            key={c.id}
+            className={`p-4 transition-all duration-300 ${justAdded === c.id ? 'border-green-500 bg-green-50' : ''}`}
+          >
+            <div className="flex items-center font-semibold">
+              {c.name}
+              {justAdded === c.id && <CheckCircle2 className="ml-2 text-green-600 w-4 h-4" />}
+            </div>
             <div className="text-xs text-gray-600 mb-1">{c.description}</div>
             <div className="text-xs">Créée le {new Date(c.createdAt).toLocaleDateString()}</div>
           </Card>
