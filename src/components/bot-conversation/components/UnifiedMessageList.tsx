@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { ChevronRight, Loader, MessageSquare, Send, Bot, User, AlertCircle } from "lucide-react";
+import { ChevronRight, Loader, MessageSquare, Send, Bot, User, AlertCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -42,7 +42,54 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
 }) => {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
   const { toast } = useToast();
+
+  // Fonction de débogage pour voir les informations de la base de données
+  const handleDebugSession = async () => {
+    if (!selectedSession || !selectedBot) return;
+
+    try {
+      console.log("=== DÉBOGAGE SESSION ===");
+      
+      // 1. Vérifier la session dans enhanced_chat_sessions
+      const { data: enhancedSession, error: enhancedError } = await supabase
+        .from("enhanced_chat_sessions")
+        .select("*")
+        .eq("session_token", selectedSession.session_token);
+
+      console.log("Enhanced sessions:", enhancedSession, enhancedError);
+
+      // 2. Vérifier les bot_users liés
+      const { data: botUsers, error: usersError } = await supabase
+        .from("bot_users")
+        .select("*")
+        .eq("bot_id", selectedBot.id);
+
+      console.log("Bot users:", botUsers, usersError);
+
+      // 3. Vérifier tous les messages du bot
+      const { data: allMessages, error: messagesError } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("bot_id", selectedBot.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      console.log("Tous les messages:", allMessages, messagesError);
+
+      setDebugInfo({
+        enhancedSession,
+        botUsers,
+        allMessages,
+        sessionToken: selectedSession.session_token,
+        botId: selectedBot.id
+      });
+
+    } catch (error) {
+      console.error("Erreur débogage:", error);
+    }
+  };
 
   const handleSendReply = async () => {
     if (!replyText.trim() || !selectedSession || !selectedBot || sendingReply) {
@@ -148,6 +195,14 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
         <span className="text-sm text-gray-500">
           ({selectedSession.source_type === 'anonymous' ? 'anonyme' : 'authentifiée'})
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDebugSession}
+          className="ml-auto"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </Button>
       </div>
       
       <div className="text-xs text-gray-600 mb-3">
@@ -158,6 +213,24 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
           </div>
         )}
       </div>
+
+      {/* Informations de débogage */}
+      {debugInfo && (
+        <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
+          <div className="font-medium mb-1">Debug Info:</div>
+          <div>Enhanced Sessions: {debugInfo.enhancedSession?.length || 0}</div>
+          <div>Bot Users: {debugInfo.botUsers?.length || 0}</div>
+          <div>Messages Total: {debugInfo.allMessages?.length || 0}</div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDebugInfo(null)}
+            className="mt-1"
+          >
+            Masquer
+          </Button>
+        </div>
+      )}
 
       {/* Liste des messages */}
       <div className="flex-1 overflow-y-auto max-h-[35vh] space-y-2 mb-4">
@@ -176,6 +249,15 @@ export const UnifiedMessageList: React.FC<UnifiedMessageListProps> = ({
             <p className="text-xs mt-2 text-gray-400">
               Session: {selectedSession.source_type} • Token: {selectedSession.session_token.slice(0, 12)}...
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDebugSession}
+              className="mt-3"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Analyser la session
+            </Button>
           </div>
         ) : (
           <>

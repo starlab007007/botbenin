@@ -37,12 +37,16 @@ export const useBotMessages = (
 
     const fetchMessages = async () => {
       try {
-        console.log(`[useBotMessages] Recherche messages pour session: ${selectedSession.session_token} (type: ${selectedSession.source_type})`);
+        console.log(`[useBotMessages] Début recherche messages pour session: ${selectedSession.session_token}`);
+        console.log(`[useBotMessages] Type de session: ${selectedSession.source_type}`);
+        console.log(`[useBotMessages] Bot ID: ${selectedBot.id}`);
 
         let sessionMessages: BotMessage[] = [];
 
-        if (selectedSession.source_type === 'authenticated' && selectedSession.bot_user_id) {
-          // Pour les sessions authentifiées, chercher par bot_user_id
+        // Stratégie 1: Recherche par bot_user_id si disponible
+        if (selectedSession.bot_user_id) {
+          console.log(`[useBotMessages] Tentative 1: Recherche par bot_user_id: ${selectedSession.bot_user_id}`);
+          
           const { data: messagesByUser, error: userError } = await supabase
             .from("chat_messages")
             .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
@@ -51,67 +55,106 @@ export const useBotMessages = (
             .order("created_at", { ascending: true });
 
           if (userError) {
-            console.error("[useBotMessages] Erreur requête messages par user :", userError);
+            console.error("[useBotMessages] Erreur requête par bot_user_id :", userError);
+          } else if (messagesByUser && messagesByUser.length > 0) {
+            sessionMessages = messagesByUser;
+            console.log(`[useBotMessages] ✅ Messages trouvés par bot_user_id: ${sessionMessages.length}`);
           } else {
-            sessionMessages = messagesByUser || [];
-            console.log(`[useBotMessages] Messages trouvés par bot_user_id: ${sessionMessages.length}`);
+            console.log(`[useBotMessages] ❌ Aucun message trouvé par bot_user_id`);
           }
-        } 
-        
-        // Si pas de messages trouvés avec bot_user_id ou session anonyme, essayer d'autres approches
+        }
+
+        // Stratégie 2: Recherche par session_token dans les métadonnées
         if (sessionMessages.length === 0) {
-          console.log(`[useBotMessages] Aucun message trouvé avec bot_user_id, essai avec session_token dans metadata`);
+          console.log(`[useBotMessages] Tentative 2: Recherche par session_token dans metadata`);
           
-          // Essayer de chercher par session_token dans les métadonnées
-          const { data: messagesByToken, error: tokenError } = await supabase
+          const { data: allMessages, error: metaError } = await supabase
             .from("chat_messages")
             .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent, metadata")
             .eq("bot_id", selectedBot.id)
             .order("created_at", { ascending: false })
-            .limit(100);
+            .limit(200);
 
-          if (tokenError) {
-            console.error("[useBotMessages] Erreur requête messages par token :", tokenError);
-          } else if (messagesByToken) {
-            // Filtrer les messages qui correspondent au session_token
-            const filteredMessages = messagesByToken.filter(msg => {
+          if (metaError) {
+            console.error("[useBotMessages] Erreur requête par metadata :", metaError);
+          } else if (allMessages) {
+            console.log(`[useBotMessages] Messages récupérés pour filtrage: ${allMessages.length}`);
+            
+            // Filtrer par session_token
+            const filteredMessages = allMessages.filter(msg => {
               if (msg.metadata && typeof msg.metadata === 'object') {
                 const metadata = msg.metadata as any;
-                return metadata.session_token === selectedSession.session_token ||
-                       metadata.sessionToken === selectedSession.session_token;
+                const hasSessionToken = metadata.session_token === selectedSession.session_token ||
+                                      metadata.sessionToken === selectedSession.session_token;
+                
+                if (hasSessionToken) {
+                  console.log(`[useBotMessages] Message correspondant trouvé:`, msg.id);
+                }
+                
+                return hasSessionToken;
               }
               return false;
             });
             
-            sessionMessages = filteredMessages;
-            console.log(`[useBotMessages] Messages trouvés par session_token: ${sessionMessages.length}`);
+            if (filteredMessages.length > 0) {
+              sessionMessages = filteredMessages.reverse(); // Remettre dans l'ordre chronologique
+              console.log(`[useBotMessages] ✅ Messages trouvés par session_token: ${sessionMessages.length}`);
+            } else {
+              console.log(`[useBotMessages] ❌ Aucun message trouvé par session_token`);
+            }
           }
         }
 
-        // Si toujours pas de messages, essayer une approche plus large pour les sessions récentes
+        // Stratégie 3: Recherche large pour les sessions récentes (fallback)
         if (sessionMessages.length === 0) {
-          console.log(`[useBotMessages] Aucun message trouvé, récupération des messages récents du bot`);
+          console.log(`[useBotMessages] Tentative 3: Recherche de tous les messages récents du bot`);
           
           const { data: recentMessages, error: recentError } = await supabase
             .from("chat_messages")
             .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
             .eq("bot_id", selectedBot.id)
             .order("created_at", { ascending: false })
-            .limit(20);
+            .limit(50);
 
           if (recentError) {
             console.error("[useBotMessages] Erreur requête messages récents :", recentError);
-          } else {
-            sessionMessages = recentMessages || [];
-            console.log(`[useBotMessages] Messages récents récupérés: ${sessionMessages.length}`);
+          } else if (recentMessages) {
+            sessionMessages = recentMessages.reverse();
+            console.log(`[useBotMessages] ⚠️ Affichage des messages récents (fallback): ${sessionMessages.length}`);
           }
         }
 
-        console.log(`[useBotMessages] Total final de messages: ${sessionMessages.length}`);
+        // Stratégie 4: Créer un bot_user si aucun message n'existe
+        if (sessionMessages.length === 0 && selectedSession.source_type === 'anonymous') {
+          console.log(`[useBotMessages] Tentative 4: Création d'un bot_user pour session anonyme`);
+          
+          try {
+            const { data: newBotUser, error: createError } = await supabase
+              .from("bot_users")
+              .insert({
+                bot_id: selectedBot.id,
+                session_id: selectedSession.session_token,
+                user_name: `Visiteur ${selectedSession.session_token.slice(-8)}`,
+                is_authenticated: false
+              })
+              .select()
+              .single();
+
+            if (createError) {
+              console.error("[useBotMessages] Erreur création bot_user :", createError);
+            } else {
+              console.log(`[useBotMessages] ✅ Bot_user créé: ${newBotUser.id}`);
+            }
+          } catch (error) {
+            console.log("[useBotMessages] Bot_user existe probablement déjà");
+          }
+        }
+
+        console.log(`[useBotMessages] 🏁 RÉSULTAT FINAL: ${sessionMessages.length} messages`);
         setMessages(sessionMessages);
 
       } catch (error) {
-        console.error("[useBotMessages] Erreur lors de la récupération des messages :", error);
+        console.error("[useBotMessages] Erreur générale :", error);
         setMessages([]);
       } finally {
         setLoadingMessages(false);
