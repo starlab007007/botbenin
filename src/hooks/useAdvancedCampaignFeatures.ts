@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -52,6 +51,7 @@ export type ScheduledPost = {
   postedAt?: string;
   status: 'scheduled' | 'posted' | 'failed';
   mediaUrl?: string;
+  mediaUrls?: string[]; // <-- Add this property so it's always available
   analytics: any;
   createdAt: string;
 };
@@ -139,6 +139,8 @@ function mapDbRowToScheduledPost(row: any): ScheduledPost {
     scheduledAt: row.scheduled_at,
     postedAt: row.posted_at,
     status: row.status || 'scheduled',
+    mediaUrl: row.media_url, // If it exists
+    mediaUrls: Array.isArray(row.media_urls) ? row.media_urls : [], // <-- Safely map new column
     analytics: row.analytics || {},
     createdAt: row.created_at,
   };
@@ -391,6 +393,7 @@ export function useAdvancedCampaignFeatures() {
         platform: data.platform,
         scheduled_at: data.scheduledAt,
         result: data.content, // Using result field for content
+        media_urls: data.mediaUrls || [], // <-- Insert as array!
         status: 'scheduled',
         analytics: { media_url: data.mediaUrl }
       }])
