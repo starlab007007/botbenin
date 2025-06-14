@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -96,10 +95,10 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
           event: '*',
           schema: 'public',
           table: 'bot_users',
-          filter: `bot_id=eq.${botId}`
+          filter: `bot_id=eq.${botId}&session_id=eq.${sessionToken}`
         },
         (payload) => {
-          console.log('Real-time: bot_users change received!', payload);
+          console.log('Real-time: bot_users change received for this session!', payload);
           fetchMessages();
         }
       )
@@ -109,7 +108,12 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
         }
         if (status === 'CHANNEL_ERROR') {
           console.error(`Failed to subscribe to ${channelName}`, err);
-          setError(`Realtime connection failed: ${err?.message}`);
+          const errorMessage = err?.message ?? (err ? JSON.stringify(err) : 'An unknown error occurred');
+          setError(`Realtime connection failed: ${errorMessage}`);
+        }
+        if (status === 'TIMED_OUT') {
+          console.log(`Subscription to ${channelName} timed out.`);
+          setError('Realtime connection timed out.');
         }
       });
 
@@ -152,4 +156,3 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
     sendManualResponse
   };
 };
-
