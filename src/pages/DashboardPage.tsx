@@ -62,7 +62,7 @@ export const DashboardPage: React.FC = () => {
     role: 'user'
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [showConversations, setShowConversations] = useState(false);
+  const [selectedTab, setSelectedTab] = useState("bots");
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [selectedBotName, setSelectedBotName] = useState<string | null>(null);
   const [showBotAnalytics, setShowBotAnalytics] = useState(false);
@@ -265,13 +265,15 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  if (showConversations) {
-    return (
-      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-        <ConversationManager onBack={() => setShowConversations(false)} />
-      </div>
-    );
-  }
+  // (Suppression logique showConversations)
+  // const [showConversations, setShowConversations] = useState(false);
+  // if (showConversations) {
+  //   return (
+  //     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+  //       <ConversationManager onBack={() => setShowConversations(false)} />
+  //     </div>
+  //   );
+  // }
 
   if (showBotAnalytics && selectedBotId && selectedBotName) {
     // LOG: Ouverture du panel analytics détaillé avec le bon bot
@@ -321,11 +323,11 @@ export const DashboardPage: React.FC = () => {
             <p className="text-gray-600">Accédez à toutes vos conversations et contacts</p>
           </div>
           <Button 
-            onClick={() => setShowConversations(true)}
+            onClick={() => setSelectedTab("conversations")}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Mail className="w-4 h-4 mr-2" />
-            Voir toutes les conversations
+            Contrôle Conversations
           </Button>
         </div>
         
@@ -422,7 +424,7 @@ export const DashboardPage: React.FC = () => {
 
       {/* Main Content Tabs */}
       <Card className="uniform-card">
-        <Tabs defaultValue="bots" className="w-full">
+        <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
           <TabsList className="grid w-full grid-cols-8 p-1 bg-gray-100 rounded-t-xl">
             <TabsTrigger value="bots" className="flex items-center space-x-2">
               <Bot className="w-4 h-4" />
@@ -495,10 +497,10 @@ export const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Button 
             className="uniform-button-secondary flex items-center space-x-2"
-            onClick={() => setShowConversations(true)}
+            onClick={() => setSelectedTab("conversations")}
           >
             <Mail className="w-4 h-4" />
-            <span>Conversations</span>
+            <span>Contrôle Conversations</span>
           </Button>
           <Button className="uniform-button-secondary flex items-center space-x-2">
             <History className="w-4 h-4" />
