@@ -29,7 +29,7 @@ export const SocialSharingCampaignsList: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
 
-  // Upload de vignettes/images
+  // Upload de vignettes/images (centralisé pour le formulaire)
   const [previewImageFiles, setPreviewImageFiles] = useState<(File | null)[]>([null, null, null]);
   const [previewImageUrls, setPreviewImageUrls] = useState<(string | null)[]>([null, null, null]);
   const [isUploading, setIsUploading] = useState(false);
@@ -174,12 +174,31 @@ export const SocialSharingCampaignsList: React.FC = () => {
             {/* Description */}
             <div className="mb-3">
               <label className="block text-xs font-medium mb-1">Description</label>
-              <Input
+              <textarea
                 name="description"
                 value={form.description}
                 onChange={handleChange}
+                className="block w-full border rounded px-2 py-1 min-h-[40px] text-sm"
                 placeholder="Description de la campagne..."
               />
+            </div>
+            {/* Vignettes / Images  (AJOUT ICI après 'Description') */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium mb-1 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" />
+                Vignettes de campagne (maxi 3)
+              </label>
+              <ImageUploader
+                max={3}
+                files={previewImageFiles}
+                urls={previewImageUrls}
+                isUploading={isUploading}
+                onChange={handleFormImagesChange}
+                onUpload={handleUploadPreviewImages}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ajoutez jusqu'à 3 images de vignette (format carré recommandé pour l'aperçu).
+              </p>
             </div>
             {/* Plateformes cibles */}
             <div className="mb-3">
@@ -199,24 +218,6 @@ export const SocialSharingCampaignsList: React.FC = () => {
                   </button>
                 ))}
               </div>
-            </div>
-            {/* Vignettes / Images */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium mb-1 flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Vignettes de campagne (maxi 3)
-              </label>
-              <ImageUploader
-                max={3}
-                files={previewImageFiles}
-                urls={previewImageUrls}
-                isUploading={isUploading}
-                onChange={handleFormImagesChange}
-                onUpload={handleUploadPreviewImages}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Ajoutez jusqu'à 3 images de vignette (format carré recommandé pour l'aperçu).
-              </p>
             </div>
             {/* Message personnalisé */}
             <div className="mb-3">
