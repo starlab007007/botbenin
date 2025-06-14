@@ -39,7 +39,7 @@ export const useBotMessages = (
 
     const fetchMessages = async () => {
       try {
-        console.log(`[useBotMessages] === RECHERCHE EXHAUSTIVE MESSAGES ===`);
+        console.log(`[useBotMessages] === RECHERCHE MESSAGES AMÉLIORÉE ===`);
         console.log(`Session token: ${selectedSession.session_token}`);
         console.log(`Bot ID: ${selectedBot.id}`);
         console.log(`Session type: ${selectedSession.source_type}`);
@@ -78,42 +78,72 @@ export const useBotMessages = (
           }
         }
 
-        // Stratégie 2: Recherche par session_token dans les métadonnées
+        // Stratégie 2 AMÉLIORÉE: Recherche par session_token dans les métadonnées OU par bot_user_id associé au token
         if (sessionMessages.length === 0) {
-          console.log(`[Stratégie 2] Recherche par session_token dans metadata`);
+          console.log(`[Stratégie 2] Recherche améliorée par session_token`);
           
-          const { data: allMessages, error: metaError } = await supabase
-            .from("chat_messages")
-            .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent, metadata")
+          // D'abord, chercher un bot_user avec ce session_id
+          const { data: botUser, error: botUserError } = await supabase
+            .from("bot_users")
+            .select("id")
             .eq("bot_id", selectedBot.id)
-            .order("created_at", { ascending: false })
-            .limit(500);
+            .eq("session_id", selectedSession.session_token)
+            .maybeSingle();
 
-          searchResults.strategy2_token_metadata_search = {
-            data: allMessages,
-            error: metaError,
-            count: allMessages?.length || 0,
-            searched_token: selectedSession.session_token
-          };
-
-          if (metaError) {
-            console.error("[Stratégie 2] Erreur:", metaError);
-          } else if (allMessages) {
-            console.log(`[Stratégie 2] ${allMessages.length} messages à filtrer`);
+          if (botUser && !botUserError) {
+            console.log(`[Stratégie 2a] Bot user trouvé pour le token: ${botUser.id}`);
             
-            const filteredMessages = allMessages.filter(msg => {
-              if (msg.metadata && typeof msg.metadata === 'object') {
-                const metadata = msg.metadata as any;
-                const hasSessionToken = metadata.session_token === selectedSession.session_token ||
-                                      metadata.sessionToken === selectedSession.session_token;
-                return hasSessionToken;
+            // Rechercher les messages par ce bot_user_id
+            const { data: messagesByBotUser, error: msgError } = await supabase
+              .from("chat_messages")
+              .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent")
+              .eq("bot_id", selectedBot.id)
+              .eq("bot_user_id", botUser.id)
+              .order("created_at", { ascending: true });
+
+            if (messagesByBotUser && !msgError && messagesByBotUser.length > 0) {
+              sessionMessages = messagesByBotUser;
+              console.log(`[Stratégie 2a] ✅ ${sessionMessages.length} messages trouvés par bot_user_id`);
+            }
+          }
+
+          // Si toujours pas de messages, rechercher dans les métadonnées
+          if (sessionMessages.length === 0) {
+            console.log(`[Stratégie 2b] Recherche dans les métadonnées`);
+            
+            const { data: allMessages, error: metaError } = await supabase
+              .from("chat_messages")
+              .select("id, message_content, created_at, message_type, bot_user_id, ip_address, user_agent, metadata")
+              .eq("bot_id", selectedBot.id)
+              .order("created_at", { ascending: false })
+              .limit(500);
+
+            searchResults.strategy2_token_metadata_search = {
+              data: allMessages,
+              error: metaError,
+              count: allMessages?.length || 0,
+              searched_token: selectedSession.session_token
+            };
+
+            if (metaError) {
+              console.error("[Stratégie 2b] Erreur:", metaError);
+            } else if (allMessages) {
+              console.log(`[Stratégie 2b] ${allMessages.length} messages à filtrer`);
+              
+              const filteredMessages = allMessages.filter(msg => {
+                if (msg.metadata && typeof msg.metadata === 'object') {
+                  const metadata = msg.metadata as any;
+                  const hasSessionToken = metadata.session_token === selectedSession.session_token ||
+                                        metadata.sessionToken === selectedSession.session_token;
+                  return hasSessionToken;
+                }
+                return false;
+              });
+              
+              if (filteredMessages.length > 0) {
+                sessionMessages = filteredMessages.reverse();
+                console.log(`[Stratégie 2b] ✅ ${sessionMessages.length} messages trouvés dans métadonnées`);
               }
-              return false;
-            });
-            
-            if (filteredMessages.length > 0) {
-              sessionMessages = filteredMessages.reverse();
-              console.log(`[Stratégie 2] ✅ ${sessionMessages.length} messages trouvés`);
             }
           }
         }

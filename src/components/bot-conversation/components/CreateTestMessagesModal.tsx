@@ -33,11 +33,16 @@ export const CreateTestMessagesModal: React.FC<CreateTestMessagesModalProps> = (
     setLoading(true);
     try {
       console.log("[CreateTestMessages] Création de messages de test...");
+      console.log("Bot ID:", selectedBot.id);
+      console.log("Session token:", selectedSession.session_token);
+      console.log("Session bot_user_id:", selectedSession.bot_user_id);
       
       // 1. Créer ou récupérer un bot_user pour cette session
       let botUserId = selectedSession.bot_user_id;
       
       if (!botUserId) {
+        console.log("[CreateTestMessages] Création d'un nouveau bot_user...");
+        
         const { data: newBotUser, error: userError } = await supabase
           .from("bot_users")
           .insert({
@@ -57,10 +62,13 @@ export const CreateTestMessagesModal: React.FC<CreateTestMessagesModalProps> = (
         
         botUserId = newBotUser.id;
         console.log("[CreateTestMessages] Bot user créé:", botUserId);
+      } else {
+        console.log("[CreateTestMessages] Utilisation du bot_user existant:", botUserId);
       }
 
       // 2. Créer le message utilisateur
-      const { error: userMsgError } = await supabase
+      console.log("[CreateTestMessages] Création du message utilisateur...");
+      const { data: userMsgData, error: userMsgError } = await supabase
         .from("chat_messages")
         .insert({
           bot_id: selectedBot.id,
@@ -69,17 +77,23 @@ export const CreateTestMessagesModal: React.FC<CreateTestMessagesModalProps> = (
           message_type: "user",
           metadata: {
             session_token: selectedSession.session_token,
-            is_test: true
+            is_test: true,
+            created_by: "admin_panel"
           }
-        });
+        })
+        .select()
+        .single();
 
       if (userMsgError) {
         console.error("Erreur création message utilisateur:", userMsgError);
         throw userMsgError;
       }
 
+      console.log("[CreateTestMessages] Message utilisateur créé:", userMsgData.id);
+
       // 3. Créer la réponse du bot
-      const { error: botMsgError } = await supabase
+      console.log("[CreateTestMessages] Création de la réponse du bot...");
+      const { data: botMsgData, error: botMsgError } = await supabase
         .from("chat_messages")
         .insert({
           bot_id: selectedBot.id,
@@ -88,13 +102,34 @@ export const CreateTestMessagesModal: React.FC<CreateTestMessagesModalProps> = (
           message_type: "bot",
           metadata: {
             session_token: selectedSession.session_token,
-            is_test: true
+            is_test: true,
+            created_by: "admin_panel"
           }
-        });
+        })
+        .select()
+        .single();
 
       if (botMsgError) {
         console.error("Erreur création message bot:", botMsgError);
         throw botMsgError;
+      }
+
+      console.log("[CreateTestMessages] Message bot créé:", botMsgData.id);
+
+      // 4. Forcer la mise à jour de la session si nécessaire
+      if (!selectedSession.bot_user_id) {
+        console.log("[CreateTestMessages] Mise à jour de la session avec le bot_user_id...");
+        
+        // Mettre à jour les sessions enhanced si elles existent
+        const { error: updateError } = await supabase
+          .from("enhanced_chat_sessions")
+          .update({ bot_user_id: botUserId })
+          .eq("session_token", selectedSession.session_token)
+          .eq("bot_id", selectedBot.id);
+
+        if (updateError) {
+          console.warn("Impossible de mettre à jour enhanced_chat_sessions:", updateError);
+        }
       }
 
       console.log("[CreateTestMessages] Messages de test créés avec succès");
