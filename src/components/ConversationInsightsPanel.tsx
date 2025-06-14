@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,13 +47,15 @@ export const ConversationInsightsPanel: React.FC = () => {
           <BarChart3 className="w-5 h-5 text-purple-600" />
           Insights Conversationnels
         </h2>
-        <div>
+        <div className="relative">
+          <span className="absolute left-3 top-2.5 text-gray-400 pointer-events-none">
+            <Search className="w-4 h-4" />
+          </span>
           <Input
             placeholder="Recherche mot-clé ou type"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-56"
-            startIcon={<Search className="w-4 h-4" />}
+            className="w-56 pl-10"
           />
         </div>
       </div>

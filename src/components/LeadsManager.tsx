@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,7 +58,21 @@ export const LeadsManager: React.FC = () => {
     if (error) {
       toast({ title: "Erreur", description: "Impossible de charger les leads", variant: "destructive" });
     } else {
-      setLeads(data || []);
+      // Ensure that tags is always a string[]
+      setLeads(
+        (data || []).map((lead: any) => ({
+          ...lead,
+          tags: Array.isArray(lead.tags)
+            ? lead.tags
+            : typeof lead.tags === "string"
+              ? []
+              : Array.isArray(lead.tags)
+                ? lead.tags
+                : lead.tags && typeof lead.tags === "object" && lead.tags !== null && "length" in lead.tags
+                  ? Array.from(lead.tags)
+                  : []
+        }))
+      );
     }
     setLoading(false);
   };
@@ -78,7 +91,7 @@ export const LeadsManager: React.FC = () => {
     if (editingLead) {
       const { error } = await supabase
         .from("leads")
-        .update({ ...form, updated_at: new Date().toISOString() })
+        .update({ ...form, tags: form.tags ?? [], updated_at: new Date().toISOString() })
         .eq("id", editingLead.id);
       if (error) {
         toast({ title: "Erreur", description: "Échec lors de la mise à jour", variant: "destructive" });
@@ -93,7 +106,13 @@ export const LeadsManager: React.FC = () => {
       if (!userId) return;
       const { error } = await supabase
         .from("leads")
-        .insert([{ ...form, user_id: userId, tags: form.tags || [] }]);
+        .insert([
+          {
+            ...form,
+            user_id: userId,
+            tags: form.tags ?? []
+          }
+        ]);
       if (error) {
         toast({ title: "Erreur", description: "Échec lors de la création", variant: "destructive" });
       } else {

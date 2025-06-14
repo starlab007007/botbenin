@@ -59,7 +59,13 @@ export const MarketingCampaignsManager: React.FC = () => {
     if (editing) {
       const { error } = await supabase
         .from("campaigns")
-        .update({ ...form, updated_at: new Date().toISOString() })
+        .update({
+          ...form,
+          // Ensure required JSON columns
+          segment: form.segment ?? {},
+          results: form.results ?? {},
+          updated_at: new Date().toISOString()
+        })
         .eq("id", editing.id);
       if (error) {
         toast({ title: "Erreur", description: "Échec lors de la mise à jour", variant: "destructive" });
@@ -74,7 +80,14 @@ export const MarketingCampaignsManager: React.FC = () => {
       if (!userId) return;
       const { error } = await supabase
         .from("campaigns")
-        .insert([{ ...form, user_id: userId }]);
+        .insert([
+          {
+            ...form,
+            user_id: userId,
+            segment: form.segment ?? {},
+            results: form.results ?? {}
+          }
+        ]);
       if (error) {
         toast({ title: "Erreur", description: "Échec lors de la création", variant: "destructive" });
       } else {
