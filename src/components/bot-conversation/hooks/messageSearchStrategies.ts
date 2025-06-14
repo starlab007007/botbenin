@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Core strategies are exported as independent functions to keep code in useBotMessages simple and testable.
@@ -14,6 +15,20 @@ export async function messagesByBotUserId(botId: string, botUserId: string) {
   return data;
 }
 
+function isMetadataWithSessionToken(obj: unknown): obj is { session_token?: string; sessionToken?: string } {
+  // Ensure it's a non-null object, not an array, not null
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    !Array.isArray(obj) &&
+    (
+      // At least session_token or sessionToken exists and is a string (optional)
+      ("session_token" in obj && typeof (obj as any).session_token === "string") ||
+      ("sessionToken" in obj && typeof (obj as any).sessionToken === "string")
+    )
+  );
+}
+
 export async function messagesBySessionTokenMetadata(botId: string, sessionToken: string) {
   // Scan latest 500 by created_at, filter by metadata.session_token or metadata.sessionToken
   const { data, error } = await supabase
@@ -23,10 +38,15 @@ export async function messagesBySessionTokenMetadata(botId: string, sessionToken
     .order("created_at", { ascending: false })
     .limit(500);
   if (error || !data) return [];
-  return data.filter(msg =>
-    msg.metadata &&
-    (msg.metadata.session_token === sessionToken || msg.metadata.sessionToken === sessionToken)
-  ).reverse();
+  return data
+    .filter(msg => 
+      isMetadataWithSessionToken(msg.metadata) && 
+      (
+        msg.metadata.session_token === sessionToken ||
+        msg.metadata.sessionToken === sessionToken
+      )
+    )
+    .reverse();
 }
 
 export async function messagesByRecent(botId: string, limit: number = 10) {
