@@ -36,10 +36,10 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
 
       if (!rpcError && rpcData && rpcData.length > 0) {
         console.log(`[useSessionMessages] Found ${rpcData.length} messages via RPC`);
-        const formattedMessages = rpcData.map((item: any) => ({
+        const formattedMessages: SessionMessage[] = rpcData.map((item: any) => ({
           id: item.id,
           message_content: item.message_content,
-          message_type: item.message_type,
+          message_type: (item.message_type === 'user' || item.message_type === 'bot') ? item.message_type : 'bot',
           created_at: item.created_at,
           metadata: item.metadata,
           bot_user_id: item.bot_user_id
@@ -87,7 +87,16 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
         setMessages([]);
       } else {
         console.log(`[useSessionMessages] Found ${directData?.length || 0} messages via direct query`);
-        setMessages(directData || []);
+        // Type-safe mapping of the direct data
+        const typedMessages: SessionMessage[] = (directData || []).map((item: any) => ({
+          id: item.id,
+          message_content: item.message_content,
+          message_type: (item.message_type === 'user' || item.message_type === 'bot') ? item.message_type : 'bot',
+          created_at: item.created_at,
+          metadata: item.metadata,
+          bot_user_id: item.bot_user_id
+        }));
+        setMessages(typedMessages);
       }
 
     } catch (err: any) {
