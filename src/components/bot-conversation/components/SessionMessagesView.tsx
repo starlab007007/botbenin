@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +78,10 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
           <CardTitle className="text-sm font-semibold flex items-center">
             <MessageSquare className="w-4 h-4 mr-2" />
             Messages - Session {selectedSession.session_token.slice(0, 10)}...
+            {/* BADGE debug du session_token complet */}
+            <span className="ml-2 px-2 py-1 rounded bg-gray-200 text-xs text-gray-700 border border-gray-300">
+              {selectedSession.session_token}
+            </span>
           </CardTitle>
           <div className="flex items-center space-x-2">
             <Badge variant={selectedSession.source_type === 'anonymous' ? 'secondary' : 'default'}>
