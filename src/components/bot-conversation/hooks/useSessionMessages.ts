@@ -15,6 +15,8 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ajout de la variable pour debug tokens trouvés
+  const [debugTokens, setDebugTokens] = useState<string | null>(null);
 
   const fetchMessages = useCallback(async () => {
     if (!botId || !sessionToken) {
@@ -25,10 +27,11 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
 
     setLoading(true);
     setError(null);
+    setDebugTokens(null);
     console.log(`[useSessionMessages] Fetching messages for bot ${botId}, session ${sessionToken}`);
 
     try {
-      // Always use the corrected RPC function first
+      // 1. Appel SQL classique (RPC)
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_chat_history', {
         p_bot_id: botId,
         p_bot_user_id: botUserId || null,
@@ -56,8 +59,32 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
         return;
       }
 
-      // Fallback: direct manual fetch for rare edge cases
-      console.log('[useSessionMessages] RPC returned no data, trying direct approach');
+      // 2. Fallback: debug complet
+      // Récupère les 10 derniers messages du bot pour inspecter les métadatas
+      const { data: allRecent, error: recentError } = await supabase
+        .from('chat_messages')
+        .select('id,message_content,message_type,created_at,metadata,bot_user_id')
+        .eq('bot_id', botId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (recentError) {
+        console.error('[useSessionMessages] Error on debug message fetch:', recentError);
+      } else {
+        console.log('[useSessionMessages] DEBUG - 10 derniers messages pour ce bot:');
+        if (allRecent) {
+          allRecent.forEach((msg: any, idx: number) => {
+            console.log(`#${idx + 1} | id: ${msg.id} | session_token:`, msg.metadata?.session_token, '| content:', msg.message_content.slice(0, 30));
+          });
+          // Affiche les tokens trouvés
+          const foundTokens = [
+            ...new Set(allRecent.map(m => m.metadata?.session_token).filter(Boolean))
+          ].join(', ');
+          setDebugTokens(foundTokens);
+        }
+      }
+
+      // 3. Fallback complet : recherche bot_user par sessionId
       let resolvedBotUserId: string | null = botUserId || null;
 
       if (!resolvedBotUserId) {
@@ -118,5 +145,5 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
     fetchMessages();
   }, [fetchMessages]);
 
-  return { messages, loading, error, refetch: fetchMessages };
+  return { messages, loading, error, refetch: fetchMessages, debugTokens };
 };
