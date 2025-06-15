@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -376,23 +375,23 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
   if (selectedConversation) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+      <div className="space-y-6 max-w-full w-full px-2 sm:px-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
+          <div className="flex items-center space-x-4 w-full">
             <Button variant="outline" onClick={() => setSelectedConversation(null)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour
             </Button>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words max-w-[94vw]">
                 Conversation avec {selectedConversation.user_name}
               </h2>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-xs sm:text-sm">
                 Bot: {selectedConversation.bot_name} • {selectedConversation.total_messages} messages
               </p>
             </div>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 w-full sm:w-auto justify-end">
             <Button variant="outline" onClick={() => setSelectedContact({
               user_id: selectedConversation.user_id,
               user_name: selectedConversation.user_name,
@@ -409,28 +408,26 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
           </div>
         </div>
 
-        <Card>
+        <Card className="w-full max-w-full">
           <CardHeader>
-            <CardTitle>Messages de la conversation</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Messages de la conversation</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="space-y-4 max-h-[55vh] sm:max-h-96 overflow-y-auto pr-1">
               {messages.map((message) => (
                 <div 
                   key={message.id}
                   className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div 
-                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    className={`max-w-[90vw] sm:max-w-xs lg:max-w-md px-3 py-2 rounded-lg text-xs sm:text-sm ${
                       message.type === 'user' 
                         ? 'bg-blue-500 text-white' 
                         : 'bg-gray-200 text-gray-900'
                     }`}
                   >
-                    <div className="text-sm">{message.content}</div>
-                    <div className="text-xs opacity-75 mt-1">
-                      {new Date(message.timestamp).toLocaleString('fr-FR')}
-                    </div>
+                    <div>{message.content}</div>
+                    <div className="opacity-75 mt-1 text-[11px]">{new Date(message.timestamp).toLocaleString('fr-FR')}</div>
                   </div>
                 </div>
               ))}
@@ -443,40 +440,40 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
   if (selectedContact) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 max-w-full w-full px-2 sm:px-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-4">
             <Button variant="outline" onClick={() => setSelectedContact(null)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour
             </Button>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words max-w-[90vw]">
                 Contacter {selectedContact.user_name}
               </h2>
-              <p className="text-gray-600">{selectedContact.user_email}</p>
+              <p className="text-gray-600 text-xs sm:text-sm">{selectedContact.user_email}</p>
             </div>
           </div>
         </div>
 
-        <Card>
+        <Card className="w-full max-w-full">
           <CardHeader>
-            <CardTitle>Envoyer un message</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Envoyer un message</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                 Message
               </label>
               <textarea
                 value={contactMessage}
                 onChange={(e) => setContactMessage(e.target.value)}
                 rows={6}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                 placeholder="Tapez votre message ici..."
               />
             </div>
-            <div className="flex space-x-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button onClick={sendContactMessage} disabled={!contactMessage.trim()}>
                 <Send className="w-4 h-4 mr-2" />
                 Envoyer
@@ -492,20 +489,20 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full w-full px-1 xs:px-2 sm:px-6">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+        <div className="flex items-center space-x-4 mb-2 sm:mb-0">
           <Button variant="outline" onClick={onBack}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retour
           </Button>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Gestion Centralisée</h2>
-            <p className="text-gray-600">Conversations, messages et contacts de tous vos bots</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion Centralisée</h2>
+            <p className="text-gray-600 text-xs sm:text-sm">Conversations, messages et contacts de tous vos bots</p>
           </div>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex gap-2 w-full sm:w-auto justify-end">
           <Button variant="outline" onClick={fetchData}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Actualiser
@@ -519,8 +516,8 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
       {/* Filtres */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-4">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col sm:flex-row items-stretch gap-3 sm:gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -528,14 +525,14 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
                   placeholder="Rechercher utilisateurs, emails, bots..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 w-full text-xs sm:text-sm"
                 />
               </div>
             </div>
             
             {activeTab === 'conversations' ? (
               <Select value={filterBot} onValueChange={setFilterBot}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48 text-xs sm:text-sm">
                   <SelectValue placeholder="Filtrer par bot" />
                 </SelectTrigger>
                 <SelectContent>
@@ -547,7 +544,7 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
               </Select>
             ) : (
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48 text-xs sm:text-sm">
                   <SelectValue placeholder="Filtrer par statut" />
                 </SelectTrigger>
                 <SelectContent>
@@ -574,52 +571,52 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="conversations" className="mt-6">
+        <TabsContent value="conversations" className="mt-4 sm:mt-6">
           {isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map(i => (
                 <Card key={i} className="animate-pulse">
                   <CardContent className="p-4">
-                    <div className="h-20 bg-gray-200 rounded"></div>
+                    <div className="h-16 sm:h-20 bg-gray-200 rounded"></div>
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : filteredConversations.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <CardContent className="p-4 sm:p-8 text-center">
+                <MessageSquare className="w-10 h-10 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
                   Aucune conversation trouvée
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 text-xs sm:text-base">
                   Aucune conversation ne correspond à vos critères de recherche.
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               {filteredConversations.map((conversation) => (
                 <Card key={`${conversation.bot_id}-${conversation.session_id}`} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl flex items-center justify-center">
-                          <MessageSquare className="w-6 h-6 text-blue-600" />
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+                      <div className="flex items-center space-x-2 sm:space-x-4 w-full">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-1">
-                            <h3 className="font-semibold text-gray-900">{conversation.user_name}</h3>
-                            <Badge variant="secondary">{conversation.bot_name}</Badge>
-                            <Badge variant={conversation.is_active ? 'default' : 'secondary'}>
+                            <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{conversation.user_name}</h3>
+                            <Badge variant="secondary" className="text-xs">{conversation.bot_name}</Badge>
+                            <Badge variant={conversation.is_active ? 'default' : 'secondary'} className="text-xs">
                               {conversation.total_messages} messages
                             </Badge>
                           </div>
-                          <p className="text-gray-600 text-sm mb-2">{conversation.user_email}</p>
-                          <p className="text-gray-700 text-sm line-clamp-2">
+                          <p className="text-gray-600 text-xs mb-2 truncate">{conversation.user_email}</p>
+                          <p className="text-gray-700 text-xs line-clamp-2">
                             Dernier message: {conversation.last_message_content}
                           </p>
-                          <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] text-gray-500">
                             <div className="flex items-center space-x-1">
                               <Calendar className="w-3 h-3" />
                               <span>Début: {new Date(conversation.session_start).toLocaleString('fr-FR')}</span>
@@ -631,7 +628,7 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
                           </div>
                         </div>
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex flex-row space-x-2 w-full sm:w-auto justify-end">
                         <Button
                           onClick={() => viewConversation(conversation)}
                           variant="outline"
@@ -666,74 +663,72 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
           )}
         </TabsContent>
 
-        <TabsContent value="contacts" className="mt-6">
+        <TabsContent value="contacts" className="mt-4 sm:mt-6">
           {isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map(i => (
                 <Card key={i} className="animate-pulse">
                   <CardContent className="p-4">
-                    <div className="h-20 bg-gray-200 rounded"></div>
+                    <div className="h-16 sm:h-20 bg-gray-200 rounded"></div>
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : filteredContacts.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <CardContent className="p-4 sm:p-8 text-center">
+                <Users className="w-10 h-10 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
                   Aucun contact trouvé
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-gray-600 text-xs sm:text-base">
                   Aucun contact ne correspond à vos critères de recherche.
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               {filteredContacts.map((contact) => (
                 <Card key={contact.user_id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          contact.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
-                        }`}>
-                          <User className={`w-6 h-6 ${
-                            contact.status === 'active' ? 'text-green-600' : 'text-gray-400'
-                          }`} />
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${
+                        contact.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
+                      }`}>
+                        <User className={`w-5 h-5 sm:w-6 sm:h-6 ${
+                          contact.status === 'active' ? 'text-green-600' : 'text-gray-400'
+                        }`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{contact.user_name}</h3>
+                          <Badge variant={contact.status === 'active' ? 'default' : 'secondary'} className="text-xs">
+                            {contact.status === 'active' ? 'Actif' : 'Inactif'}
+                          </Badge>
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <h3 className="font-semibold text-gray-900">{contact.user_name}</h3>
-                            <Badge variant={contact.status === 'active' ? 'default' : 'secondary'}>
-                              {contact.status === 'active' ? 'Actif' : 'Inactif'}
-                            </Badge>
+                        <p className="text-gray-600 text-xs mb-2 truncate">{contact.user_email}</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Sessions:</span>
+                            <span className="ml-2 font-medium">{contact.session_count}</span>
                           </div>
-                          <p className="text-gray-600 text-sm mb-2">{contact.user_email}</p>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="text-gray-500">Sessions:</span>
-                              <span className="ml-2 font-medium">{contact.session_count}</span>
-                            </div>
-                            <div>
-                              <span className="text-gray-500">Messages:</span>
-                              <span className="ml-2 font-medium">{contact.message_count}</span>
-                            </div>
+                          <div>
+                            <span className="text-gray-500">Messages:</span>
+                            <span className="ml-2 font-medium">{contact.message_count}</span>
                           </div>
-                          <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>Premier: {new Date(contact.first_interaction).toLocaleDateString('fr-FR')}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Activity className="w-3 h-3" />
-                              <span>Dernier: {new Date(contact.last_interaction).toLocaleDateString('fr-FR')}</span>
-                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] text-gray-500">
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>Premier: {new Date(contact.first_interaction).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Activity className="w-3 h-3" />
+                            <span>Dernier: {new Date(contact.last_interaction).toLocaleDateString('fr-FR')}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
                         <Button
                           onClick={() => setSelectedContact(contact)}
                           variant="outline"
