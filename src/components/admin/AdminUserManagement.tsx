@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +37,20 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+interface DatabaseUser {
+  id: string;
+  email: string;
+  full_name: string;
+  status: string;
+  subscription_tier: string;
+  created_at: string;
+  last_login: string | null;
+  login_attempts: number;
+  email_verified: boolean;
+  two_factor_enabled: boolean;
+  admin_notes: string | null;
+}
+
 interface UserData {
   id: string;
   email: string;
@@ -73,7 +86,16 @@ export const AdminUserManagement: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setUsers(data || []);
+      
+      // Transform database users to our typed interface
+      const transformedUsers: UserData[] = (data || []).map((user: DatabaseUser) => ({
+        ...user,
+        status: (['active', 'inactive', 'suspended', 'pending'].includes(user.status) 
+          ? user.status 
+          : 'active') as 'active' | 'inactive' | 'suspended' | 'pending'
+      }));
+      
+      setUsers(transformedUsers);
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
       toast({

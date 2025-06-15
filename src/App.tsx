@@ -11,34 +11,34 @@ import { UserProvider } from "@/contexts/UserContext";
 import Index from "./pages/Index";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 
-// Lazy load pages
-const HomePage = lazy(() => import("./pages/HomePage"));
-const DashboardPage = lazy(() => import("./pages/DashboardPage"));
-const BotManagementPage = lazy(() => import("./pages/BotManagementPage"));
-const BotTestPage = lazy(() => import("./pages/BotTestPage"));
-const ChatPage = lazy(() => import("./pages/ChatPage"));
-const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage"));
-const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage"));
-const AccountPage = lazy(() => import("./pages/AccountPage"));
-const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage"));
-const AutomationsPage = lazy(() => import("./pages/AutomationsPage"));
-const ProspectsPage = lazy(() => import("./pages/ProspectsPage"));
-const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage"));
-const SupportPage = lazy(() => import("./pages/SupportPage"));
-const AdminPage = lazy(() => import("./pages/AdminPage"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+// Lazy load pages with proper typing
+const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.default })));
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.default })));
+const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(module => ({ default: module.default })));
+const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.default })));
+const ChatPage = lazy(() => import("./pages/ChatPage").then(module => ({ default: module.default })));
+const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.default })));
+const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.default })));
+const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ default: module.default })));
+const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.default })));
+const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.default })));
+const ProspectsPage = lazy(() => import("./pages/ProspectsPage").then(module => ({ default: module.default })));
+const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.default })));
+const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.default })));
+const AdminPage = lazy(() => import("./pages/AdminPage").then(module => ({ default: module.default })));
+const NotFound = lazy(() => import("./pages/NotFound").then(module => ({ default: module.default })));
 
 // Module pages
-const BusinessModule = lazy(() => import("./pages/modules/BusinessModule"));
-const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule"));
-const GestionModule = lazy(() => import("./pages/modules/GestionModule"));
-const MarketingModule = lazy(() => import("./pages/modules/MarketingModule"));
+const BusinessModule = lazy(() => import("./pages/modules/BusinessModule").then(module => ({ default: module.default })));
+const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.default })));
+const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(module => ({ default: module.default })));
+const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").then(module => ({ default: module.default })));
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+    <ThemeProvider defaultTheme="light">
       <TooltipProvider>
         <AuthProvider>
           <UserProvider>
