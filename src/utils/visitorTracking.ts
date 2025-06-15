@@ -270,10 +270,12 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       console.error(errorMsg);
       return errorMsg;
     }
+
+    // Only execute this block when sessionTokenResult is a *string*
     if (typeof sessionTokenResult === 'string' && sessionTokenResult.startsWith('anon_')) {
       console.log(`[visitorTracking] New session created with token: ${sessionTokenResult}`);
       sessionStorage.setItem('visitor_session_token', sessionTokenResult);
-      // Fix: Only call trackVisitorEvent if the token is definitely a string
+      // Fix: Add local type guard before calling trackVisitorEvent
       await trackVisitorEvent(sessionTokenResult, 'session_start', {
         url: window.location.href,
         utm_params: utmParams,
@@ -283,6 +285,8 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       });
       return sessionTokenResult;
     }
+
+    // In all other cases, remove invalid session, and return an error
     sessionStorage.removeItem('visitor_session_token');
     const errorMsg = '[visitorTracking] Failed to create valid session token (final step)';
     console.error(errorMsg);
