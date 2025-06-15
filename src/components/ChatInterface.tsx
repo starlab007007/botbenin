@@ -161,9 +161,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
 
     // Vérifier qu'on a bien un token de session
-    const currentToken = sessionToken || getCurrentVisitorSession();
+    let currentToken = sessionToken || getCurrentVisitorSession();
+
+    console.log('[ChatInterface] Debugging session token:', {
+      stateToken: sessionToken,
+      storageToken: getCurrentVisitorSession(),
+      finalToken: currentToken
+    });
+
+    if (!currentToken && urlBotId) {
+        console.warn('[ChatInterface] Token is missing, attempting to re-initialize tracking...');
+        currentToken = await initializeVisitorTracking(urlBotId, 'chat_send_recovery');
+        if (currentToken) {
+            console.log('[ChatInterface] Tracking re-initialized successfully, new token:', currentToken);
+            setSessionToken(currentToken);
+        } else {
+            console.error('[ChatInterface] Failed to recover session token.');
+        }
+    }
+
     if (!currentToken) {
-      console.error('[ChatInterface] Aucun token de session disponible');
+      console.error('[ChatInterface] Aucun token de session disponible, even after recovery attempt.');
       toast({
         title: "Erreur de session",
         description: "Impossible d'envoyer le message. Veuillez recharger la page.",
