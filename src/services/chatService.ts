@@ -25,8 +25,9 @@ export const saveChatMessage = async (
     console.log(`[chatService] Saving message for bot ${botId}, session ${sessionToken}`);
     
     // S'assurer que le session_token est bien inclus dans les métadonnées
+    const baseMetadata = (metadata && typeof metadata === 'object' && metadata !== null) ? metadata : {};
     const enrichedMetadata = {
-      ...metadata,
+      ...baseMetadata,
       session_token: sessionToken,
       sessionToken: sessionToken, // Double sécurité
       saved_at: new Date().toISOString()
@@ -56,13 +57,25 @@ export const saveChatMessage = async (
 
 /**
  * Fonction de debug pour analyser les tokens de session en base
+ * Note: Cette fonction est désactivée car la fonction RPC n'existe pas dans les types
  */
 export const debugSessionTokens = async (botId: string) => {
   try {
-    const { data, error } = await supabase.rpc('debug_session_tokens', {
-      p_bot_id: botId,
-      p_limit: 20
-    });
+    console.log(`[chatService] Debug session tokens called for bot ${botId}`);
+    
+    // Recherche directe des messages récents pour debug
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select(`
+        id,
+        metadata,
+        message_type,
+        created_at,
+        bot_users!inner(session_id)
+      `)
+      .eq('bot_id', botId)
+      .order('created_at', { ascending: false })
+      .limit(20);
 
     if (error) {
       console.error('Error in debugSessionTokens:', error);
