@@ -215,38 +215,33 @@ export const extractUTMParams = () => {
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
     console.log(`[visitorTracking] Initializing tracking for bot ${botId}, entry: ${entryPoint}`);
-    let existingToken = getCurrentVisitorSession();
+    const existingToken = getCurrentVisitorSession();
     if (existingToken) {
       console.log(`[visitorTracking] Reusing existing session token: ${existingToken}`);
       return existingToken;
     }
+
     const fingerprintHash = generateBrowserFingerprint();
     const fingerprintResult = await createOrGetVisitorFingerprint(fingerprintHash);
 
-    // if fingerprintResult is an error
-    if (
-      typeof fingerprintResult === "object"
-      && fingerprintResult !== null
-      && "error" in fingerprintResult
-    ) {
-      const errorMsg = '[visitorTracking] Failed to create/get fingerprint: ' + (fingerprintResult.error || 'Aucune info');
-      console.error(errorMsg);
-      return errorMsg;
-    }
-    if (!fingerprintResult) {
-      const errorMsg = '[visitorTracking] Failed to create/get fingerprint: résultat vide ou falsy';
+    // --- Garde-fou pour le résultat du fingerprint ---
+    if (typeof fingerprintResult === 'object' && fingerprintResult !== null && 'error' in fingerprintResult) {
+      const errorMsg = `[visitorTracking] Failed to create/get fingerprint: ${fingerprintResult.error || 'Unknown error'}`;
       console.error(errorMsg);
       return errorMsg;
     }
 
-    // .id only if result is object and has id (or just use as string)
-    const fingerprintId =
-      typeof fingerprintResult === "object" && fingerprintResult !== null && "id" in fingerprintResult
-        ? (fingerprintResult as { id: string }).id
-        : fingerprintResult;
+    if (typeof fingerprintResult !== 'string' || !fingerprintResult) {
+      const errorMsg = `[visitorTracking] Failed to create/get fingerprint: received invalid result: ${fingerprintResult}`;
+      console.error(errorMsg);
+      return errorMsg;
+    }
+
+    const fingerprintId: string = fingerprintResult;
 
     const utmParams = extractUTMParams();
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
+
     const sessionTokenResult = await createAnonymousVisitorSession(
       fingerprintId,
       botId,
@@ -255,43 +250,40 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       utmParams
     );
 
-    // --- STRICT TYPE GUARD & FLOW ---
-    // If success: sessionTokenResult is string starting with anon_
-    if (typeof sessionTokenResult === "string" && sessionTokenResult.startsWith("anon_")) {
-      const token: string = sessionTokenResult;
-      console.log(`[visitorTracking] New session created with token: ${token}`);
-      sessionStorage.setItem('visitor_session_token', token);
-
-      // Only call if we're 100% sure it's a valid session token string
-      await trackVisitorEvent(
-        token,
-        'session_start',
-        {
-          url: window.location.href,
-          utm_params: utmParams,
-          fingerprint_hash: fingerprintHash,
-          bot_id: botId,
-          entry_point: finalEntryPoint
-        }
-      );
-
-      return token;
+    // --- Garde-fou pour le token de session ---
+    if (typeof sessionTokenResult === 'object' && sessionTokenResult !== null && 'error' in sessionTokenResult) {
+      const errorMsg = `[visitorTracking] Failed to create session: ${sessionTokenResult.error || 'Unknown error'}`;
+      console.error(errorMsg);
+      sessionStorage.removeItem('visitor_session_token');
+      return errorMsg;
     }
 
-    // --- ERROR CASES (never call trackVisitorEvent) ---
-    sessionStorage.removeItem('visitor_session_token');
-    let errorMsg = '[visitorTracking] Failed to create valid session token';
-    if (
-      typeof sessionTokenResult === "object"
-      && sessionTokenResult !== null
-      && "error" in sessionTokenResult
-    ) {
-      errorMsg += ': ' + (sessionTokenResult.error || 'Aucune info');
-    } else if (typeof sessionTokenResult === "string") {
-      errorMsg += `: ${sessionTokenResult}`;
+    if (typeof sessionTokenResult !== 'string' || !sessionTokenResult.startsWith('anon_')) {
+      const errorMsg = `[visitorTracking] Failed to create session: received invalid token: ${sessionTokenResult}`;
+      console.error(errorMsg);
+      sessionStorage.removeItem('visitor_session_token');
+      return errorMsg;
     }
-    console.error(errorMsg);
-    return errorMsg;
+
+    // --- Succès : le token est valide ---
+    const token: string = sessionTokenResult;
+    console.log(`[visitorTracking] New session created with token: ${token}`);
+    sessionStorage.setItem('visitor_session_token', token);
+
+    await trackVisitorEvent(
+      token,
+      'session_start',
+      {
+        url: window.location.href,
+        utm_params: utmParams,
+        fingerprint_hash: fingerprintHash,
+        bot_id: botId,
+        entry_point: finalEntryPoint
+      }
+    );
+
+    return token;
+
   } catch (error: any) {
     const errorMsg = 'Erreur lors de l\'initialisation du tracking: ' + (error?.message ? error.message : JSON.stringify(error));
     console.error(errorMsg);
