@@ -87,15 +87,17 @@ export const createOrGetVisitorFingerprint = async (fingerprintHash: string) => 
   }
 };
 
-// Créer une session de visiteur anonyme
+// Créer une session de visiteur anonyme avec token unifié
 export const createAnonymousVisitorSession = async (
   fingerprintId: string,
   botId: string,
   entryPoint: string = 'direct',
   referrerUrl?: string,
   utmParams?: { source?: string; medium?: string; campaign?: string }
-) => {
+): Promise<string | null> => {
   try {
+    console.log(`[visitorTracking] Creating anonymous session for bot ${botId}, entry: ${entryPoint}`);
+    
     const { data, error } = await supabase.rpc('create_anonymous_visitor_session', {
       p_fingerprint_id: fingerprintId,
       p_bot_id: botId,
@@ -108,7 +110,9 @@ export const createAnonymousVisitorSession = async (
     });
     
     if (error) throw error;
-    return data;
+    
+    console.log(`[visitorTracking] Session created with token: ${data}`);
+    return data; // Retourne le session_token généré par le RPC
   } catch (error) {
     console.error('Erreur lors de la création de la session:', error);
     return null;
@@ -117,7 +121,7 @@ export const createAnonymousVisitorSession = async (
 
 // Enregistrer un événement de tracking
 export const trackVisitorEvent = async (
-  sessionId: string,
+  sessionToken: string,
   eventType: string,
   eventData: any = {},
   pageUrl?: string,
@@ -125,8 +129,20 @@ export const trackVisitorEvent = async (
   elementClass?: string
 ) => {
   try {
+    // Récupérer l'ID de session depuis le token
+    const { data: sessionData, error: sessionError } = await supabase
+      .from('anonymous_visitor_sessions')
+      .select('id')
+      .eq('session_token', sessionToken)
+      .single();
+
+    if (sessionError || !sessionData) {
+      console.error('Session non trouvée pour le token:', sessionToken);
+      return null;
+    }
+
     const { data, error } = await supabase.rpc('track_visitor_event', {
-      p_session_id: sessionId,
+      p_session_id: sessionData.id,
       p_event_type: eventType,
       p_event_data: eventData,
       p_page_url: pageUrl || window.location.href,
@@ -144,15 +160,27 @@ export const trackVisitorEvent = async (
 
 // Collecter progressivement les données des visiteurs
 export const collectVisitorData = async (
-  sessionId: string,
+  sessionToken: string,
   dataType: string,
   dataValue: string,
   collectionMethod: string = 'chat',
   confidenceScore: number = 1.0
 ) => {
   try {
+    // Récupérer l'ID de session depuis le token
+    const { data: sessionData, error: sessionError } = await supabase
+      .from('anonymous_visitor_sessions')
+      .select('id')
+      .eq('session_token', sessionToken)
+      .single();
+
+    if (sessionError || !sessionData) {
+      console.error('Session non trouvée pour le token:', sessionToken);
+      return null;
+    }
+
     const { data, error } = await supabase.rpc('collect_visitor_data', {
-      p_session_id: sessionId,
+      p_session_id: sessionData.id,
       p_data_type: dataType,
       p_data_value: dataValue,
       p_collection_method: collectionMethod,
@@ -179,15 +207,28 @@ export const extractUTMParams = () => {
   };
 };
 
-// Hook pour initialiser le tracking des visiteurs
-export const initializeVisitorTracking = async (botId: string, entryPoint?: string) => {
+// Hook pour initialiser le tracking des visiteurs avec token unifié
+export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
+    console.log(`[visitorTracking] Initializing tracking for bot ${botId}, entry: ${entryPoint}`);
+    
+    // Vérifier si on a déjà un token en session
+    const existingToken = sessionStorage.getItem('visitor_session_token');
+    if (existingToken) {
+      console.log(`[visitorTracking] Reusing existing session token: ${existingToken}`);
+      return existingToken;
+    }
+
     // Générer le fingerprint
     const fingerprintHash = generateBrowserFingerprint();
+    console.log(`[visitorTracking] Generated fingerprint: ${fingerprintHash}`);
     
     // Créer ou récupérer le fingerprint
     const fingerprintId = await createOrGetVisitorFingerprint(fingerprintHash);
-    if (!fingerprintId) return null;
+    if (!fingerprintId) {
+      console.error('[visitorTracking] Failed to create/get fingerprint');
+      return null;
+    }
     
     // Extraire les paramètres UTM
     const utmParams = extractUTMParams();
@@ -195,8 +236,8 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     // Déterminer le point d'entrée
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
     
-    // Créer la session de visiteur
-    const sessionId = await createAnonymousVisitorSession(
+    // Créer la session de visiteur et récupérer le token
+    const sessionToken = await createAnonymousVisitorSession(
       fingerprintId,
       botId,
       finalEntryPoint,
@@ -204,26 +245,29 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       utmParams
     );
     
-    if (sessionId) {
-      // Stocker l'ID de session dans le localStorage
-      localStorage.setItem('visitor_session_id', sessionId);
+    if (sessionToken) {
+      // Stocker le token unifié dans sessionStorage
+      sessionStorage.setItem('visitor_session_token', sessionToken);
+      console.log(`[visitorTracking] Stored session token: ${sessionToken}`);
       
       // Enregistrer l'événement de début de session
-      await trackVisitorEvent(sessionId, 'session_start', {
+      await trackVisitorEvent(sessionToken, 'session_start', {
         url: window.location.href,
         utm_params: utmParams,
         fingerprint_hash: fingerprintHash
       });
     }
     
-    return sessionId;
+    return sessionToken;
   } catch (error) {
     console.error('Erreur lors de l\'initialisation du tracking:', error);
     return null;
   }
 };
 
-// Récupérer l'ID de session actuel
+// Récupérer le token de session unifié
 export const getCurrentVisitorSession = (): string | null => {
-  return localStorage.getItem('visitor_session_id');
+  const token = sessionStorage.getItem('visitor_session_token');
+  console.log(`[visitorTracking] Retrieved current session token: ${token}`);
+  return token;
 };

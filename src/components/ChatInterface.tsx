@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -5,7 +6,7 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { initializeVisitorTracking, getCurrentVisitorSession } from '@/utils/visitorTracking';
 import { saveChatMessage } from '@/services/chatService';
 import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
 
@@ -63,8 +64,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   useEffect(() => {
     if (urlBotId) {
       console.log(`[ChatInterface] Initializing visitor tracking for bot: ${urlBotId}`);
-      initializeVisitorTracking(urlBotId, 'chat_interface').then(() => {
-        setSessionToken(sessionStorage.getItem('visitor_session_token'));
+      initializeVisitorTracking(urlBotId, 'chat_interface').then((token) => {
+        console.log(`[ChatInterface] Tracking initialized, token: ${token}`);
+        setSessionToken(token);
       });
     }
   }, [urlBotId]);
@@ -151,6 +153,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       return;
     }
 
+    // Vérifier qu'on a bien un token de session
+    const currentToken = sessionToken || getCurrentVisitorSession();
+    if (!currentToken) {
+      console.error('[ChatInterface] Aucun token de session disponible');
+      toast({
+        title: "Erreur de session",
+        description: "Impossible d'envoyer le message. Veuillez recharger la page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log(`[ChatInterface] Sending message with session token: ${currentToken}`);
+
     setShowSuggestions(false);
 
     const userMessage: Message = {
@@ -160,8 +176,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       timestamp: new Date(),
     };
 
-    if (sessionToken && urlBotId) {
-      saveChatMessage(urlBotId, sessionToken, textToSend, 'user');
+    if (currentToken && urlBotId) {
+      console.log(`[ChatInterface] Saving user message to database: bot=${urlBotId}, token=${currentToken}`);
+      saveChatMessage(urlBotId, currentToken, textToSend, 'user');
     }
 
     setMessages(prev => [...prev, userMessage]);
@@ -173,9 +190,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     console.log('Bot Name:', urlBotName || finalChatTitle);
     console.log('User message:', textToSend);
     console.log('Webhook URL utilisée:', webhookUrl);
-    console.log('Chat Context:', chatContext);
-    console.log('Chat Title:', finalChatTitle);
-    console.log('Is Test Mode:', isTest);
+    console.log('Session Token:', currentToken);
 
     try {
       const controller = new AbortController();
@@ -188,7 +203,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
-        session_id: `bot_${urlBotId || 'unknown'}_${chatContext || 'automation'}_${Date.now()}`,
+        session_id: currentToken,
         user_id: `bot_bj_user_${urlBotId || 'unknown'}`,
         source: 'bot_bj_platform',
         context: chatContext || 'automation',
@@ -274,8 +289,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         timestamp: new Date(),
       };
 
-      if (sessionToken && urlBotId) {
-        saveChatMessage(urlBotId, sessionToken, processedContent.trim(), 'bot');
+      if (currentToken && urlBotId) {
+        console.log(`[ChatInterface] Saving bot response to database: bot=${urlBotId}, token=${currentToken}`);
+        saveChatMessage(urlBotId, currentToken, processedContent.trim(), 'bot');
       }
 
       console.log('Message IA ajouté (depuis N8N):', aiMessage);

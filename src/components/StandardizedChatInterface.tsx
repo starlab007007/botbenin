@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -6,7 +5,7 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { BotConfigService } from '@/services/botConfigService';
-import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { initializeVisitorTracking, getCurrentVisitorSession } from '@/utils/visitorTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveChatMessage } from '@/services/chatService';
 import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
@@ -45,7 +44,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [apiAccessLog, setApiAccessLog] = useState<any>(null);
-  const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null); // trace brute de la réponse de checkPublicAccess
+  const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null);
   const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const { toast } = useToast();
@@ -58,8 +57,9 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
   useEffect(() => {
     const init = async () => {
-      await initializeVisitorTracking(botId, entryPoint);
-      const token = sessionStorage.getItem('visitor_session_token');
+      console.log(`[StandardizedChatInterface] Initializing tracking for bot ${botId}, entry: ${entryPoint}`);
+      const token = await initializeVisitorTracking(botId, entryPoint);
+      console.log(`[StandardizedChatInterface] Tracking initialized, token: ${token}`);
       setSessionToken(token);
       initializeBot();
     };
@@ -71,18 +71,15 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       setIsLoading(true);
       setHasError(false);
 
-      // Trace avancée de la demande
       console.log('=== INITIALISATION BOT STANDARDISÉ [debug complet] ===');
       console.log('Bot ID:', botId);
       console.log('Entry Point:', entryPoint, ' // Test:', isTest);
       console.log('Auth ctx:', { isAuthenticated, isGuest, guestUser });
 
-      // Log « brut » réponse Supabase
       const accessCheck = await BotConfigService.checkPublicAccess(botId);
       setApiAccessLog(accessCheck);
       setAccessCheckRaw(accessCheck);
 
-      // Nouvelle trace : on exp(l)oite le détail du fetch (y compris erreurs SQL Supabase)
       if (accessCheck && accessCheck.config) {
         setSupabaseDebugInfo({
           received: accessCheck.config,
@@ -99,7 +96,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       if (!accessCheck.accessible) {
         setHasError(true);
-        // Explicite si l’erreur vient d’un souci auth, RLS, non-public, etc.
         let errMsg = accessCheck.error || 'Bot non accessible';
         if (accessCheck.error && accessCheck.error.toLowerCase().includes('auth')) {
           errMsg = "Ce bot n'est pas public ou une authentification est exigée.";
@@ -111,7 +107,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       const config = accessCheck.config!;
       console.log('Configuration bot chargée:', config);
 
-      // Valider la configuration
       const validation = BotConfigService.validateBotConfig(config);
       if (!validation.isValid) {
         console.warn('Configuration du bot invalide:', validation.errors);
@@ -122,7 +117,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     } catch (error: any) {
       console.error('Erreur lors de l\'initialisation du bot:', error);
       setHasError(true);
-      // Erreur brute SQL si retour error postgrest ou json
       const errorContent = (typeof error === 'object' && error?.message) ? error.message : (typeof error === 'string' ? error : '');
       setErrorMessage('Impossible de charger ce bot. ' + (errorContent ? `(Erreur: ${errorContent})` : 'Veuillez réessayer plus tard.'));
     } finally {
@@ -141,7 +135,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       if (mappedHistory.length > 0) {
         setMessages(mappedHistory);
-      } else if (!loadingHistory) { // Only set welcome message if not loading history and history is empty
+      } else if (!loadingHistory) {
         const welcomeMessage = BotConfigService.getStandardWelcomeMessage(
           botConfig.name || botConfig.chat_title,
           botConfig.chat_context
@@ -173,9 +167,22 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       return;
     }
 
+    // Vérifier qu'on a bien un token de session
+    const currentToken = sessionToken || getCurrentVisitorSession();
+    if (!currentToken) {
+      console.error('[StandardizedChatInterface] Aucun token de session disponible');
+      toast({
+        title: "Erreur de session",
+        description: "Impossible d'envoyer le message. Veuillez recharger la page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log(`[StandardizedChatInterface] Sending message with session token: ${currentToken}`);
+
     setShowSuggestions(false);
 
-    // Utilise le nom du guest comme nom dans l’historique local (possible customisation Supabase à faire côté backend si besoin)
     const userDisplay = isGuest && guestUser
       ? guestUser.displayName
       : undefined;
@@ -185,13 +192,12 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       content: textToSend,
       isUser: true,
       timestamp: new Date(),
-      // customisation
       ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
-    const sessionToken = sessionStorage.getItem('visitor_session_token');
-    if (sessionToken) {
-      saveChatMessage(botId, sessionToken, textToSend, 'user');
+    if (currentToken) {
+      console.log(`[StandardizedChatInterface] Saving user message to database: bot=${botId}, token=${currentToken}`);
+      saveChatMessage(botId, currentToken, textToSend, 'user');
     }
 
     setMessages(prev => [...prev, userMessage]);
@@ -202,12 +208,12 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     console.log('Bot:', botConfig.name);
     console.log('Message:', textToSend);
     console.log('Webhook URL:', botConfig.webhook_url);
+    console.log('Session Token:', currentToken);
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      // Utiliser les headers et payload standardisés
       const headers = BotConfigService.getStandardWebhookHeaders(
         botId,
         botConfig.name,
@@ -220,7 +226,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         botId,
         botConfig.name,
         botConfig.chat_context,
-        undefined,
+        currentToken, // Passer le session token unifié
         isTest
       );
 
@@ -274,8 +280,9 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         timestamp: new Date(),
       };
 
-      if (sessionToken) {
-        saveChatMessage(botId, sessionToken, processedContent.trim(), 'bot');
+      if (currentToken) {
+        console.log(`[StandardizedChatInterface] Saving bot response to database: bot=${botId}, token=${currentToken}`);
+        saveChatMessage(botId, currentToken, processedContent.trim(), 'bot');
       }
 
       setMessages(prev => [...prev, aiMessage]);
@@ -374,7 +381,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
               </span>
             </div>
           )}
-          {/* Ajout d'un bouton de reload du check */}
           <button
             onClick={() => { 
               setApiAccessLog(null); 
@@ -385,7 +391,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
             }}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 mt-3 transition-colors"
           >
-            Re-tester l’accès public
+            Re-tester l'accès public
           </button>
           <button
             onClick={onBackToLanding}
