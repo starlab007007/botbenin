@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BotMessageHistoryItem } from "../types";
@@ -65,57 +64,43 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
     `;
 
     try {
-      let allMessages: BotMessageHistoryItem[] = [];
-
-      // Strategy 1: Fetch by bot_user_id (most reliable)
+      const orFilters = [];
       if (botUserId) {
-        console.log(`[useMessageFetcher] Strategy 1: Fetching by bot_user_id ${botUserId}`);
-        const { data, error: fetchError } = await supabase
-          .from('chat_messages')
-          .select(selectQuery)
-          .eq('bot_user_id', botUserId);
-
-        if (fetchError) {
-          console.error('[useMessageFetcher] S1 Error fetching by bot_user_id:', fetchError);
-          setError(prev => (prev ? `${prev}, S1: ${fetchError.message}` : `S1: ${fetchError.message}`));
-        } else if (data) {
-          console.log(`[useMessageFetcher] S1 Found ${data.length} messages`);
-          allMessages.push(...mapRawMessagesToTyped(data));
-        }
+        orFilters.push(`bot_user_id.eq.${botUserId}`);
       }
-
-      // Strategy 2: Fetch by session_token in metadata (fallback)
       if (sessionToken) {
-        console.log(`[useMessageFetcher] Strategy 2: Fetching by session_token ${sessionToken}`);
-        const { data, error: fetchError } = await supabase
-          .from('chat_messages')
-          .select(selectQuery)
-          .eq('metadata->>session_token', sessionToken)
-          .eq('bot_id', botId!);
-
-        if (fetchError) {
-          console.error('[useMessageFetcher] S2 Error fetching by session_token metadata:', fetchError);
-          if (!fetchError.message.includes('operator does not exist')) {
-            setError(prev => (prev ? `${prev}, S2: ${fetchError.message}` : `S2: ${fetchError.message}`));
-          }
-        } else if (data) {
-          console.log(`[useMessageFetcher] S2 Found ${data.length} messages`);
-          allMessages.push(...mapRawMessagesToTyped(data));
-        }
+        orFilters.push(`metadata->>session_token.eq.${sessionToken}`);
       }
 
-      if (allMessages.length > 0) {
+      if (orFilters.length === 0) {
+        setMessages([]);
+        setLoading(false);
+        return;
+      }
+      
+      const { data, error: fetchError } = await supabase
+        .from('chat_messages')
+        .select(selectQuery)
+        .eq('bot_id', botId!)
+        .or(orFilters.join(','));
+
+      if (fetchError) {
+        console.error('[useMessageFetcher] Error fetching messages:', fetchError);
+        setError(fetchError.message);
+        setMessages([]);
+      } else if (data && data.length > 0) {
+        const allMessages = mapRawMessagesToTyped(data);
         const uniqueMessages = Array.from(new Map(allMessages.map(item => [item.message_id, item])).values());
         uniqueMessages.sort((a, b) => new Date(a.message_timestamp).getTime() - new Date(b.message_timestamp).getTime());
 
         console.log(`[useMessageFetcher] Successfully set ${uniqueMessages.length} unique messages`);
         setMessages(uniqueMessages);
       } else {
-        console.log('[useMessageFetcher] No messages found with any strategy.');
+        console.log('[useMessageFetcher] No messages found.');
         setMessages([]);
       }
     } catch (err: any) {
-      console.error('[useMessageFetcher] Error in fetchMessages:', err);
+      console.error('[useMessageFetcher] Exception in fetchMessages:', err);
       setError('Failed to fetch message history');
     } finally {
       setLoading(false);
