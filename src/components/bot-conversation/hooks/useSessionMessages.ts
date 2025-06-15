@@ -15,7 +15,6 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Ajout de la variable pour debug tokens trouvés
   const [debugTokens, setDebugTokens] = useState<string | null>(null);
 
   const fetchMessages = useCallback(async () => {
@@ -59,8 +58,7 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
         return;
       }
 
-      // 2. Fallback: debug complet
-      // Récupère les 10 derniers messages du bot pour inspecter les métadatas
+      // 2. Fallback debug : Récupère les 10 derniers messages du bot pour inspecter les métadatas
       const { data: allRecent, error: recentError } = await supabase
         .from('chat_messages')
         .select('id,message_content,message_type,created_at,metadata,bot_user_id')
@@ -74,11 +72,31 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
         console.log('[useSessionMessages] DEBUG - 10 derniers messages pour ce bot:');
         if (allRecent) {
           allRecent.forEach((msg: any, idx: number) => {
-            console.log(`#${idx + 1} | id: ${msg.id} | session_token:`, msg.metadata?.session_token, '| content:', msg.message_content.slice(0, 30));
+            // Correction de l'accès à metadata pour Typescript : metadata?.session_token ou (typeof metadata === 'object' && 'session_token' in metadata)...
+            let session_token = undefined;
+            if (msg.metadata && typeof msg.metadata === 'object' && msg.metadata !== null) {
+              if ('session_token' in msg.metadata) {
+                session_token = (msg.metadata as any).session_token;
+              } else if (typeof msg.metadata === 'string') {
+                try { session_token = JSON.parse(msg.metadata)?.session_token; } catch {}
+              }
+            }
+            console.log(`#${idx + 1} | id: ${msg.id} | session_token:`, session_token, '| content:', msg.message_content?.slice(0, 30));
           });
           // Affiche les tokens trouvés
           const foundTokens = [
-            ...new Set(allRecent.map(m => m.metadata?.session_token).filter(Boolean))
+            ...new Set(
+              allRecent
+                .map(m => {
+                  // Correction ici pour accès robuste au session_token
+                  let s: any = undefined;
+                  if (m.metadata && typeof m.metadata === 'object' && m.metadata !== null) {
+                    if ('session_token' in m.metadata) s = (m.metadata as any).session_token;
+                  }
+                  return s;
+                })
+                .filter(Boolean)
+            )
           ].join(', ');
           setDebugTokens(foundTokens);
         }

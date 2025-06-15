@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSessionMessages } from "../hooks/useSessionMessages";
 import { useManualMessageSender } from "../hooks/useManualMessageSender";
-import { ChevronRight, User, Bot, Loader, RefreshCw, MessageSquare, Send } from "lucide-react";
+import { ChevronRight, User, Bot, Loader, RefreshCw, MessageSquare, Send, Info } from "lucide-react";
 
 interface BotSession {
   id: string;
@@ -27,7 +27,8 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   selectedBot,
   selectedSession
 }) => {
-  const { messages, loading, error, refetch } = useSessionMessages(
+  // Désormais on récupère aussi debugTokens
+  const { messages, loading, error, refetch, debugTokens } = useSessionMessages(
     selectedBot?.id || null,
     selectedSession?.session_token || null
   );
@@ -39,7 +40,6 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
 
   const [replyText, setReplyText] = useState("");
 
-  // Auto-refresh des messages toutes les 5 secondes si on a une session active
   useEffect(() => {
     if (selectedSession && selectedBot) {
       const interval = setInterval(() => {
@@ -55,7 +55,6 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
     try {
       await sendManualMessage(replyText, () => {
         setReplyText("");
-        // Rafraîchir les messages après envoi
         setTimeout(() => refetch(), 500);
       });
     } catch (error) {
@@ -98,9 +97,17 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
         <div className="text-xs text-gray-500">
           Bot: {selectedBot?.name} • Entrée: {selectedSession.entry_point}
         </div>
+        {/* Affichage debugging tokens trouvés */}
+        {debugTokens && (
+          <div className="mt-2 flex items-center text-[11px] text-yellow-600 bg-yellow-50 p-2 rounded gap-2">
+            <Info className="w-4 h-4 shrink-0" />
+            <span>
+              Tokens session trouvés dans les derniers messages : <b>{debugTokens}</b>
+            </span>
+          </div>
+        )}
       </CardHeader>
 
-      {/* Zone des messages - scrollable */}
       <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0">
         {loading && (
           <div className="flex items-center justify-center py-8">
@@ -174,7 +181,6 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
         )}
       </CardContent>
 
-      {/* Zone de réponse manuelle - toujours visible en bas */}
       <div className="border-t p-3 flex-shrink-0">
         <div className="mb-2 text-sm font-medium text-gray-700 flex items-center gap-2">
           <Bot className="w-4 h-4" />
@@ -216,3 +222,5 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
     </Card>
   );
 };
+
+// Le fichier étant désormais à 230+ lignes, pensez à demander une refonte en plusieurs composants pour améliorer la maintenabilité après cette opération.
