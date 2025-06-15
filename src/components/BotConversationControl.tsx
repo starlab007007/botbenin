@@ -6,6 +6,7 @@ import { useBotSessions } from "./bot-conversation/hooks/useBotSessions";
 import { BotList } from "./bot-conversation/BotList";
 import { UnifiedSessionList } from "./bot-conversation/components/UnifiedSessionList";
 import { EnhancedMessageView } from "./bot-conversation/components/EnhancedMessageView";
+import { DetailedSessionInfo } from "./bot-conversation/components/DetailedSessionInfo";
 
 interface BotSession {
   id: string;
@@ -41,27 +42,38 @@ export const BotConversationControl: React.FC = () => {
   };
 
   return (
-    <div className="flex gap-2 h-[70vh]">
-      <BotList
-        bots={bots}
-        loadingBots={loadingBots}
-        selectedBot={selectedBot}
-        onBotSelect={handleBotSelect}
-      />
+    <div className="space-y-4">
+      {/* Informations détaillées de la session sélectionnée */}
+      {selectedSession && (
+        <DetailedSessionInfo 
+          session={selectedSession} 
+          botName={selectedBot?.name}
+        />
+      )}
+      
+      {/* Vue principale en 3 colonnes */}
+      <div className="flex gap-2 h-[60vh]">
+        <BotList
+          bots={bots}
+          loadingBots={loadingBots}
+          selectedBot={selectedBot}
+          onBotSelect={handleBotSelect}
+        />
 
-      <UnifiedSessionList
-        sessions={sessions}
-        loadingSessions={loadingSessions}
-        selectedSession={selectedSession}
-        query={query}
-        onQueryChange={setQuery}
-        onSessionSelect={handleSessionSelect}
-      />
+        <UnifiedSessionList
+          sessions={sessions}
+          loadingSessions={loadingSessions}
+          selectedSession={selectedSession}
+          query={query}
+          onQueryChange={setQuery}
+          onSessionSelect={handleSessionSelect}
+        />
 
-      <EnhancedMessageView
-        selectedBot={selectedBot}
-        selectedSession={selectedSession}
-      />
+        <EnhancedMessageView
+          selectedBot={selectedBot}
+          selectedSession={selectedSession}
+        />
+      </div>
     </div>
   );
 };
