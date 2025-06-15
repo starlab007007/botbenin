@@ -6,10 +6,10 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { BotConfigService } from '@/services/botConfigService';
-import { initializeVisitorTracking, getCurrentVisitorSession } from '@/utils/visitorTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveChatMessage } from '@/services/chatService';
 import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 interface Message {
   id: string;
@@ -47,8 +47,12 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [apiAccessLog, setApiAccessLog] = useState<any>(null);
   const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null);
   const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(getCurrentVisitorSession());
-  const [isInitializingSession, setIsInitializingSession] = useState(false);
+
+  // Utiliser le hook de gestion de session
+  const { sessionToken, isInitializing, isReady, error: sessionError, retryInitialization } = useSessionManager({
+    botId,
+    entryPoint
+  });
 
   // Always provide sessionToken to useBotMessageHistory
   const {
@@ -60,20 +64,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   useEffect(() => {
     const init = async () => {
       console.log(`[StandardizedChatInterface] Initializing for bot ${botId}, entry: ${entryPoint}`);
-      
-      if (!sessionToken && !isInitializingSession) {
-        setIsInitializingSession(true);
-        try {
-          const token = await initializeVisitorTracking(botId, entryPoint);
-          console.log(`[StandardizedChatInterface] Session initialized with token: ${token}`);
-          setSessionToken(token);
-        } catch (error) {
-          console.error('[StandardizedChatInterface] Session initialization failed:', error);
-        } finally {
-          setIsInitializingSession(false);
-        }
-      }
-      
       initializeBot();
     };
     init();
@@ -139,7 +129,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   };
 
   useEffect(() => {
-    if (botConfig) {
+    if (botConfig && isReady) {
       const mappedHistory = historyMessages.map((item): Message => ({
         id: item.message_id,
         content: item.message_content,
@@ -149,7 +139,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       if (mappedHistory.length > 0) {
         setMessages(mappedHistory);
-      } else if (!loadingHistory && !isInitializingSession) {
+      } else if (!loadingHistory) {
         const welcomeMessage = BotConfigService.getStandardWelcomeMessage(
           botConfig.name || botConfig.chat_title,
           botConfig.chat_context
@@ -163,32 +153,23 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         }]);
       }
     }
-  }, [historyMessages, botConfig, loadingHistory, isInitializingSession]);
+  }, [historyMessages, botConfig, loadingHistory, isReady]);
 
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isProcessing || !botConfig) return;
 
-    // Vérifier que la session est prête
-    if (!sessionToken) {
-      if (isInitializingSession) {
-        toast({
-          title: "Initialisation en cours",
-          description: "Veuillez patienter pendant l'initialisation de la session...",
-          variant: "destructive",
-        });
-        return;
-      } else {
-        toast({
-          title: "Erreur de session",
-          description: "Session non initialisée. Veuillez recharger la page.",
-          variant: "destructive",
-        });
-        return;
-      }
+    // Vérification simplifiée de la session
+    if (!isReady || !sessionToken) {
+      toast({
+        title: "Session en cours d'initialisation",
+        description: "Veuillez patienter quelques instants...",
+        variant: "destructive",
+      });
+      return;
     }
 
-    console.log(`[StandardizedChatInterface] Sending message with verified session token: ${sessionToken}`);
+    console.log(`[StandardizedChatInterface] Sending message with session token: ${sessionToken}`);
 
     setShowSuggestions(false);
 
@@ -355,7 +336,32 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
   const bookmarkedMessages = messages.filter(msg => msg.isBookmarked && !msg.isUser);
 
-  const pageIsLoading = isLoading || (loadingHistory && messages.length === 0) || isInitializingSession;
+  const pageIsLoading = isLoading || (loadingHistory && messages.length === 0) || isInitializing;
+
+  // Affichage d'erreur de session
+  if (sessionError) {
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="text-center max-w-md w-full">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-red-500 text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Erreur d'initialisation
+          </h2>
+          <p className="text-gray-600 mb-4">
+            {sessionError}
+          </p>
+          <button
+            onClick={retryInitialization}
+            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Écran d'erreur standardisé
   if (hasError) {
@@ -460,7 +466,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       
       <ChatInputArea
         inputValue={inputValue}
-        isLoading={isProcessing || isInitializingSession}
+        isLoading={isProcessing || isInitializing || !isReady}
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
         onSendMessage={() => handleSendMessage()}
