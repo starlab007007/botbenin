@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -370,6 +369,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     );
   }
 
+  // --- AJOUT affichage sessionToken public ---
+  // Affichage sous le header dans le chat public (pour débogage, copiable)
+  const [copiedToken, setCopiedToken] = useState(false);
+  const handleCopySessionToken = () => {
+    if(sessionToken) {
+      navigator.clipboard.writeText(sessionToken);
+      setCopiedToken(true);
+      setTimeout(() => setCopiedToken(false), 1000);
+    }
+  };
+
   if (showBookmarks) {
     return (
       <BookmarkedAdvice 
@@ -388,7 +398,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         onShowBookmarks={() => setShowBookmarks(true)}
         title={finalChatTitle}
       />
-      
+
+      {/* Affichage session token (public/debug) */}
+      {sessionToken && (
+        <div className="flex flex-row items-center gap-2 text-[13px] text-blue-800 font-mono p-2 pt-1 pb-0 select-all">
+          <span className="bg-blue-50 border border-blue-100 px-2 py-0.5 rounded whitespace-nowrap" title="Session Token utilisateur">
+            {sessionToken}
+          </span>
+          <button
+            aria-label="Copier le token de session"
+            type="button"
+            className="text-blue-500 hover:text-blue-700 ml-1 px-1 py-0 rounded border border-transparent hover:border-blue-200 active:border-blue-300 transition-all focus:outline-none"
+            onClick={handleCopySessionToken}
+          >
+            <Copy className="w-4 h-4 inline-block" />
+            {copiedToken && <span className="text-green-500 ml-1">Copié !</span>}
+          </button>
+        </div>
+      )}
+
       <ChatMessageArea
         messages={messages}
         showSuggestions={showSuggestions}

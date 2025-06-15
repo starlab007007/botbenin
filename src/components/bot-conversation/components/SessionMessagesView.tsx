@@ -50,6 +50,7 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   const handleSendReply = async () => {
     if (!replyText.trim()) return;
     try {
+      console.log("[SessionMessagesView] Envoi d'un message admin avec session_token=", selectedSession?.session_token);
       await sendManualMessage(replyText, () => {
         setReplyText("");
         setTimeout(() => refetch(), 500);
@@ -87,4 +88,3 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
     </Card>
   );
 };
-
