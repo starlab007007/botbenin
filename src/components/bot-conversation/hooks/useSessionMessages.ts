@@ -11,7 +11,7 @@ interface SessionMessage {
   bot_user_id: string;
 }
 
-export const useSessionMessages = (botId: string | null, sessionToken: string | null) => {
+export const useSessionMessages = (botId: string | null, sessionToken: string | null, botUserId?: string | null) => {
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,13 +28,18 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
     console.log(`[useSessionMessages] Fetching messages for bot ${botId}, session ${sessionToken}`);
 
     try {
-      // Étape 1: Essayer la fonction RPC get_chat_history
+      // Always use the corrected RPC function first
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_chat_history', {
         p_bot_id: botId,
+        p_bot_user_id: botUserId || null,
         p_session_token: sessionToken
       });
 
-      if (!rpcError && rpcData && rpcData.length > 0) {
+      if (rpcError) {
+        console.error('[useSessionMessages] RPC error:', rpcError);
+      }
+
+      if (rpcData && rpcData.length > 0) {
         console.log(`[useSessionMessages] Found ${rpcData.length} messages via RPC`);
         const formattedMessages: SessionMessage[] = rpcData.map((item: any) => ({
           id: item.id,
@@ -51,59 +56,34 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
         return;
       }
 
+      // Fallback: direct manual fetch for rare edge cases
       console.log('[useSessionMessages] RPC returned no data, trying direct approach');
+      let resolvedBotUserId: string | null = botUserId || null;
 
-      // Étape 2: Chercher ou créer un bot_user pour cette session
-      let botUserId: string | null = null;
-
-      // Chercher un bot_user existant
-      const { data: botUserData, error: botUserError } = await supabase
-        .from('bot_users')
-        .select('id')
-        .eq('bot_id', botId)
-        .eq('session_id', sessionToken)
-        .maybeSingle();
-
-      if (botUserError) {
-        console.error('[useSessionMessages] Error finding bot user:', botUserError);
-      }
-
-      if (botUserData?.id) {
-        botUserId = botUserData.id;
-        console.log(`[useSessionMessages] Found existing bot_user: ${botUserId}`);
-      } else {
-        // Créer un nouveau bot_user pour cette session anonyme
-        console.log(`[useSessionMessages] Creating new bot_user for session: ${sessionToken}`);
-        
-        const { data: newBotUser, error: createError } = await supabase
+      if (!resolvedBotUserId) {
+        const { data: botUserData, error: botUserError } = await supabase
           .from('bot_users')
-          .insert({
-            bot_id: botId,
-            session_id: sessionToken,
-            user_name: `Anonymous User ${sessionToken.slice(-8)}`,
-            is_authenticated: false
-          })
           .select('id')
-          .single();
+          .eq('bot_id', botId)
+          .eq('session_id', sessionToken)
+          .maybeSingle();
 
-        if (createError) {
-          console.error('[useSessionMessages] Error creating bot_user:', createError);
-          throw createError;
+        if (botUserError) {
+          console.error('[useSessionMessages] Error finding bot user:', botUserError);
         }
 
-        if (newBotUser?.id) {
-          botUserId = newBotUser.id;
-          console.log(`[useSessionMessages] Created new bot_user: ${botUserId}`);
+        if (botUserData?.id) {
+          resolvedBotUserId = botUserData.id;
+          console.log(`[useSessionMessages] Found existing bot_user: ${resolvedBotUserId}`);
         }
       }
 
-      // Étape 3: Récupérer les messages avec le bot_user_id
-      if (botUserId) {
+      if (resolvedBotUserId) {
         const { data: directData, error: directError } = await supabase
           .from('chat_messages')
           .select('*')
           .eq('bot_id', botId)
-          .eq('bot_user_id', botUserId)
+          .eq('bot_user_id', resolvedBotUserId)
           .order('created_at', { ascending: true });
 
         if (directError) {
@@ -112,7 +92,6 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
           setMessages([]);
         } else {
           console.log(`[useSessionMessages] Found ${directData?.length || 0} messages via direct query`);
-          
           const typedMessages: SessionMessage[] = (directData || []).map((item: any) => ({
             id: item.id,
             message_content: item.message_content,
@@ -121,14 +100,11 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
             metadata: item.metadata,
             bot_user_id: item.bot_user_id
           }));
-          
           setMessages(typedMessages);
         }
       } else {
-        console.log('[useSessionMessages] No bot_user found or created');
         setMessages([]);
       }
-
     } catch (err: any) {
       console.error('[useSessionMessages] Exception:', err);
       setError(err.message || 'Failed to fetch messages');
@@ -136,7 +112,7 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
     } finally {
       setLoading(false);
     }
-  }, [botId, sessionToken]);
+  }, [botId, sessionToken, botUserId]);
 
   useEffect(() => {
     fetchMessages();
