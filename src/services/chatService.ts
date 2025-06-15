@@ -256,3 +256,8 @@ export const testEnhancedMessageRetrieval = async (botId: string, sessionToken: 
     return null;
   }
 };
+
+/**
+ * Alias function for backward compatibility
+ */
+export const testMessageRetrieval = testEnhancedMessageRetrieval;
