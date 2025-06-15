@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 // Générer un fingerprint unique du navigateur
@@ -53,6 +52,7 @@ const getFontFingerprint = (): string => {
 // Créer ou récupérer un fingerprint de visiteur
 export const createOrGetVisitorFingerprint = async (fingerprintHash: string) => {
   try {
+    console.log('[visitorTracking] Appel createOrGetVisitorFingerprint', { fingerprintHash });
     const browserInfo = {
       userAgent: navigator.userAgent,
       language: navigator.language,
@@ -60,7 +60,6 @@ export const createOrGetVisitorFingerprint = async (fingerprintHash: string) => 
       cookieEnabled: navigator.cookieEnabled,
       doNotTrack: navigator.doNotTrack
     };
-    
     const screenInfo = {
       width: screen.width,
       height: screen.height,
@@ -68,7 +67,6 @@ export const createOrGetVisitorFingerprint = async (fingerprintHash: string) => 
       pixelDepth: screen.pixelDepth,
       orientation: screen.orientation?.type
     };
-    
     const { data, error } = await supabase.rpc('create_or_get_visitor_fingerprint', {
       p_fingerprint_hash: fingerprintHash,
       p_browser_info: browserInfo,
@@ -78,12 +76,14 @@ export const createOrGetVisitorFingerprint = async (fingerprintHash: string) => 
       p_platform: navigator.platform,
       p_user_agent: navigator.userAgent
     });
-    
-    if (error) throw error;
+    if (error) {
+      console.error('[visitorTracking] Erreur createOrGetVisitorFingerprint:', error);
+      return { error: error.message || error.details || "Unknown error" };
+    }
     return data;
-  } catch (error) {
-    console.error('Erreur lors de la création du fingerprint:', error);
-    return null;
+  } catch (error: any) {
+    console.error('Erreur (catch) lors de la création du fingerprint:', error);
+    return { error: error?.message || JSON.stringify(error) };
   }
 };
 
@@ -94,10 +94,13 @@ export const createAnonymousVisitorSession = async (
   entryPoint: string = 'direct',
   referrerUrl?: string,
   utmParams?: { source?: string; medium?: string; campaign?: string }
-): Promise<string | null> => {
+): Promise<string | { error: string }> => {
   try {
-    console.log(`[visitorTracking] Creating anonymous session for bot ${botId}, entry: ${entryPoint}`);
-    
+    console.log(`[visitorTracking] Creating anonymous session for bot ${botId}, entry: ${entryPoint}`, {
+      fingerprintId,
+      referrerUrl,
+      utmParams
+    });
     const { data, error } = await supabase.rpc('create_anonymous_visitor_session', {
       p_fingerprint_id: fingerprintId,
       p_bot_id: botId,
@@ -108,14 +111,15 @@ export const createAnonymousVisitorSession = async (
       p_utm_campaign: utmParams?.campaign,
       p_ip_address: null // Sera géré côté serveur si nécessaire
     });
-    
-    if (error) throw error;
-    
+    if (error) {
+      console.error('[visitorTracking] Erreur createAnonymousVisitorSession:', error);
+      return { error: error.message || error.details || "Unknown error" };
+    }
     console.log(`[visitorTracking] Session created with token: ${data}`);
-    return data; // Retourne le session_token généré par le RPC
-  } catch (error) {
-    console.error('Erreur lors de la création de la session:', error);
-    return null;
+    return data;
+  } catch (error: any) {
+    console.error('Erreur (catch) lors de la création de la session:', error);
+    return { error: error?.message || JSON.stringify(error) };
   }
 };
 
@@ -211,58 +215,54 @@ export const extractUTMParams = () => {
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
     console.log(`[visitorTracking] Initializing tracking for bot ${botId}, entry: ${entryPoint}`);
-
-    // Vérifier d'abord le token existant
     let existingToken = getCurrentVisitorSession();
     if (existingToken) {
       console.log(`[visitorTracking] Reusing existing session token: ${existingToken}`);
       return existingToken;
     }
-
-    // Générer le fingerprint
     const fingerprintHash = generateBrowserFingerprint();
-    const fingerprintId = await createOrGetVisitorFingerprint(fingerprintHash);
-    if (!fingerprintId) {
-      console.error('[visitorTracking] Failed to create/get fingerprint');
-      return null;
+    const fingerprintResult = await createOrGetVisitorFingerprint(fingerprintHash);
+    if (!fingerprintResult || (fingerprintResult && fingerprintResult.error)) {
+      const errorMsg = '[visitorTracking] Failed to create/get fingerprint: ' + (fingerprintResult?.error || 'Aucune info');
+      console.error(errorMsg);
+      return errorMsg;
     }
-
+    const fingerprintId = fingerprintResult.id || fingerprintResult;
     const utmParams = extractUTMParams();
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
-
-    // Créer une nouvelle session avec token unifié
-    const sessionToken = await createAnonymousVisitorSession(
+    const sessionTokenResult = await createAnonymousVisitorSession(
       fingerprintId,
       botId,
       finalEntryPoint,
       document.referrer,
       utmParams
     );
-
-    if (sessionToken && typeof sessionToken === 'string' && sessionToken.startsWith('anon_')) {
-      console.log(`[visitorTracking] New session created with token: ${sessionToken}`);
-      sessionStorage.setItem('visitor_session_token', sessionToken);
-      
-      // Tracker l'événement de démarrage de session
-      await trackVisitorEvent(sessionToken, 'session_start', {
+    if (!sessionTokenResult || (sessionTokenResult && sessionTokenResult.error)) {
+      const errorMsg = '[visitorTracking] Failed to create valid session token: ' + (sessionTokenResult?.error || 'Aucune info');
+      console.error(errorMsg);
+      return errorMsg;
+    }
+    if (typeof sessionTokenResult === 'string' && sessionTokenResult.startsWith('anon_')) {
+      console.log(`[visitorTracking] New session created with token: ${sessionTokenResult}`);
+      sessionStorage.setItem('visitor_session_token', sessionTokenResult);
+      await trackVisitorEvent(sessionTokenResult, 'session_start', {
         url: window.location.href,
         utm_params: utmParams,
         fingerprint_hash: fingerprintHash,
         bot_id: botId,
         entry_point: finalEntryPoint
       });
-      
-      return sessionToken;
+      return sessionTokenResult;
     }
-
-    // Si échec, nettoyer le storage
     sessionStorage.removeItem('visitor_session_token');
-    console.error('[visitorTracking] Failed to create valid session token');
-    return null;
-  } catch (error) {
-    console.error('Erreur lors de l\'initialisation du tracking:', error);
+    const errorMsg = '[visitorTracking] Failed to create valid session token (final step)';
+    console.error(errorMsg);
+    return errorMsg;
+  } catch (error: any) {
+    const errorMsg = 'Erreur lors de l\'initialisation du tracking: ' + (error?.message ? error.message : JSON.stringify(error));
+    console.error(errorMsg);
     sessionStorage.removeItem('visitor_session_token');
-    return null;
+    return errorMsg;
   }
 };
 

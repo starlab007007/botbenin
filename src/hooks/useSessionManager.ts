@@ -45,18 +45,35 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       console.log(`[useSessionManager] Creating new session for bot ${botId}`);
       const newToken = await initializeVisitorTracking(botId, entryPoint);
       
-      if (newToken && newToken.startsWith('anon_')) {
+      if (typeof newToken === "string" && newToken.startsWith('anon_')) {
         console.log(`[useSessionManager] Session initialized successfully: ${newToken}`);
         setSessionToken(newToken);
         setIsReady(true);
       } else {
-        throw new Error('Failed to create valid session token');
+        // Ici on affiche une erreur détaillée
+        let errMsg = typeof newToken === 'string'
+          ? `Échec création session: ${newToken}`
+          : 'Échec création du token de session';
+        setError(errMsg);
+        setIsReady(false);
+        setSessionToken(null);
+        return;
       }
-    } catch (error) {
-      console.error('[useSessionManager] Session initialization failed:', error);
-      setError('Impossible d\'initialiser la session');
-      // En cas d'erreur, on considère quand même comme "prêt" pour éviter le blocage
-      setIsReady(true);
+    } catch (error: any) {
+      // Nouvelle gestion : récupération du message Supabase si présent
+      let errMsg = '[useSessionManager] Session initialization failed: ';
+      if (error?.message) {
+        errMsg += error.message;
+      } else if (typeof error === 'string') {
+        errMsg += error;
+      } else {
+        errMsg += JSON.stringify(error);
+      }
+      console.error(errMsg);
+      setError("Impossible d'initialiser la session. Détail: " + errMsg);
+      setIsReady(false);
+      setSessionToken(null);
+      return;
     } finally {
       setIsInitializing(false);
     }
