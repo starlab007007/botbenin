@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Send } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ContactInfo {
   user_id: string;
@@ -30,9 +30,11 @@ export const ContactMessageForm: React.FC<ContactMessageFormProps> = ({
   onSendMessage,
   onBack
 }) => {
+  const isMobile = useIsMobile();
+
   return (
     <div className="min-h-screen w-full bg-gray-50">
-      <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
+      <div className={`w-full max-w-none ${isMobile ? 'px-[2.5%]' : 'p-2 sm:p-4 lg:p-6'}`}>
         <div className="flex flex-col gap-3 mb-4">
           <Button variant="outline" onClick={onBack} size="sm" className="w-fit">
             <ArrowLeft className="w-4 h-4 mr-2" />

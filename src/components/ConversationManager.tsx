@@ -389,7 +389,7 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
   // Main conversation manager view
   return (
     <div className="min-h-screen w-full bg-gray-50">
-      <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
+      <div className={`w-full max-w-none ${isMobile ? 'px-[2.5%]' : 'p-2 sm:p-4 lg:p-6'}`}>
         {/* Header */}
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

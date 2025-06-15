@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Mail } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface BotConversation {
   bot_id: string;
@@ -50,9 +50,11 @@ export const MessageView: React.FC<MessageViewProps> = ({
   onBack,
   onContactUser
 }) => {
+  const isMobile = useIsMobile();
+
   return (
     <div className="min-h-screen w-full bg-gray-50">
-      <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
+      <div className={`w-full max-w-none ${isMobile ? 'px-[2.5%]' : 'p-2 sm:p-4 lg:p-6'}`}>
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={onBack} size="sm">
