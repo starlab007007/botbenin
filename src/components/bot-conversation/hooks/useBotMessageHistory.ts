@@ -4,7 +4,7 @@ import { useBotUserId } from "./useBotUserId";
 import { useMessageFetcher } from "./useMessageFetcher";
 import { useRealtimeMessages } from "./useRealtimeMessages";
 import { useSendManualResponse } from "./useSendManualResponse";
-import { testMessageRetrieval, debugSessionTokens } from "@/services/chatService";
+import { testMessageRetrieval, debugSessionTokens } from "@/services/chat";
 import { BotMessageHistoryItem } from "../types";
 
 export const useBotMessageHistory = (botId: string | null, sessionToken: string | null) => {

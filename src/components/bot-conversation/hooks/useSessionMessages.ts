@@ -1,6 +1,5 @@
-
 import { useState, useEffect, useCallback } from "react";
-import { getChatHistory, debugSessionTokens } from "@/services/chatService";
+import { getChatHistory, debugSessionTokens } from "@/services/chat";
 
 interface SessionMessage {
   id: string;

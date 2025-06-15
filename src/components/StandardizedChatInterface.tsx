@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useToast, toast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -6,7 +7,7 @@ import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { BotConfigService } from '@/services/botConfigService';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveChatMessage, testMessageRetrieval } from '@/services/chatService';
+import { saveChatMessage, testMessageRetrieval } from '@/services/chat';
 import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
 import { useSessionManager } from '@/hooks/useSessionManager';
 

@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getChatHistory } from "@/services/chatService";
+import { getChatHistory } from "@/services/chat";
 import { BotMessageHistoryItem } from "../types";
 
 const mapRawMessagesToTyped = (data: any[]): BotMessageHistoryItem[] => {
