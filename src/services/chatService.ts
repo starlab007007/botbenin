@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { type Json } from '@supabase/supabase-js';
+import type { Json } from '@/integrations/supabase/types';
 
 /**
  * Saves a chat message to the database using the 'save_chat_message' RPC function.
