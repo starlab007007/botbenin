@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Bot, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export const PublicBotChatPage: React.FC = () => {
   const { botId } = useParams<{ botId: string }>();
@@ -13,6 +14,7 @@ export const PublicBotChatPage: React.FC = () => {
   const [isValidating, setIsValidating] = useState(true);
   const [hasValidBot, setHasValidBot] = useState(false);
   const [guestReady, setGuestReady] = useState(false);
+  const isMobile = useIsMobile();
 
   const { isGuest, enableGuestMode, isAuthenticated, isLoading } = useAuth();
 
@@ -48,7 +50,7 @@ export const PublicBotChatPage: React.FC = () => {
       setIsValidating(true);
       console.log('=== VALIDATION ACCÈS BOT PUBLIC (Contexte prêt) ===');
       console.log('Bot ID:', botId);
-      // Laisser la logique à StandardizedChatInterface : juste confirmer qu’on a un botId pour y accéder
+      // Laisser la logique à StandardizedChatInterface : juste confirmer qu'on a un botId pour y accéder
       setHasValidBot(true);
     } catch (error) {
       console.error('Erreur lors de la validation:', error);
@@ -69,14 +71,14 @@ export const PublicBotChatPage: React.FC = () => {
   // Attente explicite de l'initialisation du contexte invité ou authentifié
   if (isLoading || (!isAuthenticated && !isGuest)) {
     return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`h-screen bg-gray-50 flex items-center justify-center ${isMobile ? 'px-[2.5%]' : ''}`}>
         <div className="text-center">
           <Bot className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-pulse" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Initialisation de la session...
           </h2>
           <p className="text-gray-600">
-            Préparation de l’accès invité
+            Préparation de l'accès invité
           </p>
           <div className="mt-6">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -88,7 +90,7 @@ export const PublicBotChatPage: React.FC = () => {
 
   if (isValidating) {
     return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`h-screen bg-gray-50 flex items-center justify-center ${isMobile ? 'px-[2.5%]' : ''}`}>
         <div className="text-center">
           <Bot className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-pulse" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -107,7 +109,7 @@ export const PublicBotChatPage: React.FC = () => {
 
   if (!botId || !hasValidBot) {
     return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className={`h-screen bg-gray-50 flex items-center justify-center ${isMobile ? 'px-[2.5%]' : 'p-4'}`}>
         <Card className="max-w-md w-full p-8 text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">

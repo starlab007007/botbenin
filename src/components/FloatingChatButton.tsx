@@ -3,11 +3,13 @@ import React, { useState } from 'react';
 import { MessageCircle, X, Sparkles, Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ChatInterface } from '@/components/ChatInterface';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type ChatWindowState = 'default' | 'maximized' | 'minimized';
 
 export const FloatingChatButton: React.FC = () => {
   const [chatState, setChatState] = useState<ChatWindowState>('default');
+  const isMobile = useIsMobile();
 
   // Gérer ouverture/fermeture
   const handleToggleChat = () => {
@@ -27,7 +29,7 @@ export const FloatingChatButton: React.FC = () => {
   // Icône flottante pour restaurer si réduit
   if (chatState === 'minimized') {
     return (
-      <div className="fixed bottom-4 right-4 z-50">
+      <div className={`fixed bottom-4 right-4 z-50 ${isMobile ? 'mr-[2.5%]' : ''}`}>
         <Button
           onClick={handleRestore}
           className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg hover:scale-110 transition-all"
@@ -44,7 +46,7 @@ export const FloatingChatButton: React.FC = () => {
     <>
       {/* Floating chat button only if not opened */}
       {chatState === 'default' && (
-        <div className="fixed bottom-4 right-4 lg:bottom-6 lg:right-6 z-50">
+        <div className={`fixed bottom-4 right-4 lg:bottom-6 lg:right-6 z-50 ${isMobile ? 'mr-[2.5%]' : ''}`}>
           <Button
             onClick={() => setChatState('default')}
             className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 group relative overflow-hidden"
@@ -65,16 +67,20 @@ export const FloatingChatButton: React.FC = () => {
       {(chatState === 'default' || chatState === 'maximized') && (
         <div className={`fixed inset-0 z-40 ${chatState === 'default' ? 'bg-black/50 backdrop-blur-sm' : 'bg-black/70 backdrop-blur'} transition-all`}>
           <div
-            className={`fixed bottom-0 right-0 left-0 md:bottom-4 md:right-4 md:left-auto ${
+            className={`fixed ${
               chatState === 'maximized'
                 ? 'w-full h-full top-0 left-0 right-0 bottom-0 md:rounded-none'
-                : 'md:w-[420px] h-[85vh] md:h-[700px] rounded-t-3xl md:rounded-2xl'
+                : isMobile
+                  ? 'bottom-0 right-0 left-0 w-full h-[85vh] rounded-t-3xl'
+                  : 'bottom-4 right-4 left-auto md:w-[420px] h-[85vh] md:h-[700px] rounded-t-3xl md:rounded-2xl'
             } bg-white shadow-2xl overflow-hidden animate-scale-in border border-gray-200 transition-all`}
             style={{
               zIndex: 60,
               ...(chatState === 'maximized'
                 ? { top: 0, left: 0, right: 0, width: '100vw', height: '100vh', borderRadius: 0 }
-                : {})
+                : isMobile 
+                  ? { marginLeft: '2.5%', marginRight: '2.5%', width: '95%' }
+                  : {})
             }}
           >
             {/* Custom header control buttons */}

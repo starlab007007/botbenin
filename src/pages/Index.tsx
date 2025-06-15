@@ -4,11 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { LandingHero } from '@/components/LandingHero';
 import { ChatInterface } from '@/components/ChatInterface';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const Index = () => {
   const [showChat, setShowChat] = useState(false);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // Rediriger vers l'app si l'utilisateur est connecté
   useEffect(() => {
@@ -38,7 +40,7 @@ const Index = () => {
         {!showChat ? (
           <LandingHero onStartChat={handleStartChat} />
         ) : (
-          <div className="px-4 sm:px-6 lg:px-8">
+          <div className={isMobile ? 'px-[2.5%]' : 'px-4 sm:px-6 lg:px-8'}>
             <ChatInterface onBackToLanding={handleBackToLanding} />
           </div>
         )}

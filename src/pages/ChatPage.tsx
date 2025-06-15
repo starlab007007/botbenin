@@ -5,6 +5,7 @@ import { LiveChatSystem } from '@/components/support/LiveChatSystem';
 import { StandardizedChatInterface } from '@/components/StandardizedChatInterface';
 import { BotConfigService } from '@/services/botConfigService';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Utilitaire pour détecter les appareils mobiles
 const isMobileDevice = (): boolean => {
@@ -24,6 +25,7 @@ export const ChatPage: React.FC = () => {
   const [isTest, setIsTest] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
   const { toast } = useToast();
+  const isMobileHook = useIsMobile();
 
   useEffect(() => {
     setIsMobile(isMobileDevice());
@@ -121,7 +123,7 @@ export const ChatPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className={`${isMobile && isSharedLink ? 'h-screen w-screen' : 'h-screen'} flex items-center justify-center bg-gray-50`}>
+      <div className={`${isMobile && isSharedLink ? 'h-screen w-screen' : 'h-screen'} flex items-center justify-center bg-gray-50 ${isMobileHook ? 'px-[2.5%]' : ''}`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -156,7 +158,7 @@ export const ChatPage: React.FC = () => {
 
   // Utiliser le système de chat live par défaut
   return (
-    <div className="h-[calc(100vh-8rem)]">
+    <div className={`h-[calc(100vh-8rem)] ${isMobileHook ? 'px-[2.5%]' : ''}`}>
       <LiveChatSystem />
     </div>
   );

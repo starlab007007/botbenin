@@ -51,7 +51,7 @@ export const ManagementSection: React.FC<ManagementSectionProps> = ({
     return (
       <div className="w-full">
         {isMobile && (
-          <div className="sticky top-0 z-10 bg-white border-b p-3 mb-4">
+          <div className={`sticky top-0 z-10 bg-white border-b ${isMobile ? 'px-[2.5%]' : 'p-3'} mb-4`}>
             <Button variant="outline" onClick={handleBackToOverview} size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour au tableau de bord
@@ -65,7 +65,7 @@ export const ManagementSection: React.FC<ManagementSectionProps> = ({
 
   return (
     <div className="w-full">
-      <Card className="p-4 sm:p-6">
+      <Card className={`${isMobile ? 'px-[2.5%]' : 'p-4 sm:p-6'}`}>
         <div className="flex flex-col gap-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Gestion Centralisée</h3>
