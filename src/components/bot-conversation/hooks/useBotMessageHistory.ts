@@ -13,13 +13,14 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
   
   const { messages, loadingMessages, errorMessages, fetchMessages, setMessages } = useMessageFetcher(botId, botUserId, sessionToken);
 
-  // Clear messages when botId or sessionToken changes
+  // Clear messages when botId or sessionToken changes and mark as initialized
   useEffect(() => {
     if (!botId || !sessionToken) {
       console.log('[useBotMessageHistory] Clearing messages due to missing botId or sessionToken');
       setMessages([]);
       setHasInitialized(false);
     } else {
+      console.log(`[useBotMessageHistory] Initialized for bot ${botId} with session ${sessionToken}`);
       setHasInitialized(true);
     }
   }, [botId, sessionToken, setMessages]);
@@ -28,18 +29,18 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
 
   const { sendManualResponse } = useSendManualResponse(botId, sessionToken);
 
-  // Améliorer la logique de loading - ne pas rester en loading indéfiniment
+  // Improved loading logic - prevent infinite loading
   const loading = useMemo(() => {
-    // Si pas de botId ou sessionToken, pas de loading
+    // If no botId or sessionToken, no loading needed
     if (!botId || !sessionToken) return false;
     
-    // Si on n'a pas encore initialisé, on est en loading
+    // If not initialized yet, we're loading
     if (!hasInitialized) return true;
     
-    // Si on charge le bot user ID, on est en loading
+    // If we're loading the bot user ID, we're loading
     if (loadingBotUserId) return true;
     
-    // Si on charge les messages ET qu'on a un botUserId, on est en loading
+    // If we're loading messages AND we have essential data, we're loading
     if (loadingMessages && botUserId) return true;
     
     // Sinon, on n'est plus en loading
@@ -51,11 +52,11 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
     return errors.length > 0 ? errors.join(', ') : null;
   }, [errorBotUserId, errorMessages, realtimeError]);
 
-  // Debug logging
+  // Debug logging with throttling to prevent spam
   useEffect(() => {
-    console.log('[useBotMessageHistory] State update:', {
+    const debugData = {
       botId,
-      sessionToken,
+      sessionToken: sessionToken ? sessionToken.substring(0, 15) + '...' : null,
       botUserId,
       hasInitialized,
       messagesCount: messages.length,
@@ -64,7 +65,9 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
       loadingMessages,
       error,
       isConnected
-    });
+    };
+    
+    console.log('[useBotMessageHistory] State:', debugData);
   }, [botId, sessionToken, botUserId, hasInitialized, messages.length, loading, loadingBotUserId, loadingMessages, error, isConnected]);
 
   return {

@@ -15,52 +15,63 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
 
   // Prevent multiple concurrent initializations
   const initializingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  const safeSet = (v: React.Dispatch<React.SetStateAction<any>>, value: any) => {
-    // avoids setting state on unmounted or irrelevant
-    if (!initializingRef.current) return;
-    v(value);
-  };
+  // Safe state setter that checks if component is mounted
+  const safeSetState = useCallback((setter: Function, value: any) => {
+    if (mountedRef.current) {
+      setter(value);
+    }
+  }, []);
 
   const initializeSession = useCallback(async () => {
     if (!botId) {
-      setIsReady(true);
-      setIsInitializing(false);
+      safeSetState(setIsReady, true);
+      safeSetState(setIsInitializing, false);
       return;
     }
+
     // Prevent race conditions
     if (isInitializing || initializingRef.current) return;
+    
     initializingRef.current = true;
-    setIsInitializing(true);
-    setError(null);
+    safeSetState(setIsInitializing, true);
+    safeSetState(setError, null);
 
     try {
-      // Always check for an existing session (single source of truth)
+      // Always check for an existing session first
       const existingToken = getCurrentVisitorSession();
       if (existingToken) {
-        setSessionToken(existingToken);
-        setIsReady(true);
-        setIsInitializing(false);
+        console.log(`[useSessionManager] Using existing session token: ${existingToken}`);
+        safeSetState(setSessionToken, existingToken);
+        safeSetState(setIsReady, true);
+        safeSetState(setIsInitializing, false);
         initializingRef.current = false;
         return;
       }
+
       // Initialize new session if not present
+      console.log(`[useSessionManager] Creating new session for bot ${botId}`);
       const newToken = await initializeVisitorTracking(botId, entryPoint);
+      
       if (typeof newToken === "string" && newToken.startsWith('anon_')) {
-        setSessionToken(newToken);
-        setIsReady(true);
-        setError(null);
+        console.log(`[useSessionManager] Successfully created session: ${newToken}`);
+        safeSetState(setSessionToken, newToken);
+        safeSetState(setIsReady, true);
+        safeSetState(setError, null);
       } else {
-        setSessionToken(null);
-        setIsReady(false);
-        setError(
+        console.error(`[useSessionManager] Invalid token received: ${newToken}`);
+        safeSetState(setSessionToken, null);
+        safeSetState(setIsReady, false);
+        safeSetState(setError, 
           typeof newToken === 'string'
             ? `Échec création session: ${newToken}`
             : 'Échec création du token de session'
         );
       }
     } catch (error: any) {
-      let errMsg = '[useSessionManager] Session initialization failed: ';
+      console.error('[useSessionManager] Session initialization failed:', error);
+      let errMsg = 'Session initialization failed: ';
       if (error?.message) {
         errMsg += error.message;
       } else if (typeof error === 'string') {
@@ -68,24 +79,31 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       } else {
         errMsg += JSON.stringify(error);
       }
-      setSessionToken(null);
-      setIsReady(false);
-      setError("Impossible d'initialiser la session. Détail: " + errMsg);
+      
+      safeSetState(setSessionToken, null);
+      safeSetState(setIsReady, false);
+      safeSetState(setError, "Impossible d'initialiser la session. Détail: " + errMsg);
     } finally {
-      setIsInitializing(false);
+      safeSetState(setIsInitializing, false);
       initializingRef.current = false;
     }
-  }, [botId, entryPoint, isInitializing]);
+  }, [botId, entryPoint, isInitializing, safeSetState]);
 
   useEffect(() => {
+    mountedRef.current = true;
+    
     if (!botId) {
       setSessionToken(null);
       setIsReady(true);
       setIsInitializing(false);
       return;
     }
+    
     initializeSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      mountedRef.current = false;
+    };
   }, [botId, entryPoint]); // Only re-initialize if botId or entryPoint changes
 
   const retryInitialization = useCallback(() => {
@@ -93,6 +111,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
     setError(null);
     setSessionToken(null);
     setIsInitializing(false);
+    initializingRef.current = false;
     setTimeout(() => initializeSession(), 100);
   }, [initializeSession]);
 
