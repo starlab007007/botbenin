@@ -63,8 +63,17 @@ export const UserManagement: React.FC = () => {
     queryKey: ['admin-users', searchTerm],
     queryFn: async () => {
       let query = supabase
-        .from('user_stats')
-        .select('*')
+        .from('users')
+        .select(`
+          id,
+          email,
+          full_name,
+          created_at,
+          last_login,
+          is_active,
+          subscription_tier,
+          status
+        `)
         .order('created_at', { ascending: false });
 
       if (searchTerm) {

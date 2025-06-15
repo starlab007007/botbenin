@@ -28,7 +28,7 @@ interface Role {
   id: string;
   name: string;
   display_name: string;
-  description: string;
+  description?: string;
   is_system_role: boolean;
 }
 
@@ -59,7 +59,7 @@ export const PermissionsManager: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('roles')
-        .select('*')
+        .select('id, name, display_name, description, is_system_role')
         .order('name');
       if (error) throw error;
       return data as Role[];
@@ -196,7 +196,7 @@ export const PermissionsManager: React.FC = () => {
                     <div className="text-sm text-gray-500">{role.name}</div>
                   </TableCell>
                   <TableCell>
-                    <div className="text-sm">{role.description}</div>
+                    <div className="text-sm">{role.description || 'Aucune description'}</div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={role.is_system_role ? "default" : "outline"}>
