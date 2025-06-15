@@ -1177,7 +1177,7 @@ export type Database = {
         Row: {
           bot_id: string
           bot_messages: number | null
-          bot_user_id: string
+          bot_user_id: string | null
           ended_at: string | null
           entry_point: string | null
           id: string
@@ -1197,7 +1197,7 @@ export type Database = {
         Insert: {
           bot_id: string
           bot_messages?: number | null
-          bot_user_id: string
+          bot_user_id?: string | null
           ended_at?: string | null
           entry_point?: string | null
           id?: string
@@ -1217,7 +1217,7 @@ export type Database = {
         Update: {
           bot_id?: string
           bot_messages?: number | null
-          bot_user_id?: string
+          bot_user_id?: string | null
           ended_at?: string | null
           entry_point?: string | null
           id?: string
