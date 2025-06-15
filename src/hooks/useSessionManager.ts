@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeVisitorTracking, getCurrentVisitorSession } from '@/utils/visitorTracking';
 
 interface UseSessionManagerProps {
@@ -13,54 +13,53 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Prevent multiple concurrent initializations
+  const initializingRef = useRef(false);
+
+  const safeSet = (v: React.Dispatch<React.SetStateAction<any>>, value: any) => {
+    // avoids setting state on unmounted or irrelevant
+    if (!initializingRef.current) return;
+    v(value);
+  };
+
   const initializeSession = useCallback(async () => {
     if (!botId) {
-      console.log(`[useSessionManager] No botId provided, skipping initialization`);
       setIsReady(true);
       setIsInitializing(false);
       return;
     }
-
-    if (isInitializing || isReady) {
-      console.log(`[useSessionManager] Already initializing or ready, skipping`);
-      return;
-    }
-
-    console.log(`[useSessionManager] Starting session initialization for bot ${botId}`);
+    // Prevent race conditions
+    if (isInitializing || initializingRef.current) return;
+    initializingRef.current = true;
     setIsInitializing(true);
     setError(null);
 
     try {
-      // Vérifier d'abord si on a déjà un token valide
+      // Always check for an existing session (single source of truth)
       const existingToken = getCurrentVisitorSession();
       if (existingToken) {
-        console.log(`[useSessionManager] Found existing valid token: ${existingToken}`);
         setSessionToken(existingToken);
         setIsReady(true);
         setIsInitializing(false);
+        initializingRef.current = false;
         return;
       }
-
-      // Sinon, créer une nouvelle session
-      console.log(`[useSessionManager] Creating new session for bot ${botId}`);
+      // Initialize new session if not present
       const newToken = await initializeVisitorTracking(botId, entryPoint);
-      
       if (typeof newToken === "string" && newToken.startsWith('anon_')) {
-        console.log(`[useSessionManager] Session initialized successfully: ${newToken}`);
         setSessionToken(newToken);
         setIsReady(true);
+        setError(null);
       } else {
-        // Ici on affiche une erreur détaillée
-        let errMsg = typeof newToken === 'string'
-          ? `Échec création session: ${newToken}`
-          : 'Échec création du token de session';
-        setError(errMsg);
-        setIsReady(false);
         setSessionToken(null);
-        return;
+        setIsReady(false);
+        setError(
+          typeof newToken === 'string'
+            ? `Échec création session: ${newToken}`
+            : 'Échec création du token de session'
+        );
       }
     } catch (error: any) {
-      // Nouvelle gestion : récupération du message Supabase si présent
       let errMsg = '[useSessionManager] Session initialization failed: ';
       if (error?.message) {
         errMsg += error.message;
@@ -69,19 +68,25 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       } else {
         errMsg += JSON.stringify(error);
       }
-      console.error(errMsg);
-      setError("Impossible d'initialiser la session. Détail: " + errMsg);
-      setIsReady(false);
       setSessionToken(null);
-      return;
+      setIsReady(false);
+      setError("Impossible d'initialiser la session. Détail: " + errMsg);
     } finally {
       setIsInitializing(false);
+      initializingRef.current = false;
     }
-  }, [botId, entryPoint, isInitializing, isReady]);
+  }, [botId, entryPoint, isInitializing]);
 
   useEffect(() => {
+    if (!botId) {
+      setSessionToken(null);
+      setIsReady(true);
+      setIsInitializing(false);
+      return;
+    }
     initializeSession();
-  }, [botId, initializeSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId, entryPoint]); // Only re-initialize if botId or entryPoint changes
 
   const retryInitialization = useCallback(() => {
     setIsReady(false);

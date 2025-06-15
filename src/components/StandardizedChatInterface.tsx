@@ -46,7 +46,13 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [botConfigLoaded, setBotConfigLoaded] = useState(false);
 
   // Utiliser le hook de gestion de session
-  const { sessionToken, isInitializing, isReady, error: sessionError, retryInitialization } = useSessionManager({
+  const {
+    sessionToken,
+    isInitializing,
+    isReady,
+    error: sessionError,
+    retryInitialization
+  } = useSessionManager({
     botId,
     entryPoint
   });
@@ -115,27 +121,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   };
 
   // Améliorer la logique de chargement de page
-  const pageIsLoading = useMemo(() => {
-    // Si on charge encore la config du bot
-    if (!botConfigLoaded) return true;
-    
-    // Si on initialise la session
-    if (isInitializing) return true;
-    
-    // Si on a une erreur, ne pas rester en loading
-    if (hasError || sessionError) return false;
-    
-    // Si on n'a pas encore de config de bot et pas d'erreur
-    if (!botConfig && !hasError) return true;
-    
-    // Si la session n'est pas prête et qu'on n'a pas d'erreur de session
-    if (!isReady && !sessionError) return true;
-    
-    // Si on charge l'historique ET qu'on n'a pas encore de messages
-    if (loadingHistory && messages.length === 0 && !errorHistory) return true;
-    
-    return false;
-  }, [botConfigLoaded, isInitializing, hasError, sessionError, botConfig, isReady, loadingHistory, messages.length, errorHistory]);
+  const pageIsLoading = !botConfigLoaded || isInitializing || (!botConfig && !hasError) || (!isReady && !sessionError) || (loadingHistory && messages.length === 0 && !errorHistory);
 
   useEffect(() => {
     if (botConfig && isReady && !loadingHistory) {
