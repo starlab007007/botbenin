@@ -31,10 +31,12 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
   // debugTokens // Removed from props
 }) => {
   return (
-    <CardHeader className="pb-3 flex-shrink-0">
+    // On passe pb-3 à pb-1 pour réduire l'espace bas, flex-shrink reste
+    <CardHeader className="pb-1 flex-shrink-0">
       <div className="flex items-center justify-between">
         <CardTitle className="text-sm font-semibold flex items-center">
           <MessageSquare className="w-4 h-4 mr-2" />
+          {/* Suffixe plus concis pour ne pas rallonger la ligne */}
           Messages - Session {selectedSession.session_token.slice(0, 10)}...
         </CardTitle>
         <div className="flex items-center space-x-2">
@@ -51,8 +53,8 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
           </Button>
         </div>
       </div>
-      
-      <div className="text-xs text-gray-500">
+      {/* On retire la marge verticale excessive ici en réduisant la taille du texte et la marge top */}
+      <div className="text-xs text-gray-500 mt-0">
         Bot: {selectedBot?.name} • Entrée: {selectedSession.entry_point}
       </div>
       {/* Plus d’affichage debug ici */}

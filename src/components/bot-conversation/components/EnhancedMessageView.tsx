@@ -27,12 +27,14 @@ export const EnhancedMessageView: React.FC<EnhancedMessageViewProps> = ({
     <div className="w-[66%] min-w-[420px] h-full flex flex-col mx-auto">
       <Tabs value="chat" className="h-full flex flex-col">
         <div className="flex-shrink-0">
-          <TabsList className="w-full mb-2">
+          {/* On retire la mb-2 ici pour réduire l'espace sous Chat en Direct */}
+          <TabsList className="w-full mb-0">
             <TabsTrigger value="chat" className="text-xs">
               💬 Chat en Direct
             </TabsTrigger>
           </TabsList>
         </div>
+        {/* On réduit au minimum la marge (gap) entre TabsList et le contenu */}
         <div className="flex-1 min-h-0">
           <TabsContent value="chat" className="h-full mt-0">
             <SessionMessagesView 
@@ -45,4 +47,3 @@ export const EnhancedMessageView: React.FC<EnhancedMessageViewProps> = ({
     </div>
   );
 };
-
