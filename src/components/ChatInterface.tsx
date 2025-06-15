@@ -7,6 +7,7 @@ import { ChatInputArea } from '@/components/ChatInputArea';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 import { saveChatMessage } from '@/services/chatService';
+import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
 
 interface Message {
   id: string;
@@ -45,6 +46,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const urlBotName = searchParams.get('bot_name');
   const isTest = searchParams.get('test') === 'true';
 
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const { 
+    messages: historyMessages, 
+    loading: loadingHistory, 
+    error: errorHistory 
+  } = useBotMessageHistory(urlBotId, sessionToken);
+
   console.log('Paramètres URL ChatInterface:', {
     urlBotId,
     urlBotName,
@@ -55,7 +63,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   useEffect(() => {
     if (urlBotId) {
       console.log(`[ChatInterface] Initializing visitor tracking for bot: ${urlBotId}`);
-      initializeVisitorTracking(urlBotId, 'chat_interface');
+      initializeVisitorTracking(urlBotId, 'chat_interface').then(() => {
+        setSessionToken(sessionStorage.getItem('visitor_session_token'));
+      });
     }
   }, [urlBotId]);
 
@@ -68,14 +78,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   // Utiliser le nom du bot depuis l'URL si disponible
   const finalChatTitle = urlBotName || chatTitle;
   
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: getWelcomeMessage(chatContext, finalChatTitle),
-      isUser: false,
-      timestamp: new Date(),
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -96,6 +99,28 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         return `🚀 Bonjour ! Je suis ${botName}, votre assistant IA intelligent. Je peux vous aider avec vos questions et vous accompagner dans vos démarches. Comment puis-je vous aider aujourd'hui ?`;
     }
   }
+
+  useEffect(() => {
+    const mappedHistory = historyMessages.map((item): Message => ({
+      id: item.message_id,
+      content: item.message_content,
+      isUser: item.message_type === 'user',
+      timestamp: new Date(item.message_timestamp),
+    }));
+
+    if (mappedHistory.length > 0) {
+      setMessages(mappedHistory);
+    } else if (!loadingHistory) {
+      setMessages([
+        {
+          id: '1',
+          content: getWelcomeMessage(chatContext, finalChatTitle),
+          isUser: false,
+          timestamp: new Date(),
+        }
+      ]);
+    }
+  }, [historyMessages, loadingHistory, chatContext, finalChatTitle]);
 
   // Determine user context based on current route or provided context
   const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general' => {
@@ -135,7 +160,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       timestamp: new Date(),
     };
 
-    const sessionToken = sessionStorage.getItem('visitor_session_token');
     if (sessionToken && urlBotId) {
       saveChatMessage(urlBotId, sessionToken, textToSend, 'user');
     }
@@ -345,7 +369,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         messages={messages}
         showSuggestions={showSuggestions}
         userContext={getUserContext()}
-        isLoading={isLoading}
+        isLoading={isLoading || (loadingHistory && messages.length === 0)}
         onToggleBookmark={toggleBookmark}
         onSuggestionClick={handleSuggestionClick}
       />

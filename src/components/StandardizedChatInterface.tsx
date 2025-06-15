@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -8,6 +9,7 @@ import { BotConfigService } from '@/services/botConfigService';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { saveChatMessage } from '@/services/chatService';
+import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
 
 interface Message {
   id: string;
@@ -45,11 +47,24 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [apiAccessLog, setApiAccessLog] = useState<any>(null);
   const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null); // trace brute de la réponse de checkPublicAccess
   const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const { 
+    messages: historyMessages, 
+    loading: loadingHistory, 
+    error: errorHistory 
+  } = useBotMessageHistory(botId, sessionToken);
+
   useEffect(() => {
-    initializeBot();
-  }, [botId]);
+    const init = async () => {
+      await initializeVisitorTracking(botId, entryPoint);
+      const token = sessionStorage.getItem('visitor_session_token');
+      setSessionToken(token);
+      initializeBot();
+    };
+    init();
+  }, [botId, entryPoint]);
 
   const initializeBot = async () => {
     try {
@@ -104,25 +119,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       setBotConfig(config);
 
-      const welcomeMessage = BotConfigService.getStandardWelcomeMessage(
-        config.name || config.chat_title,
-        config.chat_context
-      );
-
-      setMessages([{
-        id: '1',
-        content: welcomeMessage,
-        isUser: false,
-        timestamp: new Date(),
-      }]);
-
-      // Tracking visiteur
-      try {
-        await initializeVisitorTracking(botId, entryPoint);
-        console.log('Tracking visiteur initialisé');
-      } catch (trackingError) {
-        console.warn('Erreur lors du tracking:', trackingError);
-      }
     } catch (error: any) {
       console.error('Erreur lors de l\'initialisation du bot:', error);
       setHasError(true);
@@ -133,6 +129,33 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (botConfig) {
+      const mappedHistory = historyMessages.map((item): Message => ({
+        id: item.message_id,
+        content: item.message_content,
+        isUser: item.message_type === 'user',
+        timestamp: new Date(item.message_timestamp),
+      }));
+
+      if (mappedHistory.length > 0) {
+        setMessages(mappedHistory);
+      } else if (!loadingHistory) { // Only set welcome message if not loading history and history is empty
+        const welcomeMessage = BotConfigService.getStandardWelcomeMessage(
+          botConfig.name || botConfig.chat_title,
+          botConfig.chat_context
+        );
+
+        setMessages([{
+          id: '1',
+          content: welcomeMessage,
+          isUser: false,
+          timestamp: new Date(),
+        }]);
+      }
+    }
+  }, [historyMessages, botConfig, loadingHistory]);
 
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
@@ -314,6 +337,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
   const bookmarkedMessages = messages.filter(msg => msg.isBookmarked && !msg.isUser);
 
+  const pageIsLoading = isLoading || (loadingHistory && messages.length === 0);
+
   // Écran d'erreur standardisé
   if (hasError) {
     return (
@@ -374,7 +399,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   }
 
   // Écran de chargement standardisé
-  if (isLoading) {
+  if (pageIsLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
