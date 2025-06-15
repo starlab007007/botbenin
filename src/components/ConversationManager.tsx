@@ -13,10 +13,10 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-// Import our new components
+// Import our new paginated components
 import { ConversationFilters } from '@/components/conversation-manager/ConversationFilters';
-import { ConversationList } from '@/components/conversation-manager/ConversationList';
-import { ContactList } from '@/components/conversation-manager/ContactList';
+import { PaginatedConversationList } from '@/components/conversation-manager/PaginatedConversationList';
+import { PaginatedContactList } from '@/components/conversation-manager/PaginatedContactList';
 import { MessageView } from '@/components/conversation-manager/MessageView';
 import { ContactMessageForm } from '@/components/conversation-manager/ContactMessageForm';
 
@@ -442,19 +442,23 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
           </TabsList>
 
           <TabsContent value="conversations">
-            <ConversationList
-              conversations={filteredConversations}
+            <PaginatedConversationList
+              conversations={conversations}
               isLoading={isLoading}
               onViewConversation={viewConversation}
               onContactUser={setSelectedContact}
+              searchTerm={searchTerm}
+              filterBot={filterBot}
             />
           </TabsContent>
 
           <TabsContent value="contacts">
-            <ContactList
-              contacts={filteredContacts}
+            <PaginatedContactList
+              contacts={contacts}
               isLoading={isLoading}
               onContactUser={setSelectedContact}
+              searchTerm={searchTerm}
+              filterStatus={filterStatus}
             />
           </TabsContent>
         </Tabs>
