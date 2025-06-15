@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSessionMessages } from "../hooks/useSessionMessages";
@@ -28,7 +27,7 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   selectedBot,
   selectedSession
 }) => {
-  const { messages, loading, error, refetch, debugTokens } = useSessionMessages(
+  const { messages, loading, error, refetch } = useSessionMessages(
     selectedBot?.id || null,
     selectedSession?.session_token || null
   );
@@ -70,7 +69,6 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
         selectedSession={selectedSession}
         loading={loading}
         refetch={refetch}
-        debugTokens={debugTokens}
       />
       <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0">
         <SessionLoadingOrError loading={loading} error={error} refetch={refetch} />
