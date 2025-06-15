@@ -222,12 +222,29 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     }
     const fingerprintHash = generateBrowserFingerprint();
     const fingerprintResult = await createOrGetVisitorFingerprint(fingerprintHash);
-    if (!fingerprintResult || (fingerprintResult && fingerprintResult.error)) {
-      const errorMsg = '[visitorTracking] Failed to create/get fingerprint: ' + (fingerprintResult?.error || 'Aucune info');
+
+    // SAFEGUARD: check if fingerprintResult is an error object or string
+    if (
+      typeof fingerprintResult === "object"
+      && fingerprintResult !== null
+      && "error" in fingerprintResult
+    ) {
+      const errorMsg = '[visitorTracking] Failed to create/get fingerprint: ' + (fingerprintResult.error || 'Aucune info');
       console.error(errorMsg);
       return errorMsg;
     }
-    const fingerprintId = fingerprintResult.id || fingerprintResult;
+    if (!fingerprintResult) {
+      const errorMsg = '[visitorTracking] Failed to create/get fingerprint: résultat vide ou falsy';
+      console.error(errorMsg);
+      return errorMsg;
+    }
+
+    // .id only if result is object and has id (or just use as string)
+    const fingerprintId =
+      typeof fingerprintResult === "object" && fingerprintResult !== null && "id" in fingerprintResult
+        ? (fingerprintResult as { id: string }).id
+        : fingerprintResult;
+
     const utmParams = extractUTMParams();
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
     const sessionTokenResult = await createAnonymousVisitorSession(
@@ -237,8 +254,19 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       document.referrer,
       utmParams
     );
-    if (!sessionTokenResult || (sessionTokenResult && sessionTokenResult.error)) {
-      const errorMsg = '[visitorTracking] Failed to create valid session token: ' + (sessionTokenResult?.error || 'Aucune info');
+
+    // SAFEGUARD: check if sessionTokenResult is an error object or string
+    if (
+      typeof sessionTokenResult === "object"
+      && sessionTokenResult !== null
+      && "error" in sessionTokenResult
+    ) {
+      const errorMsg = '[visitorTracking] Failed to create valid session token: ' + (sessionTokenResult.error || 'Aucune info');
+      console.error(errorMsg);
+      return errorMsg;
+    }
+    if (!sessionTokenResult) {
+      const errorMsg = '[visitorTracking] Failed to create valid session token: résultat vide ou falsy';
       console.error(errorMsg);
       return errorMsg;
     }
