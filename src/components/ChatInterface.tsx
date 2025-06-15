@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
 import { ChatHeader } from '@/components/ChatHeader';
 import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { saveChatMessage } from '@/services/chatService';
 
 interface Message {
   id: string;
@@ -50,6 +52,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     finalWebhookUrl: webhookUrl
   });
   
+  useEffect(() => {
+    if (urlBotId) {
+      console.log(`[ChatInterface] Initializing visitor tracking for bot: ${urlBotId}`);
+      initializeVisitorTracking(urlBotId, 'chat_interface');
+    }
+  }, [urlBotId]);
+
   // IMPORTANT: Vérifier que le webhook URL est bien fourni
   if (!webhookUrl) {
     console.error('ERREUR CRITIQUE: Aucun webhook URL fourni pour ce bot !');
@@ -125,6 +134,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       isUser: true,
       timestamp: new Date(),
     };
+
+    const sessionToken = sessionStorage.getItem('visitor_session_token');
+    if (sessionToken && urlBotId) {
+      saveChatMessage(urlBotId, sessionToken, textToSend, 'user');
+    }
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
@@ -235,6 +249,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         isUser: false,
         timestamp: new Date(),
       };
+
+      if (sessionToken && urlBotId) {
+        saveChatMessage(urlBotId, sessionToken, processedContent.trim(), 'bot');
+      }
 
       console.log('Message IA ajouté (depuis N8N):', aiMessage);
       setMessages(prev => [...prev, aiMessage]);

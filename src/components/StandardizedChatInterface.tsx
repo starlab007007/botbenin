@@ -7,6 +7,7 @@ import { ChatInputArea } from '@/components/ChatInputArea';
 import { BotConfigService } from '@/services/botConfigService';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 import { useAuth } from '@/contexts/AuthContext';
+import { saveChatMessage } from '@/services/chatService';
 
 interface Message {
   id: string;
@@ -165,6 +166,11 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
+    const sessionToken = sessionStorage.getItem('visitor_session_token');
+    if (sessionToken) {
+      saveChatMessage(botId, sessionToken, textToSend, 'user');
+    }
+
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsProcessing(true);
@@ -244,6 +250,10 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         isUser: false,
         timestamp: new Date(),
       };
+
+      if (sessionToken) {
+        saveChatMessage(botId, sessionToken, processedContent.trim(), 'bot');
+      }
 
       setMessages(prev => [...prev, aiMessage]);
 

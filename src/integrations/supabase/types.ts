@@ -4088,6 +4088,18 @@ export type Database = {
         }
         Returns: string
       }
+      save_chat_message: {
+        Args: {
+          p_bot_id: string
+          p_session_token: string
+          p_message_content: string
+          p_message_type: string
+          p_metadata?: Json
+          p_ip_address?: string
+          p_user_agent?: string
+        }
+        Returns: string
+      }
       send_manual_bot_response: {
         Args: {
           p_bot_id: string
