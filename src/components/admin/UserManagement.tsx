@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,9 +91,9 @@ export const UserManagement: React.FC = () => {
       const { data, error } = await supabase
         .from('roles')
         .select('id, name, display_name')
-        .eq('is_system_role', true);
+        .eq('is_system_role', true); // Only system roles for dropdown
       if (error) throw error;
-      return data as Role[];
+      return (data ?? []) as Role[];
     },
   });
 

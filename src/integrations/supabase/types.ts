@@ -2195,19 +2195,25 @@ export type Database = {
         Row: {
           created_at: string
           description: string
+          display_name: string
           id: string
+          is_system_role: boolean | null
           name: string
         }
         Insert: {
           created_at?: string
           description: string
+          display_name: string
           id?: string
+          is_system_role?: boolean | null
           name: string
         }
         Update: {
           created_at?: string
           description?: string
+          display_name?: string
           id?: string
+          is_system_role?: boolean | null
           name?: string
         }
         Relationships: []

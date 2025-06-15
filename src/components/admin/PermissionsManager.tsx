@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -62,7 +61,7 @@ export const PermissionsManager: React.FC = () => {
         .select('id, name, display_name, description, is_system_role')
         .order('name');
       if (error) throw error;
-      return data as Role[];
+      return (data ?? []) as Role[]; // Null fallback
     },
   });
 
