@@ -1560,6 +1560,30 @@ export type Database = {
         }
         Relationships: []
       }
+      logs_session_anomalies: {
+        Row: {
+          anomaly_type: string | null
+          bot_id: string | null
+          created_at: string | null
+          id: string
+          input_token: string | null
+        }
+        Insert: {
+          anomaly_type?: string | null
+          bot_id?: string | null
+          created_at?: string | null
+          id?: string
+          input_token?: string | null
+        }
+        Update: {
+          anomaly_type?: string | null
+          bot_id?: string | null
+          created_at?: string | null
+          id?: string
+          input_token?: string | null
+        }
+        Relationships: []
+      }
       marketing_campaigns: {
         Row: {
           clicked_count: number | null
