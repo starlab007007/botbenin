@@ -8,7 +8,7 @@ import { AIModules } from '@/components/home/AIModules';
 import { AuditSection } from '@/components/home/AuditSection';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-const HomePage: React.FC = () => {
+export const HomePage: React.FC = () => {
   const { user } = useAuth();
   const isMobile = useIsMobile();
 
@@ -33,5 +33,3 @@ const HomePage: React.FC = () => {
     </div>
   );
 };
-
-export default HomePage;

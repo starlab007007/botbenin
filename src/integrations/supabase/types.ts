@@ -54,68 +54,6 @@ export type Database = {
           },
         ]
       }
-      admin_logs: {
-        Row: {
-          action: string
-          admin_user_id: string
-          created_at: string | null
-          details: Json | null
-          id: string
-          ip_address: unknown | null
-          target_user_id: string | null
-          user_agent: string | null
-        }
-        Insert: {
-          action: string
-          admin_user_id: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          ip_address?: unknown | null
-          target_user_id?: string | null
-          user_agent?: string | null
-        }
-        Update: {
-          action?: string
-          admin_user_id?: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          ip_address?: unknown | null
-          target_user_id?: string | null
-          user_agent?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "admin_logs_admin_user_id_fkey"
-            columns: ["admin_user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "admin_logs_admin_user_id_fkey"
-            columns: ["admin_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "admin_logs_target_user_id_fkey"
-            columns: ["target_user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "admin_logs_target_user_id_fkey"
-            columns: ["target_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ai_generated_assets: {
         Row: {
           approved: boolean | null
@@ -1235,36 +1173,6 @@ export type Database = {
           },
         ]
       }
-      detailed_permissions: {
-        Row: {
-          action: string
-          category: string
-          created_at: string | null
-          description: string | null
-          id: string
-          name: string
-          resource: string
-        }
-        Insert: {
-          action: string
-          category: string
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name: string
-          resource: string
-        }
-        Update: {
-          action?: string
-          category?: string
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name?: string
-          resource?: string
-        }
-        Relationships: []
-      }
       enhanced_chat_sessions: {
         Row: {
           bot_id: string
@@ -1995,36 +1903,6 @@ export type Database = {
         }
         Relationships: []
       }
-      platform_metrics: {
-        Row: {
-          created_at: string | null
-          id: string
-          metric_data: Json | null
-          metric_name: string
-          metric_value: number
-          period_end: string
-          period_start: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          metric_data?: Json | null
-          metric_name: string
-          metric_value: number
-          period_end: string
-          period_start: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          metric_data?: Json | null
-          metric_name?: string
-          metric_value?: number
-          period_end?: string
-          period_start?: string
-        }
-        Relationships: []
-      }
       prospect_databases: {
         Row: {
           created_at: string | null
@@ -2620,133 +2498,36 @@ export type Database = {
           },
         ]
       }
-      subscription_history: {
-        Row: {
-          action: string
-          created_at: string | null
-          created_by: string | null
-          effective_date: string
-          id: string
-          notes: string | null
-          old_plan_id: string | null
-          plan_id: string | null
-          user_id: string
-        }
-        Insert: {
-          action: string
-          created_at?: string | null
-          created_by?: string | null
-          effective_date: string
-          id?: string
-          notes?: string | null
-          old_plan_id?: string | null
-          plan_id?: string | null
-          user_id: string
-        }
-        Update: {
-          action?: string
-          created_at?: string | null
-          created_by?: string | null
-          effective_date?: string
-          id?: string
-          notes?: string | null
-          old_plan_id?: string | null
-          plan_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_history_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_history_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_history_old_plan_id_fkey"
-            columns: ["old_plan_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_history_plan_id_fkey"
-            columns: ["plan_id"]
-            isOneToOne: false
-            referencedRelation: "subscription_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_history_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_history_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       subscription_plans: {
         Row: {
-          api_calls_limit: number | null
           billing_cycle: string
           created_at: string
           features: Json
-          features_detailed: Json | null
           id: string
-          is_active: boolean | null
           max_automations: number
           max_conversations: number
-          max_storage_gb: number | null
-          max_users: number | null
           name: string
           price: number
-          support_level: string | null
         }
         Insert: {
-          api_calls_limit?: number | null
           billing_cycle: string
           created_at?: string
           features?: Json
-          features_detailed?: Json | null
           id?: string
-          is_active?: boolean | null
           max_automations?: number
           max_conversations?: number
-          max_storage_gb?: number | null
-          max_users?: number | null
           name: string
           price: number
-          support_level?: string | null
         }
         Update: {
-          api_calls_limit?: number | null
           billing_cycle?: string
           created_at?: string
           features?: Json
-          features_detailed?: Json | null
           id?: string
-          is_active?: boolean | null
           max_automations?: number
           max_conversations?: number
-          max_storage_gb?: number | null
-          max_users?: number | null
           name?: string
           price?: number
-          support_level?: string | null
         }
         Relationships: []
       }
@@ -2984,69 +2765,6 @@ export type Database = {
           },
         ]
       }
-      user_permissions: {
-        Row: {
-          expires_at: string | null
-          granted_at: string | null
-          granted_by: string | null
-          id: string
-          permission_id: string | null
-          user_id: string | null
-        }
-        Insert: {
-          expires_at?: string | null
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          permission_id?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          expires_at?: string | null
-          granted_at?: string | null
-          granted_by?: string | null
-          id?: string
-          permission_id?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_permissions_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_permissions_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_permissions_permission_id_fkey"
-            columns: ["permission_id"]
-            isOneToOne: false
-            referencedRelation: "detailed_permissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_permissions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_permissions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_profiles: {
         Row: {
           avatar_url: string | null
@@ -3239,7 +2957,6 @@ export type Database = {
       }
       users: {
         Row: {
-          admin_notes: string | null
           auth_provider: string | null
           avatar_url: string | null
           bio: string | null
@@ -3247,7 +2964,6 @@ export type Database = {
           created_at: string
           email: string
           email_verified: boolean | null
-          email_verified_at: string | null
           full_name: string
           google_id: string | null
           id: string
@@ -3255,17 +2971,12 @@ export type Database = {
           language: string | null
           last_activity: string | null
           last_login: string | null
-          locked_until: string | null
-          login_attempts: number | null
           phone: string | null
-          status: string | null
           subscription_tier: string | null
           timezone: string | null
-          two_factor_enabled: boolean | null
           updated_at: string
         }
         Insert: {
-          admin_notes?: string | null
           auth_provider?: string | null
           avatar_url?: string | null
           bio?: string | null
@@ -3273,7 +2984,6 @@ export type Database = {
           created_at?: string
           email: string
           email_verified?: boolean | null
-          email_verified_at?: string | null
           full_name: string
           google_id?: string | null
           id: string
@@ -3281,17 +2991,12 @@ export type Database = {
           language?: string | null
           last_activity?: string | null
           last_login?: string | null
-          locked_until?: string | null
-          login_attempts?: number | null
           phone?: string | null
-          status?: string | null
           subscription_tier?: string | null
           timezone?: string | null
-          two_factor_enabled?: boolean | null
           updated_at?: string
         }
         Update: {
-          admin_notes?: string | null
           auth_provider?: string | null
           avatar_url?: string | null
           bio?: string | null
@@ -3299,7 +3004,6 @@ export type Database = {
           created_at?: string
           email?: string
           email_verified?: boolean | null
-          email_verified_at?: string | null
           full_name?: string
           google_id?: string | null
           id?: string
@@ -3307,13 +3011,9 @@ export type Database = {
           language?: string | null
           last_activity?: string | null
           last_login?: string | null
-          locked_until?: string | null
-          login_attempts?: number | null
           phone?: string | null
-          status?: string | null
           subscription_tier?: string | null
           timezone?: string | null
-          two_factor_enabled?: boolean | null
           updated_at?: string
         }
         Relationships: []
@@ -3957,21 +3657,6 @@ export type Database = {
       }
     }
     Views: {
-      admin_dashboard_stats: {
-        Row: {
-          active_chat_users_24h: number | null
-          active_subscriptions: number | null
-          active_users: number | null
-          inactive_users: number | null
-          messages_24h: number | null
-          new_bots_30d: number | null
-          new_users_30d: number | null
-          suspended_users: number | null
-          total_bots: number | null
-          total_link_clicks: number | null
-        }
-        Relationships: []
-      }
       bot_conversation_history: {
         Row: {
           bot_id: string | null
@@ -4530,14 +4215,6 @@ export type Database = {
         }
         Returns: Json[]
       }
-      get_user_permissions: {
-        Args: { user_uuid: string }
-        Returns: {
-          permission_name: string
-          category: string
-          source: string
-        }[]
-      }
       hide_demo_account_data: {
         Args: { user_id: string; data_value: string }
         Returns: string
@@ -4604,10 +4281,6 @@ export type Database = {
       transfer_local_businesses_to_prospects: {
         Args: { business_ids: string[]; target_database_id: string }
         Returns: number
-      }
-      user_has_permission: {
-        Args: { user_uuid: string; permission_name: string }
-        Returns: boolean
       }
     }
     Enums: {
