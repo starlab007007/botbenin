@@ -3,10 +3,10 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
-  Mail,
-  History,
-  Bell,
-  Settings 
+  Users,
+  CreditCard,
+  Target,
+  Megaphone
 } from 'lucide-react';
 
 interface QuickActionsProps {
@@ -15,10 +15,10 @@ interface QuickActionsProps {
 
 export const QuickActions: React.FC<QuickActionsProps> = ({ onActionClick }) => {
   const actions = [
-    { id: 'conversations', label: 'Contrôle Conversations', icon: Mail },
-    { id: 'history', label: 'Historique', icon: History },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'settings', label: 'Paramètres', icon: Settings }
+    { id: 'leads', label: 'Mes Lead', icon: Users },
+    { id: 'subscription', label: 'Mon Abonnement', icon: CreditCard },
+    { id: 'prospects', label: 'Mes Prospects', icon: Target },
+    { id: 'campaigns', label: 'Mes Campagnes', icon: Megaphone }
   ];
 
   return (
