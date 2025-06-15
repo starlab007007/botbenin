@@ -1,9 +1,9 @@
-import React from "react";
+
+import React, { useState } from "react";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, MessageSquare, RefreshCw, Info, Bug, Copy } from "lucide-react";
-import { useState } from "react";
+import { MessageSquare, RefreshCw, Copy } from "lucide-react";
 
 interface BotSession {
   id: string;
@@ -20,7 +20,6 @@ interface SessionHeaderProps {
   selectedSession: BotSession;
   loading: boolean;
   refetch: () => void;
-  // debugTokens: string | null; // Removed this prop as it's no longer used
 }
 
 export const SessionHeader: React.FC<SessionHeaderProps> = ({
@@ -28,7 +27,6 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
   selectedSession,
   loading,
   refetch,
-  // debugTokens // Removed from props
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -39,15 +37,15 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
   };
 
   return (
-    <CardHeader className="pb-1 flex-shrink-0">
+    <CardHeader className="pb-0 pt-2 px-3 flex-shrink-0">
       <div className="flex items-center justify-between">
-        <CardTitle className="text-sm font-semibold flex items-center">
+        <CardTitle className="text-[13px] font-semibold flex items-center">
           <MessageSquare className="w-4 h-4 mr-2" />
-          {/* Suffixe plus concis pour ne pas rallonger la ligne */}
-          Messages - Session {selectedSession.session_token.slice(0, 10)}...
+          {/* Suffixe concis */}
+          Messages • Session {selectedSession.session_token.slice(0, 10)}...
         </CardTitle>
         <div className="flex items-center space-x-2">
-          <Badge variant={selectedSession.source_type === 'anonymous' ? 'secondary' : 'default'}>
+          <Badge variant={selectedSession.source_type === 'anonymous' ? 'secondary' : 'default'} className="text-[11px] px-2 py-0.5">
             {selectedSession.source_type}
           </Badge>
           <Button 
@@ -55,13 +53,14 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
             variant="ghost" 
             size="sm"
             disabled={loading}
+            className="px-2"
           >
             <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
       <div className="flex items-center gap-2 text-xs text-blue-700 mt-1 select-all">
-        <span className="font-mono bg-blue-50 border border-blue-200 px-2 rounded cursor-pointer" title="Session Token admin">
+        <span className="font-mono bg-blue-50 border border-blue-200 px-2 rounded cursor-pointer truncate max-w-[180px]" title="Session Token admin">
           {selectedSession.session_token}
         </span>
         <button
@@ -73,7 +72,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
           {copied && <span className="ml-1 text-green-500">copié !</span>}
         </button>
       </div>
-      <div className="text-xs text-gray-500 mt-0">
+      <div className="text-[11px] text-gray-500 mt-0 pt-0">
         Bot: {selectedBot?.name} • Entrée: {selectedSession.entry_point}
       </div>
     </CardHeader>

@@ -24,6 +24,7 @@ interface SessionMessagesViewProps {
   selectedSession: BotSession | null;
 }
 
+// Correction : On évite l'ajout optimiste, et on attend le refetch pour l'afficher.
 export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   selectedBot,
   selectedSession
@@ -38,6 +39,7 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   );
   const [replyText, setReplyText] = useState("");
 
+  // Allège la fréquence d'interval pour une interface plus fluide
   useEffect(() => {
     if (selectedSession && selectedBot) {
       const interval = setInterval(() => {
@@ -47,14 +49,14 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
     }
   }, [selectedSession, selectedBot, refetch]);
 
+  // Correction : suppression affichage optimiste, on attend le refetch pour voir le message
   const handleSendReply = async () => {
     if (!replyText.trim()) return;
     try {
       console.log("[SessionMessagesView] Envoi d'un message admin avec session_token=", selectedSession?.session_token);
-      await sendManualMessage(replyText, () => {
-        setReplyText("");
-        setTimeout(() => refetch(), 500);
-      });
+      await sendManualMessage(replyText);
+      setReplyText("");
+      setTimeout(() => refetch(), 300); // On déclenche le refetch rapidement après envoi
     } catch (error) {
       console.error('Error sending manual message:', error);
     }
@@ -64,19 +66,20 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
     return <SessionEmptyState />;
   }
 
+  // OPTIMISATION AFFICHAGE – réduction de padding, fond plus clair, supprime ombre si espace faible
   return (
-    <Card className="flex flex-col px-5 py-4 items-stretch overflow-auto h-full bg-gray-50 border-blue-100 shadow-xl rounded-2xl">
+    <Card className="flex flex-col items-stretch overflow-auto h-full bg-gray-50 border-blue-100 rounded-xl" style={{ boxShadow: "0 1.5px 6px 1px #ced6f380" }}>
       <SessionHeader 
         selectedBot={selectedBot}
         selectedSession={selectedSession}
         loading={loading}
         refetch={refetch}
       />
-      <CardContent className="flex-1 overflow-y-auto space-y-3 p-2 pt-0 min-h-0">
+      <CardContent className="flex-1 overflow-y-auto space-y-2 px-1 py-0 min-h-0">
         <MessagesScroller messages={messages} />
         <SessionLoadingOrError loading={loading} error={error} refetch={refetch} />
       </CardContent>
-      <div className="border-t p-3 flex-shrink-0 bg-white rounded-b-2xl">
+      <div className="border-t p-2 flex-shrink-0 bg-white rounded-b-xl">
         <MessageReplyForm
           replyText={replyText}
           setReplyText={setReplyText}
