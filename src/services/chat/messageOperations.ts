@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 /**
- * Saves a chat message with enhanced session reconciliation and error handling
+ * Enhanced message saving with improved session reconciliation
  */
 export const saveChatMessage = async (
   botId: string,
@@ -13,55 +13,56 @@ export const saveChatMessage = async (
   metadata: Json = {}
 ) => {
   try {
-    console.log(`[messageOperations] === ENHANCED MESSAGE SAVING ===`);
+    console.log(`[messageOperations] === ENHANCED MESSAGE SAVING (UNIFIED) ===`);
     console.log(`[messageOperations] Bot ID: ${botId}`);
     console.log(`[messageOperations] Session Token: ${sessionToken}`);
     console.log(`[messageOperations] Message Type: ${type}`);
     console.log(`[messageOperations] Content Preview: ${content.substring(0, 100)}...`);
     
-    // Validation des paramètres d'entrée
+    // Enhanced parameter validation
     if (!botId || !sessionToken || !content || !type) {
       console.error('[messageOperations] Missing required parameters:', { botId, sessionToken, content, type });
-      return null;
+      throw new Error('Missing required parameters for message saving');
     }
 
     if (!sessionToken.startsWith('anon_')) {
       console.warn('[messageOperations] Unexpected session token format:', sessionToken);
     }
     
-    // Enrichir les métadonnées
+    // Enhanced metadata with unified tracking
     const baseMetadata = (metadata && typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata)) ? metadata : {};
-    const enrichedMetadata = {
+    const unifiedMetadata = {
       ...baseMetadata,
       session_token: sessionToken,
       sessionToken: sessionToken,
       saved_at: new Date().toISOString(),
       message_type: type,
-      platform: 'bot_bj',
-      enhanced_reconciliation: true,
+      platform: 'bot_bj_unified',
+      unified_system: true,
       save_attempt_id: crypto.randomUUID(),
       debug_info: {
         bot_id: botId,
         session_token: sessionToken,
         saved_timestamp: Date.now(),
         user_agent: navigator?.userAgent || 'unknown',
-        url: window?.location?.href || 'unknown'
+        url: window?.location?.href || 'unknown',
+        system_version: 'unified_v1'
       }
     };
 
-    console.log(`[messageOperations] Enhanced metadata:`, enrichedMetadata);
+    console.log(`[messageOperations] Unified metadata:`, unifiedMetadata);
 
-    // Utiliser la fonction RPC améliorée
+    // Use the improved save_chat_message function (which now uses enhanced_session_reconciliation)
     const { data, error } = await supabase.rpc('save_chat_message', {
       p_bot_id: botId,
       p_session_token: sessionToken,
       p_message_content: content,
       p_message_type: type,
-      p_metadata: enrichedMetadata,
+      p_metadata: unifiedMetadata,
     });
 
     if (error) {
-      console.error('[messageOperations] *** SAVE ERROR ***');
+      console.error('[messageOperations] *** UNIFIED SAVE ERROR ***');
       console.error('[messageOperations] RPC Error:', error);
       console.error('[messageOperations] Error details:', {
         code: error.code,
@@ -70,51 +71,67 @@ export const saveChatMessage = async (
         hint: error.hint
       });
 
-      // Tentative de fallback avec insertion directe
-      console.log('[messageOperations] Attempting direct insert fallback...');
-      return await saveMessageDirectFallback(botId, sessionToken, content, type, enrichedMetadata);
+      // Enhanced fallback with session reconciliation
+      console.log('[messageOperations] Attempting enhanced fallback with reconciliation...');
+      return await saveMessageWithReconciliation(botId, sessionToken, content, type, unifiedMetadata);
     }
 
-    console.log('[messageOperations] *** MESSAGE SAVED SUCCESSFULLY ***');
+    console.log('[messageOperations] *** UNIFIED MESSAGE SAVED SUCCESSFULLY ***');
     console.log('[messageOperations] Message ID:', data);
-    console.log('[messageOperations] Session reconciliation completed');
+    console.log('[messageOperations] Enhanced session reconciliation completed');
     
     return data;
   } catch (err) {
-    console.error('[messageOperations] *** EXCEPTION IN saveChatMessage ***');
+    console.error('[messageOperations] *** EXCEPTION IN UNIFIED saveChatMessage ***');
     console.error('[messageOperations] Exception:', err);
     
-    // Dernière tentative avec insertion directe
+    // Enhanced emergency fallback
     try {
-      console.log('[messageOperations] Attempting emergency direct insert...');
-      return await saveMessageDirectFallback(botId, sessionToken, content, type, metadata as any);
+      console.log('[messageOperations] Attempting enhanced emergency fallback...');
+      return await saveMessageWithReconciliation(botId, sessionToken, content, type, metadata as any);
     } catch (fallbackErr) {
-      console.error('[messageOperations] Emergency fallback failed:', fallbackErr);
-      return null;
+      console.error('[messageOperations] Enhanced emergency fallback failed:', fallbackErr);
+      throw new Error(`Message saving failed completely: ${fallbackErr}`);
     }
   }
 };
 
 /**
- * Fallback direct pour sauvegarder un message si la RPC échoue
+ * Enhanced fallback with session reconciliation
  */
-const saveMessageDirectFallback = async (
+const saveMessageWithReconciliation = async (
   botId: string,
   sessionToken: string,
   content: string,
   type: 'user' | 'bot',
   metadata: any
 ) => {
-  console.log('[messageOperations] === DIRECT INSERT FALLBACK ===');
+  console.log('[messageOperations] === ENHANCED FALLBACK WITH RECONCILIATION ===');
   
-  // D'abord, s'assurer qu'un bot_user existe
-  let botUserId = await ensureBotUserExists(botId, sessionToken);
-  
-  if (!botUserId) {
-    throw new Error('Could not create or find bot_user for session');
+  // Use the enhanced session reconciliation function
+  let botUserId: string;
+  try {
+    const { data: reconciledUserId, error: reconcileError } = await supabase.rpc(
+      'enhanced_session_reconciliation',
+      {
+        p_bot_id: botId,
+        p_session_token: sessionToken
+      }
+    );
+
+    if (reconcileError) {
+      console.error('[messageOperations] Session reconciliation failed:', reconcileError);
+      throw reconcileError;
+    }
+
+    botUserId = reconciledUserId;
+    console.log('[messageOperations] Session reconciliation successful:', botUserId);
+  } catch (reconcileErr) {
+    console.error('[messageOperations] Enhanced reconciliation failed:', reconcileErr);
+    throw new Error(`Session reconciliation failed: ${reconcileErr}`);
   }
 
-  // Insérer le message directement
+  // Insert message directly with reconciled session
   const { data, error } = await supabase
     .from('chat_messages')
     .insert({
@@ -124,7 +141,8 @@ const saveMessageDirectFallback = async (
       message_type: type,
       metadata: {
         ...metadata,
-        fallback_save: true,
+        enhanced_fallback: true,
+        reconciliation_method: 'enhanced',
         fallback_timestamp: new Date().toISOString()
       }
     })
@@ -132,49 +150,10 @@ const saveMessageDirectFallback = async (
     .single();
 
   if (error) {
-    console.error('[messageOperations] Direct insert failed:', error);
+    console.error('[messageOperations] Enhanced direct insert failed:', error);
     throw error;
   }
 
-  console.log('[messageOperations] Direct insert successful:', data.id);
+  console.log('[messageOperations] Enhanced direct insert successful:', data.id);
   return data.id;
-};
-
-/**
- * S'assurer qu'un bot_user existe pour la session
- */
-const ensureBotUserExists = async (botId: string, sessionToken: string) => {
-  // Chercher un bot_user existant
-  const { data: existingUser, error: searchError } = await supabase
-    .from('bot_users')
-    .select('id')
-    .eq('bot_id', botId)
-    .eq('session_id', sessionToken)
-    .single();
-
-  if (!searchError && existingUser) {
-    console.log('[messageOperations] Found existing bot_user:', existingUser.id);
-    return existingUser.id;
-  }
-
-  // Créer un nouveau bot_user
-  const { data: newUser, error: createError } = await supabase
-    .from('bot_users')
-    .insert({
-      bot_id: botId,
-      session_id: sessionToken,
-      user_name: 'Session ' + sessionToken.slice(0, 8),
-      is_authenticated: false,
-      last_active: new Date().toISOString()
-    })
-    .select('id')
-    .single();
-
-  if (createError) {
-    console.error('[messageOperations] Failed to create bot_user:', createError);
-    return null;
-  }
-
-  console.log('[messageOperations] Created new bot_user:', newUser.id);
-  return newUser.id;
 };

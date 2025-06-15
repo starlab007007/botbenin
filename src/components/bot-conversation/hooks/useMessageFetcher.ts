@@ -30,7 +30,7 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Protection contre les appels multiples
+  // Protection against multiple calls
   const fetchingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -42,12 +42,12 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
       return;
     }
 
-    // Annuler la requête précédente si elle existe
+    // Cancel previous request if exists
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
 
-    // Éviter les appels multiples simultanés
+    // Prevent multiple simultaneous calls
     if (fetchingRef.current) {
       console.log('[useMessageFetcher] Fetch already in progress, skipping');
       return;
@@ -57,17 +57,17 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
     setLoading(true);
     setError(null);
     
-    // Créer un nouveau contrôleur d'abandon
+    // Create new abort controller
     abortControllerRef.current = new AbortController();
 
-    console.log(`[useMessageFetcher] === ENHANCED MESSAGE FETCHING ===`);
+    console.log(`[useMessageFetcher] === UNIFIED MESSAGE FETCHING ===`);
     console.log(`[useMessageFetcher] Bot: ${botId}, Session: ${sessionToken}`);
 
     try {
-      // Utiliser la fonction getChatHistory améliorée
+      // Use unified getChatHistory function
       const data = await getChatHistory(botId, sessionToken);
 
-      // Vérifier si la requête a été annulée
+      // Check if request was aborted
       if (abortControllerRef.current?.signal.aborted) {
         console.log('[useMessageFetcher] Request was aborted');
         return;
@@ -76,21 +76,21 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
       if (data && data.length > 0) {
         const allMessages = mapRawMessagesToTyped(data);
         
-        // Supprimer les doublons par message_id
+        // Remove duplicates by message_id
         const uniqueMessages = Array.from(
           new Map(allMessages.map(item => [item.message_id, item])).values()
         );
         
-        // Trier par timestamp
+        // Sort by timestamp
         uniqueMessages.sort(
           (a, b) => new Date(a.message_timestamp).getTime() - new Date(b.message_timestamp).getTime()
         );
 
-        console.log(`[useMessageFetcher] Successfully processed ${uniqueMessages.length} unique messages`);
+        console.log(`[useMessageFetcher] Unified system processed ${uniqueMessages.length} unique messages`);
         setMessages(uniqueMessages);
         setError(null);
       } else {
-        console.log('[useMessageFetcher] No messages found');
+        console.log('[useMessageFetcher] No messages found in unified system');
         setMessages([]);
         setError(null);
       }
@@ -100,8 +100,8 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
         return;
       }
       
-      console.error('[useMessageFetcher] Exception in fetchMessages:', err);
-      setError('Failed to fetch message history');
+      console.error('[useMessageFetcher] Unified system exception:', err);
+      setError('Failed to fetch message history from unified system');
       setMessages([]);
     } finally {
       setLoading(false);
@@ -122,7 +122,7 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
     };
   }, [fetchMessages]);
 
-  // Fonction pour forcer un refresh
+  // Force refresh function
   const refreshMessages = useCallback(() => {
     fetchingRef.current = false;
     fetchMessages();

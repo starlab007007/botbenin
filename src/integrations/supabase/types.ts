@@ -3962,6 +3962,89 @@ export type Database = {
           },
         ]
       }
+      unified_conversation_history: {
+        Row: {
+          bot_id: string | null
+          bot_name: string | null
+          bot_user_id: string | null
+          enhanced_session_token: string | null
+          entry_point: string | null
+          ip_address: string | null
+          message_content: string | null
+          message_id: string | null
+          message_timestamp: string | null
+          message_type: string | null
+          metadata: Json | null
+          owner_id: string | null
+          session_id: string | null
+          session_last_activity: string | null
+          session_start: string | null
+          session_total_messages: number | null
+          user_agent: string | null
+          user_email: string | null
+          user_first_seen: string | null
+          user_last_active: string | null
+          user_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_stats: {
         Row: {
           created_at: string | null
@@ -4122,6 +4205,15 @@ export type Database = {
           top_performing_bot_name: string
           last_activity: string
         }[]
+      }
+      get_unified_chat_history: {
+        Args: {
+          p_bot_id: string
+          p_session_token?: string
+          p_bot_user_id?: string
+          p_limit?: number
+        }
+        Returns: Json[]
       }
       hide_demo_account_data: {
         Args: { user_id: string; data_value: string }

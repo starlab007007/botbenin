@@ -21,7 +21,7 @@ export const useSessionMessages = (
   const [error, setError] = useState<string | null>(null);
   const [debugTokens, setDebugTokens] = useState<string | null>(null);
   
-  // Ref pour éviter les appels en double
+  // Ref to prevent duplicate calls
   const fetchingRef = useRef(false);
   const lastFetchParams = useRef<string>('');
 
@@ -33,10 +33,10 @@ export const useSessionMessages = (
       return;
     }
 
-    // Créer une clé unique pour cette requête
+    // Create unique key for this request
     const currentParams = `${botId}-${sessionToken}`;
     
-    // Éviter les appels duplicatas
+    // Prevent duplicate calls
     if (fetchingRef.current && lastFetchParams.current === currentParams) {
       console.log('[useSessionMessages] Skipping duplicate fetch request');
       return;
@@ -50,19 +50,19 @@ export const useSessionMessages = (
     setDebugTokens(null);
 
     try {
-      console.log(`[useSessionMessages] === ENHANCED MESSAGE FETCH ===`);
+      console.log(`[useSessionMessages] === UNIFIED MESSAGE FETCH ===`);
       console.log(`[useSessionMessages] Bot: ${botId}, Session: ${sessionToken}`);
       
-      // Debug des tokens en parallèle (non bloquant)
+      // Debug tokens in parallel (non-blocking)
       debugSessionTokens(botId).catch(err => {
         console.warn('[useSessionMessages] Debug tokens failed:', err);
       });
 
-      // Récupération principale avec la fonction améliorée
+      // Main retrieval using unified system
       const data = await getChatHistory(botId, sessionToken);
 
       if (data && data.length > 0) {
-        console.log(`[useSessionMessages] Successfully retrieved ${data.length} messages`);
+        console.log(`[useSessionMessages] Unified system retrieved ${data.length} messages`);
         
         const formattedMessages: SessionMessage[] = data.map((item: any) => ({
           id: item.message_id || item.id,
@@ -73,24 +73,24 @@ export const useSessionMessages = (
           bot_user_id: item.bot_user_id,
         }));
 
-        // Trier par timestamp
+        // Sort by timestamp
         formattedMessages.sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
 
         setMessages(formattedMessages);
-        setDebugTokens(`Retrieved ${formattedMessages.length} messages with enhanced system`);
+        setDebugTokens(`Unified system: ${formattedMessages.length} messages retrieved`);
       } else {
-        console.log('[useSessionMessages] No messages found');
+        console.log('[useSessionMessages] No messages found in unified system');
         setMessages([]);
-        setDebugTokens('No messages found - session may be new');
+        setDebugTokens('No messages found - unified system ready');
       }
 
     } catch (err: any) {
-      console.error('[useSessionMessages] Exception:', err);
-      setError(err.message || 'Failed to fetch messages');
+      console.error('[useSessionMessages] Unified system exception:', err);
+      setError(err.message || 'Failed to fetch messages from unified system');
       setMessages([]);
-      setDebugTokens('Error occurred during message fetch');
+      setDebugTokens('Error occurred in unified message fetch');
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -101,7 +101,7 @@ export const useSessionMessages = (
     fetchMessages();
   }, [fetchMessages]);
 
-  // Fonction pour forcer un refresh
+  // Force refresh function
   const refreshMessages = useCallback(() => {
     fetchingRef.current = false;
     lastFetchParams.current = '';

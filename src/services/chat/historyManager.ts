@@ -2,115 +2,95 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Fonction améliorée pour récupérer l'historique des messages avec stratégies multiples
+ * Enhanced function to retrieve chat history using the new unified system
  */
 export const getChatHistory = async (botId: string, sessionToken: string) => {
   try {
-    console.log(`[historyManager] === ENHANCED CHAT HISTORY RETRIEVAL ===`);
+    console.log(`[historyManager] === UNIFIED CHAT HISTORY RETRIEVAL ===`);
     console.log(`[historyManager] Bot ID: ${botId}`);
     console.log(`[historyManager] Session Token: ${sessionToken}`);
     
-    // Stratégie 1: Utiliser la fonction RPC optimisée
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_chat_history', {
+    // Use the new unified RPC function
+    const { data: unifiedData, error: unifiedError } = await supabase.rpc('get_unified_chat_history', {
       p_bot_id: botId,
       p_session_token: sessionToken,
       p_bot_user_id: null,
+      p_limit: 100
     });
 
-    if (rpcError) {
-      console.error('[historyManager] RPC Error:', rpcError);
+    if (unifiedError) {
+      console.error('[historyManager] Unified RPC Error:', unifiedError);
       
-      // Stratégie 2: Fallback avec requête directe
-      console.log('[historyManager] Attempting direct query fallback...');
-      return await getMessagesDirectQuery(botId, sessionToken);
+      // Fallback with direct query using the new view
+      console.log('[historyManager] Attempting fallback with unified view...');
+      return await getMessagesFromUnifiedView(botId, sessionToken);
     }
 
-    if (rpcData && rpcData.length > 0) {
-      console.log(`[historyManager] RPC success: ${rpcData.length} messages retrieved`);
-      return rpcData;
+    if (unifiedData && unifiedData.length > 0) {
+      console.log(`[historyManager] Unified system success: ${unifiedData.length} messages retrieved`);
+      return unifiedData;
     }
 
-    // Stratégie 3: Si RPC ne retourne rien, essayer la requête directe
-    console.log('[historyManager] RPC returned no data, trying direct query...');
-    return await getMessagesDirectQuery(botId, sessionToken);
+    // If unified RPC returns no data, try direct view query
+    console.log('[historyManager] Unified RPC returned no data, trying direct view query...');
+    return await getMessagesFromUnifiedView(botId, sessionToken);
 
   } catch (err) {
     console.error('[historyManager] Exception in getChatHistory:', err);
     
-    // Dernière tentative avec requête directe
+    // Last attempt with unified view
     try {
-      return await getMessagesDirectQuery(botId, sessionToken);
+      return await getMessagesFromUnifiedView(botId, sessionToken);
     } catch (fallbackErr) {
-      console.error('[historyManager] Fallback query also failed:', fallbackErr);
+      console.error('[historyManager] Unified view query also failed:', fallbackErr);
       return null;
     }
   }
 };
 
 /**
- * Requête directe en fallback pour récupérer les messages
+ * Direct query using the new unified conversation history view
  */
-const getMessagesDirectQuery = async (botId: string, sessionToken: string) => {
-  console.log('[historyManager] Executing direct query fallback...');
+const getMessagesFromUnifiedView = async (botId: string, sessionToken: string) => {
+  console.log('[historyManager] Executing unified view query...');
   
-  // Requête directe avec jointures
+  // Query the new unified view directly
   const { data, error } = await supabase
-    .from('chat_messages')
-    .select(`
-      id,
-      bot_id,
-      bot_user_id,
-      created_at,
-      message_content,
-      message_type,
-      ip_address,
-      user_agent,
-      metadata,
-      bot_users!inner (
-        id,
-        session_id,
-        user_name,
-        user_email,
-        created_at,
-        last_active
-      ),
-      bots!inner (
-        id,
-        name,
-        owner_id
-      )
-    `)
+    .from('unified_conversation_history')
+    .select('*')
     .eq('bot_id', botId)
-    .or(`bot_users.session_id.eq.${sessionToken},metadata->>session_token.eq.${sessionToken},metadata->>sessionToken.eq.${sessionToken}`)
-    .order('created_at', { ascending: true });
+    .or(`session_id.eq.${sessionToken},enhanced_session_token.eq.${sessionToken},metadata->>session_token.eq.${sessionToken},metadata->>sessionToken.eq.${sessionToken}`)
+    .order('message_timestamp', { ascending: true });
 
   if (error) {
-    console.error('[historyManager] Direct query error:', error);
+    console.error('[historyManager] Unified view query error:', error);
     throw error;
   }
 
-  // Transformer les données au format attendu
+  // Transform data to expected format (the view already provides most fields)
   const transformedData = data?.map((item: any) => ({
-    id: item.id,
-    message_id: item.id,
+    id: item.message_id,
+    message_id: item.message_id,
     bot_id: item.bot_id,
     bot_user_id: item.bot_user_id,
-    created_at: item.created_at,
-    message_timestamp: item.created_at,
+    created_at: item.message_timestamp,
+    message_timestamp: item.message_timestamp,
     message_content: item.message_content,
     message_type: item.message_type,
     ip_address: item.ip_address,
     user_agent: item.user_agent,
     metadata: item.metadata,
-    session_id: item.bot_users?.session_id || item.metadata?.session_token || 'unknown',
-    user_name: item.bot_users?.user_name || 'Utilisateur Anonyme',
-    user_email: item.bot_users?.user_email,
-    user_first_seen: item.bot_users?.created_at,
-    user_last_active: item.bot_users?.last_active,
-    bot_name: item.bots?.name,
-    owner_id: item.bots?.owner_id
+    session_id: item.session_id || item.enhanced_session_token || 'unknown',
+    user_name: item.user_name || 'Utilisateur Anonyme',
+    user_email: item.user_email,
+    user_first_seen: item.user_first_seen,
+    user_last_active: item.user_last_active,
+    bot_name: item.bot_name,
+    owner_id: item.owner_id,
+    session_start: item.session_start,
+    entry_point: item.entry_point
   })) || [];
 
-  console.log(`[historyManager] Direct query success: ${transformedData.length} messages`);
+  console.log(`[historyManager] Unified view success: ${transformedData.length} messages`);
   return transformedData;
 };
