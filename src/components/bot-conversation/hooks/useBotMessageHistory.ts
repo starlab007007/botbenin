@@ -4,6 +4,7 @@ import { useBotUserId } from "./useBotUserId";
 import { useMessageFetcher } from "./useMessageFetcher";
 import { useRealtimeMessages } from "./useRealtimeMessages";
 import { useSendManualResponse } from "./useSendManualResponse";
+import { testMessageRetrieval, debugSessionTokens } from "@/services/chatService";
 import { BotMessageHistoryItem } from "../types";
 
 export const useBotMessageHistory = (botId: string | null, sessionToken: string | null) => {
@@ -22,6 +23,24 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
     } else {
       console.log(`[useBotMessageHistory] Initialized for bot ${botId} with session ${sessionToken}`);
       setHasInitialized(true);
+      
+      // Debug immédiat quand on reçoit un nouveau token
+      if (sessionToken.startsWith('anon_')) {
+        console.log(`[useBotMessageHistory] === DEBUGGING NEW SESSION ===`);
+        console.log(`[useBotMessageHistory] Session token: ${sessionToken}`);
+        
+        // Lancer le debug des tokens en parallèle
+        debugSessionTokens(botId).then(() => {
+          console.log(`[useBotMessageHistory] Debug completed for bot ${botId}`);
+        });
+
+        // Tester la récupération des messages
+        setTimeout(() => {
+          testMessageRetrieval(botId, sessionToken).then((results) => {
+            console.log(`[useBotMessageHistory] Test retrieval results:`, results);
+          });
+        }, 2000);
+      }
     }
   }, [botId, sessionToken, setMessages]);
 

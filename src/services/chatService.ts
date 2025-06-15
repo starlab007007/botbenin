@@ -22,7 +22,11 @@ export const saveChatMessage = async (
   metadata: Json = {}
 ) => {
   try {
-    console.log(`[chatService] Saving message for bot ${botId}, session ${sessionToken}, type: ${type}`);
+    console.log(`[chatService] === SAVING MESSAGE ===`);
+    console.log(`[chatService] Bot ID: ${botId}`);
+    console.log(`[chatService] Session Token: ${sessionToken}`);
+    console.log(`[chatService] Message Type: ${type}`);
+    console.log(`[chatService] Content Preview: ${content.substring(0, 100)}...`);
     
     // Validation des paramètres d'entrée
     if (!botId || !sessionToken || !content || !type) {
@@ -42,10 +46,15 @@ export const saveChatMessage = async (
       sessionToken: sessionToken, // Double sécurité
       saved_at: new Date().toISOString(),
       message_type: type,
-      platform: 'bot_bj'
+      platform: 'bot_bj',
+      debug_info: {
+        bot_id: botId,
+        session_token: sessionToken,
+        saved_timestamp: Date.now()
+      }
     };
 
-    console.log(`[chatService] Calling save_chat_message RPC with enriched metadata`);
+    console.log(`[chatService] Enriched metadata:`, enrichedMetadata);
 
     const { data, error } = await supabase.rpc('save_chat_message', {
       p_bot_id: botId,
@@ -56,7 +65,8 @@ export const saveChatMessage = async (
     });
 
     if (error) {
-      console.error('[chatService] Error saving chat message via RPC:', error);
+      console.error('[chatService] *** ERROR SAVING MESSAGE ***');
+      console.error('[chatService] RPC Error:', error);
       console.error('[chatService] RPC parameters were:', {
         p_bot_id: botId,
         p_session_token: sessionToken,
@@ -66,11 +76,31 @@ export const saveChatMessage = async (
       return null;
     }
 
-    console.log('[chatService] Chat message saved successfully, ID:', data);
+    console.log('[chatService] *** MESSAGE SAVED SUCCESSFULLY ***');
+    console.log('[chatService] Message ID:', data);
     console.log('[chatService] Session token used:', sessionToken);
+    
+    // Vérification immédiate : chercher le message qu'on vient de sauvegarder
+    setTimeout(async () => {
+      console.log('[chatService] === VERIFICATION POST-SAUVEGARDE ===');
+      const { data: verification, error: verifyError } = await supabase
+        .from('chat_messages')
+        .select('id, metadata, bot_users!inner(session_id)')
+        .eq('bot_id', botId)
+        .eq('id', data)
+        .single();
+      
+      if (verification) {
+        console.log('[chatService] Message trouvé après sauvegarde:', verification);
+      } else {
+        console.error('[chatService] Message INTROUVABLE après sauvegarde:', verifyError);
+      }
+    }, 1000);
+
     return data;
   } catch (err) {
-    console.error('[chatService] Exception in saveChatMessage:', err);
+    console.error('[chatService] *** EXCEPTION IN saveChatMessage ***');
+    console.error('[chatService] Exception:', err);
     return null;
   }
 };
@@ -80,17 +110,19 @@ export const saveChatMessage = async (
  */
 export const debugSessionTokens = async (botId: string) => {
   try {
-    console.log(`[chatService] Debug session tokens called for bot ${botId}`);
+    console.log(`[chatService] === DEBUG SESSION TOKENS CALLED ===`);
+    console.log(`[chatService] Bot ID: ${botId}`);
     
     // Recherche directe des messages récents pour debug
     const { data, error } = await supabase
       .from('chat_messages')
       .select(`
         id,
-        metadata,
-        message_type,
         created_at,
-        bot_users!inner(session_id)
+        message_type,
+        message_content,
+        metadata,
+        bot_users!inner(session_id, user_name)
       `)
       .eq('bot_id', botId)
       .order('created_at', { ascending: false })
@@ -101,11 +133,121 @@ export const debugSessionTokens = async (botId: string) => {
       return null;
     }
 
-    console.log('[chatService] === DEBUG SESSION TOKENS ===');
-    console.table(data);
+    console.log('[chatService] === DEBUG SESSION TOKENS RESULTS ===');
+    console.log(`[chatService] Total messages found: ${data?.length || 0}`);
+    
+    if (data && data.length > 0) {
+      console.table(data.map(msg => ({
+        id: msg.id,
+        type: msg.message_type,
+        content: msg.message_content?.substring(0, 50) + '...',
+        session_id: msg.bot_users?.session_id,
+        metadata_token: msg.metadata?.session_token || 'N/A',
+        created: msg.created_at
+      })));
+
+      const foundTokens = [
+        ...new Set(
+          data
+            .map(m => {
+              const tokens = [];
+              if (m.metadata && typeof m.metadata === 'object' && m.metadata !== null) {
+                if ('session_token' in m.metadata) tokens.push(m.metadata.session_token);
+                if ('sessionToken' in m.metadata) tokens.push(m.metadata.sessionToken);
+              }
+              if (m.bot_users?.session_id) tokens.push(m.bot_users.session_id);
+              return tokens;
+            })
+            .flat()
+            .filter(Boolean)
+        ),
+      ];
+
+      console.log(`[chatService] Unique tokens found: ${foundTokens.join(', ')}`);
+    } else {
+      console.log('[chatService] No messages found in database for this bot');
+    }
+
     return data;
   } catch (err) {
     console.error('[chatService] Exception in debugSessionTokens:', err);
+    return null;
+  }
+};
+
+/**
+ * Nouvelle fonction pour tester la récupération des messages par token
+ */
+export const testMessageRetrieval = async (botId: string, sessionToken: string) => {
+  try {
+    console.log(`[chatService] === TEST MESSAGE RETRIEVAL ===`);
+    console.log(`[chatService] Testing retrieval for bot ${botId}, token ${sessionToken}`);
+
+    // Test 1: Appel RPC get_chat_history
+    console.log('[chatService] Test 1: RPC get_chat_history');
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_chat_history', {
+      p_bot_id: botId,
+      p_session_token: sessionToken,
+      p_bot_user_id: null,
+    });
+
+    if (rpcError) {
+      console.error('[chatService] RPC Error:', rpcError);
+    } else {
+      console.log(`[chatService] RPC returned ${rpcData?.length || 0} messages`);
+    }
+
+    // Test 2: Recherche directe par metadata
+    console.log('[chatService] Test 2: Direct metadata search');
+    const { data: directData, error: directError } = await supabase
+      .from('chat_messages')
+      .select(`
+        id,
+        message_content,
+        message_type,
+        created_at,
+        metadata,
+        bot_users!inner(session_id)
+      `)
+      .eq('bot_id', botId)
+      .or(`metadata->>session_token.eq.${sessionToken},bot_users.session_id.eq.${sessionToken}`)
+      .order('created_at', { ascending: true });
+
+    if (directError) {
+      console.error('[chatService] Direct search error:', directError);
+    } else {
+      console.log(`[chatService] Direct search returned ${directData?.length || 0} messages`);
+    }
+
+    // Test 3: Recherche avec LIKE pour partial match
+    console.log('[chatService] Test 3: Partial token search');
+    const { data: partialData, error: partialError } = await supabase
+      .from('chat_messages')
+      .select(`
+        id,
+        message_content,
+        message_type,
+        created_at,
+        metadata,
+        bot_users!inner(session_id)
+      `)
+      .eq('bot_id', botId)
+      .or(`metadata::text.ilike.%${sessionToken}%,bot_users.session_id.ilike.%${sessionToken}%`)
+      .order('created_at', { ascending: true });
+
+    if (partialError) {
+      console.error('[chatService] Partial search error:', partialError);
+    } else {
+      console.log(`[chatService] Partial search returned ${partialData?.length || 0} messages`);
+    }
+
+    return {
+      rpc: rpcData,
+      direct: directData,
+      partial: partialData
+    };
+  } catch (err) {
+    console.error('[chatService] Exception in testMessageRetrieval:', err);
     return null;
   }
 };

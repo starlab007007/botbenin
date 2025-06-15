@@ -6,7 +6,7 @@ import { ChatMessageArea } from '@/components/ChatMessageArea';
 import { ChatInputArea } from '@/components/ChatInputArea';
 import { BotConfigService } from '@/services/botConfigService';
 import { useAuth } from '@/contexts/AuthContext';
-import { saveChatMessage } from '@/services/chatService';
+import { saveChatMessage, testMessageRetrieval } from '@/services/chatService';
 import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
 import { useSessionManager } from '@/hooks/useSessionManager';
 
@@ -191,7 +191,10 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       return;
     }
 
-    console.log(`[StandardizedChatInterface] Sending message with session token: ${sessionToken}`);
+    console.log(`[StandardizedChatInterface] === SENDING MESSAGE ===`);
+    console.log(`[StandardizedChatInterface] Message: ${textToSend}`);
+    console.log(`[StandardizedChatInterface] Session token: ${sessionToken}`);
+    console.log(`[StandardizedChatInterface] Bot ID: ${botId}`);
 
     setShowSuggestions(false);
 
@@ -210,7 +213,15 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     // Save user message with unified session token
     if (sessionToken) {
       console.log(`[StandardizedChatInterface] Saving user message: bot=${botId}, token=${sessionToken}`);
-      saveChatMessage(botId, sessionToken, textToSend, "user");
+      const messageId = await saveChatMessage(botId, sessionToken, textToSend, "user");
+      console.log(`[StandardizedChatInterface] User message saved with ID: ${messageId}`);
+      
+      // Test de récupération immédiate après sauvegarde
+      setTimeout(() => {
+        testMessageRetrieval(botId, sessionToken).then((results) => {
+          console.log(`[StandardizedChatInterface] Post-save retrieval test:`, results);
+        });
+      }, 1500);
     }
 
     setMessages(prev => [...prev, userMessage]);
@@ -296,7 +307,15 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       // Save bot response with unified session token
       if (sessionToken) {
         console.log(`[StandardizedChatInterface] Saving bot response: bot=${botId}, token=${sessionToken}`);
-        saveChatMessage(botId, sessionToken, processedContent.trim(), "bot");
+        const responseId = await saveChatMessage(botId, sessionToken, processedContent.trim(), "bot");
+        console.log(`[StandardizedChatInterface] Bot response saved with ID: ${responseId}`);
+        
+        // Test de récupération après sauvegarde de la réponse
+        setTimeout(() => {
+          testMessageRetrieval(botId, sessionToken).then((results) => {
+            console.log(`[StandardizedChatInterface] Post-response retrieval test:`, results);
+          });
+        }, 1500);
       }
 
       setMessages(prev => [...prev, aiMessage]);
