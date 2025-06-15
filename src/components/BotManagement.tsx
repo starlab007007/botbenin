@@ -40,6 +40,10 @@ import {
   QrCode,
   Download
 } from 'lucide-react';
+import { BotManagerNav } from "./BotManagerNav";
+import { QRCodeModal } from "./QRCodeModal";
+import { BotCard } from "./BotCard";
+import { cleanPublicUrl } from "./botManagementUtils";
 
 interface Bot {
   id: string;
@@ -555,7 +559,7 @@ export const BotManagement: React.FC = () => {
       <div className="space-y-6">
         {/* Navigation entre les vues */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          {renderNavigation()}
+          <BotManagerNav currentView={currentView} onChangeView={setCurrentView} />
           <Button 
             onClick={() => setCurrentView('create')}
             className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
@@ -564,7 +568,6 @@ export const BotManagement: React.FC = () => {
             Nouveau Chatbot
           </Button>
         </div>
-
         <OwnerDashboard onViewBotAnalytics={viewAnalytics} />
       </div>
     );
@@ -582,7 +585,7 @@ export const BotManagement: React.FC = () => {
     <div className="space-y-6">
       {/* Navigation entre les vues */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        {renderNavigation()}
+        <BotManagerNav currentView={currentView} onChangeView={setCurrentView} />
         <Button 
           onClick={() => setCurrentView('create')}
           className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
@@ -591,60 +594,20 @@ export const BotManagement: React.FC = () => {
           Nouveau Chatbot
         </Button>
       </div>
-
       {/* QR Code Modal */}
       {showQrCode && qrCodeUrl && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="p-6 max-w-md w-full mx-4">
-            <div className="text-center space-y-4">
-              <h3 className="text-lg font-semibold">QR Code du Chatbot</h3>
-              <img src={qrCodeUrl} alt="QR Code" className="mx-auto" />
-              <p className="text-sm text-gray-600">
-                Scannez ce QR Code pour accéder directement au chat
-              </p>
-              <div className="flex space-x-2">
-                <Button
-                  onClick={() => downloadQRCode(bots.find(bot => bot.public_chat_url === showQrCode)?.name || 'bot')}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Télécharger
-                </Button>
-                <Button
-                  onClick={() => shareQRCode(bots.find(bot => bot.public_chat_url === showQrCode)?.name || 'bot')}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-                >
-                  <FaWhatsapp className="w-4 h-4 mr-2" />
-                  WhatsApp
-                </Button>
-              </div>
-              <Button
-                onClick={() => {
-                  setShowQrCode(null);
-                  setQrCodeUrl('');
-                }}
-                variant="ghost"
-                size="sm"
-                className="w-full"
-              >
-                Fermer
-              </Button>
-            </div>
-          </Card>
-        </div>
+        <QRCodeModal
+          botName={bots.find(b => b.public_chat_url === showQrCode)?.name || 'bot'}
+          qrCodeUrl={qrCodeUrl}
+          onDownload={() => downloadQRCode(bots.find(b => b.public_chat_url === showQrCode)?.name || 'bot')}
+          onShare={() => shareQRCode(bots.find(b => b.public_chat_url === showQrCode)?.name || 'bot')}
+          onClose={() => { setShowQrCode(null); setQrCodeUrl(''); }}
+        />
       )}
-
-      {/* Vue liste des bots */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Mes Chatbots</h2>
         <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec tracking avancé</p>
       </div>
-
-      {/* Liste des chatbots */}
       {bots.length === 0 ? (
         <Card className="p-8 text-center">
           <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -666,151 +629,19 @@ export const BotManagement: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {bots.map((bot) => {
             const stats = botStats[bot.id] || { totalMessages: 0, totalUsers: 0, activeToday: 0 };
-            
             return (
-              <Card key={bot.id} className="p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      bot.is_active ? 'bg-green-100' : 'bg-gray-100'
-                    }`}>
-                      <Bot className={`w-5 h-5 ${
-                        bot.is_active ? 'text-green-600' : 'text-gray-400'
-                      }`} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{bot.name}</h3>
-                      <Badge variant={bot.is_active ? "default" : "secondary"}>
-                        {bot.is_active ? 'Actif' : 'Inactif'}
-                      </Badge>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => toggleBotStatus(bot)}
-                    variant="ghost"
-                    size="sm"
-                    className="p-2"
-                  >
-                    {bot.is_active ? (
-                      <PowerOff className="w-4 h-4 text-red-500" />
-                    ) : (
-                      <Power className="w-4 h-4 text-green-500" />
-                    )}
-                  </Button>
-                </div>
-
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {bot.description || 'Aucune description'}
-                </p>
-
-                {/* Titre du chat seulement */}
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 mb-1">Chat: {bot.chat_title}</div>
-                </div>
-
-                {/* URL publique et partage */}
-                {bot.share_enabled && bot.public_chat_url && (
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                    <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
-                      <span className="text-xs font-medium text-blue-700">Lien public</span>
-                      <div className="flex space-x-1">
-                        <Button
-                          onClick={() => shareOnWhatsApp(bot)}
-                          variant="ghost"
-                          size="sm"
-                          className="p-1 h-6 w-6 bg-green-500 hover:bg-green-600 text-white rounded"
-                          title="Partager sur WhatsApp avec message personnalisé"
-                        >
-                          <FaWhatsapp className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          onClick={() => generateQRCode(bot.public_chat_url, bot.name)}
-                          variant="ghost"
-                          size="sm"
-                          className="p-1 h-6 w-6 bg-purple-500 hover:bg-purple-600 text-white rounded"
-                          title="Générer QR Code"
-                        >
-                          <QrCode className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          onClick={() => handleCopyToClipboard(bot.public_chat_url, 'Lien public')}
-                          variant="ghost"
-                          size="sm"
-                          className="p-1 h-6 w-6"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          onClick={() => window.open(bot.public_chat_url, '_blank')}
-                          variant="ghost"
-                          size="sm"
-                          className="p-1 h-6 w-6"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="text-xs text-blue-600 truncate">
-                      {bot.public_chat_url}
-                    </div>
-                  </div>
-                )}
-
-                {/* Statistiques */}
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-600">{stats.totalMessages}</div>
-                    <div className="text-xs text-gray-500">Messages</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-green-600">{stats.totalUsers}</div>
-                    <div className="text-xs text-gray-500">Utilisateurs</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-purple-600">{stats.activeToday}</div>
-                    <div className="text-xs text-gray-500">Actifs</div>
-                  </div>
-                </div>
-
-                {/* Actions principales */}
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  <Button
-                    onClick={() => testBot(bot)}
-                    variant="outline"
-                    size="sm"
-                    className="text-green-600 border-green-200 hover:bg-green-50"
-                  >
-                    <MessageCircle className="w-4 h-4 mr-1" />
-                    Chat
-                  </Button>
-                  <Button
-                    onClick={() => viewAnalytics(bot.id, bot.name)}
-                    variant="outline"
-                    size="sm"
-                    className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                  >
-                    <BarChart3 className="w-4 h-4 mr-1" />
-                    Analytics
-                  </Button>
-                </div>
-
-                {/* Actions secondaires */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => deleteBot(bot.id)}
-                      variant="ghost"
-                      size="sm"
-                      className="p-2 text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Créé le {new Date(bot.created_at).toLocaleDateString('fr-FR')}
-                  </div>
-                </div>
-              </Card>
+              <BotCard
+                key={bot.id}
+                bot={bot}
+                stats={stats}
+                onTest={testBot}
+                onAnalytics={viewAnalytics}
+                onDelete={deleteBot}
+                onToggleStatus={toggleBotStatus}
+                onCopy={handleCopyToClipboard}
+                onShareWhatsApp={shareOnWhatsApp}
+                onQRClick={generateQRCode}
+              />
             );
           })}
         </div>
