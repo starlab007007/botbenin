@@ -64,20 +64,18 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   }
 
   return (
-    <Card className="flex flex-col px-3 py-4 items-stretch overflow-auto h-full bg-white">
+    <Card className="flex flex-col px-5 py-4 items-stretch overflow-auto h-full bg-gray-50 border-blue-100 shadow-xl rounded-2xl">
       <SessionHeader 
         selectedBot={selectedBot}
         selectedSession={selectedSession}
         loading={loading}
         refetch={refetch}
       />
-      <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0 bg-gray-50">
+      <CardContent className="flex-1 overflow-y-auto space-y-3 p-2 pt-0 min-h-0">
+        <MessagesScroller messages={messages} />
         <SessionLoadingOrError loading={loading} error={error} refetch={refetch} />
-        {!loading && !error && (
-          <MessagesScroller messages={messages} />
-        )}
       </CardContent>
-      <div className="border-t p-3 flex-shrink-0 bg-white">
+      <div className="border-t p-3 flex-shrink-0 bg-white rounded-b-2xl">
         <MessageReplyForm
           replyText={replyText}
           setReplyText={setReplyText}
@@ -89,3 +87,4 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
     </Card>
   );
 };
+

@@ -18,13 +18,13 @@ interface EnhancedMessageViewProps {
   selectedSession: BotSession | null;
 }
 
-// L’affichage du flux de messages ne propose plus qu’un onglet “Chat en Direct”.
+// Élargit la colonne de chat à ~70% de l’espace horizontal, centrée.
 export const EnhancedMessageView: React.FC<EnhancedMessageViewProps> = ({
   selectedBot,
   selectedSession
 }) => {
   return (
-    <div className="w-1/2 h-full flex flex-col">
+    <div className="w-[66%] min-w-[420px] h-full flex flex-col mx-auto">
       <Tabs value="chat" className="h-full flex flex-col">
         <div className="flex-shrink-0">
           <TabsList className="w-full mb-2">
@@ -45,3 +45,4 @@ export const EnhancedMessageView: React.FC<EnhancedMessageViewProps> = ({
     </div>
   );
 };
+
