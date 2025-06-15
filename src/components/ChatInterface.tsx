@@ -8,6 +8,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { saveChatMessage } from '@/services/chatService';
 import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
 import { useSessionManager } from '@/hooks/useSessionManager';
+import { Copy } from 'lucide-react'; // <-- ADDED IMPORT
 
 interface Message {
   id: string;
