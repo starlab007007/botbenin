@@ -47,6 +47,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null);
   const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(getCurrentVisitorSession());
+  const [pendingSend, setPendingSend] = useState<string | null>(null);
 
   // Always provide sessionToken to useBotMessageHistory
   const {
@@ -152,42 +153,37 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     }
   }, [historyMessages, botConfig, loadingHistory]);
 
+  // Attente explicite si on a une demande d’envoi en attente et que le token s’est initialisé
+  useEffect(() => {
+    if (pendingSend && sessionToken) {
+      handleSendMessage(pendingSend);
+      setPendingSend(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken, pendingSend]);
+
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isProcessing || !botConfig) return;
 
-    // Vérification critique du webhook URL
-    if (!botConfig.webhook_url || botConfig.webhook_url.trim() === "") {
-      toast({
-        title: `${botConfig.name} - Configuration manquante`,
-        description: "Ce bot n'a pas de webhook URL configuré. Veuillez contacter l'administrateur.",
-        variant: "destructive",
-      });
+    // Si le token est en phase de génération, on patiente et on stocke le message en attente
+    if (!sessionToken && isLoading) {
+      setPendingSend(textToSend);
       return;
     }
 
-    // SessionToken is mandatory
     let currentToken = sessionToken || getCurrentVisitorSession();
-    
-    console.log('[StandardizedChatInterface] Debugging session token:', {
-      stateToken: sessionToken,
-      storageToken: getCurrentVisitorSession(),
-      finalToken: currentToken
-    });
 
     if (!currentToken && botId) {
-        console.warn('[StandardizedChatInterface] Token is missing, attempting to re-initialize tracking...');
-        currentToken = await initializeVisitorTracking(botId, 'chat_send_recovery');
-        if (currentToken) {
-            console.log('[StandardizedChatInterface] Tracking re-initialized successfully, new token:', currentToken);
-            setSessionToken(currentToken);
-        } else {
-            console.error('[StandardizedChatInterface] Failed to recover session token.');
-        }
+      currentToken = await initializeVisitorTracking(botId, 'chat_send_recovery');
+      if (currentToken) {
+        setSessionToken(currentToken);
+        setPendingSend(textToSend);
+        return;
+      }
     }
 
     if (!currentToken) {
-      // Fail gracefully for impossible situation (should not happen now)
       console.error('[StandardizedChatInterface] Aucun token de session disponible, even after recovery attempt.');
       toast({
         title: "Erreur de session",

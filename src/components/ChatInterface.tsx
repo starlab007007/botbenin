@@ -92,6 +92,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [pendingSend, setPendingSend] = useState<string | null>(null);
   const { toast } = useToast();
 
   function getWelcomeMessage(context?: string, title?: string): string {
@@ -142,42 +143,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     return 'general';
   };
 
+  useEffect(() => {
+    if (pendingSend && sessionToken) {
+      handleSendMessage(pendingSend);
+      setPendingSend(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken, pendingSend]);
+
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isLoading) return;
 
-    // Vérification critique du webhook URL
-    if (!webhookUrl) {
-      console.error('ERREUR CRITIQUE: Aucun webhook URL configuré pour ce bot');
-      console.error('ChatInterface Props:', { webhookUrl, chatTitle, chatContext });
-      console.error('URL Params:', { urlBotId, urlBotName, isTest });
-      
-      toast({
-        title: `${finalChatTitle} - Configuration manquante`,
-        description: "Aucun webhook URL configuré pour ce bot. Veuillez configurer le webhook dans les paramètres du bot.",
-        variant: "destructive",
-      });
+    if (!sessionToken && loadingHistory) {
+      setPendingSend(textToSend);
       return;
     }
 
-    // Vérifier qu'on a bien un token de session
     let currentToken = sessionToken || getCurrentVisitorSession();
 
-    console.log('[ChatInterface] Debugging session token:', {
-      stateToken: sessionToken,
-      storageToken: getCurrentVisitorSession(),
-      finalToken: currentToken
-    });
-
     if (!currentToken && urlBotId) {
-        console.warn('[ChatInterface] Token is missing, attempting to re-initialize tracking...');
-        currentToken = await initializeVisitorTracking(urlBotId, 'chat_send_recovery');
-        if (currentToken) {
-            console.log('[ChatInterface] Tracking re-initialized successfully, new token:', currentToken);
-            setSessionToken(currentToken);
-        } else {
-            console.error('[ChatInterface] Failed to recover session token.');
-        }
+      currentToken = await initializeVisitorTracking(urlBotId, 'chat_send_recovery');
+      if (currentToken) {
+        setSessionToken(currentToken);
+        setPendingSend(textToSend);
+        return;
+      }
     }
 
     if (!currentToken) {
@@ -190,7 +181,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       return;
     }
 
-    console.log(`[ChatInterface] Sending message with session token: ${currentToken}`);
+    console.log('[ChatInterface] Debugging session token:', {
+      stateToken: sessionToken,
+      storageToken: getCurrentVisitorSession(),
+      finalToken: currentToken
+    });
 
     setShowSuggestions(false);
 
