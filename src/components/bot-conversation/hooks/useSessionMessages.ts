@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getChatHistory, debugSessionTokens } from "@/services/chat";
 
@@ -19,7 +18,6 @@ export const useSessionMessages = (
   const [messages, setMessages] = useState<SessionMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [debugTokens, setDebugTokens] = useState<string | null>(null);
   
   // Ref to prevent duplicate calls
   const fetchingRef = useRef(false);
@@ -29,7 +27,6 @@ export const useSessionMessages = (
     if (!botId || !sessionToken) {
       setMessages([]);
       setError(null);
-      setDebugTokens(null);
       return;
     }
 
@@ -47,7 +44,6 @@ export const useSessionMessages = (
     
     setLoading(true);
     setError(null);
-    setDebugTokens(null);
 
     try {
       console.log(`[useSessionMessages] === UNIFIED MESSAGE FETCH ===`);
@@ -79,18 +75,15 @@ export const useSessionMessages = (
         );
 
         setMessages(formattedMessages);
-        setDebugTokens(`Unified system: ${formattedMessages.length} messages retrieved`);
       } else {
         console.log('[useSessionMessages] No messages found in unified system');
         setMessages([]);
-        setDebugTokens('No messages found - unified system ready');
       }
 
     } catch (err: any) {
       console.error('[useSessionMessages] Unified system exception:', err);
-      setError(err.message || 'Failed to fetch messages from unified system');
+      setError(err.message || 'Échec lors du chargement des messages.');
       setMessages([]);
-      setDebugTokens('Error occurred in unified message fetch');
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -112,7 +105,6 @@ export const useSessionMessages = (
     messages, 
     loading, 
     error, 
-    refetch: refreshMessages, 
-    debugTokens 
+    refetch: refreshMessages
   };
 };
