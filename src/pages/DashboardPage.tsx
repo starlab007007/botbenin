@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { ConversationManager } from '@/components/ConversationManager';
@@ -10,7 +9,6 @@ import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { QuickStatsCards } from '@/components/dashboard/QuickStatsCards';
 import { ManagementSection } from '@/components/dashboard/ManagementSection';
-import { FeatureCards } from '@/components/dashboard/FeatureCards';
 import { BotAnalyticsSection } from '@/components/dashboard/BotAnalyticsSection';
 import { MainContentTabs } from '@/components/dashboard/MainContentTabs';
 import { QuickActions } from '@/components/dashboard/QuickActions';
@@ -243,9 +241,6 @@ export const DashboardPage: React.FC = () => {
         showConversationControlPanel={showConversationControlPanel}
         onToggleConversationControl={() => setShowConversationControlPanel((v) => !v)}
       />
-
-      {/* Feature Cards */}
-      <FeatureCards permissions={permissions} />
 
       {/* Bot Analytics Section */}
       <BotAnalyticsSection 
