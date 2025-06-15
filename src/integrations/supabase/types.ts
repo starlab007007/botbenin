@@ -4165,12 +4165,14 @@ export type Database = {
         Returns: string
       }
       track_link_click: {
-        Args: {
-          p_short_code: string
-          p_ip_address?: unknown
-          p_user_agent?: string
-          p_referrer?: string
-        }
+        Args:
+          | {
+              p_short_code: string
+              p_ip_address?: unknown
+              p_user_agent?: string
+              p_referrer?: string
+            }
+          | { p_short_code: string; p_user_agent?: string; p_referrer?: string }
         Returns: string
       }
       track_visitor_event: {

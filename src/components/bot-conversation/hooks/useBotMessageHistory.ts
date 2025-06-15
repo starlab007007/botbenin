@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useBotUserId } from "./useBotUserId";
 import { useMessageFetcher } from "./useMessageFetcher";
 import { useRealtimeMessages } from "./useRealtimeMessages";
@@ -9,92 +9,105 @@ import { BotMessageHistoryItem } from "../types";
 
 export const useBotMessageHistory = (botId: string | null, sessionToken: string | null) => {
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   
   const { botUserId, loadingBotUserId, errorBotUserId } = useBotUserId(botId, sessionToken);
-  
   const { messages, loadingMessages, errorMessages, fetchMessages, setMessages } = useMessageFetcher(botId, botUserId, sessionToken);
 
-  // Clear messages when botId or sessionToken changes and mark as initialized
+  // Debug et initialisation améliorés
   useEffect(() => {
     if (!botId || !sessionToken) {
-      console.log('[useBotMessageHistory] Clearing messages due to missing botId or sessionToken');
+      console.log('[useBotMessageHistory] Clearing messages due to missing parameters');
       setMessages([]);
       setHasInitialized(false);
-    } else {
-      console.log(`[useBotMessageHistory] Initialized for bot ${botId} with session ${sessionToken}`);
-      setHasInitialized(true);
-      
-      // Debug immédiat quand on reçoit un nouveau token
-      if (sessionToken.startsWith('anon_')) {
-        console.log(`[useBotMessageHistory] === DEBUGGING NEW SESSION ===`);
-        console.log(`[useBotMessageHistory] Session token: ${sessionToken}`);
-        
-        // Lancer le debug des tokens en parallèle
-        debugSessionTokens(botId).then(() => {
-          console.log(`[useBotMessageHistory] Debug completed for bot ${botId}`);
-        });
+      setDebugInfo('Waiting for bot ID and session token...');
+      return;
+    }
 
-        // Tester la récupération des messages
-        setTimeout(() => {
-          testMessageRetrieval(botId, sessionToken).then((results) => {
-            console.log(`[useBotMessageHistory] Test retrieval results:`, results);
-          });
-        }, 2000);
-      }
+    console.log(`[useBotMessageHistory] === INITIALIZATION ===`);
+    console.log(`[useBotMessageHistory] Bot: ${botId}, Session: ${sessionToken}`);
+    setHasInitialized(true);
+    setDebugInfo(`Initialized for bot ${botId.slice(0, 8)}... with session ${sessionToken.slice(0, 15)}...`);
+    
+    // Debug en arrière-plan pour les sessions anonymes
+    if (sessionToken.startsWith('anon_')) {
+      console.log(`[useBotMessageHistory] === ENHANCED DEBUGGING ===`);
+      
+      // Debug des tokens de session
+      debugSessionTokens(botId).then(() => {
+        console.log(`[useBotMessageHistory] Session debug completed`);
+        setDebugInfo(prev => prev + ' | Session debug completed');
+      }).catch(err => {
+        console.warn('[useBotMessageHistory] Session debug failed:', err);
+        setDebugInfo(prev => prev + ' | Session debug failed');
+      });
+
+      // Test de récupération différé
+      const testTimer = setTimeout(() => {
+        testMessageRetrieval(botId, sessionToken).then((results) => {
+          console.log(`[useBotMessageHistory] Test retrieval results:`, results);
+          setDebugInfo(prev => prev + ` | Test result: ${results ? 'success' : 'failed'}`);
+        }).catch(err => {
+          console.warn('[useBotMessageHistory] Test retrieval failed:', err);
+          setDebugInfo(prev => prev + ' | Test retrieval failed');
+        });
+      }, 2000);
+
+      return () => clearTimeout(testTimer);
     }
   }, [botId, sessionToken, setMessages]);
 
+  // Configuration du realtime
   const { realtimeError, isConnected } = useRealtimeMessages(botUserId, fetchMessages);
-
   const { sendManualResponse } = useSendManualResponse(botId, sessionToken);
 
-  // Improved loading logic - prevent infinite loading
+  // Logique de chargement améliorée
   const loading = useMemo(() => {
-    // If no botId or sessionToken, no loading needed
     if (!botId || !sessionToken) return false;
-    
-    // If not initialized yet, we're loading
     if (!hasInitialized) return true;
-    
-    // If we're loading the bot user ID, we're loading
     if (loadingBotUserId) return true;
-    
-    // If we're loading messages AND we have essential data, we're loading
-    if (loadingMessages && botUserId) return true;
-    
-    // Sinon, on n'est plus en loading
+    if (loadingMessages && messages.length === 0 && !errorMessages) return true;
     return false;
-  }, [botId, sessionToken, hasInitialized, loadingBotUserId, loadingMessages, botUserId]);
+  }, [botId, sessionToken, hasInitialized, loadingBotUserId, loadingMessages, messages.length, errorMessages]);
 
+  // Gestion d'erreur améliorée
   const error = useMemo(() => {
     const errors = [errorBotUserId, errorMessages, realtimeError].filter(Boolean);
     return errors.length > 0 ? errors.join(', ') : null;
   }, [errorBotUserId, errorMessages, realtimeError]);
 
-  // Debug logging with throttling to prevent spam
+  // Fonction de refresh manuel
+  const refreshData = useCallback(() => {
+    console.log('[useBotMessageHistory] Manual refresh requested');
+    setDebugInfo(prev => prev + ' | Manual refresh');
+    fetchMessages();
+  }, [fetchMessages]);
+
+  // Logging debug throttlé
   useEffect(() => {
     const debugData = {
-      botId,
-      sessionToken: sessionToken ? sessionToken.substring(0, 15) + '...' : null,
-      botUserId,
+      botId: botId ? botId.slice(0, 8) + '...' : null,
+      sessionToken: sessionToken ? sessionToken.slice(0, 15) + '...' : null,
+      botUserId: botUserId ? botUserId.slice(0, 8) + '...' : null,
       hasInitialized,
       messagesCount: messages.length,
       loading,
-      loadingBotUserId,
-      loadingMessages,
-      error,
-      isConnected
+      error: !!error,
+      isConnected,
+      debugInfo
     };
     
-    console.log('[useBotMessageHistory] State:', debugData);
-  }, [botId, sessionToken, botUserId, hasInitialized, messages.length, loading, loadingBotUserId, loadingMessages, error, isConnected]);
+    console.log('[useBotMessageHistory] Current state:', debugData);
+  }, [botId, sessionToken, botUserId, hasInitialized, messages.length, loading, error, isConnected, debugInfo]);
 
   return {
     messages,
     loading,
     error,
     sendManualResponse,
-    isConnected
+    isConnected,
+    debugInfo,
+    refreshData
   };
 };
 

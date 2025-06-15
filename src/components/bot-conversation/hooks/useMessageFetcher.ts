@@ -1,6 +1,5 @@
 
-import { useState, useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getChatHistory } from "@/services/chat";
 import { BotMessageHistoryItem } from "../types";
 
@@ -30,44 +29,110 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
   const [messages, setMessages] = useState<BotMessageHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Protection contre les appels multiples
+  const fetchingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchMessages = useCallback(async () => {
     if (!botId || !sessionToken) {
       console.log('[useMessageFetcher] Missing botId or sessionToken, clearing messages');
       setMessages([]);
+      setError(null);
       return;
     }
 
+    // Annuler la requête précédente si elle existe
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Éviter les appels multiples simultanés
+    if (fetchingRef.current) {
+      console.log('[useMessageFetcher] Fetch already in progress, skipping');
+      return;
+    }
+
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
-    console.log(`[useMessageFetcher] Fetching messages with enhanced retrieval for bot ${botId}, session ${sessionToken}`);
+    
+    // Créer un nouveau contrôleur d'abandon
+    abortControllerRef.current = new AbortController();
+
+    console.log(`[useMessageFetcher] === ENHANCED MESSAGE FETCHING ===`);
+    console.log(`[useMessageFetcher] Bot: ${botId}, Session: ${sessionToken}`);
 
     try {
-      // Utiliser la nouvelle fonction getChatHistory améliorée
+      // Utiliser la fonction getChatHistory améliorée
       const data = await getChatHistory(botId, sessionToken);
+
+      // Vérifier si la requête a été annulée
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('[useMessageFetcher] Request was aborted');
+        return;
+      }
 
       if (data && data.length > 0) {
         const allMessages = mapRawMessagesToTyped(data);
-        const uniqueMessages = Array.from(new Map(allMessages.map(item => [item.message_id, item])).values());
-        uniqueMessages.sort((a, b) => new Date(a.message_timestamp).getTime() - new Date(b.message_timestamp).getTime());
+        
+        // Supprimer les doublons par message_id
+        const uniqueMessages = Array.from(
+          new Map(allMessages.map(item => [item.message_id, item])).values()
+        );
+        
+        // Trier par timestamp
+        uniqueMessages.sort(
+          (a, b) => new Date(a.message_timestamp).getTime() - new Date(b.message_timestamp).getTime()
+        );
 
-        console.log(`[useMessageFetcher] Successfully set ${uniqueMessages.length} unique messages via enhanced retrieval`);
+        console.log(`[useMessageFetcher] Successfully processed ${uniqueMessages.length} unique messages`);
         setMessages(uniqueMessages);
+        setError(null);
       } else {
-        console.log('[useMessageFetcher] No messages found via enhanced retrieval.');
+        console.log('[useMessageFetcher] No messages found');
         setMessages([]);
+        setError(null);
       }
     } catch (err: any) {
-      console.error('[useMessageFetcher] Exception in fetchMessages (Enhanced):', err);
+      if (err.name === 'AbortError') {
+        console.log('[useMessageFetcher] Request was aborted');
+        return;
+      }
+      
+      console.error('[useMessageFetcher] Exception in fetchMessages:', err);
       setError('Failed to fetch message history');
+      setMessages([]);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
+      abortControllerRef.current = null;
     }
   }, [botId, sessionToken]);
 
   useEffect(() => {
     fetchMessages();
+    
+    // Cleanup function
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      fetchingRef.current = false;
+    };
   }, [fetchMessages]);
 
-  return { messages, loadingMessages: loading, errorMessages: error, fetchMessages, setMessages };
+  // Fonction pour forcer un refresh
+  const refreshMessages = useCallback(() => {
+    fetchingRef.current = false;
+    fetchMessages();
+  }, [fetchMessages]);
+
+  return { 
+    messages, 
+    loadingMessages: loading, 
+    errorMessages: error, 
+    fetchMessages: refreshMessages, 
+    setMessages 
+  };
 };
