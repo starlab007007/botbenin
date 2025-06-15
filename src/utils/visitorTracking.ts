@@ -258,12 +258,13 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     // --- STRICT TYPE GUARD & FLOW ---
     // If success: sessionTokenResult is string starting with anon_
     if (typeof sessionTokenResult === "string" && sessionTokenResult.startsWith("anon_")) {
-      console.log(`[visitorTracking] New session created with token: ${sessionTokenResult}`);
-      sessionStorage.setItem('visitor_session_token', sessionTokenResult);
+      const token: string = sessionTokenResult;
+      console.log(`[visitorTracking] New session created with token: ${token}`);
+      sessionStorage.setItem('visitor_session_token', token);
 
       // Only call if we're 100% sure it's a valid session token string
       await trackVisitorEvent(
-        sessionTokenResult,
+        token,
         'session_start',
         {
           url: window.location.href,
@@ -274,7 +275,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
         }
       );
 
-      return sessionTokenResult;
+      return token;
     }
 
     // --- ERROR CASES (never call trackVisitorEvent) ---
