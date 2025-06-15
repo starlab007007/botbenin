@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSessionMessages } from "../hooks/useSessionMessages";
@@ -63,20 +64,20 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   }
 
   return (
-    <Card className="flex flex-col px-3 py-4 items-stretch overflow-auto h-full">
+    <Card className="flex flex-col px-3 py-4 items-stretch overflow-auto h-full bg-white">
       <SessionHeader 
         selectedBot={selectedBot}
         selectedSession={selectedSession}
         loading={loading}
         refetch={refetch}
       />
-      <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0">
+      <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0 bg-gray-50">
         <SessionLoadingOrError loading={loading} error={error} refetch={refetch} />
         {!loading && !error && (
           <MessagesScroller messages={messages} />
         )}
       </CardContent>
-      <div className="border-t p-3 flex-shrink-0">
+      <div className="border-t p-3 flex-shrink-0 bg-white">
         <MessageReplyForm
           replyText={replyText}
           setReplyText={setReplyText}
