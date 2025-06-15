@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -46,7 +47,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const urlBotName = searchParams.get('bot_name');
   const isTest = searchParams.get('test') === 'true';
 
-  const [sessionToken, setSessionToken] = useState<string | null>(getCurrentVisitorSession()); // Always init from sessionStorage
+  const [sessionToken, setSessionToken] = useState<string | null>(getCurrentVisitorSession());
+  const [isInitializingSession, setIsInitializingSession] = useState(false);
+  
   const {
     messages: historyMessages,
     loading: loadingHistory,
@@ -61,22 +64,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   });
   
   useEffect(() => {
-    // Initialisation stricte : jamais de double création de token ou d'appel d'API sans token
-    const syncSessionToken = async () => {
-      let token = getCurrentVisitorSession();
-      // Peut arriver si la page est chargée pour la première fois
-      if (!token && urlBotId) {
-        token = await initializeVisitorTracking(urlBotId, 'chat_interface');
-        if (token) {
-          setSessionToken(token);
+    const initSession = async () => {
+      if (!sessionToken && urlBotId && !isInitializingSession) {
+        console.log('[ChatInterface] Initializing session for bot:', urlBotId);
+        setIsInitializingSession(true);
+        try {
+          const token = await initializeVisitorTracking(urlBotId, 'chat_interface');
+          if (token) {
+            console.log('[ChatInterface] Session initialized with token:', token);
+            setSessionToken(token);
+          } else {
+            console.error('[ChatInterface] Failed to initialize session');
+          }
+        } catch (error) {
+          console.error('[ChatInterface] Session initialization error:', error);
+        } finally {
+          setIsInitializingSession(false);
         }
-      } else if (token) {
-        setSessionToken(token);
       }
     };
-    syncSessionToken();
-  // N.B: urlBotId ne change qu'en cas de changement de bot
-  }, [urlBotId]);
+    initSession();
+  }, [urlBotId, sessionToken, isInitializingSession]);
 
   // IMPORTANT: Vérifier que le webhook URL est bien fourni
   if (!webhookUrl) {
@@ -92,7 +100,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
-  const [pendingSend, setPendingSend] = useState<string | null>(null);
   const { toast } = useToast();
 
   function getWelcomeMessage(context?: string, title?: string): string {
@@ -120,7 +127,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     if (mappedHistory.length > 0) {
       setMessages(mappedHistory);
-    } else if (!loadingHistory) {
+    } else if (!loadingHistory && !isInitializingSession) {
       setMessages([
         {
           id: '1',
@@ -130,7 +137,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         }
       ]);
     }
-  }, [historyMessages, loadingHistory, chatContext, finalChatTitle]);
+  }, [historyMessages, loadingHistory, chatContext, finalChatTitle, isInitializingSession]);
 
   // Determine user context based on current route or provided context
   const getUserContext = (): 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general' => {
@@ -143,49 +150,30 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     return 'general';
   };
 
-  useEffect(() => {
-    if (pendingSend && sessionToken) {
-      handleSendMessage(pendingSend);
-      setPendingSend(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionToken, pendingSend]);
-
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isLoading) return;
 
-    if (!sessionToken && loadingHistory) {
-      setPendingSend(textToSend);
-      return;
-    }
-
-    let currentToken = sessionToken || getCurrentVisitorSession();
-
-    if (!currentToken && urlBotId) {
-      currentToken = await initializeVisitorTracking(urlBotId, 'chat_send_recovery');
-      if (currentToken) {
-        setSessionToken(currentToken);
-        setPendingSend(textToSend);
+    // Vérifier que la session est prête
+    if (!sessionToken) {
+      if (isInitializingSession) {
+        toast({
+          title: "Initialisation en cours",
+          description: "Veuillez patienter pendant l'initialisation de la session...",
+          variant: "destructive",
+        });
+        return;
+      } else {
+        toast({
+          title: "Erreur de session",
+          description: "Session non initialisée. Veuillez recharger la page.",
+          variant: "destructive",
+        });
         return;
       }
     }
 
-    if (!currentToken) {
-      console.error('[ChatInterface] Aucun token de session disponible, even after recovery attempt.');
-      toast({
-        title: "Erreur de session",
-        description: "Impossible d'envoyer le message. Veuillez recharger la page.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    console.log('[ChatInterface] Debugging session token:', {
-      stateToken: sessionToken,
-      storageToken: getCurrentVisitorSession(),
-      finalToken: currentToken
-    });
+    console.log(`[ChatInterface] Sending message with verified session token: ${sessionToken}`);
 
     setShowSuggestions(false);
 
@@ -196,9 +184,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       timestamp: new Date(),
     };
 
-    if (currentToken && urlBotId) {
-      console.log(`[ChatInterface] Saving user message to database: bot=${urlBotId}, token=${currentToken}`);
-      saveChatMessage(urlBotId, currentToken, textToSend, 'user');
+    // Sauvegarder le message utilisateur avec le token de session unifié
+    if (sessionToken && urlBotId) {
+      console.log(`[ChatInterface] Saving user message: bot=${urlBotId}, token=${sessionToken}`);
+      saveChatMessage(urlBotId, sessionToken, textToSend, 'user');
     }
 
     setMessages(prev => [...prev, userMessage]);
@@ -210,7 +199,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     console.log('Bot Name:', urlBotName || finalChatTitle);
     console.log('User message:', textToSend);
     console.log('Webhook URL utilisée:', webhookUrl);
-    console.log('Session Token:', currentToken);
+    console.log('Session Token (vérifié):', sessionToken);
 
     try {
       const controller = new AbortController();
@@ -223,7 +212,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       const requestPayload = {
         message: textToSend,
         timestamp: new Date().toISOString(),
-        session_id: currentToken,
+        session_id: sessionToken, // Token unifié et vérifié
         user_id: `bot_bj_user_${urlBotId || 'unknown'}`,
         source: 'bot_bj_platform',
         context: chatContext || 'automation',
@@ -309,9 +298,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         timestamp: new Date(),
       };
 
-      if (currentToken && urlBotId) {
-        console.log(`[ChatInterface] Saving bot response to database: bot=${urlBotId}, token=${currentToken}`);
-        saveChatMessage(urlBotId, currentToken, processedContent.trim(), 'bot');
+      // Sauvegarder la réponse du bot avec le token de session unifié
+      if (sessionToken && urlBotId) {
+        console.log(`[ChatInterface] Saving bot response: bot=${urlBotId}, token=${sessionToken}`);
+        saveChatMessage(urlBotId, sessionToken, processedContent.trim(), 'bot');
       }
 
       console.log('Message IA ajouté (depuis N8N):', aiMessage);
@@ -405,14 +395,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         messages={messages}
         showSuggestions={showSuggestions}
         userContext={getUserContext()}
-        isLoading={isLoading || (loadingHistory && messages.length === 0)}
+        isLoading={isLoading || (loadingHistory && messages.length === 0) || isInitializingSession}
         onToggleBookmark={toggleBookmark}
         onSuggestionClick={handleSuggestionClick}
       />
       
       <ChatInputArea
         inputValue={inputValue}
-        isLoading={isLoading}
+        isLoading={isLoading || isInitializingSession}
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
         onSendMessage={() => handleSendMessage()}

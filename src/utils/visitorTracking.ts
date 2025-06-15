@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 // Générer un fingerprint unique du navigateur
@@ -206,14 +207,15 @@ export const extractUTMParams = () => {
   };
 };
 
-// Hook pour initialiser le tracking des visiteurs avec token unifié
+// Hook pour initialiser le tracking des visiteurs avec token unifié - VERSION AMÉLIORÉE
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
     console.log(`[visitorTracking] Initializing tracking for bot ${botId}, entry: ${entryPoint}`);
 
-    // Récupérer/Nettoyer le storage
+    // Vérifier d'abord le token existant
     let existingToken = getCurrentVisitorSession();
     if (existingToken) {
+      console.log(`[visitorTracking] Reusing existing session token: ${existingToken}`);
       return existingToken;
     }
 
@@ -224,10 +226,11 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       console.error('[visitorTracking] Failed to create/get fingerprint');
       return null;
     }
+
     const utmParams = extractUTMParams();
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
 
-    // Tenter d'obtenir un token via le RPC (retourne toujours le même pour ce bot et ce fingerprint)
+    // Créer une nouvelle session avec token unifié
     const sessionToken = await createAnonymousVisitorSession(
       fingerprintId,
       botId,
@@ -237,16 +240,24 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     );
 
     if (sessionToken && typeof sessionToken === 'string' && sessionToken.startsWith('anon_')) {
+      console.log(`[visitorTracking] New session created with token: ${sessionToken}`);
       sessionStorage.setItem('visitor_session_token', sessionToken);
+      
+      // Tracker l'événement de démarrage de session
       await trackVisitorEvent(sessionToken, 'session_start', {
         url: window.location.href,
         utm_params: utmParams,
-        fingerprint_hash: fingerprintHash
+        fingerprint_hash: fingerprintHash,
+        bot_id: botId,
+        entry_point: finalEntryPoint
       });
+      
       return sessionToken;
     }
-    // Sécurité : pas de token => rien en storage
+
+    // Si échec, nettoyer le storage
     sessionStorage.removeItem('visitor_session_token');
+    console.error('[visitorTracking] Failed to create valid session token');
     return null;
   } catch (error) {
     console.error('Erreur lors de l\'initialisation du tracking:', error);
@@ -255,16 +266,24 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
   }
 };
 
-// Récupérer le token de session unifié
+// Récupérer le token de session unifié - VERSION SÉCURISÉE
 export const getCurrentVisitorSession = (): string | null => {
-  const token = sessionStorage.getItem('visitor_session_token');
-  if (token && typeof token === 'string' && token.startsWith('anon_')) {
-    console.log(`[visitorTracking] Retrieved current session token: ${token}`);
-    return token;
+  try {
+    const token = sessionStorage.getItem('visitor_session_token');
+    if (token && typeof token === 'string' && token.startsWith('anon_') && token.length > 10) {
+      console.log(`[visitorTracking] Retrieved valid session token: ${token}`);
+      return token;
+    }
+    
+    // Nettoyer les tokens invalides
+    if (token) {
+      console.warn(`[visitorTracking] Removing invalid token: ${token}`);
+      sessionStorage.removeItem('visitor_session_token');
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[visitorTracking] Error getting session token:', error);
+    return null;
   }
-  // Si jamais un token mal formé traîne, le supprimer
-  if (token) {
-    sessionStorage.removeItem('visitor_session_token');
-  }
-  return null;
 };

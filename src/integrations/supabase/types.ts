@@ -3982,6 +3982,10 @@ export type Database = {
       }
     }
     Functions: {
+      auto_reconcile_session_token: {
+        Args: { p_bot_id: string; p_session_token: string }
+        Returns: string
+      }
       can_view_user_data: {
         Args: { target_user_id: string }
         Returns: boolean
@@ -3993,6 +3997,10 @@ export type Database = {
           bot_data: Json
           error_message: string
         }[]
+      }
+      cleanup_orphaned_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       collect_visitor_data: {
         Args: {

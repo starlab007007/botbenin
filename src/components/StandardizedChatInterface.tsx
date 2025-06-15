@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast, toast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -47,7 +48,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null);
   const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(getCurrentVisitorSession());
-  const [pendingSend, setPendingSend] = useState<string | null>(null);
+  const [isInitializingSession, setIsInitializingSession] = useState(false);
 
   // Always provide sessionToken to useBotMessageHistory
   const {
@@ -58,10 +59,21 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
   useEffect(() => {
     const init = async () => {
-      console.log(`[StandardizedChatInterface] Initializing tracking for bot ${botId}, entry: ${entryPoint}`);
-      const token = await initializeVisitorTracking(botId, entryPoint);
-      console.log(`[StandardizedChatInterface] Tracking initialized, token: ${token}`);
-      setSessionToken(token);
+      console.log(`[StandardizedChatInterface] Initializing for bot ${botId}, entry: ${entryPoint}`);
+      
+      if (!sessionToken && !isInitializingSession) {
+        setIsInitializingSession(true);
+        try {
+          const token = await initializeVisitorTracking(botId, entryPoint);
+          console.log(`[StandardizedChatInterface] Session initialized with token: ${token}`);
+          setSessionToken(token);
+        } catch (error) {
+          console.error('[StandardizedChatInterface] Session initialization failed:', error);
+        } finally {
+          setIsInitializingSession(false);
+        }
+      }
+      
       initializeBot();
     };
     init();
@@ -137,7 +149,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       if (mappedHistory.length > 0) {
         setMessages(mappedHistory);
-      } else if (!loadingHistory) {
+      } else if (!loadingHistory && !isInitializingSession) {
         const welcomeMessage = BotConfigService.getStandardWelcomeMessage(
           botConfig.name || botConfig.chat_title,
           botConfig.chat_context
@@ -151,49 +163,32 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         }]);
       }
     }
-  }, [historyMessages, botConfig, loadingHistory]);
-
-  // Attente explicite si on a une demande d’envoi en attente et que le token s’est initialisé
-  useEffect(() => {
-    if (pendingSend && sessionToken) {
-      handleSendMessage(pendingSend);
-      setPendingSend(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionToken, pendingSend]);
+  }, [historyMessages, botConfig, loadingHistory, isInitializingSession]);
 
   const handleSendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isProcessing || !botConfig) return;
 
-    // Si le token est en phase de génération, on patiente et on stocke le message en attente
-    if (!sessionToken && isLoading) {
-      setPendingSend(textToSend);
-      return;
-    }
-
-    let currentToken = sessionToken || getCurrentVisitorSession();
-
-    if (!currentToken && botId) {
-      currentToken = await initializeVisitorTracking(botId, 'chat_send_recovery');
-      if (currentToken) {
-        setSessionToken(currentToken);
-        setPendingSend(textToSend);
+    // Vérifier que la session est prête
+    if (!sessionToken) {
+      if (isInitializingSession) {
+        toast({
+          title: "Initialisation en cours",
+          description: "Veuillez patienter pendant l'initialisation de la session...",
+          variant: "destructive",
+        });
+        return;
+      } else {
+        toast({
+          title: "Erreur de session",
+          description: "Session non initialisée. Veuillez recharger la page.",
+          variant: "destructive",
+        });
         return;
       }
     }
 
-    if (!currentToken) {
-      console.error('[StandardizedChatInterface] Aucun token de session disponible, even after recovery attempt.');
-      toast({
-        title: "Erreur de session",
-        description: "Impossible d'envoyer le message. Veuillez recharger la page (problème de session).",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    console.log(`[StandardizedChatInterface] Sending message with session token: ${currentToken}`);
+    console.log(`[StandardizedChatInterface] Sending message with verified session token: ${sessionToken}`);
 
     setShowSuggestions(false);
 
@@ -209,9 +204,10 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
-    if (currentToken) {
-      console.log(`[StandardizedChatInterface] Saving user message to database: bot=${botId}, token=${currentToken}`);
-      saveChatMessage(botId, currentToken, textToSend, "user");
+    // Sauvegarder le message utilisateur avec le token de session unifié
+    if (sessionToken) {
+      console.log(`[StandardizedChatInterface] Saving user message: bot=${botId}, token=${sessionToken}`);
+      saveChatMessage(botId, sessionToken, textToSend, "user");
     }
 
     setMessages(prev => [...prev, userMessage]);
@@ -222,7 +218,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     console.log('Bot:', botConfig.name);
     console.log('Message:', textToSend);
     console.log('Webhook URL:', botConfig.webhook_url);
-    console.log('Session Token:', currentToken);
+    console.log('Session Token (vérifié):', sessionToken);
 
     try {
       const controller = new AbortController();
@@ -240,7 +236,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         botId,
         botConfig.name,
         botConfig.chat_context,
-        currentToken, // Passer le session token unifié
+        sessionToken, // Token de session unifié et vérifié
         isTest
       );
 
@@ -294,9 +290,10 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         timestamp: new Date(),
       };
 
-      if (currentToken) {
-        console.log(`[StandardizedChatInterface] Saving bot response to database: bot=${botId}, token=${currentToken}`);
-        saveChatMessage(botId, currentToken, processedContent.trim(), "bot");
+      // Sauvegarder la réponse du bot avec le token de session unifié
+      if (sessionToken) {
+        console.log(`[StandardizedChatInterface] Saving bot response: bot=${botId}, token=${sessionToken}`);
+        saveChatMessage(botId, sessionToken, processedContent.trim(), "bot");
       }
 
       setMessages(prev => [...prev, aiMessage]);
@@ -358,7 +355,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
   const bookmarkedMessages = messages.filter(msg => msg.isBookmarked && !msg.isUser);
 
-  const pageIsLoading = isLoading || (loadingHistory && messages.length === 0);
+  const pageIsLoading = isLoading || (loadingHistory && messages.length === 0) || isInitializingSession;
 
   // Écran d'erreur standardisé
   if (hasError) {
@@ -463,7 +460,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       
       <ChatInputArea
         inputValue={inputValue}
-        isLoading={isProcessing}
+        isLoading={isProcessing || isInitializingSession}
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
         onSendMessage={() => handleSendMessage()}
