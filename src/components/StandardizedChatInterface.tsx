@@ -46,8 +46,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [apiAccessLog, setApiAccessLog] = useState<any>(null);
   const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null);
   const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const { toast } = useToast();
+  const [sessionToken, setSessionToken] = useState<string | null>(getCurrentVisitorSession());
 
   // Always provide sessionToken to useBotMessageHistory
   const {

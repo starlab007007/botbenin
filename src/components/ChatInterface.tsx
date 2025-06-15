@@ -46,7 +46,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const urlBotName = searchParams.get('bot_name');
   const isTest = searchParams.get('test') === 'true';
 
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(getCurrentVisitorSession()); // Always init from sessionStorage
   const {
     messages: historyMessages,
     loading: loadingHistory,
@@ -61,13 +61,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   });
   
   useEffect(() => {
-    if (urlBotId) {
-      console.log(`[ChatInterface] Initializing visitor tracking for bot: ${urlBotId}`);
-      initializeVisitorTracking(urlBotId, 'chat_interface').then((token) => {
-        console.log(`[ChatInterface] Tracking initialized, token: ${token}`);
+    // Initialisation stricte : jamais de double création de token ou d'appel d'API sans token
+    const syncSessionToken = async () => {
+      let token = getCurrentVisitorSession();
+      // Peut arriver si la page est chargée pour la première fois
+      if (!token && urlBotId) {
+        token = await initializeVisitorTracking(urlBotId, 'chat_interface');
+        if (token) {
+          setSessionToken(token);
+        }
+      } else if (token) {
         setSessionToken(token);
-      });
-    }
+      }
+    };
+    syncSessionToken();
+  // N.B: urlBotId ne change qu'en cas de changement de bot
   }, [urlBotId]);
 
   // IMPORTANT: Vérifier que le webhook URL est bien fourni
