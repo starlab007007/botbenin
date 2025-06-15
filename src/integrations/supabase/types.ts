@@ -4096,6 +4096,10 @@ export type Database = {
         }
         Returns: string
       }
+      reconcile_bot_user_session_token: {
+        Args: { p_bot_id: string; p_session_token: string }
+        Returns: string
+      }
       save_chat_message: {
         Args: {
           p_bot_id: string

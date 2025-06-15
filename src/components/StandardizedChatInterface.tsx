@@ -49,10 +49,11 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { 
-    messages: historyMessages, 
-    loading: loadingHistory, 
-    error: errorHistory 
+  // Always provide sessionToken to useBotMessageHistory
+  const {
+    messages: historyMessages,
+    loading: loadingHistory,
+    error: errorHistory
   } = useBotMessageHistory(botId, sessionToken);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       initializeBot();
     };
     init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, entryPoint]);
 
   const initializeBot = async () => {
@@ -156,9 +158,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     if (!textToSend.trim() || isProcessing || !botConfig) return;
 
     // Vérification critique du webhook URL
-    if (!botConfig.webhook_url || botConfig.webhook_url.trim() === '') {
-      console.error('ERREUR CRITIQUE: Aucun webhook URL configuré pour ce bot');
-      
+    if (!botConfig.webhook_url || botConfig.webhook_url.trim() === "") {
       toast({
         title: `${botConfig.name} - Configuration manquante`,
         description: "Ce bot n'a pas de webhook URL configuré. Veuillez contacter l'administrateur.",
@@ -167,13 +167,14 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       return;
     }
 
-    // Vérifier qu'on a bien un token de session
+    // SessionToken is mandatory
     const currentToken = sessionToken || getCurrentVisitorSession();
     if (!currentToken) {
+      // Fail gracefully for impossible situation (should not happen now)
       console.error('[StandardizedChatInterface] Aucun token de session disponible');
       toast({
         title: "Erreur de session",
-        description: "Impossible d'envoyer le message. Veuillez recharger la page.",
+        description: "Impossible d'envoyer le message. Veuillez recharger la page (problème de session).",
         variant: "destructive",
       });
       return;
@@ -197,7 +198,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
     if (currentToken) {
       console.log(`[StandardizedChatInterface] Saving user message to database: bot=${botId}, token=${currentToken}`);
-      saveChatMessage(botId, currentToken, textToSend, 'user');
+      saveChatMessage(botId, currentToken, textToSend, "user");
     }
 
     setMessages(prev => [...prev, userMessage]);
@@ -282,7 +283,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       if (currentToken) {
         console.log(`[StandardizedChatInterface] Saving bot response to database: bot=${botId}, token=${currentToken}`);
-        saveChatMessage(botId, currentToken, processedContent.trim(), 'bot');
+        saveChatMessage(botId, currentToken, processedContent.trim(), "bot");
       }
 
       setMessages(prev => [...prev, aiMessage]);

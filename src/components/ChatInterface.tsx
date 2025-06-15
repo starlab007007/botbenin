@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -25,7 +24,7 @@ interface ChatInterfaceProps {
   chatContext?: string;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onBackToLanding, 
   webhookUrl,
   chatTitle = 'Bot.Bj Assistant',
@@ -48,10 +47,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const isTest = searchParams.get('test') === 'true';
 
   const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const { 
-    messages: historyMessages, 
-    loading: loadingHistory, 
-    error: errorHistory 
+  const {
+    messages: historyMessages,
+    loading: loadingHistory,
+    error: errorHistory
   } = useBotMessageHistory(urlBotId, sessionToken);
 
   console.log('Paramètres URL ChatInterface:', {
