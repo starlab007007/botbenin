@@ -40,67 +40,30 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
     setError(null);
     console.log(`[useMessageFetcher] Fetching messages for bot ${botId}, user ${botUserId}, session ${sessionToken}`);
 
-    const selectQuery = `
-      id,
-      bot_id,
-      bot_user_id,
-      created_at,
-      message_content,
-      message_type,
-      ip_address,
-      user_agent,
-      metadata,
-      bot_users (
-        user_name,
-        user_email,
-        session_id,
-        created_at,
-        last_active
-      ),
-      bots (
-        name,
-        owner_id
-      )
-    `;
-
     try {
-      const orFilters = [];
-      if (botUserId) {
-        orFilters.push(`bot_user_id.eq.${botUserId}`);
-      }
-      if (sessionToken) {
-        orFilters.push(`metadata->>session_token.eq.${sessionToken}`);
-      }
+      const { data, error: rpcError } = await supabase.rpc('get_chat_history', {
+        p_bot_id: botId,
+        p_bot_user_id: botUserId,
+        p_session_token: sessionToken,
+      });
 
-      if (orFilters.length === 0) {
-        setMessages([]);
-        setLoading(false);
-        return;
-      }
-      
-      const { data, error: fetchError } = await supabase
-        .from('chat_messages')
-        .select(selectQuery)
-        .eq('bot_id', botId!)
-        .or(orFilters.join(','));
-
-      if (fetchError) {
-        console.error('[useMessageFetcher] Error fetching messages:', fetchError);
-        setError(fetchError.message);
+      if (rpcError) {
+        console.error('[useMessageFetcher] Error fetching messages via RPC:', rpcError);
+        setError(rpcError.message);
         setMessages([]);
       } else if (data && data.length > 0) {
         const allMessages = mapRawMessagesToTyped(data);
         const uniqueMessages = Array.from(new Map(allMessages.map(item => [item.message_id, item])).values());
         uniqueMessages.sort((a, b) => new Date(a.message_timestamp).getTime() - new Date(b.message_timestamp).getTime());
 
-        console.log(`[useMessageFetcher] Successfully set ${uniqueMessages.length} unique messages`);
+        console.log(`[useMessageFetcher] Successfully set ${uniqueMessages.length} unique messages via RPC`);
         setMessages(uniqueMessages);
       } else {
-        console.log('[useMessageFetcher] No messages found.');
+        console.log('[useMessageFetcher] No messages found via RPC.');
         setMessages([]);
       }
     } catch (err: any) {
-      console.error('[useMessageFetcher] Exception in fetchMessages:', err);
+      console.error('[useMessageFetcher] Exception in fetchMessages (RPC):', err);
       setError('Failed to fetch message history');
     } finally {
       setLoading(false);

@@ -4047,6 +4047,14 @@ export type Database = {
           message_order_in_session: number
         }[]
       }
+      get_chat_history: {
+        Args: {
+          p_bot_id: string
+          p_bot_user_id?: string
+          p_session_token?: string
+        }
+        Returns: Json[]
+      }
       get_or_create_bot_user_for_session: {
         Args: {
           p_bot_id: string
