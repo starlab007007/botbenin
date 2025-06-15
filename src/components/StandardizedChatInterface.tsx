@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useToast, toast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
 import { ChatHeader } from '@/components/ChatHeader';
@@ -44,9 +43,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [apiAccessLog, setApiAccessLog] = useState<any>(null);
-  const [accessCheckRaw, setAccessCheckRaw] = useState<any>(null);
-  const [supabaseDebugInfo, setSupabaseDebugInfo] = useState<any>(null);
+  const [botConfigLoaded, setBotConfigLoaded] = useState(false);
 
   // Utiliser le hook de gestion de session
   const { sessionToken, isInitializing, isReady, error: sessionError, retryInitialization } = useSessionManager({
@@ -64,7 +61,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   useEffect(() => {
     const init = async () => {
       console.log(`[StandardizedChatInterface] Initializing for bot ${botId}, entry: ${entryPoint}`);
-      initializeBot();
+      await initializeBot();
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,20 +78,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       console.log('Auth ctx:', { isAuthenticated, isGuest, guestUser });
 
       const accessCheck = await BotConfigService.checkPublicAccess(botId);
-      setApiAccessLog(accessCheck);
-      setAccessCheckRaw(accessCheck);
-
-      if (accessCheck && accessCheck.config) {
-        setSupabaseDebugInfo({
-          received: accessCheck.config,
-          share_enabled: accessCheck.config.share_enabled,
-          is_active: accessCheck.config.is_active,
-          webhook_url: accessCheck.config.webhook_url,
-          error: accessCheck.error,
-        });
-      } else {
-        setSupabaseDebugInfo({ ...accessCheck, no_config: true });
-      }
 
       console.log('Résultat checkPublicAccess:', accessCheck);
 
@@ -105,6 +88,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           errMsg = "Ce bot n'est pas public ou une authentification est exigée.";
         }
         setErrorMessage(errMsg);
+        setBotConfigLoaded(true);
         return;
       }
 
@@ -117,19 +101,44 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       }
 
       setBotConfig(config);
+      setBotConfigLoaded(true);
 
     } catch (error: any) {
       console.error('Erreur lors de l\'initialisation du bot:', error);
       setHasError(true);
       const errorContent = (typeof error === 'object' && error?.message) ? error.message : (typeof error === 'string' ? error : '');
       setErrorMessage('Impossible de charger ce bot. ' + (errorContent ? `(Erreur: ${errorContent})` : 'Veuillez réessayer plus tard.'));
+      setBotConfigLoaded(true);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Améliorer la logique de chargement de page
+  const pageIsLoading = useMemo(() => {
+    // Si on charge encore la config du bot
+    if (!botConfigLoaded) return true;
+    
+    // Si on initialise la session
+    if (isInitializing) return true;
+    
+    // Si on a une erreur, ne pas rester en loading
+    if (hasError || sessionError) return false;
+    
+    // Si on n'a pas encore de config de bot et pas d'erreur
+    if (!botConfig && !hasError) return true;
+    
+    // Si la session n'est pas prête et qu'on n'a pas d'erreur de session
+    if (!isReady && !sessionError) return true;
+    
+    // Si on charge l'historique ET qu'on n'a pas encore de messages
+    if (loadingHistory && messages.length === 0 && !errorHistory) return true;
+    
+    return false;
+  }, [botConfigLoaded, isInitializing, hasError, sessionError, botConfig, isReady, loadingHistory, messages.length, errorHistory]);
+
   useEffect(() => {
-    if (botConfig && isReady) {
+    if (botConfig && isReady && !loadingHistory) {
       const mappedHistory = historyMessages.map((item): Message => ({
         id: item.message_id,
         content: item.message_content,
@@ -139,7 +148,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       if (mappedHistory.length > 0) {
         setMessages(mappedHistory);
-      } else if (!loadingHistory) {
+      } else {
         const welcomeMessage = BotConfigService.getStandardWelcomeMessage(
           botConfig.name || botConfig.chat_title,
           botConfig.chat_context
@@ -336,8 +345,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
   const bookmarkedMessages = messages.filter(msg => msg.isBookmarked && !msg.isUser);
 
-  const pageIsLoading = isLoading || (loadingHistory && messages.length === 0) || isInitializing;
-
   // Affichage d'erreur de session
   if (sessionError) {
     return (
@@ -377,33 +384,11 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           <p className="text-gray-600 mb-4">
             {errorMessage}
           </p>
-          {apiAccessLog && (
-            <pre className="bg-red-50 text-xs text-gray-700 rounded p-2 my-2 text-left max-h-64 overflow-auto">
-              {JSON.stringify(apiAccessLog, null, 2)}
-            </pre>
-          )}
-          {supabaseDebugInfo && (
-            <div className="my-2 p-2 rounded bg-yellow-50 text-xs text-left max-h-64 overflow-auto border border-yellow-200 text-yellow-800">
-              <b>Debug table bots:</b><br />
-              <span>
-                <b>is_active:</b> {String(supabaseDebugInfo.share_enabled === undefined ? 'Non reçu' : supabaseDebugInfo.is_active + '')} 
-                {' / '} <b>share_enabled:</b> {String(supabaseDebugInfo.share_enabled === undefined ? 'Non reçu' : supabaseDebugInfo.share_enabled + '')}
-                <br />
-                <b>webhook_url:</b> {supabaseDebugInfo.webhook_url ?? "Non reçu"}
-                <br />
-                <b>Erreur SQL brute:</b> {supabaseDebugInfo?.error ?? 'aucune'}
-                <br />
-                <b>Payload complète:</b><br />
-                <pre className="bg-transparent">{JSON.stringify(supabaseDebugInfo, null, 2)}</pre>
-              </span>
-            </div>
-          )}
           <button
             onClick={() => { 
-              setApiAccessLog(null); 
-              setSupabaseDebugInfo(null); 
               setHasError(false); 
               setErrorMessage(''); 
+              setBotConfigLoaded(false);
               initializeBot(); 
             }}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 mt-3 transition-colors"
@@ -466,7 +451,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       
       <ChatInputArea
         inputValue={inputValue}
-        isLoading={isProcessing || isInitializing || !isReady}
+        isLoading={isProcessing || !isReady}
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
         onSendMessage={() => handleSendMessage()}

@@ -14,7 +14,17 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
   const [error, setError] = useState<string | null>(null);
 
   const initializeSession = useCallback(async () => {
-    if (!botId || isInitializing || isReady) return;
+    if (!botId) {
+      console.log(`[useSessionManager] No botId provided, skipping initialization`);
+      setIsReady(true);
+      setIsInitializing(false);
+      return;
+    }
+
+    if (isInitializing || isReady) {
+      console.log(`[useSessionManager] Already initializing or ready, skipping`);
+      return;
+    }
 
     console.log(`[useSessionManager] Starting session initialization for bot ${botId}`);
     setIsInitializing(true);
@@ -45,22 +55,23 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
     } catch (error) {
       console.error('[useSessionManager] Session initialization failed:', error);
       setError('Impossible d\'initialiser la session');
+      // En cas d'erreur, on considère quand même comme "prêt" pour éviter le blocage
+      setIsReady(true);
     } finally {
       setIsInitializing(false);
     }
   }, [botId, entryPoint, isInitializing, isReady]);
 
   useEffect(() => {
-    if (botId) {
-      initializeSession();
-    }
+    initializeSession();
   }, [botId, initializeSession]);
 
   const retryInitialization = useCallback(() => {
     setIsReady(false);
     setError(null);
     setSessionToken(null);
-    initializeSession();
+    setIsInitializing(false);
+    setTimeout(() => initializeSession(), 100);
   }, [initializeSession]);
 
   return {
