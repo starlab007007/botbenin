@@ -28,7 +28,7 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
     console.log(`[useSessionMessages] Fetching messages for bot ${botId}, session ${sessionToken}`);
 
     try {
-      // Méthode 1: Utiliser la fonction RPC si disponible
+      // Méthode 1: Utiliser la fonction RPC get_chat_history
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_chat_history', {
         p_bot_id: botId,
         p_session_token: sessionToken
@@ -44,13 +44,17 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
           metadata: item.metadata,
           bot_user_id: item.bot_user_id
         }));
+
+        // Trier par date de création
+        formattedMessages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        
         setMessages(formattedMessages);
         setLoading(false);
         return;
       }
 
-      // Méthode 2: Requête directe si RPC échoue
-      console.log('[useSessionMessages] RPC failed, trying direct query');
+      // Méthode 2: Requête directe si RPC échoue ou ne retourne rien
+      console.log('[useSessionMessages] RPC returned no data, trying direct query');
       
       // D'abord, trouver le bot_user_id pour cette session
       const { data: botUserData, error: botUserError } = await supabase
@@ -64,7 +68,7 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
         console.error('[useSessionMessages] Error finding bot user:', botUserError);
       }
 
-      // Requête pour les messages via metadata session_token ou bot_user_id
+      // Requête pour les messages
       let query = supabase
         .from('chat_messages')
         .select('*')
@@ -87,7 +91,7 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
         setMessages([]);
       } else {
         console.log(`[useSessionMessages] Found ${directData?.length || 0} messages via direct query`);
-        // Type-safe mapping of the direct data
+        
         const typedMessages: SessionMessage[] = (directData || []).map((item: any) => ({
           id: item.id,
           message_content: item.message_content,
@@ -96,6 +100,7 @@ export const useSessionMessages = (botId: string | null, sessionToken: string | 
           metadata: item.metadata,
           bot_user_id: item.bot_user_id
         }));
+        
         setMessages(typedMessages);
       }
 

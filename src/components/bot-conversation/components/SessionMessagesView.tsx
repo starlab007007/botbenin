@@ -1,10 +1,12 @@
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useSessionMessages } from "../hooks/useSessionMessages";
-import { ChevronRight, User, Bot, Loader, RefreshCw, MessageSquare } from "lucide-react";
+import { useManualMessageSender } from "../hooks/useManualMessageSender";
+import { ChevronRight, User, Bot, Loader, RefreshCw, MessageSquare, Send } from "lucide-react";
 
 interface BotSession {
   id: string;
@@ -29,10 +31,41 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
     selectedBot?.id || null,
     selectedSession?.session_token || null
   );
+  
+  const { sendManualMessage, sending } = useManualMessageSender(
+    selectedBot?.id || null,
+    selectedSession
+  );
+
+  const [replyText, setReplyText] = useState("");
+
+  // Auto-refresh des messages toutes les 5 secondes si on a une session active
+  useEffect(() => {
+    if (selectedSession && selectedBot) {
+      const interval = setInterval(() => {
+        refetch();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedSession, selectedBot, refetch]);
+
+  const handleSendReply = async () => {
+    if (!replyText.trim()) return;
+
+    try {
+      await sendManualMessage(replyText, () => {
+        setReplyText("");
+        // Rafraîchir les messages après envoi
+        setTimeout(() => refetch(), 500);
+      });
+    } catch (error) {
+      console.error('Error sending manual message:', error);
+    }
+  };
 
   if (!selectedSession) {
     return (
-      <Card className="w-1/2 flex flex-col px-3 py-4 items-stretch overflow-auto">
+      <Card className="flex flex-col px-3 py-4 items-stretch overflow-auto h-full">
         <div className="flex flex-1 items-center justify-center text-gray-400 text-lg h-full">
           <ChevronRight className="w-6 h-6 mr-1" /> Sélectionnez une session pour voir les messages
         </div>
@@ -41,8 +74,8 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
   }
 
   return (
-    <Card className="w-1/2 flex flex-col px-3 py-4 items-stretch overflow-auto">
-      <CardHeader className="pb-3">
+    <Card className="flex flex-col px-3 py-4 items-stretch overflow-auto h-full">
+      <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold flex items-center">
             <MessageSquare className="w-4 h-4 mr-2" />
@@ -67,7 +100,8 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-y-auto space-y-3 p-3">
+      {/* Zone des messages - scrollable */}
+      <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 min-h-0">
         {loading && (
           <div className="flex items-center justify-center py-8">
             <Loader className="w-6 h-6 animate-spin mr-2" />
@@ -96,7 +130,7 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
 
         {!loading && messages.length > 0 && (
           <div className="space-y-3">
-            <div className="text-xs text-gray-500 font-medium mb-2">
+            <div className="text-xs text-gray-500 font-medium mb-2 sticky top-0 bg-white p-1 rounded">
               {messages.length} message(s) dans cette conversation
             </div>
             
@@ -106,10 +140,10 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
                 className={`flex ${message.message_type === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div 
-                  className={`max-w-[85%] rounded-lg px-3 py-2 ${
+                  className={`max-w-[85%] rounded-lg px-3 py-2 shadow-sm ${
                     message.message_type === 'user' 
                       ? 'bg-blue-500 text-white' 
-                      : 'bg-gray-200 text-gray-900'
+                      : 'bg-gray-100 text-gray-900 border'
                   }`}
                 >
                   <div className="flex items-center space-x-1 mb-1">
@@ -126,7 +160,7 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
                     </span>
                   </div>
                   
-                  <div className="text-sm leading-relaxed">
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap">
                     {message.message_content}
                   </div>
                   
@@ -139,6 +173,46 @@ export const SessionMessagesView: React.FC<SessionMessagesViewProps> = ({
           </div>
         )}
       </CardContent>
+
+      {/* Zone de réponse manuelle - toujours visible en bas */}
+      <div className="border-t p-3 flex-shrink-0">
+        <div className="mb-2 text-sm font-medium text-gray-700 flex items-center gap-2">
+          <Bot className="w-4 h-4" />
+          Répondre en tant que {selectedBot?.name || 'Bot'}
+        </div>
+        
+        <div className="flex gap-2">
+          <Textarea
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            placeholder="Tapez votre réponse..."
+            className="min-h-[60px] max-h-[120px] resize-none flex-1"
+            disabled={sending}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.ctrlKey && !sending) {
+                e.preventDefault();
+                handleSendReply();
+              }
+            }}
+          />
+          <Button
+            onClick={handleSendReply}
+            disabled={!replyText.trim() || sending}
+            size="sm"
+            className="h-fit mt-auto"
+          >
+            {sending ? (
+              <Loader className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+        
+        <div className="text-xs text-gray-500 mt-1">
+          Cette réponse sera envoyée comme message du bot • Ctrl+Enter pour envoyer
+        </div>
+      </div>
     </Card>
   );
 };
