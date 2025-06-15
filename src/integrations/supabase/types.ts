@@ -3998,6 +3998,14 @@ export type Database = {
           error_message: string
         }[]
       }
+      cleanup_and_consolidate_chat_data: {
+        Args: { p_bot_id?: string }
+        Returns: {
+          cleaned_sessions: number
+          reconciled_users: number
+          orphaned_messages: number
+        }[]
+      }
       cleanup_orphaned_sessions: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -4048,6 +4056,10 @@ export type Database = {
       }
       create_shortened_link: {
         Args: { p_bot_id: string; p_owner_id: string }
+        Returns: string
+      }
+      enhanced_session_reconciliation: {
+        Args: { p_bot_id: string; p_session_token: string }
         Returns: string
       }
       generate_public_chat_url: {
