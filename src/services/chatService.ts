@@ -1,5 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { type Json } from '@supabase/supabase-js';
 
 /**
  * Saves a chat message to the database using the 'save_chat_message' RPC function.
@@ -18,7 +19,7 @@ export const saveChatMessage = async (
   sessionToken: string,
   content: string,
   type: 'user' | 'bot',
-  metadata: object = {}
+  metadata: Json = {}
 ) => {
   try {
     console.log(`[chatService] Saving message for bot ${botId}, session ${sessionToken}`);
