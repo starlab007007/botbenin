@@ -223,7 +223,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     const fingerprintHash = generateBrowserFingerprint();
     const fingerprintResult = await createOrGetVisitorFingerprint(fingerprintHash);
 
-    // Check if fingerprintResult is an error object or string
+    // if fingerprintResult is an error
     if (
       typeof fingerprintResult === "object"
       && fingerprintResult !== null
@@ -255,12 +255,13 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       utmParams
     );
 
-    // SAFETY: Only proceed if sessionTokenResult is a valid token string
-    if (typeof sessionTokenResult === 'string' && sessionTokenResult.startsWith('anon_')) {
+    // --- STRICT TYPE GUARD & FLOW ---
+    // If success: sessionTokenResult is string starting with anon_
+    if (typeof sessionTokenResult === "string" && sessionTokenResult.startsWith("anon_")) {
       console.log(`[visitorTracking] New session created with token: ${sessionTokenResult}`);
       sessionStorage.setItem('visitor_session_token', sessionTokenResult);
 
-      // Call the tracking event with guaranteed valid string
+      // Only call if we're 100% sure it's a valid session token string
       await trackVisitorEvent(
         sessionTokenResult,
         'session_start',
@@ -276,10 +277,14 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       return sessionTokenResult;
     }
 
-    // Otherwise, handle as error and do not call trackVisitorEvent
+    // --- ERROR CASES (never call trackVisitorEvent) ---
     sessionStorage.removeItem('visitor_session_token');
     let errorMsg = '[visitorTracking] Failed to create valid session token';
-    if (typeof sessionTokenResult === "object" && sessionTokenResult !== null && "error" in sessionTokenResult) {
+    if (
+      typeof sessionTokenResult === "object"
+      && sessionTokenResult !== null
+      && "error" in sessionTokenResult
+    ) {
       errorMsg += ': ' + (sessionTokenResult.error || 'Aucune info');
     } else if (typeof sessionTokenResult === "string") {
       errorMsg += `: ${sessionTokenResult}`;
