@@ -8,7 +8,7 @@ import { Bot, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-export const PublicBotChatPage: React.FC = () => {
+const PublicBotChatPage: React.FC = () => {
   const { botId } = useParams<{ botId: string }>();
   const navigate = useNavigate();
   const [isValidating, setIsValidating] = useState(true);
@@ -137,3 +137,5 @@ export const PublicBotChatPage: React.FC = () => {
     </div>
   );
 };
+
+export default PublicBotChatPage;

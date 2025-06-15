@@ -3,7 +3,7 @@ import React from 'react';
 import { SocialSharingCampaignsList } from '@/components/social-sharing/SocialSharingCampaignsList';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-export const SocialSharingCampaignsPage: React.FC = () => {
+const SocialSharingCampaignsPage: React.FC = () => {
   const isMobile = useIsMobile();
 
   return (
@@ -21,3 +21,5 @@ export const SocialSharingCampaignsPage: React.FC = () => {
     </div>
   );
 };
+
+export default SocialSharingCampaignsPage;

@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Bot, ExternalLink } from 'lucide-react';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 
-export const ShortLinkRedirectPage: React.FC = () => {
+const ShortLinkRedirectPage: React.FC = () => {
   const { shortCode } = useParams<{ shortCode: string }>();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -112,3 +112,5 @@ export const ShortLinkRedirectPage: React.FC = () => {
 
   return null;
 };
+
+export default ShortLinkRedirectPage;

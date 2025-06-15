@@ -20,7 +20,7 @@ interface TestBot {
   owner_id: string;
 }
 
-export const BotTestPage: React.FC = () => {
+const BotTestPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const botId = searchParams.get('bot');
@@ -156,3 +156,5 @@ export const BotTestPage: React.FC = () => {
     </div>
   );
 };
+
+export default BotTestPage;
