@@ -44,7 +44,6 @@ export const useSessionMessages = (
         setError(rpcError.message);
         setMessages([]);
       } else if (data && data.length > 0) {
-        // Les messages Supabase sont typés via jsonb -> il faut parser si besoin
         const formattedMessages: SessionMessage[] = data.map((item: any) => ({
           id: item.id,
           message_content: item.message_content,
@@ -61,7 +60,7 @@ export const useSessionMessages = (
         setMessages([]);
       }
 
-      // DEBUG : Montre les tokens trouvés dans les 10 derniers messages
+      // DEBUG : Montre les tokens trouvés dans les 10 derniers messages (keys session_token ou sessionToken)
       const { data: allRecent } = await supabase
         .from('chat_messages')
         .select('metadata')
@@ -75,7 +74,8 @@ export const useSessionMessages = (
               .map(m => {
                 let s: any = undefined;
                 if (m.metadata && typeof m.metadata === 'object' && m.metadata !== null) {
-                  if ('session_token' in m.metadata) s = (m.metadata as any).session_token;
+                  if ('session_token' in m.metadata) s = m.metadata.session_token;
+                  else if ('sessionToken' in m.metadata) s = m.metadata.sessionToken;
                 }
                 return s;
               })
