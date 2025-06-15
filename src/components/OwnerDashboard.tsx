@@ -1,26 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { RefreshCw, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  Bot, 
-  Users, 
-  MessageSquare, 
-  Activity,
-  TrendingUp,
-  Calendar,
-  RefreshCw,
-  Eye,
-  BarChart3
-} from 'lucide-react';
+// Refactored subcomponents
+import { DashboardGlobalStats } from './owner-dashboard/DashboardGlobalStats';
+import { TopPerformingBotCard } from './owner-dashboard/TopPerformingBotCard';
+import { LastActivityCard } from './owner-dashboard/LastActivityCard';
+import { BotsSummaryList } from './owner-dashboard/BotsSummaryList';
 
+// Types
 interface OwnerDashboardProps {
   onViewBotAnalytics: (botId: string, botName: string) => void;
 }
-
 interface DashboardStats {
   total_bots: number;
   active_bots: number;
@@ -34,7 +28,6 @@ interface DashboardStats {
   top_performing_bot_name: string;
   last_activity: string;
 }
-
 interface BotSummary {
   bot_id: string;
   bot_name: string;
@@ -164,199 +157,32 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
       </div>
 
       {/* Statistiques globales */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Bot className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{dashboardStats.total_bots}</div>
-                <div className="text-sm text-gray-600">Chatbots totaux</div>
-                <div className="text-xs text-green-600">
-                  {dashboardStats.active_bots} actifs
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{dashboardStats.total_users}</div>
-                <div className="text-sm text-gray-600">Utilisateurs totaux</div>
-                <div className="text-xs text-orange-600">
-                  {dashboardStats.active_users_24h} actifs 24h
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-gray-900">{dashboardStats.total_messages}</div>
-                <div className="text-sm text-gray-600">Messages totaux</div>
-                <div className="text-xs text-blue-600">
-                  {dashboardStats.messages_24h} aujourd'hui
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Activity className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {Math.round(dashboardStats.avg_session_duration || 0)}
-                </div>
-                <div className="text-sm text-gray-600">Msgs/session moy.</div>
-                <div className="text-xs text-gray-500">
-                  {dashboardStats.total_sessions} sessions
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardGlobalStats
+        totalBots={dashboardStats.total_bots}
+        activeBots={dashboardStats.active_bots}
+        totalUsers={dashboardStats.total_users}
+        activeUsers24h={dashboardStats.active_users_24h}
+        totalMessages={dashboardStats.total_messages}
+        messages24h={dashboardStats.messages_24h}
+        avgSessionDuration={dashboardStats.avg_session_duration}
+        totalSessions={dashboardStats.total_sessions}
+      />
 
       {/* Meilleur bot et dernière activité */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <span>Bot le plus performant</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dashboardStats.top_performing_bot_name ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">
-                    {dashboardStats.top_performing_bot_name}
-                  </h3>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onViewBotAnalytics(
-                      dashboardStats.top_performing_bot_id,
-                      dashboardStats.top_performing_bot_name
-                    )}
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                    Voir
-                  </Button>
-                </div>
-                <p className="text-gray-600 text-sm">
-                  Ce bot génère le plus de conversations et d'engagement.
-                </p>
-              </div>
-            ) : (
-              <p className="text-gray-600">Aucun bot actif</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              <span>Dernière activité</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-lg font-semibold text-gray-900">
-                {dashboardStats.last_activity 
-                  ? new Date(dashboardStats.last_activity).toLocaleString('fr-FR')
-                  : 'Aucune activité'
-                }
-              </div>
-              <p className="text-gray-600 text-sm">
-                {dashboardStats.last_activity 
-                  ? 'Dernière interaction utilisateur enregistrée'
-                  : 'Aucune interaction utilisateur détectée'
-                }
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <TopPerformingBotCard
+          topBotId={dashboardStats.top_performing_bot_id}
+          topBotName={dashboardStats.top_performing_bot_name}
+          onViewBotAnalytics={onViewBotAnalytics}
+        />
+        <LastActivityCard lastActivity={dashboardStats.last_activity} />
       </div>
 
       {/* Résumé des bots */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <BarChart3 className="w-5 h-5 text-purple-600" />
-            <span>Résumé des chatbots</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {botsSummary.length === 0 ? (
-            <div className="text-center py-8">
-              <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Aucun chatbot trouvé</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {botsSummary.map((bot) => (
-                <div key={bot.bot_id} className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-gray-50 rounded-lg gap-4">
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-3 h-3 rounded-full ${
-                      bot.is_active ? 'bg-green-500' : 'bg-gray-400'
-                    }`}></div>
-                    <div>
-                      <div className="font-medium text-gray-900">{bot.bot_name}</div>
-                      <div className="text-sm text-gray-600">
-                        {bot.total_unique_users} utilisateurs • {bot.total_messages} messages
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
-                    <div className="text-left sm:text-right">
-                      <div className="text-sm font-medium text-gray-900">
-                        {bot.messages_24h} msgs aujourd'hui
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Dernière activité: {bot.last_message_at 
-                          ? new Date(bot.last_message_at).toLocaleDateString('fr-FR')
-                          : 'Jamais'
-                        }
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onViewBotAnalytics(bot.bot_id, bot.bot_name)}
-                      className="flex-shrink-0"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Analytics
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <BotsSummaryList
+        botsSummary={botsSummary}
+        onViewBotAnalytics={onViewBotAnalytics}
+      />
     </div>
   );
 };
