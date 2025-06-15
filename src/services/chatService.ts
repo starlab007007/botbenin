@@ -39,7 +39,7 @@ export const saveChatMessage = async (
     }
     
     // Enrichir les métadonnées avec le token de session
-    const baseMetadata = (metadata && typeof metadata === 'object' && metadata !== null) ? metadata : {};
+    const baseMetadata = (metadata && typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata)) ? metadata : {};
     const enrichedMetadata = {
       ...baseMetadata,
       session_token: sessionToken,
@@ -137,23 +137,35 @@ export const debugSessionTokens = async (botId: string) => {
     console.log(`[chatService] Total messages found: ${data?.length || 0}`);
     
     if (data && data.length > 0) {
-      console.table(data.map(msg => ({
-        id: msg.id,
-        type: msg.message_type,
-        content: msg.message_content?.substring(0, 50) + '...',
-        session_id: msg.bot_users?.session_id,
-        metadata_token: msg.metadata?.session_token || 'N/A',
-        created: msg.created_at
-      })));
+      console.table(data.map(msg => {
+        const metadata = msg.metadata;
+        let metadataToken = 'N/A';
+        
+        // Safely extract session_token from metadata
+        if (metadata && typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata)) {
+          const metadataObj = metadata as Record<string, any>;
+          metadataToken = metadataObj.session_token || metadataObj.sessionToken || 'N/A';
+        }
+        
+        return {
+          id: msg.id,
+          type: msg.message_type,
+          content: msg.message_content?.substring(0, 50) + '...',
+          session_id: msg.bot_users?.session_id,
+          metadata_token: metadataToken,
+          created: msg.created_at
+        };
+      }));
 
       const foundTokens = [
         ...new Set(
           data
             .map(m => {
               const tokens = [];
-              if (m.metadata && typeof m.metadata === 'object' && m.metadata !== null) {
-                if ('session_token' in m.metadata) tokens.push(m.metadata.session_token);
-                if ('sessionToken' in m.metadata) tokens.push(m.metadata.sessionToken);
+              if (m.metadata && typeof m.metadata === 'object' && m.metadata !== null && !Array.isArray(m.metadata)) {
+                const metadataObj = m.metadata as Record<string, any>;
+                if (metadataObj.session_token) tokens.push(metadataObj.session_token);
+                if (metadataObj.sessionToken) tokens.push(metadataObj.sessionToken);
               }
               if (m.bot_users?.session_id) tokens.push(m.bot_users.session_id);
               return tokens;
