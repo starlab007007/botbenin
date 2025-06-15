@@ -23,12 +23,21 @@ export const saveChatMessage = async (
 ) => {
   try {
     console.log(`[chatService] Saving message for bot ${botId}, session ${sessionToken}`);
+    
+    // S'assurer que le session_token est bien inclus dans les métadonnées
+    const enrichedMetadata = {
+      ...metadata,
+      session_token: sessionToken,
+      sessionToken: sessionToken, // Double sécurité
+      saved_at: new Date().toISOString()
+    };
+
     const { data, error } = await supabase.rpc('save_chat_message', {
       p_bot_id: botId,
       p_session_token: sessionToken,
       p_message_content: content,
       p_message_type: type,
-      p_metadata: metadata,
+      p_metadata: enrichedMetadata,
     });
 
     if (error) {
@@ -37,9 +46,34 @@ export const saveChatMessage = async (
     }
 
     console.log('Chat message saved successfully, ID:', data);
+    console.log('Session token used:', sessionToken);
     return data;
   } catch (err) {
     console.error('Exception in saveChatMessage:', err);
+    return null;
+  }
+};
+
+/**
+ * Fonction de debug pour analyser les tokens de session en base
+ */
+export const debugSessionTokens = async (botId: string) => {
+  try {
+    const { data, error } = await supabase.rpc('debug_session_tokens', {
+      p_bot_id: botId,
+      p_limit: 20
+    });
+
+    if (error) {
+      console.error('Error in debugSessionTokens:', error);
+      return null;
+    }
+
+    console.log('=== DEBUG SESSION TOKENS ===');
+    console.table(data);
+    return data;
+  } catch (err) {
+    console.error('Exception in debugSessionTokens:', err);
     return null;
   }
 };

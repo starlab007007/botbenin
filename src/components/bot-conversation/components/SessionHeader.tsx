@@ -3,7 +3,7 @@ import React from "react";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, MessageSquare, RefreshCw, Info } from "lucide-react";
+import { ChevronRight, MessageSquare, RefreshCw, Info, Bug } from "lucide-react";
 
 interface BotSession {
   id: string;
@@ -36,9 +36,6 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
         <CardTitle className="text-sm font-semibold flex items-center">
           <MessageSquare className="w-4 h-4 mr-2" />
           Messages - Session {selectedSession.session_token.slice(0, 10)}...
-          <span className="ml-2 px-2 py-1 rounded bg-gray-200 text-xs text-gray-700 border border-gray-300">
-            {selectedSession.session_token}
-          </span>
         </CardTitle>
         <div className="flex items-center space-x-2">
           <Badge variant={selectedSession.source_type === 'anonymous' ? 'secondary' : 'default'}>
@@ -54,17 +51,42 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
           </Button>
         </div>
       </div>
+      
       <div className="text-xs text-gray-500">
         Bot: {selectedBot?.name} • Entrée: {selectedSession.entry_point}
       </div>
-      {debugTokens && (
-        <div className="mt-2 flex items-center text-[11px] text-yellow-600 bg-yellow-50 p-2 rounded gap-2">
-          <Info className="w-4 h-4 shrink-0" />
-          <span>
-            Tokens session trouvés dans les derniers messages : <b>{debugTokens}</b>
-          </span>
+
+      {/* Informations de debug étendues */}
+      <div className="mt-2 space-y-2">
+        <div className="flex items-center text-[11px] text-blue-600 bg-blue-50 p-2 rounded gap-2">
+          <Bug className="w-4 h-4 shrink-0" />
+          <div className="flex-1">
+            <div><b>Token recherché:</b> {selectedSession.session_token}</div>
+            {selectedSession.bot_user_id && (
+              <div><b>Bot User ID:</b> {selectedSession.bot_user_id}</div>
+            )}
+          </div>
         </div>
-      )}
+
+        {debugTokens && (
+          <div className="text-[11px] text-yellow-600 bg-yellow-50 p-2 rounded">
+            <div className="flex items-center gap-2 mb-1">
+              <Info className="w-4 h-4 shrink-0" />
+              <b>Tokens trouvés en base (10 derniers messages):</b>
+            </div>
+            <div className="font-mono break-all">
+              {debugTokens}
+            </div>
+          </div>
+        )}
+
+        {!debugTokens && (
+          <div className="text-[11px] text-red-600 bg-red-50 p-2 rounded flex items-center gap-2">
+            <Info className="w-4 h-4 shrink-0" />
+            <span>Aucun token de session trouvé dans les derniers messages</span>
+          </div>
+        )}
+      </div>
     </CardHeader>
   );
 };
