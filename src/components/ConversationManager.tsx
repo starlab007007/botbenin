@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { 
   MessageSquare, 
   User, 
@@ -76,6 +77,7 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
   const [contactMessage, setContactMessage] = useState('');
   const [selectedContact, setSelectedContact] = useState<ContactInfo | null>(null);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     fetchData();
@@ -375,377 +377,396 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
   if (selectedConversation) {
     return (
-      <div className="space-y-6 max-w-full w-full px-2 sm:px-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
-          <div className="flex items-center space-x-4 w-full">
-            <Button variant="outline" onClick={() => setSelectedConversation(null)}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour
-            </Button>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words max-w-[94vw]">
+      <div className="min-h-screen w-full bg-gray-50">
+        <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
+          <div className="flex flex-col gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setSelectedConversation(null)} size="sm">
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Retour
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedContact({
+                  user_id: selectedConversation.user_id,
+                  user_name: selectedConversation.user_name,
+                  user_email: selectedConversation.user_email,
+                  session_count: 1,
+                  message_count: selectedConversation.total_messages,
+                  first_interaction: selectedConversation.session_start,
+                  last_interaction: selectedConversation.last_message_at,
+                  status: 'active'
+                })}
+              >
+                <Mail className="w-4 h-4 mr-1" />
+                Contacter
+              </Button>
+            </div>
+            <div className="w-full">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 break-words">
                 Conversation avec {selectedConversation.user_name}
               </h2>
-              <p className="text-gray-600 text-xs sm:text-sm">
+              <p className="text-gray-600 text-sm">
                 Bot: {selectedConversation.bot_name} • {selectedConversation.total_messages} messages
               </p>
             </div>
           </div>
-          <div className="flex space-x-2 w-full sm:w-auto justify-end">
-            <Button variant="outline" onClick={() => setSelectedContact({
-              user_id: selectedConversation.user_id,
-              user_name: selectedConversation.user_name,
-              user_email: selectedConversation.user_email,
-              session_count: 1,
-              message_count: selectedConversation.total_messages,
-              first_interaction: selectedConversation.session_start,
-              last_interaction: selectedConversation.last_message_at,
-              status: 'active'
-            })}>
-              <Mail className="w-4 h-4 mr-2" />
-              Contacter
-            </Button>
-          </div>
-        </div>
 
-        <Card className="w-full max-w-full">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg">Messages de la conversation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-[55vh] sm:max-h-96 overflow-y-auto pr-1">
-              {messages.map((message) => (
-                <div 
-                  key={message.id}
-                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+          <Card className="w-full">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">Messages de la conversation</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
+                {messages.map((message) => (
                   <div 
-                    className={`max-w-[90vw] sm:max-w-xs lg:max-w-md px-3 py-2 rounded-lg text-xs sm:text-sm ${
-                      message.type === 'user' 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-200 text-gray-900'
-                    }`}
+                    key={message.id}
+                    className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div>{message.content}</div>
-                    <div className="opacity-75 mt-1 text-[11px]">{new Date(message.timestamp).toLocaleString('fr-FR')}</div>
+                    <div 
+                      className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
+                        message.type === 'user' 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-gray-200 text-gray-900'
+                      }`}
+                    >
+                      <div className="break-words">{message.content}</div>
+                      <div className="opacity-75 mt-1 text-xs">
+                        {new Date(message.timestamp).toLocaleString('fr-FR')}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (selectedContact) {
     return (
-      <div className="space-y-6 max-w-full w-full px-2 sm:px-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" onClick={() => setSelectedContact(null)}>
+      <div className="min-h-screen w-full bg-gray-50">
+        <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
+          <div className="flex flex-col gap-3 mb-4">
+            <Button variant="outline" onClick={() => setSelectedContact(null)} size="sm" className="w-fit">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour
             </Button>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 break-words max-w-[90vw]">
+            <div className="w-full">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 break-words">
                 Contacter {selectedContact.user_name}
               </h2>
-              <p className="text-gray-600 text-xs sm:text-sm">{selectedContact.user_email}</p>
+              <p className="text-gray-600 text-sm break-all">{selectedContact.user_email}</p>
             </div>
           </div>
-        </div>
 
-        <Card className="w-full max-w-full">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg">Envoyer un message</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                Message
-              </label>
-              <textarea
-                value={contactMessage}
-                onChange={(e) => setContactMessage(e.target.value)}
-                rows={6}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
-                placeholder="Tapez votre message ici..."
-              />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={sendContactMessage} disabled={!contactMessage.trim()}>
-                <Send className="w-4 h-4 mr-2" />
-                Envoyer
-              </Button>
-              <Button variant="outline" onClick={() => setSelectedContact(null)}>
-                Annuler
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          <Card className="w-full">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">Envoyer un message</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Message
+                </label>
+                <textarea
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  rows={6}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                  placeholder="Tapez votre message ici..."
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button onClick={sendContactMessage} disabled={!contactMessage.trim()} className="w-full">
+                  <Send className="w-4 h-4 mr-2" />
+                  Envoyer
+                </Button>
+                <Button variant="outline" onClick={() => setSelectedContact(null)} className="w-full">
+                  Annuler
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-full w-full px-1 xs:px-2 sm:px-6">
-      {/* En-tête */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-        <div className="flex items-center space-x-4 mb-2 sm:mb-0">
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour
-          </Button>
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion Centralisée</h2>
-            <p className="text-gray-600 text-xs sm:text-sm">Conversations, messages et contacts de tous vos bots</p>
+    <div className="min-h-screen w-full bg-gray-50">
+      <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
+        {/* En-tête responsive */}
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={onBack} size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour
+              </Button>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Gestion Centralisée</h2>
+                <p className="text-gray-600 text-sm">Conversations et contacts de tous vos bots</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={fetchData} size="sm" className="w-full sm:w-auto">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Actualiser
+              </Button>
+              <Button variant="outline" onClick={exportData} size="sm" className="w-full sm:w-auto">
+                <Download className="w-4 h-4 mr-2" />
+                Exporter
+              </Button>
+            </div>
           </div>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto justify-end">
-          <Button variant="outline" onClick={fetchData}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualiser
-          </Button>
-          <Button variant="outline" onClick={exportData}>
-            <Download className="w-4 h-4 mr-2" />
-            Exporter
-          </Button>
-        </div>
-      </div>
 
-      {/* Filtres */}
-      <Card>
-        <CardContent className="p-3 sm:p-4">
-          <div className="flex flex-col sm:flex-row items-stretch gap-3 sm:gap-4">
-            <div className="flex-1">
-              <div className="relative">
+        {/* Filtres responsive */}
+        <Card className="mb-4">
+          <CardContent className="p-3">
+            <div className="flex flex-col gap-3">
+              <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
                   placeholder="Rechercher utilisateurs, emails, bots..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full text-xs sm:text-sm"
+                  className="pl-10 w-full text-sm"
                 />
               </div>
+              
+              {activeTab === 'conversations' ? (
+                <Select value={filterBot} onValueChange={setFilterBot}>
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue placeholder="Filtrer par bot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les bots</SelectItem>
+                    {availableBots.map(bot => (
+                      <SelectItem key={bot.id} value={bot.id}>{bot.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="w-full text-sm">
+                    <SelectValue placeholder="Filtrer par statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les statuts</SelectItem>
+                    <SelectItem value="active">Actif</SelectItem>
+                    <SelectItem value="inactive">Inactif</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
-            
-            {activeTab === 'conversations' ? (
-              <Select value={filterBot} onValueChange={setFilterBot}>
-                <SelectTrigger className="w-full sm:w-48 text-xs sm:text-sm">
-                  <SelectValue placeholder="Filtrer par bot" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les bots</SelectItem>
-                  {availableBots.map(bot => (
-                    <SelectItem key={bot.id} value={bot.id}>{bot.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          </CardContent>
+        </Card>
+
+        {/* Onglets responsive */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="conversations" className="flex items-center space-x-1 text-xs sm:text-sm">
+              <MessageSquare className="w-4 h-4" />
+              <span>Conversations ({conversations.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="contacts" className="flex items-center space-x-1 text-xs sm:text-sm">
+              <Users className="w-4 h-4" />
+              <span>Contacts ({contacts.length})</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="conversations">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="p-4">
+                      <div className="h-20 bg-gray-200 rounded"></div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Aucune conversation trouvée
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Aucune conversation ne correspond à vos critères de recherche.
+                  </p>
+                </CardContent>
+              </Card>
             ) : (
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-48 text-xs sm:text-sm">
-                  <SelectValue placeholder="Filtrer par statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="active">Actif</SelectItem>
-                  <SelectItem value="inactive">Inactif</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-3">
+                {filteredConversations.map((conversation) => (
+                  <Card key={`${conversation.bot_id}-${conversation.session_id}`} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <MessageSquare className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-gray-900 text-sm break-words">
+                                {conversation.user_name}
+                              </h3>
+                              <Badge variant="secondary" className="text-xs">{conversation.bot_name}</Badge>
+                              <Badge variant="default" className="text-xs">
+                                {conversation.total_messages} messages
+                              </Badge>
+                            </div>
+                            <p className="text-gray-600 text-xs mb-2 break-all">{conversation.user_email}</p>
+                            <p className="text-gray-700 text-xs line-clamp-2 break-words">
+                              Dernier message: {conversation.last_message_content}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>Début: {new Date(conversation.session_start).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>Dernier: {new Date(conversation.last_message_at).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            onClick={() => viewConversation(conversation)}
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            Voir la conversation
+                          </Button>
+                          <Button
+                            onClick={() => setSelectedContact({
+                              user_id: conversation.user_id,
+                              user_name: conversation.user_name,
+                              user_email: conversation.user_email,
+                              session_count: 1,
+                              message_count: conversation.total_messages,
+                              first_interaction: conversation.session_start,
+                              last_interaction: conversation.last_message_at,
+                              status: 'active'
+                            })}
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                          >
+                            <Mail className="w-4 h-4 mr-2" />
+                            Contacter l'utilisateur
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </TabsContent>
 
-      {/* Onglets */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="conversations" className="flex items-center space-x-2">
-            <MessageSquare className="w-4 h-4" />
-            <span>Conversations ({conversations.length})</span>
-          </TabsTrigger>
-          <TabsTrigger value="contacts" className="flex items-center space-x-2">
-            <Users className="w-4 h-4" />
-            <span>Contacts ({contacts.length})</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="conversations" className="mt-4 sm:mt-6">
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map(i => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="p-4">
-                    <div className="h-16 sm:h-20 bg-gray-200 rounded"></div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : filteredConversations.length === 0 ? (
-            <Card>
-              <CardContent className="p-4 sm:p-8 text-center">
-                <MessageSquare className="w-10 h-10 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
-                  Aucune conversation trouvée
-                </h3>
-                <p className="text-gray-600 text-xs sm:text-base">
-                  Aucune conversation ne correspond à vos critères de recherche.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2 sm:space-y-4">
-              {filteredConversations.map((conversation) => (
-                <Card key={`${conversation.bot_id}-${conversation.session_id}`} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-3 sm:p-4">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-                      <div className="flex items-center space-x-2 sm:space-x-4 w-full">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{conversation.user_name}</h3>
-                            <Badge variant="secondary" className="text-xs">{conversation.bot_name}</Badge>
-                            <Badge variant={conversation.is_active ? 'default' : 'secondary'} className="text-xs">
-                              {conversation.total_messages} messages
-                            </Badge>
+          <TabsContent value="contacts">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="p-4">
+                      <div className="h-20 bg-gray-200 rounded"></div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : filteredContacts.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Aucun contact trouvé
+                  </h3>
+                  <p className="text-gray-600 text-sm">
+                    Aucun contact ne correspond à vos critères de recherche.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {filteredContacts.map((contact) => (
+                  <Card key={contact.user_id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                            contact.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
+                          }`}>
+                            <User className={`w-5 h-5 ${
+                              contact.status === 'active' ? 'text-green-600' : 'text-gray-400'
+                            }`} />
                           </div>
-                          <p className="text-gray-600 text-xs mb-2 truncate">{conversation.user_email}</p>
-                          <p className="text-gray-700 text-xs line-clamp-2">
-                            Dernier message: {conversation.last_message_content}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] text-gray-500">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>Début: {new Date(conversation.session_start).toLocaleString('fr-FR')}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-gray-900 text-sm break-words">
+                                {contact.user_name}
+                              </h3>
+                              <Badge variant={contact.status === 'active' ? 'default' : 'secondary'} className="text-xs">
+                                {contact.status === 'active' ? 'Actif' : 'Inactif'}
+                              </Badge>
                             </div>
-                            <div className="flex items-center space-x-1">
-                              <Clock className="w-3 h-3" />
-                              <span>Dernier: {new Date(conversation.last_message_at).toLocaleString('fr-FR')}</span>
+                            <p className="text-gray-600 text-xs mb-2 break-all">{contact.user_email}</p>
+                            <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                              <div>
+                                <span className="text-gray-500">Sessions:</span>
+                                <span className="ml-2 font-medium">{contact.session_count}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500">Messages:</span>
+                                <span className="ml-2 font-medium">{contact.message_count}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex flex-row space-x-2 w-full sm:w-auto justify-end">
-                        <Button
-                          onClick={() => viewConversation(conversation)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          Voir
-                        </Button>
-                        <Button
-                          onClick={() => setSelectedContact({
-                            user_id: conversation.user_id,
-                            user_name: conversation.user_name,
-                            user_email: conversation.user_email,
-                            session_count: 1,
-                            message_count: conversation.total_messages,
-                            first_interaction: conversation.session_start,
-                            last_interaction: conversation.last_message_at,
-                            status: 'active'
-                          })}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Mail className="w-4 h-4 mr-1" />
-                          Contact
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="contacts" className="mt-4 sm:mt-6">
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map(i => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="p-4">
-                    <div className="h-16 sm:h-20 bg-gray-200 rounded"></div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : filteredContacts.length === 0 ? (
-            <Card>
-              <CardContent className="p-4 sm:p-8 text-center">
-                <Users className="w-10 h-10 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
-                  Aucun contact trouvé
-                </h3>
-                <p className="text-gray-600 text-xs sm:text-base">
-                  Aucun contact ne correspond à vos critères de recherche.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2 sm:space-y-4">
-              {filteredContacts.map((contact) => (
-                <Card key={contact.user_id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-3 sm:p-4">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${
-                        contact.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
-                      }`}>
-                        <User className={`w-5 h-5 sm:w-6 sm:h-6 ${
-                          contact.status === 'active' ? 'text-green-600' : 'text-gray-400'
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{contact.user_name}</h3>
-                          <Badge variant={contact.status === 'active' ? 'default' : 'secondary'} className="text-xs">
-                            {contact.status === 'active' ? 'Actif' : 'Inactif'}
-                          </Badge>
-                        </div>
-                        <p className="text-gray-600 text-xs mb-2 truncate">{contact.user_email}</p>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <span className="text-gray-500">Sessions:</span>
-                            <span className="ml-2 font-medium">{contact.session_count}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Messages:</span>
-                            <span className="ml-2 font-medium">{contact.message_count}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] text-gray-500">
-                          <div className="flex items-center space-x-1">
+                        
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                          <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             <span>Premier: {new Date(contact.first_interaction).toLocaleDateString('fr-FR')}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
+                          <div className="flex items-center gap-1">
                             <Activity className="w-3 h-3" />
                             <span>Dernier: {new Date(contact.last_interaction).toLocaleDateString('fr-FR')}</span>
                           </div>
                         </div>
-                      </div>
-                      <div className="flex space-x-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
+                        
                         <Button
                           onClick={() => setSelectedContact(contact)}
                           variant="outline"
                           size="sm"
+                          className="w-full"
                         >
-                          <Mail className="w-4 h-4 mr-1" />
+                          <Mail className="w-4 h-4 mr-2" />
                           Contacter
                         </Button>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };
