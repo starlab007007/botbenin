@@ -1,30 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { 
   MessageSquare, 
-  User, 
-  Search, 
-  Calendar,
-  Clock,
-  Mail,
-  Phone,
   ArrowLeft,
-  Filter,
-  Download,
   RefreshCw,
-  Eye,
-  Send,
-  Users,
-  Activity
+  Download,
+  Users
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+// Import our new components
+import { ConversationFilters } from '@/components/conversation-manager/ConversationFilters';
+import { ConversationList } from '@/components/conversation-manager/ConversationList';
+import { ContactList } from '@/components/conversation-manager/ContactList';
+import { MessageView } from '@/components/conversation-manager/MessageView';
+import { ContactMessageForm } from '@/components/conversation-manager/ContactMessageForm';
 
 interface ConversationManagerProps {
   onBack: () => void;
@@ -140,7 +134,6 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
       if (!ownerData) return;
 
-      // Récupérer toutes les conversations avec détails
       const { data: conversationsData, error } = await supabase
         .from('bot_conversation_history')
         .select(`
@@ -160,7 +153,6 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
       if (error) throw error;
 
-      // Grouper par session pour créer des conversations
       const conversationMap = new Map<string, BotConversation>();
       
       conversationsData?.forEach(row => {
@@ -185,7 +177,6 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
         const conversation = conversationMap.get(sessionKey)!;
         conversation.total_messages++;
         
-        // Garder le message le plus récent
         if (new Date(row.message_timestamp) > new Date(conversation.last_message_at)) {
           conversation.last_message_at = row.message_timestamp;
           conversation.last_message_content = row.message_content || '';
@@ -211,7 +202,6 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
       if (!ownerData) return;
 
-      // Récupérer les contacts avec statistiques
       const { data: contactsData, error } = await supabase
         .from('bot_users')
         .select(`
@@ -226,7 +216,6 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
       if (error) throw error;
 
-      // Enrichir avec les statistiques de messages
       const enrichedContacts: ContactInfo[] = [];
       
       for (const contact of contactsData || []) {
@@ -301,9 +290,6 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
     if (!selectedContact || !contactMessage.trim()) return;
 
     try {
-      // Ici vous pourriez implémenter l'envoi d'email ou de notification
-      // Pour l'instant, on simule l'envoi
-      
       toast({
         title: "Message envoyé",
         description: `Message envoyé à ${selectedContact.user_name}`,
@@ -375,131 +361,36 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
     return matchesSearch && matchesStatus;
   });
 
+  // Show message view when conversation is selected
   if (selectedConversation) {
     return (
-      <div className="min-h-screen w-full bg-gray-50">
-        <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
-          <div className="flex flex-col gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setSelectedConversation(null)} size="sm">
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Retour
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedContact({
-                  user_id: selectedConversation.user_id,
-                  user_name: selectedConversation.user_name,
-                  user_email: selectedConversation.user_email,
-                  session_count: 1,
-                  message_count: selectedConversation.total_messages,
-                  first_interaction: selectedConversation.session_start,
-                  last_interaction: selectedConversation.last_message_at,
-                  status: 'active'
-                })}
-              >
-                <Mail className="w-4 h-4 mr-1" />
-                Contacter
-              </Button>
-            </div>
-            <div className="w-full">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 break-words">
-                Conversation avec {selectedConversation.user_name}
-              </h2>
-              <p className="text-gray-600 text-sm">
-                Bot: {selectedConversation.bot_name} • {selectedConversation.total_messages} messages
-              </p>
-            </div>
-          </div>
-
-          <Card className="w-full">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base">Messages de la conversation</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
-                {messages.map((message) => (
-                  <div 
-                    key={message.id}
-                    className={`flex w-full ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div 
-                      className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
-                        message.type === 'user' 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-gray-200 text-gray-900'
-                      }`}
-                    >
-                      <div className="break-words">{message.content}</div>
-                      <div className="opacity-75 mt-1 text-xs">
-                        {new Date(message.timestamp).toLocaleString('fr-FR')}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <MessageView
+        conversation={selectedConversation}
+        messages={messages}
+        onBack={() => setSelectedConversation(null)}
+        onContactUser={setSelectedContact}
+      />
     );
   }
 
+  // Show contact message form when contact is selected
   if (selectedContact) {
     return (
-      <div className="min-h-screen w-full bg-gray-50">
-        <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
-          <div className="flex flex-col gap-3 mb-4">
-            <Button variant="outline" onClick={() => setSelectedContact(null)} size="sm" className="w-fit">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour
-            </Button>
-            <div className="w-full">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 break-words">
-                Contacter {selectedContact.user_name}
-              </h2>
-              <p className="text-gray-600 text-sm break-all">{selectedContact.user_email}</p>
-            </div>
-          </div>
-
-          <Card className="w-full">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base">Envoyer un message</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Message
-                </label>
-                <textarea
-                  value={contactMessage}
-                  onChange={(e) => setContactMessage(e.target.value)}
-                  rows={6}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-                  placeholder="Tapez votre message ici..."
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Button onClick={sendContactMessage} disabled={!contactMessage.trim()} className="w-full">
-                  <Send className="w-4 h-4 mr-2" />
-                  Envoyer
-                </Button>
-                <Button variant="outline" onClick={() => setSelectedContact(null)} className="w-full">
-                  Annuler
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <ContactMessageForm
+        contact={selectedContact}
+        message={contactMessage}
+        onMessageChange={setContactMessage}
+        onSendMessage={sendContactMessage}
+        onBack={() => setSelectedContact(null)}
+      />
     );
   }
 
+  // Main conversation manager view
   return (
     <div className="min-h-screen w-full bg-gray-50">
       <div className="w-full max-w-none p-2 sm:p-4 lg:p-6">
-        {/* En-tête responsive */}
+        {/* Header */}
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -525,49 +416,19 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
           </div>
         </div>
 
-        {/* Filtres responsive */}
-        <Card className="mb-4">
-          <CardContent className="p-3">
-            <div className="flex flex-col gap-3">
-              <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Rechercher utilisateurs, emails, bots..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full text-sm"
-                />
-              </div>
-              
-              {activeTab === 'conversations' ? (
-                <Select value={filterBot} onValueChange={setFilterBot}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue placeholder="Filtrer par bot" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les bots</SelectItem>
-                    {availableBots.map(bot => (
-                      <SelectItem key={bot.id} value={bot.id}>{bot.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue placeholder="Filtrer par statut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les statuts</SelectItem>
-                    <SelectItem value="active">Actif</SelectItem>
-                    <SelectItem value="inactive">Inactif</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Filters */}
+        <ConversationFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          filterBot={filterBot}
+          onFilterBotChange={setFilterBot}
+          filterStatus={filterStatus}
+          onFilterStatusChange={setFilterStatus}
+          activeTab={activeTab}
+          availableBots={availableBots}
+        />
 
-        {/* Onglets responsive */}
+        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="conversations" className="flex items-center space-x-1 text-xs sm:text-sm">
@@ -581,189 +442,20 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
           </TabsList>
 
           <TabsContent value="conversations">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <Card key={i} className="animate-pulse">
-                    <CardContent className="p-4">
-                      <div className="h-20 bg-gray-200 rounded"></div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : filteredConversations.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Aucune conversation trouvée
-                  </h3>
-                  <p className="text-gray-600 text-sm">
-                    Aucune conversation ne correspond à vos critères de recherche.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {filteredConversations.map((conversation) => (
-                  <Card key={`${conversation.bot_id}-${conversation.session_id}`} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                            <MessageSquare className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <h3 className="font-semibold text-gray-900 text-sm break-words">
-                                {conversation.user_name}
-                              </h3>
-                              <Badge variant="secondary" className="text-xs">{conversation.bot_name}</Badge>
-                              <Badge variant="default" className="text-xs">
-                                {conversation.total_messages} messages
-                              </Badge>
-                            </div>
-                            <p className="text-gray-600 text-xs mb-2 break-all">{conversation.user_email}</p>
-                            <p className="text-gray-700 text-xs line-clamp-2 break-words">
-                              Dernier message: {conversation.last_message_content}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>Début: {new Date(conversation.session_start).toLocaleDateString('fr-FR')}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span>Dernier: {new Date(conversation.last_message_at).toLocaleDateString('fr-FR')}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2">
-                          <Button
-                            onClick={() => viewConversation(conversation)}
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                          >
-                            <Eye className="w-4 h-4 mr-2" />
-                            Voir la conversation
-                          </Button>
-                          <Button
-                            onClick={() => setSelectedContact({
-                              user_id: conversation.user_id,
-                              user_name: conversation.user_name,
-                              user_email: conversation.user_email,
-                              session_count: 1,
-                              message_count: conversation.total_messages,
-                              first_interaction: conversation.session_start,
-                              last_interaction: conversation.last_message_at,
-                              status: 'active'
-                            })}
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                          >
-                            <Mail className="w-4 h-4 mr-2" />
-                            Contacter l'utilisateur
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <ConversationList
+              conversations={filteredConversations}
+              isLoading={isLoading}
+              onViewConversation={viewConversation}
+              onContactUser={setSelectedContact}
+            />
           </TabsContent>
 
           <TabsContent value="contacts">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <Card key={i} className="animate-pulse">
-                    <CardContent className="p-4">
-                      <div className="h-20 bg-gray-200 rounded"></div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : filteredContacts.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    Aucun contact trouvé
-                  </h3>
-                  <p className="text-gray-600 text-sm">
-                    Aucun contact ne correspond à vos critères de recherche.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {filteredContacts.map((contact) => (
-                  <Card key={contact.user_id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                            contact.status === 'active' ? 'bg-green-100' : 'bg-gray-100'
-                          }`}>
-                            <User className={`w-5 h-5 ${
-                              contact.status === 'active' ? 'text-green-600' : 'text-gray-400'
-                            }`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <h3 className="font-semibold text-gray-900 text-sm break-words">
-                                {contact.user_name}
-                              </h3>
-                              <Badge variant={contact.status === 'active' ? 'default' : 'secondary'} className="text-xs">
-                                {contact.status === 'active' ? 'Actif' : 'Inactif'}
-                              </Badge>
-                            </div>
-                            <p className="text-gray-600 text-xs mb-2 break-all">{contact.user_email}</p>
-                            <div className="grid grid-cols-2 gap-2 text-xs mb-2">
-                              <div>
-                                <span className="text-gray-500">Sessions:</span>
-                                <span className="ml-2 font-medium">{contact.session_count}</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Messages:</span>
-                                <span className="ml-2 font-medium">{contact.message_count}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>Premier: {new Date(contact.first_interaction).toLocaleDateString('fr-FR')}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Activity className="w-3 h-3" />
-                            <span>Dernier: {new Date(contact.last_interaction).toLocaleDateString('fr-FR')}</span>
-                          </div>
-                        </div>
-                        
-                        <Button
-                          onClick={() => setSelectedContact(contact)}
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                        >
-                          <Mail className="w-4 h-4 mr-2" />
-                          Contacter
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <ContactList
+              contacts={filteredContacts}
+              isLoading={isLoading}
+              onContactUser={setSelectedContact}
+            />
           </TabsContent>
         </Tabs>
       </div>
