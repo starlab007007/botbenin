@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo } from "react";
 import { useBotUserId } from "./useBotUserId";
 import { useMessageFetcher } from "./useMessageFetcher";
@@ -9,7 +8,7 @@ import { BotMessageHistoryItem } from "../types";
 export const useBotMessageHistory = (botId: string | null, sessionToken: string | null) => {
   const { botUserId, loadingBotUserId, errorBotUserId } = useBotUserId(botId, sessionToken);
   
-  const { messages, loadingMessages, errorMessages, fetchMessages, setMessages } = useMessageFetcher(botId, botUserId);
+  const { messages, loadingMessages, errorMessages, fetchMessages, setMessages } = useMessageFetcher(botId, botUserId, sessionToken);
 
   // Clear messages when botId or sessionToken changes
   useEffect(() => {
