@@ -223,7 +223,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     const fingerprintHash = generateBrowserFingerprint();
     const fingerprintResult = await createOrGetVisitorFingerprint(fingerprintHash);
 
-    // SAFEGUARD: check if fingerprintResult is an error object or string
+    // Check if fingerprintResult is an error object or string
     if (
       typeof fingerprintResult === "object"
       && fingerprintResult !== null
@@ -255,7 +255,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       utmParams
     );
 
-    // SAFEGUARD: check if sessionTokenResult is an error object or string
+    // Check if sessionTokenResult is an error object or string
     if (
       typeof sessionTokenResult === "object"
       && sessionTokenResult !== null
@@ -271,18 +271,24 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       return errorMsg;
     }
 
-    // Only execute this block when sessionTokenResult is a *string*
+    // Only execute this block when sessionTokenResult is strictly a *string* and a token
     if (typeof sessionTokenResult === 'string' && sessionTokenResult.startsWith('anon_')) {
       console.log(`[visitorTracking] New session created with token: ${sessionTokenResult}`);
       sessionStorage.setItem('visitor_session_token', sessionTokenResult);
-      // Fix: Add local type guard before calling trackVisitorEvent
-      await trackVisitorEvent(sessionTokenResult, 'session_start', {
-        url: window.location.href,
-        utm_params: utmParams,
-        fingerprint_hash: fingerprintHash,
-        bot_id: botId,
-        entry_point: finalEntryPoint
-      });
+
+      // SAFETY: Only call trackVisitorEvent when the sessionTokenResult is a valid string token
+      await trackVisitorEvent(
+        sessionTokenResult,
+        'session_start',
+        {
+          url: window.location.href,
+          utm_params: utmParams,
+          fingerprint_hash: fingerprintHash,
+          bot_id: botId,
+          entry_point: finalEntryPoint
+        }
+      );
+
       return sessionTokenResult;
     }
 
