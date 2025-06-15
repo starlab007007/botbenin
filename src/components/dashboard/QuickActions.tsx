@@ -6,14 +6,18 @@ import {
   Users,
   CreditCard,
   Target,
-  Megaphone
+  Megaphone,
+  Shield
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface QuickActionsProps {
   onActionClick?: (action: string) => void;
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({ onActionClick }) => {
+  const { user } = useAuth();
+
   const actions = [
     { id: 'leads', label: 'Mes Lead', icon: Users },
     { id: 'subscription', label: 'Mon Abonnement', icon: CreditCard },
@@ -21,15 +25,28 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ onActionClick }) => 
     { id: 'campaigns', label: 'Mes Campagnes', icon: Megaphone }
   ];
 
+  // Add admin action if user has permissions
+  if (user) {
+    actions.push({ id: 'admin', label: 'Administration', icon: Shield });
+  }
+
+  const handleActionClick = (actionId: string) => {
+    if (actionId === 'admin') {
+      window.location.href = '/admin';
+    } else if (onActionClick) {
+      onActionClick(actionId);
+    }
+  };
+
   return (
     <Card className="uniform-card p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {actions.map((action) => (
           <Button 
             key={action.id}
             className="uniform-button-secondary flex items-center space-x-2"
-            onClick={() => onActionClick?.(action.id)}
+            onClick={() => handleActionClick(action.id)}
           >
             <action.icon className="w-4 h-4" />
             <span>{action.label}</span>
