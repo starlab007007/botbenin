@@ -1,3 +1,4 @@
+
 import React from "react";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,7 @@ interface SessionHeaderProps {
   selectedSession: BotSession;
   loading: boolean;
   refetch: () => void;
-  debugTokens: string | null;
+  // debugTokens: string | null; // Removed this prop as it's no longer used
 }
 
 export const SessionHeader: React.FC<SessionHeaderProps> = ({
@@ -27,6 +28,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
   selectedSession,
   loading,
   refetch,
+  // debugTokens // Removed from props
 }) => {
   return (
     <CardHeader className="pb-3 flex-shrink-0">
