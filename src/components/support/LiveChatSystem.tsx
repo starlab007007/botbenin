@@ -2,7 +2,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Send, Paperclip, Smile, Phone, Video, MoreVertical, Star, User, Clock } from 'lucide-react';
+import { MessageCircle, Send, Paperclip, Smile, Phone, Video, MoreVertical, Star, User, Clock, Bot } from 'lucide-react';
+import { useLiveChatBots } from '@/hooks/useLiveChatBots';
+import { useToast } from '@/hooks/use-toast';
+import { initializeVisitorTracking } from '@/utils/visitorTracking';
 
 interface Message {
   id: string;
@@ -26,9 +29,12 @@ interface Agent {
   responseTime: string;
   languages: string[];
   specialties: string[];
+  webhookUrl?: string;
+  chatContext?: string;
 }
 
-const supportAgents: Agent[] = [
+// Agents par défaut (fallback)
+const defaultAgents: Agent[] = [
   {
     id: '1',
     name: 'Marie Dubois',
@@ -69,6 +75,9 @@ export const LiveChatSystem: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [waitTime, setWaitTime] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  const { bots: liveChatBots, loading: botsLoading, error: botsError } = useLiveChatBots();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -83,30 +92,70 @@ export const LiveChatSystem: React.FC = () => {
     }
   }, [isConnected, waitTime]);
 
-  const startChat = (agent: Agent) => {
-    setSelectedAgent(agent);
-    setIsConnected(true);
-    setWaitTime(Math.floor(Math.random() * 180) + 30); // 30-210 secondes
-    
-    // Message système de connexion
-    const welcomeMessage: Message = {
-      id: Date.now().toString(),
-      sender: 'agent',
-      content: `Bonjour ! Je suis ${agent.name}, ${agent.role}. Comment puis-je vous aider aujourd'hui ?`,
-      timestamp: new Date(),
-      type: 'system',
-      agentInfo: {
-        name: agent.name,
-        role: agent.role,
-        rating: agent.rating
+  // Convertir les bots en agents
+  const dynamicAgents: Agent[] = liveChatBots.map(bot => ({
+    id: bot.id,
+    name: bot.chat_title || bot.name,
+    role: bot.description || 'Assistant IA',
+    status: 'online' as const,
+    rating: 4.8,
+    responseTime: '< 1 min',
+    languages: ['Français'],
+    specialties: [bot.chat_context || 'Assistance générale'],
+    webhookUrl: bot.webhook_url,
+    chatContext: bot.chat_context
+  }));
+
+  // Utiliser les bots dynamiques ou les agents par défaut
+  const availableAgents = dynamicAgents.length > 0 ? dynamicAgents : defaultAgents;
+
+  const startChat = async (agent: Agent) => {
+    try {
+      console.log('[LiveChatSystem] Démarrage du chat avec:', agent.name);
+      
+      // Si c'est un bot dynamique, initialiser le tracking
+      if (agent.webhookUrl) {
+        await initializeVisitorTracking(agent.id, 'live_chat_system');
+        console.log('[LiveChatSystem] Tracking initialisé pour le bot:', agent.id);
       }
-    };
-    
-    setMessages([welcomeMessage]);
+
+      setSelectedAgent(agent);
+      setIsConnected(true);
+      setWaitTime(Math.floor(Math.random() * 60) + 15); // 15-75 secondes
+      
+      // Message système de connexion
+      const welcomeMessage: Message = {
+        id: Date.now().toString(),
+        sender: 'agent',
+        content: `Bonjour ! Je suis ${agent.name}, ${agent.role}. Comment puis-je vous aider aujourd'hui ?`,
+        timestamp: new Date(),
+        type: 'system',
+        agentInfo: {
+          name: agent.name,
+          role: agent.role,
+          rating: agent.rating
+        }
+      };
+      
+      setMessages([welcomeMessage]);
+
+      toast({
+        title: `Chat démarré avec ${agent.name}`,
+        description: agent.webhookUrl ? "Bot IA connecté" : "Agent expert connecté",
+      });
+      
+    } catch (error) {
+      console.error('[LiveChatSystem] Erreur lors du démarrage:', error);
+      toast({
+        title: "Erreur de connexion",
+        description: "Impossible de démarrer le chat. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const sendMessage = () => {
-    if (!newMessage.trim()) return;
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedAgent) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -117,16 +166,83 @@ export const LiveChatSystem: React.FC = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageContent = newMessage;
     setNewMessage('');
     setIsTyping(true);
 
-    // Simulation réponse agent
-    setTimeout(() => {
+    try {
+      // Si c'est un bot avec webhook, envoyer à l'API
+      if (selectedAgent.webhookUrl) {
+        console.log('[LiveChatSystem] Envoi vers webhook:', selectedAgent.webhookUrl);
+        
+        const response = await fetch(selectedAgent.webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: messageContent,
+            timestamp: new Date().toISOString(),
+            session_id: `live_chat_${selectedAgent.id}_${Date.now()}`,
+            user_id: `live_user_${Date.now()}`,
+            source: 'live_chat_system',
+            context: selectedAgent.chatContext || 'live_support',
+            chat_title: selectedAgent.name,
+            bot_id: selectedAgent.id,
+            interface_type: 'live_chat_system'
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const botResponse = data.output || data.message || data.response || "Merci pour votre message. Comment puis-je vous aider davantage ?";
+          
+          setTimeout(() => {
+            setIsTyping(false);
+            const agentResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              sender: 'agent',
+              content: botResponse,
+              timestamp: new Date(),
+              type: 'text',
+              agentInfo: selectedAgent ? {
+                name: selectedAgent.name,
+                role: selectedAgent.role,
+                rating: selectedAgent.rating
+              } : undefined
+            };
+            setMessages(prev => [...prev, agentResponse]);
+          }, 1000);
+        } else {
+          throw new Error('Erreur de réponse du webhook');
+        }
+      } else {
+        // Simulation pour les agents par défaut
+        setTimeout(() => {
+          setIsTyping(false);
+          const agentResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            sender: 'agent',
+            content: generateAgentResponse(messageContent),
+            timestamp: new Date(),
+            type: 'text',
+            agentInfo: selectedAgent ? {
+              name: selectedAgent.name,
+              role: selectedAgent.role,
+              rating: selectedAgent.rating
+            } : undefined
+          };
+          setMessages(prev => [...prev, agentResponse]);
+        }, 2000 + Math.random() * 3000);
+      }
+    } catch (error) {
+      console.error('[LiveChatSystem] Erreur lors de l\'envoi:', error);
       setIsTyping(false);
-      const agentResponse: Message = {
+      
+      const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'agent',
-        content: generateAgentResponse(newMessage),
+        content: "Je rencontre un problème technique. Veuillez réessayer dans quelques instants.",
         timestamp: new Date(),
         type: 'text',
         agentInfo: selectedAgent ? {
@@ -135,8 +251,8 @@ export const LiveChatSystem: React.FC = () => {
           rating: selectedAgent.rating
         } : undefined
       };
-      setMessages(prev => [...prev, agentResponse]);
-    }, 2000 + Math.random() * 3000);
+      setMessages(prev => [...prev, errorResponse]);
+    }
   };
 
   const generateAgentResponse = (userMessage: string): string => {
@@ -154,6 +270,17 @@ export const LiveChatSystem: React.FC = () => {
     return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
+  if (botsLoading) {
+    return (
+      <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement des assistants...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isConnected) {
     return (
       <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen">
@@ -161,15 +288,18 @@ export const LiveChatSystem: React.FC = () => {
           <MessageCircle className="w-16 h-16 text-blue-600 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat en Direct 24/7</h1>
           <p className="text-gray-600">Connectez-vous instantanément avec nos experts</p>
+          {botsError && (
+            <p className="text-red-600 text-sm mt-2">Utilisation des agents par défaut</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {supportAgents.map((agent) => (
+          {availableAgents.map((agent) => (
             <Card key={agent.id} className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
               <CardHeader className="pb-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" />
+                    {agent.webhookUrl ? <Bot className="w-6 h-6 text-white" /> : <User className="w-6 h-6 text-white" />}
                   </div>
                   <div>
                     <CardTitle className="text-lg text-gray-900">{agent.name}</CardTitle>
@@ -259,7 +389,7 @@ export const LiveChatSystem: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-white" />
+                {selectedAgent?.webhookUrl ? <Bot className="w-5 h-5 text-white" /> : <User className="w-5 h-5 text-white" />}
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900">{selectedAgent?.name}</h3>

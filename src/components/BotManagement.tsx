@@ -58,6 +58,7 @@ interface Bot {
   public_chat_url: string;
   created_at: string;
   updated_at: string;
+  display_in_live_chat: boolean;
 }
 
 interface BotStats {
@@ -456,6 +457,33 @@ export const BotManagement: React.FC = () => {
     }
   };
 
+  const toggleLiveChatDisplay = async (bot: Bot) => {
+    try {
+      const newDisplayValue = !bot.display_in_live_chat;
+      
+      const { error } = await supabase
+        .from('bots')
+        .update({ display_in_live_chat: newDisplayValue })
+        .eq('id', bot.id);
+
+      if (error) throw error;
+
+      toast({
+        title: newDisplayValue ? "Bot ajouté au chat live" : "Bot retiré du chat live",
+        description: `${bot.name} ${newDisplayValue ? 'apparaîtra' : 'n\'apparaîtra plus'} dans la page Chat IA`,
+      });
+
+      fetchBots();
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du statut live chat:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier l'affichage du bot dans le chat live",
+        variant: "destructive",
+      });
+    }
+  };
+
   const viewAnalytics = (botId: string, botName: string) => {
     setSelectedBotForAnalytics({ id: botId, name: botName });
     setCurrentView('analytics');
@@ -638,6 +666,7 @@ export const BotManagement: React.FC = () => {
                 onAnalytics={viewAnalytics}
                 onDelete={deleteBot}
                 onToggleStatus={toggleBotStatus}
+                onToggleLiveChat={toggleLiveChatDisplay}
                 onCopy={handleCopyToClipboard}
                 onShareWhatsApp={shareOnWhatsApp}
                 onQRClick={generateQRCode}
