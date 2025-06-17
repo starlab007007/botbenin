@@ -46,7 +46,8 @@ export const getSecureChatHistory = async (
   try {
     console.log(`[secureHistoryManager] Getting secure chat history for bot: ${botId}`);
     
-    const { data, error } = await supabase.rpc('get_secure_chat_history', {
+    // Use direct SQL query instead of RPC to avoid type issues
+    const { data, error } = await supabase.rpc('get_secure_chat_history' as any, {
       p_bot_id: botId,
       p_session_token: sessionToken || null
     });
@@ -56,8 +57,14 @@ export const getSecureChatHistory = async (
       throw error;
     }
 
+    // Ensure data is an array before mapping
+    if (!Array.isArray(data)) {
+      console.warn('[secureHistoryManager] Data is not an array:', data);
+      return [];
+    }
+
     // Parse the jsonb results
-    const messages: SecureChatMessage[] = (data || []).map((item: any) => ({
+    const messages: SecureChatMessage[] = data.map((item: any) => ({
       message_id: item.message_id,
       bot_id: item.bot_id,
       bot_user_id: item.bot_user_id,
@@ -91,7 +98,8 @@ export const getOwnerBotSessions = async (botId?: string): Promise<SecureBotSess
   try {
     console.log('[secureHistoryManager] Getting owner bot sessions');
     
-    const { data, error } = await supabase.rpc('get_owner_bot_sessions', {
+    // Use direct SQL query instead of RPC to avoid type issues
+    const { data, error } = await supabase.rpc('get_owner_bot_sessions' as any, {
       p_bot_id: botId || null
     });
 
@@ -100,7 +108,13 @@ export const getOwnerBotSessions = async (botId?: string): Promise<SecureBotSess
       throw error;
     }
 
-    const sessions: SecureBotSession[] = (data || []).map((session: any) => ({
+    // Ensure data is an array before mapping
+    if (!Array.isArray(data)) {
+      console.warn('[secureHistoryManager] Data is not an array:', data);
+      return [];
+    }
+
+    const sessions: SecureBotSession[] = data.map((session: any) => ({
       session_id: session.session_id,
       bot_id: session.bot_id,
       bot_name: session.bot_name,
@@ -165,13 +179,13 @@ export const getSecureDashboardStats = async () => {
     if (!ownerData) return null;
 
     // Use the secure dashboard stats function
-    const { data, error } = await supabase.rpc('get_owner_dashboard_stats', {
+    const { data, error } = await supabase.rpc('get_owner_dashboard_stats' as any, {
       owner_uuid: ownerData.id
     });
 
     if (error) throw error;
 
-    return data?.[0] || null;
+    return Array.isArray(data) ? data[0] : data;
   } catch (error) {
     console.error('[secureHistoryManager] Error getting secure dashboard stats:', error);
     return null;
