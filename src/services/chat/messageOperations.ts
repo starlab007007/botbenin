@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 /**
- * Enhanced message saving with corrected secure session reconciliation
+ * Enhanced message saving with final corrected secure session reconciliation
  */
 export const saveChatMessage = async (
   botId: string,
@@ -13,8 +13,8 @@ export const saveChatMessage = async (
   metadata: Json = {}
 ) => {
   try {
-    console.log(`[messageOperations] === ABSOLUTE SECURE MESSAGE SAVING ===`);
-    console.log(`[messageOperations] Using corrected secure DB functions`);
+    console.log(`[messageOperations] === SECURE MESSAGE SAVING (FINAL CORRECTED) ===`);
+    console.log(`[messageOperations] Using final corrected secure DB functions`);
     console.log(`[messageOperations] Bot ID: ${botId}`);
     console.log(`[messageOperations] Session Token: ${sessionToken}`);
     console.log(`[messageOperations] Message Type: ${type}`);
@@ -30,7 +30,7 @@ export const saveChatMessage = async (
       console.warn('[messageOperations] Unexpected session token format:', sessionToken);
     }
     
-    // Enhanced metadata with corrected secure tracking
+    // Enhanced metadata with final corrected secure tracking
     const baseMetadata = (metadata && typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata)) ? metadata : {};
     const secureMetadata = {
       ...baseMetadata,
@@ -38,9 +38,9 @@ export const saveChatMessage = async (
       sessionToken: sessionToken,
       saved_at: new Date().toISOString(),
       message_type: type,
-      platform: 'bot_bj_absolute_secure',
+      platform: 'bot_bj_secure_final',
       secure_system: true,
-      absolute_correction_applied: true,
+      final_correction_applied: true,
       save_attempt_id: crypto.randomUUID(),
       debug_info: {
         bot_id: botId,
@@ -48,13 +48,13 @@ export const saveChatMessage = async (
         saved_timestamp: Date.now(),
         user_agent: navigator?.userAgent || 'unknown',
         url: window?.location?.href || 'unknown',
-        system_version: 'absolute_secure_v1'
+        system_version: 'secure_final_v1'
       }
     };
 
-    console.log(`[messageOperations] Corrected metadata:`, secureMetadata);
+    console.log(`[messageOperations] Final corrected metadata:`, secureMetadata);
 
-    // Use the corrected secure save_chat_message function
+    // Use the final corrected secure save_chat_message function
     const { data, error } = await supabase.rpc('save_chat_message', {
       p_bot_id: botId,
       p_session_token: sessionToken,
@@ -64,7 +64,7 @@ export const saveChatMessage = async (
     });
 
     if (error) {
-      console.error('[messageOperations] *** CORRECTED SAVE ERROR ***');
+      console.error('[messageOperations] *** FINAL CORRECTED SAVE ERROR ***');
       console.error('[messageOperations] RPC Error:', error);
       console.error('[messageOperations] Error details:', {
         code: error.code,
@@ -73,10 +73,10 @@ export const saveChatMessage = async (
         hint: error.hint
       });
 
-      // Enhanced fallback with corrected secure session reconciliation
-      console.log('[messageOperations] Attempting corrected fallback with auto-repair...');
+      // Enhanced fallback with final corrected secure session reconciliation
+      console.log('[messageOperations] Attempting final corrected fallback with auto-repair...');
       
-      // Use corrected enhanced_session_reconciliation function
+      // Use final corrected enhanced_session_reconciliation function
       try {
         const { data: reconciledUserId, error: reconcileError } = await supabase.rpc(
           'enhanced_session_reconciliation',
@@ -87,65 +87,65 @@ export const saveChatMessage = async (
         );
 
         if (reconcileError) {
-          console.error('[messageOperations] Corrected session reconciliation failed:', reconcileError);
+          console.error('[messageOperations] Final corrected session reconciliation failed:', reconcileError);
           throw reconcileError;
         }
 
-        console.log('[messageOperations] Corrected session reconciliation successful:', reconciledUserId);
+        console.log('[messageOperations] Final corrected session reconciliation successful:', reconciledUserId);
 
-        // Retry the save with corrected system
+        // Retry the save with final corrected system
         const { data: retryData, error: retryError } = await supabase.rpc('save_chat_message', {
           p_bot_id: botId,
           p_session_token: sessionToken,
           p_message_content: content,
           p_message_type: type,
-          p_metadata: { ...secureMetadata, absolute_corrected_reconciled: true },
+          p_metadata: { ...secureMetadata, final_corrected_reconciled: true },
         });
         
         if (!retryError && retryData) {
-          console.log('[messageOperations] *** MESSAGE SAVED AFTER CORRECTED RECONCILIATION ***');
+          console.log('[messageOperations] *** MESSAGE SAVED AFTER FINAL CORRECTED RECONCILIATION ***');
           return retryData;
         }
       } catch (reconcileErr) {
-        console.warn('[messageOperations] Corrected reconciliation failed:', reconcileErr);
+        console.warn('[messageOperations] Final corrected reconciliation failed:', reconcileErr);
       }
       
-      return await saveMessageWithCorrectedReconciliation(botId, sessionToken, content, type, secureMetadata);
+      return await saveMessageWithFinalCorrectedReconciliation(botId, sessionToken, content, type, secureMetadata);
     }
 
-    console.log('[messageOperations] *** CORRECTED MESSAGE SAVED SUCCESSFULLY ***');
+    console.log('[messageOperations] *** FINAL CORRECTED MESSAGE SAVED SUCCESSFULLY ***');
     console.log('[messageOperations] Message ID:', data);
-    console.log('[messageOperations] Corrected session reconciliation completed');
+    console.log('[messageOperations] Final corrected session reconciliation completed');
     
     return data;
   } catch (err) {
-    console.error('[messageOperations] *** EXCEPTION IN CORRECTED saveChatMessage ***');
+    console.error('[messageOperations] *** EXCEPTION IN FINAL CORRECTED saveChatMessage ***');
     console.error('[messageOperations] Exception:', err);
     
-    // Emergency fallback with corrected secure functions
+    // Emergency fallback with final corrected secure functions
     try {
-      console.log('[messageOperations] Attempting corrected emergency fallback...');
-      return await saveMessageWithCorrectedReconciliation(botId, sessionToken, content, type, metadata as any);
+      console.log('[messageOperations] Attempting final corrected emergency fallback...');
+      return await saveMessageWithFinalCorrectedReconciliation(botId, sessionToken, content, type, metadata as any);
     } catch (fallbackErr) {
-      console.error('[messageOperations] Corrected emergency fallback failed:', fallbackErr);
-      throw new Error(`Message saving failed completely with corrected system: ${fallbackErr}`);
+      console.error('[messageOperations] Final corrected emergency fallback failed:', fallbackErr);
+      throw new Error(`Message saving failed completely with final corrected system: ${fallbackErr}`);
     }
   }
 };
 
 /**
- * Fallback with corrected secure session reconciliation
+ * Fallback with final corrected secure session reconciliation
  */
-const saveMessageWithCorrectedReconciliation = async (
+const saveMessageWithFinalCorrectedReconciliation = async (
   botId: string,
   sessionToken: string,
   content: string,
   type: 'user' | 'bot',
   metadata: any
 ) => {
-  console.log('[messageOperations] === CORRECTED FALLBACK WITH RECONCILIATION ===');
+  console.log('[messageOperations] === FINAL CORRECTED FALLBACK WITH RECONCILIATION ===');
   
-  // Use the corrected secure enhanced_session_reconciliation function
+  // Use the final corrected secure enhanced_session_reconciliation function
   let botUserId: string;
   try {
     const { data: reconciledUserId, error: reconcileError } = await supabase.rpc(
@@ -157,18 +157,18 @@ const saveMessageWithCorrectedReconciliation = async (
     );
 
     if (reconcileError) {
-      console.error('[messageOperations] Corrected reconciliation failed:', reconcileError);
+      console.error('[messageOperations] Final corrected reconciliation failed:', reconcileError);
       throw reconcileError;
     }
 
     botUserId = reconciledUserId;
-    console.log('[messageOperations] Corrected reconciliation successful:', botUserId);
+    console.log('[messageOperations] Final corrected reconciliation successful:', botUserId);
   } catch (reconcileErr) {
-    console.error('[messageOperations] Corrected reconciliation failed:', reconcileErr);
-    throw new Error(`Corrected session reconciliation failed: ${reconcileErr}`);
+    console.error('[messageOperations] Final corrected reconciliation failed:', reconcileErr);
+    throw new Error(`Final corrected session reconciliation failed: ${reconcileErr}`);
   }
 
-  // Insert message directly with corrected reconciled session (RLS will apply)
+  // Insert message directly with final corrected reconciled session (RLS will apply)
   const { data, error } = await supabase
     .from('chat_messages')
     .insert({
@@ -178,8 +178,8 @@ const saveMessageWithCorrectedReconciliation = async (
       message_type: type,
       metadata: {
         ...metadata,
-        absolute_corrected_fallback: true,
-        reconciliation_method: 'corrected_enhanced_absolute',
+        final_corrected_fallback: true,
+        reconciliation_method: 'final_corrected_enhanced',
         fallback_timestamp: new Date().toISOString()
       }
     })
@@ -187,10 +187,10 @@ const saveMessageWithCorrectedReconciliation = async (
     .single();
 
   if (error) {
-    console.error('[messageOperations] Corrected direct insert failed:', error);
+    console.error('[messageOperations] Final corrected direct insert failed:', error);
     throw error;
   }
 
-  console.log('[messageOperations] Corrected direct insert successful:', data.id);
+  console.log('[messageOperations] Final corrected direct insert successful:', data.id);
   return data.id;
 };

@@ -2,16 +2,16 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Retrieve chat history using the corrected unified system with absolute security
+ * Retrieve chat history using the corrected unified system with explicit security
  */
 export const getChatHistory = async (botId: string, sessionToken: string) => {
   try {
-    console.log(`[historyManager] === ABSOLUTE SECURE CHAT HISTORY RETRIEVAL ===`);
-    console.log(`[historyManager] Using corrected DB functions with explicit table aliases`);
+    console.log(`[historyManager] === SECURE CHAT HISTORY RETRIEVAL (FINAL CORRECTED) ===`);
+    console.log(`[historyManager] Using final corrected secure DB functions`);
     console.log(`[historyManager] Bot ID: ${botId}`);
     console.log(`[historyManager] Session Token: ${sessionToken}`);
     
-    // Use the corrected get_unified_chat_history function with explicit table qualification
+    // Use the final corrected get_unified_chat_history function with explicit table qualification
     const { data: unifiedData, error: unifiedError } = await supabase.rpc('get_unified_chat_history', {
       p_bot_id: botId,
       p_session_token: sessionToken,
@@ -21,15 +21,15 @@ export const getChatHistory = async (botId: string, sessionToken: string) => {
     });
 
     if (unifiedError) {
-      console.error('[historyManager] Corrected RPC Error:', unifiedError);
+      console.error('[historyManager] Final Corrected RPC Error:', unifiedError);
       
-      // Fallback with corrected secure query
-      console.log('[historyManager] Attempting corrected fallback query...');
-      return await getMessagesWithCorrectedQuery(botId, sessionToken);
+      // Fallback with final corrected secure query
+      console.log('[historyManager] Attempting final corrected fallback query...');
+      return await getMessagesWithFinalCorrection(botId, sessionToken);
     }
 
     if (unifiedData && unifiedData.length > 0) {
-      console.log(`[historyManager] Corrected system success: ${unifiedData.length} messages retrieved`);
+      console.log(`[historyManager] Final corrected system success: ${unifiedData.length} messages retrieved`);
       
       // Transform to expected format
       const transformedData = unifiedData.map((item: any) => ({
@@ -52,30 +52,30 @@ export const getChatHistory = async (botId: string, sessionToken: string) => {
       return transformedData;
     }
 
-    // If unified RPC returns no data, try direct corrected query
-    console.log('[historyManager] Corrected RPC returned no data, trying direct query...');
-    return await getMessagesWithCorrectedQuery(botId, sessionToken);
+    // If unified RPC returns no data, try direct final corrected query
+    console.log('[historyManager] Final corrected RPC returned no data, trying direct query...');
+    return await getMessagesWithFinalCorrection(botId, sessionToken);
 
   } catch (err) {
-    console.error('[historyManager] Exception in corrected getChatHistory:', err);
+    console.error('[historyManager] Exception in final corrected getChatHistory:', err);
     
-    // Last attempt with corrected query
+    // Last attempt with final corrected query
     try {
-      return await getMessagesWithCorrectedQuery(botId, sessionToken);
+      return await getMessagesWithFinalCorrection(botId, sessionToken);
     } catch (fallbackErr) {
-      console.error('[historyManager] Corrected fallback query also failed:', fallbackErr);
+      console.error('[historyManager] Final corrected fallback query also failed:', fallbackErr);
       return null;
     }
   }
 };
 
 /**
- * Direct query using corrected approach with explicit table qualification and RLS protection
+ * Direct query using final corrected approach with explicit table qualification and RLS protection
  */
-const getMessagesWithCorrectedQuery = async (botId: string, sessionToken: string) => {
-  console.log('[historyManager] Executing corrected direct query with explicit table qualification...');
+const getMessagesWithFinalCorrection = async (botId: string, sessionToken: string) => {
+  console.log('[historyManager] Executing final corrected direct query with explicit table qualification...');
   
-  // Use explicit table aliases and RLS-protected queries with CORRECTED SYSTEM
+  // Use explicit table aliases and RLS-protected queries with FINAL CORRECTION
   const { data, error } = await supabase
     .from('chat_messages')
     .select(`
@@ -102,7 +102,7 @@ const getMessagesWithCorrectedQuery = async (botId: string, sessionToken: string
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('[historyManager] Corrected direct query error:', error);
+    console.error('[historyManager] Final corrected direct query error:', error);
     throw error;
   }
 
@@ -126,6 +126,6 @@ const getMessagesWithCorrectedQuery = async (botId: string, sessionToken: string
     user_last_active: item.bot_users?.last_active
   })) || [];
 
-  console.log(`[historyManager] Corrected direct query success: ${transformedData.length} messages`);
+  console.log(`[historyManager] Final corrected direct query success: ${transformedData.length} messages`);
   return transformedData;
 };
