@@ -24,29 +24,30 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
 
   useEffect(() => {
     const fetchHistory = async () => {
+      // Clear previous state
+      setMessages([]);
+      setError(null);
+
       if (!botId || !sessionToken) {
-        setMessages([]);
         setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
-        setError(null);
         
         console.log(`[useBotMessageHistory] Fetching history for bot ${botId}, session ${sessionToken}`);
         
         const historyData = await getChatHistory(botId, sessionToken);
         
-        if (historyData && Array.isArray(historyData)) {
+        if (historyData && Array.isArray(historyData) && historyData.length > 0) {
           console.log(`[useBotMessageHistory] Retrieved ${historyData.length} messages`);
           setMessages(historyData);
-        } else if (historyData === null) {
-          setError('Erreur lors de la récupération de l\'historique');
-          setMessages([]);
+          setError(null);
         } else {
           console.log('[useBotMessageHistory] No history found');
           setMessages([]);
+          setError(null);
         }
         
       } catch (err) {
@@ -61,9 +62,37 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
     fetchHistory();
   }, [botId, sessionToken]);
 
+  // Force refresh function
+  const refreshHistory = async () => {
+    if (!botId || !sessionToken) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log(`[useBotMessageHistory] Force refreshing history for bot ${botId}, session ${sessionToken}`);
+      
+      const historyData = await getChatHistory(botId, sessionToken);
+      
+      if (historyData && Array.isArray(historyData)) {
+        console.log(`[useBotMessageHistory] Force refresh retrieved ${historyData.length} messages`);
+        setMessages(historyData);
+      } else {
+        setMessages([]);
+      }
+      
+    } catch (err) {
+      console.error('[useBotMessageHistory] Error in force refresh:', err);
+      setError('Erreur lors du rafraîchissement');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     messages,
     loading,
-    error
+    error,
+    refreshHistory
   };
 };

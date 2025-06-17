@@ -10,7 +10,6 @@ import {
   Activity, 
   Database,
   RefreshCw,
-  Eye,
   Download
 } from 'lucide-react';
 
@@ -58,7 +57,9 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
         return;
       }
 
-      // Fetch all messages
+      console.log('[AllDataViewer] Fetching data for bots:', botIds);
+
+      // Fetch all messages with proper joins
       const { data: messagesData } = await supabase
         .from('chat_messages')
         .select(`
@@ -68,8 +69,9 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
         `)
         .in('bot_id', botIds)
         .order('created_at', { ascending: false })
-        .limit(500);
+        .limit(1000);
 
+      console.log('[AllDataViewer] Messages fetched:', messagesData?.length || 0);
       setAllMessages(messagesData || []);
 
       // Fetch all enhanced sessions
@@ -93,13 +95,6 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
         .in('bot_id', botIds)
         .order('started_at', { ascending: false });
 
-      const combinedSessions = [
-        ...(enhancedSessions || []).map(s => ({ ...s, session_type: 'enhanced' })),
-        ...(anonymousSessions || []).map(s => ({ ...s, session_type: 'anonymous' }))
-      ];
-
-      setAllSessions(combinedSessions);
-
       // Fetch all bot users
       const { data: usersData } = await supabase
         .from('bot_users')
@@ -110,6 +105,16 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
         .in('bot_id', botIds)
         .order('created_at', { ascending: false });
 
+      console.log('[AllDataViewer] Enhanced sessions:', enhancedSessions?.length || 0);
+      console.log('[AllDataViewer] Anonymous sessions:', anonymousSessions?.length || 0);
+      console.log('[AllDataViewer] Bot users:', usersData?.length || 0);
+
+      const combinedSessions = [
+        ...(enhancedSessions || []).map(s => ({ ...s, session_type: 'enhanced' })),
+        ...(anonymousSessions || []).map(s => ({ ...s, session_type: 'anonymous' }))
+      ];
+
+      setAllSessions(combinedSessions);
       setAllUsers(usersData || []);
 
       // Calculate comprehensive stats
@@ -123,9 +128,13 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
         totalUsers: usersData?.length || 0,
         authenticatedUsers: usersData?.filter(u => u.is_authenticated).length || 0,
         anonymousUsers: usersData?.filter(u => !u.is_authenticated).length || 0,
-        totalBots: botIds.length
+        totalBots: botIds.length,
+        messagesLast24h: messagesData?.filter(m => 
+          new Date(m.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+        ).length || 0
       };
 
+      console.log('[AllDataViewer] Calculated stats:', stats);
       setAllStats(stats);
 
     } catch (error) {
@@ -220,6 +229,9 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
               <Database className="w-8 h-8 text-orange-600 mx-auto mb-2" />
               <div className="text-2xl font-bold text-orange-900">{allStats.totalBots}</div>
               <div className="text-sm text-orange-700">Bots Actifs</div>
+              <div className="text-xs text-orange-600 mt-1">
+                {allStats.messagesLast24h} messages 24h
+              </div>
             </div>
           </div>
         </div>
@@ -266,12 +278,15 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
                             {new Date(message.created_at).toLocaleString('fr-FR')}
                           </span>
                         </div>
-                        <p className="text-gray-700">{message.message_content}</p>
+                        <p className="text-gray-700 text-sm">{message.message_content}</p>
                         {message.bot_users?.session_id && (
                           <div className="text-xs text-gray-500 mt-2">
                             Session: {message.bot_users.session_id.slice(0, 20)}...
                           </div>
                         )}
+                        <div className="text-xs text-gray-400 mt-1">
+                          ID: {message.id} • Bot User: {message.bot_user_id}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -302,7 +317,7 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
                               {session.session_type}
                             </span>
                             <span className="font-medium">
-                              {session.bot_users?.user_name || 'Session anonyme'}
+                              {session.bot_users?.user_name || session.user_name || 'Session anonyme'}
                             </span>
                             <span className="text-sm text-gray-500">
                               • {session.bots?.name}
@@ -317,6 +332,9 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
                           <div>Messages: {session.total_messages || session.total_interactions || 0}</div>
                           <div>Point d'entrée: {session.entry_point}</div>
                           <div>Actif: {session.is_active ? 'Oui' : 'Non'}</div>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-2">
+                          ID: {session.id} • Bot User: {session.bot_user_id || 'N/A'}
                         </div>
                       </div>
                     ))}
@@ -362,6 +380,7 @@ export const AllDataViewer: React.FC<AllDataViewerProps> = ({ onClose }) => {
                           <div>Email: {user.user_email || 'Non fourni'}</div>
                           <div>Session: {user.session_id?.slice(0, 20)}...</div>
                           <div>Dernière activité: {user.last_active ? new Date(user.last_active).toLocaleString('fr-FR') : 'Inconnue'}</div>
+                          <div>ID: {user.id}</div>
                         </div>
                       </div>
                     ))}

@@ -60,11 +60,11 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
     // Create new abort controller
     abortControllerRef.current = new AbortController();
 
-    console.log(`[useMessageFetcher] === UNIFIED MESSAGE FETCHING ===`);
+    console.log(`[useMessageFetcher] === ROBUST MESSAGE FETCHING ===`);
     console.log(`[useMessageFetcher] Bot: ${botId}, Session: ${sessionToken}`);
 
     try {
-      // Use unified getChatHistory function
+      // Use robust getChatHistory function
       const data = await getChatHistory(botId, sessionToken);
 
       // Check if request was aborted
@@ -86,11 +86,11 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
           (a, b) => new Date(a.message_timestamp).getTime() - new Date(b.message_timestamp).getTime()
         );
 
-        console.log(`[useMessageFetcher] Unified system processed ${uniqueMessages.length} unique messages`);
+        console.log(`[useMessageFetcher] Robust system processed ${uniqueMessages.length} unique messages`);
         setMessages(uniqueMessages);
         setError(null);
       } else {
-        console.log('[useMessageFetcher] No messages found in unified system');
+        console.log('[useMessageFetcher] No messages found in robust system');
         setMessages([]);
         setError(null);
       }
@@ -100,8 +100,8 @@ export const useMessageFetcher = (botId: string | null, botUserId: string | null
         return;
       }
       
-      console.error('[useMessageFetcher] Unified system exception:', err);
-      setError('Failed to fetch message history from unified system');
+      console.error('[useMessageFetcher] Robust system exception:', err);
+      setError('Failed to fetch message history from robust system');
       setMessages([]);
     } finally {
       setLoading(false);

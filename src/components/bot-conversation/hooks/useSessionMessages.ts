@@ -1,5 +1,6 @@
+
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getChatHistory, debugSessionTokens } from "@/services/chat";
+import { getChatHistory } from "@/services/chat";
 
 interface SessionMessage {
   id: string;
@@ -46,19 +47,14 @@ export const useSessionMessages = (
     setError(null);
 
     try {
-      console.log(`[useSessionMessages] === UNIFIED MESSAGE FETCH ===`);
+      console.log(`[useSessionMessages] === ROBUST MESSAGE FETCH ===`);
       console.log(`[useSessionMessages] Bot: ${botId}, Session: ${sessionToken}`);
       
-      // Debug tokens in parallel (non-blocking)
-      debugSessionTokens(botId).catch(err => {
-        console.warn('[useSessionMessages] Debug tokens failed:', err);
-      });
-
-      // Main retrieval using unified system
+      // Main retrieval using robust system
       const data = await getChatHistory(botId, sessionToken);
 
       if (data && data.length > 0) {
-        console.log(`[useSessionMessages] Unified system retrieved ${data.length} messages`);
+        console.log(`[useSessionMessages] Robust system retrieved ${data.length} messages`);
         
         const formattedMessages: SessionMessage[] = data.map((item: any) => ({
           id: item.message_id || item.id,
@@ -75,13 +71,15 @@ export const useSessionMessages = (
         );
 
         setMessages(formattedMessages);
+        setError(null);
       } else {
-        console.log('[useSessionMessages] No messages found in unified system');
+        console.log('[useSessionMessages] No messages found in robust system');
         setMessages([]);
+        setError(null);
       }
 
     } catch (err: any) {
-      console.error('[useSessionMessages] Unified system exception:', err);
+      console.error('[useSessionMessages] Robust system exception:', err);
       setError(err.message || 'Échec lors du chargement des messages.');
       setMessages([]);
     } finally {

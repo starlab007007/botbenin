@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 /**
- * Enhanced message saving with multiple fallback strategies
+ * Save chat message with robust session handling
  */
 export const saveChatMessage = async (
   botId: string,
@@ -13,148 +13,129 @@ export const saveChatMessage = async (
   metadata: Json = {}
 ) => {
   try {
-    console.log(`[messageOperations] === COMPREHENSIVE MESSAGE SAVING ===`);
+    console.log(`[messageOperations] === ROBUST MESSAGE SAVING ===`);
     console.log(`[messageOperations] Bot ID: ${botId}`);
     console.log(`[messageOperations] Session Token: ${sessionToken}`);
     console.log(`[messageOperations] Message Type: ${type}`);
     
     // Enhanced parameter validation
     if (!botId || !sessionToken || !content || !type) {
-      console.error('[messageOperations] Missing required parameters:', { botId, sessionToken, content, type });
       throw new Error('Missing required parameters for message saving');
     }
     
     // Enhanced metadata
-    const baseMetadata = (metadata && typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata)) ? metadata : {};
     const finalMetadata = {
-      ...baseMetadata,
+      ...(metadata && typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata) ? metadata : {}),
       session_token: sessionToken,
       sessionToken: sessionToken,
       saved_at: new Date().toISOString(),
       message_type: type,
-      platform: 'bot_bj_comprehensive_system',
-      comprehensive_system: true,
-      save_attempt_id: crypto.randomUUID(),
-      debug_info: {
-        bot_id: botId,
-        session_token: sessionToken,
-        saved_timestamp: Date.now(),
-        user_agent: navigator?.userAgent || 'unknown',
-        url: window?.location?.href || 'unknown',
-        system_version: 'comprehensive_system_v1'
-      }
+      platform: 'bot_bj_robust_system'
     };
 
-    // Strategy 1: Try corrected final system
-    try {
-      const { data: finalData, error: finalError } = await supabase.rpc('save_message_final', {
-        p_bot_id: botId,
-        p_session_token: sessionToken,
-        p_message_content: content,
-        p_message_type: type,
-        p_metadata: finalMetadata,
-      });
-
-      if (!finalError && finalData) {
-        console.log('[messageOperations] Final system save successful');
-        return finalData;
-      }
-    } catch (finalErr) {
-      console.warn('[messageOperations] Final system failed, trying alternative:', finalErr);
-    }
-
-    // Strategy 2: Try manual session reconciliation + direct insert
+    // Step 1: Ensure bot_user exists
     let botUserId;
-    try {
-      // Try to find or create bot_user
-      const { data: existingUser } = await supabase
+    
+    // Try to find existing bot_user
+    const { data: existingUser } = await supabase
+      .from('bot_users')
+      .select('id')
+      .eq('bot_id', botId)
+      .eq('session_id', sessionToken)
+      .maybeSingle();
+
+    if (existingUser) {
+      botUserId = existingUser.id;
+      console.log(`[messageOperations] Using existing bot_user: ${botUserId}`);
+    } else {
+      // Create new bot_user
+      console.log('[messageOperations] Creating new bot_user...');
+      const { data: newUser, error: userError } = await supabase
         .from('bot_users')
+        .insert({
+          bot_id: botId,
+          session_id: sessionToken,
+          user_name: `Session ${sessionToken.slice(0, 8)}`,
+          is_authenticated: false,
+          last_active: new Date().toISOString()
+        })
         .select('id')
-        .eq('bot_id', botId)
-        .eq('session_id', sessionToken)
-        .maybeSingle();
+        .single();
 
-      if (existingUser) {
-        botUserId = existingUser.id;
-      } else {
-        // Create new bot_user
-        const { data: newUser, error: userError } = await supabase
-          .from('bot_users')
-          .insert({
-            bot_id: botId,
-            session_id: sessionToken,
-            user_name: 'Session User',
-            is_authenticated: false,
-            last_active: new Date().toISOString()
-          })
-          .select('id')
-          .single();
-
-        if (!userError && newUser) {
-          botUserId = newUser.id;
-        }
+      if (userError) {
+        console.error('[messageOperations] Failed to create bot_user:', userError);
+        throw new Error(`Failed to create bot_user: ${userError.message}`);
       }
 
-      if (botUserId) {
-        // Direct insert into chat_messages
-        const { data: messageData, error: messageError } = await supabase
-          .from('chat_messages')
-          .insert({
-            bot_id: botId,
-            bot_user_id: botUserId,
-            message_content: content,
-            message_type: type,
-            metadata: finalMetadata,
-            ip_address: '127.0.0.1',
-            user_agent: navigator?.userAgent || 'WebApp'
-          })
-          .select('id')
-          .single();
-
-        if (!messageError && messageData) {
-          console.log('[messageOperations] Direct insert successful');
-          return messageData.id;
-        }
-      }
-    } catch (directErr) {
-      console.warn('[messageOperations] Direct insert failed:', directErr);
+      botUserId = newUser.id;
+      console.log(`[messageOperations] Created new bot_user: ${botUserId}`);
     }
 
-    // Strategy 3: Use auto-reconcile function
-    try {
-      const reconcileUserId = await supabase.rpc('auto_reconcile_session_token', {
-        p_bot_id: botId,
-        p_session_token: sessionToken
-      });
+    // Step 2: Save the message
+    const { data: messageData, error: messageError } = await supabase
+      .from('chat_messages')
+      .insert({
+        bot_id: botId,
+        bot_user_id: botUserId,
+        message_content: content,
+        message_type: type,
+        metadata: finalMetadata,
+        ip_address: '127.0.0.1',
+        user_agent: navigator?.userAgent || 'WebApp'
+      })
+      .select('id')
+      .single();
 
-      if (reconcileUserId.data) {
-        const { data: reconcileMessage, error: reconcileError } = await supabase
-          .from('chat_messages')
-          .insert({
-            bot_id: botId,
-            bot_user_id: reconcileUserId.data,
-            message_content: content,
-            message_type: type,
-            metadata: finalMetadata,
-            ip_address: '127.0.0.1',
-            user_agent: navigator?.userAgent || 'WebApp'
-          })
-          .select('id')
-          .single();
-
-        if (!reconcileError && reconcileMessage) {
-          console.log('[messageOperations] Reconcile save successful');
-          return reconcileMessage.id;
-        }
-      }
-    } catch (reconcileErr) {
-      console.warn('[messageOperations] Reconcile save failed:', reconcileErr);
+    if (messageError) {
+      console.error('[messageOperations] Failed to save message:', messageError);
+      throw new Error(`Failed to save message: ${messageError.message}`);
     }
 
-    throw new Error('All message saving strategies failed');
+    console.log(`[messageOperations] Message saved successfully: ${messageData.id}`);
+
+    // Step 3: Update bot_user activity
+    await supabase
+      .from('bot_users')
+      .update({ last_active: new Date().toISOString() })
+      .eq('id', botUserId);
+
+    // Step 4: Ensure anonymous session exists if needed
+    const { data: anonymousSession } = await supabase
+      .from('anonymous_visitor_sessions')
+      .select('id')
+      .eq('bot_id', botId)
+      .eq('session_token', sessionToken)
+      .maybeSingle();
+
+    if (!anonymousSession) {
+      console.log('[messageOperations] Creating missing anonymous session...');
+      await supabase
+        .from('anonymous_visitor_sessions')
+        .insert({
+          bot_id: botId,
+          session_token: sessionToken,
+          fingerprint_id: null, // Will be filled by other systems
+          entry_point: 'message_recovery',
+          started_at: new Date().toISOString(),
+          last_activity: new Date().toISOString(),
+          is_active: true,
+          total_interactions: 1
+        });
+    } else {
+      // Update interaction count
+      await supabase
+        .from('anonymous_visitor_sessions')
+        .update({ 
+          last_activity: new Date().toISOString(),
+          total_interactions: supabase.rpc('increment_interactions', { session_id: anonymousSession.id })
+        })
+        .eq('id', anonymousSession.id);
+    }
+
+    return messageData.id;
     
   } catch (err) {
-    console.error('[messageOperations] Exception in comprehensive saveChatMessage:', err);
+    console.error('[messageOperations] Exception in saveChatMessage:', err);
     throw new Error(`Message saving failed: ${err}`);
   }
 };
@@ -167,59 +148,57 @@ export const testMessageRetrieval = async (botId: string, sessionToken: string) 
     console.log(`[messageOperations] Testing message retrieval for bot ${botId}`);
     
     const results = {
-      final_system: 0,
-      standard_system: 0,
-      direct_query: 0,
-      enhanced_sessions: 0,
-      anonymous_sessions: 0
+      totalMessages: 0,
+      sessionMessages: 0,
+      botUserMessages: 0,
+      metadataMessages: 0
     };
 
-    // Test final system
-    try {
-      const { data: finalData } = await supabase.rpc('get_chat_history_final', {
-        p_bot_id: botId,
-        p_session_token: sessionToken,
-        p_bot_user_id: null,
-        p_limit: 100
-      });
-      results.final_system = finalData?.length || 0;
-    } catch (e) { /* ignore */ }
+    // Test 1: Total messages for bot
+    const { data: totalMessages } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('bot_id', botId);
+    
+    results.totalMessages = totalMessages?.length || 0;
 
-    // Test standard system
-    try {
-      const { data: standardData } = await supabase.rpc('get_chat_history', {
-        p_bot_id: botId,
-        p_session_token: sessionToken
-      });
-      results.standard_system = standardData?.length || 0;
-    } catch (e) { /* ignore */ }
+    // Test 2: Find bot_user and their messages
+    const { data: botUser } = await supabase
+      .from('bot_users')
+      .select('id')
+      .eq('bot_id', botId)
+      .eq('session_id', sessionToken)
+      .maybeSingle();
 
-    // Test direct query
-    try {
-      const { data: directData } = await supabase
+    if (botUser) {
+      const { data: botUserMessages } = await supabase
         .from('chat_messages')
         .select('id')
-        .eq('bot_id', botId);
-      results.direct_query = directData?.length || 0;
-    } catch (e) { /* ignore */ }
+        .eq('bot_user_id', botUser.id);
+      
+      results.botUserMessages = botUserMessages?.length || 0;
+    }
 
-    // Test enhanced sessions
-    try {
-      const { data: enhancedData } = await supabase
-        .from('enhanced_chat_sessions')
-        .select('id')
-        .eq('bot_id', botId);
-      results.enhanced_sessions = enhancedData?.length || 0;
-    } catch (e) { /* ignore */ }
+    // Test 3: Messages by session in bot_users join
+    const { data: sessionMessages } = await supabase
+      .from('chat_messages')
+      .select(`
+        id,
+        bot_users!inner(session_id)
+      `)
+      .eq('bot_id', botId)
+      .eq('bot_users.session_id', sessionToken);
+    
+    results.sessionMessages = sessionMessages?.length || 0;
 
-    // Test anonymous sessions
-    try {
-      const { data: anonymousData } = await supabase
-        .from('anonymous_visitor_sessions')
-        .select('id')
-        .eq('bot_id', botId);
-      results.anonymous_sessions = anonymousData?.length || 0;
-    } catch (e) { /* ignore */ }
+    // Test 4: Messages by metadata
+    const { data: metadataMessages } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('bot_id', botId)
+      .or(`metadata->>session_token.eq.${sessionToken},metadata->>sessionToken.eq.${sessionToken}`);
+    
+    results.metadataMessages = metadataMessages?.length || 0;
 
     console.log('[messageOperations] Retrieval test results:', results);
     return results;
