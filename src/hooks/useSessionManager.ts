@@ -66,12 +66,12 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       } else {
         console.error(`[useSessionManager] Invalid token received: ${newToken}`);
         
-        // Enhanced error handling with auto-repair
-        if (typeof newToken === 'string' && newToken.includes('n\'existe pas')) {
-          // Tenter une réparation automatique
+        // Enhanced error handling with corrected auto-repair
+        if (typeof newToken === 'string' && (newToken.includes('n\'existe pas') || newToken.includes('inactif'))) {
+          // Tentative de réparation automatique corrigée
           try {
-            console.log('[useSessionManager] Tentative de réparation automatique du bot...');
-            await supabase.rpc('auto_fix_session_issues', { p_bot_id: botId });
+            console.log('[useSessionManager] Tentative de réparation automatique corrigée...');
+            await supabase.rpc('repair_all_session_inconsistencies');
             
             // Réessayer après la réparation
             if (retryCountRef.current < 2) {

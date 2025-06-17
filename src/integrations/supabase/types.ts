@@ -4496,6 +4496,14 @@ export type Database = {
           sample_details: Json
         }[]
       }
+      diagnose_session_token_ambiguities: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          issue_type: string
+          status: string
+          message: string
+        }[]
+      }
       diagnose_session_token_issues: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -4600,7 +4608,20 @@ export type Database = {
           p_bot_user_id?: string
           p_limit?: number
         }
-        Returns: Json[]
+        Returns: {
+          message_id: string
+          bot_id: string
+          bot_user_id: string
+          message_content: string
+          message_type: string
+          message_timestamp: string
+          metadata: Json
+          session_id: string
+          user_name: string
+          user_email: string
+          ip_address: string
+          user_agent: string
+        }[]
       }
       get_user_permissions: {
         Args: { user_uuid: string }
@@ -4630,6 +4651,14 @@ export type Database = {
       reconcile_bot_user_session_token: {
         Args: { p_bot_id: string; p_session_token: string }
         Returns: string
+      }
+      repair_all_session_inconsistencies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_taken: string
+          count: number
+          details: string
+        }[]
       }
       save_chat_message: {
         Args: {

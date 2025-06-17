@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 // Générer un fingerprint unique du navigateur
@@ -114,6 +113,13 @@ export const createAnonymousVisitorSession = async (
 
     if (botExists.is_active === false) {
       console.error('[visitorTracking] Bot inactif:', botId);
+      // Tenter une réparation automatique
+      try {
+        await supabase.rpc('repair_all_session_inconsistencies');
+        console.log('[visitorTracking] Réparation automatique effectuée');
+      } catch (repairError) {
+        console.warn('[visitorTracking] Réparation automatique échouée:', repairError);
+      }
       return { error: `Bot ${botId} est actuellement inactif` };
     }
     
@@ -131,8 +137,14 @@ export const createAnonymousVisitorSession = async (
     if (error) {
       console.error('[visitorTracking] RPC Error in createAnonymousVisitorSession:', error);
       
-      // Gestion spécifique des erreurs de bot
+      // Gestion spécifique des erreurs de bot avec réparation
       if (error.message?.includes('does not exist') || error.message?.includes('inactive')) {
+        try {
+          await supabase.rpc('repair_all_session_inconsistencies');
+          console.log('[visitorTracking] Réparation automatique effectuée après erreur');
+        } catch (repairError) {
+          console.warn('[visitorTracking] Réparation automatique échouée:', repairError);
+        }
         return { error: `Le bot sélectionné n'est plus disponible: ${error.message}` };
       }
       
@@ -241,13 +253,13 @@ export const extractUTMParams = () => {
   };
 };
 
-// Hook pour initialiser le tracking des visiteurs - VERSION AMÉLIORÉE AVEC VALIDATION BOT
+// Hook pour initialiser le tracking des visiteurs - VERSION CORRIGÉE
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
-    console.log(`[visitorTracking] === ENHANCED VISITOR TRACKING INIT ===`);
+    console.log(`[visitorTracking] === CORRECTED VISITOR TRACKING INIT ===`);
     console.log(`[visitorTracking] Bot ID: ${botId}, Entry: ${entryPoint}`);
     
-    // Validation préalable du bot avec diagnostic automatique en cas d'échec
+    // Validation préalable du bot avec auto-réparation intégrée
     const { data: botExists, error: botValidationError } = await supabase
       .from('bots')
       .select('id, name, is_active')
@@ -258,26 +270,44 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       const errorMsg = `[visitorTracking] Bot validation failed - Bot ${botId} n'existe pas`;
       console.error(errorMsg);
       
-      // Tenter un diagnostic automatique
+      // Auto-réparation immédiate
       try {
-        await supabase.rpc('diagnose_bot_session_issues', { p_bot_id: botId });
-        await supabase.rpc('auto_fix_session_issues', { p_bot_id: botId });
+        console.log('[visitorTracking] Tentative de réparation automatique...');
+        await supabase.rpc('repair_all_session_inconsistencies');
+        
+        // Réessayer après réparation
+        const { data: retryBot, error: retryError } = await supabase
+          .from('bots')
+          .select('id, name, is_active')
+          .eq('id', botId)
+          .single();
+          
+        if (!retryError && retryBot && retryBot.is_active) {
+          console.log('[visitorTracking] Bot récupéré après réparation');
+        } else {
+          sessionStorage.removeItem('visitor_session_token');
+          return errorMsg;
+        }
       } catch (diagError) {
-        console.warn('[visitorTracking] Diagnostic automatique échoué:', diagError);
+        console.warn('[visitorTracking] Auto-réparation échouée:', diagError);
+        sessionStorage.removeItem('visitor_session_token');
+        return errorMsg;
       }
-      
-      sessionStorage.removeItem('visitor_session_token');
-      return errorMsg;
     }
     
-    if (!botExists.is_active) {
-      const errorMsg = `[visitorTracking] Bot ${botId} est inactif`;
-      console.error(errorMsg);
-      sessionStorage.removeItem('visitor_session_token');
-      return errorMsg;
+    if (botExists && !botExists.is_active) {
+      console.log('[visitorTracking] Bot inactif, tentative de réparation...');
+      try {
+        await supabase.rpc('repair_all_session_inconsistencies');
+        console.log('[visitorTracking] Réparation effectuée');
+      } catch (repairError) {
+        console.warn('[visitorTracking] Réparation échouée:', repairError);
+        sessionStorage.removeItem('visitor_session_token');
+        return `[visitorTracking] Bot ${botId} est inactif et ne peut être réparé`;
+      }
     }
     
-    console.log(`[visitorTracking] Bot validé: ${botExists.name}`);
+    console.log(`[visitorTracking] Bot validé: ${botExists?.name || 'Inconnu'}`);
     
     // Vérification défensive des tokens existants
     const existingToken = getCurrentVisitorSession();
@@ -318,7 +348,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     
     console.log(`[visitorTracking] Creating session with entry point: ${finalEntryPoint}`);
 
-    // Créer la session avec la fonction améliorée
+    // Créer la session avec la fonction corrigée
     const sessionTokenResult = await createAnonymousVisitorSession(
       fingerprintResult,
       botId,
@@ -330,31 +360,6 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     if (typeof sessionTokenResult === 'object' && sessionTokenResult !== null && 'error' in sessionTokenResult) {
       const errorMsg = `[visitorTracking] Session creation failed: ${sessionTokenResult.error}`;
       console.error(errorMsg);
-      
-      // Tenter une réparation automatique en cas d'échec
-      try {
-        console.log('[visitorTracking] Tentative de réparation automatique...');
-        await supabase.rpc('auto_fix_session_issues', { p_bot_id: botId });
-        
-        // Réessayer après la réparation
-        const retryResult = await createAnonymousVisitorSession(
-          fingerprintResult,
-          botId,
-          finalEntryPoint,
-          document.referrer,
-          utmParams
-        );
-        
-        if (typeof retryResult === 'string' && retryResult.startsWith('anon_')) {
-          const token: string = retryResult;
-          sessionStorage.setItem('visitor_session_token', token);
-          console.log(`[visitorTracking] Session created after auto-fix: ${token}`);
-          return token;
-        }
-      } catch (autoFixError) {
-        console.error('[visitorTracking] Auto-fix failed:', autoFixError);
-      }
-      
       sessionStorage.removeItem('visitor_session_token');
       return errorMsg;
     }
@@ -371,7 +376,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     
     console.log(`[visitorTracking] Session created successfully: ${token}`);
 
-    // Tracking de l'événement de démarrage
+    // Tracking de l'événement de démarrage (non bloquant)
     try {
       await trackVisitorEvent(
         token,
@@ -381,9 +386,9 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
           utm_params: utmParams,
           fingerprint_hash: fingerprintHash,
           bot_id: botId,
-          bot_name: botExists.name,
+          bot_name: botExists?.name || 'Inconnu',
           entry_point: finalEntryPoint,
-          enhanced_tracking: true,
+          corrected_tracking: true,
           bot_validated: true
         }
       );
