@@ -53,12 +53,12 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
         return;
       }
 
-      // Initialize new session if not present using final corrected functions
-      console.log(`[useSessionManager] Creating new final corrected secure session for bot ${botId}`);
+      // Initialize new session if not present using corrected final functions
+      console.log(`[useSessionManager] Creating new corrected final secure session for bot ${botId}`);
       const newToken = await initializeVisitorTracking(botId, entryPoint);
       
       if (typeof newToken === "string" && newToken.startsWith('anon_')) {
-        console.log(`[useSessionManager] Successfully created final corrected secure session: ${newToken}`);
+        console.log(`[useSessionManager] Successfully created corrected final secure session: ${newToken}`);
         safeSetState(setSessionToken, newToken);
         safeSetState(setIsReady, true);
         safeSetState(setError, null);
@@ -66,11 +66,11 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       } else {
         console.error(`[useSessionManager] Invalid token received: ${newToken}`);
         
-        // Enhanced error handling with final corrected secure auto-repair
+        // Enhanced error handling with corrected final secure auto-repair
         if (typeof newToken === 'string' && (newToken.includes('n\'existe pas') || newToken.includes('accessible'))) {
-          // Tentative de réparation automatique sécurisée finale
+          // Tentative de réparation automatique sécurisée finale corrigée
           try {
-            console.log('[useSessionManager] Tentative de réparation automatique sécurisée finale...');
+            console.log('[useSessionManager] Tentative de réparation automatique sécurisée finale corrigée...');
             await supabase.rpc('repair_system_final');
             
             // Réessayer après la réparation
@@ -81,7 +81,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
               return;
             }
           } catch (autoFixError) {
-            console.warn('[useSessionManager] Final corrected auto-repair failed:', autoFixError);
+            console.warn('[useSessionManager] Corrected final auto-repair failed:', autoFixError);
           }
         }
         
@@ -89,13 +89,13 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
         safeSetState(setIsReady, false);
         safeSetState(setError, 
           typeof newToken === 'string'
-            ? `Échec création session sécurisée finale: ${newToken}`
-            : 'Échec création du token de session sécurisé final'
+            ? `Échec création session sécurisée finale corrigée: ${newToken}`
+            : 'Échec création du token de session sécurisé final corrigé'
         );
       }
     } catch (error: any) {
-      console.error('[useSessionManager] Final corrected secure session initialization failed:', error);
-      let errMsg = 'Final corrected secure session initialization failed: ';
+      console.error('[useSessionManager] Corrected final secure session initialization failed:', error);
+      let errMsg = 'Corrected final secure session initialization failed: ';
       if (error?.message) {
         errMsg += error.message;
       } else if (typeof error === 'string') {
@@ -106,7 +106,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       
       safeSetState(setSessionToken, null);
       safeSetState(setIsReady, false);
-      safeSetState(setError, "Impossible d'initialiser la session sécurisée finale. Détail: " + errMsg);
+      safeSetState(setError, "Impossible d'initialiser la session sécurisée finale corrigée. Détail: " + errMsg);
     } finally {
       safeSetState(setIsInitializing, false);
       initializingRef.current = false;

@@ -2,16 +2,16 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Retrieve chat history using the final corrected unified system without ambiguity
+ * Retrieve chat history using the corrected final system
  */
 export const getChatHistory = async (botId: string, sessionToken: string) => {
   try {
-    console.log(`[historyManager] === FINAL SYSTEM CHAT HISTORY RETRIEVAL ===`);
-    console.log(`[historyManager] Using final corrected functions without ambiguity`);
+    console.log(`[historyManager] === CORRECTED FINAL SYSTEM CHAT HISTORY RETRIEVAL ===`);
+    console.log(`[historyManager] Using corrected final functions`);
     console.log(`[historyManager] Bot ID: ${botId}`);
     console.log(`[historyManager] Session Token: ${sessionToken}`);
     
-    // Use the final corrected get_chat_history_final function
+    // Use the corrected get_chat_history_final function
     const { data: finalData, error: finalError } = await supabase.rpc('get_chat_history_final', {
       p_bot_id: botId,
       p_session_token: sessionToken,
@@ -20,12 +20,12 @@ export const getChatHistory = async (botId: string, sessionToken: string) => {
     });
 
     if (finalError) {
-      console.error('[historyManager] Final system RPC Error:', finalError);
+      console.error('[historyManager] Corrected final system RPC Error:', finalError);
       return null;
     }
 
     if (finalData && finalData.length > 0) {
-      console.log(`[historyManager] Final system success: ${finalData.length} messages retrieved`);
+      console.log(`[historyManager] Corrected final system success: ${finalData.length} messages retrieved`);
       
       // Transform to expected format
       const transformedData = finalData.map((item: any) => ({
@@ -48,11 +48,11 @@ export const getChatHistory = async (botId: string, sessionToken: string) => {
       return transformedData;
     }
 
-    console.log('[historyManager] Final system returned no data');
+    console.log('[historyManager] Corrected final system returned no data');
     return [];
 
   } catch (err) {
-    console.error('[historyManager] Exception in final system getChatHistory:', err);
+    console.error('[historyManager] Exception in corrected final system getChatHistory:', err);
     return null;
   }
 };
