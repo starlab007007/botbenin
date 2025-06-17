@@ -4726,6 +4726,14 @@ export type Database = {
         }
         Returns: string
       }
+      test_absolute_session_resolution: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_category: string
+          test_result: string
+          details: string
+        }[]
+      }
       test_final_session_resolution: {
         Args: Record<PropertyKey, never>
         Returns: {

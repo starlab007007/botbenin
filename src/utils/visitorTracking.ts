@@ -15,12 +15,12 @@ import { extractUTMParams } from './tracking/utmExtractor';
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Initialize visitor tracking - Now using final corrected secure database functions
+ * Initialize visitor tracking - Now using corrected secure database functions
  */
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
-    console.log(`[visitorTracking] === SECURE VISITOR TRACKING INIT (FINAL CORRECTED) ===`);
-    console.log(`[visitorTracking] Using final corrected secure DB functions`);
+    console.log(`[visitorTracking] === ABSOLUTE SECURE VISITOR TRACKING INIT ===`);
+    console.log(`[visitorTracking] Using corrected secure DB functions`);
     console.log(`[visitorTracking] Bot ID: ${botId}, Entry: ${entryPoint}`);
     
     // Run global bot repair first to ensure accessibility
@@ -33,10 +33,10 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       console.warn('[visitorTracking] Global repair failed, continuing:', repairErr);
     }
     
-    // Validate bot with final corrected secure auto-repair
+    // Validate bot with corrected secure auto-repair
     const botValidation = await validateBotForSession(botId);
     if (!botValidation.valid) {
-      console.error('[visitorTracking] Bot validation failed with final corrected functions:', botValidation.error);
+      console.error('[visitorTracking] Bot validation failed with corrected functions:', botValidation.error);
       clearVisitorSession();
       return botValidation.error || 'Bot validation failed';
     }
@@ -72,9 +72,9 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     const utmParams = extractUTMParams();
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
     
-    console.log(`[visitorTracking] Creating session with final corrected functions, entry point: ${finalEntryPoint}`);
+    console.log(`[visitorTracking] Creating session with corrected functions, entry point: ${finalEntryPoint}`);
 
-    // Create session using final corrected secure functions
+    // Create session using corrected secure functions
     const sessionTokenResult = await createAnonymousVisitorSession(
       fingerprintResult,
       botId,
@@ -84,14 +84,14 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     );
 
     if (typeof sessionTokenResult === 'object' && sessionTokenResult !== null && 'error' in sessionTokenResult) {
-      const errorMsg = `[visitorTracking] Session creation failed with final corrected functions: ${sessionTokenResult.error}`;
+      const errorMsg = `[visitorTracking] Session creation failed with corrected functions: ${sessionTokenResult.error}`;
       console.error(errorMsg);
       clearVisitorSession();
       return errorMsg;
     }
     
     if (typeof sessionTokenResult !== 'string' || !sessionTokenResult.startsWith('anon_')) {
-      const errorMsg = `[visitorTracking] Invalid session token from final corrected functions: ${sessionTokenResult}`;
+      const errorMsg = `[visitorTracking] Invalid session token from corrected functions: ${sessionTokenResult}`;
       console.error(errorMsg);
       clearVisitorSession();
       return errorMsg;
@@ -100,7 +100,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     const token: string = sessionTokenResult;
     storeVisitorSession(token);
     
-    console.log(`[visitorTracking] Session created successfully with final corrected functions: ${token}`);
+    console.log(`[visitorTracking] Session created successfully with corrected functions: ${token}`);
 
     // Track session start event (non-blocking)
     try {
@@ -115,8 +115,8 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
           entry_point: finalEntryPoint,
           secure_tracking: true,
           bot_validated: true,
-          system_version: 'secure_final_v1',
-          final_correction_applied: true
+          system_version: 'absolute_secure_v1',
+          absolute_correction_applied: true
         }
       );
     } catch (trackingErr) {
@@ -127,8 +127,8 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     return token;
 
   } catch (error: any) {
-    console.error('[visitorTracking] Exception in final corrected initializeVisitorTracking:', error);
+    console.error('[visitorTracking] Exception in corrected initializeVisitorTracking:', error);
     clearVisitorSession();
-    return 'Erreur lors de l\'initialisation du tracking sécurisé final: ' + (error?.message ? error.message : JSON.stringify(error));
+    return 'Erreur lors de l\'initialisation du tracking sécurisé corrected: ' + (error?.message ? error.message : JSON.stringify(error));
   }
 };
