@@ -4418,6 +4418,14 @@ export type Database = {
           orphaned_messages: number
         }[]
       }
+      cleanup_corrupted_session_data: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_taken: string
+          count: number
+          details: string
+        }[]
+      }
       cleanup_orphaned_bot_data: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -4502,6 +4510,15 @@ export type Database = {
           issue_type: string
           status: string
           message: string
+        }[]
+      }
+      diagnose_session_token_ambiguities_complete: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          table_name: string
+          column_name: string
+          issue_type: string
+          fix_required: string
         }[]
       }
       diagnose_session_token_issues: {
@@ -4699,6 +4716,14 @@ export type Database = {
           p_message_content: string
         }
         Returns: string
+      }
+      test_session_functions_final: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_name: string
+          status: string
+          details: string
+        }[]
       }
       test_session_token_resolution: {
         Args: Record<PropertyKey, never>
