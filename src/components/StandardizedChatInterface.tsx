@@ -38,13 +38,12 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [botConfig, setBotConfig] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [botConfigLoaded, setBotConfigLoaded] = useState(false);
+  const [initializationComplete, setInitializationComplete] = useState(false);
 
   // Use session manager hook
   const {
@@ -78,7 +77,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
   const initializeBot = async () => {
     try {
-      setIsLoading(true);
       setHasError(false);
 
       console.log('=== INITIALIZING STANDARDIZED BOT ===');
@@ -97,7 +95,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           errMsg = "Ce bot n'est pas public ou une authentification est exigée.";
         }
         setErrorMessage(errMsg);
-        setBotConfigLoaded(true);
+        setInitializationComplete(true);
         return;
       }
 
@@ -110,44 +108,37 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       }
 
       setBotConfig(config);
-      setBotConfigLoaded(true);
+      setInitializationComplete(true);
 
     } catch (error: any) {
       console.error('Error during bot initialization:', error);
       setHasError(true);
       const errorContent = (typeof error === 'object' && error?.message) ? error.message : (typeof error === 'string' ? error : '');
       setErrorMessage('Impossible de charger ce bot. ' + (errorContent ? `(Erreur: ${errorContent})` : 'Veuillez réessayer plus tard.'));
-      setBotConfigLoaded(true);
-    } finally {
-      setIsLoading(false);
+      setInitializationComplete(true);
     }
   };
 
-  // Improved loading logic
-  const pageIsLoading = useMemo(() => {
-    // Bot config must be loaded first
-    if (!botConfigLoaded) return true;
+  // Simplified loading logic - much more permissive
+  const isLoading = useMemo(() => {
+    // Still initializing the bot config
+    if (!initializationComplete) return true;
     
-    // If there's an error, stop loading
+    // If there's an error, don't load
     if (hasError) return false;
     
-    // If no bot config, stop loading  
+    // If no bot config after initialization, don't load
     if (!botConfig) return false;
     
-    // Session must be initializing or ready
+    // Session is still initializing
     if (sessionInitializing) return true;
     
-    // If session has error, stop loading
+    // If session has error, don't load
     if (sessionError) return false;
     
-    // If session is not ready, keep loading
-    if (!sessionReady) return true;
-    
-    // Finally, check if history is loading (but only if we have messages to load)
-    if (loadingHistory && messages.length === 0 && !errorHistory) return true;
-    
+    // Loading is complete when we have session ready OR when session is not required
     return false;
-  }, [botConfigLoaded, hasError, botConfig, sessionInitializing, sessionError, sessionReady, loadingHistory, messages.length, errorHistory]);
+  }, [initializationComplete, hasError, botConfig, sessionInitializing, sessionError]);
 
   useEffect(() => {
     if (botConfig && sessionReady && !loadingHistory) {
@@ -182,11 +173,11 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isProcessing || !botConfig) return;
 
-    // Check session readiness
-    if (!sessionReady || !sessionToken) {
+    // More lenient session check - allow sending even if session is still initializing
+    if (sessionError) {
       toast({
-        title: "Session en cours d'initialisation",
-        description: "Veuillez patienter quelques instants...",
+        title: "Erreur de session",
+        description: "Problème avec votre session. Veuillez rafraîchir la page.",
         variant: "destructive",
       });
       return;
@@ -211,18 +202,23 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
-    // Save user message with unified session token
+    // Save user message if session token available
     if (sessionToken) {
       console.log(`[StandardizedChatInterface] Saving user message: bot=${botId}, token=${sessionToken}`);
-      const messageId = await saveChatMessage(botId, sessionToken, textToSend, "user");
-      console.log(`[StandardizedChatInterface] User message saved with ID: ${messageId}`);
-      
-      // Test de récupération immédiate après sauvegarde
-      setTimeout(() => {
-        testMessageRetrieval(botId, sessionToken).then((results) => {
-          console.log(`[StandardizedChatInterface] Post-save retrieval test:`, results);
-        });
-      }, 1500);
+      try {
+        const messageId = await saveChatMessage(botId, sessionToken, textToSend, "user");
+        console.log(`[StandardizedChatInterface] User message saved with ID: ${messageId}`);
+        
+        // Test de récupération immédiate après sauvegarde
+        setTimeout(() => {
+          testMessageRetrieval(botId, sessionToken).then((results) => {
+            console.log(`[StandardizedChatInterface] Post-save retrieval test:`, results);
+          });
+        }, 1500);
+      } catch (saveError) {
+        console.warn('[StandardizedChatInterface] Failed to save user message:', saveError);
+        // Continue without blocking
+      }
     }
 
     setMessages(prev => [...prev, userMessage]);
@@ -251,7 +247,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         botId,
         botConfig.name,
         botConfig.chat_context,
-        sessionToken, // Unified and verified session token
+        sessionToken || 'fallback_session', // Use fallback if no session token
         isTest
       );
 
@@ -305,18 +301,23 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         timestamp: new Date(),
       };
 
-      // Save bot response with unified session token
+      // Save bot response if session token available
       if (sessionToken) {
         console.log(`[StandardizedChatInterface] Saving bot response: bot=${botId}, token=${sessionToken}`);
-        const responseId = await saveChatMessage(botId, sessionToken, processedContent.trim(), "bot");
-        console.log(`[StandardizedChatInterface] Bot response saved with ID: ${responseId}`);
-        
-        // Test de récupération après sauvegarde de la réponse
-        setTimeout(() => {
-          testMessageRetrieval(botId, sessionToken).then((results) => {
-            console.log(`[StandardizedChatInterface] Post-response retrieval test:`, results);
-          });
-        }, 1500);
+        try {
+          const responseId = await saveChatMessage(botId, sessionToken, processedContent.trim(), "bot");
+          console.log(`[StandardizedChatInterface] Bot response saved with ID: ${responseId}`);
+          
+          // Test de récupération après sauvegarde de la réponse
+          setTimeout(() => {
+            testMessageRetrieval(botId, sessionToken).then((results) => {
+              console.log(`[StandardizedChatInterface] Post-response retrieval test:`, results);
+            });
+          }, 1500);
+        } catch (saveError) {
+          console.warn('[StandardizedChatInterface] Failed to save bot response:', saveError);
+          // Continue without blocking
+        }
       }
 
       setMessages(prev => [...prev, aiMessage]);
@@ -421,7 +422,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
             onClick={() => { 
               setHasError(false); 
               setErrorMessage(''); 
-              setBotConfigLoaded(false);
+              setInitializationComplete(false);
               initializeBot(); 
             }}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-700 mt-3 transition-colors"
@@ -439,8 +440,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     );
   }
 
-  // Standardized loading screen
-  if (pageIsLoading) {
+  // Much simplified loading screen - only show when truly loading
+  if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
@@ -449,6 +450,12 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
             Chargement du chat...
           </h2>
           <p className="text-gray-600">Préparation de votre assistant IA</p>
+          <p className="text-sm text-gray-500 mt-2">
+            Bot: {botConfig?.name || 'Configuration en cours...'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Session: {sessionReady ? 'Prête' : sessionInitializing ? 'Initialisation...' : 'En attente'}
+          </p>
         </div>
       </div>
     );
@@ -484,7 +491,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       
       <ChatInputArea
         inputValue={inputValue}
-        isLoading={isProcessing || !sessionReady}
+        isLoading={isProcessing}
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
         onSendMessage={() => handleSendMessage()}
