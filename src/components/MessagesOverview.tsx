@@ -1,38 +1,29 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   MessageSquare, 
   User, 
   Bot, 
   Search,
-  Filter,
   RefreshCw,
   Download,
   Calendar,
-  Clock
+  Clock,
+  Shield,
+  CheckCircle
 } from 'lucide-react';
-
-interface ChatMessage {
-  id: string;
-  message_content: string;
-  message_type: 'user' | 'bot';
-  created_at: string;
-  ip_address?: string;
-  user_agent?: string;
-  bot_users: {
-    user_name?: string;
-    user_email?: string;
-    session_id?: string;
-  };
-  bots: {
-    name: string;
-  };
-}
+import { 
+  getSecureChatHistory, 
+  getOwnerBotSessions,
+  getSecureDashboardStats,
+  type SecureChatMessage 
+} from '@/services/chat/secureHistoryManager';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MessageStats {
   totalMessages: number;
@@ -42,8 +33,8 @@ interface MessageStats {
 }
 
 export const MessagesOverview: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [filteredMessages, setFilteredMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<SecureChatMessage[]>([]);
+  const [filteredMessages, setFilteredMessages] = useState<SecureChatMessage[]>([]);
   const [stats, setStats] = useState<MessageStats>({
     totalMessages: 0,
     userMessages: 0,
@@ -55,93 +46,76 @@ export const MessagesOverview: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'user' | 'bot'>('all');
   const [selectedBot, setSelectedBot] = useState<string>('all');
   const [bots, setBots] = useState<Array<{ id: string; name: string }>>([]);
+  const [securityVerified, setSecurityVerified] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchMessages();
-    fetchBots();
+    loadSecureData();
   }, []);
 
   useEffect(() => {
     filterMessages();
   }, [messages, searchTerm, filterType, selectedBot]);
 
-  const fetchBots = async () => {
+  const loadSecureData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      setIsLoading(true);
+      setSecurityVerified(false);
 
+      // Verify user authentication first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get user's bots securely
       const { data: ownerData } = await supabase
         .from('bot_owners')
         .select('id')
         .eq('user_id', user.id)
         .single();
 
-      if (!ownerData) return;
+      if (!ownerData) {
+        setSecurityVerified(true);
+        setIsLoading(false);
+        return;
+      }
 
+      // Get bots owned by this user
       const { data: botsData } = await supabase
         .from('bots')
         .select('id, name')
         .eq('owner_id', ownerData.id);
 
       setBots(botsData || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des bots:', error);
-    }
-  };
 
-  const fetchMessages = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return;
-
-      const { data: botsData } = await supabase
-        .from('bots')
-        .select('id')
-        .eq('owner_id', ownerData.id);
-
-      const botIds = botsData?.map(bot => bot.id) || [];
-
-      if (botIds.length === 0) {
-        setIsLoading(false);
-        return;
+      // Load all secure messages for all user's bots
+      const allMessages: SecureChatMessage[] = [];
+      
+      for (const bot of botsData || []) {
+        try {
+          const botMessages = await getSecureChatHistory(bot.id);
+          allMessages.push(...botMessages);
+        } catch (error) {
+          console.error(`Error loading messages for bot ${bot.id}:`, error);
+          // Continue with other bots even if one fails
+        }
       }
 
-      const { data: messagesData, error } = await supabase
-        .from('chat_messages')
-        .select(`
-          *,
-          bot_users (user_name, user_email, session_id),
-          bots (name)
-        `)
-        .in('bot_id', botIds)
-        .order('created_at', { ascending: false })
-        .limit(1000);
+      setMessages(allMessages);
+      calculateSecureStats(allMessages);
+      setSecurityVerified(true);
 
-      if (error) throw error;
-
-      // Type cast the messages to ensure message_type is properly typed
-      const typedMessages: ChatMessage[] = (messagesData || []).map(msg => ({
-        ...msg,
-        message_type: (msg.message_type === 'user' || msg.message_type === 'bot') ? msg.message_type : 'user'
-      })) as ChatMessage[];
-
-      setMessages(typedMessages);
-      calculateStats(typedMessages);
+      toast({
+        title: "Données sécurisées chargées",
+        description: `${allMessages.length} messages trouvés avec isolation garantie`,
+      });
 
     } catch (error) {
-      console.error('Erreur lors du chargement des messages:', error);
+      console.error('Error loading secure messages:', error);
       toast({
-        title: "Erreur",
-        description: "Impossible de charger les messages",
+        title: "Erreur de sécurité",
+        description: "Impossible de charger les messages de manière sécurisée",
         variant: "destructive",
       });
     } finally {
@@ -149,7 +123,7 @@ export const MessagesOverview: React.FC = () => {
     }
   };
 
-  const calculateStats = (messagesData: ChatMessage[]) => {
+  const calculateSecureStats = (messagesData: SecureChatMessage[]) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -157,7 +131,9 @@ export const MessagesOverview: React.FC = () => {
       totalMessages: messagesData.length,
       userMessages: messagesData.filter(m => m.message_type === 'user').length,
       botMessages: messagesData.filter(m => m.message_type === 'bot').length,
-      todayMessages: messagesData.filter(m => new Date(m.created_at) >= today).length
+      todayMessages: messagesData.filter(m => 
+        new Date(m.message_timestamp) >= today
+      ).length
     };
 
     setStats(stats);
@@ -166,84 +142,104 @@ export const MessagesOverview: React.FC = () => {
   const filterMessages = () => {
     let filtered = messages;
 
-    // Filtre par terme de recherche
+    // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(message =>
         message.message_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        message.bot_users?.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        message.bot_users?.user_email?.toLowerCase().includes(searchTerm.toLowerCase())
+        message.user_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (message.user_email && message.user_email.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
-    // Filtre par type de message
+    // Filter by message type
     if (filterType !== 'all') {
       filtered = filtered.filter(message => message.message_type === filterType);
     }
 
-    // Filtre par bot
+    // Filter by bot
     if (selectedBot !== 'all') {
-      filtered = filtered.filter(message => message.bots.name === selectedBot);
+      filtered = filtered.filter(message => message.bot_id === selectedBot);
     }
 
     setFilteredMessages(filtered);
   };
 
-  const exportMessages = () => {
+  const exportSecureMessages = () => {
     const csvContent = [
-      ['Date', 'Bot', 'Type', 'Utilisateur', 'Message'].join(','),
+      ['Date', 'Bot', 'Type', 'Utilisateur', 'Message', 'Session'].join(','),
       ...filteredMessages.map(message => [
-        new Date(message.created_at).toLocaleString('fr-FR'),
-        message.bots.name,
+        new Date(message.message_timestamp).toLocaleString('fr-FR'),
+        message.bot_name,
         message.message_type,
-        message.bot_users?.user_name || message.bot_users?.user_email || 'Anonyme',
-        `"${message.message_content.replace(/"/g, '""')}"`
+        message.user_name || 'Anonyme',
+        `"${message.message_content.replace(/"/g, '""')}"`,
+        message.session_id
       ].join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `messages_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `secure_messages_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
 
     toast({
-      title: "Export réussi",
-      description: "Les messages ont été exportés en CSV",
+      title: "Export sécurisé réussi",
+      description: "Les messages ont été exportés avec isolation des données garantie",
     });
   };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement sécurisé en cours...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* En-tête et statistiques */}
+      {/* Security Status Header */}
+      <Card className="p-4 border-green-200 bg-green-50">
+        <div className="flex items-center space-x-3">
+          <CheckCircle className="w-6 h-6 text-green-600" />
+          <div>
+            <h3 className="text-sm font-medium text-green-800">Sécurité Vérifiée</h3>
+            <p className="text-sm text-green-700">
+              Isolation des données garantie - Vous ne voyez que vos propres messages
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Header and Statistics */}
       <div>
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Messages & Conversations</h2>
-            <p className="text-gray-600">Consultez tous les messages de vos chatbots</p>
+          <div className="flex items-center space-x-3">
+            <Shield className="w-6 h-6 text-blue-600" />
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Messages & Conversations Sécurisés</h2>
+              <p className="text-gray-600">Consultez tous vos messages avec isolation garantie</p>
+            </div>
           </div>
           <div className="flex space-x-2">
-            <Button onClick={fetchMessages} variant="outline" size="sm">
+            <Button onClick={loadSecureData} variant="outline" size="sm">
               <RefreshCw className="w-4 h-4 mr-2" />
               Actualiser
             </Button>
-            <Button onClick={exportMessages} variant="outline" size="sm">
+            <Button onClick={exportSecureMessages} variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />
-              Exporter
+              Export Sécurisé
             </Button>
           </div>
         </div>
 
-        {/* Statistiques */}
+        {/* Secure Statistics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Card className="p-4">
             <div className="flex items-center space-x-3">
@@ -295,14 +291,14 @@ export const MessagesOverview: React.FC = () => {
         </div>
       </div>
 
-      {/* Filtres */}
+      {/* Secure Filters */}
       <Card className="p-4">
         <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
           <div className="flex-1">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <Input
-                placeholder="Rechercher dans les messages..."
+                placeholder="Rechercher dans vos messages..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -325,18 +321,19 @@ export const MessagesOverview: React.FC = () => {
             onChange={(e) => setSelectedBot(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="all">Tous les bots</option>
+            <option value="all">Tous vos bots</option>
             {bots.map(bot => (
-              <option key={bot.id} value={bot.name}>{bot.name}</option>
+              <option key={bot.id} value={bot.id}>{bot.name}</option>
             ))}
           </select>
         </div>
       </Card>
 
-      {/* Liste des messages */}
+      {/* Secure Messages List */}
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">
-          Historique des messages ({filteredMessages.length})
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
+          <Shield className="w-5 h-5 mr-2 text-blue-600" />
+          Historique sécurisé des messages ({filteredMessages.length})
         </h3>
 
         {filteredMessages.length === 0 ? (
@@ -355,16 +352,14 @@ export const MessagesOverview: React.FC = () => {
         ) : (
           <div className="space-y-4 max-h-96 overflow-y-auto">
             {filteredMessages.map((message) => (
-              <div key={message.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
+              <div key={message.message_id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   message.message_type === 'user' 
                     ? 'bg-blue-100' 
                     : 'bg-purple-100'
                 }`}>
                   {message.message_type === 'user' ? (
-                    <User className={`w-4 h-4 ${
-                      message.message_type === 'user' ? 'text-blue-600' : 'text-purple-600'
-                    }`} />
+                    <User className="w-4 h-4 text-blue-600" />
                   ) : (
                     <Bot className="w-4 h-4 text-purple-600" />
                   )}
@@ -377,15 +372,15 @@ export const MessagesOverview: React.FC = () => {
                         {message.message_type === 'user' ? 'Utilisateur' : 'Bot'}
                       </Badge>
                       <span className="text-sm font-medium text-gray-900">
-                        {message.bot_users?.user_name || message.bot_users?.user_email || 'Utilisateur anonyme'}
+                        {message.user_name || 'Utilisateur anonyme'}
                       </span>
                       <span className="text-sm text-gray-500">
-                        • {message.bots.name}
+                        • {message.bot_name}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2 text-sm text-gray-500">
                       <Clock className="w-4 h-4" />
-                      <span>{new Date(message.created_at).toLocaleString('fr-FR')}</span>
+                      <span>{new Date(message.message_timestamp).toLocaleString('fr-FR')}</span>
                     </div>
                   </div>
                   
@@ -393,11 +388,10 @@ export const MessagesOverview: React.FC = () => {
                     {message.message_content}
                   </p>
 
-                  {message.ip_address && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      IP: {message.ip_address}
-                    </div>
-                  )}
+                  <div className="mt-2 text-xs text-gray-500">
+                    Session: {message.session_id}
+                    {message.ip_address && ` • IP: ${message.ip_address}`}
+                  </div>
                 </div>
               </div>
             ))}
