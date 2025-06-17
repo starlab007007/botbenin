@@ -53,16 +53,16 @@ export const useLiveChatBots = () => {
 
       console.log('[useLiveChatBots] Bots récupérés:', botsData?.length || 0);
 
-      const formattedBots: LiveChatBot[] = (botsData || []).map((bot: any) => ({
-        id: bot.id,
-        name: bot.name,
-        description: bot.description,
-        webhook_url: bot.webhook_url,
-        chat_title: bot.chat_title,
-        chat_context: bot.chat_context,
-        is_active: bot.is_active,
-        public_chat_url: bot.public_chat_url,
-        owner_name: bot.bot_owners?.users?.full_name || 'Propriétaire'
+      const formattedBots: LiveChatBot[] = (botsData || []).map((botData: any) => ({
+        id: botData.id,
+        name: botData.name,
+        description: botData.description,
+        webhook_url: botData.webhook_url,
+        chat_title: botData.chat_title,
+        chat_context: botData.chat_context,
+        is_active: botData.is_active,
+        public_chat_url: botData.public_chat_url,
+        owner_name: botData.bot_owners?.users?.full_name || 'Propriétaire'
       }));
 
       setBots(formattedBots);

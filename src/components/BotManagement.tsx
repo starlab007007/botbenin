@@ -58,7 +58,7 @@ interface Bot {
   public_chat_url: string;
   created_at: string;
   updated_at: string;
-  display_in_live_chat: boolean;
+  display_in_live_chat?: boolean; // Make this optional
 }
 
 interface BotStats {
@@ -119,16 +119,22 @@ export const BotManagement: React.FC = () => {
 
       if (!ownerData) return;
 
-      // Récupérer les bots
+      // Récupérer les bots avec display_in_live_chat explicitement
       const { data: botsData, error } = await supabase
         .from('bots')
-        .select('*')
+        .select('*, display_in_live_chat')
         .eq('owner_id', ownerData.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      setBots(botsData || []);
+      // Assurer que display_in_live_chat a une valeur par défaut
+      const formattedBots = (botsData || []).map(bot => ({
+        ...bot,
+        display_in_live_chat: bot.display_in_live_chat ?? false
+      }));
+
+      setBots(formattedBots);
 
       // Récupérer les statistiques depuis la nouvelle vue detailed_bot_stats
       if (botsData && botsData.length > 0) {
@@ -201,7 +207,6 @@ export const BotManagement: React.FC = () => {
         is_active: bot.is_active
       });
 
-      // Vérifier que le bot est actif
       if (!bot.is_active) {
         toast({
           title: "Bot inactif",
@@ -211,7 +216,6 @@ export const BotManagement: React.FC = () => {
         return;
       }
 
-      // Vérifier que le webhook URL existe
       if (!bot.webhook_url || bot.webhook_url.trim() === '') {
         toast({
           title: "Configuration manquante",
@@ -221,10 +225,8 @@ export const BotManagement: React.FC = () => {
         return;
       }
 
-      // Initialiser le tracking du visiteur pour ce test
       await initializeVisitorTracking(bot.id, 'bot_test');
       
-      // Construire l'URL avec tous les paramètres spécifiques du bot
       const chatParams = new URLSearchParams({
         bot: bot.id,
         webhook: encodeURIComponent(bot.webhook_url),
@@ -245,7 +247,6 @@ export const BotManagement: React.FC = () => {
         botName: bot.name
       });
 
-      // Ouvrir le chat dans une nouvelle fenêtre
       const chatWindow = window.open(chatUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
       
       if (!chatWindow) {

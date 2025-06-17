@@ -37,7 +37,7 @@ interface Bot {
   chat_context: string;
   share_enabled: boolean;
   public_chat_url: string;
-  display_in_live_chat?: boolean;
+  display_in_live_chat?: boolean; // Make this optional
   created_at: string;
   updated_at: string;
 }
