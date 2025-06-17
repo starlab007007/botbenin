@@ -1,20 +1,27 @@
 
 import React from 'react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { 
   Bot, 
   MessageCircle, 
   Users, 
-  TrendingUp 
+  TrendingUp,
+  Eye
 } from 'lucide-react';
 import { DashboardStats, UserPermissions } from './DashboardStats';
 
 interface QuickStatsCardsProps {
   stats: DashboardStats;
   permissions: UserPermissions;
+  onShowAllData?: () => void;
 }
 
-export const QuickStatsCards: React.FC<QuickStatsCardsProps> = ({ stats, permissions }) => {
+export const QuickStatsCards: React.FC<QuickStatsCardsProps> = ({ 
+  stats, 
+  permissions, 
+  onShowAllData 
+}) => {
   const quickStats = [
     { 
       title: 'Mes Chatbots', 
@@ -48,21 +55,33 @@ export const QuickStatsCards: React.FC<QuickStatsCardsProps> = ({ stats, permiss
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-      {quickStats.map((stat, index) => (
-        <Card key={index} className="uniform-stats-card">
-          <div className="flex flex-col items-center justify-center mb-3">
-            <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center mb-3`}>
-              <stat.icon className={`w-6 h-6 ${stat.color}`} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        {quickStats.map((stat, index) => (
+          <Card key={index} className="uniform-stats-card">
+            <div className="flex flex-col items-center justify-center mb-3">
+              <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center mb-3`}>
+                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              </div>
             </div>
-          </div>
-          <h3 className="text-gray-600 text-sm mb-1 text-center">{stat.title}</h3>
-          <div className="text-2xl font-bold text-gray-900 text-center">
-            {stat.value}
-            {stat.limit && <span className="text-sm text-gray-500">/{stat.limit}</span>}
-          </div>
-        </Card>
-      ))}
+            <h3 className="text-gray-600 text-sm mb-1 text-center">{stat.title}</h3>
+            <div className="text-2xl font-bold text-gray-900 text-center">
+              {stat.value}
+              {stat.limit && <span className="text-sm text-gray-500">/{stat.limit}</span>}
+            </div>
+          </Card>
+        ))}
+      </div>
+      
+      {/* Bouton pour voir toutes les données */}
+      {onShowAllData && (
+        <div className="flex justify-center">
+          <Button onClick={onShowAllData} variant="outline" className="w-full max-w-md">
+            <Eye className="w-4 h-4 mr-2" />
+            Voir toutes les données détaillées
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
