@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 /**
- * Enhanced message saving with improved session reconciliation and error handling
+ * Enhanced message saving with corrected session reconciliation
  */
 export const saveChatMessage = async (
   botId: string,
@@ -13,7 +13,8 @@ export const saveChatMessage = async (
   metadata: Json = {}
 ) => {
   try {
-    console.log(`[messageOperations] === ENHANCED MESSAGE SAVING (UNIFIED) ===`);
+    console.log(`[messageOperations] === CORRECTED MESSAGE SAVING ===`);
+    console.log(`[messageOperations] Using corrected DB functions without ambiguity`);
     console.log(`[messageOperations] Bot ID: ${botId}`);
     console.log(`[messageOperations] Session Token: ${sessionToken}`);
     console.log(`[messageOperations] Message Type: ${type}`);
@@ -29,16 +30,16 @@ export const saveChatMessage = async (
       console.warn('[messageOperations] Unexpected session token format:', sessionToken);
     }
     
-    // Enhanced metadata with unified tracking
+    // Enhanced metadata with corrected tracking
     const baseMetadata = (metadata && typeof metadata === 'object' && metadata !== null && !Array.isArray(metadata)) ? metadata : {};
-    const unifiedMetadata = {
+    const correctedMetadata = {
       ...baseMetadata,
       session_token: sessionToken,
       sessionToken: sessionToken,
       saved_at: new Date().toISOString(),
       message_type: type,
-      platform: 'bot_bj_unified',
-      unified_system: true,
+      platform: 'bot_bj_corrected',
+      corrected_system: true,
       save_attempt_id: crypto.randomUUID(),
       debug_info: {
         bot_id: botId,
@@ -46,23 +47,23 @@ export const saveChatMessage = async (
         saved_timestamp: Date.now(),
         user_agent: navigator?.userAgent || 'unknown',
         url: window?.location?.href || 'unknown',
-        system_version: 'unified_v2'
+        system_version: 'corrected_v1'
       }
     };
 
-    console.log(`[messageOperations] Unified metadata:`, unifiedMetadata);
+    console.log(`[messageOperations] Corrected metadata:`, correctedMetadata);
 
-    // Use the improved save_chat_message function with enhanced error handling
+    // Use the corrected save_chat_message function
     const { data, error } = await supabase.rpc('save_chat_message', {
       p_bot_id: botId,
       p_session_token: sessionToken,
       p_message_content: content,
       p_message_type: type,
-      p_metadata: unifiedMetadata,
+      p_metadata: correctedMetadata,
     });
 
     if (error) {
-      console.error('[messageOperations] *** UNIFIED SAVE ERROR ***');
+      console.error('[messageOperations] *** CORRECTED SAVE ERROR ***');
       console.error('[messageOperations] RPC Error:', error);
       console.error('[messageOperations] Error details:', {
         code: error.code,
@@ -71,71 +72,79 @@ export const saveChatMessage = async (
         hint: error.hint
       });
 
-      // Enhanced fallback with session reconciliation and auto-repair
-      console.log('[messageOperations] Attempting enhanced fallback with auto-repair...');
+      // Enhanced fallback with corrected session reconciliation
+      console.log('[messageOperations] Attempting corrected fallback with auto-repair...');
       
-      // Tenter un diagnostic et réparation automatique d'abord
+      // Use corrected enhanced_session_reconciliation function
       try {
-        await supabase.rpc('auto_fix_session_issues', { p_bot_id: botId });
-        console.log('[messageOperations] Auto-repair completed, retrying save...');
-        
-        // Réessayer la sauvegarde après réparation
+        const { data: reconciledUserId, error: reconcileError } = await supabase.rpc(
+          'enhanced_session_reconciliation',
+          {
+            p_bot_id: botId,
+            p_session_token: sessionToken
+          }
+        );
+
+        if (reconcileError) {
+          console.error('[messageOperations] Corrected session reconciliation failed:', reconcileError);
+          throw reconcileError;
+        }
+
+        console.log('[messageOperations] Corrected session reconciliation successful:', reconciledUserId);
+
+        // Retry the save with corrected system
         const { data: retryData, error: retryError } = await supabase.rpc('save_chat_message', {
           p_bot_id: botId,
           p_session_token: sessionToken,
           p_message_content: content,
           p_message_type: type,
-          p_metadata: { ...unifiedMetadata, auto_repaired: true },
+          p_metadata: { ...correctedMetadata, corrected_reconciled: true },
         });
         
         if (!retryError && retryData) {
-          console.log('[messageOperations] *** MESSAGE SAVED AFTER AUTO-REPAIR ***');
+          console.log('[messageOperations] *** MESSAGE SAVED AFTER CORRECTED RECONCILIATION ***');
           return retryData;
         }
-      } catch (autoRepairError) {
-        console.warn('[messageOperations] Auto-repair failed:', autoRepairError);
+      } catch (reconcileErr) {
+        console.warn('[messageOperations] Corrected reconciliation failed:', reconcileErr);
       }
       
-      return await saveMessageWithReconciliation(botId, sessionToken, content, type, unifiedMetadata);
+      return await saveMessageWithCorrectedReconciliation(botId, sessionToken, content, type, correctedMetadata);
     }
 
-    console.log('[messageOperations] *** UNIFIED MESSAGE SAVED SUCCESSFULLY ***');
+    console.log('[messageOperations] *** CORRECTED MESSAGE SAVED SUCCESSFULLY ***');
     console.log('[messageOperations] Message ID:', data);
-    console.log('[messageOperations] Enhanced session reconciliation completed');
+    console.log('[messageOperations] Corrected session reconciliation completed without ambiguity');
     
     return data;
   } catch (err) {
-    console.error('[messageOperations] *** EXCEPTION IN UNIFIED saveChatMessage ***');
+    console.error('[messageOperations] *** EXCEPTION IN CORRECTED saveChatMessage ***');
     console.error('[messageOperations] Exception:', err);
     
-    // Enhanced emergency fallback with auto-repair
+    // Emergency fallback with corrected functions
     try {
-      console.log('[messageOperations] Attempting enhanced emergency fallback with auto-repair...');
-      
-      // Tenter d'abord un auto-repair
-      await supabase.rpc('auto_fix_session_issues', { p_bot_id: botId });
-      
-      return await saveMessageWithReconciliation(botId, sessionToken, content, type, metadata as any);
+      console.log('[messageOperations] Attempting corrected emergency fallback...');
+      return await saveMessageWithCorrectedReconciliation(botId, sessionToken, content, type, metadata as any);
     } catch (fallbackErr) {
-      console.error('[messageOperations] Enhanced emergency fallback failed:', fallbackErr);
-      throw new Error(`Message saving failed completely: ${fallbackErr}`);
+      console.error('[messageOperations] Corrected emergency fallback failed:', fallbackErr);
+      throw new Error(`Message saving failed completely with corrected system: ${fallbackErr}`);
     }
   }
 };
 
 /**
- * Enhanced fallback with session reconciliation using the new enhanced function
+ * Fallback with corrected session reconciliation
  */
-const saveMessageWithReconciliation = async (
+const saveMessageWithCorrectedReconciliation = async (
   botId: string,
   sessionToken: string,
   content: string,
   type: 'user' | 'bot',
   metadata: any
 ) => {
-  console.log('[messageOperations] === ENHANCED FALLBACK WITH RECONCILIATION ===');
+  console.log('[messageOperations] === CORRECTED FALLBACK WITH RECONCILIATION ===');
   
-  // Use the enhanced session reconciliation function
+  // Use the corrected enhanced_session_reconciliation function
   let botUserId: string;
   try {
     const { data: reconciledUserId, error: reconcileError } = await supabase.rpc(
@@ -147,18 +156,18 @@ const saveMessageWithReconciliation = async (
     );
 
     if (reconcileError) {
-      console.error('[messageOperations] Enhanced session reconciliation failed:', reconcileError);
+      console.error('[messageOperations] Corrected reconciliation failed:', reconcileError);
       throw reconcileError;
     }
 
     botUserId = reconciledUserId;
-    console.log('[messageOperations] Enhanced session reconciliation successful:', botUserId);
+    console.log('[messageOperations] Corrected reconciliation successful:', botUserId);
   } catch (reconcileErr) {
-    console.error('[messageOperations] Enhanced reconciliation failed:', reconcileErr);
-    throw new Error(`Enhanced session reconciliation failed: ${reconcileErr}`);
+    console.error('[messageOperations] Corrected reconciliation failed:', reconcileErr);
+    throw new Error(`Corrected session reconciliation failed: ${reconcileErr}`);
   }
 
-  // Insert message directly with reconciled session
+  // Insert message directly with corrected reconciled session
   const { data, error } = await supabase
     .from('chat_messages')
     .insert({
@@ -168,8 +177,8 @@ const saveMessageWithReconciliation = async (
       message_type: type,
       metadata: {
         ...metadata,
-        enhanced_fallback: true,
-        reconciliation_method: 'enhanced_v2',
+        corrected_fallback: true,
+        reconciliation_method: 'corrected_enhanced',
         fallback_timestamp: new Date().toISOString()
       }
     })
@@ -177,10 +186,10 @@ const saveMessageWithReconciliation = async (
     .single();
 
   if (error) {
-    console.error('[messageOperations] Enhanced direct insert failed:', error);
+    console.error('[messageOperations] Corrected direct insert failed:', error);
     throw error;
   }
 
-  console.log('[messageOperations] Enhanced direct insert successful:', data.id);
+  console.log('[messageOperations] Corrected direct insert successful:', data.id);
   return data.id;
 };

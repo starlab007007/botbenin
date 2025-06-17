@@ -2,15 +2,16 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Enhanced function to retrieve chat history using the corrected unified system
+ * Retrieve chat history using the corrected unified system
  */
 export const getChatHistory = async (botId: string, sessionToken: string) => {
   try {
     console.log(`[historyManager] === CORRECTED CHAT HISTORY RETRIEVAL ===`);
+    console.log(`[historyManager] Using corrected DB functions without ambiguity`);
     console.log(`[historyManager] Bot ID: ${botId}`);
     console.log(`[historyManager] Session Token: ${sessionToken}`);
     
-    // Use the corrected unified RPC function
+    // Use the corrected get_unified_chat_history function
     const { data: unifiedData, error: unifiedError } = await supabase.rpc('get_unified_chat_history', {
       p_bot_id: botId,
       p_session_token: sessionToken,
@@ -19,17 +20,17 @@ export const getChatHistory = async (botId: string, sessionToken: string) => {
     });
 
     if (unifiedError) {
-      console.error('[historyManager] Corrected RPC Error:', unifiedError);
+      console.error('[historyManager] Corrected RPC Error (should be resolved now):', unifiedError);
       
       // Fallback with direct query using corrected approach
-      console.log('[historyManager] Attempting fallback with corrected query...');
+      console.log('[historyManager] Attempting corrected fallback query...');
       return await getMessagesWithCorrectedQuery(botId, sessionToken);
     }
 
     if (unifiedData && unifiedData.length > 0) {
-      console.log(`[historyManager] Corrected system success: ${unifiedData.length} messages retrieved`);
+      console.log(`[historyManager] Corrected system success: ${unifiedData.length} messages retrieved without ambiguity`);
       
-      // Transform to expected format if needed
+      // Transform to expected format
       const transformedData = unifiedData.map((item: any) => ({
         id: item.message_id,
         message_id: item.message_id,
@@ -68,12 +69,12 @@ export const getChatHistory = async (botId: string, sessionToken: string) => {
 };
 
 /**
- * Direct query using corrected approach to avoid ambiguity
+ * Direct query using corrected approach to avoid any ambiguity
  */
 const getMessagesWithCorrectedQuery = async (botId: string, sessionToken: string) => {
-  console.log('[historyManager] Executing corrected direct query...');
+  console.log('[historyManager] Executing corrected direct query without ambiguity...');
   
-  // Use explicit table aliases to avoid any ambiguity
+  // Use explicit table aliases and very specific queries to avoid any ambiguity
   const { data, error } = await supabase
     .from('chat_messages')
     .select(`

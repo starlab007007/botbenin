@@ -14,17 +14,18 @@ import { trackVisitorEvent } from './tracking/eventTracker';
 import { extractUTMParams } from './tracking/utmExtractor';
 
 /**
- * Initialize visitor tracking - Enhanced corrected version
+ * Initialize visitor tracking - Now using corrected database functions
  */
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
     console.log(`[visitorTracking] === CORRECTED VISITOR TRACKING INIT ===`);
+    console.log(`[visitorTracking] Using corrected DB functions without session_token ambiguity`);
     console.log(`[visitorTracking] Bot ID: ${botId}, Entry: ${entryPoint}`);
     
-    // Validate bot with auto-repair
+    // Validate bot with corrected auto-repair
     const botValidation = await validateBotForSession(botId);
     if (!botValidation.valid) {
-      console.error('[visitorTracking] Bot validation failed:', botValidation.error);
+      console.error('[visitorTracking] Bot validation failed with corrected functions:', botValidation.error);
       clearVisitorSession();
       return botValidation.error || 'Bot validation failed';
     }
@@ -60,9 +61,9 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     const utmParams = extractUTMParams();
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
     
-    console.log(`[visitorTracking] Creating session with entry point: ${finalEntryPoint}`);
+    console.log(`[visitorTracking] Creating session with corrected functions, entry point: ${finalEntryPoint}`);
 
-    // Create session
+    // Create session using corrected functions
     const sessionTokenResult = await createAnonymousVisitorSession(
       fingerprintResult,
       botId,
@@ -72,14 +73,14 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     );
 
     if (typeof sessionTokenResult === 'object' && sessionTokenResult !== null && 'error' in sessionTokenResult) {
-      const errorMsg = `[visitorTracking] Session creation failed: ${sessionTokenResult.error}`;
+      const errorMsg = `[visitorTracking] Session creation failed with corrected functions: ${sessionTokenResult.error}`;
       console.error(errorMsg);
       clearVisitorSession();
       return errorMsg;
     }
     
     if (typeof sessionTokenResult !== 'string' || !sessionTokenResult.startsWith('anon_')) {
-      const errorMsg = `[visitorTracking] Invalid session token: ${sessionTokenResult}`;
+      const errorMsg = `[visitorTracking] Invalid session token from corrected functions: ${sessionTokenResult}`;
       console.error(errorMsg);
       clearVisitorSession();
       return errorMsg;
@@ -88,7 +89,7 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     const token: string = sessionTokenResult;
     storeVisitorSession(token);
     
-    console.log(`[visitorTracking] Session created successfully: ${token}`);
+    console.log(`[visitorTracking] Session created successfully with corrected functions: ${token}`);
 
     // Track session start event (non-blocking)
     try {
@@ -102,7 +103,8 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
           bot_id: botId,
           entry_point: finalEntryPoint,
           corrected_tracking: true,
-          bot_validated: true
+          bot_validated: true,
+          system_version: 'corrected_v1'
         }
       );
     } catch (trackingErr) {
@@ -113,8 +115,8 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     return token;
 
   } catch (error: any) {
-    console.error('[visitorTracking] Exception in initializeVisitorTracking:', error);
+    console.error('[visitorTracking] Exception in corrected initializeVisitorTracking:', error);
     clearVisitorSession();
-    return 'Erreur lors de l\'initialisation du tracking: ' + (error?.message ? error.message : JSON.stringify(error));
+    return 'Erreur lors de l\'initialisation du tracking corrigé: ' + (error?.message ? error.message : JSON.stringify(error));
   }
 };

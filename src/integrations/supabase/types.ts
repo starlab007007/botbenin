@@ -4680,6 +4680,14 @@ export type Database = {
         }
         Returns: string
       }
+      test_session_token_resolution: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_name: string
+          status: string
+          details: string
+        }[]
+      }
       track_link_click: {
         Args:
           | {
