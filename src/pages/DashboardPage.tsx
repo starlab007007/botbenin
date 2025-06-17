@@ -1,7 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
+import { ConversationManager } from '@/components/ConversationManager';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 
 // Dashboard components
@@ -12,13 +13,6 @@ import { BotAnalyticsSection } from '@/components/dashboard/BotAnalyticsSection'
 import { MainContentTabs } from '@/components/dashboard/MainContentTabs';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { DashboardStats, UserPermissions } from '@/components/dashboard/DashboardStats';
-
-// Secure conversation manager
-import { SecureConversationManager } from '@/components/secure-conversation/SecureConversationManager';
-
-// Secure data services
-import { getSecureDashboardStats } from '@/services/chat/secureHistoryManager';
-import { supabase } from '@/integrations/supabase/client';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -47,7 +41,7 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      fetchSecureDashboardData();
+      fetchDashboardStats();
       fetchUserPermissions();
     }
   }, [user]);
@@ -57,7 +51,7 @@ export const DashboardPage: React.FC = () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
 
-      // Get user roles
+      // Récupérer les rôles utilisateur
       const { data: userRoles } = await supabase
         .from('user_roles')
         .select(`
@@ -65,7 +59,7 @@ export const DashboardPage: React.FC = () => {
         `)
         .eq('user_id', authUser.id);
 
-      // Get bot_owner for specific permissions
+      // Récupérer le bot_owner pour les permissions spécifiques
       const { data: ownerData } = await supabase
         .from('bot_owners')
         .select('subscription_plan, max_bots')
@@ -85,26 +79,61 @@ export const DashboardPage: React.FC = () => {
       });
 
     } catch (error) {
-      console.error('Error loading permissions:', error);
+      console.error('Erreur lors du chargement des permissions:', error);
     }
   };
 
-  const fetchSecureDashboardData = async () => {
+  const fetchDashboardStats = async () => {
     try {
-      setIsLoading(true);
-      
-      // Use secure dashboard stats function
-      const secureStats = await getSecureDashboardStats();
-      
-      if (secureStats) {
-        setStats({
-          totalBots: Number(secureStats.total_bots) || 0,
-          totalMessages: Number(secureStats.total_messages) || 0,
-          totalUsers: Number(secureStats.total_users) || 0,
-          activeToday: Number(secureStats.active_users_24h) || 0
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      // Récupérer le bot_owner
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', authUser.id)
+        .single();
+
+      if (!ownerData) {
+        console.log('Aucun bot_owner trouvé pour cet utilisateur');
+        setIsLoading(false);
+        return;
+      }
+
+      // Utiliser la nouvelle vue detailed_bot_stats pour obtenir les statistiques
+      const { data: statsData, error: statsError } = await supabase
+        .from('detailed_bot_stats')
+        .select('*')
+        .eq('owner_id', ownerData.id);
+
+      if (statsError) {
+        console.error('Erreur lors du chargement des statistiques:', statsError);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Données statistiques reçues:', statsData);
+
+      if (statsData && statsData.length > 0) {
+        // Agréger les statistiques de tous les bots de l'utilisateur
+        const aggregatedStats = statsData.reduce((acc, bot) => ({
+          totalBots: acc.totalBots + 1,
+          totalMessages: acc.totalMessages + (bot.total_messages || 0),
+          totalUsers: acc.totalUsers + (bot.total_unique_users || 0),
+          activeToday: acc.activeToday + (bot.active_users_24h || 0)
+        }), {
+          totalBots: 0,
+          totalMessages: 0,
+          totalUsers: 0,
+          activeToday: 0
         });
+
+        console.log('Statistiques agrégées:', aggregatedStats);
+        setStats(aggregatedStats);
       } else {
-        // User has no bots or data yet
+        console.log('Aucune donnée statistique trouvée');
+        // L'utilisateur n'a pas encore de bots, garder les stats à 0
         setStats({
           totalBots: 0,
           totalMessages: 0,
@@ -114,14 +143,7 @@ export const DashboardPage: React.FC = () => {
       }
 
     } catch (error) {
-      console.error('Error loading secure dashboard data:', error);
-      // Set default stats on error
-      setStats({
-        totalBots: 0,
-        totalMessages: 0,
-        totalUsers: 0,
-        activeToday: 0
-      });
+      console.error('Erreur lors du chargement des statistiques:', error);
     } finally {
       setIsLoading(false);
     }
@@ -129,16 +151,15 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      fetchSecureMyBots();
+      fetchMyBots();
     }
   }, [user]);
 
-  const fetchSecureMyBots = async () => {
+  const fetchMyBots = async () => {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) return;
-      
-      // Get bot owner ID securely
+      // On récupère l'id du bot_owner
       const { data: ownerData } = await supabase
         .from('bot_owners')
         .select('id')
@@ -146,31 +167,30 @@ export const DashboardPage: React.FC = () => {
         .single();
 
       if (!ownerData) return;
-      
-      // Get only bots owned by this user
       const { data: bots } = await supabase
         .from('bots')
         .select('id, name')
         .eq('owner_id', ownerData.id);
 
-      console.log("[SECURE DASHBOARD] User's bots:", bots);
+      // LOG: Liste des bots récupérés
+      console.log("[DASHBOARD] Bots de l'utilisateur :", bots);
+
       setMyBots(bots || []);
-      
     } catch (error) {
-      console.error('Error loading user bots securely:', error);
+      console.error('Erreur chargement bots utilisateur:', error);
     }
   };
 
   useEffect(() => {
     if (selectedBotId || selectedBotName) {
       console.log(
-        `[SECURE DASHBOARD] Bot selected: ${selectedBotName || ''} (id: ${selectedBotId || ''})`
+        `[DASHBOARD] Bot sélectionné : ${selectedBotName || ''} (id: ${selectedBotId || ''})`
       );
     }
   }, [selectedBotId, selectedBotName]);
 
   const handleBotSelect = (botId: string, botName: string) => {
-    console.log(`[SECURE DASHBOARD] Click bot: ${botName} (id: ${botId})`);
+    console.log(`[DASHBOARD] Click bot: ${botName} (id: ${botId})`);
     setSelectedBotId(botId);
     setSelectedBotName(botName);
     setShowBotAnalytics(true);
@@ -191,7 +211,7 @@ export const DashboardPage: React.FC = () => {
             Connexion requise
           </h2>
           <p className="text-gray-600">
-            Veuillez vous connecter pour accéder au tableau de bord sécurisé
+            Veuillez vous connecter pour accéder au tableau de bord
           </p>
         </Card>
       </div>
@@ -199,37 +219,19 @@ export const DashboardPage: React.FC = () => {
   }
 
   if (showBotAnalytics && selectedBotId && selectedBotName) {
-    console.log("[SECURE DASHBOARD] Opening secure analytics:", { selectedBotId, selectedBotName });
+    // LOG: Ouverture du panel analytics détaillé avec le bon bot
+    console.log("[DASHBOARD] Ouverture analytics bot :", { selectedBotId, selectedBotName });
     return (
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-        <CompleteBotAnalytics 
-          botId={selectedBotId} 
-          botName={selectedBotName} 
-          onBack={() => setShowBotAnalytics(false)} 
-        />
+        <CompleteBotAnalytics botId={selectedBotId} botName={selectedBotName} onBack={() => setShowBotAnalytics(false)} />
       </div>
     );
-  }
-
-  // Show secure conversation manager
-  if (showConversationControlPanel) {
-    return <SecureConversationManager onBack={() => setShowConversationControlPanel(false)} />;
   }
 
   return (
     <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
       <DashboardHeader permissions={permissions} />
-
-      {/* Security Status */}
-      <Card className="p-4 border-green-200 bg-green-50">
-        <div className="flex items-center space-x-3">
-          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-          <span className="text-sm font-medium text-green-800">
-            Dashboard sécurisé - Isolation des données garantie
-          </span>
-        </div>
-      </Card>
 
       {/* Quick Stats */}
       <QuickStatsCards stats={stats} permissions={permissions} />
