@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { extractUTMParams } from '../tracking/utmExtractor';
 
 /**
- * Create anonymous visitor session with final corrected secure database functions
+ * Create anonymous visitor session using final corrected functions without ambiguity
  */
 export const createAnonymousVisitorSession = async (
   fingerprintId: string,
@@ -13,37 +13,37 @@ export const createAnonymousVisitorSession = async (
   utmParams?: { source?: string; medium?: string; campaign?: string }
 ): Promise<string | { error: string }> => {
   try {
-    console.log(`[sessionManager] === SECURE SESSION CREATION (FINAL CORRECTED) ===`);
-    console.log(`[sessionManager] Using final corrected secure DB functions`);
+    console.log(`[sessionManager] === FINAL SYSTEM SESSION CREATION ===`);
+    console.log(`[sessionManager] Using final corrected functions without ambiguity`);
     console.log(`[sessionManager] Fingerprint: ${fingerprintId}, Bot: ${botId}, Entry: ${entryPoint}`);
     
-    // Test the final corrected secure functions first
+    // Test the final system functions first
     try {
-      const { data: testResult, error: testError } = await supabase.rpc('global_bot_repair');
-      if (testResult && testResult.length > 0) {
-        console.log('[sessionManager] Global repair results:', testResult);
+      const { data: repairResult, error: repairError } = await supabase.rpc('repair_system_final');
+      if (repairResult && repairResult.length > 0) {
+        console.log('[sessionManager] System repair results:', repairResult);
       }
-    } catch (testErr) {
-      console.warn('[sessionManager] Global repair test failed:', testErr);
+    } catch (repairErr) {
+      console.warn('[sessionManager] System repair test failed:', repairErr);
     }
 
-    // Validate bot exists and is active using the final corrected secure function
+    // Validate bot exists using the final system
     try {
-      const { data: accessible, error: accessError } = await supabase.rpc('ensure_bot_accessibility', {
+      const { data: botExists, error: botError } = await supabase.rpc('verify_bot_access_final', {
         p_bot_id: botId
       });
       
-      if (accessError || !accessible) {
-        console.error('[sessionManager] Bot not accessible:', { botId, error: accessError, accessible });
+      if (botError || !botExists) {
+        console.error('[sessionManager] Bot validation failed:', { botId, error: botError, exists: botExists });
         return { error: `Bot ${botId} n'est pas accessible ou n'existe plus` };
       }
-    } catch (accessErr) {
-      console.error('[sessionManager] Bot accessibility check failed:', accessErr);
+    } catch (botErr) {
+      console.error('[sessionManager] Bot validation check failed:', botErr);
       return { error: `Impossible de vérifier l'accessibilité du bot ${botId}` };
     }
     
-    // Use the final corrected secure create_anonymous_visitor_session function with explicit table qualification
-    const { data, error } = await supabase.rpc('create_anonymous_visitor_session', {
+    // Use the final corrected create_visitor_session_final function
+    const { data, error } = await supabase.rpc('create_visitor_session_final', {
       p_fingerprint_id: fingerprintId,
       p_bot_id: botId,
       p_entry_point: entryPoint,
@@ -55,19 +55,7 @@ export const createAnonymousVisitorSession = async (
     });
     
     if (error) {
-      console.error('[sessionManager] RPC Error in final corrected createAnonymousVisitorSession:', error);
-      
-      // Handle specific errors with auto-repair
-      if (error.message?.includes('does not exist') || error.message?.includes('inactive')) {
-        try {
-          await supabase.rpc('global_bot_repair');
-          console.log('[sessionManager] Global repair completed after error');
-        } catch (repairError) {
-          console.warn('[sessionManager] Global repair failed:', repairError);
-        }
-        return { error: `Le bot sélectionné n'est plus disponible: ${error.message}` };
-      }
-      
+      console.error('[sessionManager] Final system RPC Error:', error);
       return { error: error.message || error.details || "Session creation failed" };
     }
     
@@ -76,22 +64,22 @@ export const createAnonymousVisitorSession = async (
       return { error: "Invalid session token returned from server" };
     }
     
-    console.log(`[sessionManager] Session created successfully with final corrected functions: ${data}`);
+    console.log(`[sessionManager] Session created successfully with final system: ${data}`);
     return data;
     
   } catch (error: any) {
-    console.error('[sessionManager] Exception in final corrected createAnonymousVisitorSession:', error);
+    console.error('[sessionManager] Exception in final system createAnonymousVisitorSession:', error);
     return { error: error?.message || JSON.stringify(error) };
   }
 };
 
 /**
- * Validate bot before session creation using final corrected secure functions
+ * Validate bot before session creation using final corrected functions
  */
 export const validateBotForSession = async (botId: string): Promise<{ valid: boolean; error?: string }> => {
   try {
-    // Use the final corrected ensure_bot_accessibility function
-    const { data: accessible, error: accessibilityError } = await supabase.rpc('ensure_bot_accessibility', {
+    // Use the final corrected verify_bot_access_final function
+    const { data: accessible, error: accessibilityError } = await supabase.rpc('verify_bot_access_final', {
       p_bot_id: botId
     });
     
@@ -99,45 +87,45 @@ export const validateBotForSession = async (botId: string): Promise<{ valid: boo
       const errorMsg = `Bot accessibility check failed: ${accessibilityError.message}`;
       console.error('[sessionManager] Bot validation failed:', errorMsg);
       
-      // Auto-repair attempt using final corrected secure functions
+      // Auto-repair attempt using final corrected functions
       try {
-        console.log('[sessionManager] Attempting global repair with final corrected functions...');
-        await supabase.rpc('global_bot_repair');
+        console.log('[sessionManager] Attempting system repair with final functions...');
+        await supabase.rpc('repair_system_final');
         
         // Retry after repair
-        const { data: retryAccessible, error: retryError } = await supabase.rpc('ensure_bot_accessibility', {
+        const { data: retryAccessible, error: retryError } = await supabase.rpc('verify_bot_access_final', {
           p_bot_id: botId
         });
           
         if (!retryError && retryAccessible) {
-          console.log('[sessionManager] Bot recovered after repair with final corrected functions');
+          console.log('[sessionManager] Bot recovered after repair with final system');
           return { valid: true };
         } else {
           return { valid: false, error: errorMsg };
         }
       } catch (repairError) {
-        console.warn('[sessionManager] Global repair failed with final corrected functions:', repairError);
+        console.warn('[sessionManager] System repair failed with final functions:', repairError);
         return { valid: false, error: errorMsg };
       }
     }
     
     if (!accessible) {
-      console.log('[sessionManager] Bot not accessible, attempting repair with final corrected functions...');
+      console.log('[sessionManager] Bot not accessible, attempting repair with final system...');
       try {
-        await supabase.rpc('global_bot_repair');
-        console.log('[sessionManager] Global repair completed with final corrected functions');
+        await supabase.rpc('repair_system_final');
+        console.log('[sessionManager] System repair completed with final functions');
         return { valid: true };
       } catch (repairError) {
-        console.warn('[sessionManager] Repair failed with final corrected functions:', repairError);
+        console.warn('[sessionManager] Repair failed with final system:', repairError);
         return { valid: false, error: `Bot ${botId} n'est pas accessible et ne peut être réparé` };
       }
     }
     
-    console.log(`[sessionManager] Bot validated with final corrected functions: ${botId}`);
+    console.log(`[sessionManager] Bot validated with final system: ${botId}`);
     return { valid: true };
     
   } catch (error: any) {
-    console.error('[sessionManager] Exception validating bot with final corrected functions:', error);
+    console.error('[sessionManager] Exception validating bot with final system:', error);
     return { valid: false, error: error?.message || 'Bot validation failed' };
   }
 };

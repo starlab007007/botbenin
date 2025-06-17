@@ -1199,6 +1199,33 @@ export type Database = {
           },
         ]
       }
+      debug_session_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          function_name: string
+          id: string
+          parameters: Json | null
+          stack_trace: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          function_name: string
+          id?: string
+          parameters?: Json | null
+          stack_trace?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          function_name?: string
+          id?: string
+          parameters?: Json | null
+          stack_trace?: string | null
+        }
+        Relationships: []
+      }
       demo_accounts: {
         Row: {
           created_at: string | null
@@ -4418,14 +4445,6 @@ export type Database = {
           orphaned_messages: number
         }[]
       }
-      cleanup_corrupted_session_data: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          action_taken: string
-          count: number
-          details: string
-        }[]
-      }
       cleanup_orphaned_bot_data: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -4446,19 +4465,6 @@ export type Database = {
           p_data_value: string
           p_collection_method?: string
           p_confidence_score?: number
-        }
-        Returns: string
-      }
-      create_anonymous_visitor_session: {
-        Args: {
-          p_fingerprint_id: string
-          p_bot_id: string
-          p_entry_point?: string
-          p_referrer_url?: string
-          p_utm_source?: string
-          p_utm_medium?: string
-          p_utm_campaign?: string
-          p_ip_address?: unknown
         }
         Returns: string
       }
@@ -4487,6 +4493,28 @@ export type Database = {
         Args: { p_bot_id: string; p_owner_id: string }
         Returns: string
       }
+      create_visitor_session_final: {
+        Args: {
+          p_fingerprint_id: string
+          p_bot_id: string
+          p_entry_point?: string
+          p_referrer_url?: string
+          p_utm_source?: string
+          p_utm_medium?: string
+          p_utm_campaign?: string
+          p_ip_address?: unknown
+        }
+        Returns: string
+      }
+      diagnose_all_session_ambiguities: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          function_name: string
+          issue_description: string
+          severity: string
+          fix_needed: string
+        }[]
+      }
       diagnose_bot_session_issues: {
         Args: { p_bot_id?: string }
         Returns: {
@@ -4512,15 +4540,6 @@ export type Database = {
           message: string
         }[]
       }
-      diagnose_session_token_ambiguities_complete: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          table_name: string
-          column_name: string
-          issue_type: string
-          fix_required: string
-        }[]
-      }
       diagnose_session_token_issues: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -4528,14 +4547,6 @@ export type Database = {
           count: number
           details: Json
         }[]
-      }
-      enhanced_session_reconciliation: {
-        Args: { p_bot_id: string; p_session_token: string }
-        Returns: string
-      }
-      ensure_bot_accessibility: {
-        Args: { p_bot_id: string }
-        Returns: boolean
       }
       fix_session_inconsistencies: {
         Args: Record<PropertyKey, never>
@@ -4598,6 +4609,28 @@ export type Database = {
         }
         Returns: Json[]
       }
+      get_chat_history_final: {
+        Args: {
+          p_bot_id: string
+          p_session_token?: string
+          p_bot_user_id?: string
+          p_limit?: number
+        }
+        Returns: {
+          message_id: string
+          bot_id: string
+          bot_user_id: string
+          message_content: string
+          message_type: string
+          message_timestamp: string
+          metadata: Json
+          session_id: string
+          user_name: string
+          user_email: string
+          ip_address: string
+          user_agent: string
+        }[]
+      }
       get_or_create_bot_user_for_session: {
         Args: {
           p_bot_id: string
@@ -4623,20 +4656,12 @@ export type Database = {
         }[]
       }
       get_unified_chat_history: {
-        Args:
-          | {
-              p_bot_id: string
-              p_session_token?: string
-              p_bot_user_id?: string
-              p_limit?: number
-            }
-          | {
-              p_bot_id: string
-              p_session_token?: string
-              p_bot_user_id?: string
-              p_limit?: number
-              p_requesting_user_id?: string
-            }
+        Args: {
+          p_bot_id: string
+          p_session_token?: string
+          p_bot_user_id?: string
+          p_limit?: number
+        }
         Returns: {
           message_id: string
           bot_id: string
@@ -4660,14 +4685,6 @@ export type Database = {
           source: string
         }[]
       }
-      global_bot_repair: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          action_taken: string
-          affected_count: number
-          details: string
-        }[]
-      }
       hide_demo_account_data: {
         Args: { user_id: string; data_value: string }
         Returns: string
@@ -4689,6 +4706,10 @@ export type Database = {
         Args: { p_bot_id: string; p_session_token: string }
         Returns: string
       }
+      reconcile_session_final: {
+        Args: { p_bot_id: string; p_session_token: string }
+        Returns: string
+      }
       repair_all_session_inconsistencies: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -4697,7 +4718,15 @@ export type Database = {
           details: string
         }[]
       }
-      save_chat_message: {
+      repair_system_final: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_taken: string
+          affected_count: number
+          details: string
+        }[]
+      }
+      save_message_final: {
         Args: {
           p_bot_id: string
           p_session_token: string
@@ -4717,7 +4746,23 @@ export type Database = {
         }
         Returns: string
       }
-      test_session_functions_final: {
+      test_absolute_session_resolution: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_category: string
+          test_result: string
+          details: string
+        }[]
+      }
+      test_final_session_resolution: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_category: string
+          test_result: string
+          details: string
+        }[]
+      }
+      test_session_token_resolution: {
         Args: Record<PropertyKey, never>
         Returns: {
           test_name: string
@@ -4725,7 +4770,7 @@ export type Database = {
           details: string
         }[]
       }
-      test_session_token_resolution: {
+      test_system_final: {
         Args: Record<PropertyKey, never>
         Returns: {
           test_name: string
@@ -4761,6 +4806,10 @@ export type Database = {
       }
       user_has_permission: {
         Args: { user_uuid: string; permission_name: string }
+        Returns: boolean
+      }
+      verify_bot_access_final: {
+        Args: { p_bot_id: string }
         Returns: boolean
       }
     }
