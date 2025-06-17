@@ -644,6 +644,7 @@ export type Database = {
           configuration: Json | null
           created_at: string
           description: string | null
+          display_in_live_chat: boolean | null
           id: string
           is_active: boolean | null
           name: string
@@ -660,6 +661,7 @@ export type Database = {
           configuration?: Json | null
           created_at?: string
           description?: string | null
+          display_in_live_chat?: boolean | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -676,6 +678,7 @@ export type Database = {
           configuration?: Json | null
           created_at?: string
           description?: string | null
+          display_in_live_chat?: boolean | null
           id?: string
           is_active?: boolean | null
           name?: string

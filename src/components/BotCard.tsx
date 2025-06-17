@@ -37,7 +37,7 @@ interface Bot {
   chat_context: string;
   share_enabled: boolean;
   public_chat_url: string;
-  display_in_live_chat?: boolean; // Make this optional
+  display_in_live_chat: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -124,7 +124,7 @@ export const BotCard: React.FC<BotCardProps> = ({
                 {bot.display_in_live_chat ? 'Affiché' : 'Masqué'}
               </span>
               <Switch
-                checked={bot.display_in_live_chat || false}
+                checked={bot.display_in_live_chat}
                 onCheckedChange={() => onToggleLiveChat(bot)}
               />
             </div>

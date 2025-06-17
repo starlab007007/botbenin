@@ -58,7 +58,7 @@ interface Bot {
   public_chat_url: string;
   created_at: string;
   updated_at: string;
-  display_in_live_chat?: boolean; // Make this optional
+  display_in_live_chat: boolean;
 }
 
 interface BotStats {
@@ -119,26 +119,51 @@ export const BotManagement: React.FC = () => {
 
       if (!ownerData) return;
 
-      // Récupérer les bots avec display_in_live_chat explicitement
+      // Récupérer les bots avec display_in_live_chat
       const { data: botsData, error } = await supabase
         .from('bots')
-        .select('*, display_in_live_chat')
+        .select(`
+          id,
+          name,
+          description,
+          webhook_url,
+          api_key,
+          is_active,
+          chat_title,
+          chat_context,
+          share_enabled,
+          public_chat_url,
+          created_at,
+          updated_at,
+          display_in_live_chat
+        `)
         .eq('owner_id', ownerData.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Assurer que display_in_live_chat a une valeur par défaut
-      const formattedBots = (botsData || []).map(bot => ({
-        ...bot,
+      // Assurer que display_in_live_chat a une valeur
+      const formattedBots: Bot[] = (botsData || []).map(bot => ({
+        id: bot.id,
+        name: bot.name,
+        description: bot.description,
+        webhook_url: bot.webhook_url,
+        api_key: bot.api_key,
+        is_active: bot.is_active,
+        chat_title: bot.chat_title,
+        chat_context: bot.chat_context,
+        share_enabled: bot.share_enabled,
+        public_chat_url: bot.public_chat_url,
+        created_at: bot.created_at,
+        updated_at: bot.updated_at,
         display_in_live_chat: bot.display_in_live_chat ?? false
       }));
 
       setBots(formattedBots);
 
       // Récupérer les statistiques depuis la nouvelle vue detailed_bot_stats
-      if (botsData && botsData.length > 0) {
-        await fetchBotsStatsFromView(botsData.map(bot => bot.id));
+      if (formattedBots && formattedBots.length > 0) {
+        await fetchBotsStatsFromView(formattedBots.map(bot => bot.id));
       }
 
     } catch (error) {
