@@ -6,6 +6,74 @@ interface MediaRendererProps {
 }
 
 export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
+  // Fonction pour détecter si un lien est une image
+  const isImageUrl = (url: string): boolean => {
+    const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
+    return imageExtensions.test(url);
+  };
+
+  // Fonction pour extraire et traiter les liens d'images
+  const processImageLinks = (text: string): React.ReactNode[] => {
+    // Regex pour détecter les URLs (http/https)
+    const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+      const url = match[0];
+      const startIndex = match.index;
+
+      // Ajouter le texte avant l'URL
+      if (startIndex > lastIndex) {
+        parts.push(text.substring(lastIndex, startIndex));
+      }
+
+      // Si c'est une image, l'afficher, sinon afficher le lien
+      if (isImageUrl(url)) {
+        parts.push(
+          <div key={startIndex} className="my-3">
+            <img 
+              src={url} 
+              alt="Image partagée" 
+              className="max-w-full h-auto rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow duration-200"
+              style={{ maxHeight: '400px' }}
+              onError={(e) => {
+                // En cas d'erreur de chargement, afficher le lien à la place
+                const target = e.target as HTMLImageElement;
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all">${url}</a>`;
+                }
+              }}
+            />
+          </div>
+        );
+      } else {
+        parts.push(
+          <a 
+            key={startIndex}
+            href={url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-blue-600 hover:text-blue-800 underline break-all"
+          >
+            {url}
+          </a>
+        );
+      }
+
+      lastIndex = urlRegex.lastIndex;
+    }
+
+    // Ajouter le texte restant
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return parts;
+  };
+
   // Fonction pour formatter le texte avec markdown-like syntax
   const formatText = (text: string) => {
     // Diviser le texte en lignes pour traiter chaque ligne
@@ -56,6 +124,16 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       // Lignes vides pour l'espacement
       if (formattedLine.trim() === '') {
         return <div key={index} className="h-2"></div>;
+      }
+      
+      // Vérifier si la ligne contient des liens/images
+      const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
+      if (urlRegex.test(formattedLine)) {
+        return (
+          <div key={index} className="leading-relaxed">
+            {processImageLinks(formattedLine)}
+          </div>
+        );
       }
       
       return (
