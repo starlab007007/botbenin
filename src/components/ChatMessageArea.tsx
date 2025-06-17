@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ChatMessage } from '@/components/ChatMessage';
@@ -198,32 +199,32 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
   };
 
   return (
-    <div className={`flex-1 overflow-y-auto bg-gray-50 ${isMobile && isSharedLink ? 'p-3' : 'p-6'}`}>
+    <div className={`flex-1 overflow-y-auto bg-gradient-to-b from-gray-50 to-gray-100 ${isMobile && isSharedLink ? 'px-[5%] py-3' : 'px-[5%] md:px-6 py-6'}`}>
       <div className="max-w-full mx-auto space-y-4">
         {/* Welcome message and suggestions */}
         {messages.length <= 1 && (
           <div className="text-center py-8">
-            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-semibold text-lg">🤖</span>
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <span className="text-white font-semibold text-2xl">🤖</span>
             </div>
-            <h3 className={`${isMobile ? 'text-lg' : 'text-lg'} font-semibold text-gray-900 mb-2`}>
+            <h3 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-gray-900 mb-3`}>
               Comment puis-je vous aider?
             </h3>
-            <p className={`text-gray-600 ${isMobile ? 'text-sm' : 'text-sm'} mb-6`}>
+            <p className={`text-gray-600 ${isMobile ? 'text-base' : 'text-lg'} mb-8 font-medium`}>
               Voici quelques suggestions pour commencer
             </p>
             
             {/* Suggestion buttons initiales adaptées au mobile */}
-            <div className={`space-y-3 ${isMobile ? 'max-w-xs' : 'max-w-sm'} mx-auto`}>
+            <div className={`space-y-4 ${isMobile ? 'w-[90%]' : 'max-w-md'} mx-auto`}>
               {getInitialSuggestions().map((suggestion, index) => (
                 <button 
                   key={suggestion.action}
                   onClick={() => handleSuggestionClick(suggestion)}
                   className={`w-full ${
                     index === 0 
-                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-                  } rounded-2xl ${isMobile ? 'py-3 px-4 text-sm' : 'py-4 px-6 text-sm'} font-medium transition-colors`}
+                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg' 
+                      : 'bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-blue-300 shadow-md'
+                  } rounded-2xl ${isMobile ? 'py-4 px-5 text-base' : 'py-5 px-7 text-lg'} font-semibold transition-all duration-200 transform hover:scale-105`}
                 >
                   {suggestion.action}
                 </button>
@@ -243,40 +244,40 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
 
         {/* Suggestions dynamiques après chaque réponse */}
         {showDynamicSuggestions && (
-          <div className="flex flex-col items-center mt-6">
-            <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-3`}>
-              Suggestions personnalisées :
+          <div className="flex flex-col items-center mt-8">
+            <p className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-600 mb-4 font-medium`}>
+              💡 Suggestions personnalisées :
             </p>
-            <div className={`flex flex-wrap gap-2 justify-center ${isMobile ? 'max-w-xs' : 'max-w-md'}`}>
+            <div className={`flex flex-wrap gap-3 justify-center ${isMobile ? 'w-[90%]' : 'max-w-2xl'}`}>
               {generateDynamicSuggestions(lastBotMessage.content).map((suggestion, index) => (
                 <button
                   key={`${suggestion.action}-${index}`}
                   onClick={() => handleSuggestionClick(suggestion)}
-                  className={`bg-white border border-gray-200 text-gray-700 rounded-full ${
-                    isMobile ? 'py-2 px-3 text-xs' : 'py-2 px-4 text-xs'
-                  } font-medium hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-200 shadow-sm hover:shadow-md`}
+                  className={`bg-white border-2 border-gray-200 text-gray-700 rounded-full ${
+                    isMobile ? 'py-3 px-4 text-sm' : 'py-3 px-5 text-sm'
+                  } font-semibold hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105`}
                 >
                   {suggestion.action}
                 </button>
               ))}
             </div>
-            <p className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-400 mt-2`}>
-              Suggestions adaptées à votre conversation
+            <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mt-3 italic`}>
+              ✨ Suggestions adaptées à votre conversation
             </p>
           </div>
         )}
 
         {/* Loading State */}
         {isLoading && (
-          <div className="flex justify-start">
-            <div className={`bg-white rounded-2xl rounded-bl-lg ${isMobile ? 'p-3' : 'p-4'} shadow-sm border border-gray-100 max-w-xs`}>
+          <div className="flex justify-start px-1">
+            <div className={`bg-white rounded-2xl rounded-bl-lg ${isMobile ? 'p-4' : 'p-5'} shadow-lg border border-gray-200 max-w-xs w-[90%] md:max-w-md`}>
               <div className="flex items-center space-x-3">
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"></div>
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
-                <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500`}>
+                <span className={`${isMobile ? 'text-sm' : 'text-base'} text-gray-600 font-medium`}>
                   En train d'écrire...
                 </span>
               </div>

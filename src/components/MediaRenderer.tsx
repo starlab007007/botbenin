@@ -1,141 +1,76 @@
 
 import React from 'react';
-import { ImageViewer } from '@/components/ImageViewer';
 
 interface MediaRendererProps {
   content: string;
 }
 
 export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
-  const renderContentWithMedia = (text: string) => {
-    // Regex pour détecter les URLs d'images
-    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)|https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?[^\s]*)?/gi;
+  // Fonction pour formatter le texte avec markdown-like syntax
+  const formatText = (text: string) => {
+    // Diviser le texte en lignes pour traiter chaque ligne
+    const lines = text.split('\n');
     
-    // Regex pour détecter les URLs de vidéos
-    const videoRegex = /https?:\/\/[^\s]+\.(mp4|webm|ogg|avi|mov)(\?[^\s]*)?/gi;
-    
-    // Regex pour détecter les liens YouTube
-    const youtubeRegex = /https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/gi;
-
-    let parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-
-    // Fonction pour ajouter du texte simple
-    const addTextPart = (text: string, start: number, end: number) => {
-      if (start < end) {
-        const textContent = text.slice(start, end);
-        if (textContent.trim()) {
-          parts.push(
-            <span key={`text-${start}`} className="whitespace-pre-wrap">
-              {textContent}
-            </span>
-          );
-        }
+    return lines.map((line, index) => {
+      // Traitement des différents styles de formatage
+      let formattedLine = line;
+      
+      // Gras avec **texte** ou __texte__
+      formattedLine = formattedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      formattedLine = formattedLine.replace(/__(.*?)__/g, '<strong>$1</strong>');
+      
+      // Italique avec *texte* ou _texte_
+      formattedLine = formattedLine.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      formattedLine = formattedLine.replace(/_(.*?)_/g, '<em>$1</em>');
+      
+      // Souligné avec ~~texte~~
+      formattedLine = formattedLine.replace(/~~(.*?)~~/g, '<u>$1</u>');
+      
+      // Titres avec ###
+      if (formattedLine.startsWith('### ')) {
+        formattedLine = `<h3 class="text-lg font-bold text-blue-700 mt-3 mb-2">${formattedLine.substring(4)}</h3>`;
+      } else if (formattedLine.startsWith('## ')) {
+        formattedLine = `<h2 class="text-xl font-bold text-blue-800 mt-4 mb-2">${formattedLine.substring(3)}</h2>`;
+      } else if (formattedLine.startsWith('# ')) {
+        formattedLine = `<h1 class="text-2xl font-bold text-blue-900 mt-4 mb-3">${formattedLine.substring(2)}</h1>`;
       }
-    };
-
-    // Traiter les images (format markdown et URLs directes)
-    let match;
-    const allMatches: Array<{index: number, length: number, type: string, content: any}> = [];
-
-    // Collecter toutes les correspondances d'images
-    while ((match = imageRegex.exec(text)) !== null) {
-      const isMarkdown = match[0].startsWith('![');
-      allMatches.push({
-        index: match.index,
-        length: match[0].length,
-        type: 'image',
-        content: {
-          url: isMarkdown ? match[2] : match[0],
-          alt: isMarkdown ? match[1] : 'Image',
-          isMarkdown
-        }
-      });
-    }
-
-    // Collecter toutes les correspondances de vidéos
-    videoRegex.lastIndex = 0;
-    while ((match = videoRegex.exec(text)) !== null) {
-      allMatches.push({
-        index: match.index,
-        length: match[0].length,
-        type: 'video',
-        content: {
-          url: match[0]
-        }
-      });
-    }
-
-    // Collecter toutes les correspondances YouTube
-    youtubeRegex.lastIndex = 0;
-    while ((match = youtubeRegex.exec(text)) !== null) {
-      const videoId = match[3];
-      allMatches.push({
-        index: match.index,
-        length: match[0].length,
-        type: 'youtube',
-        content: {
-          videoId,
-          url: match[0]
-        }
-      });
-    }
-
-    // Trier par index
-    allMatches.sort((a, b) => a.index - b.index);
-
-    // Construire le rendu
-    allMatches.forEach((mediaMatch, i) => {
-      // Ajouter le texte avant ce média
-      addTextPart(text, lastIndex, mediaMatch.index);
-
-      // Ajouter le média
-      if (mediaMatch.type === 'image') {
-        parts.push(
-          <ImageViewer
-            key={`image-${i}`}
-            src={mediaMatch.content.url}
-            alt={mediaMatch.content.alt}
-          />
-        );
-      } else if (mediaMatch.type === 'video') {
-        parts.push(
-          <div key={`video-${i}`} className="my-3">
-            <video
-              src={mediaMatch.content.url}
-              controls
-              className="max-w-full h-auto rounded-lg shadow-md"
-              style={{ maxHeight: '400px' }}
-            >
-              Votre navigateur ne supporte pas la lecture de vidéos.
-            </video>
-          </div>
-        );
-      } else if (mediaMatch.type === 'youtube') {
-        parts.push(
-          <div key={`youtube-${i}`} className="my-3">
-            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-              <iframe
-                src={`https://www.youtube.com/embed/${mediaMatch.content.videoId}`}
-                title="Vidéo YouTube"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="absolute top-0 left-0 w-full h-full rounded-lg shadow-md"
-              />
-            </div>
-          </div>
-        );
+      
+      // Listes avec - ou *
+      if (formattedLine.trim().startsWith('- ')) {
+        formattedLine = `<div class="ml-4 mb-1"><span class="text-blue-600 font-bold">•</span> ${formattedLine.trim().substring(2)}</div>`;
+      } else if (formattedLine.trim().startsWith('* ')) {
+        formattedLine = `<div class="ml-4 mb-1"><span class="text-blue-600 font-bold">•</span> ${formattedLine.trim().substring(2)}</div>`;
       }
-
-      lastIndex = mediaMatch.index + mediaMatch.length;
+      
+      // Numérotation avec 1., 2., etc.
+      const numberedMatch = formattedLine.match(/^(\d+)\.\s+(.*)$/);
+      if (numberedMatch) {
+        formattedLine = `<div class="ml-4 mb-2"><span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-bold mr-2">${numberedMatch[1]}</span>${numberedMatch[2]}</div>`;
+      }
+      
+      // Citations avec >
+      if (formattedLine.trim().startsWith('> ')) {
+        formattedLine = `<blockquote class="border-l-4 border-blue-300 pl-4 py-2 bg-blue-50 italic text-gray-700 my-2">${formattedLine.trim().substring(2)}</blockquote>`;
+      }
+      
+      // Lignes vides pour l'espacement
+      if (formattedLine.trim() === '') {
+        return <div key={index} className="h-2"></div>;
+      }
+      
+      return (
+        <div 
+          key={index} 
+          className="leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: formattedLine }}
+        />
+      );
     });
-
-    // Ajouter le texte restant
-    addTextPart(text, lastIndex, text.length);
-
-    return parts.length > 0 ? parts : [<span key="default" className="whitespace-pre-wrap">{text}</span>];
   };
 
-  return <div className="media-content">{renderContentWithMedia(content)}</div>;
+  return (
+    <div className="space-y-1">
+      {formatText(content)}
+    </div>
+  );
 };

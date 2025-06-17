@@ -1,8 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Send, Paperclip, Mic } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 
 interface ChatInputAreaProps {
   inputValue: string;
@@ -12,6 +11,12 @@ interface ChatInputAreaProps {
   onSendMessage: () => void;
 }
 
+// Utilitaire pour détecter les appareils mobiles
+const isMobileDevice = (): boolean => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         window.innerWidth <= 768;
+};
+
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   inputValue,
   isLoading,
@@ -19,46 +24,59 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onKeyPress,
   onSendMessage,
 }) => {
+  const isMobile = isMobileDevice();
+
   return (
-    <div className="bg-white border-t border-gray-100 p-6">
-      <div className="flex items-end space-x-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg h-10 w-10 p-0 mb-1"
-        >
-          <Paperclip className="w-5 h-5" />
-        </Button>
-        
-        <div className="flex-1 relative">
-          <Textarea
-            value={inputValue}
-            onChange={(e) => onInputChange(e.target.value)}
-            onKeyPress={onKeyPress}
-            placeholder="Tapez votre message..."
-            className="min-h-[60px] max-h-[120px] resize-none border-gray-200 focus:border-blue-500 bg-gray-50 text-gray-900 placeholder-gray-500 rounded-2xl py-4 px-6 pr-14 transition-all duration-200 text-base"
-            disabled={isLoading}
-          />
+    <div className={`border-t border-gray-200 bg-white ${isMobile ? 'px-[5%] py-4' : 'px-[5%] md:px-6 py-6'}`}>
+      <div className="max-w-full mx-auto">
+        <div className="flex items-end space-x-3">
+          <div className="flex-1 relative">
+            <textarea
+              value={inputValue}
+              onChange={(e) => onInputChange(e.target.value)}
+              onKeyPress={onKeyPress}
+              placeholder="Tapez votre message ici..."
+              disabled={isLoading}
+              rows={isMobile ? 2 : 3}
+              className={`w-full resize-none rounded-2xl border-2 border-gray-200 ${
+                isMobile ? 'px-4 py-3 text-base' : 'px-5 py-4 text-lg'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md font-medium leading-relaxed`}
+              style={{ 
+                minHeight: isMobile ? '48px' : '60px',
+                maxHeight: isMobile ? '120px' : '150px'
+              }}
+            />
+            {isLoading && (
+              <div className="absolute inset-0 bg-gray-50 bg-opacity-75 rounded-2xl flex items-center justify-center">
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  <span className="text-sm text-gray-600 font-medium">Traitement...</span>
+                </div>
+              </div>
+            )}
+          </div>
+          
           <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-3 bottom-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg h-10 w-10 p-0"
+            onClick={onSendMessage}
+            disabled={!inputValue.trim() || isLoading}
+            className={`${
+              isMobile ? 'h-12 w-12' : 'h-14 w-14'
+            } rounded-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:hover:scale-100`}
           >
-            <Mic className="w-5 h-5" />
+            {isLoading ? (
+              <Loader2 className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} animate-spin text-white`} />
+            ) : (
+              <Send className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-white`} />
+            )}
           </Button>
         </div>
         
-        <Button
-          onClick={onSendMessage}
-          disabled={!inputValue.trim() || isLoading}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full h-12 w-12 p-0 shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 mb-1"
-        >
-          {isLoading ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <Send className="w-5 h-5" />
-          )}
-        </Button>
+        {/* Indication du formatage disponible */}
+        <div className="mt-3 text-center">
+          <p className={`text-gray-500 ${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
+            💡 Utilisez **gras**, *italique*, ~~souligné~~, ### titres, - listes
+          </p>
+        </div>
       </div>
     </div>
   );

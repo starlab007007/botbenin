@@ -49,17 +49,23 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
   }, [message.content, message.isUser]);
 
   return (
-    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`flex items-start space-x-2 max-w-[80%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+    <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4 px-1`}>
+      <div className={`flex items-start space-x-2 w-[90%] md:max-w-[80%] ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
         {/* Avatar */}
         {!message.isUser && (
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center mt-1">
-            <Bot className="w-4 h-4 text-gray-600" />
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mt-1 flex-shrink-0">
+            <Bot className="w-4 h-4 text-white" />
+          </div>
+        )}
+
+        {message.isUser && (
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center mt-1 flex-shrink-0">
+            <User className="w-4 h-4 text-white" />
           </div>
         )}
 
         {/* Message Content */}
-        <div className="space-y-1 flex-1">
+        <div className="space-y-1 flex-1 min-w-0">
           {/* Bookmark button for AI messages */}
           {!message.isUser && (
             <div className="flex justify-end mb-1">
@@ -82,15 +88,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
             </div>
           )}
 
-          <div className={`rounded-2xl px-4 py-3 ${
+          <div className={`rounded-2xl px-4 py-3 shadow-sm ${
             message.isUser 
-              ? 'bg-blue-600 text-white rounded-br-lg' 
-              : 'bg-white text-gray-900 rounded-bl-lg shadow-sm border border-gray-100'
+              ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-lg border border-blue-500' 
+              : 'bg-white text-gray-900 rounded-bl-lg border border-gray-200'
           }`}>
-            <div className="text-sm leading-relaxed">
+            <div className="text-sm leading-relaxed break-words">
               {isTyping ? (
                 <div className="whitespace-pre-wrap">
-                  {displayedContent}
+                  <MediaRenderer content={displayedContent} />
                   <span className="inline-block w-1 h-4 bg-gray-400 ml-1 animate-pulse rounded"></span>
                 </div>
               ) : (
@@ -99,10 +105,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
             </div>
           </div>
 
-          {/* Timestamp for AI messages */}
-          {!message.isUser && !isTyping && (
+          {/* Timestamp */}
+          {!isTyping && (
             <div className="flex items-center justify-end px-2">
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 font-medium">
                 {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
