@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
-import { Bot, ExternalLink, AlertTriangle, Home } from 'lucide-react';
+import { Bot, ExternalLink, AlertTriangle, Home, RefreshCw } from 'lucide-react';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 
 export const ShortLinkRedirectPage: React.FC = () => {
@@ -12,6 +12,7 @@ export const ShortLinkRedirectPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!shortCode) {
@@ -33,7 +34,7 @@ export const ShortLinkRedirectPage: React.FC = () => {
 
       console.log('🔗 Redirection lien raccourci:', shortCode);
 
-      // Enregistrer le clic et récupérer l'ID du bot avec gestion d'erreur améliorée
+      // Enregistrer le clic avec gestion d'erreur améliorée
       const { data: botId, error: trackError } = await supabase.rpc('track_link_click', {
         p_short_code: shortCode,
         p_user_agent: userAgent,
@@ -44,12 +45,14 @@ export const ShortLinkRedirectPage: React.FC = () => {
         console.error('❌ Erreur lors du tracking du clic:', trackError);
         
         // Gestion spécifique des différents types d'erreurs
-        if (trackError.message?.includes('n\'existe plus')) {
+        if (trackError.message?.includes('n\'existe plus') || trackError.message?.includes('does not exist')) {
           setError('Ce lien pointe vers un assistant qui n\'est plus disponible. Le lien a été automatiquement désactivé.');
-        } else if (trackError.message?.includes('non trouvé')) {
+        } else if (trackError.message?.includes('non trouvé') || trackError.message?.includes('not found')) {
           setError('Lien raccourci non trouvé ou expiré. Veuillez vérifier le lien.');
+        } else if (trackError.message?.includes('inactive')) {
+          setError('Ce lien a été désactivé. Contactez la personne qui vous l\'a fourni.');
         } else {
-          setError('Une erreur est survenue lors de l\'accès au lien. Veuillez réessayer.');
+          setError(`Erreur lors de l'accès au lien: ${trackError.message}`);
         }
         return;
       }
@@ -65,7 +68,7 @@ export const ShortLinkRedirectPage: React.FC = () => {
       try {
         const trackingResult = await initializeVisitorTracking(botId, 'shortened_link');
         
-        if (typeof trackingResult === 'string' && trackingResult.startsWith('Erreur')) {
+        if (typeof trackingResult === 'string' && trackingResult.includes('Erreur')) {
           console.warn('⚠️ Erreur de tracking (non bloquant):', trackingResult);
           // Continuer même si le tracking échoue
         }
@@ -81,22 +84,74 @@ export const ShortLinkRedirectPage: React.FC = () => {
 
     } catch (error: any) {
       console.error('💥 Erreur générale lors de la redirection:', error);
-      setError('Une erreur inattendue est survenue. Veuillez réessayer.');
+      
+      // Messages d'erreur plus spécifiques
+      if (error.message?.includes('Bot') && error.message?.includes('does not exist')) {
+        setError('L\'assistant associé à ce lien n\'existe plus ou a été supprimé.');
+      } else if (error.message?.includes('session')) {
+        setError('Problème de session. Cette erreur a été signalée automatiquement.');
+      } else {
+        setError('Une erreur inattendue est survenue. Veuillez réessayer.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
+    if (retryCount >= 3) {
+      setError('Trop de tentatives. Le lien semble être définitivement inaccessible.');
+      return;
+    }
+
     setIsRetrying(true);
+    setRetryCount(prev => prev + 1);
+    
+    // Attendre un délai progressif
+    const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+    
     setTimeout(() => {
       setIsRetrying(false);
       handleRedirect();
-    }, 1000);
+    }, delay);
   };
 
   const handleGoHome = () => {
     navigate('/');
+  };
+
+  const handleDiagnostic = async () => {
+    try {
+      // Récupérer le bot_id du lien pour diagnostic
+      const { data: linkData } = await supabase
+        .from('shortened_links')
+        .select('bot_id')
+        .eq('short_code', shortCode)
+        .single();
+
+      if (linkData?.bot_id) {
+        // Exécuter le diagnostic automatique
+        const { data: diagnosticResult } = await supabase.rpc('diagnose_bot_session_issues', {
+          p_bot_id: linkData.bot_id
+        });
+
+        console.log('🔍 Résultat du diagnostic:', diagnosticResult);
+        
+        // Tenter une réparation automatique
+        const { data: autoFixResult } = await supabase.rpc('auto_fix_session_issues', {
+          p_bot_id: linkData.bot_id
+        });
+
+        console.log('🔧 Réparation automatique:', autoFixResult);
+        
+        // Réessayer après la réparation
+        setTimeout(() => {
+          handleRedirect();
+        }, 2000);
+      }
+    } catch (diagError) {
+      console.error('Erreur lors du diagnostic:', diagError);
+    }
   };
 
   if (isLoading || isRetrying) {
@@ -105,7 +160,7 @@ export const ShortLinkRedirectPage: React.FC = () => {
         <Card className="p-8 text-center max-w-md mx-auto">
           <Bot className="w-16 h-16 text-blue-600 mx-auto mb-4 animate-pulse" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            {isRetrying ? 'Nouvelle tentative...' : 'Redirection en cours...'}
+            {isRetrying ? `Nouvelle tentative (${retryCount}/3)...` : 'Redirection en cours...'}
           </h2>
           <p className="text-gray-600 mb-4">
             Nous vous redirigeons vers votre assistant IA
@@ -116,6 +171,11 @@ export const ShortLinkRedirectPage: React.FC = () => {
           <div className="mt-6">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           </div>
+          {isRetrying && (
+            <div className="mt-4 text-sm text-gray-500">
+              Tentative {retryCount} sur 3...
+            </div>
+          )}
         </Card>
       </div>
     );
@@ -136,16 +196,28 @@ export const ShortLinkRedirectPage: React.FC = () => {
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <div className="text-sm text-gray-500">
               <strong>Code du lien :</strong> {shortCode}
+              <br />
+              <strong>Tentatives :</strong> {retryCount}/3
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {retryCount < 3 && (
+              <button
+                onClick={handleRetry}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Réessayer
+              </button>
+            )}
             <button
-              onClick={handleRetry}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              onClick={handleDiagnostic}
+              className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center"
+              title="Diagnostic et réparation automatique"
             >
               <ExternalLink className="w-4 h-4 mr-2" />
-              Réessayer
+              Diagnostic Auto
             </button>
             <button
               onClick={handleGoHome}
@@ -157,7 +229,7 @@ export const ShortLinkRedirectPage: React.FC = () => {
           </div>
 
           <div className="mt-6 text-xs text-gray-500">
-            Si le problème persiste, contactez l'assistance.
+            Si le problème persiste après le diagnostic automatique, contactez l'assistance.
           </div>
         </Card>
       </div>

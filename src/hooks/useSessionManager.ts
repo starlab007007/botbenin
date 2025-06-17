@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeVisitorTracking, getCurrentVisitorSession } from '@/utils/visitorTracking';
+import { supabase } from '@/integrations/supabase/client';
 
 interface UseSessionManagerProps {
   botId?: string | null;
@@ -16,6 +17,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
   // Prevent multiple concurrent initializations
   const initializingRef = useRef(false);
   const mountedRef = useRef(true);
+  const retryCountRef = useRef(0);
 
   // Safe state setter that checks if component is mounted
   const safeSetState = useCallback((setter: Function, value: any) => {
@@ -47,6 +49,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
         safeSetState(setIsReady, true);
         safeSetState(setIsInitializing, false);
         initializingRef.current = false;
+        retryCountRef.current = 0;
         return;
       }
 
@@ -59,8 +62,29 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
         safeSetState(setSessionToken, newToken);
         safeSetState(setIsReady, true);
         safeSetState(setError, null);
+        retryCountRef.current = 0;
       } else {
         console.error(`[useSessionManager] Invalid token received: ${newToken}`);
+        
+        // Enhanced error handling with auto-repair
+        if (typeof newToken === 'string' && newToken.includes('n\'existe pas')) {
+          // Tenter une réparation automatique
+          try {
+            console.log('[useSessionManager] Tentative de réparation automatique du bot...');
+            await supabase.rpc('auto_fix_session_issues', { p_bot_id: botId });
+            
+            // Réessayer après la réparation
+            if (retryCountRef.current < 2) {
+              retryCountRef.current += 1;
+              initializingRef.current = false;
+              setTimeout(() => initializeSession(), 1000);
+              return;
+            }
+          } catch (autoFixError) {
+            console.warn('[useSessionManager] Auto-repair failed:', autoFixError);
+          }
+        }
+        
         safeSetState(setSessionToken, null);
         safeSetState(setIsReady, false);
         safeSetState(setError, 
@@ -112,6 +136,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
     setSessionToken(null);
     setIsInitializing(false);
     initializingRef.current = false;
+    retryCountRef.current = 0;
     setTimeout(() => initializeSession(), 100);
   }, [initializeSession]);
 

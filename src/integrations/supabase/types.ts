@@ -4386,6 +4386,14 @@ export type Database = {
       }
     }
     Functions: {
+      auto_fix_session_issues: {
+        Args: { p_bot_id?: string }
+        Returns: {
+          action_taken: string
+          affected_count: number
+          details: string
+        }[]
+      }
       auto_reconcile_session_token: {
         Args: { p_bot_id: string; p_session_token: string }
         Returns: string
@@ -4470,6 +4478,15 @@ export type Database = {
       create_shortened_link: {
         Args: { p_bot_id: string; p_owner_id: string }
         Returns: string
+      }
+      diagnose_bot_session_issues: {
+        Args: { p_bot_id?: string }
+        Returns: {
+          issue_type: string
+          count: number
+          details: Json
+          suggested_action: string
+        }[]
       }
       diagnose_session_issues: {
         Args: Record<PropertyKey, never>
