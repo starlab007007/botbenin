@@ -1,328 +1,42 @@
-import { supabase } from '@/integrations/supabase/client';
 
-// Générer un fingerprint unique du navigateur
-export const generateBrowserFingerprint = (): string => {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  ctx?.fillText('fingerprint', 2, 2);
-  
-  const fingerprint = {
-    userAgent: navigator.userAgent,
-    language: navigator.language,
-    platform: navigator.platform,
-    screen: `${screen.width}x${screen.height}x${screen.colorDepth}`,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    canvas: canvas.toDataURL(),
-    webgl: getWebGLFingerprint(),
-    fonts: getFontFingerprint()
-  };
-  
-  return btoa(JSON.stringify(fingerprint)).slice(0, 32);
-};
+// Main visitor tracking module - re-exports from smaller modules
+export { generateBrowserFingerprint, createOrGetVisitorFingerprint } from './fingerprinting/browserFingerprint';
+export { createAnonymousVisitorSession, validateBotForSession } from './sessions/sessionManager';
+export { getCurrentVisitorSession, storeVisitorSession, clearVisitorSession } from './sessions/sessionStorage';
+export { trackVisitorEvent } from './tracking/eventTracker';
+export { collectVisitorData } from './tracking/dataCollector';
+export { extractUTMParams } from './tracking/utmExtractor';
 
-const getWebGLFingerprint = (): string => {
-  try {
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    if (!gl) return 'no-webgl';
-    
-    // Fix: Cast to WebGLRenderingContext to access WebGL methods
-    const webglContext = gl as WebGLRenderingContext;
-    const renderer = webglContext.getParameter(webglContext.RENDERER);
-    const vendor = webglContext.getParameter(webglContext.VENDOR);
-    return `${vendor}-${renderer}`;
-  } catch {
-    return 'webgl-error';
-  }
-};
+import { generateBrowserFingerprint, createOrGetVisitorFingerprint } from './fingerprinting/browserFingerprint';
+import { createAnonymousVisitorSession, validateBotForSession } from './sessions/sessionManager';
+import { getCurrentVisitorSession, storeVisitorSession, clearVisitorSession } from './sessions/sessionStorage';
+import { trackVisitorEvent } from './tracking/eventTracker';
+import { extractUTMParams } from './tracking/utmExtractor';
 
-const getFontFingerprint = (): string => {
-  const fonts = ['Arial', 'Helvetica', 'Times', 'Courier', 'Verdana', 'Georgia', 'Palatino'];
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return 'no-fonts';
-  
-  return fonts.map(font => {
-    ctx.font = `12px ${font}`;
-    const width = ctx.measureText('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789').width;
-    return `${font}:${width}`;
-  }).join(',');
-};
-
-// Créer ou récupérer un fingerprint de visiteur
-export const createOrGetVisitorFingerprint = async (fingerprintHash: string) => {
-  try {
-    console.log('[visitorTracking] Appel createOrGetVisitorFingerprint', { fingerprintHash });
-    const browserInfo = {
-      userAgent: navigator.userAgent,
-      language: navigator.language,
-      platform: navigator.platform,
-      cookieEnabled: navigator.cookieEnabled,
-      doNotTrack: navigator.doNotTrack
-    };
-    const screenInfo = {
-      width: screen.width,
-      height: screen.height,
-      colorDepth: screen.colorDepth,
-      pixelDepth: screen.pixelDepth,
-      orientation: screen.orientation?.type
-    };
-    const { data, error } = await supabase.rpc('create_or_get_visitor_fingerprint', {
-      p_fingerprint_hash: fingerprintHash,
-      p_browser_info: browserInfo,
-      p_screen_info: screenInfo,
-      p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      p_language: navigator.language,
-      p_platform: navigator.platform,
-      p_user_agent: navigator.userAgent
-    });
-    if (error) {
-      console.error('[visitorTracking] Erreur createOrGetVisitorFingerprint:', error);
-      return { error: error.message || error.details || "Unknown error" };
-    }
-    return data;
-  } catch (error: any) {
-    console.error('Erreur (catch) lors de la création du fingerprint:', error);
-    return { error: error?.message || JSON.stringify(error) };
-  }
-};
-
-// Créer une session de visiteur anonyme avec token unifié
-export const createAnonymousVisitorSession = async (
-  fingerprintId: string,
-  botId: string,
-  entryPoint: string = 'direct',
-  referrerUrl?: string,
-  utmParams?: { source?: string; medium?: string; campaign?: string }
-): Promise<string | { error: string }> => {
-  try {
-    console.log(`[visitorTracking] === ENHANCED SESSION CREATION ===`);
-    console.log(`[visitorTracking] Fingerprint: ${fingerprintId}, Bot: ${botId}, Entry: ${entryPoint}`);
-    
-    // Vérifier que le bot existe avant de créer la session
-    const { data: botExists, error: botCheckError } = await supabase
-      .from('bots')
-      .select('id, is_active')
-      .eq('id', botId)
-      .single();
-    
-    if (botCheckError || !botExists) {
-      console.error('[visitorTracking] Bot non trouvé:', botId);
-      return { error: `Bot ${botId} n'existe pas ou n'est plus disponible` };
-    }
-
-    if (botExists.is_active === false) {
-      console.error('[visitorTracking] Bot inactif:', botId);
-      // Tenter une réparation automatique
-      try {
-        await supabase.rpc('repair_all_session_inconsistencies');
-        console.log('[visitorTracking] Réparation automatique effectuée');
-      } catch (repairError) {
-        console.warn('[visitorTracking] Réparation automatique échouée:', repairError);
-      }
-      return { error: `Bot ${botId} est actuellement inactif` };
-    }
-    
-    const { data, error } = await supabase.rpc('create_anonymous_visitor_session', {
-      p_fingerprint_id: fingerprintId,
-      p_bot_id: botId,
-      p_entry_point: entryPoint,
-      p_referrer_url: referrerUrl || document.referrer,
-      p_utm_source: utmParams?.source,
-      p_utm_medium: utmParams?.medium,
-      p_utm_campaign: utmParams?.campaign,
-      p_ip_address: null
-    });
-    
-    if (error) {
-      console.error('[visitorTracking] RPC Error in createAnonymousVisitorSession:', error);
-      
-      // Gestion spécifique des erreurs de bot avec réparation
-      if (error.message?.includes('does not exist') || error.message?.includes('inactive')) {
-        try {
-          await supabase.rpc('repair_all_session_inconsistencies');
-          console.log('[visitorTracking] Réparation automatique effectuée après erreur');
-        } catch (repairError) {
-          console.warn('[visitorTracking] Réparation automatique échouée:', repairError);
-        }
-        return { error: `Le bot sélectionné n'est plus disponible: ${error.message}` };
-      }
-      
-      return { error: error.message || error.details || "Session creation failed" };
-    }
-    
-    if (!data || typeof data !== 'string') {
-      console.error('[visitorTracking] Invalid session token returned:', data);
-      return { error: "Invalid session token returned from server" };
-    }
-    
-    console.log(`[visitorTracking] Session created with token: ${data}`);
-    return data;
-    
-  } catch (error: any) {
-    console.error('[visitorTracking] Exception in createAnonymousVisitorSession:', error);
-    return { error: error?.message || JSON.stringify(error) };
-  }
-};
-
-// Enregistrer un événement de tracking
-export const trackVisitorEvent = async (
-  sessionToken: string,
-  eventType: string,
-  eventData: any = {},
-  pageUrl?: string,
-  elementId?: string,
-  elementClass?: string
-) => {
-  try {
-    // Récupérer l'ID de session depuis le token
-    const { data: sessionData, error: sessionError } = await supabase
-      .from('anonymous_visitor_sessions')
-      .select('id')
-      .eq('session_token', sessionToken)
-      .single();
-
-    if (sessionError || !sessionData) {
-      console.error('Session non trouvée pour le token:', sessionToken);
-      return null;
-    }
-
-    const { data, error } = await supabase.rpc('track_visitor_event', {
-      p_session_id: sessionData.id,
-      p_event_type: eventType,
-      p_event_data: eventData,
-      p_page_url: pageUrl || window.location.href,
-      p_element_id: elementId,
-      p_element_class: elementClass
-    });
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Erreur lors du tracking de l\'événement:', error);
-    return null;
-  }
-};
-
-// Collecter progressivement les données des visiteurs
-export const collectVisitorData = async (
-  sessionToken: string,
-  dataType: string,
-  dataValue: string,
-  collectionMethod: string = 'chat',
-  confidenceScore: number = 1.0
-) => {
-  try {
-    // Récupérer l'ID de session depuis le token
-    const { data: sessionData, error: sessionError } = await supabase
-      .from('anonymous_visitor_sessions')
-      .select('id')
-      .eq('session_token', sessionToken)
-      .single();
-
-    if (sessionError || !sessionData) {
-      console.error('Session non trouvée pour le token:', sessionToken);
-      return null;
-    }
-
-    const { data, error } = await supabase.rpc('collect_visitor_data', {
-      p_session_id: sessionData.id,
-      p_data_type: dataType,
-      p_data_value: dataValue,
-      p_collection_method: collectionMethod,
-      p_confidence_score: confidenceScore
-    });
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Erreur lors de la collecte des données:', error);
-    return null;
-  }
-};
-
-// Extraire les paramètres UTM de l'URL
-export const extractUTMParams = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  return {
-    source: urlParams.get('utm_source'),
-    medium: urlParams.get('utm_medium'),
-    campaign: urlParams.get('utm_campaign'),
-    term: urlParams.get('utm_term'),
-    content: urlParams.get('utm_content')
-  };
-};
-
-// Hook pour initialiser le tracking des visiteurs - VERSION CORRIGÉE
+/**
+ * Initialize visitor tracking - Enhanced corrected version
+ */
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
     console.log(`[visitorTracking] === CORRECTED VISITOR TRACKING INIT ===`);
     console.log(`[visitorTracking] Bot ID: ${botId}, Entry: ${entryPoint}`);
     
-    // Validation préalable du bot avec auto-réparation intégrée
-    const { data: botExists, error: botValidationError } = await supabase
-      .from('bots')
-      .select('id, name, is_active')
-      .eq('id', botId)
-      .single();
-    
-    if (botValidationError || !botExists) {
-      const errorMsg = `[visitorTracking] Bot validation failed - Bot ${botId} n'existe pas`;
-      console.error(errorMsg);
-      
-      // Auto-réparation immédiate
-      try {
-        console.log('[visitorTracking] Tentative de réparation automatique...');
-        await supabase.rpc('repair_all_session_inconsistencies');
-        
-        // Réessayer après réparation
-        const { data: retryBot, error: retryError } = await supabase
-          .from('bots')
-          .select('id, name, is_active')
-          .eq('id', botId)
-          .single();
-          
-        if (!retryError && retryBot && retryBot.is_active) {
-          console.log('[visitorTracking] Bot récupéré après réparation');
-        } else {
-          sessionStorage.removeItem('visitor_session_token');
-          return errorMsg;
-        }
-      } catch (diagError) {
-        console.warn('[visitorTracking] Auto-réparation échouée:', diagError);
-        sessionStorage.removeItem('visitor_session_token');
-        return errorMsg;
-      }
+    // Validate bot with auto-repair
+    const botValidation = await validateBotForSession(botId);
+    if (!botValidation.valid) {
+      console.error('[visitorTracking] Bot validation failed:', botValidation.error);
+      clearVisitorSession();
+      return botValidation.error || 'Bot validation failed';
     }
     
-    if (botExists && !botExists.is_active) {
-      console.log('[visitorTracking] Bot inactif, tentative de réparation...');
-      try {
-        await supabase.rpc('repair_all_session_inconsistencies');
-        console.log('[visitorTracking] Réparation effectuée');
-      } catch (repairError) {
-        console.warn('[visitorTracking] Réparation échouée:', repairError);
-        sessionStorage.removeItem('visitor_session_token');
-        return `[visitorTracking] Bot ${botId} est inactif et ne peut être réparé`;
-      }
-    }
-    
-    console.log(`[visitorTracking] Bot validé: ${botExists?.name || 'Inconnu'}`);
-    
-    // Vérification défensive des tokens existants
+    // Check for existing valid session
     const existingToken = getCurrentVisitorSession();
-    if (existingToken && typeof existingToken === "string" && existingToken.startsWith('anon_') && existingToken.length > 10) {
+    if (existingToken) {
       console.log(`[visitorTracking] Using existing valid session: ${existingToken}`);
       return existingToken;
     }
-    
-    // Nettoyer les tokens invalides
-    if (existingToken) {
-      console.warn(`[visitorTracking] Removing invalid token: ${existingToken}`);
-      sessionStorage.removeItem('visitor_session_token');
-    }
 
-    // Générer le fingerprint
+    // Generate fingerprint
     const fingerprintHash = generateBrowserFingerprint();
     console.log(`[visitorTracking] Generated fingerprint: ${fingerprintHash.slice(0, 16)}...`);
     
@@ -331,24 +45,24 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     if (typeof fingerprintResult === 'object' && fingerprintResult !== null && 'error' in fingerprintResult) {
       const errorMsg = `[visitorTracking] Fingerprint creation failed: ${fingerprintResult.error}`;
       console.error(errorMsg);
-      sessionStorage.removeItem('visitor_session_token');
+      clearVisitorSession();
       return errorMsg;
     }
 
     if (typeof fingerprintResult !== 'string' || !fingerprintResult) {
       const errorMsg = `[visitorTracking] Invalid fingerprint result: ${fingerprintResult}`;
       console.error(errorMsg);
-      sessionStorage.removeItem('visitor_session_token');
+      clearVisitorSession();
       return errorMsg;
     }
 
-    // Paramètres UTM et point d'entrée
+    // Extract UTM parameters and determine entry point
     const utmParams = extractUTMParams();
     const finalEntryPoint = entryPoint || (document.referrer ? 'referral' : 'direct');
     
     console.log(`[visitorTracking] Creating session with entry point: ${finalEntryPoint}`);
 
-    // Créer la session avec la fonction corrigée
+    // Create session
     const sessionTokenResult = await createAnonymousVisitorSession(
       fingerprintResult,
       botId,
@@ -360,23 +74,23 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
     if (typeof sessionTokenResult === 'object' && sessionTokenResult !== null && 'error' in sessionTokenResult) {
       const errorMsg = `[visitorTracking] Session creation failed: ${sessionTokenResult.error}`;
       console.error(errorMsg);
-      sessionStorage.removeItem('visitor_session_token');
+      clearVisitorSession();
       return errorMsg;
     }
     
     if (typeof sessionTokenResult !== 'string' || !sessionTokenResult.startsWith('anon_')) {
       const errorMsg = `[visitorTracking] Invalid session token: ${sessionTokenResult}`;
       console.error(errorMsg);
-      sessionStorage.removeItem('visitor_session_token');
+      clearVisitorSession();
       return errorMsg;
     }
 
     const token: string = sessionTokenResult;
-    sessionStorage.setItem('visitor_session_token', token);
+    storeVisitorSession(token);
     
     console.log(`[visitorTracking] Session created successfully: ${token}`);
 
-    // Tracking de l'événement de démarrage (non bloquant)
+    // Track session start event (non-blocking)
     try {
       await trackVisitorEvent(
         token,
@@ -386,7 +100,6 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
           utm_params: utmParams,
           fingerprint_hash: fingerprintHash,
           bot_id: botId,
-          bot_name: botExists?.name || 'Inconnu',
           entry_point: finalEntryPoint,
           corrected_tracking: true,
           bot_validated: true
@@ -394,37 +107,14 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
       );
     } catch (trackingErr) {
       console.warn('[visitorTracking] Failed to track session start event:', trackingErr);
-      // Ne pas échouer pour un problème de tracking
+      // Don't fail for tracking issues
     }
 
     return token;
 
   } catch (error: any) {
     console.error('[visitorTracking] Exception in initializeVisitorTracking:', error);
-    sessionStorage.removeItem('visitor_session_token');
+    clearVisitorSession();
     return 'Erreur lors de l\'initialisation du tracking: ' + (error?.message ? error.message : JSON.stringify(error));
-  }
-};
-
-// Récupérer le token de session unifié - VERSION SÉCURISÉE AMÉLIORÉE
-export const getCurrentVisitorSession = (): string | null => {
-  try {
-    const token = sessionStorage.getItem('visitor_session_token');
-    
-    if (token && typeof token === 'string' && token.startsWith('anon_') && token.length > 10) {
-      console.log(`[visitorTracking] Retrieved valid session token: ${token.slice(0, 20)}...`);
-      return token;
-    }
-    
-    // Nettoyer les tokens invalides
-    if (token) {
-      console.warn(`[visitorTracking] Removing invalid token: ${token}`);
-      sessionStorage.removeItem('visitor_session_token');
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('[visitorTracking] Error getting session token:', error);
-    return null;
   }
 };
