@@ -4487,6 +4487,15 @@ export type Database = {
         Args: { p_bot_id: string; p_owner_id: string }
         Returns: string
       }
+      diagnose_all_session_ambiguities: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          function_name: string
+          issue_description: string
+          severity: string
+          fix_needed: string
+        }[]
+      }
       diagnose_bot_session_issues: {
         Args: { p_bot_id?: string }
         Returns: {
@@ -4716,6 +4725,14 @@ export type Database = {
           p_message_content: string
         }
         Returns: string
+      }
+      test_final_session_resolution: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_category: string
+          test_result: string
+          details: string
+        }[]
       }
       test_session_functions_final: {
         Args: Record<PropertyKey, never>
