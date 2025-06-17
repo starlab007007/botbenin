@@ -71,7 +71,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
           // Tentative de réparation automatique sécurisée finale
           try {
             console.log('[useSessionManager] Tentative de réparation automatique sécurisée finale...');
-            await supabase.rpc('global_bot_repair');
+            await supabase.rpc('repair_system_final');
             
             // Réessayer après la réparation
             if (retryCountRef.current < 2) {
