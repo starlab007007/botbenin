@@ -122,12 +122,12 @@ export const saveChatMessage = async (
           total_interactions: 1
         });
     } else {
-      // Update interaction count
+      // Update interaction count - simple increment
       await supabase
         .from('anonymous_visitor_sessions')
         .update({ 
           last_activity: new Date().toISOString(),
-          total_interactions: supabase.rpc('increment_interactions', { session_id: anonymousSession.id })
+          total_interactions: (anonymousSession as any).total_interactions ? (anonymousSession as any).total_interactions + 1 : 1
         })
         .eq('id', anonymousSession.id);
     }

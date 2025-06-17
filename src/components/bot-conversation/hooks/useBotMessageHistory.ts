@@ -42,7 +42,24 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
         
         if (historyData && Array.isArray(historyData) && historyData.length > 0) {
           console.log(`[useBotMessageHistory] Retrieved ${historyData.length} messages`);
-          setMessages(historyData);
+          
+          // Map and validate the data with proper type casting
+          const mappedMessages: MessageHistoryItem[] = historyData.map((item: any) => ({
+            message_id: item.message_id,
+            bot_id: item.bot_id,
+            bot_user_id: item.bot_user_id,
+            message_timestamp: item.message_timestamp,
+            message_content: item.message_content,
+            message_type: (item.message_type === 'user' || item.message_type === 'bot') ? item.message_type : 'bot',
+            ip_address: item.ip_address,
+            user_agent: item.user_agent,
+            metadata: item.metadata,
+            session_id: item.session_id,
+            user_name: item.user_name,
+            user_email: item.user_email,
+          }));
+          
+          setMessages(mappedMessages);
           setError(null);
         } else {
           console.log('[useBotMessageHistory] No history found');
@@ -76,7 +93,24 @@ export const useBotMessageHistory = (botId: string | null, sessionToken: string 
       
       if (historyData && Array.isArray(historyData)) {
         console.log(`[useBotMessageHistory] Force refresh retrieved ${historyData.length} messages`);
-        setMessages(historyData);
+        
+        // Map and validate the data with proper type casting
+        const mappedMessages: MessageHistoryItem[] = historyData.map((item: any) => ({
+          message_id: item.message_id,
+          bot_id: item.bot_id,
+          bot_user_id: item.bot_user_id,
+          message_timestamp: item.message_timestamp,
+          message_content: item.message_content,
+          message_type: (item.message_type === 'user' || item.message_type === 'bot') ? item.message_type : 'bot',
+          ip_address: item.ip_address,
+          user_agent: item.user_agent,
+          metadata: item.metadata,
+          session_id: item.session_id,
+          user_name: item.user_name,
+          user_email: item.user_email,
+        }));
+        
+        setMessages(mappedMessages);
       } else {
         setMessages([]);
       }

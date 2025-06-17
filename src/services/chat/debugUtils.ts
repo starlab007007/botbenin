@@ -54,11 +54,17 @@ export const debugSessionTokens = async (botId: string) => {
 
     console.log(`[debugUtils] Messages found:`, messages?.length || 0);
     messages?.forEach((msg, index) => {
+      // Safe property access for metadata
+      const metadata = msg.metadata as any;
+      const sessionToken = metadata && typeof metadata === 'object' 
+        ? (metadata.session_token || metadata.sessionToken) 
+        : 'N/A';
+      
       console.log(`[debugUtils] Message ${index + 1}:`, {
         id: msg.id,
         bot_user_id: msg.bot_user_id,
         type: msg.message_type,
-        session_token: msg.metadata?.session_token || 'N/A',
+        session_token: sessionToken,
         created: msg.created_at
       });
     });
@@ -142,7 +148,7 @@ export const testEnhancedMessageRetrieval = async (botId: string, sessionToken: 
       console.log(`[debugUtils] Messages for bot_user: ${results.sessionMatches}`);
     }
 
-    // Strategy 3: Search by metadata
+    // Strategy 3: Search by metadata with safe property access
     const { data: metadataMessages } = await supabase
       .from('chat_messages')
       .select('*')
