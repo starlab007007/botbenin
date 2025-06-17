@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { SecureDataManager } from '@/services/dashboard/secureDataManager';
 import { 
   MessageSquare, 
   User, 
@@ -14,7 +15,9 @@ import {
   RefreshCw,
   Download,
   Calendar,
-  Clock
+  Clock,
+  AlertTriangle,
+  CheckCircle
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -55,11 +58,13 @@ export const MessagesOverview: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'user' | 'bot'>('all');
   const [selectedBot, setSelectedBot] = useState<string>('all');
   const [bots, setBots] = useState<Array<{ id: string; name: string }>>([]);
+  const [dataIntegrity, setDataIntegrity] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchMessages();
     fetchBots();
+    verifyDataIntegrity();
   }, []);
 
   useEffect(() => {
@@ -68,23 +73,8 @@ export const MessagesOverview: React.FC = () => {
 
   const fetchBots = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return;
-
-      const { data: botsData } = await supabase
-        .from('bots')
-        .select('id, name')
-        .eq('owner_id', ownerData.id);
-
-      setBots(botsData || []);
+      const botsData = await SecureDataManager.getOwnerBots();
+      setBots(botsData);
     } catch (error) {
       console.error('Erreur lors du chargement des bots:', error);
     }
@@ -92,50 +82,16 @@ export const MessagesOverview: React.FC = () => {
 
   const fetchMessages = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      setIsLoading(true);
+      
+      // Récupérer tous les messages ou ceux d'un bot spécifique
+      const botIdFilter = selectedBot !== 'all' ? selectedBot : undefined;
+      const messagesData = await SecureDataManager.getAllMessages(botIdFilter);
+      
+      setMessages(messagesData);
+      calculateStats(messagesData);
 
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return;
-
-      const { data: botsData } = await supabase
-        .from('bots')
-        .select('id')
-        .eq('owner_id', ownerData.id);
-
-      const botIds = botsData?.map(bot => bot.id) || [];
-
-      if (botIds.length === 0) {
-        setIsLoading(false);
-        return;
-      }
-
-      const { data: messagesData, error } = await supabase
-        .from('chat_messages')
-        .select(`
-          *,
-          bot_users (user_name, user_email, session_id),
-          bots (name)
-        `)
-        .in('bot_id', botIds)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      if (error) throw error;
-
-      // Type cast the messages to ensure message_type is properly typed
-      const typedMessages: ChatMessage[] = (messagesData || []).map(msg => ({
-        ...msg,
-        message_type: (msg.message_type === 'user' || msg.message_type === 'bot') ? msg.message_type : 'user'
-      })) as ChatMessage[];
-
-      setMessages(typedMessages);
-      calculateStats(typedMessages);
+      console.log(`[MessagesOverview] ${messagesData.length} messages récupérés`);
 
     } catch (error) {
       console.error('Erreur lors du chargement des messages:', error);
@@ -146,6 +102,23 @@ export const MessagesOverview: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const verifyDataIntegrity = async () => {
+    try {
+      const integrity = await SecureDataManager.verifyDataIntegrity();
+      setDataIntegrity(integrity);
+      
+      if (!integrity.isValid) {
+        toast({
+          title: "Problèmes détectés",
+          description: `${integrity.issues.length} problème(s) d'intégrité des données`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erreur vérification intégrité:', error);
     }
   };
 
@@ -171,7 +144,8 @@ export const MessagesOverview: React.FC = () => {
       filtered = filtered.filter(message =>
         message.message_content.toLowerCase().includes(searchTerm.toLowerCase()) ||
         message.bot_users?.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        message.bot_users?.user_email?.toLowerCase().includes(searchTerm.toLowerCase())
+        message.bot_users?.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        message.bots.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -182,7 +156,10 @@ export const MessagesOverview: React.FC = () => {
 
     // Filtre par bot
     if (selectedBot !== 'all') {
-      filtered = filtered.filter(message => message.bots.name === selectedBot);
+      const selectedBotData = bots.find(bot => bot.id === selectedBot);
+      if (selectedBotData) {
+        filtered = filtered.filter(message => message.bots.name === selectedBotData.name);
+      }
     }
 
     setFilteredMessages(filtered);
@@ -190,13 +167,14 @@ export const MessagesOverview: React.FC = () => {
 
   const exportMessages = () => {
     const csvContent = [
-      ['Date', 'Bot', 'Type', 'Utilisateur', 'Message'].join(','),
+      ['Date', 'Bot', 'Type', 'Utilisateur', 'Message', 'Session'].join(','),
       ...filteredMessages.map(message => [
         new Date(message.created_at).toLocaleString('fr-FR'),
         message.bots.name,
         message.message_type,
         message.bot_users?.user_name || message.bot_users?.user_email || 'Anonyme',
-        `"${message.message_content.replace(/"/g, '""')}"`
+        `"${message.message_content.replace(/"/g, '""')}"`,
+        message.bot_users?.session_id || 'N/A'
       ].join(','))
     ].join('\n');
 
@@ -224,14 +202,33 @@ export const MessagesOverview: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* En-tête et statistiques */}
+      {/* En-tête et vérification d'intégrité */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Messages & Conversations</h2>
             <p className="text-gray-600">Consultez tous les messages de vos chatbots</p>
+            {dataIntegrity && (
+              <div className="flex items-center mt-2">
+                {dataIntegrity.isValid ? (
+                  <div className="flex items-center text-green-600">
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    <span className="text-sm">Données intègres</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center text-orange-600">
+                    <AlertTriangle className="w-4 h-4 mr-1" />
+                    <span className="text-sm">{dataIntegrity.issues.length} problème(s) détecté(s)</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex space-x-2">
+            <Button onClick={verifyDataIntegrity} variant="outline" size="sm">
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Vérifier
+            </Button>
             <Button onClick={fetchMessages} variant="outline" size="sm">
               <RefreshCw className="w-4 h-4 mr-2" />
               Actualiser
@@ -322,12 +319,18 @@ export const MessagesOverview: React.FC = () => {
 
           <select
             value={selectedBot}
-            onChange={(e) => setSelectedBot(e.target.value)}
+            onChange={(e) => {
+              setSelectedBot(e.target.value);
+              // Recharger les messages si on change de bot
+              if (e.target.value !== selectedBot) {
+                setTimeout(fetchMessages, 100);
+              }
+            }}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">Tous les bots</option>
             {bots.map(bot => (
-              <option key={bot.id} value={bot.name}>{bot.name}</option>
+              <option key={bot.id} value={bot.id}>{bot.name}</option>
             ))}
           </select>
         </div>
@@ -382,6 +385,11 @@ export const MessagesOverview: React.FC = () => {
                       <span className="text-sm text-gray-500">
                         • {message.bots.name}
                       </span>
+                      {message.bot_users?.session_id && (
+                        <span className="text-xs text-gray-400">
+                          Session: {message.bot_users.session_id.slice(0, 8)}...
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center space-x-2 text-sm text-gray-500">
                       <Clock className="w-4 h-4" />
@@ -404,6 +412,18 @@ export const MessagesOverview: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Debug info pour les développeurs */}
+      {dataIntegrity && !dataIntegrity.isValid && (
+        <Card className="p-4 border-orange-200 bg-orange-50">
+          <h4 className="font-semibold text-orange-800 mb-2">Informations de diagnostic</h4>
+          <div className="text-sm text-orange-700 space-y-1">
+            {dataIntegrity.issues.map((issue: string, index: number) => (
+              <div key={index}>• {issue}</div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

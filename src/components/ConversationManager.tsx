@@ -1,15 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { SecureDataManager } from '@/services/dashboard/secureDataManager';
 import { 
   MessageSquare, 
   ArrowLeft,
   RefreshCw,
   Download,
-  Users
+  Users,
+  CheckCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +28,7 @@ interface ConversationManagerProps {
 }
 
 interface BotConversation {
+  id: string;
   bot_id: string;
   bot_name: string;
   user_id: string;
@@ -70,11 +74,13 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
   const [availableBots, setAvailableBots] = useState<{id: string, name: string}[]>([]);
   const [contactMessage, setContactMessage] = useState('');
   const [selectedContact, setSelectedContact] = useState<ContactInfo | null>(null);
+  const [dataIntegrity, setDataIntegrity] = useState<any>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
   useEffect(() => {
     fetchData();
+    verifyDataIntegrity();
   }, []);
 
   const fetchData = async () => {
@@ -97,25 +103,27 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
     }
   };
 
+  const verifyDataIntegrity = async () => {
+    try {
+      const integrity = await SecureDataManager.verifyDataIntegrity();
+      setDataIntegrity(integrity);
+      
+      if (!integrity.isValid) {
+        toast({
+          title: "Problèmes de données détectés",
+          description: `${integrity.issues.length} problème(s) trouvé(s)`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erreur vérification intégrité:', error);
+    }
+  };
+
   const fetchAvailableBots = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return;
-
-      const { data: botsData } = await supabase
-        .from('bots')
-        .select('id, name')
-        .eq('owner_id', ownerData.id);
-
-      setAvailableBots(botsData || []);
+      const botsData = await SecureDataManager.getOwnerBots();
+      setAvailableBots(botsData);
     } catch (error) {
       console.error('Erreur lors du chargement des bots:', error);
     }
@@ -123,67 +131,9 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
   const fetchConversations = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return;
-
-      const { data: conversationsData, error } = await supabase
-        .from('bot_conversation_history')
-        .select(`
-          bot_id,
-          bot_name,
-          bot_user_id,
-          user_name,
-          user_email,
-          session_id,
-          session_start,
-          message_timestamp,
-          message_content,
-          message_type
-        `)
-        .eq('owner_id', ownerData.id)
-        .order('message_timestamp', { ascending: false });
-
-      if (error) throw error;
-
-      const conversationMap = new Map<string, BotConversation>();
-      
-      conversationsData?.forEach(row => {
-        const sessionKey = `${row.bot_id}-${row.session_id}`;
-        
-        if (!conversationMap.has(sessionKey)) {
-          conversationMap.set(sessionKey, {
-            bot_id: row.bot_id,
-            bot_name: row.bot_name || 'Bot sans nom',
-            user_id: row.bot_user_id,
-            user_name: row.user_name || 'Utilisateur anonyme',
-            user_email: row.user_email || '',
-            session_id: row.session_id,
-            total_messages: 0,
-            last_message_at: row.message_timestamp,
-            last_message_content: row.message_content || '',
-            session_start: row.session_start,
-            is_active: false
-          });
-        }
-
-        const conversation = conversationMap.get(sessionKey)!;
-        conversation.total_messages++;
-        
-        if (new Date(row.message_timestamp) > new Date(conversation.last_message_at)) {
-          conversation.last_message_at = row.message_timestamp;
-          conversation.last_message_content = row.message_content || '';
-        }
-      });
-
-      setConversations(Array.from(conversationMap.values()));
+      const conversationsData = await SecureDataManager.getAllConversations();
+      setConversations(conversationsData);
+      console.log(`[ConversationManager] ${conversationsData.length} conversations récupérées`);
     } catch (error) {
       console.error('Erreur lors du chargement des conversations:', error);
     }
@@ -191,60 +141,46 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
   const fetchContacts = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return;
-
-      const { data: contactsData, error } = await supabase
-        .from('bot_users')
-        .select(`
-          id,
-          user_name,
-          user_email,
-          created_at,
-          last_active,
-          bots!inner(owner_id)
-        `)
-        .eq('bots.owner_id', ownerData.id);
-
-      if (error) throw error;
-
-      const enrichedContacts: ContactInfo[] = [];
+      // Créer des contacts à partir des conversations
+      const contactsMap = new Map<string, ContactInfo>();
       
-      for (const contact of contactsData || []) {
-        const { data: messageStats } = await supabase
-          .from('chat_messages')
-          .select('id, created_at, bot_id')
-          .eq('bot_user_id', contact.id);
+      conversations.forEach(conv => {
+        const key = `${conv.user_id}-${conv.user_email}`;
+        
+        if (!contactsMap.has(key)) {
+          contactsMap.set(key, {
+            user_id: conv.user_id,
+            user_name: conv.user_name,
+            user_email: conv.user_email,
+            session_count: 0,
+            message_count: 0,
+            first_interaction: conv.session_start,
+            last_interaction: conv.last_message_at,
+            status: 'inactive'
+          });
+        }
 
-        const { data: sessionStats } = await supabase
-          .from('enhanced_chat_sessions')
-          .select('id, started_at')
-          .eq('bot_user_id', contact.id);
+        const contact = contactsMap.get(key)!;
+        contact.session_count++;
+        contact.message_count += conv.total_messages;
+        
+        // Mise à jour des dates
+        if (new Date(conv.session_start) < new Date(contact.first_interaction)) {
+          contact.first_interaction = conv.session_start;
+        }
+        
+        if (new Date(conv.last_message_at) > new Date(contact.last_interaction)) {
+          contact.last_interaction = conv.last_message_at;
+        }
 
-        const isActive = contact.last_active && 
-          new Date(contact.last_active) > new Date(Date.now() - 24 * 60 * 60 * 1000);
+        // Statut actif si activité récente (24h)
+        const isRecent = new Date(conv.last_message_at) > new Date(Date.now() - 24 * 60 * 60 * 1000);
+        if (isRecent) {
+          contact.status = 'active';
+        }
+      });
 
-        enrichedContacts.push({
-          user_id: contact.id,
-          user_name: contact.user_name || 'Utilisateur anonyme',
-          user_email: contact.user_email || '',
-          session_count: sessionStats?.length || 0,
-          message_count: messageStats?.length || 0,
-          first_interaction: contact.created_at,
-          last_interaction: contact.last_active,
-          status: isActive ? 'active' : 'inactive'
-        });
-      }
-
-      setContacts(enrichedContacts);
+      setContacts(Array.from(contactsMap.values()));
     } catch (error) {
       console.error('Erreur lors du chargement des contacts:', error);
     }
@@ -252,28 +188,18 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
   const fetchMessages = async (conversation: BotConversation) => {
     try {
-      const { data: messagesData, error } = await supabase
-        .from('bot_conversation_history')
-        .select(`
-          message_id,
-          message_content,
-          message_type,
-          message_timestamp,
-          user_name
-        `)
-        .eq('bot_id', conversation.bot_id)
-        .eq('session_id', conversation.session_id)
-        .order('message_timestamp', { ascending: true });
+      const messagesData = await SecureDataManager.getSessionMessages(
+        conversation.bot_id, 
+        conversation.session_id
+      );
 
-      if (error) throw error;
-
-      const formattedMessages: MessageDetails[] = messagesData?.map(msg => ({
-        id: msg.message_id,
-        content: msg.message_content || '',
-        type: msg.message_type as 'user' | 'bot',
-        timestamp: msg.message_timestamp,
-        user_name: msg.user_name || 'Utilisateur'
-      })) || [];
+      const formattedMessages: MessageDetails[] = messagesData.map(msg => ({
+        id: msg.id,
+        content: msg.message_content,
+        type: msg.message_type,
+        timestamp: msg.created_at,
+        user_name: msg.bot_users?.user_name || 'Utilisateur'
+      }));
 
       setMessages(formattedMessages);
     } catch (error) {
@@ -401,9 +327,28 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
               <div>
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">Gestion Centralisée</h2>
                 <p className="text-gray-600 text-sm">Conversations et contacts de tous vos bots</p>
+                {dataIntegrity && (
+                  <div className="flex items-center mt-1">
+                    {dataIntegrity.isValid ? (
+                      <div className="flex items-center text-green-600">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        <span className="text-xs">Données intègres</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-orange-600">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        <span className="text-xs">{dataIntegrity.issues.length} problème(s)</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={verifyDataIntegrity} size="sm" className="w-full sm:w-auto">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Vérifier
+              </Button>
               <Button variant="outline" onClick={fetchData} size="sm" className="w-full sm:w-auto">
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Actualiser
@@ -433,17 +378,17 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="conversations" className="flex items-center space-x-1 text-xs sm:text-sm">
               <MessageSquare className="w-4 h-4" />
-              <span>Conversations ({conversations.length})</span>
+              <span>Conversations ({filteredConversations.length})</span>
             </TabsTrigger>
             <TabsTrigger value="contacts" className="flex items-center space-x-1 text-xs sm:text-sm">
               <Users className="w-4 h-4" />
-              <span>Contacts ({contacts.length})</span>
+              <span>Contacts ({filteredContacts.length})</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="conversations">
             <PaginatedConversationList
-              conversations={conversations}
+              conversations={filteredConversations}
               isLoading={isLoading}
               onViewConversation={viewConversation}
               onContactUser={setSelectedContact}
@@ -454,7 +399,7 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
 
           <TabsContent value="contacts">
             <PaginatedContactList
-              contacts={contacts}
+              contacts={filteredContacts}
               isLoading={isLoading}
               onContactUser={setSelectedContact}
               searchTerm={searchTerm}
@@ -462,6 +407,18 @@ export const ConversationManager: React.FC<ConversationManagerProps> = ({ onBack
             />
           </TabsContent>
         </Tabs>
+
+        {/* Debug info pour les développeurs */}
+        {dataIntegrity && !dataIntegrity.isValid && (
+          <Card className="p-4 border-orange-200 bg-orange-50 mt-4">
+            <h4 className="font-semibold text-orange-800 mb-2">Informations de diagnostic</h4>
+            <div className="text-sm text-orange-700 space-y-1">
+              {dataIntegrity.issues.map((issue: string, index: number) => (
+                <div key={index}>• {issue}</div>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

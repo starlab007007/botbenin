@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { ConversationManager } from '@/components/ConversationManager';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
+import { SecureDataManager } from '@/services/dashboard/secureDataManager';
 
 // Dashboard components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -43,6 +44,7 @@ export const DashboardPage: React.FC = () => {
     if (user) {
       fetchDashboardStats();
       fetchUserPermissions();
+      fetchMyBots();
     }
   }, [user]);
 
@@ -85,62 +87,13 @@ export const DashboardPage: React.FC = () => {
 
   const fetchDashboardStats = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
+      setIsLoading(true);
+      
+      // Utiliser le nouveau gestionnaire sécurisé
+      const dashboardStats = await SecureDataManager.getDashboardStats();
+      setStats(dashboardStats);
 
-      // Récupérer le bot_owner
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', authUser.id)
-        .single();
-
-      if (!ownerData) {
-        console.log('Aucun bot_owner trouvé pour cet utilisateur');
-        setIsLoading(false);
-        return;
-      }
-
-      // Utiliser la nouvelle vue detailed_bot_stats pour obtenir les statistiques
-      const { data: statsData, error: statsError } = await supabase
-        .from('detailed_bot_stats')
-        .select('*')
-        .eq('owner_id', ownerData.id);
-
-      if (statsError) {
-        console.error('Erreur lors du chargement des statistiques:', statsError);
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('Données statistiques reçues:', statsData);
-
-      if (statsData && statsData.length > 0) {
-        // Agréger les statistiques de tous les bots de l'utilisateur
-        const aggregatedStats = statsData.reduce((acc, bot) => ({
-          totalBots: acc.totalBots + 1,
-          totalMessages: acc.totalMessages + (bot.total_messages || 0),
-          totalUsers: acc.totalUsers + (bot.total_unique_users || 0),
-          activeToday: acc.activeToday + (bot.active_users_24h || 0)
-        }), {
-          totalBots: 0,
-          totalMessages: 0,
-          totalUsers: 0,
-          activeToday: 0
-        });
-
-        console.log('Statistiques agrégées:', aggregatedStats);
-        setStats(aggregatedStats);
-      } else {
-        console.log('Aucune donnée statistique trouvée');
-        // L'utilisateur n'a pas encore de bots, garder les stats à 0
-        setStats({
-          totalBots: 0,
-          totalMessages: 0,
-          totalUsers: 0,
-          activeToday: 0
-        });
-      }
+      console.log('[DashboardPage] Statistiques chargées:', dashboardStats);
 
     } catch (error) {
       console.error('Erreur lors du chargement des statistiques:', error);
@@ -149,33 +102,11 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchMyBots();
-    }
-  }, [user]);
-
   const fetchMyBots = async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-      // On récupère l'id du bot_owner
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', authUser.id)
-        .single();
-
-      if (!ownerData) return;
-      const { data: bots } = await supabase
-        .from('bots')
-        .select('id, name')
-        .eq('owner_id', ownerData.id);
-
-      // LOG: Liste des bots récupérés
-      console.log("[DASHBOARD] Bots de l'utilisateur :", bots);
-
-      setMyBots(bots || []);
+      const botsData = await SecureDataManager.getOwnerBots();
+      setMyBots(botsData);
+      console.log(`[DashboardPage] ${botsData.length} bots récupérés`);
     } catch (error) {
       console.error('Erreur chargement bots utilisateur:', error);
     }
@@ -184,13 +115,13 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     if (selectedBotId || selectedBotName) {
       console.log(
-        `[DASHBOARD] Bot sélectionné : ${selectedBotName || ''} (id: ${selectedBotId || ''})`
+        `[DashboardPage] Bot sélectionné : ${selectedBotName || ''} (id: ${selectedBotId || ''})`
       );
     }
   }, [selectedBotId, selectedBotName]);
 
   const handleBotSelect = (botId: string, botName: string) => {
-    console.log(`[DASHBOARD] Click bot: ${botName} (id: ${botId})`);
+    console.log(`[DashboardPage] Click bot: ${botName} (id: ${botId})`);
     setSelectedBotId(botId);
     setSelectedBotName(botName);
     setShowBotAnalytics(true);
@@ -220,7 +151,7 @@ export const DashboardPage: React.FC = () => {
 
   if (showBotAnalytics && selectedBotId && selectedBotName) {
     // LOG: Ouverture du panel analytics détaillé avec le bon bot
-    console.log("[DASHBOARD] Ouverture analytics bot :", { selectedBotId, selectedBotName });
+    console.log("[DashboardPage] Ouverture analytics bot :", { selectedBotId, selectedBotName });
     return (
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
         <CompleteBotAnalytics botId={selectedBotId} botName={selectedBotName} onBack={() => setShowBotAnalytics(false)} />
