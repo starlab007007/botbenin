@@ -54,11 +54,11 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       }
 
       // Initialize new session if not present
-      console.log(`[useSessionManager] Creating new session for bot ${botId}`);
+      console.log(`[useSessionManager] Creating new secure session for bot ${botId}`);
       const newToken = await initializeVisitorTracking(botId, entryPoint);
       
       if (typeof newToken === "string" && newToken.startsWith('anon_')) {
-        console.log(`[useSessionManager] Successfully created session: ${newToken}`);
+        console.log(`[useSessionManager] Successfully created secure session: ${newToken}`);
         safeSetState(setSessionToken, newToken);
         safeSetState(setIsReady, true);
         safeSetState(setError, null);
@@ -66,12 +66,12 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       } else {
         console.error(`[useSessionManager] Invalid token received: ${newToken}`);
         
-        // Enhanced error handling with corrected auto-repair
-        if (typeof newToken === 'string' && (newToken.includes('n\'existe pas') || newToken.includes('inactif'))) {
-          // Tentative de réparation automatique corrigée
+        // Enhanced error handling with secure auto-repair
+        if (typeof newToken === 'string' && (newToken.includes('n\'existe pas') || newToken.includes('accessible'))) {
+          // Tentative de réparation automatique sécurisée
           try {
-            console.log('[useSessionManager] Tentative de réparation automatique corrigée...');
-            await supabase.rpc('repair_all_session_inconsistencies');
+            console.log('[useSessionManager] Tentative de réparation automatique sécurisée...');
+            await supabase.rpc('global_bot_repair');
             
             // Réessayer après la réparation
             if (retryCountRef.current < 2) {
@@ -81,7 +81,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
               return;
             }
           } catch (autoFixError) {
-            console.warn('[useSessionManager] Auto-repair failed:', autoFixError);
+            console.warn('[useSessionManager] Secure auto-repair failed:', autoFixError);
           }
         }
         
@@ -89,13 +89,13 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
         safeSetState(setIsReady, false);
         safeSetState(setError, 
           typeof newToken === 'string'
-            ? `Échec création session: ${newToken}`
-            : 'Échec création du token de session'
+            ? `Échec création session sécurisée: ${newToken}`
+            : 'Échec création du token de session sécurisé'
         );
       }
     } catch (error: any) {
-      console.error('[useSessionManager] Session initialization failed:', error);
-      let errMsg = 'Session initialization failed: ';
+      console.error('[useSessionManager] Secure session initialization failed:', error);
+      let errMsg = 'Secure session initialization failed: ';
       if (error?.message) {
         errMsg += error.message;
       } else if (typeof error === 'string') {
@@ -106,7 +106,7 @@ export const useSessionManager = ({ botId, entryPoint = 'direct' }: UseSessionMa
       
       safeSetState(setSessionToken, null);
       safeSetState(setIsReady, false);
-      safeSetState(setError, "Impossible d'initialiser la session. Détail: " + errMsg);
+      safeSetState(setError, "Impossible d'initialiser la session sécurisée. Détail: " + errMsg);
     } finally {
       safeSetState(setIsInitializing, false);
       initializingRef.current = false;

@@ -4516,6 +4516,10 @@ export type Database = {
         Args: { p_bot_id: string; p_session_token: string }
         Returns: string
       }
+      ensure_bot_accessibility: {
+        Args: { p_bot_id: string }
+        Returns: boolean
+      }
       fix_session_inconsistencies: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -4602,12 +4606,20 @@ export type Database = {
         }[]
       }
       get_unified_chat_history: {
-        Args: {
-          p_bot_id: string
-          p_session_token?: string
-          p_bot_user_id?: string
-          p_limit?: number
-        }
+        Args:
+          | {
+              p_bot_id: string
+              p_session_token?: string
+              p_bot_user_id?: string
+              p_limit?: number
+            }
+          | {
+              p_bot_id: string
+              p_session_token?: string
+              p_bot_user_id?: string
+              p_limit?: number
+              p_requesting_user_id?: string
+            }
         Returns: {
           message_id: string
           bot_id: string
@@ -4629,6 +4641,14 @@ export type Database = {
           permission_name: string
           category: string
           source: string
+        }[]
+      }
+      global_bot_repair: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_taken: string
+          affected_count: number
+          details: string
         }[]
       }
       hide_demo_account_data: {

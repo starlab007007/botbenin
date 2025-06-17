@@ -2,33 +2,34 @@
 import { supabase } from '@/integrations/supabase/client';
 
 /**
- * Retrieve chat history using the corrected unified system
+ * Retrieve chat history using the corrected unified system with security
  */
 export const getChatHistory = async (botId: string, sessionToken: string) => {
   try {
-    console.log(`[historyManager] === CORRECTED CHAT HISTORY RETRIEVAL ===`);
-    console.log(`[historyManager] Using corrected DB functions without ambiguity`);
+    console.log(`[historyManager] === SECURE CHAT HISTORY RETRIEVAL ===`);
+    console.log(`[historyManager] Using corrected secure DB functions`);
     console.log(`[historyManager] Bot ID: ${botId}`);
     console.log(`[historyManager] Session Token: ${sessionToken}`);
     
-    // Use the corrected get_unified_chat_history function
+    // Use the corrected get_unified_chat_history function with security
     const { data: unifiedData, error: unifiedError } = await supabase.rpc('get_unified_chat_history', {
       p_bot_id: botId,
       p_session_token: sessionToken,
       p_bot_user_id: null,
-      p_limit: 100
+      p_limit: 100,
+      p_requesting_user_id: null // Let the function handle auth internally
     });
 
     if (unifiedError) {
-      console.error('[historyManager] Corrected RPC Error (should be resolved now):', unifiedError);
+      console.error('[historyManager] Secure RPC Error:', unifiedError);
       
-      // Fallback with direct query using corrected approach
-      console.log('[historyManager] Attempting corrected fallback query...');
-      return await getMessagesWithCorrectedQuery(botId, sessionToken);
+      // Fallback with corrected secure query
+      console.log('[historyManager] Attempting secure fallback query...');
+      return await getMessagesWithSecureQuery(botId, sessionToken);
     }
 
     if (unifiedData && unifiedData.length > 0) {
-      console.log(`[historyManager] Corrected system success: ${unifiedData.length} messages retrieved without ambiguity`);
+      console.log(`[historyManager] Secure system success: ${unifiedData.length} messages retrieved`);
       
       // Transform to expected format
       const transformedData = unifiedData.map((item: any) => ({
@@ -51,30 +52,30 @@ export const getChatHistory = async (botId: string, sessionToken: string) => {
       return transformedData;
     }
 
-    // If unified RPC returns no data, try direct corrected query
-    console.log('[historyManager] Corrected RPC returned no data, trying direct query...');
-    return await getMessagesWithCorrectedQuery(botId, sessionToken);
+    // If unified RPC returns no data, try direct secure query
+    console.log('[historyManager] Secure RPC returned no data, trying direct query...');
+    return await getMessagesWithSecureQuery(botId, sessionToken);
 
   } catch (err) {
-    console.error('[historyManager] Exception in corrected getChatHistory:', err);
+    console.error('[historyManager] Exception in secure getChatHistory:', err);
     
-    // Last attempt with corrected query
+    // Last attempt with secure query
     try {
-      return await getMessagesWithCorrectedQuery(botId, sessionToken);
+      return await getMessagesWithSecureQuery(botId, sessionToken);
     } catch (fallbackErr) {
-      console.error('[historyManager] Corrected fallback query also failed:', fallbackErr);
+      console.error('[historyManager] Secure fallback query also failed:', fallbackErr);
       return null;
     }
   }
 };
 
 /**
- * Direct query using corrected approach to avoid any ambiguity
+ * Direct query using corrected secure approach with RLS protection
  */
-const getMessagesWithCorrectedQuery = async (botId: string, sessionToken: string) => {
-  console.log('[historyManager] Executing corrected direct query without ambiguity...');
+const getMessagesWithSecureQuery = async (botId: string, sessionToken: string) => {
+  console.log('[historyManager] Executing secure direct query with RLS protection...');
   
-  // Use explicit table aliases and very specific queries to avoid any ambiguity
+  // Use explicit table aliases and RLS-protected queries
   const { data, error } = await supabase
     .from('chat_messages')
     .select(`
@@ -101,7 +102,7 @@ const getMessagesWithCorrectedQuery = async (botId: string, sessionToken: string
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('[historyManager] Corrected direct query error:', error);
+    console.error('[historyManager] Secure direct query error:', error);
     throw error;
   }
 
@@ -125,6 +126,6 @@ const getMessagesWithCorrectedQuery = async (botId: string, sessionToken: string
     user_last_active: item.bot_users?.last_active
   })) || [];
 
-  console.log(`[historyManager] Corrected direct query success: ${transformedData.length} messages`);
+  console.log(`[historyManager] Secure direct query success: ${transformedData.length} messages`);
   return transformedData;
 };
