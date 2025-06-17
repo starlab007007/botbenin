@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { ConversationManager } from '@/components/ConversationManager';
 import { useAuth } from '@/contexts/AuthContext';
 import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 import { SecureDataManager } from '@/services/dashboard/secureDataManager';
+import { supabase } from '@/integrations/supabase/client';
 
 // Dashboard components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
