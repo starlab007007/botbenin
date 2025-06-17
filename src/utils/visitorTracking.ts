@@ -99,6 +99,18 @@ export const createAnonymousVisitorSession = async (
     console.log(`[visitorTracking] === ENHANCED SESSION CREATION ===`);
     console.log(`[visitorTracking] Fingerprint: ${fingerprintId}, Bot: ${botId}, Entry: ${entryPoint}`);
     
+    // Vérifier que le bot existe avant de créer la session
+    const { data: botExists, error: botCheckError } = await supabase
+      .from('bots')
+      .select('id')
+      .eq('id', botId)
+      .single();
+    
+    if (botCheckError || !botExists) {
+      console.error('[visitorTracking] Bot non trouvé:', botId);
+      return { error: `Bot ${botId} n'existe pas ou n'est plus disponible` };
+    }
+    
     const { data, error } = await supabase.rpc('create_anonymous_visitor_session', {
       p_fingerprint_id: fingerprintId,
       p_bot_id: botId,
@@ -217,11 +229,34 @@ export const extractUTMParams = () => {
   };
 };
 
-// Hook pour initialiser le tracking des visiteurs - VERSION AMÉLIORÉE AVEC GESTION D'ERREURS
+// Hook pour initialiser le tracking des visiteurs - VERSION AMÉLIORÉE AVEC VALIDATION BOT
 export const initializeVisitorTracking = async (botId: string, entryPoint?: string): Promise<string | null> => {
   try {
     console.log(`[visitorTracking] === ENHANCED VISITOR TRACKING INIT ===`);
     console.log(`[visitorTracking] Bot ID: ${botId}, Entry: ${entryPoint}`);
+    
+    // Validation préalable du bot
+    const { data: botExists, error: botValidationError } = await supabase
+      .from('bots')
+      .select('id, name, is_active')
+      .eq('id', botId)
+      .single();
+    
+    if (botValidationError || !botExists) {
+      const errorMsg = `[visitorTracking] Bot validation failed - Bot ${botId} n'existe pas`;
+      console.error(errorMsg);
+      sessionStorage.removeItem('visitor_session_token');
+      return errorMsg;
+    }
+    
+    if (!botExists.is_active) {
+      const errorMsg = `[visitorTracking] Bot ${botId} est inactif`;
+      console.error(errorMsg);
+      sessionStorage.removeItem('visitor_session_token');
+      return errorMsg;
+    }
+    
+    console.log(`[visitorTracking] Bot validé: ${botExists.name}`);
     
     // Vérification défensive des tokens existants
     const existingToken = getCurrentVisitorSession();
@@ -300,8 +335,10 @@ export const initializeVisitorTracking = async (botId: string, entryPoint?: stri
           utm_params: utmParams,
           fingerprint_hash: fingerprintHash,
           bot_id: botId,
+          bot_name: botExists.name,
           entry_point: finalEntryPoint,
-          enhanced_tracking: true
+          enhanced_tracking: true,
+          bot_validated: true
         }
       );
     } catch (trackingErr) {

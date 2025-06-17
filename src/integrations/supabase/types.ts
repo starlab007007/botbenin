@@ -4410,6 +4410,15 @@ export type Database = {
           orphaned_messages: number
         }[]
       }
+      cleanup_orphaned_bot_data: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          cleaned_links: number
+          cleaned_sessions: number
+          cleaned_messages: number
+          details: Json
+        }[]
+      }
       cleanup_orphaned_sessions: {
         Args: Record<PropertyKey, never>
         Returns: number

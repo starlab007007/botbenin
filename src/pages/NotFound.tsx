@@ -2,11 +2,12 @@
 import { useLocation, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Home, ArrowLeft, RefreshCw, ExternalLink, Copy, CheckCircle } from "lucide-react";
+import { Home, ArrowLeft, RefreshCw, ExternalLink, Copy, CheckCircle, AlertTriangle } from "lucide-react";
 
 const NotFound = () => {
   const location = useLocation();
   const [copied, setCopied] = useState(false);
+  const [isLinkIssue, setIsLinkIssue] = useState(false);
 
   useEffect(() => {
     // Logging détaillé pour le debugging
@@ -23,6 +24,11 @@ const NotFound = () => {
       protocol: window.location.protocol,
       host: window.location.host,
     });
+
+    // Détecter si c'est un problème de lien raccourci
+    if (location.pathname.startsWith('/s/') || location.search.includes('bot=')) {
+      setIsLinkIssue(true);
+    }
 
     // Tentative de redirection automatique pour certains patterns
     const path = location.pathname.toLowerCase();
@@ -59,15 +65,41 @@ const NotFound = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-100 px-4">
       <div className="text-center max-w-4xl mx-auto space-y-8">
-        {/* Animation d'erreur */}
+        {/* Animation d'erreur avec message spécialisé pour les liens */}
         <div className="mb-8 animate-bounce">
-          <div className="text-8xl mb-4">🔍</div>
+          <div className="text-8xl mb-4">
+            {isLinkIssue ? '🔗' : '🔍'}
+          </div>
           <h1 className="text-6xl md:text-8xl font-bold text-indigo-600 mb-4 animate-pulse">404</h1>
-          <h2 className="text-2xl md:text-3xl font-semibold text-gray-800 mb-4">Page Introuvable</h2>
+          <h2 className="text-2xl md:text-3xl font-semibold text-gray-800 mb-4">
+            {isLinkIssue ? 'Lien Non Valide' : 'Page Introuvable'}
+          </h2>
           <p className="text-lg text-gray-600 mb-6 max-w-2xl mx-auto">
-            Oups ! La page que vous recherchez semble avoir disparu dans les méandres du web.
+            {isLinkIssue 
+              ? "Ce lien ne semble plus fonctionner. Il peut pointer vers un assistant qui n'existe plus ou qui a été désactivé."
+              : "Oups ! La page que vous recherchez semble avoir disparu dans les méandres du web."
+            }
           </p>
         </div>
+        
+        {/* Message spécialisé pour les liens raccourcis */}
+        {isLinkIssue && (
+          <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-6 mb-8 text-left max-w-2xl mx-auto">
+            <h3 className="text-lg font-semibold text-amber-800 mb-3 flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2" />
+              Problème de Lien Détecté
+            </h3>
+            <div className="space-y-2 text-sm text-amber-700">
+              <p><strong>Causes possibles :</strong></p>
+              <ul className="list-disc list-inside space-y-1 ml-4">
+                <li>L'assistant IA associé à ce lien n'existe plus</li>
+                <li>Le lien a été désactivé par son propriétaire</li>
+                <li>Le lien a expiré ou n'est plus valide</li>
+                <li>Problème temporaire de connectivité</li>
+              </ul>
+            </div>
+          </div>
+        )}
         
         {/* Informations de debugging */}
         <div className="bg-red-50 border-l-4 border-red-400 rounded-lg p-6 mb-8 text-left max-w-2xl mx-auto">
@@ -152,11 +184,14 @@ const NotFound = () => {
           </div>
         </div>
 
-        {/* Support */}
+        {/* Support avec message spécialisé */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 max-w-2xl mx-auto">
           <h4 className="text-lg font-semibold text-gray-800 mb-3">🆘 Besoin d'aide ?</h4>
           <p className="text-gray-600 mb-4">
-            Si le problème persiste, notre équipe technique est là pour vous aider.
+            {isLinkIssue 
+              ? "Si ce lien vous a été fourni récemment, contactez la personne qui vous l'a envoyé. Sinon, notre équipe peut vous aider."
+              : "Si le problème persiste, notre équipe technique est là pour vous aider."
+            }
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/support">
@@ -167,7 +202,7 @@ const NotFound = () => {
             <Button 
               variant="outline" 
               className="border-green-300 text-green-700 hover:bg-green-50"
-              onClick={() => window.open('mailto:support@bot.bj?subject=Erreur 404&body=' + encodeURIComponent(`URL: ${window.location.href}\nTimestamp: ${new Date().toISOString()}`))}
+              onClick={() => window.open(`mailto:support@bot.bj?subject=${isLinkIssue ? 'Lien Raccourci Non Valide' : 'Erreur 404'}&body=${encodeURIComponent(`URL: ${window.location.href}\nTimestamp: ${new Date().toISOString()}\nType: ${isLinkIssue ? 'Link Issue' : 'Page Not Found'}`)}`)}
             >
               ✉️ Signaler le Problème
             </Button>
@@ -177,7 +212,12 @@ const NotFound = () => {
         {/* Footer avec infos techniques */}
         <div className="text-center text-sm text-gray-400 space-y-2">
           <p>Bot.BJ - Version 2.0 | Environnement: {window.location.protocol === 'https:' ? 'Production' : 'Développement'}</p>
-          <p>Si vous voyez cette page en production, veuillez signaler le problème.</p>
+          <p>
+            {isLinkIssue 
+              ? "Les liens raccourcis sont automatiquement vérifiés pour détecter les problèmes."
+              : "Si vous voyez cette page en production, veuillez signaler le problème."
+            }
+          </p>
         </div>
       </div>
     </div>
