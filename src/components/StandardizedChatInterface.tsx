@@ -16,6 +16,7 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   isBookmarked?: boolean;
+  isHistoryMessage?: boolean; // Nouveau champ pour marquer les messages d'historique
 }
 
 interface StandardizedChatInterfaceProps {
@@ -143,6 +144,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         content: item.message_content,
         isUser: item.message_type === 'user',
         timestamp: new Date(item.message_timestamp),
+        isHistoryMessage: true, // Marquer comme message d'historique
       }));
 
       if (mappedHistory.length > 0) {
@@ -160,6 +162,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           content: welcomeMessage,
           isUser: false,
           timestamp: new Date(),
+          isHistoryMessage: true, // Le message de bienvenue est aussi considéré comme historique
         }]);
       }
     }
@@ -193,6 +196,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       content: textToSend,
       isUser: true,
       timestamp: new Date(),
+      isHistoryMessage: false, // Nouveau message, pas d'historique
       ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
@@ -272,6 +276,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         content: processedContent.trim(),
         isUser: false,
         timestamp: new Date(),
+        isHistoryMessage: false, // Nouveau message, pas d'historique - aura l'animation
       };
 
       // Save bot response if session token available
@@ -304,6 +309,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         content: errorMessage,
         isUser: false,
         timestamp: new Date(),
+        isHistoryMessage: false, // Message d'erreur, pas d'historique
       };
 
       setMessages(prev => [...prev, fallbackMessage]);

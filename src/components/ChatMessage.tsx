@@ -10,6 +10,7 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   isBookmarked?: boolean;
+  isHistoryMessage?: boolean; // Nouveau prop pour identifier les messages d'historique
 }
 
 interface ChatMessageProps {
@@ -19,16 +20,17 @@ interface ChatMessageProps {
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookmark }) => {
   const [displayedContent, setDisplayedContent] = useState('');
-  const [isTyping, setIsTyping] = useState(!message.isUser);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
-    if (message.isUser) {
+    // Si c'est un message utilisateur ou un message d'historique, afficher immédiatement
+    if (message.isUser || message.isHistoryMessage) {
       setDisplayedContent(message.content);
       setIsTyping(false);
       return;
     }
 
-    // Smooth typing animation
+    // Animation de frappe uniquement pour les nouveaux messages du bot
     setDisplayedContent('');
     setIsTyping(true);
     
@@ -46,7 +48,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
     }, 20);
 
     return () => clearInterval(typingTimer);
-  }, [message.content, message.isUser]);
+  }, [message.content, message.isUser, message.isHistoryMessage]);
 
   return (
     <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4 px-1`}>
