@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { BotManagerNav } from '../BotManagerNav';
 
+type ViewType = 'dashboard' | 'list' | 'create' | 'analytics' | 'share' | 'conversations';
+
 interface BotManagementHeaderProps {
-  currentView: string;
+  currentView: ViewType;
   botCount: number;
   maxBots: number;
   isAuthenticated: boolean;
-  onChangeView: (view: string) => void;
+  onChangeView: (view: ViewType) => void;
   onCreateBot: () => void;
 }
 
