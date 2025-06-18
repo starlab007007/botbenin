@@ -78,12 +78,11 @@ export class SecureMessageHandler {
         security_validated: true
       };
 
-      // Sauvegarde directe avec une approche simplifiée
+      // Sauvegarde directe avec une approche simplifiée - utiliser chat_messages au lieu de bot_messages
       const { data, error } = await supabase
-        .from('bot_messages')
+        .from('chat_messages')
         .insert({
           bot_id: botValidation.sanitized,
-          session_token: sessionValidation.sanitized,
           message_content: messageValidation.sanitized,
           message_type: messageType,
           metadata: SecurityManager.sanitizeLogData(secureMetadata)
@@ -178,12 +177,11 @@ export class SecureMessageHandler {
       // Limitation de la pagination
       const safeLimit = Math.min(Math.max(1, limit), 100);
 
-      // Récupération directe avec une approche simplifiée
+      // Récupération directe avec une approche simplifiée - utiliser chat_messages au lieu de bot_messages
       const { data, error } = await supabase
-        .from('bot_messages')
+        .from('chat_messages')
         .select('*')
         .eq('bot_id', botValidation.sanitized)
-        .eq('session_token', sessionValidation.sanitized)
         .order('created_at', { ascending: true })
         .limit(safeLimit);
 
@@ -200,9 +198,6 @@ export class SecureMessageHandler {
         ...msg,
         message_content: SecurityManager.validateAndSanitizeInput(
           msg.message_content, 'string'
-        ).sanitized,
-        user_name: SecurityManager.validateAndSanitizeInput(
-          msg.user_name || 'Utilisateur', 'string'
         ).sanitized,
         metadata: SecurityManager.sanitizeLogData(msg.metadata || {})
       }));
