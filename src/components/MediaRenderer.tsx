@@ -10,7 +10,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
   // Fonction pour détecter si un lien est une image
   const isImageUrl = (url: string): boolean => {
     const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
-    return imageExtensions.test(url) || url.includes('imgur.com');
+    return imageExtensions.test(url) || url.includes('imgur.com') || url.includes('imagekit.io');
   };
 
   // Fonction pour détecter et formater les emails
@@ -172,7 +172,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return cleanedText;
   };
 
-  // Fonction pour extraire et traiter les liens d'images
+  // Fonction pour extraire et traiter les liens d'images - MODIFIÉE pour afficher seulement les images
   const processImageLinks = (text: string): React.ReactNode[] => {
     // Regex pour détecter les URLs (http/https)
     const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
@@ -191,33 +191,28 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         parts.push(...processedBefore);
       }
 
-      // Si c'est une image, l'afficher directement
+      // Si c'est une image, l'afficher directement SANS URL visible
       if (isImageUrl(url)) {
         parts.push(
           <div key={startIndex} className="my-4">
             <img 
               src={url} 
-              alt="Image partagée" 
-              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 hover:scale-105 transition-transform duration-300"
-              style={{ maxHeight: '500px', minHeight: '200px' }}
+              alt="Image" 
+              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200"
+              style={{ maxHeight: '400px', minHeight: '150px' }}
               onError={(e) => {
-                // En cas d'erreur de chargement, afficher le lien à la place
+                // En cas d'erreur de chargement, masquer complètement l'élément
                 const target = e.target as HTMLImageElement;
                 const parent = target.parentElement;
                 if (parent) {
-                  parent.innerHTML = `
-                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p class="text-sm text-gray-600 mb-2">Impossible de charger l'image</p>
-                      <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all font-medium">${url}</a>
-                    </div>
-                  `;
+                  parent.style.display = 'none';
                 }
               }}
             />
           </div>
         );
       } else {
-        // Pour les autres liens, les afficher normalement
+        // Pour les autres liens (non-images), les afficher normalement
         parts.push(
           <a 
             key={startIndex}
