@@ -14,7 +14,7 @@ interface Message {
 interface ChatMessageAreaProps {
   messages: Message[];
   showSuggestions: boolean;
-  userContext: string;
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
   isLoading: boolean;
   onToggleBookmark: (messageId: string) => void;
   onSuggestionClick: (suggestion: any) => void;
