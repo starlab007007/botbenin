@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BotConfigService, StandardBotConfig } from '@/services/botConfigService';
 import { useAuth } from '@/contexts/AuthContext';
+import { AuthModal } from '@/components/AuthModal';
 import { 
   Bot, 
   Plus, 
@@ -32,6 +33,7 @@ export const BotManagementPage: React.FC = () => {
   const [selectedBot, setSelectedBot] = useState<StandardBotConfig | null>(null);
   const [botCount, setBotCount] = useState(0);
   const [maxBots, setMaxBots] = useState(10); // Fixed to 10 for free plan
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated, session } = useAuth();
 
@@ -139,6 +141,10 @@ export const BotManagementPage: React.FC = () => {
     }
   };
 
+  const handleAuthButtonClick = () => {
+    setShowAuthModal(true);
+  };
+
   const getBotValidationStatus = (bot: StandardBotConfig) => {
     const validation = BotConfigService.validateBotConfig(bot);
     return validation;
@@ -168,37 +174,44 @@ export const BotManagementPage: React.FC = () => {
   // Si l'utilisateur n'est pas authentifié
   if (!isAuthenticated) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-2xl mx-auto border-amber-200 bg-amber-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-amber-800">
-              <Lock className="w-5 h-5" />
-              <span>Authentification requise</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-              <div>
-                <p className="text-amber-800 font-medium">
-                  Vous devez être connecté pour gérer vos bots
-                </p>
-                <p className="text-amber-700 text-sm mt-1">
-                  Connectez-vous pour accéder à votre tableau de bord et créer jusqu'à 10 bots gratuitement.
-                </p>
+      <>
+        <div className="container mx-auto px-4 py-8">
+          <Card className="max-w-2xl mx-auto border-amber-200 bg-amber-50">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-amber-800">
+                <Lock className="w-5 h-5" />
+                <span>Authentification requise</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="text-amber-800 font-medium">
+                    Vous devez être connecté pour gérer vos bots
+                  </p>
+                  <p className="text-amber-700 text-sm mt-1">
+                    Connectez-vous pour accéder à votre tableau de bord et créer jusqu'à 10 bots gratuitement.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="pt-4">
-              <Button 
-                onClick={() => window.location.href = '/auth'}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                Se connecter / S'inscrire
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              <div className="pt-4">
+                <Button 
+                  onClick={handleAuthButtonClick}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  Se connecter / S'inscrire
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        <AuthModal 
+          isOpen={showAuthModal} 
+          onClose={() => setShowAuthModal(false)} 
+        />
+      </>
     );
   }
 
