@@ -171,7 +171,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return cleanedText;
   };
 
-  // Fonction pour extraire et traiter les liens d'images - CORRIGÉE pour résoudre les problèmes de chargement
+  // Fonction pour extraire et traiter les liens d'images - SIMPLIFIÉE pour affichage direct
   const processImageLinks = (text: string): React.ReactNode[] => {
     // Regex pour détecter les URLs (http/https)
     const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
@@ -190,48 +190,18 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         parts.push(...processedBefore);
       }
 
-      // Si c'est une image, l'afficher directement
+      // Si c'est une image, l'afficher directement sans URL visible
       if (isImageUrl(url)) {
-        console.log('Détection d\'image:', url);
+        console.log('Affichage direct de l\'image:', url);
         
         parts.push(
           <div key={startIndex} className="my-4">
-            <div className="relative">
-              <img 
-                src={url} 
-                alt="Image" 
-                className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200"
-                crossOrigin="anonymous"
-                loading="lazy"
-                onLoad={(e) => {
-                  console.log('Image chargée avec succès:', url);
-                  const target = e.target as HTMLImageElement;
-                  target.style.opacity = '1';
-                }}
-                onError={(e) => {
-                  console.error('Erreur de chargement de l\'image:', url);
-                  const target = e.target as HTMLImageElement;
-                  const container = target.closest('.relative');
-                  if (container) {
-                    container.innerHTML = `
-                      <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div class="flex items-center space-x-2">
-                          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                          </svg>
-                          <span class="text-blue-800 font-medium">Image</span>
-                        </div>
-                        <p class="text-sm text-blue-600 mt-2">Cliquez pour voir l'image</p>
-                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-block mt-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
-                          Ouvrir l'image
-                        </a>
-                      </div>
-                    `;
-                  }
-                }}
-                style={{ opacity: '0', transition: 'opacity 0.3s ease' }}
-              />
-            </div>
+            <img 
+              src={url} 
+              alt="Image" 
+              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200"
+              loading="lazy"
+            />
           </div>
         );
       } else {
