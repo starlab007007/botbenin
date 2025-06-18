@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast, toast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
 import { ChatHeader } from '@/components/ChatHeader';
@@ -67,15 +66,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     sessionReady ? sessionToken : null // Only fetch when session is ready
   );
 
-  useEffect(() => {
-    const init = async () => {
-      console.log(`[StandardizedChatInterface] Initializing for bot ${botId}, entry: ${entryPoint}`);
-      await initializeBot();
-    };
-    init();
-  }, [botId, entryPoint]);
-
-  const initializeBot = async () => {
+  // Memoized callback for initialization
+  const initializeBot = useCallback(async () => {
     try {
       setHasError(false);
 
@@ -117,7 +109,11 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       setErrorMessage('Impossible de charger ce bot. ' + (errorContent ? `(Erreur: ${errorContent})` : 'Veuillez réessayer plus tard.'));
       setInitializationComplete(true);
     }
-  };
+  }, [botId, entryPoint, isTest, isAuthenticated, isGuest, guestUser]);
+
+  useEffect(() => {
+    initializeBot();
+  }, [initializeBot]);
 
   // Simplified loading logic - much more permissive
   const isLoading = useMemo(() => {
@@ -169,7 +165,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     }
   }, [historyMessages, botConfig, loadingHistory, sessionReady]);
 
-  const handleSendMessage = async (messageText?: string) => {
+  // Optimized message sending with useCallback
+  const handleSendMessage = useCallback(async (messageText?: string) => {
     const textToSend = messageText || inputValue;
     if (!textToSend.trim() || isProcessing || !botConfig) return;
 
@@ -184,9 +181,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     }
 
     console.log(`[StandardizedChatInterface] === SENDING MESSAGE ===`);
-    console.log(`[StandardizedChatInterface] Message: ${textToSend}`);
-    console.log(`[StandardizedChatInterface] Session token: ${sessionToken}`);
-    console.log(`[StandardizedChatInterface] Bot ID: ${botId}`);
 
     setShowSuggestions(false);
 
@@ -204,17 +198,9 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
     // Save user message if session token available
     if (sessionToken) {
-      console.log(`[StandardizedChatInterface] Saving user message: bot=${botId}, token=${sessionToken}`);
       try {
         const messageId = await saveChatMessage(botId, sessionToken, textToSend, "user");
         console.log(`[StandardizedChatInterface] User message saved with ID: ${messageId}`);
-        
-        // Test de récupération immédiate après sauvegarde
-        setTimeout(() => {
-          testMessageRetrieval(botId, sessionToken).then((results) => {
-            console.log(`[StandardizedChatInterface] Post-save retrieval test:`, results);
-          });
-        }, 1500);
       } catch (saveError) {
         console.warn('[StandardizedChatInterface] Failed to save user message:', saveError);
         // Continue without blocking
@@ -225,15 +211,9 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     setInputValue('');
     setIsProcessing(true);
 
-    console.log('=== STANDARDIZED WEBHOOK COMMUNICATION ===');
-    console.log('Bot:', botConfig.name);
-    console.log('Message:', textToSend);
-    console.log('Webhook URL:', botConfig.webhook_url);
-    console.log('Session Token (verified):', sessionToken);
-
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // Reduced timeout for faster response
 
       const headers = BotConfigService.getStandardWebhookHeaders(
         botId,
@@ -247,12 +227,9 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         botId,
         botConfig.name,
         botConfig.chat_context,
-        sessionToken || 'fallback_session', // Use fallback if no session token
+        sessionToken || 'fallback_session',
         isTest
       );
-
-      console.log('Standardized headers:', headers);
-      console.log('Standardized payload:', payload);
 
       const response = await fetch(botConfig.webhook_url, {
         method: 'POST',
@@ -263,10 +240,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       });
 
       clearTimeout(timeoutId);
-
-      console.log('=== STANDARDIZED WEBHOOK RESPONSE ===');
-      console.log('Status:', response.status);
-      console.log('OK:', response.ok);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -303,29 +276,18 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       // Save bot response if session token available
       if (sessionToken) {
-        console.log(`[StandardizedChatInterface] Saving bot response: bot=${botId}, token=${sessionToken}`);
         try {
           const responseId = await saveChatMessage(botId, sessionToken, processedContent.trim(), "bot");
           console.log(`[StandardizedChatInterface] Bot response saved with ID: ${responseId}`);
-          
-          // Test de récupération après sauvegarde de la réponse
-          setTimeout(() => {
-            testMessageRetrieval(botId, sessionToken).then((results) => {
-              console.log(`[StandardizedChatInterface] Post-response retrieval test:`, results);
-            });
-          }, 1500);
         } catch (saveError) {
           console.warn('[StandardizedChatInterface] Failed to save bot response:', saveError);
-          // Continue without blocking
         }
       }
 
       setMessages(prev => [...prev, aiMessage]);
 
     } catch (error) {
-      console.error('=== WEBHOOK COMMUNICATION ERROR ===');
-      console.error('Bot:', botConfig.name);
-      console.error('Error:', error);
+      console.error('=== WEBHOOK COMMUNICATION ERROR ===', error);
       
       let errorMessage = `Je rencontre des difficultés techniques avec "${botConfig.name}". Veuillez réessayer dans quelques instants.`;
       
@@ -354,20 +316,21 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [inputValue, isProcessing, botConfig, sessionError, sessionToken, isGuest, guestUser, botId, isTest]);
 
-  const handleSuggestionClick = (suggestion: any) => {
+  // Memoized callbacks
+  const handleSuggestionClick = useCallback((suggestion: any) => {
     handleSendMessage(suggestion.action);
-  };
+  }, [handleSendMessage]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
-  const toggleBookmark = (messageId: string) => {
+  const toggleBookmark = useCallback((messageId: string) => {
     setMessages(prev =>
       prev.map(msg =>
         msg.id === messageId
@@ -375,9 +338,12 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           : msg
       )
     );
-  };
+  }, []);
 
-  const bookmarkedMessages = messages.filter(msg => msg.isBookmarked && !msg.isUser);
+  const bookmarkedMessages = useMemo(() => 
+    messages.filter(msg => msg.isBookmarked && !msg.isUser), 
+    [messages]
+  );
 
   // Session error display
   if (sessionError) {
@@ -494,7 +460,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         isLoading={isProcessing}
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
-        onSendMessage={() => handleSendMessage()}
+        onSendMessage={handleSendMessage}
       />
     </div>
   );

@@ -70,13 +70,6 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
             )}
           </Button>
         </div>
-        
-        {/* Indication du formatage disponible */}
-        <div className="mt-3 text-center">
-          <p className={`text-gray-500 ${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>
-            💡 Utilisez **gras**, *italique*, ~~souligné~~, ### titres, - listes
-          </p>
-        </div>
       </div>
     </div>
   );
