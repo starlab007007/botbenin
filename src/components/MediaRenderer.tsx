@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { MessageCircle } from 'lucide-react';
 
@@ -172,7 +171,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return cleanedText;
   };
 
-  // Fonction pour extraire et traiter les liens d'images - MODIFIÉE pour afficher seulement les images
+  // Fonction pour extraire et traiter les liens d'images - CORRIGÉE pour mieux gérer l'affichage
   const processImageLinks = (text: string): React.ReactNode[] => {
     // Regex pour détecter les URLs (http/https)
     const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
@@ -193,19 +192,28 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
       // Si c'est une image, l'afficher directement SANS URL visible
       if (isImageUrl(url)) {
+        console.log('Détection d\'image:', url); // Log pour débugger
+        
         parts.push(
           <div key={startIndex} className="my-4">
             <img 
               src={url} 
               alt="Image" 
               className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200"
-              style={{ maxHeight: '400px', minHeight: '150px' }}
+              onLoad={() => {
+                console.log('Image chargée avec succès:', url);
+              }}
               onError={(e) => {
-                // En cas d'erreur de chargement, masquer complètement l'élément
+                console.error('Erreur de chargement de l\'image:', url);
+                // En cas d'erreur de chargement, afficher un message d'erreur mais pas l'URL
                 const target = e.target as HTMLImageElement;
                 const parent = target.parentElement;
                 if (parent) {
-                  parent.style.display = 'none';
+                  parent.innerHTML = `
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p class="text-sm text-gray-600">❌ Impossible de charger l'image</p>
+                    </div>
+                  `;
                 }
               }}
             />
