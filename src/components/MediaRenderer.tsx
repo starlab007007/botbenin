@@ -9,7 +9,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
   // Fonction pour détecter si un lien est une image
   const isImageUrl = (url: string): boolean => {
     const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
-    return imageExtensions.test(url);
+    return imageExtensions.test(url) || url.includes('imgur.com');
   };
 
   // Fonction pour extraire et traiter les liens d'images
@@ -29,34 +29,58 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         parts.push(text.substring(lastIndex, startIndex));
       }
 
-      // Si c'est une image, l'afficher, sinon afficher le lien
+      // Si c'est une image, l'afficher directement
       if (isImageUrl(url)) {
         parts.push(
-          <div key={startIndex} className="my-3">
+          <div key={startIndex} className="my-4">
             <img 
               src={url} 
               alt="Image partagée" 
-              className="max-w-full h-auto rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-shadow duration-200"
-              style={{ maxHeight: '400px' }}
+              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 cursor-pointer"
+              style={{ maxHeight: '500px', minHeight: '200px' }}
+              onClick={() => {
+                // Ouvrir l'image dans une nouvelle fenêtre sans restrictions
+                const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+                if (newWindow) {
+                  newWindow.focus();
+                }
+              }}
               onError={(e) => {
                 // En cas d'erreur de chargement, afficher le lien à la place
                 const target = e.target as HTMLImageElement;
                 const parent = target.parentElement;
                 if (parent) {
-                  parent.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all">${url}</a>`;
+                  parent.innerHTML = `
+                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p class="text-sm text-gray-600 mb-2">Impossible de charger l'image</p>
+                      <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all font-medium">${url}</a>
+                    </div>
+                  `;
                 }
               }}
             />
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              Cliquez pour ouvrir l'image en grand
+            </p>
           </div>
         );
       } else {
+        // Pour les autres liens, les afficher normalement
         parts.push(
           <a 
             key={startIndex}
             href={url} 
             target="_blank" 
             rel="noopener noreferrer" 
-            className="text-blue-600 hover:text-blue-800 underline break-all"
+            className="text-blue-600 hover:text-blue-800 underline break-all font-medium"
+            onClick={(e) => {
+              // Permettre l'ouverture sans restrictions de sécurité
+              e.preventDefault();
+              const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+              if (newWindow) {
+                newWindow.focus();
+              }
+            }}
           >
             {url}
           </a>

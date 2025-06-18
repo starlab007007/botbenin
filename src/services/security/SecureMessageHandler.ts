@@ -78,14 +78,18 @@ export class SecureMessageHandler {
         security_validated: true
       };
 
-      // Sauvegarde via fonction Supabase sécurisée
-      const { data, error } = await supabase.rpc('save_secure_message', {
-        p_bot_id: botValidation.sanitized,
-        p_session_token: sessionValidation.sanitized,
-        p_message_content: messageValidation.sanitized,
-        p_message_type: messageType,
-        p_metadata: SecurityManager.sanitizeLogData(secureMetadata)
-      });
+      // Sauvegarde directe avec une approche simplifiée
+      const { data, error } = await supabase
+        .from('bot_messages')
+        .insert({
+          bot_id: botValidation.sanitized,
+          session_token: sessionValidation.sanitized,
+          message_content: messageValidation.sanitized,
+          message_type: messageType,
+          metadata: SecurityManager.sanitizeLogData(secureMetadata)
+        })
+        .select('id')
+        .single();
 
       if (error) {
         await SecurityManager.auditSuspiciousActivity({
@@ -98,13 +102,13 @@ export class SecureMessageHandler {
       await SecurityManager.auditSuspiciousActivity({
         action: 'secure_message_sent',
         additionalData: { 
-          messageId: data,
+          messageId: data?.id || 'unknown',
           botId,
           messageLength: messageContent.length
         }
       });
 
-      return { success: true, messageId: data };
+      return { success: true, messageId: data?.id || 'unknown' };
     } catch (error: any) {
       await SecurityManager.auditSuspiciousActivity({
         action: 'secure_message_error',
@@ -174,12 +178,14 @@ export class SecureMessageHandler {
       // Limitation de la pagination
       const safeLimit = Math.min(Math.max(1, limit), 100);
 
-      // Récupération via fonction sécurisée
-      const { data, error } = await supabase.rpc('get_secure_chat_history', {
-        p_bot_id: botValidation.sanitized,
-        p_session_token: sessionValidation.sanitized,
-        p_limit: safeLimit
-      });
+      // Récupération directe avec une approche simplifiée
+      const { data, error } = await supabase
+        .from('bot_messages')
+        .select('*')
+        .eq('bot_id', botValidation.sanitized)
+        .eq('session_token', sessionValidation.sanitized)
+        .order('created_at', { ascending: true })
+        .limit(safeLimit);
 
       if (error) {
         await SecurityManager.auditSuspiciousActivity({

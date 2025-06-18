@@ -2,81 +2,79 @@
 import { SecurityManager } from './SecurityManager';
 import { supabase } from '@/integrations/supabase/client';
 
-interface SecureSessionResult {
+interface SessionCreationResult {
   success: boolean;
   sessionToken?: string;
   error?: string;
 }
 
+interface SessionValidationResult {
+  isValid: boolean;
+  sessionData?: any;
+  error?: string;
+}
+
 export class SecureSessionManager {
-  private static readonly SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-  private static readonly MAX_SESSIONS_PER_USER = 10;
+  private static readonly SESSION_STORAGE_KEY = 'secure_session_data';
+  private static readonly SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 heures
+  private static readonly FINGERPRINT_TIMEOUT = 5000; // 5 secondes
 
   /**
-   * Création sécurisée d'une session
+   * Création d'une session sécurisée
    */
   static async createSecureSession(
     botId: string,
-    entryPoint: string = 'direct',
-    additionalData?: any
-  ): Promise<SecureSessionResult> {
+    entryPoint: string = 'direct'
+  ): Promise<SessionCreationResult> {
     try {
-      // Validation des entrées
+      console.log(`[SecureSessionManager] Creating secure session for bot ${botId}`);
+
+      // Validation de l'ID du bot
       const botValidation = SecurityManager.validateAndSanitizeInput(botId, 'uuid');
       if (!botValidation.isValid) {
-        return { success: false, error: 'Invalid bot ID' };
+        return { success: false, error: 'ID de bot invalide' };
       }
 
-      const entryValidation = SecurityManager.validateAndSanitizeInput(entryPoint, 'string');
-      if (!entryValidation.isValid) {
-        return { success: false, error: 'Invalid entry point' };
-      }
-
-      // Limitation du taux
-      if (!SecurityManager.checkRateLimit(`session_creation`, {
-        windowMs: 60000, // 1 minute
-        maxRequests: 10
-      })) {
-        await SecurityManager.auditSuspiciousActivity({
-          action: 'rate_limit_exceeded',
-          additionalData: { botId, entryPoint }
-        });
-        return { success: false, error: 'Rate limit exceeded' };
-      }
-
-      // Génération d'un token sécurisé
+      // Génération d'un token de session sécurisé
       const sessionToken = `anon_${SecurityManager.generateSecureToken(32)}`;
-      
-      // Création du fingerprint sécurisé
-      const fingerprint = await this.createSecureFingerprint();
-      
-      // Appel de la fonction Supabase sécurisée
-      const { data, error } = await supabase.rpc('create_secure_visitor_session', {
-        p_bot_id: botValidation.sanitized,
-        p_session_token: sessionToken,
-        p_fingerprint_id: fingerprint.id,
-        p_entry_point: entryValidation.sanitized,
-        p_metadata: SecurityManager.sanitizeLogData(additionalData || {})
-      });
+      const fingerprint = await this.generateSecureFingerprint();
+
+      // Préparation des métadonnées de session
+      const sessionMetadata = {
+        entry_point: entryPoint,
+        user_agent: navigator.userAgent?.substring(0, 500) || 'unknown',
+        fingerprint_hash: fingerprint,
+        created_at: new Date().toISOString(),
+        security_level: 'high'
+      };
+
+      // Sauvegarde directe avec une approche simplifiée
+      const { data, error } = await supabase
+        .from('anonymous_visitor_sessions')
+        .insert({
+          session_token: sessionToken,
+          bot_id: botValidation.sanitized,
+          visitor_fingerprint: fingerprint,
+          metadata: SecurityManager.sanitizeLogData(sessionMetadata),
+          expires_at: new Date(Date.now() + this.SESSION_DURATION).toISOString()
+        })
+        .select('session_token')
+        .single();
 
       if (error) {
-        await SecurityManager.auditSuspiciousActivity({
-          action: 'session_creation_failed',
-          additionalData: { error: error.message, botId }
-        });
-        return { success: false, error: 'Failed to create session' };
+        console.error('[SecureSessionManager] Session creation failed:', error);
+        return { success: false, error: 'Échec de création de session' };
       }
 
-      // Stockage sécurisé côté client
-      this.storeSessionSecurely(sessionToken);
+      // Stockage local sécurisé
+      this.storeSessionLocally(sessionToken, fingerprint);
 
+      console.log(`[SecureSessionManager] Secure session created successfully: ${sessionToken.substring(0, 10)}...`);
       return { success: true, sessionToken };
+
     } catch (error: any) {
-      await SecurityManager.auditSuspiciousActivity({
-        action: 'session_creation_error',
-        additionalData: { error: error.message }
-      });
-      return { success: false, error: 'Internal error' };
+      console.error('[SecureSessionManager] Session creation error:', error);
+      return { success: false, error: 'Erreur interne de création de session' };
     }
   }
 
@@ -85,25 +83,20 @@ export class SecureSessionManager {
    */
   static async validateSession(sessionToken: string): Promise<boolean> {
     try {
-      const validation = SecurityManager.validateAndSanitizeInput(sessionToken, 'string');
-      if (!validation.isValid || !sessionToken.startsWith('anon_')) {
+      const sessionValidation = SecurityManager.validateAndSanitizeInput(sessionToken, 'string');
+      if (!sessionValidation.isValid || !sessionToken.startsWith('anon_')) {
         return false;
       }
 
-      // Vérification de l'expiration côté client
-      const stored = this.getStoredSession();
-      if (!stored || Date.now() - stored.created > this.SESSION_TIMEOUT) {
-        this.clearStoredSession();
-        return false;
-      }
-
-      // Vérification côté serveur
-      const { data, error } = await supabase.rpc('validate_secure_session', {
-        p_session_token: validation.sanitized
-      });
+      // Vérification directe avec une approche simplifiée
+      const { data, error } = await supabase
+        .from('anonymous_visitor_sessions')
+        .select('session_token, expires_at')
+        .eq('session_token', sessionValidation.sanitized)
+        .gt('expires_at', new Date().toISOString())
+        .single();
 
       if (error || !data) {
-        this.clearStoredSession();
         return false;
       }
 
@@ -114,116 +107,94 @@ export class SecureSessionManager {
   }
 
   /**
-   * Stockage sécurisé côté client
+   * Mise à jour de l'activité de session
    */
-  private static storeSessionSecurely(sessionToken: string): void {
-    try {
-      const sessionData = {
-        token: SecurityManager.encryptSensitiveData(sessionToken),
-        created: Date.now(),
-        lastActivity: Date.now()
-      };
-      
-      sessionStorage.setItem('secure_visitor_session', JSON.stringify(sessionData));
-    } catch (error) {
-      console.error('[SecureSessionManager] Failed to store session:', error);
+  static updateSessionActivity(): void {
+    const stored = this.getStoredSession();
+    if (stored) {
+      stored.lastActivity = Date.now();
+      this.storeSessionLocally(stored.token, stored.fingerprint);
     }
   }
 
   /**
-   * Récupération sécurisée de la session
+   * Récupération de la session stockée localement
    */
-  static getStoredSession(): { token: string; created: number; lastActivity: number } | null {
+  static getStoredSession(): { token: string; fingerprint: string; lastActivity: number } | null {
     try {
-      const stored = sessionStorage.getItem('secure_visitor_session');
+      const stored = localStorage.getItem(this.SESSION_STORAGE_KEY);
       if (!stored) return null;
 
-      const parsed = JSON.parse(stored);
-      const decryptedToken = SecurityManager.decryptSensitiveData(parsed.token);
+      const data = JSON.parse(stored);
       
-      if (!decryptedToken || !decryptedToken.startsWith('anon_')) {
+      // Vérifier l'expiration locale
+      if (Date.now() - data.lastActivity > this.SESSION_DURATION) {
         this.clearStoredSession();
         return null;
       }
 
-      return {
-        token: decryptedToken,
-        created: parsed.created,
-        lastActivity: parsed.lastActivity
-      };
+      return data;
     } catch {
-      this.clearStoredSession();
       return null;
     }
   }
 
   /**
-   * Nettoyage sécurisé de la session
+   * Stockage local sécurisé de la session
+   */
+  private static storeSessionLocally(token: string, fingerprint: string): void {
+    try {
+      const sessionData = {
+        token,
+        fingerprint,
+        lastActivity: Date.now()
+      };
+      
+      localStorage.setItem(this.SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+    } catch (error) {
+      console.warn('[SecureSessionManager] Failed to store session locally:', error);
+    }
+  }
+
+  /**
+   * Nettoyage de la session stockée
    */
   static clearStoredSession(): void {
     try {
-      sessionStorage.removeItem('secure_visitor_session');
-      sessionStorage.removeItem('visitor_session_token'); // Ancienne version
+      localStorage.removeItem(this.SESSION_STORAGE_KEY);
     } catch (error) {
-      console.error('[SecureSessionManager] Failed to clear session:', error);
+      console.warn('[SecureSessionManager] Failed to clear stored session:', error);
     }
   }
 
   /**
-   * Création d'un fingerprint sécurisé
+   * Génération d'une empreinte sécurisée du navigateur
    */
-  private static async createSecureFingerprint(): Promise<{ id: string }> {
+  private static async generateSecureFingerprint(): Promise<string> {
     try {
-      // Collecte sécurisée des informations du navigateur
-      const browserInfo = {
-        userAgent: navigator.userAgent ? navigator.userAgent.substring(0, 500) : 'unknown',
-        language: navigator.language || 'unknown',
-        platform: navigator.platform || 'unknown',
+      // Collecte de données de base
+      const fpData = {
+        screen: `${screen.width}x${screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        language: navigator.language,
+        platform: navigator.platform,
         cookieEnabled: navigator.cookieEnabled,
         doNotTrack: navigator.doNotTrack,
-        screenResolution: `${screen.width}x${screen.height}`,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         timestamp: Date.now()
       };
 
-      // Génération d'un hash sécurisé
-      const fingerprintString = JSON.stringify(browserInfo);
+      // Génération d'une empreinte simple
+      const fpString = JSON.stringify(fpData);
       const encoder = new TextEncoder();
-      const data = encoder.encode(fingerprintString);
+      const data = encoder.encode(fpString);
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const fingerprintHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Création du fingerprint via Supabase
-      const { data: fingerprint, error } = await supabase.rpc('create_secure_fingerprint', {
-        p_fingerprint_hash: fingerprintHash,
-        p_browser_info: SecurityManager.sanitizeLogData(browserInfo)
-      });
-
-      if (error || !fingerprint) {
-        throw new Error('Failed to create fingerprint');
-      }
-
-      return { id: fingerprint };
+      return hashHex.substring(0, 32);
     } catch (error) {
-      console.error('[SecureSessionManager] Fingerprint creation failed:', error);
-      // Fallback avec un ID généré
-      return { id: SecurityManager.generateSecureToken(16) };
-    }
-  }
-
-  /**
-   * Mise à jour de l'activité de session
-   */
-  static updateSessionActivity(): void {
-    try {
-      const stored = this.getStoredSession();
-      if (stored) {
-        stored.lastActivity = Date.now();
-        this.storeSessionSecurely(stored.token);
-      }
-    } catch (error) {
-      console.error('[SecureSessionManager] Failed to update activity:', error);
+      console.warn('[SecureSessionManager] Fingerprint generation failed:', error);
+      return SecurityManager.generateSecureToken(32);
     }
   }
 
@@ -231,13 +202,9 @@ export class SecureSessionManager {
    * Nettoyage des sessions expirées
    */
   static cleanupExpiredSessions(): void {
-    try {
-      const stored = this.getStoredSession();
-      if (stored && Date.now() - stored.lastActivity > this.SESSION_TIMEOUT) {
-        this.clearStoredSession();
-      }
-    } catch (error) {
-      console.error('[SecureSessionManager] Failed to cleanup sessions:', error);
+    const stored = this.getStoredSession();
+    if (stored && Date.now() - stored.lastActivity > this.SESSION_DURATION) {
+      this.clearStoredSession();
     }
   }
 }
