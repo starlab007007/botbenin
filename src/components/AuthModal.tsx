@@ -1,10 +1,12 @@
 
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { LoginForm } from './auth/LoginForm';
-import { RegisterForm } from './auth/RegisterForm';
+import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -13,7 +15,6 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login, register } = useAuth();
 
@@ -26,7 +27,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPhone, setRegisterPhone] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,12 +44,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (registerPassword !== confirmPassword) {
-      console.error('Les mots de passe ne correspondent pas');
-      return;
-    }
-    
     setIsLoading(true);
     
     const success = await register({
@@ -65,7 +59,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       setRegisterEmail('');
       setRegisterPhone('');
       setRegisterPassword('');
-      setConfirmPassword('');
     }
     
     setIsLoading(false);
@@ -85,37 +78,145 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </TabsList>
           
           <TabsContent value="login">
-            <LoginForm
-              email={loginEmail}
-              password={loginPassword}
-              showPassword={showPassword}
-              isLoading={isLoading}
-              onEmailChange={setLoginEmail}
-              onPasswordChange={setLoginPassword}
-              onTogglePassword={() => setShowPassword(!showPassword)}
-              onSubmit={handleLogin}
-            />
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="login-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="login-email"
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="votre@email.com"
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="login-password">Mot de passe</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="login-password"
+                    type={showPassword ? "text" : "password"}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? "Connexion..." : "Se connecter"}
+              </Button>
+            </form>
           </TabsContent>
           
           <TabsContent value="register">
-            <RegisterForm
-              name={registerName}
-              email={registerEmail}
-              phone={registerPhone}
-              password={registerPassword}
-              confirmPassword={confirmPassword}
-              showPassword={showPassword}
-              showConfirmPassword={showConfirmPassword}
-              isLoading={isLoading}
-              onNameChange={setRegisterName}
-              onEmailChange={setRegisterEmail}
-              onPhoneChange={setRegisterPhone}
-              onPasswordChange={setRegisterPassword}
-              onConfirmPasswordChange={setConfirmPassword}
-              onTogglePassword={() => setShowPassword(!showPassword)}
-              onToggleConfirmPassword={() => setShowConfirmPassword(!showConfirmPassword)}
-              onSubmit={handleRegister}
-            />
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="register-name">Nom complet</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="register-name"
+                    type="text"
+                    value={registerName}
+                    onChange={(e) => setRegisterName(e.target.value)}
+                    placeholder="Jean Dupont"
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="register-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="register-email"
+                    type="email"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    placeholder="votre@email.com"
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="register-phone">Téléphone (optionnel)</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="register-phone"
+                    type="tel"
+                    value={registerPhone}
+                    onChange={(e) => setRegisterPhone(e.target.value)}
+                    placeholder="+229 XX XX XX XX"
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="register-password">Mot de passe</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="register-password"
+                    type={showPassword ? "text" : "password"}
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-10 pr-10"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? "Inscription..." : "S'inscrire"}
+              </Button>
+            </form>
           </TabsContent>
         </Tabs>
       </DialogContent>

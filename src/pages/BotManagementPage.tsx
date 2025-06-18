@@ -1,18 +1,28 @@
-
 import React, { useState, useEffect } from 'react';
 import { StandardizedBotManager } from '@/components/StandardizedBotManager';
 import { SocialSharingManager } from '@/components/SocialSharingManager';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BotConfigService, StandardBotConfig } from '@/services/botConfigService';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bot, Plus, BarChart3, Settings, Share2 } from 'lucide-react';
-import { AuthGuard } from '@/components/bot-management/AuthGuard';
-import { BotLimitDisplay } from '@/components/bot-management/BotLimitDisplay';
-import { BotCard } from '@/components/bot-management-page/BotCard';
+import { 
+  Bot, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Share2, 
+  ExternalLink,
+  Settings,
+  BarChart3,
+  CheckCircle,
+  XCircle,
+  Lock,
+  AlertCircle
+} from 'lucide-react';
 
 export const BotManagementPage: React.FC = () => {
   const [bots, setBots] = useState<StandardBotConfig[]>([]);
@@ -21,8 +31,9 @@ export const BotManagementPage: React.FC = () => {
   const [editingBot, setEditingBot] = useState<string | null>(null);
   const [selectedBot, setSelectedBot] = useState<StandardBotConfig | null>(null);
   const [botCount, setBotCount] = useState(0);
+  const [maxBots, setMaxBots] = useState(10); // Fixed to 10 for free plan
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, session } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -46,6 +57,7 @@ export const BotManagementPage: React.FC = () => {
 
       if (!ownerData) {
         setBotCount(0);
+        setMaxBots(10); // Always set to 10 for free plan
         return;
       }
 
@@ -59,6 +71,7 @@ export const BotManagementPage: React.FC = () => {
 
       setBots(data || []);
       setBotCount((data || []).length);
+      setMaxBots(10); // Always set to 10 for free plan
     } catch (error) {
       console.error('Erreur lors du chargement des bots:', error);
       toast({
@@ -79,11 +92,15 @@ export const BotManagementPage: React.FC = () => {
 
   const handleCreateBot = () => {
     if (!isAuthenticated) {
-      window.location.href = '/auth';
+      toast({
+        title: "Authentification requise",
+        description: "Vous devez être connecté pour créer un bot",
+        variant: "destructive",
+      });
       return;
     }
 
-    if (botCount >= 10) {
+    if (botCount >= 10) { // Fixed limit check to 10
       toast({
         title: "Limite atteinte",
         description: "Vous avez atteint la limite de 10 bots pour votre plan gratuit",
@@ -122,6 +139,11 @@ export const BotManagementPage: React.FC = () => {
     }
   };
 
+  const getBotValidationStatus = (bot: StandardBotConfig) => {
+    const validation = BotConfigService.validateBotConfig(bot);
+    return validation;
+  };
+
   const getBotShareUrl = (bot: StandardBotConfig) => {
     return `${window.location.origin}/bot/${bot.id}`;
   };
@@ -142,6 +164,54 @@ export const BotManagementPage: React.FC = () => {
       });
     }
   };
+
+  // Si l'utilisateur n'est pas authentifié
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-2xl mx-auto border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-amber-800">
+              <Lock className="w-5 h-5" />
+              <span>Authentification requise</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-amber-800 font-medium">
+                  Vous devez être connecté pour gérer vos bots
+                </p>
+                <p className="text-amber-700 text-sm mt-1">
+                  Connectez-vous pour accéder à votre tableau de bord et créer jusqu'à 10 bots gratuitement.
+                </p>
+              </div>
+            </div>
+            <div className="pt-4">
+              <Button 
+                onClick={() => window.location.href = '/auth'}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                Se connecter / S'inscrire
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-32 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (showCreateForm) {
     return (
@@ -226,18 +296,7 @@ export const BotManagementPage: React.FC = () => {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-32 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    );
-  }
-
-  const isLimitReached = botCount >= 10;
+  const isLimitReached = botCount >= 10; // Fixed limit check to 10
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -258,52 +317,167 @@ export const BotManagementPage: React.FC = () => {
         </Button>
       </div>
 
-      <BotLimitDisplay 
-        botCount={botCount} 
-        maxBots={10}
-        isAuthenticated={isAuthenticated} 
-      />
-
-      <AuthGuard isAuthenticated={isAuthenticated}>
-        {bots.length === 0 ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Aucun bot créé
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Créez votre premier bot pour commencer à utiliser la plateforme
+      {/* Affichage des limites */}
+      <Card className="mb-6 border-blue-200 bg-blue-50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-800 font-medium">
+                Plan Gratuit - Utilisation des bots
               </p>
-              <Button 
-                onClick={handleCreateBot}
-                disabled={isLimitReached}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Créer mon premier bot
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {bots.map((bot) => {
-              const validation = BotConfigService.validateBotConfig(bot);
-              
-              return (
-                <BotCard
-                  key={bot.id}
-                  bot={bot}
-                  isValid={validation.isValid}
-                  onEdit={setEditingBot}
-                  onDelete={handleDeleteBot}
-                  onManage={setSelectedBot}
-                  onCopyLink={copyShareUrl}
+              <p className="text-blue-700 text-sm">
+                {botCount} / 10 bots créés
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="w-32 h-2 bg-blue-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${Math.min((botCount / 10) * 100, 100)}%` }}
                 />
-              );
-            })}
+              </div>
+            </div>
           </div>
-        )}
-      </AuthGuard>
+        </CardContent>
+      </Card>
+
+      {/* Message de limite atteinte */}
+      {isLimitReached && (
+        <Card className="mb-6 border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+              <div>
+                <p className="text-red-800 font-medium">
+                  Limite de création atteinte
+                </p>
+                <p className="text-red-700 text-sm mt-1">
+                  Vous avez atteint la limite de 10 bots pour votre plan gratuit. 
+                  Supprimez un bot existant ou passez à un plan supérieur pour créer de nouveaux bots.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {bots.length === 0 ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Aucun bot créé
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Créez votre premier bot pour commencer à utiliser la plateforme
+            </p>
+            <Button 
+              onClick={handleCreateBot}
+              disabled={isLimitReached}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Créer mon premier bot
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {bots.map((bot) => {
+            const validation = getBotValidationStatus(bot);
+            
+            return (
+              <Card key={bot.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg mb-2">{bot.name}</CardTitle>
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {bot.description}
+                      </p>
+                    </div>
+                    <div className="flex space-x-1 ml-2">
+                      {validation.isValid ? (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                      )}
+                      {bot.is_active ? (
+                        <div className="w-3 h-3 bg-green-400 rounded-full" />
+                      ) : (
+                        <div className="w-3 h-3 bg-gray-400 rounded-full" />
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Badge variant="outline">
+                      {bot.chat_context}
+                    </Badge>
+                    {bot.share_enabled && (
+                      <Badge variant="outline" className="text-green-600">
+                        Public
+                      </Badge>
+                    )}
+                    {!validation.isValid && (
+                      <Badge variant="outline" className="text-red-600">
+                        Configuration invalide
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+
+                <CardContent>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => setEditingBot(bot.id)}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Modifier
+                    </Button>
+                    
+                    <div className="flex space-x-2">
+                      {bot.share_enabled && validation.isValid && (
+                        <Button
+                          onClick={() => copyShareUrl(bot)}
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Copier lien
+                        </Button>
+                      )}
+                      
+                      <Button
+                        onClick={() => setSelectedBot(bot)}
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                      >
+                        <Share2 className="w-4 h-4 mr-1" />
+                        Gérer
+                      </Button>
+                    </div>
+                    
+                    <Button
+                      onClick={() => handleDeleteBot(bot.id)}
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Supprimer
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
