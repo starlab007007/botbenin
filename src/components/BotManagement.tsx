@@ -1,9 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BotAutomationCreator } from '@/components/automation/BotAutomationCreator';
@@ -11,42 +9,17 @@ import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 import { OwnerDashboard } from '@/components/OwnerDashboard';
 import { ShortenedLinksManager } from '@/components/ShortenedLinksManager';
 import { ConversationManager } from '@/components/ConversationManager';
-import { initializeVisitorTracking } from '@/utils/visitorTracking';
-import { copyToClipboard } from '@/lib/utils';
-import { FaWhatsapp } from 'react-icons/fa';
-import QRCode from 'qrcode';
-import { 
-  Bot, 
-  Plus, 
-  Settings, 
-  Trash2, 
-  Eye, 
-  Edit3,
-  Power,
-  PowerOff,
-  BarChart3,
-  Users,
-  MessageSquare,
-  Share2,
-  Copy,
-  ExternalLink,
-  Play,
-  MessageCircle,
-  Home,
-  Link,
-  Mail,
-  Activity,
-  Phone,
-  QrCode,
-  Download,
-  Lock,
-  AlertCircle
-} from 'lucide-react';
+import { Plus, Home, Mail } from 'lucide-react';
 import { BotManagerNav } from "./BotManagerNav";
 import { QRCodeModal } from "./QRCodeModal";
-import { BotCard } from "./BotCard";
-import { cleanPublicUrl } from "./botManagementUtils";
 import { useAuth } from '@/contexts/AuthContext';
+
+// Import new components
+import { AuthGuard } from './bot-management/AuthGuard';
+import { BotLimitDisplay } from './bot-management/BotLimitDisplay';
+import { BotList } from './bot-management/BotList';
+import { useBotStats } from './bot-management/BotStats';
+import { useBotActions } from './bot-management/BotActions';
 
 interface Bot {
   id: string;
@@ -64,37 +37,32 @@ interface Bot {
   display_in_live_chat: boolean;
 }
 
-interface BotStats {
-  totalMessages: number;
-  totalUsers: number;
-  activeToday: number;
-}
-
 type ViewType = 'dashboard' | 'list' | 'create' | 'analytics' | 'share' | 'conversations';
 
 export const BotManagement: React.FC = () => {
   const [bots, setBots] = useState<Bot[]>([]);
-  const [botStats, setBotStats] = useState<Record<string, BotStats>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedBotForAnalytics, setSelectedBotForAnalytics] = useState<{ id: string; name: string } | null>(null);
-  const [editingBot, setEditingBot] = useState<Bot | null>(null);
   const [selectedBotForSharing, setSelectedBotForSharing] = useState<{ id: string; name: string } | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [showQrCode, setShowQrCode] = useState<string | null>(null);
   const [botCount, setBotCount] = useState(0);
   const [maxBots, setMaxBots] = useState(10);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    webhook_url: '',
-    api_key: '',
-    chat_title: 'Assistant IA',
-    chat_context: 'general',
-    share_enabled: true
-  });
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
+
+  // Use our new hooks
+  const { botStats, fetchBotsStatsFromView } = useBotStats();
+  const {
+    testBot,
+    shareOnWhatsApp,
+    handleCopyToClipboard,
+    generateQRCode,
+    toggleBotStatus,
+    deleteBot,
+    toggleLiveChatDisplay
+  } = useBotActions();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -194,38 +162,6 @@ export const BotManagement: React.FC = () => {
     }
   };
 
-  const fetchBotsStatsFromView = async (botIds: string[]) => {
-    try {
-      console.log('Récupération des statistiques pour les bots:', botIds);
-      
-      const { data: statsData, error } = await supabase
-        .from('detailed_bot_stats')
-        .select('bot_id, total_unique_users, total_messages, active_users_24h')
-        .in('bot_id', botIds);
-
-      if (error) {
-        console.error('Erreur lors du chargement des statistiques:', error);
-        return;
-      }
-
-      console.log('Statistiques récupérées:', statsData);
-
-      const stats: Record<string, BotStats> = {};
-      statsData?.forEach(stat => {
-        stats[stat.bot_id] = {
-          totalMessages: stat.total_messages || 0,
-          totalUsers: stat.total_unique_users || 0,
-          activeToday: stat.active_users_24h || 0
-        };
-      });
-
-      console.log('Statistiques formatées:', stats);
-      setBotStats(stats);
-    } catch (error) {
-      console.error('Erreur lors du chargement des statistiques:', error);
-    }
-  };
-
   const handleBotCreated = (botId: string) => {
     console.log('Bot créé avec tracking avancé:', botId);
     setCurrentView('list');
@@ -258,80 +194,11 @@ export const BotManagement: React.FC = () => {
     setCurrentView('create');
   };
 
-  const testBot = async (bot: Bot) => {
-    try {
-      console.log('=== OUVERTURE CHAT BOT SPÉCIFIQUE ===');
-      console.log('Bot sélectionné:', {
-        id: bot.id,
-        name: bot.name,
-        webhook_url: bot.webhook_url,
-        chat_title: bot.chat_title,
-        chat_context: bot.chat_context,
-        is_active: bot.is_active
-      });
-
-      if (!bot.is_active) {
-        toast({
-          title: "Bot inactif",
-          description: `Le bot "${bot.name}" est actuellement désactivé. Activez-le pour pouvoir le tester.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!bot.webhook_url || bot.webhook_url.trim() === '') {
-        toast({
-          title: "Configuration manquante",
-          description: `Le bot "${bot.name}" n'a pas de webhook URL configuré.`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      await initializeVisitorTracking(bot.id, 'bot_test');
-      
-      const chatParams = new URLSearchParams({
-        bot: bot.id,
-        webhook: encodeURIComponent(bot.webhook_url),
-        context: bot.chat_context || 'automation',
-        title: bot.chat_title || bot.name,
-        test: 'true',
-        bot_name: bot.name
-      });
-
-      const chatUrl = `/chat?${chatParams.toString()}`;
-      
-      console.log('URL de chat générée:', chatUrl);
-      console.log('Paramètres transmis:', {
-        botId: bot.id,
-        webhookUrl: bot.webhook_url,
-        chatTitle: bot.chat_title,
-        chatContext: bot.chat_context,
-        botName: bot.name
-      });
-
-      const chatWindow = window.open(chatUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
-      
-      if (!chatWindow) {
-        toast({
-          title: "Popup bloqué",
-          description: "Veuillez autoriser les popups pour ouvrir le chat en nouvelle fenêtre.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: `Chat ouvert - ${bot.name}`,
-          description: "Le chat du bot s'ouvre dans une nouvelle fenêtre",
-        });
-      }
-      
-    } catch (error) {
-      console.error('Erreur lors de l\'ouverture du chat:', error);
-      toast({
-        title: "Erreur",
-        description: `Impossible d'ouvrir le chat pour "${bot.name}"`,
-        variant: "destructive",
-      });
+  const handleQRClick = async (url: string, botName: string) => {
+    const result = await generateQRCode(url, botName);
+    if (result) {
+      setQrCodeUrl(result.qrCodeDataUrl);
+      setShowQrCode(result.cleanUrl);
     }
   };
 
@@ -339,10 +206,8 @@ export const BotManagement: React.FC = () => {
     if (!qrCodeUrl) return;
     
     try {
-      // Message personnalisé pour le partage du QR Code
       const customMessage = `🔗 Scannez ce QR Code pour accéder directement à ${botName} - votre assistant IA intelligent disponible 24/7 !`;
       
-      // Convertir le data URL en blob
       const response = await fetch(qrCodeUrl);
       const blob = await response.blob();
       const file = new File([blob], `qr-code-${botName}.png`, { type: 'image/png' });
@@ -359,7 +224,6 @@ export const BotManagement: React.FC = () => {
           description: `QR Code de ${botName} partagé avec succès`,
         });
       } else {
-        // Fallback: partager via WhatsApp avec le message personnalisé
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(customMessage)}`;
         window.open(whatsappUrl, '_blank');
         
@@ -373,81 +237,6 @@ export const BotManagement: React.FC = () => {
       toast({
         title: "Erreur de partage",
         description: "Impossible de partager le QR Code",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const shareOnWhatsApp = (bot: Bot) => {
-    // S'assurer qu'on a un lien public valide
-    let shareUrl = bot.public_chat_url;
-    
-    // Si pas de lien public, créer un lien vers le bot public
-    if (!shareUrl) {
-      shareUrl = `https://bot.bj/bot/${bot.id}`;
-    }
-    
-    // Nettoyer le lien pour enlever "ia." si présent
-    shareUrl = shareUrl.replace(/https:\/\/ia\.bot\.bj/g, 'https://bot.bj');
-    
-    console.log('=== PARTAGE WHATSAPP ===');
-    console.log('Bot:', bot.name);
-    console.log('Lien public original:', bot.public_chat_url);
-    console.log('Lien nettoyé pour partage:', shareUrl);
-
-    // Message personnalisé pour WhatsApp avec le lien nettoyé
-    const customMessage = `🤖 Découvrez ${bot.name} - votre assistant IA intelligent disponible 24/7 ! 
-
-💬 Cliquez ici pour démarrer la conversation : ${shareUrl}
-
-✨ Assistance instantanée et personnalisée - Aucune inscription requise !`;
-    
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(customMessage)}`;
-    
-    // Ouvrir WhatsApp avec le message pré-rempli
-    window.open(whatsappUrl, '_blank');
-    
-    toast({
-      title: `Partage WhatsApp - ${bot.name}`,
-      description: "WhatsApp s'ouvre avec le lien public nettoyé et un message personnalisé",
-    });
-  };
-
-  const handleCopyToClipboard = async (text: string, description: string) => {
-    const result = await copyToClipboard(text, description);
-    toast({
-      title: result.success ? "Copié !" : "Erreur",
-      description: result.message,
-      variant: result.success ? "default" : "destructive",
-    });
-  };
-
-  const generateQRCode = async (url: string, botName: string) => {
-    try {
-      // Nettoyer l'URL pour le QR Code aussi
-      const cleanUrl = url.replace(/https:\/\/ia\.bot\.bj/g, 'https://bot.bj');
-      
-      const qrCodeDataUrl = await QRCode.toDataURL(cleanUrl, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
-        }
-      });
-      
-      setQrCodeUrl(qrCodeDataUrl);
-      setShowQrCode(cleanUrl);
-      
-      toast({
-        title: "QR Code généré",
-        description: `QR Code créé pour ${botName} avec lien nettoyé`,
-      });
-    } catch (error) {
-      console.error('Erreur lors de la génération du QR Code:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de générer le QR Code",
         variant: "destructive",
       });
     }
@@ -467,85 +256,6 @@ export const BotManagement: React.FC = () => {
       title: "QR Code téléchargé",
       description: `QR Code de ${botName} téléchargé avec succès`,
     });
-  };
-
-  const toggleBotStatus = async (bot: Bot) => {
-    try {
-      const { error } = await supabase
-        .from('bots')
-        .update({ is_active: !bot.is_active })
-        .eq('id', bot.id);
-
-      if (error) throw error;
-
-      toast({
-        title: bot.is_active ? "Bot désactivé" : "Bot activé",
-        description: `Le chatbot ${bot.name} est maintenant ${bot.is_active ? 'inactif' : 'actif'}`,
-      });
-
-      fetchBots();
-    } catch (error) {
-      console.error('Erreur lors du changement de statut:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de changer le statut du bot",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const deleteBot = async (botId: string) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce chatbot ?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('bots')
-        .delete()
-        .eq('id', botId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Chatbot supprimé",
-        description: "Le chatbot a été supprimé définitivement",
-      });
-
-      fetchBots();
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer le chatbot",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const toggleLiveChatDisplay = async (bot: Bot) => {
-    try {
-      const newDisplayValue = !bot.display_in_live_chat;
-      
-      const { error } = await supabase
-        .from('bots')
-        .update({ display_in_live_chat: newDisplayValue })
-        .eq('id', bot.id);
-
-      if (error) throw error;
-
-      toast({
-        title: newDisplayValue ? "Bot ajouté au chat live" : "Bot retiré du chat live",
-        description: `${bot.name} ${newDisplayValue ? 'apparaîtra' : 'n\'apparaîtra plus'} dans la page Chat IA`,
-      });
-
-      fetchBots();
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du statut live chat:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de modifier l'affichage du bot dans le chat live",
-        variant: "destructive",
-      });
-    }
   };
 
   const viewAnalytics = (botId: string, botName: string) => {
@@ -662,31 +372,11 @@ export const BotManagement: React.FC = () => {
           </Button>
         </div>
 
-        {/* Affichage des limites pour les utilisateurs authentifiés */}
-        {isAuthenticated && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-800 font-medium">
-                    Plan Gratuit - Utilisation des chatbots
-                  </p>
-                  <p className="text-blue-700 text-sm">
-                    {botCount} / {maxBots} chatbots créés
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="w-32 h-2 bg-blue-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-600 transition-all duration-300"
-                      style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <BotLimitDisplay 
+          botCount={botCount} 
+          maxBots={maxBots} 
+          isAuthenticated={isAuthenticated} 
+        />
 
         <OwnerDashboard onViewBotAnalytics={viewAnalytics} />
       </div>
@@ -718,51 +408,11 @@ export const BotManagement: React.FC = () => {
         </Button>
       </div>
 
-      {/* Affichage des limites pour les utilisateurs authentifiés */}
-      {isAuthenticated && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-800 font-medium">
-                  Plan Gratuit - Utilisation des chatbots
-                </p>
-                <p className="text-blue-700 text-sm">
-                  {botCount} / {maxBots} chatbots créés
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="w-32 h-2 bg-blue-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-600 transition-all duration-300"
-                    style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Message de limite atteinte */}
-      {isAuthenticated && isLimitReached && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-              <div>
-                <p className="text-red-800 font-medium">
-                  Limite de création atteinte
-                </p>
-                <p className="text-red-700 text-sm mt-1">
-                  Vous avez atteint la limite de {maxBots} chatbots pour votre plan gratuit. 
-                  Supprimez un chatbot existant ou passez à un plan supérieur pour créer de nouveaux bots.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <BotLimitDisplay 
+        botCount={botCount} 
+        maxBots={maxBots} 
+        isAuthenticated={isAuthenticated} 
+      />
 
       {/* QR Code Modal */}
       {showQrCode && qrCodeUrl && (
@@ -780,62 +430,23 @@ export const BotManagement: React.FC = () => {
         <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec tracking avancé</p>
       </div>
 
-      {!isAuthenticated ? (
-        <Card className="p-8 text-center border-amber-200 bg-amber-50">
-          <Lock className="w-16 h-16 text-amber-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-amber-900 mb-2">
-            Authentification requise
-          </h3>
-          <p className="text-amber-800 mb-4">
-            Connectez-vous pour accéder à vos chatbots et en créer jusqu'à 10 gratuitement
-          </p>
-          <Button 
-            onClick={() => window.location.href = '/auth'}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            Se connecter / S'inscrire
-          </Button>
-        </Card>
-      ) : bots.length === 0 ? (
-        <Card className="p-8 text-center">
-          <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Aucun chatbot créé
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Créez votre premier chatbot avec tracking avancé des visiteurs
-          </p>
-          <Button 
-            onClick={handleCreateBot}
-            disabled={isLimitReached}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Créer mon premier chatbot
-          </Button>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {bots.map((bot) => {
-            const stats = botStats[bot.id] || { totalMessages: 0, totalUsers: 0, activeToday: 0 };
-            return (
-              <BotCard
-                key={bot.id}
-                bot={bot}
-                stats={stats}
-                onTest={testBot}
-                onAnalytics={viewAnalytics}
-                onDelete={deleteBot}
-                onToggleStatus={toggleBotStatus}
-                onToggleLiveChat={toggleLiveChatDisplay}
-                onCopy={handleCopyToClipboard}
-                onShareWhatsApp={shareOnWhatsApp}
-                onQRClick={generateQRCode}
-              />
-            );
-          })}
-        </div>
-      )}
+      <AuthGuard isAuthenticated={isAuthenticated}>
+        <BotList
+          bots={bots}
+          botStats={botStats}
+          isAuthenticated={isAuthenticated}
+          isLimitReached={isLimitReached}
+          onCreateBot={handleCreateBot}
+          onTest={testBot}
+          onAnalytics={viewAnalytics}
+          onDelete={(botId) => deleteBot(botId, fetchBots)}
+          onToggleStatus={(bot) => toggleBotStatus(bot, fetchBots)}
+          onToggleLiveChat={(bot) => toggleLiveChatDisplay(bot, fetchBots)}
+          onCopy={handleCopyToClipboard}
+          onShareWhatsApp={shareOnWhatsApp}
+          onQRClick={handleQRClick}
+        />
+      </AuthGuard>
     </div>
   );
 };
