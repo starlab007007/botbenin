@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Send, Paperclip, Smile, Phone, Video, MoreVertical, Star, User, Clock, Bot } from 'lucide-react';
+import { MessageCircle, Send, Paperclip, Smile, Phone, Video, MoreVertical, Clock, Bot, ArrowLeft } from 'lucide-react';
 import { useLiveChatBots } from '@/hooks/useLiveChatBots';
+import { LiveChatBotCarousel } from '@/components/live-chat/LiveChatBotCarousel';
 import { useToast } from '@/hooks/use-toast';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 
@@ -33,40 +34,6 @@ interface Agent {
   chatContext?: string;
 }
 
-// Agents par défaut (fallback)
-const defaultAgents: Agent[] = [
-  {
-    id: '1',
-    name: 'Marie Dubois',
-    role: 'Expert Technique',
-    status: 'online',
-    rating: 4.9,
-    responseTime: '< 2 min',
-    languages: ['Français', 'Anglais'],
-    specialties: ['Automatisations', 'Intégrations API', 'Workflows n8n']
-  },
-  {
-    id: '2',
-    name: 'Jean-Pierre Martin',
-    role: 'Consultant Business',
-    status: 'online',
-    rating: 4.8,
-    responseTime: '< 3 min',
-    languages: ['Français', 'Anglais', 'Espagnol'],
-    specialties: ['Stratégie IA', 'Optimisation processus', 'ROI']
-  },
-  {
-    id: '3',
-    name: 'Sophie Laurent',
-    role: 'Spécialiste Marketing',
-    status: 'busy',
-    rating: 4.9,
-    responseTime: '< 5 min',
-    languages: ['Français', 'Anglais'],
-    specialties: ['Agents IA Marketing', 'Campagnes automatisées', 'Analytics']
-  }
-];
-
 export const LiveChatSystem: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -77,7 +44,7 @@ export const LiveChatSystem: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const { bots: liveChatBots, loading: botsLoading, error: botsError } = useLiveChatBots();
+  const { bots: liveChatBots, loading: botsLoading, error: botsError, refreshBots } = useLiveChatBots();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -92,36 +59,43 @@ export const LiveChatSystem: React.FC = () => {
     }
   }, [isConnected, waitTime]);
 
-  // Convertir les bots en agents
-  const dynamicAgents: Agent[] = liveChatBots.map(bot => ({
-    id: bot.id,
-    name: bot.chat_title || bot.name,
-    role: bot.description || 'Assistant IA',
-    status: 'online' as const,
-    rating: 4.8,
-    responseTime: '< 1 min',
-    languages: ['Français'],
-    specialties: [bot.chat_context || 'Assistance générale'],
-    webhookUrl: bot.webhook_url,
-    chatContext: bot.chat_context
-  }));
-
-  // Utiliser les bots dynamiques ou les agents par défaut
-  const availableAgents = dynamicAgents.length > 0 ? dynamicAgents : defaultAgents;
-
-  const startChat = async (agent: Agent) => {
+  const startChat = async (bot: any) => {
     try {
-      console.log('[LiveChatSystem] Démarrage du chat avec:', agent.name);
+      console.log('[LiveChatSystem] Démarrage du chat avec:', bot.name);
       
-      // Si c'est un bot dynamique, initialiser le tracking
-      if (agent.webhookUrl) {
-        await initializeVisitorTracking(agent.id, 'live_chat_system');
-        console.log('[LiveChatSystem] Tracking initialisé pour le bot:', agent.id);
+      // Vérifier que le bot a un webhook
+      if (!bot.webhook_url) {
+        toast({
+          title: "Configuration manquante",
+          description: `Le bot "${bot.name}" n'a pas de webhook configuré.`,
+          variant: "destructive",
+        });
+        return;
       }
+
+      // Initialiser le tracking
+      if (bot.webhook_url) {
+        await initializeVisitorTracking(bot.id, 'live_chat_system');
+        console.log('[LiveChatSystem] Tracking initialisé pour le bot:', bot.id);
+      }
+
+      // Convertir le bot en agent pour la compatibilité
+      const agent: Agent = {
+        id: bot.id,
+        name: bot.chat_title || bot.name,
+        role: bot.description || 'Assistant IA',
+        status: 'online',
+        rating: 4.8,
+        responseTime: '< 1 min',
+        languages: ['Français'],
+        specialties: [bot.chat_context || 'Assistance générale'],
+        webhookUrl: bot.webhook_url,
+        chatContext: bot.chat_context
+      };
 
       setSelectedAgent(agent);
       setIsConnected(true);
-      setWaitTime(Math.floor(Math.random() * 60) + 15); // 15-75 secondes
+      setWaitTime(Math.floor(Math.random() * 20) + 5); // 5-25 secondes
       
       // Message système de connexion
       const welcomeMessage: Message = {
@@ -141,7 +115,7 @@ export const LiveChatSystem: React.FC = () => {
 
       toast({
         title: `Chat démarré avec ${agent.name}`,
-        description: agent.webhookUrl ? "Bot IA connecté" : "Agent expert connecté",
+        description: "Assistant IA connecté et prêt à vous aider",
       });
       
     } catch (error) {
@@ -171,7 +145,6 @@ export const LiveChatSystem: React.FC = () => {
     setIsTyping(true);
 
     try {
-      // Si c'est un bot avec webhook, envoyer à l'API
       if (selectedAgent.webhookUrl) {
         console.log('[LiveChatSystem] Envoi vers webhook:', selectedAgent.webhookUrl);
         
@@ -212,28 +185,10 @@ export const LiveChatSystem: React.FC = () => {
               } : undefined
             };
             setMessages(prev => [...prev, agentResponse]);
-          }, 1000);
+          }, 800 + Math.random() * 1200); // Délai réaliste
         } else {
           throw new Error('Erreur de réponse du webhook');
         }
-      } else {
-        // Simulation pour les agents par défaut
-        setTimeout(() => {
-          setIsTyping(false);
-          const agentResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            sender: 'agent',
-            content: generateAgentResponse(messageContent),
-            timestamp: new Date(),
-            type: 'text',
-            agentInfo: selectedAgent ? {
-              name: selectedAgent.name,
-              role: selectedAgent.role,
-              rating: selectedAgent.rating
-            } : undefined
-          };
-          setMessages(prev => [...prev, agentResponse]);
-        }, 2000 + Math.random() * 3000);
       }
     } catch (error) {
       console.error('[LiveChatSystem] Erreur lors de l\'envoi:', error);
@@ -255,141 +210,99 @@ export const LiveChatSystem: React.FC = () => {
     }
   };
 
-  const generateAgentResponse = (userMessage: string): string => {
-    const responses = [
-      "Je comprends votre question. Laissez-moi vous expliquer en détail...",
-      "C'est une excellente question ! Voici comment procéder...",
-      "Je vais vous guider étape par étape pour résoudre ce problème...",
-      "Merci pour ces précisions. Je recommande cette approche...",
-      "Parfait ! Je vais créer un guide personnalisé pour votre cas..."
-    ];
-    return responses[Math.floor(Math.random() * responses.length)];
-  };
-
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  if (botsLoading) {
-    return (
-      <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement des assistants...</p>
-        </div>
-      </div>
-    );
-  }
+  const goBackToSelection = () => {
+    setIsConnected(false);
+    setSelectedAgent(null);
+    setMessages([]);
+    setNewMessage('');
+    setIsTyping(false);
+    setWaitTime(0);
+  };
 
+  // Interface de sélection des bots
   if (!isConnected) {
     return (
-      <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
         <div className="text-center mb-8">
           <MessageCircle className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat en Direct 24/7</h1>
-          <p className="text-gray-600">Connectez-vous instantanément avec nos experts</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat IA en Direct 24/7</h1>
+          <p className="text-gray-600 mb-2">Choisissez votre assistant IA et commencez la conversation instantanément</p>
           {botsError && (
-            <p className="text-red-600 text-sm mt-2">Utilisation des agents par défaut</p>
+            <p className="text-orange-600 text-sm">
+              {botsError}
+            </p>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {availableAgents.map((agent) => (
-            <Card key={agent.id} className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    {agent.webhookUrl ? <Bot className="w-6 h-6 text-white" /> : <User className="w-6 h-6 text-white" />}
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg text-gray-900">{agent.name}</CardTitle>
-                    <p className="text-sm text-gray-600">{agent.role}</p>
-                  </div>
-                  <div className={`w-3 h-3 rounded-full ${
-                    agent.status === 'online' ? 'bg-green-500' : 
-                    agent.status === 'busy' ? 'bg-yellow-500' : 'bg-gray-400'
-                  }`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Note</span>
-                    <div className="flex items-center space-x-1">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="text-sm font-medium text-gray-900">{agent.rating}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Temps de réponse</span>
-                    <span className="text-sm font-medium text-gray-900">{agent.responseTime}</span>
-                  </div>
-
-                  <div>
-                    <span className="text-sm text-gray-600 block mb-1">Spécialités</span>
-                    <div className="flex flex-wrap gap-1">
-                      {agent.specialties.map((specialty, index) => (
-                        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                          {specialty}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Button 
-                    onClick={() => startChat(agent)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={agent.status === 'offline'}
-                  >
-                    {agent.status === 'online' ? 'Démarrer le chat' : 
-                     agent.status === 'busy' ? 'File d\'attente' : 'Indisponible'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Carrousel des bots */}
+        <div className="mb-8">
+          <LiveChatBotCarousel
+            bots={liveChatBots}
+            onStartChat={startChat}
+            isLoading={botsLoading}
+            onRefresh={refreshBots}
+          />
         </div>
 
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Que peut faire notre support ?</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <h4 className="font-medium text-gray-900">Support Technique</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Configuration des chatbots</li>
-                  <li>• Création d'automatisations</li>
-                  <li>• Intégrations API</li>
-                  <li>• Dépannage technique</li>
-                </ul>
+        {/* Section informative - seulement si des bots sont disponibles */}
+        {liveChatBots.length > 0 && (
+          <Card className="bg-white border border-gray-200">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Que peuvent faire nos assistants IA ?</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Support Technique</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Configuration des systèmes</li>
+                    <li>• Résolution de problèmes</li>
+                    <li>• Guides techniques</li>
+                    <li>• Dépannage en temps réel</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Conseil Business</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Stratégie d'entreprise</li>
+                    <li>• Optimisation des processus</li>
+                    <li>• Analyse de performance</li>
+                    <li>• Recommandations personnalisées</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Assistance Marketing</h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Campagnes publicitaires</li>
+                    <li>• Création de contenu</li>
+                    <li>• Analyse d'audience</li>
+                    <li>• Stratégies de croissance</li>
+                  </ul>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h4 className="font-medium text-gray-900">Conseil Stratégique</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Optimisation des processus</li>
-                  <li>• Stratégie d'implémentation IA</li>
-                  <li>• Formation équipes</li>
-                  <li>• Analyse ROI</li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
 
+  // Interface de chat
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Chat Interface */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
+              <Button variant="outline" size="sm" onClick={goBackToSelection}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour
+              </Button>
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                {selectedAgent?.webhookUrl ? <Bot className="w-5 h-5 text-white" /> : <User className="w-5 h-5 text-white" />}
+                <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900">{selectedAgent?.name}</h3>
@@ -409,9 +322,9 @@ export const LiveChatSystem: React.FC = () => {
             </div>
           </div>
           {waitTime > 0 && (
-            <div className="mt-2 flex items-center text-sm text-orange-600">
+            <div className="mt-2 flex items-center text-sm text-blue-600">
               <Clock className="w-4 h-4 mr-1" />
-              Temps d'attente estimé: {Math.floor(waitTime / 60)}:{(waitTime % 60).toString().padStart(2, '0')}
+              Connexion en cours... {Math.floor(waitTime / 60)}:{(waitTime % 60).toString().padStart(2, '0')}
             </div>
           )}
         </div>
@@ -433,7 +346,7 @@ export const LiveChatSystem: React.FC = () => {
                     {message.agentInfo.name}
                   </div>
                 )}
-                <p>{message.content}</p>
+                <p className="whitespace-pre-wrap">{message.content}</p>
                 <div className={`text-xs mt-1 ${
                   message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
                 }`}>
@@ -473,8 +386,13 @@ export const LiveChatSystem: React.FC = () => {
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               placeholder="Tapez votre message..."
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+              disabled={isTyping}
             />
-            <Button onClick={sendMessage} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button 
+              onClick={sendMessage} 
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={isTyping || !newMessage.trim()}
+            >
               <Send className="w-4 h-4" />
             </Button>
           </div>

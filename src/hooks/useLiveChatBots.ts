@@ -26,7 +26,7 @@ export const useLiveChatBots = () => {
 
       console.log('[useLiveChatBots] Récupération des bots pour le chat live...');
 
-      // Récupérer les bots configurés pour le chat live
+      // Récupérer tous les bots configurés pour le chat live avec les informations du propriétaire
       const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select(`
@@ -38,6 +38,7 @@ export const useLiveChatBots = () => {
           chat_context,
           is_active,
           public_chat_url,
+          display_in_live_chat,
           bot_owners!inner(
             user_id,
             users(full_name)
@@ -51,27 +52,67 @@ export const useLiveChatBots = () => {
         throw botsError;
       }
 
-      console.log('[useLiveChatBots] Bots récupérés:', botsData?.length || 0);
+      console.log('[useLiveChatBots] Données brutes récupérées:', botsData?.length || 0);
 
-      const formattedBots: LiveChatBot[] = (botsData || []).map((botData: any) => ({
+      // Filtrer et formater les bots valides
+      const validBots = (botsData || []).filter(botData => {
+        const hasValidWebhook = botData.webhook_url && botData.webhook_url.trim() !== '';
+        const isConfiguredForLiveChat = botData.display_in_live_chat === true;
+        const isActive = botData.is_active === true;
+        
+        if (!hasValidWebhook) {
+          console.warn(`[useLiveChatBots] Bot ${botData.name} ignoré : pas de webhook URL`);
+        }
+        if (!isConfiguredForLiveChat) {
+          console.warn(`[useLiveChatBots] Bot ${botData.name} ignoré : pas configuré pour live chat`);
+        }
+        if (!isActive) {
+          console.warn(`[useLiveChatBots] Bot ${botData.name} ignoré : inactif`);
+        }
+        
+        return hasValidWebhook && isConfiguredForLiveChat && isActive;
+      });
+
+      const formattedBots: LiveChatBot[] = validBots.map((botData: any) => ({
         id: botData.id,
         name: botData.name,
-        description: botData.description,
+        description: botData.description || 'Assistant IA intelligent',
         webhook_url: botData.webhook_url,
-        chat_title: botData.chat_title,
-        chat_context: botData.chat_context,
+        chat_title: botData.chat_title || botData.name,
+        chat_context: botData.chat_context || 'assistance',
         is_active: botData.is_active,
         public_chat_url: botData.public_chat_url,
         owner_name: botData.bot_owners?.users?.full_name || 'Propriétaire'
       }));
 
+      console.log('[useLiveChatBots] Bots valides formatés:', formattedBots.length);
+      console.log('[useLiveChatBots] Liste des bots:', formattedBots.map(b => ({ 
+        name: b.name, 
+        id: b.id, 
+        hasWebhook: !!b.webhook_url,
+        owner: b.owner_name 
+      })));
+
       setBots(formattedBots);
+      
+      if (formattedBots.length === 0) {
+        console.warn('[useLiveChatBots] Aucun bot valide trouvé pour le chat live');
+        setError('Aucun chatbot configuré pour le chat en direct');
+      }
+
     } catch (err) {
       console.error('[useLiveChatBots] Erreur:', err);
       setError('Impossible de charger les bots du chat live');
+      setBots([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Fonction pour actualiser la liste des bots
+  const refreshBots = () => {
+    console.log('[useLiveChatBots] Actualisation des bots...');
+    fetchLiveChatBots();
   };
 
   useEffect(() => {
@@ -82,6 +123,6 @@ export const useLiveChatBots = () => {
     bots,
     loading,
     error,
-    refreshBots: fetchLiveChatBots
+    refreshBots
   };
 };
