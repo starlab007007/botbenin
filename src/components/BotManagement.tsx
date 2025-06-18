@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -38,13 +38,15 @@ import {
   Activity,
   Phone,
   QrCode,
-  Download
+  Download,
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 import { BotManagerNav } from "./BotManagerNav";
 import { QRCodeModal } from "./QRCodeModal";
 import { BotCard } from "./BotCard";
 import { cleanPublicUrl } from "./botManagementUtils";
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Bot {
   id: string;
