@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -175,11 +174,8 @@ export const BotManagement: React.FC = () => {
 
   const handleCreateBot = () => {
     if (!isAuthenticated) {
-      toast({
-        title: "Authentification requise",
-        description: "Vous devez être connecté pour créer un chatbot",
-        variant: "destructive",
-      });
+      // Rediriger vers la page de connexion
+      window.location.href = '/auth';
       return;
     }
 

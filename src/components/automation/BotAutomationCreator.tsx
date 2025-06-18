@@ -95,11 +95,8 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   const createBotFromWebhook = async () => {
     // Vérification de l'authentification
     if (!isAuthenticated || !session) {
-      toast({
-        title: "Authentification requise",
-        description: "Vous devez être connecté pour créer un chatbot",
-        variant: "destructive",
-      });
+      // Rediriger vers la page de connexion
+      window.location.href = '/auth';
       return;
     }
 
