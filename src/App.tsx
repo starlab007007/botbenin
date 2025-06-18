@@ -8,27 +8,27 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { Layout } from "@/components/Layout";
 import Index from "./pages/Index";
-import HomePage from "./pages/HomePage";
-import DashboardPage from "./pages/DashboardPage";
-import BotManagementPage from "./pages/BotManagementPage";
-import ChatPage from "./pages/ChatPage";
-import BotTestPage from "./pages/BotTestPage";
-import PublicBotChatPage from "./pages/PublicBotChatPage";
-import ShortLinkRedirectPage from "./pages/ShortLinkRedirectPage";
-import AutomationsPage from "./pages/AutomationsPage";
-import ProspectsPage from "./pages/ProspectsPage";
-import SocialSharingCampaignsPage from "./pages/SocialSharingCampaignsPage";
-import SupportPage from "./pages/SupportPage";
-import AccountPage from "./pages/AccountPage";
-import UsersManagementPage from "./pages/UsersManagementPage";
+import { HomePage } from "./pages/HomePage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { BotManagementPage } from "./pages/BotManagementPage";
+import { ChatPage } from "./pages/ChatPage";
+import { BotTestPage } from "./pages/BotTestPage";
+import { PublicBotChatPage } from "./pages/PublicBotChatPage";
+import { ShortLinkRedirectPage } from "./pages/ShortLinkRedirectPage";
+import { AutomationsPage } from "./pages/AutomationsPage";
+import { ProspectsPage } from "./pages/ProspectsPage";
+import { SocialSharingCampaignsPage } from "./pages/SocialSharingCampaignsPage";
+import { SupportPage } from "./pages/SupportPage";
+import { AccountPage } from "./pages/AccountPage";
+import { UsersManagementPage } from "./pages/UsersManagementPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
 // Module pages
-import CitoyenModule from "./pages/modules/CitoyenModule";
-import BusinessModule from "./pages/modules/BusinessModule";
-import GestionModule from "./pages/modules/GestionModule";
-import MarketingModule from "./pages/modules/MarketingModule";
+import { CitoyenModule } from "./pages/modules/CitoyenModule";
+import { BusinessModule } from "./pages/modules/BusinessModule";
+import { GestionModule } from "./pages/modules/GestionModule";
+import { MarketingModule } from "./pages/modules/MarketingModule";
 
 const queryClient = new QueryClient();
 

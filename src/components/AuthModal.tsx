@@ -1,12 +1,10 @@
 
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
+import { LoginForm } from './auth/LoginForm';
+import { RegisterForm } from './auth/RegisterForm';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -48,7 +46,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     e.preventDefault();
     
     if (registerPassword !== confirmPassword) {
-      // Here we could use a toast or set an error state
       console.error('Les mots de passe ne correspondent pas');
       return;
     }
@@ -88,176 +85,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </TabsList>
           
           <TabsContent value="login">
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="login-email"
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="votre@email.com"
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Mot de passe</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="login-password"
-                    type={showPassword ? "text" : "password"}
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="pl-10 pr-10"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4 text-gray-400" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={isLoading}
-              >
-                {isLoading ? "Connexion..." : "Se connecter"}
-              </Button>
-            </form>
+            <LoginForm
+              email={loginEmail}
+              password={loginPassword}
+              showPassword={showPassword}
+              isLoading={isLoading}
+              onEmailChange={setLoginEmail}
+              onPasswordChange={setLoginPassword}
+              onTogglePassword={() => setShowPassword(!showPassword)}
+              onSubmit={handleLogin}
+            />
           </TabsContent>
           
           <TabsContent value="register">
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="register-name">Nom complet</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="register-name"
-                    type="text"
-                    value={registerName}
-                    onChange={(e) => setRegisterName(e.target.value)}
-                    placeholder="Jean Dupont"
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="register-email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="register-email"
-                    type="email"
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                    placeholder="votre@email.com"
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="register-phone">Téléphone (optionnel)</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="register-phone"
-                    type="tel"
-                    value={registerPhone}
-                    onChange={(e) => setRegisterPhone(e.target.value)}
-                    placeholder="+229 XX XX XX XX"
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="register-password">Mot de passe</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="register-password"
-                    type={showPassword ? "text" : "password"}
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="pl-10 pr-10"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4 text-gray-400" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirmer le mot de passe</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="confirm-password"
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="pl-10 pr-10"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="w-4 h-4 text-gray-400" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
-                </div>
-                {confirmPassword && registerPassword && confirmPassword !== registerPassword && (
-                  <p className="text-sm text-red-600">Les mots de passe ne correspondent pas</p>
-                )}
-              </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={isLoading || (confirmPassword && registerPassword && confirmPassword !== registerPassword)}
-              >
-                {isLoading ? "Inscription..." : "S'inscrire"}
-              </Button>
-            </form>
+            <RegisterForm
+              name={registerName}
+              email={registerEmail}
+              phone={registerPhone}
+              password={registerPassword}
+              confirmPassword={confirmPassword}
+              showPassword={showPassword}
+              showConfirmPassword={showConfirmPassword}
+              isLoading={isLoading}
+              onNameChange={setRegisterName}
+              onEmailChange={setRegisterEmail}
+              onPhoneChange={setRegisterPhone}
+              onPasswordChange={setRegisterPassword}
+              onConfirmPasswordChange={setConfirmPassword}
+              onTogglePassword={() => setShowPassword(!showPassword)}
+              onToggleConfirmPassword={() => setShowConfirmPassword(!showConfirmPassword)}
+              onSubmit={handleRegister}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>
