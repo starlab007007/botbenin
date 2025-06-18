@@ -26,11 +26,6 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 }) => {
   const isMobile = isMobileDevice();
 
-  const handleSendClick = () => {
-    if (!inputValue.trim() || isLoading) return;
-    onSendMessage();
-  };
-
   return (
     <div className={`border-t border-gray-200 bg-white ${isMobile ? 'px-[5%] py-4' : 'px-[5%] md:px-6 py-6'}`}>
       <div className="max-w-full mx-auto">
@@ -62,7 +57,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           </div>
           
           <Button
-            onClick={handleSendClick}
+            onClick={onSendMessage}
             disabled={!inputValue.trim() || isLoading}
             className={`${
               isMobile ? 'h-12 w-12' : 'h-14 w-14'

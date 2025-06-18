@@ -14,9 +14,7 @@ import {
   Car,
   Utensils,
   ShoppingBag,
-  Wrench,
-  Settings,
-  Workflow
+  Wrench
 } from 'lucide-react';
 
 interface Suggestion {
@@ -29,7 +27,7 @@ interface Suggestion {
 }
 
 interface SuggestionCardsProps {
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
   onSuggestionClick: (suggestion: Suggestion) => void;
 }
 
@@ -39,42 +37,6 @@ export const SuggestionCards: React.FC<SuggestionCardsProps> = ({
 }) => {
   const getSuggestionsForContext = (context: string): Suggestion[] => {
     switch (context) {
-      case 'automation':
-        return [
-          {
-            id: 'a1',
-            title: 'Créer un workflow',
-            description: 'Automatisez vos tâches répétitives',
-            icon: Workflow,
-            category: 'Automatisation',
-            action: 'Je veux créer un nouveau workflow d\'automatisation'
-          },
-          {
-            id: 'a2',
-            title: 'Configurer des déclencheurs',
-            description: 'Définissez des conditions pour déclencher des actions',
-            icon: Zap,
-            category: 'Déclencheurs',
-            action: 'Comment configurer des déclencheurs automatiques ?'
-          },
-          {
-            id: 'a3',
-            title: 'Gérer les notifications',
-            description: 'Automatisez l\'envoi de notifications',
-            icon: MessageSquare,
-            category: 'Notifications',
-            action: 'Paramétrer des notifications automatiques'
-          },
-          {
-            id: 'a4',
-            title: 'Optimiser les processus',
-            description: 'Analysez et améliorez vos automatisations',
-            icon: Settings,
-            category: 'Optimisation',
-            action: 'Analyser les performances de mes automatisations'
-          }
-        ];
-        
       case 'restaurant':
         return [
           {

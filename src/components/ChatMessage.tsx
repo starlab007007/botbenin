@@ -15,26 +15,20 @@ interface Message {
 interface ChatMessageProps {
   message: Message;
   onToggleBookmark: (messageId: string) => void;
-  disableTypingAnimation?: boolean;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ 
-  message, 
-  onToggleBookmark, 
-  disableTypingAnimation = false 
-}) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookmark }) => {
   const [displayedContent, setDisplayedContent] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(!message.isUser);
 
   useEffect(() => {
-    if (message.isUser || disableTypingAnimation) {
-      // Affichage immédiat pour les messages utilisateur ou quand l'animation est désactivée
+    if (message.isUser) {
       setDisplayedContent(message.content);
       setIsTyping(false);
       return;
     }
 
-    // Animation de frappe uniquement pour les nouveaux messages du bot
+    // Smooth typing animation
     setDisplayedContent('');
     setIsTyping(true);
     
@@ -52,7 +46,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     }, 20);
 
     return () => clearInterval(typingTimer);
-  }, [message.content, message.isUser, disableTypingAnimation]);
+  }, [message.content, message.isUser]);
 
   return (
     <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4 px-1`}>
