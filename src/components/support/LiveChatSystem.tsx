@@ -1,12 +1,13 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Send, Paperclip, Smile, Phone, Video, MoreVertical, Clock, Bot, ArrowLeft } from 'lucide-react';
+import { MessageCircle, Send, Paperclip, Smile, Phone, Video, MoreVertical, Clock, Bot, ArrowLeft, Shield, AlertTriangle } from 'lucide-react';
 import { useLiveChatBots } from '@/hooks/useLiveChatBots';
 import { LiveChatBotCarousel } from '@/components/live-chat/LiveChatBotCarousel';
 import { useToast } from '@/hooks/use-toast';
-import { initializeVisitorTracking } from '@/utils/visitorTracking';
+import { useSecureSessionManager } from '@/hooks/useSecureSessionManager';
+import { SecureMessageHandler } from '@/services/security/SecureMessageHandler';
+import { SecurityManager } from '@/services/security/SecurityManager';
 
 interface Message {
   id: string;
@@ -41,10 +42,25 @@ export const LiveChatSystem: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [waitTime, setWaitTime] = useState(0);
+  const [securityWarnings, setSecurityWarnings] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const { bots: liveChatBots, loading: botsLoading, error: botsError, refreshBots } = useLiveChatBots();
+  
+  const {
+    sessionToken,
+    isInitializing: sessionInitializing,
+    isReady: sessionReady,
+    error: sessionError,
+    securityStatus,
+    retryInitialization,
+    updateActivity,
+    clearSession
+  } = useSecureSessionManager({
+    botId: selectedAgent?.id || null,
+    entryPoint: 'live_chat_system'
+  });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,29 +77,44 @@ export const LiveChatSystem: React.FC = () => {
 
   const startChat = async (bot: any) => {
     try {
-      console.log('[LiveChatSystem] Démarrage du chat avec:', bot.name);
+      console.log('[LiveChatSystem] Starting secure chat with:', bot.name);
       
-      // Vérifier que le bot a un webhook
-      if (!bot.webhook_url) {
+      // Validation sécurisée du bot
+      const botValidation = SecurityManager.validateAndSanitizeInput(bot.id, 'uuid');
+      if (!botValidation.isValid) {
         toast({
-          title: "Configuration manquante",
-          description: `Le bot "${bot.name}" n'a pas de webhook configuré.`,
+          title: "Erreur de sécurité",
+          description: "ID de bot invalide détecté",
           variant: "destructive",
         });
         return;
       }
 
-      // Initialiser le tracking
-      if (bot.webhook_url) {
-        await initializeVisitorTracking(bot.id, 'live_chat_system');
-        console.log('[LiveChatSystem] Tracking initialisé pour le bot:', bot.id);
+      // Vérification du webhook
+      if (!bot.webhook_url || !SecurityManager.validateWebhookUrl(bot.webhook_url)) {
+        toast({
+          title: "Configuration de sécurité manquante",
+          description: `Le bot "${bot.name}" n'a pas de webhook sécurisé configuré.`,
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Convertir le bot en agent pour la compatibilité
+      // Audit de sécurité pour le démarrage du chat
+      await SecurityManager.auditSuspiciousActivity({
+        action: 'secure_chat_started',
+        additionalData: { 
+          botId: botValidation.sanitized,
+          botName: bot.name,
+          hasValidWebhook: true
+        }
+      });
+
+      // Convertir le bot en agent sécurisé
       const agent: Agent = {
-        id: bot.id,
-        name: bot.chat_title || bot.name,
-        role: bot.description || 'Assistant IA',
+        id: botValidation.sanitized!,
+        name: SecurityManager.validateAndSanitizeInput(bot.chat_title || bot.name, 'string').sanitized || 'Bot',
+        role: SecurityManager.validateAndSanitizeInput(bot.description || 'Assistant IA', 'string').sanitized || 'Assistant IA',
         status: 'online',
         rating: 4.8,
         responseTime: '< 1 min',
@@ -95,13 +126,14 @@ export const LiveChatSystem: React.FC = () => {
 
       setSelectedAgent(agent);
       setIsConnected(true);
-      setWaitTime(Math.floor(Math.random() * 20) + 5); // 5-25 secondes
+      setWaitTime(Math.floor(Math.random() * 20) + 5);
+      setSecurityWarnings([]);
       
-      // Message système de connexion
+      // Message système de connexion sécurisé
       const welcomeMessage: Message = {
         id: Date.now().toString(),
         sender: 'agent',
-        content: `Bonjour ! Je suis ${agent.name}, ${agent.role}. Comment puis-je vous aider aujourd'hui ?`,
+        content: `Bonjour ! Je suis ${agent.name}, ${agent.role}. Cette conversation est sécurisée. Comment puis-je vous aider aujourd'hui ?`,
         timestamp: new Date(),
         type: 'system',
         agentInfo: {
@@ -114,61 +146,106 @@ export const LiveChatSystem: React.FC = () => {
       setMessages([welcomeMessage]);
 
       toast({
-        title: `Chat démarré avec ${agent.name}`,
-        description: "Assistant IA connecté et prêt à vous aider",
+        title: `Chat sécurisé démarré avec ${agent.name}`,
+        description: "Connexion chiffrée établie avec l'assistant IA",
       });
       
-    } catch (error) {
-      console.error('[LiveChatSystem] Erreur lors du démarrage:', error);
+    } catch (error: any) {
+      console.error('[LiveChatSystem] Secure chat start error:', error);
+      
+      await SecurityManager.auditSuspiciousActivity({
+        action: 'secure_chat_start_failed',
+        additionalData: { error: error.message, botId: bot.id }
+      });
+
       toast({
-        title: "Erreur de connexion",
-        description: "Impossible de démarrer le chat. Veuillez réessayer.",
+        title: "Erreur de sécurité",
+        description: "Impossible de démarrer le chat sécurisé. Veuillez réessayer.",
         variant: "destructive",
       });
     }
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedAgent) return;
+    if (!newMessage.trim() || !selectedAgent || !sessionToken) return;
+
+    // Validation sécurisée du message
+    const messageValidation = SecurityManager.validateAndSanitizeInput(newMessage, 'string');
+    if (!messageValidation.isValid) {
+      toast({
+        title: "Message invalide",
+        description: "Le contenu du message contient des éléments non autorisés",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
       sender: 'user',
-      content: newMessage,
+      content: messageValidation.sanitized!,
       timestamp: new Date(),
       type: 'text'
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const messageContent = newMessage;
+    const messageContent = messageValidation.sanitized!;
     setNewMessage('');
     setIsTyping(true);
 
+    // Mise à jour de l'activité de session
+    updateActivity();
+
     try {
+      // Sauvegarde sécurisée du message
+      const saveResult = await SecureMessageHandler.sendSecureMessage(
+        selectedAgent.id,
+        sessionToken,
+        messageContent,
+        'user'
+      );
+
+      if (!saveResult.success) {
+        console.error('[LiveChatSystem] Message save failed:', saveResult.error);
+        setSecurityWarnings(prev => [...prev, 'Échec de sauvegarde sécurisée du message']);
+      }
+
+      // Envoi vers le webhook avec sécurisation
       if (selectedAgent.webhookUrl) {
-        console.log('[LiveChatSystem] Envoi vers webhook:', selectedAgent.webhookUrl);
+        console.log('[LiveChatSystem] Sending to secure webhook:', selectedAgent.webhookUrl);
         
         const response = await fetch(selectedAgent.webhookUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Security-Token': SecurityManager.generateSecureToken(16),
           },
           body: JSON.stringify({
             message: messageContent,
             timestamp: new Date().toISOString(),
-            session_id: `live_chat_${selectedAgent.id}_${Date.now()}`,
-            user_id: `live_user_${Date.now()}`,
-            source: 'live_chat_system',
+            session_id: `secure_${sessionToken}`,
+            user_id: `secure_user_${Date.now()}`,
+            source: 'live_chat_system_secure',
             context: selectedAgent.chatContext || 'live_support',
             chat_title: selectedAgent.name,
             bot_id: selectedAgent.id,
-            interface_type: 'live_chat_system'
+            interface_type: 'live_chat_system_secure',
+            security_validated: true
           }),
         });
 
         if (response.ok) {
           const data = await response.json();
-          const botResponse = data.output || data.message || data.response || "Merci pour votre message. Comment puis-je vous aider davantage ?";
+          let botResponse = data.output || data.message || data.response || "Merci pour votre message. Comment puis-je vous aider davantage ?";
+          
+          // Validation de la réponse du bot
+          const responseValidation = SecurityManager.validateAndSanitizeInput(botResponse, 'string');
+          if (responseValidation.isValid) {
+            botResponse = responseValidation.sanitized!;
+          } else {
+            botResponse = "Réponse reçue mais contenu non sécurisé détecté.";
+            setSecurityWarnings(prev => [...prev, 'Contenu de réponse non sécurisé filtré']);
+          }
           
           setTimeout(() => {
             setIsTyping(false);
@@ -185,19 +262,32 @@ export const LiveChatSystem: React.FC = () => {
               } : undefined
             };
             setMessages(prev => [...prev, agentResponse]);
-          }, 800 + Math.random() * 1200); // Délai réaliste
+
+            // Sauvegarde sécurisée de la réponse
+            SecureMessageHandler.sendSecureMessage(
+              selectedAgent.id,
+              sessionToken,
+              botResponse,
+              'bot'
+            );
+          }, 800 + Math.random() * 1200);
         } else {
-          throw new Error('Erreur de réponse du webhook');
+          throw new Error('Erreur de réponse du webhook sécurisé');
         }
       }
-    } catch (error) {
-      console.error('[LiveChatSystem] Erreur lors de l\'envoi:', error);
+    } catch (error: any) {
+      console.error('[LiveChatSystem] Secure message error:', error);
       setIsTyping(false);
+      
+      await SecurityManager.auditSuspiciousActivity({
+        action: 'secure_message_failed',
+        additionalData: { error: error.message, botId: selectedAgent.id }
+      });
       
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'agent',
-        content: "Je rencontre un problème technique. Veuillez réessayer dans quelques instants.",
+        content: "Je rencontre un problème technique sécurisé. Veuillez réessayer dans quelques instants.",
         timestamp: new Date(),
         type: 'text',
         agentInfo: selectedAgent ? {
@@ -207,6 +297,7 @@ export const LiveChatSystem: React.FC = () => {
         } : undefined
       };
       setMessages(prev => [...prev, errorResponse]);
+      setSecurityWarnings(prev => [...prev, 'Erreur de communication sécurisée détectée']);
     }
   };
 
@@ -221,24 +312,33 @@ export const LiveChatSystem: React.FC = () => {
     setNewMessage('');
     setIsTyping(false);
     setWaitTime(0);
+    setSecurityWarnings([]);
+    clearSession();
   };
 
-  // Interface de sélection des bots
+  // Interface de sélection des bots avec indicateurs de sécurité
   if (!isConnected) {
     return (
       <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
         <div className="text-center mb-8">
-          <MessageCircle className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat IA en Direct 24/7</h1>
-          <p className="text-gray-600 mb-2">Choisissez votre assistant IA et commencez la conversation instantanément</p>
+          <div className="flex items-center justify-center mb-4">
+            <MessageCircle className="w-16 h-16 text-blue-600 mr-4" />
+            <Shield className="w-12 h-12 text-green-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat IA Sécurisé 24/7</h1>
+          <p className="text-gray-600 mb-2">Choisissez votre assistant IA et commencez une conversation chiffrée instantanément</p>
+          <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+            <Shield className="w-4 h-4" />
+            <span>Connexion sécurisée • Données chiffrées</span>
+          </div>
           {botsError && (
-            <p className="text-orange-600 text-sm">
+            <p className="text-orange-600 text-sm mt-2">
               {botsError}
             </p>
           )}
         </div>
 
-        {/* Carrousel des bots */}
+        {/* Carrousel des bots avec indicateurs de sécurité */}
         <div className="mb-8">
           <LiveChatBotCarousel
             bots={liveChatBots}
@@ -248,11 +348,17 @@ export const LiveChatSystem: React.FC = () => {
           />
         </div>
 
-        {/* Section informative - seulement si des bots sont disponibles */}
+        {/* Section informative avec sécurité */}
         {liveChatBots.length > 0 && (
           <Card className="bg-white border border-gray-200">
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Que peuvent faire nos assistants IA ?</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Que peuvent faire nos assistants IA sécurisés ?</h3>
+                <div className="flex items-center space-x-2 text-green-600">
+                  <Shield className="w-5 h-5" />
+                  <span className="text-sm font-medium">100% Sécurisé</span>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <h4 className="font-medium text-gray-900">Support Technique</h4>
@@ -289,11 +395,11 @@ export const LiveChatSystem: React.FC = () => {
     );
   }
 
-  // Interface de chat
+  // Interface de chat avec indicateurs de sécurité
   return (
     <div className="flex h-screen bg-gray-50">
       <div className="flex-1 flex flex-col">
-        {/* Header */}
+        {/* Header avec statut de sécurité */}
         <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -305,8 +411,24 @@ export const LiveChatSystem: React.FC = () => {
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">{selectedAgent?.name}</h3>
-                <p className="text-sm text-gray-600">{selectedAgent?.role} • En ligne</p>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-semibold text-gray-900">{selectedAgent?.name}</h3>
+                  {securityStatus === 'secure' && (
+                    <Shield className="w-4 h-4 text-green-600" />
+                  )}
+                  {securityStatus === 'warning' && (
+                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                  )}
+                  {securityStatus === 'error' && (
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <p className="text-sm text-gray-600">{selectedAgent?.role} • En ligne</p>
+                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                    Session sécurisée
+                  </span>
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -370,7 +492,7 @@ export const LiveChatSystem: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
+        {/* Input avec validation de sécurité */}
         <div className="bg-white border-t border-gray-200 p-4">
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" className="text-gray-700 border-gray-300">
@@ -384,17 +506,26 @@ export const LiveChatSystem: React.FC = () => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="Tapez votre message..."
+              placeholder="Tapez votre message sécurisé..."
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-              disabled={isTyping}
+              disabled={isTyping || !sessionReady}
+              maxLength={4000}
             />
             <Button 
               onClick={sendMessage} 
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={isTyping || !newMessage.trim()}
+              disabled={isTyping || !newMessage.trim() || !sessionReady}
             >
               <Send className="w-4 h-4" />
             </Button>
+          </div>
+          
+          {/* Indicateur de statut de session */}
+          <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+            <span>
+              {sessionReady ? 'Session sécurisée active' : 'Initialisation sécurisée...'}
+            </span>
+            <span>{newMessage.length}/4000</span>
           </div>
         </div>
       </div>

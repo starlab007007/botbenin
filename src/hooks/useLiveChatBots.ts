@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { SecurityManager } from '@/services/security/SecurityManager';
 
 interface LiveChatBot {
   id: string;
@@ -24,9 +25,18 @@ export const useLiveChatBots = () => {
       setLoading(true);
       setError(null);
 
-      console.log('[useLiveChatBots] Récupération des bots pour le chat live...');
+      console.log('[useLiveChatBots] Fetching secure live chat bots...');
 
-      // Récupérer tous les bots configurés pour le chat live avec les informations du propriétaire
+      // Limitation du taux de requêtes
+      if (!SecurityManager.checkRateLimit('fetch_live_bots', {
+        windowMs: 60000, // 1 minute
+        maxRequests: 30
+      })) {
+        setError('Trop de requêtes, veuillez patienter');
+        return;
+      }
+
+      // Récupération sécurisée des bots
       const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select(`
@@ -49,69 +59,100 @@ export const useLiveChatBots = () => {
         .order('created_at', { ascending: false });
 
       if (botsError) {
-        throw botsError;
+        await SecurityManager.auditSuspiciousActivity({
+          action: 'live_bots_fetch_error',
+          additionalData: { error: botsError.message }
+        });
+        throw new Error('Erreur lors de la récupération des bots');
       }
 
-      console.log('[useLiveChatBots] Données brutes récupérées:', botsData?.length || 0);
+      console.log('[useLiveChatBots] Raw data retrieved:', botsData?.length || 0);
 
-      // Filtrer et formater les bots valides
+      // Validation et filtrage sécurisé des bots
       const validBots = (botsData || []).filter(botData => {
-        const hasValidWebhook = botData.webhook_url && botData.webhook_url.trim() !== '';
-        const isConfiguredForLiveChat = botData.display_in_live_chat === true;
-        const isActive = botData.is_active === true;
+        // Validation de l'ID du bot
+        const idValidation = SecurityManager.validateAndSanitizeInput(botData.id, 'uuid');
+        if (!idValidation.isValid) {
+          console.warn(`[useLiveChatBots] Bot with invalid ID ignored:`, botData.id);
+          return false;
+        }
+
+        // Validation du webhook
+        const hasValidWebhook = botData.webhook_url && 
+          SecurityManager.validateWebhookUrl(botData.webhook_url);
         
         if (!hasValidWebhook) {
-          console.warn(`[useLiveChatBots] Bot ${botData.name} ignoré : pas de webhook URL`);
+          console.warn(`[useLiveChatBots] Bot ${botData.name} ignored: invalid webhook`);
+          return false;
         }
-        if (!isConfiguredForLiveChat) {
-          console.warn(`[useLiveChatBots] Bot ${botData.name} ignoré : pas configuré pour live chat`);
+
+        // Validation des autres champs
+        const nameValidation = SecurityManager.validateAndSanitizeInput(botData.name, 'string');
+        if (!nameValidation.isValid) {
+          console.warn(`[useLiveChatBots] Bot with invalid name ignored`);
+          return false;
         }
-        if (!isActive) {
-          console.warn(`[useLiveChatBots] Bot ${botData.name} ignoré : inactif`);
-        }
-        
-        return hasValidWebhook && isConfiguredForLiveChat && isActive;
+
+        return botData.display_in_live_chat === true && botData.is_active === true;
       });
 
-      const formattedBots: LiveChatBot[] = validBots.map((botData: any) => ({
-        id: botData.id,
-        name: botData.name,
-        description: botData.description || 'Assistant IA intelligent',
-        webhook_url: botData.webhook_url,
-        chat_title: botData.chat_title || botData.name,
-        chat_context: botData.chat_context || 'assistance',
-        is_active: botData.is_active,
-        public_chat_url: botData.public_chat_url,
-        owner_name: botData.bot_owners?.users?.full_name || 'Propriétaire'
-      }));
+      // Formatage sécurisé des données
+      const formattedBots: LiveChatBot[] = validBots.map((botData: any) => {
+        const nameValidation = SecurityManager.validateAndSanitizeInput(botData.name, 'string');
+        const descValidation = SecurityManager.validateAndSanitizeInput(
+          botData.description || 'Assistant IA intelligent', 
+          'string'
+        );
+        const titleValidation = SecurityManager.validateAndSanitizeInput(
+          botData.chat_title || botData.name, 
+          'string'
+        );
 
-      console.log('[useLiveChatBots] Bots valides formatés:', formattedBots.length);
-      console.log('[useLiveChatBots] Liste des bots:', formattedBots.map(b => ({ 
-        name: b.name, 
-        id: b.id, 
-        hasWebhook: !!b.webhook_url,
-        owner: b.owner_name 
-      })));
+        return {
+          id: botData.id,
+          name: nameValidation.sanitized || 'Bot',
+          description: descValidation.sanitized || 'Assistant IA intelligent',
+          webhook_url: botData.webhook_url, // Déjà validé
+          chat_title: titleValidation.sanitized || nameValidation.sanitized || 'Bot',
+          chat_context: botData.chat_context || 'assistance',
+          is_active: botData.is_active,
+          public_chat_url: botData.public_chat_url,
+          owner_name: botData.bot_owners?.users?.full_name || 'Propriétaire'
+        };
+      });
+
+      console.log('[useLiveChatBots] Valid formatted bots:', formattedBots.length);
 
       setBots(formattedBots);
       
       if (formattedBots.length === 0) {
-        console.warn('[useLiveChatBots] Aucun bot valide trouvé pour le chat live');
-        setError('Aucun chatbot configuré pour le chat en direct');
+        console.warn('[useLiveChatBots] No valid bots found for live chat');
+        setError('Aucun chatbot sécurisé disponible pour le chat en direct');
       }
 
-    } catch (err) {
-      console.error('[useLiveChatBots] Erreur:', err);
-      setError('Impossible de charger les bots du chat live');
+      // Audit de sécurité pour le succès
+      await SecurityManager.auditSuspiciousActivity({
+        action: 'live_bots_fetched_successfully',
+        additionalData: { count: formattedBots.length }
+      });
+
+    } catch (err: any) {
+      console.error('[useLiveChatBots] Secure fetch error:', err);
+      
+      await SecurityManager.auditSuspiciousActivity({
+        action: 'live_bots_fetch_failed',
+        additionalData: { error: err.message }
+      });
+
+      setError('Impossible de charger les bots sécurisés');
       setBots([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fonction pour actualiser la liste des bots
   const refreshBots = () => {
-    console.log('[useLiveChatBots] Actualisation des bots...');
+    console.log('[useLiveChatBots] Secure refresh requested...');
     fetchLiveChatBots();
   };
 
