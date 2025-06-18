@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface MediaRendererProps {
@@ -36,15 +35,8 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
             <img 
               src={url} 
               alt="Image partagée" 
-              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 cursor-pointer"
+              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 hover:scale-105 transition-transform duration-300"
               style={{ maxHeight: '500px', minHeight: '200px' }}
-              onClick={() => {
-                // Ouvrir l'image dans une nouvelle fenêtre sans restrictions
-                const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
-                if (newWindow) {
-                  newWindow.focus();
-                }
-              }}
               onError={(e) => {
                 // En cas d'erreur de chargement, afficher le lien à la place
                 const target = e.target as HTMLImageElement;
@@ -59,9 +51,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
                 }
               }}
             />
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Cliquez pour ouvrir l'image en grand
-            </p>
           </div>
         );
       } else {
