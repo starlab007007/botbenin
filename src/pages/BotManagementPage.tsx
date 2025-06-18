@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { StandardizedBotManager } from '@/components/StandardizedBotManager';
 import { SocialSharingManager } from '@/components/SocialSharingManager';
@@ -32,7 +31,7 @@ export const BotManagementPage: React.FC = () => {
   const [editingBot, setEditingBot] = useState<string | null>(null);
   const [selectedBot, setSelectedBot] = useState<StandardBotConfig | null>(null);
   const [botCount, setBotCount] = useState(0);
-  const [maxBots, setMaxBots] = useState(10);
+  const [maxBots, setMaxBots] = useState(10); // Fixed to 10 for free plan
   const { toast } = useToast();
   const { isAuthenticated, session } = useAuth();
 
@@ -58,7 +57,7 @@ export const BotManagementPage: React.FC = () => {
 
       if (!ownerData) {
         setBotCount(0);
-        setMaxBots(10);
+        setMaxBots(10); // Always set to 10 for free plan
         return;
       }
 
@@ -72,7 +71,7 @@ export const BotManagementPage: React.FC = () => {
 
       setBots(data || []);
       setBotCount((data || []).length);
-      setMaxBots(ownerData.max_bots);
+      setMaxBots(10); // Always set to 10 for free plan
     } catch (error) {
       console.error('Erreur lors du chargement des bots:', error);
       toast({
@@ -101,10 +100,10 @@ export const BotManagementPage: React.FC = () => {
       return;
     }
 
-    if (botCount >= maxBots) {
+    if (botCount >= 10) { // Fixed limit check to 10
       toast({
         title: "Limite atteinte",
-        description: `Vous avez atteint la limite de ${maxBots} bots pour votre plan`,
+        description: "Vous avez atteint la limite de 10 bots pour votre plan gratuit",
         variant: "destructive",
       });
       return;
@@ -297,7 +296,7 @@ export const BotManagementPage: React.FC = () => {
     );
   }
 
-  const isLimitReached = botCount >= maxBots;
+  const isLimitReached = botCount >= 10; // Fixed limit check to 10
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -327,14 +326,14 @@ export const BotManagementPage: React.FC = () => {
                 Plan Gratuit - Utilisation des bots
               </p>
               <p className="text-blue-700 text-sm">
-                {botCount} / {maxBots} bots créés
+                {botCount} / 10 bots créés
               </p>
             </div>
             <div className="text-right">
               <div className="w-32 h-2 bg-blue-200 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-blue-600 transition-all duration-300"
-                  style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((botCount / 10) * 100, 100)}%` }}
                 />
               </div>
             </div>
@@ -353,7 +352,7 @@ export const BotManagementPage: React.FC = () => {
                   Limite de création atteinte
                 </p>
                 <p className="text-red-700 text-sm mt-1">
-                  Vous avez atteint la limite de {maxBots} bots pour votre plan gratuit. 
+                  Vous avez atteint la limite de 10 bots pour votre plan gratuit. 
                   Supprimez un bot existant ou passez à un plan supérieur pour créer de nouveaux bots.
                 </p>
               </div>

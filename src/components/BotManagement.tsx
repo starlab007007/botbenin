@@ -48,7 +48,7 @@ export const BotManagement: React.FC = () => {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [showQrCode, setShowQrCode] = useState<string | null>(null);
   const [botCount, setBotCount] = useState(0);
-  const [maxBots, setMaxBots] = useState(10);
+  const [maxBots, setMaxBots] = useState(10); // Fixed to 10 for free plan
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
 
@@ -85,7 +85,7 @@ export const BotManagement: React.FC = () => {
         .single();
 
       if (!ownerData) {
-        // Créer un bot_owner si il n'existe pas
+        // Créer un bot_owner si il n'existe pas avec limite fixe de 10
         const { data: newOwner } = await supabase
           .from('bot_owners')
           .insert({ 
@@ -143,7 +143,8 @@ export const BotManagement: React.FC = () => {
 
       setBots(formattedBots);
       setBotCount(formattedBots.length);
-      setMaxBots(ownerData.max_bots);
+      // Always set maxBots to 10 for free plan
+      setMaxBots(10);
 
       // Récupérer les statistiques depuis la nouvelle vue detailed_bot_stats
       if (formattedBots && formattedBots.length > 0) {
@@ -182,10 +183,10 @@ export const BotManagement: React.FC = () => {
       return;
     }
 
-    if (botCount >= maxBots) {
+    if (botCount >= 10) { // Fixed limit check to 10
       toast({
         title: "Limite atteinte",
-        description: `Vous avez atteint la limite de ${maxBots} chatbots pour votre plan`,
+        description: "Vous avez atteint la limite de 10 chatbots pour votre plan gratuit",
         variant: "destructive",
       });
       return;
@@ -268,33 +269,6 @@ export const BotManagement: React.FC = () => {
     setCurrentView('share');
   };
 
-  // Navigation Renderer Component
-  const renderNavigation = () => (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        variant={currentView === 'dashboard' ? 'default' : 'outline'}
-        onClick={() => setCurrentView('dashboard')}
-      >
-        <Home className="w-4 h-4 mr-2" />
-        Dashboard
-      </Button>
-      <Button
-        variant={currentView === 'list' ? 'default' : 'outline'}
-        onClick={() => setCurrentView('list')}
-      >
-        <Bot className="w-4 h-4 mr-2" />
-        Mes Bots
-      </Button>
-      <Button
-        variant={currentView === 'conversations' ? 'default' : 'outline'}
-        onClick={() => setCurrentView('conversations')}
-      >
-        <Mail className="w-4 h-4 mr-2" />
-        Conversations
-      </Button>
-    </div>
-  );
-
   // Gestion des vues
   if (currentView === 'create') {
     return (
@@ -364,17 +338,17 @@ export const BotManagement: React.FC = () => {
           <BotManagerNav currentView={currentView} onChangeView={setCurrentView} />
           <Button 
             onClick={handleCreateBot}
-            disabled={!isAuthenticated || botCount >= maxBots}
+            disabled={!isAuthenticated || botCount >= 10}
             className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4 mr-2" />
-            {!isAuthenticated ? 'Connexion requise' : botCount >= maxBots ? 'Limite atteinte' : 'Nouveau Chatbot'}
+            {!isAuthenticated ? 'Connexion requise' : botCount >= 10 ? 'Limite atteinte' : 'Nouveau Chatbot'}
           </Button>
         </div>
 
         <BotLimitDisplay 
           botCount={botCount} 
-          maxBots={maxBots} 
+          maxBots={10}
           isAuthenticated={isAuthenticated} 
         />
 
@@ -391,7 +365,7 @@ export const BotManagement: React.FC = () => {
     );
   }
 
-  const isLimitReached = botCount >= maxBots;
+  const isLimitReached = botCount >= 10; // Fixed limit check to 10
 
   return (
     <div className="space-y-6">
@@ -410,7 +384,7 @@ export const BotManagement: React.FC = () => {
 
       <BotLimitDisplay 
         botCount={botCount} 
-        maxBots={maxBots} 
+        maxBots={10}
         isAuthenticated={isAuthenticated} 
       />
 

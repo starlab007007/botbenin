@@ -17,7 +17,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [botCount, setBotCount] = useState(0);
-  const [maxBots, setMaxBots] = useState(10);
+  const [maxBots, setMaxBots] = useState(10); // Fixed to 10 for free plan
   const [isCheckingLimits, setIsCheckingLimits] = useState(true);
   const { toast } = useToast();
   const { user, isAuthenticated, session } = useAuth();
@@ -49,7 +49,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
           .insert({ 
             user_id: userId,
             subscription_plan: 'free',
-            max_bots: 10
+            max_bots: 10 // Fixed to 10 for free plan
           })
           .select('id, max_bots')
           .single();
@@ -69,7 +69,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       if (countError) throw countError;
 
       setBotCount(existingBots || 0);
-      setMaxBots(ownerData.max_bots);
+      setMaxBots(10); // Always set to 10 for free plan
     } catch (error) {
       console.error('Erreur lors de la vérification des limites:', error);
       toast({
@@ -103,11 +103,11 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       return;
     }
 
-    // Vérification des limites
-    if (botCount >= maxBots) {
+    // Vérification des limites - Fixed to 10
+    if (botCount >= 10) {
       toast({
         title: "Limite atteinte",
-        description: `Vous avez atteint la limite de ${maxBots} chatbots pour votre plan`,
+        description: "Vous avez atteint la limite de 10 chatbots pour votre plan gratuit",
         variant: "destructive",
       });
       return;
@@ -158,7 +158,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
           .insert({ 
             user_id: userId,
             subscription_plan: 'free',
-            max_bots: 10
+            max_bots: 10 // Fixed to 10 for free plan
           })
           .select('id, max_bots')
           .single();
@@ -169,7 +169,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
 
       if (!ownerData) throw new Error('Impossible de récupérer les données du propriétaire');
 
-      // Vérifier à nouveau les limites avant création
+      // Vérifier à nouveau les limites avant création - Fixed to 10
       const { count: currentBotCount, error: countError } = await supabase
         .from('bots')
         .select('id', { count: 'exact' })
@@ -177,8 +177,8 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
 
       if (countError) throw new Error(`Erreur comptage: ${countError.message}`);
 
-      if ((currentBotCount || 0) >= ownerData.max_bots) {
-        throw new Error(`Limite atteinte: ${ownerData.max_bots} chatbots maximum`);
+      if ((currentBotCount || 0) >= 10) {
+        throw new Error("Limite atteinte: 10 chatbots maximum pour le plan gratuit");
       }
 
       // Configuration du bot
@@ -390,7 +390,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     );
   }
 
-  const isLimitReached = botCount >= maxBots;
+  const isLimitReached = botCount >= 10; // Fixed limit check to 10
 
   return (
     <div className="space-y-6">
@@ -414,14 +414,14 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
                 Plan Gratuit - Utilisation des bots
               </p>
               <p className="text-blue-700 text-sm">
-                {botCount} / {maxBots} chatbots créés
+                {botCount} / 10 chatbots créés
               </p>
             </div>
             <div className="text-right">
               <div className="w-16 h-2 bg-blue-200 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-blue-600 transition-all duration-300"
-                  style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((botCount / 10) * 100, 100)}%` }}
                 />
               </div>
             </div>
@@ -440,7 +440,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
                   Limite de création atteinte
                 </p>
                 <p className="text-red-700 text-sm mt-1">
-                  Vous avez atteint la limite de {maxBots} chatbots pour votre plan gratuit. 
+                  Vous avez atteint la limite de 10 chatbots pour votre plan gratuit. 
                   Supprimez un chatbot existant ou passez à un plan supérieur pour créer de nouveaux bots.
                 </p>
               </div>
