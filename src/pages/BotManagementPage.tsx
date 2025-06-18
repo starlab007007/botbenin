@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BotConfigService, StandardBotConfig } from '@/services/botConfigService';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Bot, 
   Plus, 
@@ -19,7 +20,9 @@ import {
   Settings,
   BarChart3,
   CheckCircle,
-  XCircle
+  XCircle,
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 
 export const BotManagementPage: React.FC = () => {
@@ -28,11 +31,18 @@ export const BotManagementPage: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingBot, setEditingBot] = useState<string | null>(null);
   const [selectedBot, setSelectedBot] = useState<StandardBotConfig | null>(null);
+  const [botCount, setBotCount] = useState(0);
+  const [maxBots, setMaxBots] = useState(10);
   const { toast } = useToast();
+  const { isAuthenticated, session } = useAuth();
 
   useEffect(() => {
-    fetchBots();
-  }, []);
+    if (isAuthenticated) {
+      fetchBots();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   const fetchBots = async () => {
     try {
@@ -42,11 +52,15 @@ export const BotManagementPage: React.FC = () => {
 
       const { data: ownerData } = await supabase
         .from('bot_owners')
-        .select('id')
+        .select('id, max_bots')
         .eq('user_id', user.id)
         .single();
 
-      if (!ownerData) return;
+      if (!ownerData) {
+        setBotCount(0);
+        setMaxBots(10);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('bots')
@@ -57,6 +71,8 @@ export const BotManagementPage: React.FC = () => {
       if (error) throw error;
 
       setBots(data || []);
+      setBotCount((data || []).length);
+      setMaxBots(ownerData.max_bots);
     } catch (error) {
       console.error('Erreur lors du chargement des bots:', error);
       toast({
@@ -73,6 +89,28 @@ export const BotManagementPage: React.FC = () => {
     setShowCreateForm(false);
     setEditingBot(null);
     fetchBots();
+  };
+
+  const handleCreateBot = () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentification requise",
+        description: "Vous devez être connecté pour créer un bot",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (botCount >= maxBots) {
+      toast({
+        title: "Limite atteinte",
+        description: `Vous avez atteint la limite de ${maxBots} bots pour votre plan`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowCreateForm(true);
   };
 
   const handleDeleteBot = async (botId: string) => {
@@ -127,6 +165,43 @@ export const BotManagementPage: React.FC = () => {
       });
     }
   };
+
+  // Si l'utilisateur n'est pas authentifié
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-2xl mx-auto border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-amber-800">
+              <Lock className="w-5 h-5" />
+              <span>Authentification requise</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-amber-800 font-medium">
+                  Vous devez être connecté pour gérer vos bots
+                </p>
+                <p className="text-amber-700 text-sm mt-1">
+                  Connectez-vous pour accéder à votre tableau de bord et créer jusqu'à 10 bots gratuitement.
+                </p>
+              </div>
+            </div>
+            <div className="pt-4">
+              <Button 
+                onClick={() => window.location.href = '/auth'}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                Se connecter / S'inscrire
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -222,6 +297,8 @@ export const BotManagementPage: React.FC = () => {
     );
   }
 
+  const isLimitReached = botCount >= maxBots;
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
@@ -231,11 +308,59 @@ export const BotManagementPage: React.FC = () => {
             Créez et gérez vos assistants IA avec une configuration standardisée
           </p>
         </div>
-        <Button onClick={() => setShowCreateForm(true)}>
+        <Button 
+          onClick={handleCreateBot}
+          disabled={isLimitReached}
+          className={isLimitReached ? 'opacity-50 cursor-not-allowed' : ''}
+        >
           <Plus className="w-4 h-4 mr-2" />
-          Nouveau Bot
+          {isLimitReached ? 'Limite atteinte' : 'Nouveau Bot'}
         </Button>
       </div>
+
+      {/* Affichage des limites */}
+      <Card className="mb-6 border-blue-200 bg-blue-50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-800 font-medium">
+                Plan Gratuit - Utilisation des bots
+              </p>
+              <p className="text-blue-700 text-sm">
+                {botCount} / {maxBots} bots créés
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="w-32 h-2 bg-blue-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Message de limite atteinte */}
+      {isLimitReached && (
+        <Card className="mb-6 border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+              <div>
+                <p className="text-red-800 font-medium">
+                  Limite de création atteinte
+                </p>
+                <p className="text-red-700 text-sm mt-1">
+                  Vous avez atteint la limite de {maxBots} bots pour votre plan gratuit. 
+                  Supprimez un bot existant ou passez à un plan supérieur pour créer de nouveaux bots.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {bots.length === 0 ? (
         <Card className="text-center py-12">
@@ -247,7 +372,10 @@ export const BotManagementPage: React.FC = () => {
             <p className="text-gray-600 mb-6">
               Créez votre premier bot pour commencer à utiliser la plateforme
             </p>
-            <Button onClick={() => setShowCreateForm(true)}>
+            <Button 
+              onClick={handleCreateBot}
+              disabled={isLimitReached}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Créer mon premier bot
             </Button>

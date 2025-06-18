@@ -1,12 +1,11 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bot, Workflow, ArrowLeft, Globe, MessageSquare } from 'lucide-react';
+import { Bot, Workflow, ArrowLeft, Globe, MessageSquare, Lock, AlertCircle } from 'lucide-react';
 
 interface BotAutomationCreatorProps {
   onBack: () => void;
@@ -17,8 +16,71 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   const [webhookUrl, setWebhookUrl] = useState('');
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [botCount, setBotCount] = useState(0);
+  const [maxBots, setMaxBots] = useState(10);
+  const [isCheckingLimits, setIsCheckingLimits] = useState(true);
   const { toast } = useToast();
   const { user, isAuthenticated, session } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated && session) {
+      checkBotLimits();
+    } else {
+      setIsCheckingLimits(false);
+    }
+  }, [isAuthenticated, session]);
+
+  const checkBotLimits = async () => {
+    try {
+      setIsCheckingLimits(true);
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      // Récupérer ou créer le bot_owner
+      let { data: ownerData, error: ownerSelectError } = await supabase
+        .from('bot_owners')
+        .select('id, max_bots')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!ownerData) {
+        const { data: newOwner, error: ownerCreateError } = await supabase
+          .from('bot_owners')
+          .insert({ 
+            user_id: userId,
+            subscription_plan: 'free',
+            max_bots: 10
+          })
+          .select('id, max_bots')
+          .single();
+
+        if (ownerCreateError) throw ownerCreateError;
+        ownerData = newOwner;
+      }
+
+      if (!ownerData) throw new Error('Impossible de récupérer les données du propriétaire');
+
+      // Compter les bots existants
+      const { count: existingBots, error: countError } = await supabase
+        .from('bots')
+        .select('id', { count: 'exact' })
+        .eq('owner_id', ownerData.id);
+
+      if (countError) throw countError;
+
+      setBotCount(existingBots || 0);
+      setMaxBots(ownerData.max_bots);
+    } catch (error) {
+      console.error('Erreur lors de la vérification des limites:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de vérifier vos limites de création de bots",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingLimits(false);
+    }
+  };
 
   const validateWebhookUrl = (url: string): boolean => {
     if (!url.trim()) return false;
@@ -31,12 +93,25 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   };
 
   const createBotFromWebhook = async () => {
-    console.log('=== DÉBUT CRÉATION BOT ===');
-    console.log('Webhook URL:', webhookUrl);
-    console.log('Bot Name:', botName);
-    console.log('Auth Context User:', user);
-    console.log('Is Authenticated:', isAuthenticated);
-    console.log('Supabase Session:', session);
+    // Vérification de l'authentification
+    if (!isAuthenticated || !session) {
+      toast({
+        title: "Authentification requise",
+        description: "Vous devez être connecté pour créer un chatbot",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Vérification des limites
+    if (botCount >= maxBots) {
+      toast({
+        title: "Limite atteinte",
+        description: `Vous avez atteint la limite de ${maxBots} chatbots pour votre plan`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (!webhookUrl.trim()) {
       toast({
@@ -65,79 +140,48 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       return;
     }
 
-    if (!isAuthenticated || !session) {
-      toast({
-        title: "Authentification requise",
-        description: "Vous devez être connecté pour créer un chatbot",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsCreating(true);
 
     try {
       const userId = session.user.id;
-      console.log('Supabase User ID:', userId);
 
-      // Créer ou récupérer le bot_owner
+      // Récupérer le bot_owner
       let { data: ownerData, error: ownerSelectError } = await supabase
         .from('bot_owners')
         .select('id, max_bots')
         .eq('user_id', userId)
         .maybeSingle();
 
-      console.log('Owner data:', ownerData);
-      console.log('Owner select error:', ownerSelectError);
-
       if (!ownerData) {
-        console.log('Création du bot_owner...');
         const { data: newOwner, error: ownerCreateError } = await supabase
           .from('bot_owners')
           .insert({ 
             user_id: userId,
             subscription_plan: 'free',
-            max_bots: 5
+            max_bots: 10
           })
           .select('id, max_bots')
           .single();
 
-        console.log('New owner:', newOwner);
-        console.log('Owner create error:', ownerCreateError);
-
-        if (ownerCreateError) {
-          console.error('Erreur création owner:', ownerCreateError);
-          throw new Error(`Impossible de créer le propriétaire: ${ownerCreateError.message}`);
-        }
+        if (ownerCreateError) throw new Error(`Impossible de créer le propriétaire: ${ownerCreateError.message}`);
         ownerData = newOwner;
-      } else if (ownerSelectError) {
-        console.error('Erreur récupération owner:', ownerSelectError);
-        throw new Error(`Erreur propriétaire: ${ownerSelectError.message}`);
       }
 
-      if (!ownerData) {
-        throw new Error('Impossible de récupérer les données du propriétaire');
-      }
+      if (!ownerData) throw new Error('Impossible de récupérer les données du propriétaire');
 
-      // Vérifier le nombre de bots existants
-      const { count: botsCount, error: countError } = await supabase
+      // Vérifier à nouveau les limites avant création
+      const { count: currentBotCount, error: countError } = await supabase
         .from('bots')
         .select('id', { count: 'exact' })
         .eq('owner_id', ownerData.id);
 
-      console.log('Bots count:', botsCount);
-      console.log('Max bots:', ownerData.max_bots);
+      if (countError) throw new Error(`Erreur comptage: ${countError.message}`);
 
-      if (countError) {
-        console.error('Erreur comptage bots:', countError);
-        throw new Error(`Erreur comptage: ${countError.message}`);
-      }
-
-      if ((botsCount || 0) >= ownerData.max_bots) {
+      if ((currentBotCount || 0) >= ownerData.max_bots) {
         throw new Error(`Limite atteinte: ${ownerData.max_bots} chatbots maximum`);
       }
 
-      // Configuration du bot avec l'URL webhook fournie
+      // Configuration du bot
       const botData = {
         owner_id: ownerData.id,
         name: botName.trim(),
@@ -150,8 +194,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         is_active: true
       };
 
-      console.log('Bot data:', botData);
-
       // Créer le bot
       const { data: newBot, error: botError } = await supabase
         .from('bots')
@@ -159,17 +201,8 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         .select('*')
         .single();
 
-      console.log('New bot:', newBot);
-      console.log('Bot error:', botError);
-
-      if (botError) {
-        console.error('Erreur création bot:', botError);
-        throw new Error(`Impossible de créer le bot: ${botError.message}`);
-      }
-
-      if (!newBot) {
-        throw new Error('Aucune donnée retournée après création du bot');
-      }
+      if (botError) throw new Error(`Impossible de créer le bot: ${botError.message}`);
+      if (!newBot) throw new Error('Aucune donnée retournée après création du bot');
 
       // Générer l'URL publique
       const publicUrl = `${window.location.origin}/chat?bot=${newBot.id}&context=${newBot.chat_context}&title=${encodeURIComponent(newBot.chat_title)}`;
@@ -183,8 +216,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         console.warn('Erreur mise à jour URL publique:', updateError);
       }
 
-      console.log('Bot créé avec succès:', newBot.id);
-
       toast({
         title: "Chatbot créé avec succès !",
         description: `Le chatbot "${botName}" a été créé avec votre webhook personnalisé`,
@@ -196,10 +227,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       onBotCreated(newBot.id);
 
     } catch (error) {
-      console.error('=== ERREUR CRÉATION BOT ===');
-      console.error('Error:', error);
-      console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
-      
+      console.error('Erreur création bot:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       
       toast({
@@ -209,7 +237,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       });
     } finally {
       setIsCreating(false);
-      console.log('=== FIN CRÉATION BOT ===');
     }
   };
 
@@ -290,6 +317,81 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     }
   };
 
+  // Si l'utilisateur n'est pas authentifié
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" onClick={onBack}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Retour
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Nouveau Chatbot</h2>
+            <p className="text-gray-600">Créez un chatbot automatisé avec votre webhook N8N personnalisé</p>
+          </div>
+        </div>
+
+        <Card className="max-w-2xl border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-amber-800">
+              <Lock className="w-5 h-5" />
+              <span>Authentification requise</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="text-amber-800 font-medium">
+                  Vous devez être connecté pour créer un chatbot
+                </p>
+                <p className="text-amber-700 text-sm mt-1">
+                  Connectez-vous pour accéder à votre tableau de bord et créer jusqu'à 10 chatbots gratuitement.
+                </p>
+              </div>
+            </div>
+            <div className="pt-4">
+              <Button 
+                onClick={() => window.location.href = '/auth'}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                Se connecter / S'inscrire
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Si on est en train de vérifier les limites
+  if (isCheckingLimits) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" onClick={onBack}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Retour
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Nouveau Chatbot</h2>
+            <p className="text-gray-600">Vérification de vos limites...</p>
+          </div>
+        </div>
+
+        <Card className="max-w-2xl">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Vérification de vos limites de création...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const isLimitReached = botCount >= maxBots;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center space-x-4">
@@ -303,12 +405,46 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         </div>
       </div>
 
-      {!isAuthenticated && (
+      {/* Affichage des limites */}
+      <Card className="max-w-2xl border-blue-200 bg-blue-50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-800 font-medium">
+                Plan Gratuit - Utilisation des bots
+              </p>
+              <p className="text-blue-700 text-sm">
+                {botCount} / {maxBots} chatbots créés
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="w-16 h-2 bg-blue-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Message de limite atteinte */}
+      {isLimitReached && (
         <Card className="max-w-2xl border-red-200 bg-red-50">
           <CardContent className="p-4">
-            <p className="text-red-800">
-              Vous devez être connecté pour créer un chatbot. Veuillez vous connecter et réessayer.
-            </p>
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+              <div>
+                <p className="text-red-800 font-medium">
+                  Limite de création atteinte
+                </p>
+                <p className="text-red-700 text-sm mt-1">
+                  Vous avez atteint la limite de {maxBots} chatbots pour votre plan gratuit. 
+                  Supprimez un chatbot existant ou passez à un plan supérieur pour créer de nouveaux bots.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -330,7 +466,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               onChange={(e) => setBotName(e.target.value)}
               placeholder="Mon Assistant IA"
               className="w-full"
-              disabled={!isAuthenticated}
+              disabled={isLimitReached}
             />
             <p className="text-xs text-gray-500">
               Le nom qui apparaîtra dans votre tableau de bord
@@ -346,7 +482,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               onChange={(e) => setWebhookUrl(e.target.value)}
               placeholder="https://votre-webhook.n8n.cloud/webhook/..."
               className="w-full"
-              disabled={!isAuthenticated}
+              disabled={isLimitReached}
             />
             <p className="text-xs text-gray-500">
               L'URL de votre webhook N8N personnalisé pour ce chatbot
@@ -357,7 +493,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             <Button
               onClick={() => testWebhookConnection(webhookUrl, 'test', botName || 'Test Bot')}
               variant="outline"
-              disabled={!webhookUrl.trim() || isCreating || !isAuthenticated}
+              disabled={!webhookUrl.trim() || isCreating || isLimitReached}
               className="flex-1"
             >
               <Globe className="w-4 h-4 mr-2" />
@@ -365,7 +501,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
             </Button>
             <Button
               onClick={createBotFromWebhook}
-              disabled={!webhookUrl.trim() || !botName.trim() || isCreating || !isAuthenticated}
+              disabled={!webhookUrl.trim() || !botName.trim() || isCreating || isLimitReached}
               className="flex-1 bg-blue-600 hover:bg-blue-700"
             >
               {isCreating ? (
@@ -373,7 +509,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               ) : (
                 <MessageSquare className="w-4 h-4 mr-2" />
               )}
-              Créer le Chatbot
+              {isLimitReached ? 'Limite atteinte' : 'Créer le Chatbot'}
             </Button>
           </div>
 

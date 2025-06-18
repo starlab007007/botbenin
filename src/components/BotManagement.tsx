@@ -44,6 +44,7 @@ import { BotManagerNav } from "./BotManagerNav";
 import { QRCodeModal } from "./QRCodeModal";
 import { BotCard } from "./BotCard";
 import { cleanPublicUrl } from "./botManagementUtils";
+import { useAuth } from '@/hooks/use-auth';
 
 interface Bot {
   id: string;
@@ -79,6 +80,8 @@ export const BotManagement: React.FC = () => {
   const [selectedBotForSharing, setSelectedBotForSharing] = useState<{ id: string; name: string } | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [showQrCode, setShowQrCode] = useState<string | null>(null);
+  const [botCount, setBotCount] = useState(0);
+  const [maxBots, setMaxBots] = useState(10);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -89,10 +92,15 @@ export const BotManagement: React.FC = () => {
     share_enabled: true
   });
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    fetchBots();
-  }, []);
+    if (isAuthenticated) {
+      fetchBots();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   const fetchBots = async () => {
     try {
@@ -102,7 +110,7 @@ export const BotManagement: React.FC = () => {
       // Récupérer le bot_owner
       let { data: ownerData } = await supabase
         .from('bot_owners')
-        .select('id')
+        .select('id, max_bots')
         .eq('user_id', user.id)
         .single();
 
@@ -110,8 +118,12 @@ export const BotManagement: React.FC = () => {
         // Créer un bot_owner si il n'existe pas
         const { data: newOwner } = await supabase
           .from('bot_owners')
-          .insert({ user_id: user.id })
-          .select('id')
+          .insert({ 
+            user_id: user.id,
+            subscription_plan: 'free',
+            max_bots: 10
+          })
+          .select('id, max_bots')
           .single();
         
         ownerData = newOwner;
@@ -160,6 +172,8 @@ export const BotManagement: React.FC = () => {
       }));
 
       setBots(formattedBots);
+      setBotCount(formattedBots.length);
+      setMaxBots(ownerData.max_bots);
 
       // Récupérer les statistiques depuis la nouvelle vue detailed_bot_stats
       if (formattedBots && formattedBots.length > 0) {
@@ -218,6 +232,28 @@ export const BotManagement: React.FC = () => {
       title: "Succès !",
       description: "Votre chatbot a été créé avec tracking avancé des visiteurs",
     });
+  };
+
+  const handleCreateBot = () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentification requise",
+        description: "Vous devez être connecté pour créer un chatbot",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (botCount >= maxBots) {
+      toast({
+        title: "Limite atteinte",
+        description: `Vous avez atteint la limite de ${maxBots} chatbots pour votre plan`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCurrentView('create');
   };
 
   const testBot = async (bot: Bot) => {
@@ -615,13 +651,41 @@ export const BotManagement: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <BotManagerNav currentView={currentView} onChangeView={setCurrentView} />
           <Button 
-            onClick={() => setCurrentView('create')}
-            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+            onClick={handleCreateBot}
+            disabled={!isAuthenticated || botCount >= maxBots}
+            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Nouveau Chatbot
+            {!isAuthenticated ? 'Connexion requise' : botCount >= maxBots ? 'Limite atteinte' : 'Nouveau Chatbot'}
           </Button>
         </div>
+
+        {/* Affichage des limites pour les utilisateurs authentifiés */}
+        {isAuthenticated && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-800 font-medium">
+                    Plan Gratuit - Utilisation des chatbots
+                  </p>
+                  <p className="text-blue-700 text-sm">
+                    {botCount} / {maxBots} chatbots créés
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="w-32 h-2 bg-blue-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-600 transition-all duration-300"
+                      style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <OwnerDashboard onViewBotAnalytics={viewAnalytics} />
       </div>
     );
@@ -635,19 +699,69 @@ export const BotManagement: React.FC = () => {
     );
   }
 
+  const isLimitReached = botCount >= maxBots;
+
   return (
     <div className="space-y-6">
       {/* Navigation entre les vues */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <BotManagerNav currentView={currentView} onChangeView={setCurrentView} />
         <Button 
-          onClick={() => setCurrentView('create')}
-          className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+          onClick={handleCreateBot}
+          disabled={!isAuthenticated || isLimitReached}
+          className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Nouveau Chatbot
+          {!isAuthenticated ? 'Connexion requise' : isLimitReached ? 'Limite atteinte' : 'Nouveau Chatbot'}
         </Button>
       </div>
+
+      {/* Affichage des limites pour les utilisateurs authentifiés */}
+      {isAuthenticated && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-800 font-medium">
+                  Plan Gratuit - Utilisation des chatbots
+                </p>
+                <p className="text-blue-700 text-sm">
+                  {botCount} / {maxBots} chatbots créés
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="w-32 h-2 bg-blue-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${Math.min((botCount / maxBots) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Message de limite atteinte */}
+      {isAuthenticated && isLimitReached && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+              <div>
+                <p className="text-red-800 font-medium">
+                  Limite de création atteinte
+                </p>
+                <p className="text-red-700 text-sm mt-1">
+                  Vous avez atteint la limite de {maxBots} chatbots pour votre plan gratuit. 
+                  Supprimez un chatbot existant ou passez à un plan supérieur pour créer de nouveaux bots.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* QR Code Modal */}
       {showQrCode && qrCodeUrl && (
         <QRCodeModal
@@ -658,11 +772,29 @@ export const BotManagement: React.FC = () => {
           onClose={() => { setShowQrCode(null); setQrCodeUrl(''); }}
         />
       )}
+
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Mes Chatbots</h2>
         <p className="text-gray-600 mb-6">Créez et gérez vos chatbots avec tracking avancé</p>
       </div>
-      {bots.length === 0 ? (
+
+      {!isAuthenticated ? (
+        <Card className="p-8 text-center border-amber-200 bg-amber-50">
+          <Lock className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-amber-900 mb-2">
+            Authentification requise
+          </h3>
+          <p className="text-amber-800 mb-4">
+            Connectez-vous pour accéder à vos chatbots et en créer jusqu'à 10 gratuitement
+          </p>
+          <Button 
+            onClick={() => window.location.href = '/auth'}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            Se connecter / S'inscrire
+          </Button>
+        </Card>
+      ) : bots.length === 0 ? (
         <Card className="p-8 text-center">
           <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -672,7 +804,8 @@ export const BotManagement: React.FC = () => {
             Créez votre premier chatbot avec tracking avancé des visiteurs
           </p>
           <Button 
-            onClick={() => setCurrentView('create')}
+            onClick={handleCreateBot}
+            disabled={isLimitReached}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <Plus className="w-4 h-4 mr-2" />
