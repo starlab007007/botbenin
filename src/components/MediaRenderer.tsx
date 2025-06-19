@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MessageCircle } from 'lucide-react';
 
@@ -9,7 +10,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
   // Fonction pour détecter si un lien est une image
   const isImageUrl = (url: string): boolean => {
     const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
-    return imageExtensions.test(url) || url.includes('imgur.com') || url.includes('imagekit.io');
+    return imageExtensions.test(url) || url.includes('imgur.com') || url.includes('imagekit.io') || url.includes('ik.imagekit.io');
   };
 
   // Fonction pour détecter et formater les emails
@@ -171,8 +172,10 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return cleanedText;
   };
 
-  // Fonction pour extraire et traiter les liens d'images - SIMPLIFIÉE pour affichage direct
+  // Fonction pour extraire et traiter les liens d'images - CORRIGÉE pour vraiment afficher les images
   const processImageLinks = (text: string): React.ReactNode[] => {
+    console.log('[MediaRenderer] Processing text for images:', text);
+    
     // Regex pour détecter les URLs (http/https)
     const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
     const parts: React.ReactNode[] = [];
@@ -186,21 +189,31 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       // Ajouter le texte avant l'URL
       if (startIndex > lastIndex) {
         const beforeText = text.substring(lastIndex, startIndex);
-        const processedBefore = processContent(beforeText);
-        parts.push(...processedBefore);
+        parts.push(beforeText);
       }
 
-      // Si c'est une image, l'afficher directement sans URL visible
+      // Si c'est une image, l'afficher directement
       if (isImageUrl(url)) {
-        console.log('Affichage direct de l\'image:', url);
+        console.log('[MediaRenderer] Image détectée - affichage direct:', url);
         
         parts.push(
-          <div key={startIndex} className="my-4">
+          <div key={startIndex} className="my-4 flex justify-center">
             <img 
               src={url} 
-              alt="Image" 
-              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200"
+              alt="Image du bot" 
+              className="max-w-full max-h-96 rounded-lg shadow-md border border-gray-200 object-contain"
               loading="lazy"
+              onLoad={() => console.log('[MediaRenderer] Image chargée:', url)}
+              onError={(e) => {
+                console.error('[MediaRenderer] Erreur chargement image:', url);
+                // Remplacer par un message d'erreur
+                const img = e.target as HTMLImageElement;
+                img.style.display = 'none';
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm';
+                errorDiv.textContent = 'Impossible de charger l\'image';
+                img.parentNode?.appendChild(errorDiv);
+              }}
             />
           </div>
         );
@@ -225,11 +238,11 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     // Ajouter le texte restant
     if (lastIndex < text.length) {
       const remainingText = text.substring(lastIndex);
-      const processedRemaining = processContent(remainingText);
-      parts.push(...processedRemaining);
+      parts.push(remainingText);
     }
 
-    return parts;
+    // Si aucune URL n'a été trouvée, retourner le texte original
+    return parts.length > 0 ? parts : [text];
   };
 
   // Fonction principale pour traiter le contenu
@@ -256,6 +269,8 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
   // Fonction pour formatter le texte avec markdown-like syntax
   const formatText = (text: string) => {
+    console.log('[MediaRenderer] Formatting text:', text.substring(0, 100) + '...');
+    
     // Diviser le texte en lignes pour traiter chaque ligne
     const lines = text.split('\n');
     
@@ -306,9 +321,10 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         return <div key={index} className="h-2"></div>;
       }
       
-      // Vérifier si la ligne contient des liens/images
+      // Vérifier si la ligne contient des liens/images - PRIORITÉ AUX IMAGES
       const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
       if (urlRegex.test(formattedLine)) {
+        console.log('[MediaRenderer] Ligne avec URL détectée:', formattedLine);
         return (
           <div key={index} className="leading-relaxed">
             {processImageLinks(formattedLine)}
