@@ -7,10 +7,57 @@ interface MediaRendererProps {
 }
 
 export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
-  // Fonction pour détecter si un lien est une image
+  // Fonction améliorée pour détecter si un lien est une image
   const isImageUrl = (url: string): boolean => {
-    const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg)(\?.*)?$/i;
-    return imageExtensions.test(url) || url.includes('imgur.com');
+    // Extensions d'images courantes
+    const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|tiff)(\?.*)?$/i;
+    
+    // Domaines d'images courantes
+    const imageDomains = [
+      'imgur.com',
+      'drive.google.com',
+      'docs.google.com',
+      'googleusercontent.com',
+      'dropbox.com',
+      'ibb.co',
+      'postimg.cc',
+      'imgbb.com',
+      'flickr.com',
+      'photobucket.com',
+      'tinypic.com',
+      'imageshack.com'
+    ];
+    
+    // Google Drive direct links
+    if (url.includes('drive.google.com/file/d/') || url.includes('docs.google.com/') || url.includes('googleusercontent.com')) {
+      return true;
+    }
+    
+    // Vérifier les extensions d'images
+    if (imageExtensions.test(url)) {
+      return true;
+    }
+    
+    // Vérifier les domaines d'images
+    return imageDomains.some(domain => url.includes(domain));
+  };
+
+  // Fonction pour convertir les liens Google Drive en liens d'affichage direct
+  const convertGoogleDriveUrl = (url: string): string => {
+    // Convertir les liens Google Drive en format d'affichage direct
+    if (url.includes('drive.google.com/file/d/')) {
+      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (fileIdMatch && fileIdMatch[1]) {
+        return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
+      }
+    }
+    
+    // Convertir les liens Google Docs/Sheets en format d'image
+    if (url.includes('docs.google.com/') && !url.includes('export=download')) {
+      return url + (url.includes('?') ? '&' : '?') + 'export=download';
+    }
+    
+    return url;
   };
 
   // Fonction pour détecter et formater les emails
@@ -24,13 +71,11 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       const email = match[0];
       const startIndex = match.index;
 
-      // Ajouter le texte avant l'email
       if (startIndex > lastIndex) {
         const beforeText = text.substring(lastIndex, startIndex);
         parts.push(beforeText);
       }
 
-      // Ajouter l'email comme lien cliquable
       parts.push(
         <a 
           key={startIndex}
@@ -44,7 +89,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       lastIndex = emailRegex.lastIndex;
     }
 
-    // Ajouter le texte restant
     if (lastIndex < text.length) {
       const remainingText = text.substring(lastIndex);
       parts.push(remainingText);
@@ -55,14 +99,12 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
   // Fonction pour détecter et formater les numéros WhatsApp
   const processWhatsApp = (text: string): React.ReactNode[] => {
-    // Détecter les liens WhatsApp
     const whatsappLinkRegex = /(https:\/\/wa\.me\/[0-9]+)/g;
     const whatsappTextRegex = /WhatsApp\s*:?\s*([+]?[0-9\s-()]+)/gi;
     
     const parts: React.ReactNode[] = [];
     let processedText = text;
     
-    // Traiter les liens WhatsApp directs
     const whatsappMatches = [...processedText.matchAll(whatsappLinkRegex)];
     if (whatsappMatches.length > 0) {
       let lastIndex = 0;
@@ -72,13 +114,11 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         const startIndex = match.index!;
         const phoneNumber = url.replace('https://wa.me/', '');
 
-        // Ajouter le texte avant le lien
         if (startIndex > lastIndex) {
           const beforeText = processedText.substring(lastIndex, startIndex);
           parts.push(beforeText);
         }
 
-        // Ajouter l'icône WhatsApp cliquable
         parts.push(
           <a 
             key={startIndex}
@@ -97,7 +137,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         lastIndex = startIndex + url.length;
       });
 
-      // Ajouter le texte restant
       if (lastIndex < processedText.length) {
         const remainingText = processedText.substring(lastIndex);
         parts.push(remainingText);
@@ -106,7 +145,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       return parts;
     }
     
-    // Traiter les mentions de WhatsApp avec numéro
     const textMatches = [...processedText.matchAll(whatsappTextRegex)];
     if (textMatches.length > 0) {
       let lastIndex = 0;
@@ -118,13 +156,11 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         const cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
         const whatsappUrl = `https://wa.me/${cleanNumber.replace('+', '')}`;
 
-        // Ajouter le texte avant la mention WhatsApp
         if (startIndex > lastIndex) {
           const beforeText = processedText.substring(lastIndex, startIndex);
           parts.push(beforeText);
         }
 
-        // Ajouter l'icône WhatsApp cliquable
         parts.push(
           <a 
             key={startIndex}
@@ -134,7 +170,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
             className="inline-flex items-center bg-green-50 border border-green-200 rounded-lg px-3 py-2 my-1 hover:bg-green-100 transition-colors"
           >
             <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.685"/>
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.885m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.685"/>
             </svg>
             <span className="text-green-700 font-medium">{cleanNumber}</span>
           </a>
@@ -143,7 +179,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         lastIndex = startIndex + fullMatch.length;
       });
 
-      // Ajouter le texte restant
       if (lastIndex < processedText.length) {
         const remainingText = processedText.substring(lastIndex);
         parts.push(remainingText);
@@ -155,27 +190,10 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return [text];
   };
 
-  // Fonction pour nettoyer le HTML indésirable
-  const cleanHtmlSyntax = (text: string): string => {
-    // Supprimer les balises HTML visibles dans le texte
-    let cleanedText = text;
-    
-    // Supprimer les balises div, span, strong qui apparaissent comme du texte
-    cleanedText = cleanedText.replace(/<\/?div[^>]*>/g, '');
-    cleanedText = cleanedText.replace(/<\/?span[^>]*>/g, '');
-    cleanedText = cleanedText.replace(/<\/?strong[^>]*>/g, '');
-    cleanedText = cleanedText.replace(/class=['"][^'"]*['"]/g, '');
-    
-    // Nettoyer les attributs de classe orphelins
-    cleanedText = cleanedText.replace(/\s*class\s*=\s*['"][^'"]*['"]/g, '');
-    
-    return cleanedText;
-  };
-
-  // Fonction pour extraire et traiter les liens d'images
+  // Fonction principale pour extraire et traiter les liens d'images
   const processImageLinks = (text: string): React.ReactNode[] => {
-    // Regex pour détecter les URLs (http/https)
-    const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
+    // Regex plus complète pour détecter les URLs
+    const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]\(\)]+)/gi;
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     let match;
@@ -193,25 +211,28 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
       // Si c'est une image, l'afficher directement
       if (isImageUrl(url)) {
+        const imageUrl = convertGoogleDriveUrl(url);
         parts.push(
           <div key={startIndex} className="my-4">
             <img 
-              src={url} 
+              src={imageUrl} 
               alt="Image partagée" 
               className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 hover:scale-105 transition-transform duration-300"
-              style={{ maxHeight: '500px', minHeight: '200px' }}
+              style={{ maxHeight: '400px', minHeight: '150px' }}
               onError={(e) => {
-                // En cas d'erreur de chargement, afficher le lien à la place
                 const target = e.target as HTMLImageElement;
                 const parent = target.parentElement;
                 if (parent) {
                   parent.innerHTML = `
-                    <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p class="text-sm text-gray-600 mb-2">Impossible de charger l'image</p>
-                      <a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all font-medium">${url}</a>
+                    <div class="p-4 bg-gray-100 border border-gray-300 rounded-lg">
+                      <p class="text-sm text-gray-600 mb-2">🖼️ Image non disponible</p>
+                      <p class="text-xs text-gray-500 break-all">${url}</p>
                     </div>
                   `;
                 }
+              }}
+              onLoad={() => {
+                console.log('Image chargée avec succès:', imageUrl);
               }}
             />
           </div>
@@ -246,13 +267,9 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
   // Fonction principale pour traiter le contenu
   const processContent = (text: string): React.ReactNode[] => {
-    // Nettoyer d'abord le HTML indésirable
-    const cleanedText = cleanHtmlSyntax(text);
-    
     // Traiter les WhatsApp d'abord
-    const whatsappProcessed = processWhatsApp(cleanedText);
+    const whatsappProcessed = processWhatsApp(text);
     
-    // Si le traitement WhatsApp a retourné des éléments React, les traiter individuellement
     if (whatsappProcessed.length > 1 || React.isValidElement(whatsappProcessed[0])) {
       return whatsappProcessed.map((part, index) => {
         if (typeof part === 'string') {
@@ -262,17 +279,14 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       }).flat();
     }
     
-    // Sinon, traiter directement les emails
     return processEmails(whatsappProcessed[0] as string);
   };
 
   // Fonction pour formatter le texte avec markdown-like syntax
   const formatText = (text: string) => {
-    // Diviser le texte en lignes pour traiter chaque ligne
     const lines = text.split('\n');
     
     return lines.map((line, index) => {
-      // Traitement des différents styles de formatage
       let formattedLine = line;
       
       // Gras avec **texte** ou __texte__
@@ -318,8 +332,8 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         return <div key={index} className="h-2"></div>;
       }
       
-      // Vérifier si la ligne contient des liens/images
-      const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
+      // Vérifier si la ligne contient des liens/images - c'est le point clé !
+      const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]\(\)]+)/gi;
       if (urlRegex.test(formattedLine)) {
         return (
           <div key={index} className="leading-relaxed">
