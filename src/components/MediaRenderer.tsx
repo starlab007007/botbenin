@@ -1,65 +1,13 @@
 
 import React from 'react';
-import { MessageCircle } from 'lucide-react';
+import { UrlDetector, UrlInfo } from '@/utils/urlDetection';
+import { ImageDisplay } from '@/components/ImageDisplay';
 
 interface MediaRendererProps {
   content: string;
 }
 
 export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
-  // Fonction améliorée pour détecter si un lien est une image
-  const isImageUrl = (url: string): boolean => {
-    // Extensions d'images courantes
-    const imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|tiff)(\?.*)?$/i;
-    
-    // Domaines d'images courantes
-    const imageDomains = [
-      'imgur.com',
-      'drive.google.com',
-      'docs.google.com',
-      'googleusercontent.com',
-      'dropbox.com',
-      'ibb.co',
-      'postimg.cc',
-      'imgbb.com',
-      'flickr.com',
-      'photobucket.com',
-      'tinypic.com',
-      'imageshack.com'
-    ];
-    
-    // Google Drive direct links
-    if (url.includes('drive.google.com/file/d/') || url.includes('docs.google.com/') || url.includes('googleusercontent.com')) {
-      return true;
-    }
-    
-    // Vérifier les extensions d'images
-    if (imageExtensions.test(url)) {
-      return true;
-    }
-    
-    // Vérifier les domaines d'images
-    return imageDomains.some(domain => url.includes(domain));
-  };
-
-  // Fonction pour convertir les liens Google Drive en liens d'affichage direct
-  const convertGoogleDriveUrl = (url: string): string => {
-    // Convertir les liens Google Drive en format d'affichage direct
-    if (url.includes('drive.google.com/file/d/')) {
-      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (fileIdMatch && fileIdMatch[1]) {
-        return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
-      }
-    }
-    
-    // Convertir les liens Google Docs/Sheets en format d'image
-    if (url.includes('docs.google.com/') && !url.includes('export=download')) {
-      return url + (url.includes('?') ? '&' : '?') + 'export=download';
-    }
-    
-    return url;
-  };
-
   // Fonction pour détecter et formater les emails
   const processEmails = (text: string): React.ReactNode[] => {
     const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
@@ -190,17 +138,25 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return [text];
   };
 
-  // Fonction principale pour extraire et traiter les liens d'images
-  const processImageLinks = (text: string): React.ReactNode[] => {
-    // Regex plus complète pour détecter les URLs
-    const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]\(\)]+)/gi;
+  // Nouvelle fonction principale pour traiter les URLs avec détection intelligente
+  const processUrlsWithMediaDetection = (text: string): React.ReactNode[] => {
+    const urlInfos = UrlDetector.extractUrls(text);
+    
+    if (urlInfos.length === 0) {
+      // Pas d'URLs trouvées, traiter pour emails et WhatsApp seulement
+      return processContent(text);
+    }
+
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
+    const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]\(\)]+)/gi;
     let match;
+    let urlIndex = 0;
 
     while ((match = urlRegex.exec(text)) !== null) {
       const url = match[0];
       const startIndex = match.index;
+      const urlInfo = urlInfos[urlIndex++];
 
       // Ajouter le texte avant l'URL
       if (startIndex > lastIndex) {
@@ -209,36 +165,17 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         parts.push(...processedBefore);
       }
 
-      // Si c'est une image, l'afficher directement
-      if (isImageUrl(url)) {
-        const imageUrl = convertGoogleDriveUrl(url);
+      // Traiter l'URL selon son type
+      if (urlInfo.type === 'image' || urlInfo.type === 'google_sheet' || urlInfo.type === 'google_doc') {
+        // Afficher comme image/media
         parts.push(
-          <div key={startIndex} className="my-4">
-            <img 
-              src={imageUrl} 
-              alt="Image partagée" 
-              className="max-w-full h-auto rounded-lg shadow-lg border border-gray-200 hover:scale-105 transition-transform duration-300"
-              style={{ maxHeight: '400px', minHeight: '150px' }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                const parent = target.parentElement;
-                if (parent) {
-                  parent.innerHTML = `
-                    <div class="p-4 bg-gray-100 border border-gray-300 rounded-lg">
-                      <p class="text-sm text-gray-600 mb-2">🖼️ Image non disponible</p>
-                      <p class="text-xs text-gray-500 break-all">${url}</p>
-                    </div>
-                  `;
-                }
-              }}
-              onLoad={() => {
-                console.log('Image chargée avec succès:', imageUrl);
-              }}
-            />
-          </div>
+          <ImageDisplay 
+            key={startIndex} 
+            urlInfo={urlInfo}
+          />
         );
       } else {
-        // Pour les autres liens, les afficher normalement
+        // URL normale, afficher comme lien
         parts.push(
           <a 
             key={startIndex}
@@ -265,7 +202,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return parts;
   };
 
-  // Fonction principale pour traiter le contenu
+  // Fonction principale pour traiter le contenu (emails et WhatsApp)
   const processContent = (text: string): React.ReactNode[] => {
     // Traiter les WhatsApp d'abord
     const whatsappProcessed = processWhatsApp(text);
@@ -332,12 +269,12 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         return <div key={index} className="h-2"></div>;
       }
       
-      // Vérifier si la ligne contient des liens/images - c'est le point clé !
+      // Vérifier si la ligne contient des liens/images - utiliser la nouvelle fonction
       const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]\(\)]+)/gi;
       if (urlRegex.test(formattedLine)) {
         return (
           <div key={index} className="leading-relaxed">
-            {processImageLinks(formattedLine)}
+            {processUrlsWithMediaDetection(formattedLine)}
           </div>
         );
       }
