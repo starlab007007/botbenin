@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { UrlDetector, UrlInfo } from '@/utils/urlDetection';
 import { ImageDisplay } from '@/components/ImageDisplay';
@@ -196,7 +195,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
       // Traiter l'URL selon son type
       if (urlInfo.type === 'image' || urlInfo.type === 'google_sheet' || urlInfo.type === 'google_doc') {
-        // Afficher comme image/media - ne pas afficher l'URL
+        // Afficher comme image/media - optimisé sans lien source
         parts.push(
           <ImageDisplay 
             key={startIndex} 

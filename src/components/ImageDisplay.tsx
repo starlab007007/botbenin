@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { UrlInfo } from '@/utils/urlDetection';
+import { ImageViewer } from '@/components/ImageViewer';
 
 interface ImageDisplayProps {
   urlInfo: UrlInfo;
@@ -49,14 +50,7 @@ export const ImageDisplay: React.FC<ImageDisplayProps> = ({ urlInfo, className }
             {getImageTypeLabel(urlInfo.type)} - Aperçu non disponible
           </span>
         </div>
-        <a 
-          href={urlInfo.url}
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 underline text-sm break-all"
-        >
-          {urlInfo.url}
-        </a>
+        <p className="text-gray-500 text-sm">Impossible de charger l'image</p>
       </div>
     );
   }
@@ -70,41 +64,34 @@ export const ImageDisplay: React.FC<ImageDisplayProps> = ({ urlInfo, className }
         </span>
       </div>
 
-      {/* Image container */}
-      <div className="relative">
-        {!imageLoaded && !imageError && (
-          <div className="flex items-center justify-center h-32 bg-gray-100 rounded-lg border border-gray-200">
-            <div className="flex flex-col items-center space-y-2">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="text-sm text-gray-600">Chargement...</span>
-            </div>
+      {/* Loading state */}
+      {!imageLoaded && !imageError && (
+        <div className="flex items-center justify-center h-32 bg-gray-100 rounded-lg border border-gray-200 mb-2">
+          <div className="flex flex-col items-center space-y-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span className="text-sm text-gray-600">Chargement...</span>
           </div>
-        )}
-
-        <img 
-          src={urlInfo.processedUrl || urlInfo.url}
-          alt={`${getImageTypeLabel(urlInfo.type)} partagé`}
-          className={`max-w-full h-auto rounded-lg shadow-lg border border-gray-200 hover:scale-105 transition-transform duration-300 ${className || ''} ${imageLoaded ? 'block' : 'hidden'}`}
-          style={{ maxHeight: '500px', minHeight: imageLoaded ? 'auto' : '150px' }}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-          loading="lazy"
-        />
-      </div>
-
-      {/* Source link */}
-      {imageLoaded && (
-        <div className="mt-2">
-          <a 
-            href={urlInfo.url}
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-xs text-gray-500 hover:text-gray-700 underline break-all"
-          >
-            Source: {urlInfo.url}
-          </a>
         </div>
       )}
+
+      {/* Image with zoom functionality */}
+      {!imageError && (
+        <ImageViewer
+          src={urlInfo.processedUrl || urlInfo.url}
+          alt={`${getImageTypeLabel(urlInfo.type)} partagé`}
+          className={`${imageLoaded ? 'block' : 'hidden'} ${className || ''}`}
+        />
+      )}
+
+      {/* Hidden image for loading detection */}
+      <img 
+        src={urlInfo.processedUrl || urlInfo.url}
+        alt=""
+        className="hidden"
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+        loading="eager"
+      />
     </div>
   );
 };
