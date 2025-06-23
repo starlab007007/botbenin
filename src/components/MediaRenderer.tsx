@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { UrlDetector, UrlInfo } from '@/utils/urlDetection';
 import { ImageDisplay } from '@/components/ImageDisplay';
@@ -137,20 +138,32 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return [text];
   };
 
-  // Fonction pour nettoyer le contenu des codes JSON et syntaxes indésirables
+  // Fonction AMÉLIORÉE pour nettoyer le contenu - suppression COMPLÈTE des codes HTML
   const cleanContent = (text: string): string => {
+    let cleanedText = text;
+    
+    // Supprimer TOUS les tags HTML et leur contenu
+    cleanedText = cleanedText.replace(/<[^>]*>/g, '');
+    
     // Supprimer les blocs JSON complets
-    let cleanedText = text.replace(/\{[^{}]*"Image_URL"[^{}]*\}/g, '');
+    cleanedText = cleanedText.replace(/\{[^{}]*"Image_URL"[^{}]*\}/g, '');
     
     // Supprimer les patterns comme "Image_URL": "..."
     cleanedText = cleanedText.replace(/"Image_URL"\s*:\s*"[^"]*"/g, '');
     
-    // Supprimer les patterns de code avec des crochets et accolades
+    // Supprimer TOUS les patterns de code avec des crochets et accolades
     cleanedText = cleanedText.replace(/\{[^{}]*\}/g, '');
     cleanedText = cleanedText.replace(/\[[^\[\]]*\]/g, '');
     
     // Supprimer les mots-clés techniques isolés
-    cleanedText = cleanedText.replace(/\b(Image_URL|Source|Description|json)\b\s*[:=]?\s*/gi, '');
+    cleanedText = cleanedText.replace(/\b(Image_URL|Source|Description|json|div|class|span|strong)\b\s*[:=]?\s*/gi, '');
+    
+    // Supprimer les attributs HTML résiduels
+    cleanedText = cleanedText.replace(/class\s*=\s*["'][^"']*["']/gi, '');
+    cleanedText = cleanedText.replace(/style\s*=\s*["'][^"']*["']/gi, '');
+    
+    // Supprimer les entités HTML
+    cleanedText = cleanedText.replace(/&[a-zA-Z0-9#]+;/g, '');
     
     // Nettoyer les espaces multiples et retours à la ligne
     cleanedText = cleanedText.replace(/\s{2,}/g, ' ').trim();
@@ -163,8 +176,13 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
   // Fonction principale pour traiter les URLs avec détection intelligente
   const processUrlsWithMediaDetection = (text: string): React.ReactNode[] => {
-    // Nettoyer d'abord le contenu
+    // Nettoyer d'abord le contenu de TOUT code HTML
     const cleanedText = cleanContent(text);
+    
+    // Si après nettoyage il ne reste rien d'utile, ne rien afficher
+    if (!cleanedText || cleanedText.trim().length < 3) {
+      return [];
+    }
     
     const urlInfos = UrlDetector.extractUrls(cleanedText);
     
@@ -195,7 +213,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
       // Traiter l'URL selon son type
       if (urlInfo.type === 'image' || urlInfo.type === 'google_sheet' || urlInfo.type === 'google_doc') {
-        // Afficher comme image/media - optimisé sans lien source
+        // Afficher UNIQUEMENT l'image, sans aucun texte ni lien
         parts.push(
           <ImageDisplay 
             key={startIndex} 

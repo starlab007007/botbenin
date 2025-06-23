@@ -8,7 +8,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { saveChatMessage } from '@/services/chatService';
 import { useBotMessageHistory } from '@/components/bot-conversation/hooks/useBotMessageHistory';
 import { useSessionManager } from '@/hooks/useSessionManager';
-import { Copy } from 'lucide-react'; // <-- ADDED IMPORT
+import { Copy } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -177,9 +177,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('Request timeout après 30 secondes');
+        console.log('Request timeout après 60 secondes');
         controller.abort();
-      }, 30000);
+      }, 60000);
 
       // Payload enrichi avec les informations spécifiques du bot
       const requestPayload = {
@@ -289,13 +289,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       console.error('Full error:', error);
       console.error('Webhook URL utilisé:', webhookUrl);
       
-      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || finalChatTitle}" (${webhookUrl}). Veuillez vérifier la configuration de votre webhook.`;
+      let errorMessage = `Je rencontre des difficultés techniques avec le webhook N8N configuré pour "${urlBotName || finalChatTitle}". Veuillez vérifier la configuration de votre webhook.`;
       let toastMessage = `Problème de connexion N8N - ${urlBotName || finalChatTitle}`;
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = `La requête vers N8N pour "${urlBotName || finalChatTitle}" a pris trop de temps. Le système pourrait être occupé. Veuillez réessayer.`;
-          toastMessage = `Timeout N8N - ${urlBotName || finalChatTitle}`;
+          errorMessage = `La requête vers N8N pour "${urlBotName || finalChatTitle}" a pris plus de 60 secondes. Le système pourrait être surchargé. Veuillez réessayer dans quelques minutes.`;
+          toastMessage = `Timeout prolongé N8N - ${urlBotName || finalChatTitle}`;
         } else if (error.message.includes('Failed to fetch')) {
           errorMessage = `Impossible de se connecter à N8N pour "${urlBotName || finalChatTitle}" via l'URL: ${webhookUrl}. Vérifiez que l'URL est correcte et accessible.`;
           toastMessage = `Problème de connectivité N8N - ${urlBotName || finalChatTitle}`;

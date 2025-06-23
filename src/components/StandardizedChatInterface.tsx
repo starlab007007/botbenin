@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast, toast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -196,7 +197,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       content: textToSend,
       isUser: true,
       timestamp: new Date(),
-      isHistoryMessage: false, // Nouveau message, pas d'historique
+      isHistoryMessage: false,
       ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
@@ -217,7 +218,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // Reduced timeout for faster response
+      // AUGMENTATION DU TIMEOUT : de 15s à 45s
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
 
       const headers = BotConfigService.getStandardWebhookHeaders(
         botId,
@@ -298,9 +300,9 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage = `La requête vers "${botConfig.name}" a pris trop de temps. Veuillez réessayer.`;
+          errorMessage = `La requête vers "${botConfig.name}" a pris plus de 45 secondes. Le système pourrait être surchargé. Veuillez réessayer dans quelques minutes.`;
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = `Impossible de se connecter à "${botConfig.name}". Vérifiez votre connexion internet.`;
+          errorMessage = `Impossible de se connecter à "${botConfig.name}". Vérifiez votre connexion internet et réessayez.`;
         }
       }
 
@@ -309,7 +311,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         content: errorMessage,
         isUser: false,
         timestamp: new Date(),
-        isHistoryMessage: false, // Message d'erreur, pas d'historique
+        isHistoryMessage: false,
       };
 
       setMessages(prev => [...prev, fallbackMessage]);
