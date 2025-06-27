@@ -54,23 +54,38 @@ export class UrlDetector {
     // Check for image extensions
     if (this.imageExtensions.test(url)) {
       urlInfo.type = 'image';
-      urlInfo.processedUrl = url;
+      urlInfo.processedUrl = this.enhanceImageUrl(url);
       return urlInfo;
     }
 
     // Check for image domains
     if (this.imageDomains.some(domain => url.includes(domain))) {
       urlInfo.type = 'image';
-      urlInfo.processedUrl = url;
+      urlInfo.processedUrl = this.enhanceImageUrl(url);
       return urlInfo;
     }
 
     return urlInfo;
   }
 
+  private static enhanceImageUrl(url: string): string {
+    // Améliorer la qualité des images selon le service
+    if (url.includes('imgur.com')) {
+      // Remplacer les petites versions par les versions HD
+      return url.replace(/[bmts]\.jpg$/, '.jpg').replace(/[bmts]\.png$/, '.png');
+    }
+    
+    if (url.includes('googleusercontent.com')) {
+      // Ajouter des paramètres pour une meilleure qualité
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}sz=w2000-h2000`;
+    }
+    
+    return url;
+  }
+
   private static convertGoogleSheetToImage(url: string): string {
     try {
-      // Extract sheet ID from various Google Sheets URL formats
       let sheetId = '';
       
       const patterns = [
@@ -88,8 +103,8 @@ export class UrlDetector {
       }
 
       if (sheetId) {
-        // Convert to image export URL
-        return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=png&gid=0`;
+        // Utiliser un format PNG haute qualité
+        return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=png&size=0&fzr=true&gid=0`;
       }
     } catch (error) {
       console.warn('Failed to convert Google Sheet URL:', error);
@@ -100,12 +115,11 @@ export class UrlDetector {
 
   private static convertGoogleDocToImage(url: string): string {
     try {
-      // Extract document ID from Google Docs URL
       const match = url.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
       
       if (match && match[1]) {
         const docId = match[1];
-        // Convert to image export URL
+        // Utiliser un format PNG haute qualité
         return `https://docs.google.com/document/d/${docId}/export?format=png`;
       }
     } catch (error) {
@@ -117,17 +131,17 @@ export class UrlDetector {
 
   private static convertGoogleDriveUrl(url: string): string {
     try {
-      // Convert Google Drive sharing URLs to direct view URLs
       if (url.includes('drive.google.com/file/d/')) {
         const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
         if (fileIdMatch && fileIdMatch[1]) {
-          return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
+          // Utiliser une taille maximale pour la qualité HD
+          return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}&sz=w2000-h2000`;
         }
       }
       
-      // Handle other Google Drive formats
       if (url.includes('docs.google.com/') && !url.includes('export=download')) {
-        return url + (url.includes('?') ? '&' : '?') + 'export=download';
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}export=download&sz=w2000-h2000`;
       }
     } catch (error) {
       console.warn('Failed to convert Google Drive URL:', error);
