@@ -38,13 +38,35 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
 }) => {
   const { toast } = useToast();
 
-  console.log('[LiveChatBotCarousel] Rendu avec:', { 
-    botsCount: bots.length, 
-    isLoading, 
-    bots: bots.map(b => ({ id: b.id, name: b.name, hasWebhook: !!b.webhook_url }))
+  // DIAGNOSTIC COMPLET
+  console.log('[LiveChatBotCarousel] === DIAGNOSTIC AFFICHAGE ===');
+  console.log('[LiveChatBotCarousel] Props reçues:', {
+    botsCount: bots?.length || 0,
+    isLoading,
+    hasOnRefresh: !!onRefresh,
+    botsArray: bots
   });
 
+  console.log('[LiveChatBotCarousel] Détails des bots reçus:');
+  if (bots && bots.length > 0) {
+    bots.forEach((bot, index) => {
+      console.log(`[LiveChatBotCarousel] Bot ${index + 1}:`, {
+        id: bot.id,
+        name: bot.name,
+        description: bot.description?.substring(0, 50) + '...',
+        hasWebhook: !!bot.webhook_url,
+        webhookUrl: bot.webhook_url,
+        context: bot.chat_context,
+        isActive: bot.is_active,
+        chatTitle: bot.chat_title
+      });
+    });
+  } else {
+    console.log('[LiveChatBotCarousel] PROBLÈME: Aucun bot dans le tableau !');
+  }
+
   if (isLoading) {
+    console.log('[LiveChatBotCarousel] AFFICHAGE: État de chargement');
     return (
       <div className="w-full py-8">
         <div className="text-center mb-4">
@@ -76,16 +98,18 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
   }
 
   if (!bots || bots.length === 0) {
-    console.log('[LiveChatBotCarousel] Aucun bot disponible, affichage du composant NoBotAvailable');
+    console.log('[LiveChatBotCarousel] AFFICHAGE: Aucun bot - NoBotAvailable');
     return (
       <NoBotAvailable 
-        onRefresh={onRefresh || (() => {})} 
-        isLoading={isLoading} 
+        onRefresh={onRefresh || (() => {
+          console.log('[LiveChatBotCarousel] Refresh demandé mais pas de fonction onRefresh');
+        })} 
+        isLoading={false} 
       />
     );
   }
 
-  console.log('[LiveChatBotCarousel] Affichage de', bots.length, 'bots publics');
+  console.log('[LiveChatBotCarousel] AFFICHAGE: Rendu de', bots.length, 'bots');
 
   return (
     <div className="w-full">
@@ -133,6 +157,8 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
   const [isHovered, setIsHovered] = useState(false);
   const { toast } = useToast();
 
+  console.log('[BotCard] Rendu de la carte pour:', bot.name, 'ID:', bot.id);
+
   const getSpecialtiesFromContext = (context: string): string[] => {
     const contextMap: Record<string, string[]> = {
       'technical': ['Support Technique', 'Dépannage'],
@@ -162,7 +188,6 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
       description: `Connexion à ${bot.chat_title}...`,
     });
     
-    // Toujours permettre le démarrage du chat pour les bots publics
     onStartChat(bot);
   };
 
