@@ -126,14 +126,14 @@ export const useChatLogic = () => {
 
       setSelectedAgent(agent);
       setIsConnected(true);
-      setWaitTime(Math.floor(Math.random() * 10) + 3); // Temps réduit pour accès public
+      setWaitTime(Math.floor(Math.random() * 10) + 3);
       setSecurityWarnings([]);
       
-      // Message système de connexion pour accès public
+      // Message système de connexion amélioré pour accès public
       const welcomeMessage: Message = {
         id: Date.now().toString(),
         sender: 'agent',
-        content: `Bonjour ! Je suis ${agent.name}, ${agent.role}. Je suis disponible pour tous les utilisateurs. Comment puis-je vous aider aujourd'hui ?`,
+        content: `👋 Bonjour et bienvenue ! Je suis ${agent.name}, votre ${agent.role}.\n\nJe suis là pour vous aider 24h/24 et 7j/7. N'hésitez pas à utiliser les suggestions de messages ci-dessous pour commencer notre conversation.\n\nComment puis-je vous être utile aujourd'hui ?`,
         timestamp: new Date(),
         type: 'system',
         agentInfo: {
@@ -146,8 +146,8 @@ export const useChatLogic = () => {
       setMessages([welcomeMessage]);
 
       toast({
-        title: `Chat public démarré avec ${agent.name}`,
-        description: "Connexion établie avec l'assistant IA public",
+        title: `💬 Chat démarré avec ${agent.name}`,
+        description: "Interface de chat identique au mode test",
       });
       
     } catch (error: any) {

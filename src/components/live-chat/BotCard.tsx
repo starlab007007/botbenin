@@ -54,11 +54,11 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
   const hasWebhook = bot.webhook_url && bot.webhook_url.trim() !== '';
 
   const handleStartChat = () => {
-    console.log('[BotCard] Démarrage du chat avec:', bot.name, 'Webhook disponible:', hasWebhook);
+    console.log('[BotCard] Démarrage du chat avec interface standardisée:', bot.name, 'Webhook disponible:', hasWebhook);
     
     toast({
-      title: "Démarrage du chat",
-      description: `Connexion à ${bot.chat_title}...`,
+      title: "💬 Ouverture du chat",
+      description: `Démarrage de ${bot.chat_title} avec interface identique au mode test`,
     });
     
     onStartChat(bot);
@@ -149,7 +149,7 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
           </div>
           <div className="flex items-center space-x-1">
             <Users className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-500">Disponible maintenant</span>
+            <span className="text-xs text-gray-500">Interface identique</span>
           </div>
         </div>
 
