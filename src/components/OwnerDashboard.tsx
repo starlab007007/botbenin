@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -98,26 +97,44 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
   };
 
   const fetchBotsSummary = async () => {
-    const { data, error } = await supabase
-      .from('detailed_bot_stats')
-      .select(`
-        bot_id,
-        bot_name,
-        is_active,
-        total_unique_users,
-        total_messages,
-        messages_24h,
-        last_message_at
-      `)
-      .order('total_messages', { ascending: false })
-      .limit(10);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    if (error) {
-      console.error('Erreur résumé des bots:', error);
-      return;
+      // Get the owner ID first
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!ownerData) return;
+
+      // Filter bots by owner_id
+      const { data, error } = await supabase
+        .from('detailed_bot_stats')
+        .select(`
+          bot_id,
+          bot_name,
+          is_active,
+          total_unique_users,
+          total_messages,
+          messages_24h,
+          last_message_at
+        `)
+        .eq('owner_id', ownerData.id)
+        .order('total_messages', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Erreur résumé des bots:', error);
+        return;
+      }
+
+      setBotsSummary(data || []);
+    } catch (error) {
+      console.error('Erreur lors de la récupération du résumé des bots:', error);
     }
-
-    setBotsSummary(data || []);
   };
 
   if (isLoading) {
