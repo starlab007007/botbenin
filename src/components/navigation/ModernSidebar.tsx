@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
@@ -25,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ModernSidebarProps {
   isOpen: boolean;
@@ -142,6 +142,7 @@ const bottomItems = [
 export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const isActive = (path: string) => {
     if (path === '/home') {
@@ -189,117 +190,229 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
   );
 
   return (
-    <div className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gradient-to-b from-gray-50 to-gray-100 border-r border-gray-200 overflow-y-auto transform transition-transform duration-300 ease-out z-40 ${
-      isOpen ? 'translate-x-0' : '-translate-x-full'
-    } lg:translate-x-0`}>
-      
-      {/* Header mobile */}
-      <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-white">
-        <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <X className="w-5 h-5" />
-        </Button>
-      </div>
-
-      <nav className="p-4 space-y-8">
-        {/* Menu Principal */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Menu Principal
-          </h3>
-          <div className="space-y-2">
-            {mainMenuItems.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
-
-        {/* Gestion des Bots */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Bots & Automatisation
-          </h3>
-          <div className="space-y-2">
-            {botManagementItems.map((item) => (
-              <NavItem key={item.path} item={item} />
-            ))}
-          </div>
-        </div>
-
-        {/* Marketing */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Marketing & Social
-          </h3>
-          <div className="space-y-2">
-            {marketingItems.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
-
-        {/* CRM */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            CRM & Prospects
-          </h3>
-          <div className="space-y-2">
-            {crmItems.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
-
-        {/* Modules IA */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Modules IA Spécialisés
-          </h3>
-          <div className="space-y-2">
-            {aiModules.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
-
-        {/* Administration */}
-        {hasAdminAccess && (
-          <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-              Administration
-            </h3>
-            <div className="space-y-2">
-              <NavLink
-                to="/admin/users"
-                onClick={onClose}
-                className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                  isActive('/admin/users')
-                    ? 'bg-white shadow-md border border-gray-100'
-                    : 'hover:bg-white/60 hover:shadow-sm'
-                }`}
-              >
-                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                  <Shield className="w-5 h-5 text-white" />
-                </div>
-                <span className={`font-medium ${
-                  isActive('/admin/users') ? 'text-gray-900' : 'text-gray-700'
-                }`}>
-                  Utilisateurs
-                </span>
-              </NavLink>
+    <>
+      {/* Sidebar mobile en plein écran */}
+      {isMobile ? (
+        <div className={`fixed inset-0 z-40 transform transition-transform duration-300 ease-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <div className="w-full h-full bg-gradient-to-b from-gray-50 to-gray-100 overflow-y-auto">
+            {/* Header mobile en plein largeur */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+              <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                <X className="w-5 h-5" />
+              </Button>
             </div>
-          </div>
-        )}
 
-        {/* Support & Compte */}
-        <div className="border-t border-gray-200 pt-6">
-          <div className="space-y-2">
-            {bottomItems.map((item) => (
-              <NavItem key={item.path} item={item} />
-            ))}
+            <nav className="p-4 space-y-6">
+              {/* Menu Principal */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                  Menu Principal
+                </h3>
+                <div className="space-y-2">
+                  {mainMenuItems.map((item) => (
+                    <NavItem key={item.path} item={item} showDescription />
+                  ))}
+                </div>
+              </div>
+
+              {/* Gestion des Bots */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                  Bots & Automatisation
+                </h3>
+                <div className="space-y-2">
+                  {botManagementItems.map((item) => (
+                    <NavItem key={item.path} item={item} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Marketing */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                  Marketing & Social
+                </h3>
+                <div className="space-y-2">
+                  {marketingItems.map((item) => (
+                    <NavItem key={item.path} item={item} showDescription />
+                  ))}
+                </div>
+              </div>
+
+              {/* CRM */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                  CRM & Prospects
+                </h3>
+                <div className="space-y-2">
+                  {crmItems.map((item) => (
+                    <NavItem key={item.path} item={item} showDescription />
+                  ))}
+                </div>
+              </div>
+
+              {/* Modules IA */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                  Modules IA Spécialisés
+                </h3>
+                <div className="space-y-2">
+                  {aiModules.map((item) => (
+                    <NavItem key={item.path} item={item} showDescription />
+                  ))}
+                </div>
+              </div>
+
+              {/* Administration */}
+              {hasAdminAccess && (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                    Administration
+                  </h3>
+                  <div className="space-y-2">
+                    <NavLink
+                      to="/admin/users"
+                      onClick={onClose}
+                      className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
+                        isActive('/admin/users')
+                          ? 'bg-white shadow-md border border-gray-100'
+                          : 'hover:bg-white/60 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                        <Shield className="w-5 h-5 text-white" />
+                      </div>
+                      <span className={`font-medium ${
+                        isActive('/admin/users') ? 'text-gray-900' : 'text-gray-700'
+                      }`}>
+                        Utilisateurs
+                      </span>
+                    </NavLink>
+                  </div>
+                </div>
+              )}
+
+              {/* Support & Compte */}
+              <div className="border-t border-gray-200 pt-6">
+                <div className="space-y-2">
+                  {bottomItems.map((item) => (
+                    <NavItem key={item.path} item={item} />
+                  ))}
+                </div>
+              </div>
+            </nav>
           </div>
         </div>
-      </nav>
-    </div>
+      ) : (
+        /* Sidebar desktop */
+        <div className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gradient-to-b from-gray-50 to-gray-100 border-r border-gray-200 overflow-y-auto transform transition-transform duration-300 ease-out z-40 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        } lg:translate-x-0`}>
+          
+          <nav className="p-4 space-y-8">
+            {/* Menu Principal */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                Menu Principal
+              </h3>
+              <div className="space-y-2">
+                {mainMenuItems.map((item) => (
+                  <NavItem key={item.path} item={item} showDescription />
+                ))}
+              </div>
+            </div>
+
+            {/* Gestion des Bots */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                Bots & Automatisation
+              </h3>
+              <div className="space-y-2">
+                {botManagementItems.map((item) => (
+                  <NavItem key={item.path} item={item} />
+                ))}
+              </div>
+            </div>
+
+            {/* Marketing */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                Marketing & Social
+              </h3>
+              <div className="space-y-2">
+                {marketingItems.map((item) => (
+                  <NavItem key={item.path} item={item} showDescription />
+                ))}
+              </div>
+            </div>
+
+            {/* CRM */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                CRM & Prospects
+              </h3>
+              <div className="space-y-2">
+                {crmItems.map((item) => (
+                  <NavItem key={item.path} item={item} showDescription />
+                ))}
+              </div>
+            </div>
+
+            {/* Modules IA */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                Modules IA Spécialisés
+              </h3>
+              <div className="space-y-2">
+                {aiModules.map((item) => (
+                  <NavItem key={item.path} item={item} showDescription />
+                ))}
+              </div>
+            </div>
+
+            {/* Administration */}
+            {hasAdminAccess && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+                  Administration
+                </h3>
+                <div className="space-y-2">
+                  <NavLink
+                    to="/admin/users"
+                    onClick={onClose}
+                    className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
+                      isActive('/admin/users')
+                        ? 'bg-white shadow-md border border-gray-100'
+                        : 'hover:bg-white/60 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                      <Shield className="w-5 h-5 text-white" />
+                    </div>
+                    <span className={`font-medium ${
+                      isActive('/admin/users') ? 'text-gray-900' : 'text-gray-700'
+                    }`}>
+                      Utilisateurs
+                    </span>
+                  </NavLink>
+                </div>
+              </div>
+            )}
+
+            {/* Support & Compte */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="space-y-2">
+                {bottomItems.map((item) => (
+                  <NavItem key={item.path} item={item} />
+                ))}
+              </div>
+            </div>
+          </nav>
+        </div>
+      )}
+    </>
   );
 };

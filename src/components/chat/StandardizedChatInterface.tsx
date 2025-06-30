@@ -3,6 +3,7 @@ import React from 'react';
 import { StandardizedChatHeader } from './StandardizedChatHeader';
 import { StandardizedChatMessages } from './StandardizedChatMessages';
 import { StandardizedChatInput } from './StandardizedChatInput';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Message {
   id: string;
@@ -53,9 +54,11 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   onGoBack,
   showBackButton = true
 }) => {
+  const isMobile = useIsMobile();
+
   return (
-    <div className="flex h-screen bg-gray-50">
-      <div className="flex-1 flex flex-col">
+    <div className={`flex ${isMobile ? 'h-screen w-screen fixed inset-0 z-50' : 'h-screen'} bg-gray-50 overflow-hidden`}>
+      <div className="flex-1 flex flex-col w-full">
         <StandardizedChatHeader 
           botName={selectedAgent?.name || 'Assistant IA'}
           botRole={selectedAgent?.role || 'Assistant Intelligent'}

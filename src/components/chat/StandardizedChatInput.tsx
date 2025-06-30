@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Paperclip, Smile, Send, Sparkles } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface StandardizedChatInputProps {
   newMessage: string;
@@ -17,6 +18,7 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
   isTyping
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const isMobile = useIsMobile();
 
   const messageSuggestions = [
     "Quoi de neuf aujourd'hui",
@@ -43,12 +45,12 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
     <div className="bg-white border-t border-gray-200">
       {/* Suggestions de messages centrées */}
       {showSuggestions && newMessage.trim() === '' && (
-        <div className="p-6 border-b border-gray-100 bg-gray-50">
+        <div className={`${isMobile ? 'p-4' : 'p-6'} border-b border-gray-100 bg-gray-50`}>
           <div className="max-w-2xl mx-auto text-center">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            <h3 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-gray-900 mb-2`}>
               Comment puis-je vous aider?
             </h3>
             <p className="text-gray-600 mb-6">
@@ -60,8 +62,8 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
                   key={index}
                   onClick={() => handleSuggestionClick(suggestion)}
                   variant="outline"
-                  size="lg"
-                  className={`w-full text-left justify-start text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition-all ${
+                  size={isMobile ? "default" : "lg"}
+                  className={`w-full text-left justify-start text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition-all ${isMobile ? 'py-3 px-4 text-sm' : ''} ${
                     index === 0 ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600' : ''
                   }`}
                 >
@@ -74,12 +76,20 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
       )}
 
       {/* Zone de saisie */}
-      <div className="p-4">
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" className="text-gray-700 border-gray-300 hover:bg-gray-50">
+      <div className={`${isMobile ? 'p-3' : 'p-4'}`}>
+        <div className={`flex items-center ${isMobile ? 'space-x-2' : 'space-x-2'}`}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className={`text-gray-700 border-gray-300 hover:bg-gray-50 ${isMobile ? 'p-2' : ''}`}
+          >
             <Paperclip className="w-4 h-4" />
           </Button>
-          <Button variant="outline" size="sm" className="text-gray-700 border-gray-300 hover:bg-gray-50">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className={`text-gray-700 border-gray-300 hover:bg-gray-50 ${isMobile ? 'p-2' : ''}`}
+          >
             <Smile className="w-4 h-4" />
           </Button>
           <textarea
@@ -87,15 +97,17 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Tapez votre message ici..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white resize-none"
+            className={`flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white resize-none ${
+              isMobile ? 'text-base min-h-[44px]' : 'min-h-[40px]'
+            }`}
             disabled={isTyping}
             maxLength={4000}
             rows={1}
-            style={{ minHeight: '40px', maxHeight: '120px' }}
+            style={{ maxHeight: isMobile ? '100px' : '120px' }}
           />
           <Button 
             onClick={onSendMessage} 
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className={`bg-blue-600 hover:bg-blue-700 text-white ${isMobile ? 'p-3' : ''}`}
             disabled={isTyping || !newMessage.trim()}
           >
             <Send className="w-4 h-4" />
@@ -103,8 +115,10 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
         </div>
         
         {/* Indicateur de statut */}
-        <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-          <span>Chat public disponible pour tous • Assistance IA 24/7</span>
+        <div className={`flex items-center justify-between mt-2 ${isMobile ? 'text-xs' : 'text-xs'} text-gray-500`}>
+          <span className={isMobile ? 'text-xs' : ''}>
+            Chat public disponible pour tous • Assistance IA 24/7
+          </span>
           <span>{newMessage.length}/4000</span>
         </div>
       </div>

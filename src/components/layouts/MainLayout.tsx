@@ -11,7 +11,7 @@ export const MainLayout: React.FC = () => {
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Header moderne */}
       <ModernTopHeader 
         onMenuClick={() => setSidebarOpen(!sidebarOpen)}
@@ -26,22 +26,22 @@ export const MainLayout: React.FC = () => {
         />
         
         {/* Contenu principal avec dimensions standardisées */}
-        <main className="flex-1 lg:ml-64 min-h-[calc(100vh-4rem)]">
-          <div className={`bg-white border-b border-gray-200 ${isMobile ? 'px-[2.5%]' : 'px-4 sm:px-6 lg:px-8'} py-3`}>
+        <main className={`flex-1 min-h-[calc(100vh-4rem)] ${isMobile ? '' : 'lg:ml-64'}`}>
+          <div className={`bg-white border-b border-gray-200 ${isMobile ? 'px-4' : 'px-4 sm:px-6 lg:px-8'} py-3`}>
             <Breadcrumbs />
           </div>
           
           {/* Container avec largeur maximale et responsive padding */}
-          <div className={`w-full max-w-[1440px] mx-auto ${isMobile ? 'px-[2.5%]' : 'px-4 sm:px-6 lg:px-8'} py-6 lg:py-8`}>
+          <div className={`w-full max-w-full mx-auto ${isMobile ? 'px-4 py-4' : 'px-4 sm:px-6 lg:px-8 py-6 lg:py-8'} overflow-x-hidden`}>
             <Outlet />
           </div>
         </main>
       </div>
       
-      {/* Overlay pour mobile */}
-      {sidebarOpen && (
+      {/* Overlay pour mobile en plein écran */}
+      {sidebarOpen && isMobile && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-30"
           onClick={() => setSidebarOpen(false)}
         />
       )}

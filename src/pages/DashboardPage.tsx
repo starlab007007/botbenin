@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { ConversationManager } from '@/components/ConversationManager';
@@ -5,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CompleteBotAnalytics } from '@/components/CompleteBotAnalytics';
 import { SecureDataManager } from '@/services/dashboard/secureDataManager';
 import { supabase } from '@/integrations/supabase/client';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Dashboard components
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
@@ -17,6 +19,8 @@ import { DashboardStats, UserPermissions } from '@/components/dashboard/Dashboar
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  
   const [stats, setStats] = useState<DashboardStats>({
     totalBots: 0,
     totalMessages: 0,
@@ -136,7 +140,7 @@ export const DashboardPage: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+      <div className={`${isMobile ? 'p-4' : 'p-4 lg:p-8'} space-y-6 lg:space-y-8 bg-gray-50 min-h-screen`}>
         <Card className="uniform-card p-8 text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Connexion requise
@@ -150,17 +154,20 @@ export const DashboardPage: React.FC = () => {
   }
 
   if (showBotAnalytics && selectedBotId && selectedBotName) {
-    // LOG: Ouverture du panel analytics détaillé avec le bon bot
     console.log("[DashboardPage] Ouverture analytics bot :", { selectedBotId, selectedBotName });
     return (
-      <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-        <CompleteBotAnalytics botId={selectedBotId} botName={selectedBotName} onBack={() => setShowBotAnalytics(false)} />
+      <div className={`${isMobile ? 'p-2' : 'p-4 lg:p-8'} space-y-6 lg:space-y-8 bg-gray-50 min-h-screen overflow-x-hidden`}>
+        <CompleteBotAnalytics 
+          botId={selectedBotId} 
+          botName={selectedBotName} 
+          onBack={() => setShowBotAnalytics(false)} 
+        />
       </div>
     );
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+    <div className={`${isMobile ? 'p-2' : 'p-4 lg:p-8'} space-y-4 lg:space-y-8 bg-gray-50 min-h-screen overflow-x-hidden`}>
       {/* Header */}
       <DashboardHeader permissions={permissions} />
 
