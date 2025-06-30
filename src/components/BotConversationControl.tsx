@@ -66,16 +66,16 @@ export const BotConversationControl: React.FC = () => {
 
   if (isMobile) {
     return (
-      <div className="min-h-screen w-full bg-gray-50">
+      <div className="min-h-screen w-full bg-gray-50 overflow-x-hidden">
         <div className="w-full max-w-none">
           {/* Navigation mobile */}
           {(mobileView === 'sessions' || mobileView === 'messages') && (
-            <div className="sticky top-0 z-10 bg-white border-b p-3 flex items-center gap-3">
+            <div className="sticky top-0 z-10 bg-white border-b px-[2.5%] py-3 flex items-center gap-3">
               <Button variant="outline" onClick={handleMobileBack} size="sm">
                 <ArrowLeft className="w-4 h-4 mr-1" />
                 Retour
               </Button>
-              <div className="text-sm font-medium">
+              <div className="text-sm font-medium truncate">
                 {mobileView === 'sessions' && selectedBot && `Bot: ${selectedBot.name}`}
                 {mobileView === 'messages' && selectedSession && `Session: ${selectedSession.session_token.slice(0, 10)}...`}
               </div>
@@ -84,7 +84,7 @@ export const BotConversationControl: React.FC = () => {
 
           {/* Informations détaillées de la session */}
           {selectedSession && mobileView === 'messages' && (
-            <div className="p-3 bg-white border-b">
+            <div className="px-[2.5%] py-3 bg-white border-b">
               <DetailedSessionInfo 
                 session={selectedSession} 
                 botName={selectedBot?.name}
@@ -93,7 +93,7 @@ export const BotConversationControl: React.FC = () => {
           )}
 
           {/* Contenu en fonction de la vue mobile */}
-          <div className="p-3">
+          <div className={`${mobileView === 'bots' ? 'px-[2.5%] py-3' : ''}`}>
             {mobileView === 'bots' && (
               <div className="space-y-3">
                 <h2 className="text-lg font-semibold mb-4">Sélectionnez un bot</h2>
@@ -113,7 +113,7 @@ export const BotConversationControl: React.FC = () => {
                         className="w-full h-auto p-4 justify-start text-left"
                       >
                         <div className="flex flex-col items-start w-full">
-                          <span className="font-medium">{bot.name}</span>
+                          <span className="font-medium truncate">{bot.name}</span>
                           {bot.is_active && (
                             <span className="text-xs text-green-600">Actif</span>
                           )}
@@ -126,27 +126,21 @@ export const BotConversationControl: React.FC = () => {
             )}
 
             {mobileView === 'sessions' && selectedBot && (
-              <div className="space-y-3">
-                <h2 className="text-lg font-semibold mb-4">Sessions du bot</h2>
-                <UnifiedSessionList
-                  sessions={sessions}
-                  loadingSessions={loadingSessions}
-                  selectedSession={selectedSession}
-                  query={query}
-                  onQueryChange={setQuery}
-                  onSessionSelect={handleSessionSelect}
-                />
-              </div>
+              <UnifiedSessionList
+                sessions={sessions}
+                loadingSessions={loadingSessions}
+                selectedSession={selectedSession}
+                query={query}
+                onQueryChange={setQuery}
+                onSessionSelect={handleSessionSelect}
+              />
             )}
 
             {mobileView === 'messages' && selectedSession && (
-              <div className="space-y-3">
-                <h2 className="text-lg font-semibold mb-4">Messages</h2>
-                <EnhancedMessageView
-                  selectedBot={selectedBot}
-                  selectedSession={selectedSession}
-                />
-              </div>
+              <EnhancedMessageView
+                selectedBot={selectedBot}
+                selectedSession={selectedSession}
+              />
             )}
           </div>
         </div>
