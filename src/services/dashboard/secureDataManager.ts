@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { BotOwnerDataManager } from './BotOwnerDataManager';
 
 interface DashboardStats {
   totalBots: number;
@@ -51,9 +51,34 @@ interface MessageData {
 export class SecureDataManager {
   
   /**
-   * Récupère les statistiques complètes du tableau de bord pour un propriétaire
+   * Version améliorée - Récupère les statistiques complètes du tableau de bord
    */
   static async getDashboardStats(): Promise<DashboardStats> {
+    try {
+      // Utiliser le nouveau gestionnaire si possible
+      const newStats = await BotOwnerDataManager.getOwnerGlobalStats();
+      
+      if (newStats) {
+        return {
+          totalBots: newStats.total_bots,
+          totalMessages: newStats.total_messages,
+          totalUsers: newStats.total_users,
+          activeToday: newStats.active_users_today
+        };
+      }
+      
+      // Fallback vers l'ancienne méthode
+      return await this.getDashboardStatsLegacy();
+    } catch (error) {
+      console.error('[SecureDataManager] Erreur nouvelle méthode, fallback vers ancienne:', error);
+      return await this.getDashboardStatsLegacy();
+    }
+  }
+
+  /**
+   * Ancienne méthode conservée comme fallback
+   */
+  private static async getDashboardStatsLegacy(): Promise<DashboardStats> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non authentifié');
@@ -92,19 +117,45 @@ export class SecureDataManager {
         activeToday: 0
       });
 
-      console.log('[SecureDataManager] Statistiques agrégées:', aggregatedStats);
+      console.log('[SecureDataManager] Statistiques agrégées (legacy):', aggregatedStats);
       return aggregatedStats;
 
     } catch (error) {
-      console.error('[SecureDataManager] Erreur récupération stats:', error);
+      console.error('[SecureDataManager] Erreur récupération stats (legacy):', error);
       return { totalBots: 0, totalMessages: 0, totalUsers: 0, activeToday: 0 };
     }
   }
 
   /**
-   * Récupère tous les bots d'un propriétaire avec leurs statistiques
+   * Version améliorée - Récupère tous les bots avec leurs statistiques
    */
   static async getOwnerBots(): Promise<BotSummary[]> {
+    try {
+      // Utiliser le nouveau gestionnaire si possible
+      const newBots = await BotOwnerDataManager.getOwnerBotsWithStats();
+      
+      if (newBots && newBots.length > 0) {
+        return newBots.map(bot => ({
+          id: bot.id,
+          name: bot.name,
+          total_messages: bot.total_messages,
+          total_users: bot.total_users,
+          last_activity: bot.last_activity
+        }));
+      }
+      
+      // Fallback vers l'ancienne méthode
+      return await this.getOwnerBotsLegacy();
+    } catch (error) {
+      console.error('[SecureDataManager] Erreur nouvelle méthode bots, fallback:', error);
+      return await this.getOwnerBotsLegacy();
+    }
+  }
+
+  /**
+   * Ancienne méthode conservée comme fallback
+   */
+  private static async getOwnerBotsLegacy(): Promise<BotSummary[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -138,15 +189,48 @@ export class SecureDataManager {
       }));
 
     } catch (error) {
-      console.error('[SecureDataManager] Erreur récupération bots:', error);
+      console.error('[SecureDataManager] Erreur récupération bots (legacy):', error);
       return [];
     }
   }
 
   /**
-   * Récupère toutes les conversations d'un propriétaire
+   * Version améliorée - Récupère toutes les conversations
    */
   static async getAllConversations(): Promise<ConversationData[]> {
+    try {
+      // Utiliser le nouveau gestionnaire si possible
+      const newConversations = await BotOwnerDataManager.getOwnerConversations(100, 0);
+      
+      if (newConversations && newConversations.length > 0) {
+        return newConversations.map(conv => ({
+          id: `${conv.bot_id}-${conv.session_id}`,
+          bot_id: conv.bot_id,
+          bot_name: conv.bot_name,
+          user_id: conv.bot_user_id,
+          user_name: conv.user_name,
+          user_email: conv.user_email || '',
+          session_id: conv.session_id,
+          total_messages: conv.message_count,
+          last_message_at: conv.last_message_at,
+          last_message_content: conv.last_user_message || conv.last_bot_message || '',
+          session_start: conv.conversation_start,
+          is_active: conv.is_active_today
+        }));
+      }
+      
+      // Fallback vers l'ancienne méthode
+      return await this.getAllConversationsLegacy();
+    } catch (error) {
+      console.error('[SecureDataManager] Erreur nouvelle méthode conversations, fallback:', error);
+      return await this.getAllConversationsLegacy();
+    }
+  }
+
+  /**
+   * Ancienne méthode conservée comme fallback
+   */
+  private static async getAllConversationsLegacy(): Promise<ConversationData[]> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -204,11 +288,107 @@ export class SecureDataManager {
       const conversations = Array.from(conversationMap.values())
         .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
 
-      console.log(`[SecureDataManager] ${conversations.length} conversations récupérées`);
+      console.log(`[SecureDataManager] ${conversations.length} conversations récupérées (legacy)`);
       return conversations;
 
     } catch (error) {
-      console.error('[SecureDataManager] Erreur récupération conversations:', error);
+      console.error('[SecureDataManager] Erreur récupération conversations (legacy):', error);
+      return [];
+    }
+  }
+
+  /**
+   * Version améliorée - Récupère les messages d'une session spécifique
+   */
+  static async getSessionMessages(botId: string, sessionId: string): Promise<MessageData[]> {
+    try {
+      // Utiliser le nouveau gestionnaire si possible
+      const newMessages = await BotOwnerDataManager.getSessionMessages(botId, sessionId);
+      
+      if (newMessages && newMessages.length > 0) {
+        return newMessages.map(msg => ({
+          id: msg.message_id,
+          message_content: msg.message_content,
+          message_type: msg.message_type as 'user' | 'bot',
+          created_at: msg.message_timestamp,
+          ip_address: msg.ip_address,
+          user_agent: msg.user_agent,
+          bot_users: {
+            user_name: msg.user_name,
+            user_email: msg.user_email,
+            session_id: msg.session_id
+          },
+          bots: {
+            name: msg.bot_name
+          }
+        }));
+      }
+      
+      // Fallback vers l'ancienne méthode
+      return await this.getSessionMessagesLegacy(botId, sessionId);
+    } catch (error) {
+      console.error('[SecureDataManager] Erreur nouvelle méthode messages session, fallback:', error);
+      return await this.getSessionMessagesLegacy(botId, sessionId);
+    }
+  }
+
+  /**
+   * Ancienne méthode conservée comme fallback
+   */
+  private static async getSessionMessagesLegacy(botId: string, sessionId: string): Promise<MessageData[]> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      // Vérifier la propriété du bot
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!ownerData) return [];
+
+      const { data: botCheck } = await supabase
+        .from('bots')
+        .select('id')
+        .eq('id', botId)
+        .eq('owner_id', ownerData.id)
+        .single();
+
+      if (!botCheck) return [];
+
+      // Utiliser la vue bot_conversation_history pour récupérer les messages de la session
+      const { data: messagesData } = await supabase
+        .from('bot_conversation_history')
+        .select('*')
+        .eq('bot_id', botId)
+        .eq('session_id', sessionId)
+        .order('message_timestamp', { ascending: true });
+
+      if (!messagesData) return [];
+
+      const formattedMessages: MessageData[] = messagesData.map(msg => ({
+        id: msg.message_id,
+        message_content: msg.message_content || '',
+        message_type: (msg.message_type === 'user' || msg.message_type === 'bot') ? msg.message_type : 'user',
+        created_at: msg.message_timestamp,
+        ip_address: msg.ip_address,
+        user_agent: msg.user_agent,
+        bot_users: {
+          user_name: msg.user_name,
+          user_email: msg.user_email,
+          session_id: msg.session_id
+        },
+        bots: {
+          name: msg.bot_name || 'Bot'
+        }
+      }));
+
+      return formattedMessages;
+
+    } catch (error) {
+      console.error('[SecureDataManager] Erreur récupération messages session (legacy):', error);
       return [];
     }
   }
@@ -290,67 +470,6 @@ export class SecureDataManager {
 
     } catch (error) {
       console.error('[SecureDataManager] Erreur récupération messages:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Récupère les messages d'une session spécifique
-   */
-  static async getSessionMessages(botId: string, sessionId: string): Promise<MessageData[]> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      // Vérifier la propriété du bot
-      const { data: ownerData } = await supabase
-        .from('bot_owners')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!ownerData) return [];
-
-      const { data: botCheck } = await supabase
-        .from('bots')
-        .select('id')
-        .eq('id', botId)
-        .eq('owner_id', ownerData.id)
-        .single();
-
-      if (!botCheck) return [];
-
-      // Utiliser la vue bot_conversation_history pour récupérer les messages de la session
-      const { data: messagesData } = await supabase
-        .from('bot_conversation_history')
-        .select('*')
-        .eq('bot_id', botId)
-        .eq('session_id', sessionId)
-        .order('message_timestamp', { ascending: true });
-
-      if (!messagesData) return [];
-
-      const formattedMessages: MessageData[] = messagesData.map(msg => ({
-        id: msg.message_id,
-        message_content: msg.message_content || '',
-        message_type: (msg.message_type === 'user' || msg.message_type === 'bot') ? msg.message_type : 'user',
-        created_at: msg.message_timestamp,
-        ip_address: msg.ip_address,
-        user_agent: msg.user_agent,
-        bot_users: {
-          user_name: msg.user_name,
-          user_email: msg.user_email,
-          session_id: msg.session_id
-        },
-        bots: {
-          name: msg.bot_name || 'Bot'
-        }
-      }));
-
-      return formattedMessages;
-
-    } catch (error) {
-      console.error('[SecureDataManager] Erreur récupération messages session:', error);
       return [];
     }
   }
@@ -458,5 +577,53 @@ export class SecureDataManager {
         stats: {}
       };
     }
+  }
+
+  /**
+   * Nouvelle fonction pour déboguer l'accès aux données d'un bot
+   */
+  static async debugBotOwnerAccess(botId: string): Promise<{
+    canAccess: boolean;
+    usingNewSystem: boolean;
+    stats: any;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let canAccess = false;
+    let usingNewSystem = false;
+    let stats = null;
+
+    try {
+      // Tester le nouveau système
+      const debugResult = await BotOwnerDataManager.debugBotAccess(botId);
+      
+      if (debugResult && !debugResult.error) {
+        usingNewSystem = true;
+        canAccess = debugResult.isOwner;
+        stats = debugResult;
+      } else {
+        if (debugResult?.error) {
+          errors.push(`Nouveau système: ${debugResult.error}`);
+        }
+        
+        // Tester l'ancien système
+        try {
+          const legacyStats = await this.getDashboardStatsLegacy();
+          canAccess = legacyStats.totalBots > 0;
+          stats = legacyStats;
+        } catch (legacyError: any) {
+          errors.push(`Ancien système: ${legacyError.message}`);
+        }
+      }
+    } catch (error: any) {
+      errors.push(`Erreur générale: ${error.message}`);
+    }
+
+    return {
+      canAccess,
+      usingNewSystem,
+      stats,
+      errors
+    };
   }
 }
