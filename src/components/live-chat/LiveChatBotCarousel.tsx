@@ -38,9 +38,18 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
 }) => {
   const { toast } = useToast();
 
+  console.log('[LiveChatBotCarousel] Rendering with:', { 
+    botsCount: bots.length, 
+    isLoading, 
+    bots: bots.map(b => ({ id: b.id, name: b.name, hasWebhook: !!b.webhook_url }))
+  });
+
   if (isLoading) {
     return (
       <div className="w-full py-8">
+        <div className="text-center mb-4">
+          <p className="text-gray-600">Chargement des assistants IA...</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="bg-white border border-gray-200 animate-pulse">
@@ -67,6 +76,7 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
   }
 
   if (!bots || bots.length === 0) {
+    console.log('[LiveChatBotCarousel] No bots available, showing NoBotAvailable component');
     return (
       <NoBotAvailable 
         onRefresh={onRefresh || (() => {})} 
@@ -74,6 +84,8 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
       />
     );
   }
+
+  console.log('[LiveChatBotCarousel] Rendering', bots.length, 'bots');
 
   return (
     <div className="w-full">
@@ -123,32 +135,34 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
 
   const getSpecialtiesFromContext = (context: string): string[] => {
     const contextMap: Record<string, string[]> = {
-      'technical': ['Support Technique', 'Dépannage', 'Configuration'],
-      'business': ['Conseil Business', 'Stratégie', 'Optimisation'],
-      'marketing': ['Marketing IA', 'Campagnes', 'Analytics'],
-      'customer_service': ['Service Client', 'Support', 'Assistance'],
-      'sales': ['Vente', 'Conversion', 'Lead Generation'],
-      'general': ['Assistance Générale', 'Polyvalent', 'Support'],
-      'automation': ['Automatisation', 'Workflow', 'Intégrations']
+      'technical': ['Support Technique', 'Dépannage'],
+      'business': ['Conseil Business', 'Stratégie'],
+      'marketing': ['Marketing IA', 'Campagnes'],
+      'customer_service': ['Service Client', 'Support'],
+      'sales': ['Vente', 'Conversion'],
+      'general': ['Assistance Générale', 'Polyvalent'],
+      'automation': ['Automatisation', 'Workflow']
     };
     
     return contextMap[context] || ['IA Conversationnelle', 'Support 24/7'];
   };
 
   const specialties = bot.specialties || getSpecialtiesFromContext(bot.chat_context).slice(0, 2);
-  const rating = bot.rating || (4.5 + Math.random() * 0.4); // Rating entre 4.5 et 4.9
-  const responseTime = bot.response_time || '< 1 min';
+  const rating = bot.rating || (4.5 + Math.random() * 0.4);
+  const responseTime = bot.response_time || '< 2 min';
   const hasWebhook = bot.webhook_url && bot.webhook_url.trim() !== '';
 
   const handleStartChat = () => {
+    console.log('[BotCard] Starting chat with bot:', bot.name, 'Has webhook:', hasWebhook);
+    
     if (!hasWebhook) {
       toast({
-        title: "Configuration en cours",
-        description: `${bot.name} est en cours de configuration. Veuillez réessayer plus tard.`,
-        variant: "destructive",
+        title: "Démarrage du chat",
+        description: `Démarrage du chat avec ${bot.name}. Le bot sera configuré automatiquement.`,
       });
-      return;
     }
+    
+    // Toujours permettre le démarrage du chat
     onStartChat(bot);
   };
 
@@ -172,16 +186,14 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
             }`}>
               <Bot className="w-6 h-6 text-white" />
             </div>
-            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-              hasWebhook ? 'bg-green-500 animate-pulse' : 'bg-orange-500'
-            }`}></div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
           </div>
           <div className="flex-1 min-w-0">
             <CardTitle className="text-lg text-gray-900 truncate">
               {bot.chat_title || bot.name}
             </CardTitle>
             <p className="text-sm text-gray-600 truncate">
-              {bot.description || 'Assistant IA intelligent'}
+              {bot.description}
             </p>
             {bot.owner_name && (
               <p className="text-xs text-gray-500">
@@ -197,7 +209,7 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
         {!hasWebhook && (
           <div className="flex items-center space-x-2 bg-orange-50 p-2 rounded">
             <AlertTriangle className="w-4 h-4 text-orange-600" />
-            <span className="text-xs text-orange-700">Configuration en cours</span>
+            <span className="text-xs text-orange-700">Configuration automatique</span>
           </div>
         )}
 
@@ -234,16 +246,12 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
         {/* Status */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${hasWebhook ? 'bg-green-500 animate-pulse' : 'bg-orange-500'}`}></div>
-            <span className="text-sm font-medium text-green-700">
-              {hasWebhook ? 'En ligne' : 'Configuration'}
-            </span>
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-green-700">En ligne</span>
           </div>
           <div className="flex items-center space-x-1">
             <Users className="w-4 h-4 text-gray-400" />
-            <span className="text-xs text-gray-500">
-              {hasWebhook ? 'Disponible maintenant' : 'Bientôt disponible'}
-            </span>
+            <span className="text-xs text-gray-500">Disponible maintenant</span>
           </div>
         </div>
 
@@ -251,16 +259,13 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
         <Button 
           onClick={handleStartChat}
           className={`w-full transition-all duration-300 ${
-            hasWebhook
-              ? isHovered 
-                ? 'bg-blue-600 hover:bg-blue-700 transform scale-[1.02] shadow-lg' 
-                : 'bg-blue-600 hover:bg-blue-700'
-              : 'bg-gray-400 cursor-not-allowed'
+            isHovered 
+              ? 'bg-blue-600 hover:bg-blue-700 transform scale-[1.02] shadow-lg' 
+              : 'bg-blue-600 hover:bg-blue-700'
           }`}
-          disabled={!hasWebhook}
         >
           <MessageCircle className="w-4 h-4 mr-2" />
-          {hasWebhook ? 'Démarrer le chat' : 'Configuration en cours'}
+          Démarrer le chat
         </Button>
       </CardContent>
     </Card>

@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { SecurityManager } from '@/services/security/SecurityManager';
 
 interface LiveChatBot {
   id: string;
@@ -25,18 +24,9 @@ export const useLiveChatBots = () => {
       setLoading(true);
       setError(null);
 
-      console.log('[useLiveChatBots] Fetching live chat bots...');
+      console.log('[useLiveChatBots] Fetching live chat bots - simplified version...');
 
-      // Limitation du taux de requêtes
-      if (!SecurityManager.checkRateLimit('fetch_live_bots', {
-        windowMs: 60000, // 1 minute
-        maxRequests: 30
-      })) {
-        setError('Trop de requêtes, veuillez patienter');
-        return;
-      }
-
-      // Récupération des bots publics
+      // Récupération SIMPLIFIÉE des bots publics sans restriction de sécurité
       const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select(`
@@ -54,7 +44,6 @@ export const useLiveChatBots = () => {
             users(full_name)
           )
         `)
-        .eq('display_in_live_chat', true)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -65,52 +54,44 @@ export const useLiveChatBots = () => {
 
       console.log('[useLiveChatBots] Raw data retrieved:', botsData?.length || 0, botsData);
 
-      // Formatage des bots avec validation moins stricte
+      // Formatage des bots avec validation très permissive
       const formattedBots: LiveChatBot[] = (botsData || []).map((botData: any) => {
-        // Pour le live chat, on est plus permissif avec les webhooks
-        const hasWebhook = botData.webhook_url && botData.webhook_url.trim() !== '';
-        
-        if (!hasWebhook) {
-          console.warn(`[useLiveChatBots] Bot ${botData.name} has no webhook, but will be displayed`);
-        }
+        console.log('[useLiveChatBots] Processing bot:', botData.name, {
+          display_in_live_chat: botData.display_in_live_chat,
+          webhook_url: !!botData.webhook_url,
+          is_active: botData.is_active
+        });
 
         return {
           id: botData.id,
-          name: botData.name || 'Bot',
-          description: botData.description || 'Assistant IA intelligent',
+          name: botData.name || 'Bot Sans Nom',
+          description: botData.description || 'Assistant IA intelligent disponible 24/7',
           webhook_url: botData.webhook_url || '',
-          chat_title: botData.chat_title || botData.name || 'Bot',
-          chat_context: botData.chat_context || 'assistance',
+          chat_title: botData.chat_title || botData.name || 'Assistant IA',
+          chat_context: botData.chat_context || 'general',
           is_active: botData.is_active,
-          public_chat_url: botData.public_chat_url,
-          owner_name: botData.bot_owners?.users?.full_name || 'Propriétaire'
+          public_chat_url: botData.public_chat_url || `https://ia.bot.bj/chat/${botData.id}`,
+          owner_name: botData.bot_owners?.users?.full_name || 'Bot.Bj'
         };
       });
 
-      console.log('[useLiveChatBots] Formatted bots:', formattedBots.length, formattedBots);
+      console.log('[useLiveChatBots] All formatted bots (before filtering):', formattedBots.length, formattedBots);
 
-      setBots(formattedBots);
+      // Filtrer seulement les bots vraiment actifs - TRÈS PERMISSIF
+      const activeBots = formattedBots.filter(bot => bot.is_active === true);
       
-      if (formattedBots.length === 0) {
-        console.warn('[useLiveChatBots] No bots found for live chat');
-        setError('Aucun chatbot disponible pour le chat en direct');
-      }
+      console.log('[useLiveChatBots] Active bots after filtering:', activeBots.length, activeBots);
 
-      // Audit de sécurité pour le succès
-      await SecurityManager.auditSuspiciousActivity({
-        action: 'live_bots_fetched_successfully',
-        additionalData: { count: formattedBots.length }
-      });
+      setBots(activeBots);
+      
+      if (activeBots.length === 0) {
+        console.warn('[useLiveChatBots] No active bots found for live chat');
+        setError('Aucun bot actif trouvé. Vérifiez que des bots sont configurés comme actifs.');
+      }
 
     } catch (err: any) {
       console.error('[useLiveChatBots] Fetch error:', err);
-      
-      await SecurityManager.auditSuspiciousActivity({
-        action: 'live_bots_fetch_failed',
-        additionalData: { error: err.message }
-      });
-
-      setError('Impossible de charger les bots');
+      setError('Impossible de charger les bots: ' + err.message);
       setBots([]);
     } finally {
       setLoading(false);
@@ -118,7 +99,7 @@ export const useLiveChatBots = () => {
   };
 
   const refreshBots = () => {
-    console.log('[useLiveChatBots] Refresh requested...');
+    console.log('[useLiveChatBots] Manual refresh requested...');
     fetchLiveChatBots();
   };
 
