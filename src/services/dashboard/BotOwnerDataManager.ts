@@ -89,7 +89,26 @@ export class BotOwnerDataManager {
         throw new Error(`Erreur lors de la récupération de l'historique: ${error.message}`);
       }
 
-      return data || [];
+      // Vérifier que data est un tableau et le typer correctement
+      if (!Array.isArray(data)) {
+        console.warn('[BotOwnerDataManager] Données reçues ne sont pas un tableau:', data);
+        return [];
+      }
+
+      return data.map((row: any) => ({
+        message_id: row.message_id,
+        message_content: row.message_content || '',
+        message_type: row.message_type as 'user' | 'bot',
+        message_timestamp: row.message_timestamp,
+        user_name: row.user_name || 'Utilisateur Anonyme',
+        user_email: row.user_email || '',
+        session_id: row.session_id || '',
+        ip_address: row.ip_address || '',
+        user_agent: row.user_agent || '',
+        metadata: row.metadata || {},
+        bot_name: row.bot_name || '',
+        owner_id: row.owner_id || ''
+      }));
     } catch (error) {
       console.error('[BotOwnerDataManager] Erreur getBotHistory:', error);
       throw error;
@@ -110,7 +129,26 @@ export class BotOwnerDataManager {
         throw new Error(`Erreur lors de la récupération des statistiques: ${error.message}`);
       }
 
-      return data && data.length > 0 ? data[0] : null;
+      // Vérifier que data est un tableau et contient des données
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn('[BotOwnerDataManager] Aucune statistique trouvée pour le bot:', botId);
+        return null;
+      }
+
+      const statsRow = data[0] as any;
+      return {
+        bot_id: statsRow.bot_id,
+        bot_name: statsRow.bot_name || '',
+        total_messages: Number(statsRow.total_messages) || 0,
+        total_users: Number(statsRow.total_users) || 0,
+        total_sessions: Number(statsRow.total_sessions) || 0,
+        messages_24h: Number(statsRow.messages_24h) || 0,
+        active_users_24h: Number(statsRow.active_users_24h) || 0,
+        avg_messages_per_session: Number(statsRow.avg_messages_per_session) || 0,
+        last_activity: statsRow.last_activity || new Date().toISOString(),
+        creation_date: statsRow.creation_date || new Date().toISOString(),
+        is_active: Boolean(statsRow.is_active)
+      };
     } catch (error) {
       console.error('[BotOwnerDataManager] Erreur getBotStats:', error);
       throw error;
@@ -137,7 +175,29 @@ export class BotOwnerDataManager {
         throw new Error(`Erreur lors de la récupération des conversations: ${error.message}`);
       }
 
-      return data || [];
+      // Vérifier que data est un tableau
+      if (!Array.isArray(data)) {
+        console.warn('[BotOwnerDataManager] Données conversations ne sont pas un tableau:', data);
+        return [];
+      }
+
+      return data.map((row: any) => ({
+        bot_id: row.bot_id || '',
+        bot_name: row.bot_name || '',
+        owner_id: row.owner_id || '',
+        session_id: row.session_id || '',
+        bot_user_id: row.bot_user_id || '',
+        user_name: row.user_name || 'Utilisateur Anonyme',
+        user_email: row.user_email || '',
+        message_count: Number(row.message_count) || 0,
+        conversation_start: row.conversation_start || new Date().toISOString(),
+        last_message_at: row.last_message_at || new Date().toISOString(),
+        last_user_message: row.last_user_message || '',
+        last_bot_message: row.last_bot_message || '',
+        user_first_seen: row.user_first_seen || new Date().toISOString(),
+        user_last_active: row.user_last_active || new Date().toISOString(),
+        is_active_today: Boolean(row.is_active_today)
+      }));
     } catch (error) {
       console.error('[BotOwnerDataManager] Erreur getOwnerConversations:', error);
       throw error;
@@ -156,7 +216,24 @@ export class BotOwnerDataManager {
         throw new Error(`Erreur lors de la récupération des statistiques globales: ${error.message}`);
       }
 
-      return data && data.length > 0 ? data[0] : null;
+      // Vérifier que data est un tableau et contient des données
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn('[BotOwnerDataManager] Aucune statistique globale trouvée');
+        return null;
+      }
+
+      const statsRow = data[0] as any;
+      return {
+        total_bots: Number(statsRow.total_bots) || 0,
+        active_bots: Number(statsRow.active_bots) || 0,
+        total_messages: Number(statsRow.total_messages) || 0,
+        total_users: Number(statsRow.total_users) || 0,
+        messages_today: Number(statsRow.messages_today) || 0,
+        active_users_today: Number(statsRow.active_users_today) || 0,
+        total_conversations: Number(statsRow.total_conversations) || 0,
+        most_active_bot_id: statsRow.most_active_bot_id || '',
+        most_active_bot_name: statsRow.most_active_bot_name || ''
+      };
     } catch (error) {
       console.error('[BotOwnerDataManager] Erreur getOwnerGlobalStats:', error);
       throw error;
@@ -220,6 +297,14 @@ export class BotOwnerDataManager {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
 
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!ownerData) return [];
+
       const { data, error } = await supabase
         .from('detailed_bot_stats')
         .select(`
@@ -230,13 +315,7 @@ export class BotOwnerDataManager {
           total_unique_users,
           last_message_at
         `)
-        .eq('owner_id', (
-          await supabase
-            .from('bot_owners')
-            .select('id')
-            .eq('user_id', user.id)
-            .single()
-        ).data?.id)
+        .eq('owner_id', ownerData.id)
         .order('total_messages', { ascending: false });
 
       if (error) {
