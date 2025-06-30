@@ -24,48 +24,10 @@ export const useLiveChatBots = () => {
       setLoading(true);
       setError(null);
 
-      console.log('[useLiveChatBots] === DIAGNOSTIC COMPLET DES BOTS PUBLICS ===');
+      console.log('[useLiveChatBots] === RÉCUPÉRATION DES BOTS PUBLICS POUR TOUS LES UTILISATEURS ===');
 
-      // ÉTAPE 1: Récupérer TOUS les bots d'abord pour diagnostic
-      const { data: allBots, error: allBotsError } = await supabase
-        .from('bots')
-        .select('*');
-
-      console.log('[useLiveChatBots] TOUS LES BOTS dans la DB:', allBots?.length || 0);
-      console.log('[useLiveChatBots] Détails complets:', allBots);
-
-      if (allBotsError) {
-        console.error('[useLiveChatBots] Erreur lors de la récupération de tous les bots:', allBotsError);
-      }
-
-      // ÉTAPE 2: Récupérer les bots actifs seulement
-      const { data: activeBots, error: activeBotsError } = await supabase
-        .from('bots')
-        .select('*')
-        .eq('is_active', true);
-
-      console.log('[useLiveChatBots] BOTS ACTIFS:', activeBots?.length || 0);
-      console.log('[useLiveChatBots] Bots actifs détails:', activeBots);
-
-      if (activeBotsError) {
-        console.error('[useLiveChatBots] Erreur bots actifs:', activeBotsError);
-      }
-
-      // ÉTAPE 3: Récupérer les bots avec display_in_live_chat = true
-      const { data: liveChatBots, error: liveChatError } = await supabase
-        .from('bots')
-        .select('*')
-        .eq('display_in_live_chat', true);
-
-      console.log('[useLiveChatBots] BOTS AVEC display_in_live_chat=true:', liveChatBots?.length || 0);
-      console.log('[useLiveChatBots] Bots live chat détails:', liveChatBots);
-
-      if (liveChatError) {
-        console.error('[useLiveChatBots] Erreur bots live chat:', liveChatError);
-      }
-
-      // ÉTAPE 4: Essayer la requête complète avec jointure simple
-      const { data: botsWithOwners, error: joinError } = await supabase
+      // Récupérer TOUS les bots publics sans authentification requise
+      const { data: publicBots, error: publicBotsError } = await supabase
         .from('bots')
         .select(`
           id,
@@ -80,19 +42,20 @@ export const useLiveChatBots = () => {
           created_at
         `)
         .eq('is_active', true)
+        .eq('display_in_live_chat', true)
         .order('created_at', { ascending: false });
 
-      console.log('[useLiveChatBots] BOTS AVEC REQUÊTE SIMPLE:', botsWithOwners?.length || 0);
-      console.log('[useLiveChatBots] Détails bots simples:', botsWithOwners);
+      console.log('[useLiveChatBots] BOTS PUBLICS TROUVÉS:', publicBots?.length || 0);
+      console.log('[useLiveChatBots] Détails des bots publics:', publicBots);
 
-      if (joinError) {
-        console.error('[useLiveChatBots] Erreur requête simple:', joinError);
-        throw joinError;
+      if (publicBotsError) {
+        console.error('[useLiveChatBots] Erreur lors de la récupération des bots publics:', publicBotsError);
+        throw publicBotsError;
       }
 
-      // ÉTAPE 5: Formatage très permissif des bots pour affichage
-      const formattedBots: LiveChatBot[] = (botsWithOwners || []).map((bot: any) => {
-        console.log('[useLiveChatBots] Formatage du bot:', bot.name, 'ID:', bot.id);
+      // Formatage des bots pour affichage public
+      const formattedBots: LiveChatBot[] = (publicBots || []).map((bot: any) => {
+        console.log('[useLiveChatBots] Formatage du bot public:', bot.name, 'ID:', bot.id);
         
         return {
           id: bot.id,
@@ -107,9 +70,9 @@ export const useLiveChatBots = () => {
         };
       });
 
-      console.log('[useLiveChatBots] === RÉSULTAT FINAL ===');
-      console.log('[useLiveChatBots] Nombre de bots formatés:', formattedBots.length);
-      console.log('[useLiveChatBots] Bots formatés:', formattedBots.map(b => ({
+      console.log('[useLiveChatBots] === RÉSULTAT FINAL POUR ACCÈS PUBLIC ===');
+      console.log('[useLiveChatBots] Nombre de bots publics formatés:', formattedBots.length);
+      console.log('[useLiveChatBots] Bots publics formatés:', formattedBots.map(b => ({
         id: b.id,
         name: b.name,
         description: b.description.substring(0, 50) + '...',
@@ -120,19 +83,19 @@ export const useLiveChatBots = () => {
       setBots(formattedBots);
       
       if (formattedBots.length === 0) {
-        console.warn('[useLiveChatBots] ATTENTION: Aucun bot trouvé !');
-        setError('Aucun assistant IA n\'est actuellement disponible. Veuillez réessayer dans quelques instants.');
+        console.warn('[useLiveChatBots] ATTENTION: Aucun bot public trouvé !');
+        setError('Aucun assistant IA public n\'est actuellement disponible. Veuillez réessayer dans quelques instants.');
       } else {
-        console.log('[useLiveChatBots] SUCCESS: Bots chargés avec succès !');
+        console.log('[useLiveChatBots] SUCCESS: Bots publics chargés avec succès pour tous les utilisateurs !');
       }
 
     } catch (err: any) {
-      console.error('[useLiveChatBots] === ERREUR FATALE ===');
+      console.error('[useLiveChatBots] === ERREUR LORS DU CHARGEMENT DES BOTS PUBLICS ===');
       console.error('[useLiveChatBots] Type d\'erreur:', err?.constructor?.name);
       console.error('[useLiveChatBots] Message:', err?.message);
       console.error('[useLiveChatBots] Erreur complète:', err);
       
-      setError('Impossible de charger les assistants IA. Problème de connexion à la base de données.');
+      setError('Impossible de charger les assistants IA publics. Problème de connexion à la base de données.');
       setBots([]);
     } finally {
       setLoading(false);
@@ -140,12 +103,12 @@ export const useLiveChatBots = () => {
   };
 
   const refreshBots = () => {
-    console.log('[useLiveChatBots] === ACTUALISATION MANUELLE DEMANDÉE ===');
+    console.log('[useLiveChatBots] === ACTUALISATION MANUELLE DES BOTS PUBLICS ===');
     fetchLiveChatBots();
   };
 
   useEffect(() => {
-    console.log('[useLiveChatBots] === INITIALISATION DU HOOK ===');
+    console.log('[useLiveChatBots] === INITIALISATION DU HOOK POUR BOTS PUBLICS ===');
     fetchLiveChatBots();
   }, []);
 

@@ -46,8 +46,8 @@ export const LiveChatSystem: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // DIAGNOSTIC: Utilisation du hook avec logs
-  console.log('[LiveChatSystem] === INITIALISATION COMPONENT ===');
+  // Utilisation du hook pour récupérer les bots publics (accessible à tous)
+  console.log('[LiveChatSystem] === INITIALISATION POUR ACCÈS PUBLIC ===');
   const { 
     bots: liveChatBots, 
     loading: botsLoading, 
@@ -55,7 +55,7 @@ export const LiveChatSystem: React.FC = () => {
     refreshBots 
   } = useLiveChatBots();
 
-  console.log('[LiveChatSystem] Hook result:', {
+  console.log('[LiveChatSystem] Hook result pour accès public:', {
     botsCount: liveChatBots?.length || 0,
     isLoading: botsLoading,
     hasError: !!botsError,
@@ -73,7 +73,7 @@ export const LiveChatSystem: React.FC = () => {
     clearSession
   } = useSecureSessionManager({
     botId: selectedAgent?.id || null,
-    entryPoint: 'live_chat_system'
+    entryPoint: 'live_chat_system_public'
   });
 
   useEffect(() => {
@@ -91,8 +91,8 @@ export const LiveChatSystem: React.FC = () => {
 
   const startChat = async (bot: any) => {
     try {
-      console.log('[LiveChatSystem] === DÉMARRAGE CHAT ===');
-      console.log('[LiveChatSystem] Bot sélectionné:', {
+      console.log('[LiveChatSystem] === DÉMARRAGE CHAT PUBLIC ===');
+      console.log('[LiveChatSystem] Bot sélectionné pour accès public:', {
         id: bot.id,
         name: bot.name,
         chatTitle: bot.chat_title,
@@ -100,10 +100,10 @@ export const LiveChatSystem: React.FC = () => {
         webhookUrl: bot.webhook_url
       });
       
-      // Validation sécurisée du bot
+      // Validation sécurisée du bot pour accès public
       const botValidation = SecurityManager.validateAndSanitizeInput(bot.id, 'uuid');
       if (!botValidation.isValid) {
-        console.error('[LiveChatSystem] Bot ID invalide:', bot.id);
+        console.error('[LiveChatSystem] Bot ID invalide pour accès public:', bot.id);
         toast({
           title: "Erreur de sécurité",
           description: "ID de bot invalide détecté",
@@ -112,31 +112,32 @@ export const LiveChatSystem: React.FC = () => {
         return;
       }
 
-      // Vérification du webhook - MODIFIÉE pour être plus permissive
+      // Vérification du webhook - permissive pour accès public
       if (bot.webhook_url && !SecurityManager.validateWebhookUrl(bot.webhook_url)) {
-        console.warn('[LiveChatSystem] Webhook URL non valide, mais on continue:', bot.webhook_url);
+        console.warn('[LiveChatSystem] Webhook URL non standard pour bot public:', bot.webhook_url);
         toast({
-          title: "Configuration webhook non standard",
-          description: `Le bot "${bot.name}" utilise une configuration automatique.`,
+          title: "Configuration webhook adaptée",
+          description: `Le bot "${bot.name}" utilise une configuration optimisée pour l'accès public.`,
           variant: "default",
         });
       }
 
-      // Audit de sécurité pour le démarrage du chat
+      // Audit de sécurité pour le démarrage du chat public
       await SecurityManager.auditSuspiciousActivity({
-        action: 'secure_chat_started',
+        action: 'public_chat_started',
         additionalData: { 
           botId: botValidation.sanitized,
           botName: bot.name,
-          hasValidWebhook: !!bot.webhook_url
+          hasValidWebhook: !!bot.webhook_url,
+          accessType: 'public'
         }
       });
 
-      // Convertir le bot en agent sécurisé
+      // Convertir le bot en agent pour accès public
       const agent: Agent = {
         id: botValidation.sanitized!,
         name: SecurityManager.validateAndSanitizeInput(bot.chat_title || bot.name, 'string').sanitized || 'Bot',
-        role: SecurityManager.validateAndSanitizeInput(bot.description || 'Assistant IA', 'string').sanitized || 'Assistant IA',
+        role: SecurityManager.validateAndSanitizeInput(bot.description || 'Assistant IA Public', 'string').sanitized || 'Assistant IA Public',
         status: 'online',
         rating: 4.8,
         responseTime: '< 1 min',
@@ -146,18 +147,18 @@ export const LiveChatSystem: React.FC = () => {
         chatContext: bot.chat_context
       };
 
-      console.log('[LiveChatSystem] Agent créé:', agent);
+      console.log('[LiveChatSystem] Agent créé pour accès public:', agent);
 
       setSelectedAgent(agent);
       setIsConnected(true);
-      setWaitTime(Math.floor(Math.random() * 20) + 5);
+      setWaitTime(Math.floor(Math.random() * 10) + 3); // Temps réduit pour accès public
       setSecurityWarnings([]);
       
-      // Message système de connexion sécurisé
+      // Message système de connexion pour accès public
       const welcomeMessage: Message = {
         id: Date.now().toString(),
         sender: 'agent',
-        content: `Bonjour ! Je suis ${agent.name}, ${agent.role}. Cette conversation est sécurisée. Comment puis-je vous aider aujourd'hui ?`,
+        content: `Bonjour ! Je suis ${agent.name}, ${agent.role}. Je suis disponible pour tous les utilisateurs. Comment puis-je vous aider aujourd'hui ?`,
         timestamp: new Date(),
         type: 'system',
         agentInfo: {
@@ -170,30 +171,30 @@ export const LiveChatSystem: React.FC = () => {
       setMessages([welcomeMessage]);
 
       toast({
-        title: `Chat sécurisé démarré avec ${agent.name}`,
-        description: "Connexion chiffrée établie avec l'assistant IA",
+        title: `Chat public démarré avec ${agent.name}`,
+        description: "Connexion établie avec l'assistant IA public",
       });
       
     } catch (error: any) {
-      console.error('[LiveChatSystem] Erreur démarrage chat:', error);
+      console.error('[LiveChatSystem] Erreur démarrage chat public:', error);
       
       await SecurityManager.auditSuspiciousActivity({
-        action: 'secure_chat_start_failed',
-        additionalData: { error: error.message, botId: bot.id }
+        action: 'public_chat_start_failed',
+        additionalData: { error: error.message, botId: bot.id, accessType: 'public' }
       });
 
       toast({
-        title: "Erreur de sécurité",
-        description: "Impossible de démarrer le chat sécurisé. Veuillez réessayer.",
+        title: "Erreur de connexion",
+        description: "Impossible de démarrer le chat public. Veuillez réessayer.",
         variant: "destructive",
       });
     }
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedAgent || !sessionToken) return;
+    if (!newMessage.trim() || !selectedAgent) return;
 
-    // Validation sécurisée du message
+    // Validation sécurisée du message pour accès public
     const messageValidation = SecurityManager.validateAndSanitizeInput(newMessage, 'string');
     if (!messageValidation.isValid) {
       toast({
@@ -217,44 +218,48 @@ export const LiveChatSystem: React.FC = () => {
     setNewMessage('');
     setIsTyping(true);
 
-    // Mise à jour de l'activité de session
-    updateActivity();
+    // Mise à jour de l'activité de session si disponible
+    if (sessionToken) {
+      updateActivity();
+    }
 
     try {
-      // Sauvegarde sécurisée du message
-      const saveResult = await SecureMessageHandler.sendSecureMessage(
-        selectedAgent.id,
-        sessionToken,
-        messageContent,
-        'user'
-      );
+      // Sauvegarde sécurisée du message si session disponible
+      if (sessionToken) {
+        const saveResult = await SecureMessageHandler.sendSecureMessage(
+          selectedAgent.id,
+          sessionToken,
+          messageContent,
+          'user'
+        );
 
-      if (!saveResult.success) {
-        console.error('[LiveChatSystem] Message save failed:', saveResult.error);
-        setSecurityWarnings(prev => [...prev, 'Échec de sauvegarde sécurisée du message']);
+        if (!saveResult.success) {
+          console.warn('[LiveChatSystem] Message save failed pour accès public:', saveResult.error);
+        }
       }
 
-      // Envoi vers le webhook avec sécurisation
+      // Envoi vers le webhook pour accès public
       if (selectedAgent.webhookUrl) {
-        console.log('[LiveChatSystem] Sending to secure webhook:', selectedAgent.webhookUrl);
+        console.log('[LiveChatSystem] Envoi vers webhook public:', selectedAgent.webhookUrl);
         
         const response = await fetch(selectedAgent.webhookUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Security-Token': SecurityManager.generateSecureToken(16),
+            'X-Bot-Platform': 'bot_bj_public',
           },
           body: JSON.stringify({
             message: messageContent,
             timestamp: new Date().toISOString(),
-            session_id: `secure_${sessionToken}`,
-            user_id: `secure_user_${Date.now()}`,
-            source: 'live_chat_system_secure',
-            context: selectedAgent.chatContext || 'live_support',
+            session_id: sessionToken || `public_session_${Date.now()}`,
+            user_id: `public_user_${Date.now()}`,
+            source: 'live_chat_system_public',
+            context: selectedAgent.chatContext || 'public_support',
             chat_title: selectedAgent.name,
             bot_id: selectedAgent.id,
-            interface_type: 'live_chat_system_secure',
-            security_validated: true
+            interface_type: 'live_chat_system_public',
+            access_type: 'public',
+            public_access: true
           }),
         });
 
@@ -268,7 +273,6 @@ export const LiveChatSystem: React.FC = () => {
             botResponse = responseValidation.sanitized!;
           } else {
             botResponse = "Réponse reçue mais contenu non sécurisé détecté.";
-            setSecurityWarnings(prev => [...prev, 'Contenu de réponse non sécurisé filtré']);
           }
           
           setTimeout(() => {
@@ -287,31 +291,28 @@ export const LiveChatSystem: React.FC = () => {
             };
             setMessages(prev => [...prev, agentResponse]);
 
-            // Sauvegarde sécurisée de la réponse
-            SecureMessageHandler.sendSecureMessage(
-              selectedAgent.id,
-              sessionToken,
-              botResponse,
-              'bot'
-            );
+            // Sauvegarde sécurisée de la réponse si session disponible
+            if (sessionToken) {
+              SecureMessageHandler.sendSecureMessage(
+                selectedAgent.id,
+                sessionToken,
+                botResponse,
+                'bot'
+              );
+            }
           }, 800 + Math.random() * 1200);
         } else {
-          throw new Error('Erreur de réponse du webhook sécurisé');
+          throw new Error('Erreur de réponse du webhook public');
         }
       }
     } catch (error: any) {
-      console.error('[LiveChatSystem] Secure message error:', error);
+      console.error('[LiveChatSystem] Erreur message public:', error);
       setIsTyping(false);
-      
-      await SecurityManager.auditSuspiciousActivity({
-        action: 'secure_message_failed',
-        additionalData: { error: error.message, botId: selectedAgent.id }
-      });
       
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'agent',
-        content: "Je rencontre un problème technique sécurisé. Veuillez réessayer dans quelques instants.",
+        content: "Je rencontre un problème technique. Veuillez réessayer dans quelques instants.",
         timestamp: new Date(),
         type: 'text',
         agentInfo: selectedAgent ? {
@@ -321,7 +322,6 @@ export const LiveChatSystem: React.FC = () => {
         } : undefined
       };
       setMessages(prev => [...prev, errorResponse]);
-      setSecurityWarnings(prev => [...prev, 'Erreur de communication sécurisée détectée']);
     }
   };
 
@@ -337,13 +337,15 @@ export const LiveChatSystem: React.FC = () => {
     setIsTyping(false);
     setWaitTime(0);
     setSecurityWarnings([]);
-    clearSession();
+    if (sessionToken) {
+      clearSession();
+    }
   };
 
-  // Interface de sélection des bots avec diagnostic
+  // Interface de sélection des bots publics
   if (!isConnected) {
-    console.log('[LiveChatSystem] AFFICHAGE: Interface de sélection');
-    console.log('[LiveChatSystem] État des bots:', {
+    console.log('[LiveChatSystem] AFFICHAGE: Interface de sélection pour accès public');
+    console.log('[LiveChatSystem] État des bots publics:', {
       count: liveChatBots?.length || 0,
       loading: botsLoading,
       error: botsError
@@ -357,10 +359,10 @@ export const LiveChatSystem: React.FC = () => {
             <Shield className="w-12 h-12 text-green-600" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Chat IA Sécurisé 24/7</h1>
-          <p className="text-gray-600 mb-2">Choisissez votre assistant IA et commencez une conversation chiffrée instantanément</p>
-          <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-            <Shield className="w-4 h-4" />
-            <span>Connexion sécurisée • Données chiffrées</span>
+          <p className="text-gray-600 mb-2">Choisissez votre assistant IA public et commencez une conversation instantanément</p>
+          <div className="inline-flex items-center space-x-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+            <MessageCircle className="w-4 h-4" />
+            <span>Accès libre • Disponible pour tous</span>
           </div>
           {botsError && (
             <div className="mt-2 p-2 bg-red-100 text-red-800 rounded">
@@ -369,7 +371,7 @@ export const LiveChatSystem: React.FC = () => {
           )}
         </div>
 
-        {/* Carrousel des bots avec diagnostic */}
+        {/* Carrousel des bots publics */}
         <div className="mb-8">
           <LiveChatBotCarousel
             bots={liveChatBots || []}
@@ -379,15 +381,15 @@ export const LiveChatSystem: React.FC = () => {
           />
         </div>
 
-        {/* Section informative avec sécurité */}
+        {/* Section informative pour accès public */}
         {liveChatBots && liveChatBots.length > 0 && (
           <Card className="bg-white border border-gray-200">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Que peuvent faire nos assistants IA sécurisés ?</h3>
-                <div className="flex items-center space-x-2 text-green-600">
-                  <Shield className="w-5 h-5" />
-                  <span className="text-sm font-medium">100% Sécurisé</span>
+                <h3 className="text-lg font-semibold text-gray-900">Que peuvent faire nos assistants IA publics ?</h3>
+                <div className="flex items-center space-x-2 text-blue-600">
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="text-sm font-medium">100% Accessible</span>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -426,56 +428,48 @@ export const LiveChatSystem: React.FC = () => {
     );
   }
 
-  // Interface de chat avec indicateurs de sécurité
+  // Interface de chat intégrée dans la même page
   return (
     <div className="flex h-screen bg-gray-50">
       <div className="flex-1 flex flex-col">
-        {/* Header avec statut de sécurité */}
-        <div className="bg-white border-b border-gray-200 p-4">
+        {/* Header du chat intégré */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm" onClick={goBackToSelection}>
+              <Button variant="ghost" size="sm" onClick={goBackToSelection} className="text-white hover:bg-white/20">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Retour
               </Button>
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h3 className="font-semibold text-gray-900">{selectedAgent?.name}</h3>
-                  {securityStatus === 'secure' && (
-                    <Shield className="w-4 h-4 text-green-600" />
-                  )}
-                  {securityStatus === 'warning' && (
-                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                  )}
-                  {securityStatus === 'error' && (
-                    <AlertTriangle className="w-4 h-4 text-red-600" />
-                  )}
+                  <h3 className="font-semibold text-white">{selectedAgent?.name}</h3>
+                  <Shield className="w-4 h-4 text-green-300" />
                 </div>
                 <div className="flex items-center space-x-2">
-                  <p className="text-sm text-gray-600">{selectedAgent?.role} • En ligne</p>
+                  <p className="text-sm text-white/90">{selectedAgent?.role} • En ligne</p>
                   <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                    Session sécurisée
+                    Accès public
                   </span>
                 </div>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" className="text-gray-700 border-gray-300">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 h-10 w-10 p-0">
                 <Phone className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="sm" className="text-gray-700 border-gray-300">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 h-10 w-10 p-0">
                 <Video className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="sm" className="text-gray-700 border-gray-300">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-white/20 h-10 w-10 p-0">
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </div>
           </div>
           {waitTime > 0 && (
-            <div className="mt-2 flex items-center text-sm text-blue-600">
+            <div className="mt-2 flex items-center text-sm text-blue-100">
               <Clock className="w-4 h-4 mr-1" />
               Connexion en cours... {Math.floor(waitTime / 60)}:{(waitTime % 60).toString().padStart(2, '0')}
             </div>
@@ -523,7 +517,7 @@ export const LiveChatSystem: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input avec validation de sécurité */}
+        {/* Input pour tous les utilisateurs */}
         <div className="bg-white border-t border-gray-200 p-4">
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" className="text-gray-700 border-gray-300">
@@ -537,25 +531,23 @@ export const LiveChatSystem: React.FC = () => {
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="Tapez votre message sécurisé..."
+              placeholder="Tapez votre message..."
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-              disabled={isTyping || !sessionReady}
+              disabled={isTyping}
               maxLength={4000}
             />
             <Button 
               onClick={sendMessage} 
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={isTyping || !newMessage.trim() || !sessionReady}
+              disabled={isTyping || !newMessage.trim()}
             >
               <Send className="w-4 h-4" />
             </Button>
           </div>
           
-          {/* Indicateur de statut de session */}
+          {/* Indicateur de statut */}
           <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-            <span>
-              {sessionReady ? 'Session sécurisée active' : 'Initialisation sécurisée...'}
-            </span>
+            <span>Chat public disponible pour tous</span>
             <span>{newMessage.length}/4000</span>
           </div>
         </div>
