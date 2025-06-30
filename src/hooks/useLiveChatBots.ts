@@ -12,6 +12,7 @@ interface LiveChatBot {
   is_active: boolean;
   public_chat_url: string;
   owner_name?: string;
+  display_in_live_chat?: boolean;
 }
 
 export const useLiveChatBots = () => {
@@ -24,9 +25,10 @@ export const useLiveChatBots = () => {
       setLoading(true);
       setError(null);
 
-      console.log('[useLiveChatBots] === RÉCUPÉRATION DES BOTS PUBLICS POUR TOUS LES UTILISATEURS ===');
+      console.log('[useLiveChatBots] === RÉCUPÉRATION BOTS PUBLICS POUR TOUS LES UTILISATEURS ===');
+      console.log('[useLiveChatBots] Aucune authentification requise - accès public total');
 
-      // Récupérer TOUS les bots publics sans authentification requise
+      // Requête pour TOUS les bots publics - sans authentification requise
       const { data: publicBots, error: publicBotsError } = await supabase
         .from('bots')
         .select(`
@@ -39,23 +41,33 @@ export const useLiveChatBots = () => {
           is_active,
           public_chat_url,
           display_in_live_chat,
+          share_enabled,
           created_at
         `)
         .eq('is_active', true)
-        .eq('display_in_live_chat', true)
+        .eq('share_enabled', true)
         .order('created_at', { ascending: false });
 
-      console.log('[useLiveChatBots] BOTS PUBLICS TROUVÉS:', publicBots?.length || 0);
-      console.log('[useLiveChatBots] Détails des bots publics:', publicBots);
+      console.log('[useLiveChatBots] Résultat requête Supabase:', {
+        success: !publicBotsError,
+        botsCount: publicBots?.length || 0,
+        error: publicBotsError
+      });
 
       if (publicBotsError) {
-        console.error('[useLiveChatBots] Erreur lors de la récupération des bots publics:', publicBotsError);
+        console.error('[useLiveChatBots] Erreur Supabase:', publicBotsError);
         throw publicBotsError;
       }
 
-      // Formatage des bots pour affichage public
+      // Tous les bots actifs et partagés sont considérés comme publics
       const formattedBots: LiveChatBot[] = (publicBots || []).map((bot: any) => {
-        console.log('[useLiveChatBots] Formatage du bot public:', bot.name, 'ID:', bot.id);
+        console.log('[useLiveChatBots] Formatage bot public:', {
+          id: bot.id,
+          name: bot.name,
+          isActive: bot.is_active,
+          shareEnabled: bot.share_enabled,
+          displayInLiveChat: bot.display_in_live_chat
+        });
         
         return {
           id: bot.id,
@@ -65,37 +77,38 @@ export const useLiveChatBots = () => {
           chat_title: bot.chat_title || bot.name || 'Assistant IA',
           chat_context: bot.chat_context || 'general',
           is_active: true,
-          public_chat_url: bot.public_chat_url || `https://ia.bot.bj/chat/${bot.id}`,
-          owner_name: 'Bot.Bj Team'
+          public_chat_url: bot.public_chat_url || `https://bot.bj/chat/${bot.id}`,
+          owner_name: 'Bot.Bj Team',
+          display_in_live_chat: bot.display_in_live_chat !== false // Par défaut true
         };
       });
 
-      console.log('[useLiveChatBots] === RÉSULTAT FINAL POUR ACCÈS PUBLIC ===');
-      console.log('[useLiveChatBots] Nombre de bots publics formatés:', formattedBots.length);
-      console.log('[useLiveChatBots] Bots publics formatés:', formattedBots.map(b => ({
+      console.log('[useLiveChatBots] === RÉSULTAT FINAL ===');
+      console.log('[useLiveChatBots] Bots publics trouvés:', formattedBots.length);
+      console.log('[useLiveChatBots] Détails des bots:', formattedBots.map(b => ({
         id: b.id,
         name: b.name,
-        description: b.description.substring(0, 50) + '...',
         hasWebhook: !!b.webhook_url,
-        context: b.chat_context
+        context: b.chat_context,
+        displayInLiveChat: b.display_in_live_chat
       })));
 
       setBots(formattedBots);
       
       if (formattedBots.length === 0) {
-        console.warn('[useLiveChatBots] ATTENTION: Aucun bot public trouvé !');
-        setError('Aucun assistant IA public n\'est actuellement disponible. Veuillez réessayer dans quelques instants.');
+        console.warn('[useLiveChatBots] AUCUN BOT PUBLIC TROUVÉ !');
+        setError('Aucun assistant IA public n\'est actuellement disponible.');
       } else {
-        console.log('[useLiveChatBots] SUCCESS: Bots publics chargés avec succès pour tous les utilisateurs !');
+        console.log('[useLiveChatBots] SUCCESS: Bots publics chargés pour tous les utilisateurs !');
       }
 
     } catch (err: any) {
-      console.error('[useLiveChatBots] === ERREUR LORS DU CHARGEMENT DES BOTS PUBLICS ===');
-      console.error('[useLiveChatBots] Type d\'erreur:', err?.constructor?.name);
+      console.error('[useLiveChatBots] === ERREUR CRITIQUE ===');
+      console.error('[useLiveChatBots] Type:', err?.constructor?.name);
       console.error('[useLiveChatBots] Message:', err?.message);
-      console.error('[useLiveChatBots] Erreur complète:', err);
+      console.error('[useLiveChatBots] Stack:', err?.stack);
       
-      setError('Impossible de charger les assistants IA publics. Problème de connexion à la base de données.');
+      setError('Impossible de charger les assistants IA publics. Veuillez réessayer.');
       setBots([]);
     } finally {
       setLoading(false);
@@ -103,12 +116,12 @@ export const useLiveChatBots = () => {
   };
 
   const refreshBots = () => {
-    console.log('[useLiveChatBots] === ACTUALISATION MANUELLE DES BOTS PUBLICS ===');
+    console.log('[useLiveChatBots] === ACTUALISATION MANUELLE ===');
     fetchLiveChatBots();
   };
 
   useEffect(() => {
-    console.log('[useLiveChatBots] === INITIALISATION DU HOOK POUR BOTS PUBLICS ===');
+    console.log('[useLiveChatBots] === INITIALISATION HOOK ===');
     fetchLiveChatBots();
   }, []);
 

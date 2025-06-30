@@ -6,6 +6,7 @@ import { StandardizedChatInterface } from '@/components/StandardizedChatInterfac
 import { BotConfigService } from '@/services/botConfigService';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Utilitaire pour détecter les appareils mobiles
 const isMobileDevice = (): boolean => {
@@ -26,17 +27,26 @@ export const ChatPage: React.FC = () => {
   const [refCode, setRefCode] = useState<string | null>(null);
   const { toast } = useToast();
   const isMobileHook = useIsMobile();
+  const { enableGuestMode, isGuest, isAuthenticated } = useAuth();
 
   useEffect(() => {
     setIsMobile(isMobileDevice());
     initializeChatPage();
   }, [searchParams, location]);
 
+  // S'assurer que le mode invité est activé pour les utilisateurs non connectés
+  useEffect(() => {
+    if (!isAuthenticated && !isGuest) {
+      console.log('[ChatPage] Activation du mode invité pour accès public');
+      enableGuestMode();
+    }
+  }, [isAuthenticated, isGuest, enableGuestMode]);
+
   const initializeChatPage = async () => {
     try {
-      console.log('=== INITIALISATION CHAT PAGE STANDARDISÉE ===');
+      console.log('=== INITIALISATION CHAT PAGE PUBLIQUE ===');
       console.log('URL complète:', window.location.href);
-      console.log('Est mobile:', isMobileDevice());
+      console.log('Accessible à tous les utilisateurs (connectés et non connectés)');
       
       // Normaliser les paramètres URL avec le service standardisé
       const params = BotConfigService.normalizeUrlParams(searchParams);
@@ -69,16 +79,18 @@ export const ChatPage: React.FC = () => {
 
       // Si on a un botId spécifique, utiliser le système standardisé
       if (finalBotId && finalBotId !== 'chat') {
+        console.log('Accès à un bot spécifique - Interface standardisée');
         setBotId(finalBotId);
         setUseLiveChatSystem(false);
       } else {
-        // Utiliser le système de chat live par défaut
-        console.log('Accès depuis le menu - utilisation du LiveChatSystem');
+        // Utiliser le système de chat live pour accès public général
+        console.log('Accès général au Chat IA - LiveChatSystem public');
         setUseLiveChatSystem(true);
       }
 
     } catch (error) {
       console.error('Erreur lors de l\'initialisation:', error);
+      // En cas d'erreur, toujours permettre l'accès au système de chat live
       setUseLiveChatSystem(true);
     } finally {
       setIsLoading(false);
@@ -104,7 +116,7 @@ export const ChatPage: React.FC = () => {
           window.close();
         } catch (e) {
           console.log('Impossible de fermer automatiquement la fenêtre');
-          window.location.href = 'about:blank';
+          window.location.href = '/';
         }
       }
     } else {
@@ -115,7 +127,7 @@ export const ChatPage: React.FC = () => {
         if (window.history.length > 1) {
           window.history.back();
         } else {
-          window.close();
+          window.location.href = '/';
         }
       }
     }
@@ -129,7 +141,10 @@ export const ChatPage: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Chargement du chat...
           </h2>
-          <p className="text-gray-600">Préparation de votre assistant IA</p>
+          <p className="text-gray-600">Préparation de votre assistant IA public</p>
+          <p className="text-sm text-gray-500 mt-2">
+            Accessible à tous les utilisateurs
+          </p>
         </div>
       </div>
     );
@@ -156,7 +171,8 @@ export const ChatPage: React.FC = () => {
     );
   }
 
-  // Utiliser le système de chat live par défaut
+  // Utiliser le système de chat live public par défaut
+  console.log('[ChatPage] Affichage du LiveChatSystem pour accès public général');
   return (
     <div className={`h-[calc(100vh-8rem)] ${isMobileHook ? 'px-[2.5%]' : ''}`}>
       <LiveChatSystem />
