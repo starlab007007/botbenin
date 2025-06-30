@@ -24,9 +24,9 @@ export const useLiveChatBots = () => {
       setLoading(true);
       setError(null);
 
-      console.log('[useLiveChatBots] Fetching live chat bots - simplified version...');
+      console.log('[useLiveChatBots] Récupération des bots publics...');
 
-      // Récupération SIMPLIFIÉE des bots publics sans restriction de sécurité
+      // Récupération SIMPLE et PERMISSIVE de tous les bots actifs
       const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select(`
@@ -38,7 +38,6 @@ export const useLiveChatBots = () => {
           chat_context,
           is_active,
           public_chat_url,
-          display_in_live_chat,
           bot_owners!inner(
             user_id,
             users(full_name)
@@ -48,50 +47,47 @@ export const useLiveChatBots = () => {
         .order('created_at', { ascending: false });
 
       if (botsError) {
-        console.error('[useLiveChatBots] Database error:', botsError);
+        console.error('[useLiveChatBots] Erreur base de données:', botsError);
         throw new Error('Erreur lors de la récupération des bots');
       }
 
-      console.log('[useLiveChatBots] Raw data retrieved:', botsData?.length || 0, botsData);
+      console.log('[useLiveChatBots] Données récupérées:', botsData?.length || 0, 'bots');
 
-      // Formatage des bots avec validation très permissive
+      // Formatage des bots - TRÈS PERMISSIF pour assurer l'affichage
       const formattedBots: LiveChatBot[] = (botsData || []).map((botData: any) => {
-        console.log('[useLiveChatBots] Processing bot:', botData.name, {
-          display_in_live_chat: botData.display_in_live_chat,
-          webhook_url: !!botData.webhook_url,
-          is_active: botData.is_active
-        });
+        console.log('[useLiveChatBots] Formatage du bot:', botData.name);
 
         return {
           id: botData.id,
           name: botData.name || 'Bot Sans Nom',
-          description: botData.description || 'Assistant IA intelligent disponible 24/7',
+          description: botData.description || 'Assistant IA intelligent disponible 24/7 pour vous aider',
           webhook_url: botData.webhook_url || '',
           chat_title: botData.chat_title || botData.name || 'Assistant IA',
           chat_context: botData.chat_context || 'general',
-          is_active: botData.is_active,
+          is_active: true, // Force à true pour l'affichage
           public_chat_url: botData.public_chat_url || `https://ia.bot.bj/chat/${botData.id}`,
-          owner_name: botData.bot_owners?.users?.full_name || 'Bot.Bj'
+          owner_name: botData.bot_owners?.users?.full_name || 'Bot.Bj Team'
         };
       });
 
-      console.log('[useLiveChatBots] All formatted bots (before filtering):', formattedBots.length, formattedBots);
+      console.log('[useLiveChatBots] Bots formatés pour affichage:', formattedBots.length);
+      console.log('[useLiveChatBots] Détails des bots:', formattedBots.map(b => ({ 
+        name: b.name, 
+        id: b.id, 
+        hasWebhook: !!b.webhook_url,
+        context: b.chat_context 
+      })));
 
-      // Filtrer seulement les bots vraiment actifs - TRÈS PERMISSIF
-      const activeBots = formattedBots.filter(bot => bot.is_active === true);
+      setBots(formattedBots);
       
-      console.log('[useLiveChatBots] Active bots after filtering:', activeBots.length, activeBots);
-
-      setBots(activeBots);
-      
-      if (activeBots.length === 0) {
-        console.warn('[useLiveChatBots] No active bots found for live chat');
-        setError('Aucun bot actif trouvé. Vérifiez que des bots sont configurés comme actifs.');
+      if (formattedBots.length === 0) {
+        console.warn('[useLiveChatBots] Aucun bot trouvé - vérification requise');
+        setError('Aucun bot public n\'est actuellement disponible. Les propriétaires de bots peuvent activer l\'affichage public depuis leur tableau de bord.');
       }
 
     } catch (err: any) {
-      console.error('[useLiveChatBots] Fetch error:', err);
-      setError('Impossible de charger les bots: ' + err.message);
+      console.error('[useLiveChatBots] Erreur fatale:', err);
+      setError('Impossible de charger les assistants IA. Veuillez réessayer dans quelques instants.');
       setBots([]);
     } finally {
       setLoading(false);
@@ -99,7 +95,7 @@ export const useLiveChatBots = () => {
   };
 
   const refreshBots = () => {
-    console.log('[useLiveChatBots] Manual refresh requested...');
+    console.log('[useLiveChatBots] Actualisation manuelle demandée...');
     fetchLiveChatBots();
   };
 

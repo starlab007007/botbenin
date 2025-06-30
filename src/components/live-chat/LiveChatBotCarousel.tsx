@@ -38,7 +38,7 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
 }) => {
   const { toast } = useToast();
 
-  console.log('[LiveChatBotCarousel] Rendering with:', { 
+  console.log('[LiveChatBotCarousel] Rendu avec:', { 
     botsCount: bots.length, 
     isLoading, 
     bots: bots.map(b => ({ id: b.id, name: b.name, hasWebhook: !!b.webhook_url }))
@@ -48,7 +48,7 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
     return (
       <div className="w-full py-8">
         <div className="text-center mb-4">
-          <p className="text-gray-600">Chargement des assistants IA...</p>
+          <p className="text-gray-600">Chargement des assistants IA publics...</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
@@ -76,7 +76,7 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
   }
 
   if (!bots || bots.length === 0) {
-    console.log('[LiveChatBotCarousel] No bots available, showing NoBotAvailable component');
+    console.log('[LiveChatBotCarousel] Aucun bot disponible, affichage du composant NoBotAvailable');
     return (
       <NoBotAvailable 
         onRefresh={onRefresh || (() => {})} 
@@ -85,7 +85,7 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
     );
   }
 
-  console.log('[LiveChatBotCarousel] Rendering', bots.length, 'bots');
+  console.log('[LiveChatBotCarousel] Affichage de', bots.length, 'bots publics');
 
   return (
     <div className="w-full">
@@ -94,7 +94,7 @@ export const LiveChatBotCarousel: React.FC<LiveChatBotCarouselProps> = ({
         <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-4 py-2 rounded-full">
           <Zap className="w-4 h-4" />
           <span className="font-medium">
-            {bots.length} assistant{bots.length > 1 ? 's' : ''} IA disponible{bots.length > 1 ? 's' : ''}
+            {bots.length} assistant{bots.length > 1 ? 's' : ''} IA public{bots.length > 1 ? 's' : ''} disponible{bots.length > 1 ? 's' : ''}
           </span>
         </div>
       </div>
@@ -141,7 +141,9 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
       'customer_service': ['Service Client', 'Support'],
       'sales': ['Vente', 'Conversion'],
       'general': ['Assistance Générale', 'Polyvalent'],
-      'automation': ['Automatisation', 'Workflow']
+      'automation': ['Automatisation', 'Workflow'],
+      'services_locaux': ['Services Locaux', 'Proximité'],
+      'restaurant': ['Restaurant', 'Réservation']
     };
     
     return contextMap[context] || ['IA Conversationnelle', 'Support 24/7'];
@@ -153,16 +155,14 @@ const BotCard: React.FC<BotCardProps> = ({ bot, onStartChat }) => {
   const hasWebhook = bot.webhook_url && bot.webhook_url.trim() !== '';
 
   const handleStartChat = () => {
-    console.log('[BotCard] Starting chat with bot:', bot.name, 'Has webhook:', hasWebhook);
+    console.log('[BotCard] Démarrage du chat avec:', bot.name, 'Webhook disponible:', hasWebhook);
     
-    if (!hasWebhook) {
-      toast({
-        title: "Démarrage du chat",
-        description: `Démarrage du chat avec ${bot.name}. Le bot sera configuré automatiquement.`,
-      });
-    }
+    toast({
+      title: "Démarrage du chat",
+      description: `Connexion à ${bot.chat_title}...`,
+    });
     
-    // Toujours permettre le démarrage du chat
+    // Toujours permettre le démarrage du chat pour les bots publics
     onStartChat(bot);
   };
 
