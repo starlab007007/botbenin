@@ -19,12 +19,12 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
   const [showSuggestions, setShowSuggestions] = useState(true);
 
   const messageSuggestions = [
-    "Bonjour, comment allez-vous ?",
-    "Pouvez-vous m'aider avec...",
-    "J'aimerais en savoir plus sur...",
-    "Quels sont vos services ?",
-    "Comment puis-je commencer ?",
-    "Avez-vous des recommandations ?"
+    "Quoi de neuf aujourd'hui",
+    "Les bons plans de la journée",
+    "Qu'est-ce que vous m'offrez",
+    "Comment puis-je vous aider ?",
+    "Avez-vous des recommandations ?",
+    "Parlez-moi de vos services"
   ];
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -41,25 +41,34 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
 
   return (
     <div className="bg-white border-t border-gray-200">
-      {/* Suggestions de messages */}
+      {/* Suggestions de messages centrées */}
       {showSuggestions && newMessage.trim() === '' && (
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex items-center space-x-2 mb-3">
-            <Sparkles className="w-4 h-4 text-purple-500" />
-            <span className="text-sm font-medium text-gray-700">Suggestions de messages</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {messageSuggestions.slice(0, 3).map((suggestion, index) => (
-              <Button
-                key={index}
-                onClick={() => handleSuggestionClick(suggestion)}
-                variant="outline"
-                size="sm"
-                className="text-xs text-gray-600 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
-              >
-                {suggestion}
-              </Button>
-            ))}
+        <div className="p-6 border-b border-gray-100 bg-gray-50">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Comment puis-je vous aider?
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Voici quelques suggestions pour commencer
+            </p>
+            <div className="space-y-3">
+              {messageSuggestions.slice(0, 3).map((suggestion, index) => (
+                <Button
+                  key={index}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  variant="outline"
+                  size="lg"
+                  className={`w-full text-left justify-start text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition-all ${
+                    index === 0 ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600' : ''
+                  }`}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -77,7 +86,7 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Tapez votre message..."
+            placeholder="Tapez votre message ici..."
             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white resize-none"
             disabled={isTyping}
             maxLength={4000}

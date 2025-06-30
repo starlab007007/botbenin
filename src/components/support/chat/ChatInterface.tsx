@@ -39,6 +39,27 @@ interface ChatInterfaceProps {
   onGoBack: () => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = (props) => {
-  return <StandardizedChatInterface {...props} />;
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({
+  selectedAgent,
+  messages,
+  newMessage,
+  setNewMessage,
+  isTyping,
+  waitTime,
+  onSendMessage,
+  onGoBack
+}) => {
+  return (
+    <StandardizedChatInterface
+      selectedAgent={selectedAgent}
+      messages={messages}
+      newMessage={newMessage}
+      setNewMessage={setNewMessage}
+      isTyping={isTyping}
+      waitTime={waitTime}
+      onSendMessage={onSendMessage}
+      onGoBack={onGoBack}
+      showBackButton={true}
+    />
+  );
 };

@@ -129,11 +129,11 @@ export const useChatLogic = () => {
       setWaitTime(Math.floor(Math.random() * 10) + 3);
       setSecurityWarnings([]);
       
-      // Message système de connexion amélioré pour accès public
+      // Message de bienvenue identique au test chat
       const welcomeMessage: Message = {
         id: Date.now().toString(),
         sender: 'agent',
-        content: `👋 Bonjour et bienvenue ! Je suis ${agent.name}, votre ${agent.role}.\n\nJe suis là pour vous aider 24h/24 et 7j/7. N'hésitez pas à utiliser les suggestions de messages ci-dessous pour commencer notre conversation.\n\nComment puis-je vous être utile aujourd'hui ?`,
+        content: `👋 Bonjour et bienvenue ! Je suis ${agent.name}, votre ${agent.role}.\n\nJe suis là pour vous aider 24h/24 et 7j/7. N'hésitez pas à utiliser les suggestions ci-dessous pour commencer notre conversation.\n\nComment puis-je vous être utile aujourd'hui ?`,
         timestamp: new Date(),
         type: 'system',
         agentInfo: {
@@ -147,7 +147,7 @@ export const useChatLogic = () => {
 
       toast({
         title: `💬 Chat démarré avec ${agent.name}`,
-        description: "Interface de chat identique au mode test",
+        description: "Interface identique au mode test",
       });
       
     } catch (error: any) {
