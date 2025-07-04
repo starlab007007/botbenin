@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -89,7 +88,14 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
 
     setIsSaving(true);
     try {
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        throw new Error('User not authenticated');
+      }
+
       const prospectsToSave = selectedBusinesses.map(business => ({
+        user_id: userData.user.id,
         database_id: selectedDatabaseId,
         first_name: business.name.split(' ')[0] || '',
         last_name: business.name.split(' ').slice(1).join(' ') || '',

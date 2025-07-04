@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -41,7 +40,24 @@ export const useMarketingCampaigns = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCampaigns(data || []);
+      
+      // Transform the data to match our interface
+      const transformedData = (data || []).map(campaign => ({
+        id: campaign.id,
+        name: campaign.name,
+        type: campaign.type,
+        subject: campaign.subject,
+        message_template: campaign.message_template,
+        target_contacts: campaign.target_contacts || [],
+        status: campaign.status,
+        scheduled_at: campaign.scheduled_at,
+        sent_at: campaign.sent_at,
+        results: campaign.results || {},
+        created_at: campaign.created_at,
+        updated_at: campaign.updated_at
+      }));
+      
+      setCampaigns(transformedData);
     } catch (error) {
       console.error('Error fetching campaigns:', error);
       toast({
@@ -56,11 +72,24 @@ export const useMarketingCampaigns = () => {
 
   const createCampaign = async (campaignData: CreateCampaignData) => {
     try {
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase
         .from('marketing_campaigns')
         .insert({
-          ...campaignData,
-          status: campaignData.scheduled_at ? 'scheduled' : 'draft'
+          user_id: userData.user.id,
+          name: campaignData.name,
+          type: campaignData.type,
+          subject: campaignData.subject,
+          message_template: campaignData.message_template,
+          target_contacts: campaignData.target_contacts,
+          status: campaignData.scheduled_at ? 'scheduled' : 'draft',
+          scheduled_at: campaignData.scheduled_at,
+          results: {}
         })
         .select()
         .single();

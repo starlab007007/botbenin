@@ -42,9 +42,19 @@ export const useProspectDatabases = () => {
 
   const createDatabase = async (name: string, description?: string) => {
     try {
+      // Get current user
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase
         .from('prospect_databases')
-        .insert({ name, description })
+        .insert({ 
+          user_id: userData.user.id,
+          name, 
+          description 
+        })
         .select()
         .single();
 
