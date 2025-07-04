@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -48,10 +49,10 @@ export const useMarketingCampaigns = () => {
         type: campaign.type,
         subject: campaign.subject,
         message_template: campaign.message_template,
-        target_contacts: campaign.target_contacts || [],
+        target_contacts: Array.isArray(campaign.target_contacts) ? campaign.target_contacts : [],
         status: campaign.status,
         scheduled_at: campaign.scheduled_at,
-        sent_at: campaign.sent_at,
+        sent_at: campaign.sent_at || undefined,
         results: campaign.results || {},
         created_at: campaign.created_at,
         updated_at: campaign.updated_at
