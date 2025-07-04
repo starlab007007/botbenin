@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Mail, MessageSquare, Calendar } from 'lucide-react';
+import { Loader2, Mail, MessageSquare, Calendar, Sparkles } from 'lucide-react';
+import { useMarketingCampaigns } from '@/hooks/useMarketingCampaigns';
 
 interface LocalBusiness {
   id: string;
@@ -16,6 +16,8 @@ interface LocalBusiness {
   companyName: string;
   email: string;
   phone: string;
+  category: string;
+  industry: string;
 }
 
 interface MarketingCampaignModalProps {
@@ -36,14 +38,56 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
     messageTemplate: '',
     scheduledAt: ''
   });
-  const [isCreating, setIsCreating] = useState(false);
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
+  const { createCampaign, generateAIMessage } = useMarketingCampaigns();
   const { toast } = useToast();
 
   const handleInputChange = (field: string, value: string) => {
     setCampaignData(prev => ({ ...prev, [field]: value }));
   };
 
-  const createCampaign = async () => {
+  const handleGenerateAIMessage = async () => {
+    if (selectedBusinesses.length === 0) {
+      toast({
+        title: "Aucune entreprise sélectionnée",
+        description: "Sélectionnez au moins une entreprise pour générer un message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingMessage(true);
+    try {
+      // Analyser les catégories des entreprises sélectionnées
+      const categories = selectedBusinesses.map(b => b.category || b.industry).filter(Boolean);
+      const mainCategory = categories.length > 0 ? categories[0] : 'general';
+      
+      const generatedMessage = await generateAIMessage(mainCategory, campaignData.type, 'business_owners');
+      
+      setCampaignData(prev => ({
+        ...prev,
+        messageTemplate: generatedMessage,
+        subject: campaignData.type === 'email' && !campaignData.subject ? 
+          'Opportunité de croissance pour votre entreprise' : prev.subject
+      }));
+
+      toast({
+        title: "Message généré !",
+        description: "Le message a été généré avec l'IA. Vous pouvez le modifier si nécessaire.",
+      });
+    } catch (error) {
+      console.error('Error generating message:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de générer le message avec l'IA",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingMessage(false);
+    }
+  };
+
+  const handleCreateCampaign = async () => {
     if (!campaignData.name || !campaignData.messageTemplate) {
       toast({
         title: "Champs requis",
@@ -53,40 +97,25 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
       return;
     }
 
-    setIsCreating(true);
     try {
       const targetContacts = selectedBusinesses.map(business => ({
         id: business.id,
         name: business.name,
         company: business.companyName,
         email: business.email,
-        phone: business.phone
+        phone: business.phone,
+        category: business.category,
+        industry: business.industry
       }));
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Erreur d'authentification",
-          description: "Vous devez être connecté pour créer une campagne",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('marketing_campaigns')
-        .insert({
-          user_id: user.id,
-          name: campaignData.name,
-          type: campaignData.type,
-          subject: campaignData.type === 'email' ? campaignData.subject : null,
-          message_template: campaignData.messageTemplate,
-          target_contacts: targetContacts,
-          scheduled_at: campaignData.scheduledAt ? new Date(campaignData.scheduledAt).toISOString() : null,
-          status: campaignData.scheduledAt ? 'scheduled' : 'draft'
-        });
-
-      if (error) throw error;
+      await createCampaign({
+        name: campaignData.name,
+        type: campaignData.type,
+        subject: campaignData.type === 'email' ? campaignData.subject : undefined,
+        message_template: campaignData.messageTemplate,
+        target_contacts: targetContacts,
+        scheduled_at: campaignData.scheduledAt ? new Date(campaignData.scheduledAt).toISOString() : undefined
+      });
 
       toast({
         title: "Campagne créée",
@@ -102,14 +131,7 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
         scheduledAt: ''
       });
     } catch (error) {
-      console.error('Error creating campaign:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de créer la campagne",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCreating(false);
+      // Error handled in createCampaign
     }
   };
 
@@ -186,7 +208,27 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
           )}
 
           <div>
-            <Label htmlFor="message">Message de la campagne *</Label>
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="message">Message de la campagne *</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateAIMessage}
+                disabled={isGeneratingMessage}
+              >
+                {isGeneratingMessage ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Génération...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Générer avec IA
+                  </>
+                )}
+              </Button>
+            </div>
             <Textarea
               id="message"
               value={campaignData.messageTemplate}
@@ -230,18 +272,11 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={onClose} disabled={isCreating}>
+            <Button variant="outline" onClick={onClose}>
               Annuler
             </Button>
-            <Button onClick={createCampaign} disabled={isCreating}>
-              {isCreating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Création...
-                </>
-              ) : (
-                'Créer la campagne'
-              )}
+            <Button onClick={handleCreateCampaign}>
+              Créer la campagne
             </Button>
           </div>
         </div>
