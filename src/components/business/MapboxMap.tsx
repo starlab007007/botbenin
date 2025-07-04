@@ -14,12 +14,29 @@ interface Contact {
   coordinates?: [number, number];
 }
 
+interface LocalBusiness {
+  id: string;
+  name: string;
+  category: string;
+  address: string;
+  phone: string;
+  website: string;
+  rating: number;
+  reviewCount: number;
+  coordinates: [number, number];
+  email: string;
+  hours: string;
+  priceRange: string;
+  distance: number;
+}
+
 interface MapboxMapProps {
-  contacts: Contact[];
+  contacts?: Contact[];
+  businesses?: LocalBusiness[];
   userLocation: [number, number] | null;
 }
 
-export const MapboxMap: React.FC<MapboxMapProps> = ({ contacts, userLocation }) => {
+export const MapboxMap: React.FC<MapboxMapProps> = ({ contacts, businesses, userLocation }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [mapboxToken, setMapboxToken] = useState<string>('');
@@ -34,8 +51,8 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({ contacts, userLocation }) 
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/light-v11',
-        center: userLocation || [2.3522, 48.8566], // Default to Paris
-        zoom: 6
+        center: userLocation || [2.3522, 6.4023], // Default to Cotonou, Benin
+        zoom: 10
       });
 
       // Add navigation controls
@@ -49,26 +66,58 @@ export const MapboxMap: React.FC<MapboxMapProps> = ({ contacts, userLocation }) 
           .addTo(map.current);
       }
 
-      // Add contact markers
-      contacts.forEach((contact) => {
-        if (contact.coordinates && map.current) {
-          const marker = new mapboxgl.Marker({ color: '#374151' })
-            .setLngLat(contact.coordinates)
-            .setPopup(
-              new mapboxgl.Popup().setHTML(`
-                <div class="p-2">
-                  <div class="font-semibold">${contact.name}</div>
-                  <div class="text-sm text-gray-600">${contact.companyName}</div>
-                  <div class="text-xs text-gray-500">${contact.location}</div>
-                </div>
-              `)
-            )
-            .addTo(map.current);
-        }
-      });
+      // Add contact markers if contacts are provided
+      if (contacts) {
+        contacts.forEach((contact) => {
+          if (contact.coordinates && map.current) {
+            const marker = new mapboxgl.Marker({ color: '#374151' })
+              .setLngLat(contact.coordinates)
+              .setPopup(
+                new mapboxgl.Popup().setHTML(`
+                  <div class="p-2">
+                    <div class="font-semibold">${contact.name}</div>
+                    <div class="text-sm text-gray-600">${contact.companyName}</div>
+                    <div class="text-xs text-gray-500">${contact.location}</div>
+                  </div>
+                `)
+              )
+              .addTo(map.current);
+          }
+        });
+      }
+
+      // Add business markers if businesses are provided
+      if (businesses) {
+        businesses.forEach((business) => {
+          if (business.coordinates && map.current) {
+            const marker = new mapboxgl.Marker({ color: '#10B981' })
+              .setLngLat(business.coordinates)
+              .setPopup(
+                new mapboxgl.Popup().setHTML(`
+                  <div class="p-3">
+                    <div class="font-semibold text-gray-900">${business.name}</div>
+                    <div class="text-sm text-gray-600 mb-1">${business.category}</div>
+                    <div class="text-xs text-gray-500 mb-2">${business.address}</div>
+                    <div class="flex items-center mb-1">
+                      <span class="text-yellow-500 mr-1">★</span>
+                      <span class="text-xs text-gray-700">${business.rating} (${business.reviewCount} avis)</span>
+                    </div>
+                    <div class="text-xs text-gray-600">
+                      <div>📞 ${business.phone}</div>
+                      <div>🌐 <a href="${business.website}" target="_blank" class="text-blue-600 hover:underline">Site web</a></div>
+                      <div>📧 ${business.email}</div>
+                      <div>📍 ${business.distance} km</div>
+                    </div>
+                  </div>
+                `)
+              )
+              .addTo(map.current);
+          }
+        });
+      }
 
       setShowTokenInput(false);
-      console.log('Mapbox map initialized with', contacts.length, 'contacts');
+      console.log('Mapbox map initialized with', (contacts?.length || 0) + (businesses?.length || 0), 'markers');
 
     } catch (error) {
       console.error('Error initializing Mapbox:', error);
