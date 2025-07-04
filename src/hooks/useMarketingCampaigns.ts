@@ -12,8 +12,6 @@ interface MarketingCampaign {
   target_contacts: any[];
   status: string;
   scheduled_at?: string;
-  sent_at?: string;
-  results: any;
   created_at: string;
   updated_at: string;
 }
@@ -52,8 +50,6 @@ export const useMarketingCampaigns = () => {
         target_contacts: Array.isArray(campaign.target_contacts) ? campaign.target_contacts : [],
         status: campaign.status,
         scheduled_at: campaign.scheduled_at,
-        sent_at: campaign.sent_at || undefined,
-        results: campaign.results || {},
         created_at: campaign.created_at,
         updated_at: campaign.updated_at
       }));
@@ -89,8 +85,7 @@ export const useMarketingCampaigns = () => {
           message_template: campaignData.message_template,
           target_contacts: campaignData.target_contacts,
           status: campaignData.scheduled_at ? 'scheduled' : 'draft',
-          scheduled_at: campaignData.scheduled_at,
-          results: {}
+          scheduled_at: campaignData.scheduled_at
         })
         .select()
         .single();

@@ -53,7 +53,8 @@ export const useProspectDatabases = () => {
         .insert({ 
           user_id: userData.user.id,
           name, 
-          description 
+          description,
+          is_active: true
         })
         .select()
         .single();

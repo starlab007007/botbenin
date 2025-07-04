@@ -66,7 +66,7 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
       
       setCampaignData(prev => ({
         ...prev,
-        messageTemplate: generatedMessage,
+        messageTemplate: generatedMessage || '',
         subject: campaignData.type === 'email' && !campaignData.subject ? 
           'Opportunité de croissance pour votre entreprise' : prev.subject
       }));
@@ -102,10 +102,10 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
         id: business.id,
         name: business.name,
         company: business.companyName,
-        email: business.email,
-        phone: business.phone,
-        category: business.category,
-        industry: business.industry
+        email: business.email || '',
+        phone: business.phone || '',
+        category: business.category || '',
+        industry: business.industry || ''
       }));
 
       await createCampaign({
@@ -132,6 +132,7 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
       });
     } catch (error) {
       // Error handled in createCampaign
+      console.error('Error creating campaign:', error);
     }
   };
 
@@ -260,7 +261,7 @@ export const MarketingCampaignModal: React.FC<MarketingCampaignModalProps> = ({
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {selectedBusinesses.slice(0, 5).map((business, index) => (
                 <div key={index} className="text-xs text-gray-600">
-                  • {business.name} ({business.companyName}) - {business.email}
+                  • {business.name} ({business.companyName}) - {business.email || 'Email non disponible'}
                 </div>
               ))}
               {selectedBusinesses.length > 5 && (

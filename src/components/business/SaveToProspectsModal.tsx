@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -65,12 +66,15 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
     setIsCreatingDatabase(true);
     try {
       const newDatabase = await createDatabase(newDatabaseName, newDatabaseDescription);
-      setSelectedDatabaseId(newDatabase.id);
-      setShowCreateDatabase(false);
-      setNewDatabaseName('');
-      setNewDatabaseDescription('');
+      if (newDatabase) {
+        setSelectedDatabaseId(newDatabase.id);
+        setShowCreateDatabase(false);
+        setNewDatabaseName('');
+        setNewDatabaseDescription('');
+      }
     } catch (error) {
       // Error handled in createDatabase
+      console.error('Error creating database:', error);
     } finally {
       setIsCreatingDatabase(false);
     }
@@ -99,26 +103,26 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
         database_id: selectedDatabaseId,
         first_name: business.name.split(' ')[0] || '',
         last_name: business.name.split(' ').slice(1).join(' ') || '',
-        email: business.email,
-        phone: business.phone,
-        company: business.companyName,
-        position: business.jobTitle,
+        email: business.email || '',
+        phone: business.phone || '',
+        company: business.companyName || '',
+        position: business.jobTitle || '',
         source: 'local_search',
         status: 'new',
-        notes: `Catégorie: ${business.category}\nAdresse: ${business.address}\nNote: ${business.rating}/5 (${business.reviewCount} avis)\nSite web: ${business.website}`,
+        notes: `Catégorie: ${business.category || ''}\nAdresse: ${business.address || ''}\nNote: ${business.rating || 0}/5 (${business.reviewCount || 0} avis)\nSite web: ${business.website || ''}`,
         custom_fields: {
-          rating: business.rating,
-          review_count: business.reviewCount,
-          hours: business.hours,
-          price_range: business.priceRange,
-          distance: business.distance,
-          coordinates: business.coordinates,
-          linkedin_url: business.linkedinUrl,
-          industry: business.industry,
-          company_size: business.companySize,
-          website: business.website
+          rating: business.rating || 0,
+          review_count: business.reviewCount || 0,
+          hours: business.hours || '',
+          price_range: business.priceRange || '',
+          distance: business.distance || '',
+          coordinates: business.coordinates || null,
+          linkedin_url: business.linkedinUrl || '',
+          industry: business.industry || '',
+          company_size: business.companySize || '',
+          website: business.website || ''
         },
-        tags: [business.category, 'local_business']
+        tags: [business.category || 'uncategorized', 'local_business']
       }));
 
       const { error } = await supabase
@@ -247,7 +251,7 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {selectedBusinesses.map((business, index) => (
                 <div key={index} className="text-xs text-gray-600">
-                  • {business.companyName} ({business.name})
+                  • {business.companyName || business.name} ({business.name})
                 </div>
               ))}
             </div>
