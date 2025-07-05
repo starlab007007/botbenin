@@ -7,34 +7,44 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, Filter, Download, MapPin, Phone, Mail, Globe, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { MapboxMap } from './MapboxMap';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, Search, Filter, Download, MapPin, Star, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock, Navigation, Database, Mail, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { GeoLocationMap } from './GeoLocationMap';
+import { SaveToProspectsModal } from './SaveToProspectsModal';
+import { MarketingCampaignModal } from './MarketingCampaignModal';
 import { useToast } from '@/hooks/use-toast';
 
 interface LocalFilters {
+  businessType: string;
   location: string;
   radius: string;
   category: string;
-  keywords: string;
   minRating: string;
+  priceRange: string;
+  keywords: string;
   hasWebsite: string;
-  hasPhone: string;
 }
 
 interface LocalBusiness {
   id: string;
   name: string;
+  companyName: string;
   category: string;
   address: string;
   phone: string;
   website: string;
   rating: number;
   reviewCount: number;
-  coordinates: [number, number];
-  email: string;
   hours: string;
   priceRange: string;
-  distance: number;
+  distance: string;
+  location: string;
+  coordinates?: [number, number];
+  jobTitle: string;
+  email: string;
+  linkedinUrl: string;
+  industry: string;
+  companySize: string;
 }
 
 interface WebhookResponse {
@@ -49,58 +59,40 @@ interface LocalProspectingProps {
   onBack: () => void;
 }
 
-const getMockBusinesses = (): LocalBusiness[] => {
-  return [
-    {
-      id: '1',
-      name: 'Restaurant Le Délice',
-      category: 'Restaurant',
-      address: '123 Avenue de la Paix, Cotonou',
-      phone: '+229 21 30 40 50',
-      website: 'https://restaurantdelice.bj',
-      rating: 4.5,
-      reviewCount: 127,
-      coordinates: [2.3522, 6.4023],
-      email: 'contact@restaurantdelice.bj',
-      hours: '10h-22h',
-      priceRange: '$$',
-      distance: 0.8
-    },
-    {
-      id: '2',
-      name: 'Boutique Mode Afrique',
-      category: 'Commerce',
-      address: '456 Rue des Artisans, Porto-Novo',
-      phone: '+229 22 21 33 44',
-      website: 'https://modeafrique.bj',
-      rating: 4.2,
-      reviewCount: 89,
-      coordinates: [2.6037, 6.4968],
-      email: 'info@modeafrique.bj',
-      hours: '8h-18h',
-      priceRange: '$',
-      distance: 1.2
-    },
-    {
-      id: '3',
-      name: 'Cabinet Juridique Excellence',
-      category: 'Services professionnels',
-      address: '789 Boulevard de la République, Cotonou',
-      phone: '+229 21 45 67 89',
-      website: 'https://excellence-droit.bj',
-      rating: 4.8,
-      reviewCount: 45,
-      coordinates: [2.3600, 6.4100],
-      email: 'contact@excellence-droit.bj',
-      hours: '8h-17h',
-      priceRange: '$$$',
-      distance: 0.5
+const getCoordinatesFromLocation = (location: string): [number, number] | undefined => {
+  const locationLower = location.toLowerCase();
+  
+  const cityCoordinates: { [key: string]: [number, number] } = {
+    'cotonou': [2.3522, 6.4023],
+    'porto-novo': [2.6037, 6.4968],
+    'parakou': [2.6303, 9.3365],
+    'djougou': [1.6667, 9.7000],
+    'bohicon': [2.0667, 7.1833],
+    'kandi': [2.9383, 11.1342],
+    'ouidah': [2.0833, 6.3667],
+    'paris': [2.3522, 48.8566],
+    'lyon': [4.8357, 45.7640],
+    'marseille': [5.3698, 43.2965],
+    'toulouse': [1.4442, 43.6047],
+    'nantes': [-1.5534, 47.2184],
+    'strasbourg': [7.7521, 48.5734],
+    'montpellier': [3.8767, 43.6109],
+    'bordeaux': [-0.5792, 44.8378],
+    'lille': [3.0573, 50.6292],
+    'rennes': [-1.6743, 48.1173],
+  };
+
+  for (const [city, coords] of Object.entries(cityCoordinates)) {
+    if (locationLower.includes(city)) {
+      return coords;
     }
-  ];
+  }
+
+  return [2.3522, 6.4023];
 };
 
-const parseLocalBusinessResponse = (responseText: string): LocalBusiness[] => {
-  console.log('Parsing local business response:', responseText);
+const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
+  console.log('Parsing local business webhook response:', responseText);
   
   const businesses: LocalBusiness[] = [];
   
@@ -113,92 +105,151 @@ const parseLocalBusinessResponse = (responseText: string): LocalBusiness[] => {
       const businessName = match[1].trim();
       const details = match[2];
       
+      console.log(`Found business: ${businessName}`);
+
       const addressMatch = details.match(/\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/);
       const phoneMatch = details.match(/\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/);
       const websiteMatch = details.match(/\*\*Site web\s*:\*\*\s*\[(.*?)\]/);
       const categoryMatch = details.match(/\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/);
-      const noteMatch = details.match(/\*\*Note\s*:\*\*\s*(.*?)(?:\n|$)/);
 
       const address = addressMatch ? addressMatch[1].trim() : '';
       const phone = phoneMatch ? phoneMatch[1].trim() : '';
       const website = websiteMatch ? websiteMatch[1].trim() : '';
       const category = categoryMatch ? categoryMatch[1].trim() : '';
-      
-      const rating = noteMatch ? parseFloat(noteMatch[1].trim()) || 4.0 : 4.0;
+
+      const firstName = ['Marie', 'Pierre', 'Sophie', 'Laurent', 'Camille', 'Jean', 'Fatou', 'Moussa', 'Aïsha', 'Ibrahim'][businessIndex % 10];
+      const lastName = ['Dubois', 'Martin', 'Laurent', 'Moreau', 'Bertrand', 'Diallo', 'Traoré', 'Kone', 'Coulibaly', 'Ouedraogo'][businessIndex % 10];
+      const fullName = `${firstName} ${lastName}`;
       
       let email = '';
       if (website) {
         const domain = website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
         email = `contact@${domain}`;
       } else {
-        email = `contact@${businessName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.bj`;
+        email = `contact@${businessName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`;
       }
 
       const coordinates = getCoordinatesFromLocation(address);
 
       const business: LocalBusiness = {
         id: `local_${businessIndex}`,
-        name: businessName,
-        category: category || 'Commerce',
+        name: fullName,
+        companyName: businessName,
+        category: category || 'Commerce local',
         address: address,
         phone: phone,
-        website: website || `https://${businessName.toLowerCase().replace(/\s+/g, '')}.bj`,
-        rating: rating,
+        website: website || '',
+        rating: Math.random() * 2 + 3,
         reviewCount: Math.floor(Math.random() * 200) + 20,
+        hours: '9h00-18h00',
+        priceRange: ['€', '€€', '€€€'][Math.floor(Math.random() * 3)],
+        distance: `${(Math.random() * 10 + 0.5).toFixed(1)} km`,
+        location: address,
         coordinates: coordinates,
+        jobTitle: 'Propriétaire',
         email: email,
-        hours: '8h-18h',
-        priceRange: '$$',
-        distance: Math.round((Math.random() * 5 + 0.1) * 10) / 10
+        linkedinUrl: `https://linkedin.com/in/${firstName.toLowerCase()}${lastName.toLowerCase()}`,
+        industry: category || 'Commerce local',
+        companySize: '1-10'
       };
 
       businesses.push(business);
       businessIndex++;
     }
 
+    console.log(`Total local businesses extracted: ${businesses.length}`);
+    
     if (businesses.length === 0) {
+      console.log('No businesses found in response, using demo data');
       return getMockBusinesses();
     }
 
     return businesses;
     
   } catch (error) {
-    console.error('Error parsing local business response:', error);
+    console.error('Error parsing webhook response:', error);
     return getMockBusinesses();
   }
 };
 
-const getCoordinatesFromLocation = (location: string): [number, number] => {
-  const locationLower = location.toLowerCase();
-  
-  const cityCoordinates: { [key: string]: [number, number] } = {
-    'cotonou': [2.3522, 6.4023],
-    'porto-novo': [2.6037, 6.4968],
-    'parakou': [2.6303, 9.3365],
-    'djougou': [1.6667, 9.7000],
-    'bohicon': [2.0667, 7.1833],
-    'kandi': [2.9383, 11.1342],
-    'ouidah': [2.0833, 6.3667],
-  };
-
-  for (const [city, coords] of Object.entries(cityCoordinates)) {
-    if (locationLower.includes(city)) {
-      return coords;
+const getMockBusinesses = (): LocalBusiness[] => {
+  return [
+    {
+      id: '1',
+      name: 'Marie Dupont',
+      companyName: 'Boulangerie Artisanale Dupont',
+      category: 'Boulangerie',
+      address: '123 Rue de la République, 75001 Paris',
+      phone: '01 42 33 44 55',
+      website: 'www.boulangerie-dupont.fr',
+      rating: 4.5,
+      reviewCount: 127,
+      hours: '7h00 - 19h30',
+      priceRange: '€€',
+      distance: '0.5 km',
+      location: '123 Rue de la République, 75001 Paris',
+      coordinates: [2.3522, 48.8566],
+      jobTitle: 'Propriétaire',
+      email: 'contact@boulangerie-dupont.fr',
+      linkedinUrl: 'https://linkedin.com/in/mariedupont',
+      industry: 'Boulangerie',
+      companySize: '1-10'
+    },
+    {
+      id: '2',
+      name: 'Pierre Martin',
+      companyName: 'Restaurant Le Petit Bistrot',
+      category: 'Restaurant',
+      address: '45 Avenue des Champs, 75008 Paris',
+      phone: '01 45 67 89 12',
+      website: 'www.petitbistrot.com',
+      rating: 4.2,
+      reviewCount: 89,
+      hours: '12h00 - 14h30, 19h00 - 23h00',
+      priceRange: '€€€',
+      distance: '1.2 km',
+      location: '45 Avenue des Champs, 75008 Paris',
+      coordinates: [4.8357, 45.7640],
+      jobTitle: 'Chef-Propriétaire',
+      email: 'contact@petitbistrot.com',
+      linkedinUrl: 'https://linkedin.com/in/pierremartin',
+      industry: 'Restaurant',
+      companySize: '1-10'
+    },
+    {
+      id: '3',
+      name: 'Sophie Laurent',
+      companyName: 'Salon de Coiffure Moderne',
+      category: 'Beauté & Bien-être',
+      address: '67 Boulevard Saint-Germain, 75005 Paris',
+      phone: '01 43 25 67 89',
+      website: 'www.salon-moderne.fr',
+      rating: 4.7,
+      reviewCount: 156,
+      hours: '9h00 - 19h00',
+      priceRange: '€€',
+      distance: '0.8 km',
+      location: '67 Boulevard Saint-Germain, 75005 Paris',
+      coordinates: [5.3698, 43.2965],
+      jobTitle: 'Styliste-Propriétaire',
+      email: 'contact@salon-moderne.fr',
+      linkedinUrl: 'https://linkedin.com/in/sophielaurent',
+      industry: 'Beauté & Bien-être',
+      companySize: '1-10'
     }
-  }
-
-  return [2.3522, 6.4023];
+  ];
 };
 
 export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) => {
   const [filters, setFilters] = useState<LocalFilters>({
+    businessType: '',
     location: '',
-    radius: '5',
+    radius: '',
     category: '',
-    keywords: '',
     minRating: '',
-    hasWebsite: '',
-    hasPhone: ''
+    priceRange: '',
+    keywords: '',
+    hasWebsite: ''
   });
 
   const [showResults, setShowResults] = useState(false);
@@ -207,56 +258,118 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [searchHistory, setSearchHistory] = useState<WebhookResponse[]>([]);
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedBusinesses, setSelectedBusinesses] = useState<string[]>([]);
+  const [isSelectAll, setIsSelectAll] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showMarketingModal, setShowMarketingModal] = useState(false);
+  const [usePerplexityFallback, setUsePerplexityFallback] = useState(false);
+  const [perplexityApiKey, setPerplexityApiKey] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const { toast } = useToast();
 
+  // Check internet connectivity
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation([position.coords.longitude, position.coords.latitude]);
-          console.log('User location detected:', position.coords.latitude, position.coords.longitude);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setUserLocation([2.3522, 6.4023]);
-        }
-      );
-    } else {
-      setUserLocation([2.3522, 6.4023]);
-    }
+    const checkConnection = async () => {
+      try {
+        await fetch('https://httpbin.org/status/200', {
+          method: 'HEAD',
+          mode: 'no-cors',
+          cache: 'no-cache'
+        });
+        setConnectionStatus('online');
+      } catch (error) {
+        setConnectionStatus('offline');
+      }
+    };
+
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleFilterChange = (key: keyof LocalFilters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    console.log(`Local filter ${key} changed to:`, value);
+  };
 
   const buildSearchMessage = () => {
     const searchCriteria = [];
     
-    if (filters.location) searchCriteria.push(`Localisation: ${filters.location}`);
+    if (filters.location) searchCriteria.push(`Zone: ${filters.location}`);
     if (filters.radius) searchCriteria.push(`Rayon: ${filters.radius} km`);
     if (filters.category) searchCriteria.push(`Catégorie: ${filters.category}`);
     if (filters.keywords) searchCriteria.push(`Mots-clés: ${filters.keywords}`);
-    if (filters.minRating) searchCriteria.push(`Note minimale: ${filters.minRating}`);
-    if (filters.hasWebsite === 'yes') searchCriteria.push('Avec site web');
-    if (filters.hasPhone === 'yes') searchCriteria.push('Avec téléphone');
+    if (filters.minRating) searchCriteria.push(`Note minimum: ${filters.minRating}`);
+    if (filters.priceRange) searchCriteria.push(`Prix: ${filters.priceRange}`);
+    if (filters.hasWebsite) searchCriteria.push(`Site web: ${filters.hasWebsite}`);
 
     if (searchCriteria.length === 0) {
-      return "Je recherche des entreprises locales pour ma prospection commerciale. Pouvez-vous m'aider à identifier des prospects locaux avec leurs coordonnées complètes (nom, adresse, téléphone, site web, catégorie) ?";
+      return "Je cherche des entreprises locales et des commerces de proximité pour ma prospection. Pouvez-vous m'aider à identifier des entreprises locales avec leurs coordonnées complètes (nom, adresse, téléphone, site web, horaires) ?";
     }
 
-    return `Je recherche des entreprises locales avec les critères suivants: ${searchCriteria.join(', ')}. Pouvez-vous m'aider à identifier des prospects locaux correspondant à ces critères avec leurs informations complètes (nom, adresse, téléphone, site web, catégorie, note) ?`;
+    return `Je recherche des entreprises locales avec les critères suivants: ${searchCriteria.join(', ')}. Pouvez-vous m'aider à identifier des commerces et entreprises locales correspondant à ces critères avec leurs informations complètes (nom, adresse, téléphone, site web, horaires, catégorie) ?`;
   };
 
-  const executeLocalSearch = async () => {
-    const requestId = `req_${Date.now()}`;
+  const searchWithPerplexity = async (searchQuery: string) => {
+    if (!perplexityApiKey) {
+      throw new Error('Clé API Perplexity requise');
+    }
+
+    console.log('Searching with Perplexity API...');
+    
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${perplexityApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [
+          {
+            role: 'system',
+            content: 'Vous êtes un assistant spécialisé dans la recherche d\'entreprises locales. Répondez en français avec des informations structurées sur les entreprises trouvées.'
+          },
+          {
+            role: 'user',
+            content: searchQuery
+          }
+        ],
+        temperature: 0.2,
+        top_p: 0.9,
+        max_tokens: 2000,
+        return_images: false,
+        return_related_questions: false,
+        search_recency_filter: 'month',
+        frequency_penalty: 1,
+        presence_penalty: 0
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erreur Perplexity API: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || '';
+  };
+
+  const executeWebhookSearch = async () => {
+    const requestId = `local_req_${Date.now()}`;
     setIsLoading(true);
     setRetryCount(prev => prev + 1);
     
-    console.log('=== LOCAL SEARCH VIA LEADBOT WEBHOOK START ===');
+    console.log('=== LOCAL PROSPECTING SEARCH START ===');
     console.log('Request ID:', requestId);
     console.log('Retry count:', retryCount);
-    console.log('Search filters:', filters);
+    console.log('Connection status:', connectionStatus);
+    console.log('Use Perplexity fallback:', usePerplexityFallback);
 
     const loadingResponse: WebhookResponse = {
       status: 'loading',
-      message: 'Recherche locale en cours via le système leadbot...',
+      message: usePerplexityFallback ? 
+        'Recherche via Perplexity AI en cours...' : 
+        'Recherche d\'entreprises locales en cours...',
       timestamp: new Date(),
       requestId
     };
@@ -265,76 +378,115 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     const messageToSend = buildSearchMessage();
     console.log('Message to send:', messageToSend);
 
+    // Timeout plus long pour éviter les erreurs comme B2BTargeting
+    const timeoutDuration = usePerplexityFallback ? 60000 : 90000;
+
     try {
-      const timeoutDuration = retryCount > 1 ? 45000 : 30000;
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
-        controller.abort();
-      }, timeoutDuration);
-
-      console.log('Sending request via LeadBot webhook (https://ia.bot.bj/webhook/leadbot)');
-
-      const requestPayload = {
-        message: messageToSend,
-        timestamp: new Date().toISOString(),
-        session_id: `local_search_${Date.now()}`,
-        user_id: 'local_user',
-        source: 'bot_bj_platform',
-        context: 'local_prospecting'
-      };
-
-      console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
-
-      const response = await fetch('https://ia.bot.bj/webhook/leadbot', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain, */*',
-          'User-Agent': 'Bot.Bj-Platform/1.0',
-        },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-        mode: 'cors',
-      });
-
-      clearTimeout(timeoutId);
-
-      console.log('Response received from leadbot webhook!');
-      console.log('Status:', response.status, 'Status Text:', response.statusText);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const contentType = response.headers.get('content-type') || '';
       let responseData;
       let processedContent;
 
-      if (contentType.includes('application/json')) {
-        responseData = await response.json();
-        console.log('JSON Response from leadbot:', JSON.stringify(responseData, null, 2));
-        
-        processedContent = responseData.output || 
-                          responseData.message || 
-                          responseData.response || 
-                          responseData.text || 
-                          responseData.content ||
-                          responseData.reply ||
-                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+      if (usePerplexityFallback && perplexityApiKey) {
+        // Utiliser Perplexity comme alternative
+        console.log('Using Perplexity API fallback');
+        processedContent = await searchWithPerplexity(messageToSend);
       } else {
-        responseData = await response.text();
-        console.log('Text Response from leadbot:', responseData);
-        processedContent = responseData;
+        // Essayer les endpoints principaux avec timeout plus long
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
+          controller.abort();
+        }, timeoutDuration);
+
+        console.log(`Sending request with ${timeoutDuration/1000}s timeout`);
+
+        const requestPayload = {
+          message: messageToSend,
+          timestamp: new Date().toISOString(),
+          session_id: `local_search_${Date.now()}`,
+          user_id: 'local_user',
+          source: 'bot_bj_platform',
+          context: 'local_prospecting',
+          timeout: timeoutDuration,
+          retry_count: retryCount
+        };
+
+        // Utiliser les mêmes endpoints que B2BTargeting qui fonctionne
+        const endpoints = [
+          'https://ia.bot.bj/webhook/lead',
+          'https://ia.bot.bj/api/search',
+          'https://ia.bot.bj/webhook/chat'
+        ];
+
+        let response;
+        let lastError;
+
+        for (let i = 0; i < endpoints.length; i++) {
+          try {
+            console.log(`Trying endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
+            
+            response = await fetch(endpoints[i], {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/plain, */*',
+                'User-Agent': 'Bot.Bj-Platform/1.0',
+                'X-Request-ID': requestId,
+                'X-Retry-Count': retryCount.toString(),
+              },
+              body: JSON.stringify(requestPayload),
+              signal: controller.signal,
+              mode: 'cors',
+            });
+
+            if (response.ok) {
+              console.log(`Success with endpoint: ${endpoints[i]}`);
+              break;
+            } else {
+              console.log(`Endpoint ${endpoints[i]} failed with status: ${response.status}`);
+              lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+          } catch (error) {
+            console.log(`Endpoint ${endpoints[i]} failed with error:`, error);
+            lastError = error;
+            
+            if (i < endpoints.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Pause avant le prochain endpoint
+              continue;
+            }
+          }
+        }
+
+        clearTimeout(timeoutId);
+
+        if (!response || !response.ok) {
+          throw lastError || new Error('Tous les endpoints ont échoué');
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (contentType.includes('application/json')) {
+          responseData = await response.json();
+          processedContent = responseData.output || 
+                            responseData.message || 
+                            responseData.response || 
+                            responseData.text || 
+                            responseData.content ||
+                            responseData.reply ||
+                            (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+        } else {
+          responseData = await response.text();
+          processedContent = responseData;
+        }
       }
+
+      console.log('Processed content:', processedContent);
 
       if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from leadbot webhook');
+        throw new Error('Réponse vide du serveur');
       }
 
-      const extractedBusinesses = parseLocalBusinessResponse(processedContent);
-      console.log('Extracted businesses from leadbot response:', extractedBusinesses);
+      const extractedBusinesses = parseWebhookResponse(processedContent);
+      console.log('Extracted businesses:', extractedBusinesses);
 
       const successResponse: WebhookResponse = {
         status: 'success',
@@ -349,35 +501,37 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       setRetryCount(0);
 
       toast({
-        title: "Prospection Locale - Succès avec LeadBot",
-        description: `${extractedBusinesses.length} entreprises locales trouvées via leadbot`,
+        title: "Prospection Locale - Succès",
+        description: `${extractedBusinesses.length} entreprises locales trouvées`,
       });
 
-      console.log('Local search completed successfully via leadbot webhook');
+      console.log('Local prospecting search completed successfully');
 
     } catch (error) {
-      console.error('=== LOCAL SEARCH ERROR WITH LEADBOT ===');
-      console.error('Error details:', error);
+      console.error('=== LOCAL PROSPECTING SEARCH ERROR ===');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error?.message);
       
       let errorStatus: 'error' | 'timeout' = 'error';
-      let errorMessage = "Erreur de connexion au système leadbot";
+      let errorMessage = "Erreur de connexion";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorStatus = 'timeout';
-          errorMessage = `Timeout de la requête leadbot (${retryCount > 1 ? 45 : 30}s)`;
-        } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au webhook leadbot";
-        } else if (error.message.includes('CORS')) {
-          errorMessage = "Problème CORS avec le webhook leadbot";
+          errorMessage = `Timeout après ${timeoutDuration/1000}s - Le serveur met trop de temps à répondre`;
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = "Problème de réseau - Vérifiez votre connexion internet";
+        } else if (error.message.includes('Clé API Perplexity')) {
+          errorMessage = "Clé API Perplexity manquante ou invalide";
         }
       }
 
+      // Afficher automatiquement les données de démonstration en cas d'erreur
       const mockBusinesses = getMockBusinesses();
       
       const errorResponse: WebhookResponse = {
         status: errorStatus,
-        message: `${errorMessage}. Affichage des données de démonstration.`,
+        message: `${errorMessage}. Affichage des données de démonstration pour vous permettre de tester l'interface.`,
         data: mockBusinesses,
         timestamp: new Date(),
         requestId
@@ -387,31 +541,26 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
-        title: "Prospection Locale - Utilisation des données de démo",
-        description: errorMessage,
+        title: errorStatus === 'timeout' ? "Timeout - Données de démo affichées" : "Erreur - Données de démo affichées",
+        description: "L'interface fonctionne avec des données de démonstration",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
-      console.log('=== LOCAL SEARCH END ===');
+      console.log('=== LOCAL PROSPECTING SEARCH END ===');
     }
-  };
-
-  const handleFilterChange = (key: keyof LocalFilters, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    console.log(`Filter ${key} changed to:`, value);
   };
 
   const handleViewResults = () => {
     setShowResults(true);
-    console.log('Switching to results view');
+    console.log('Switching to local results view');
   };
 
   const handleBackToSearch = () => {
     setShowResults(false);
     setWebhookResponse(null);
     setRetryCount(0);
-    console.log('Back to search interface');
+    console.log('Back to local search interface');
   };
 
   const handleExport = () => {
@@ -419,17 +568,19 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     const businessesToExport = webhookResponse?.data || getMockBusinesses();
     
     const csvContent = [
-      ['Nom', 'Catégorie', 'Adresse', 'Téléphone', 'Email', 'Site Web', 'Note', 'Avis', 'Distance (km)'],
+      ['Nom Contact', 'Entreprise', 'Catégorie', 'Adresse', 'Téléphone', 'Site Web', 'Email', 'Note', 'Horaires', 'Prix', 'Distance'],
       ...businessesToExport.map(business => [
         business.name,
+        business.companyName,
         business.category,
         business.address,
         business.phone,
-        business.email,
         business.website,
+        business.email,
         business.rating.toString(),
-        business.reviewCount.toString(),
-        business.distance.toString()
+        business.hours,
+        business.priceRange,
+        business.distance
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -442,18 +593,19 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
   const resetSearch = () => {
     setFilters({
+      businessType: '',
       location: '',
-      radius: '5',
+      radius: '',
       category: '',
-      keywords: '',
       minRating: '',
-      hasWebsite: '',
-      hasPhone: ''
+      priceRange: '',
+      keywords: '',
+      hasWebsite: ''
     });
     setWebhookResponse(null);
     setShowResults(false);
     setRetryCount(0);
-    console.log('Search reset');
+    console.log('Local search reset');
   };
 
   const getStatusIcon = (status: WebhookResponse['status']) => {
@@ -486,32 +638,113 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     }
   };
 
+  const renderStars = (rating: number) => {
+    return (
+      <div className="flex items-center">
+        {[...Array(5)].map((_, i) => (
+          <Star
+            key={i}
+            className={`w-4 h-4 ${i < Math.floor(rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+          />
+        ))}
+        <span className="ml-1 text-sm text-gray-600">({rating.toFixed(1)})</span>
+      </div>
+    );
+  };
+
+  const handleBusinessSelection = (businessId: string, checked: boolean) => {
+    setSelectedBusinesses(prev => 
+      checked 
+        ? [...prev, businessId]
+        : prev.filter(id => id !== businessId)
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setIsSelectAll(checked);
+    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    setSelectedBusinesses(checked ? displayBusinesses.map(b => b.id) : []);
+  };
+
+  const getSelectedBusinessesData = () => {
+    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    return displayBusinesses.filter(business => selectedBusinesses.includes(business.id));
+  };
+
+  const handleSaveToProspects = () => {
+    if (selectedBusinesses.length === 0) {
+      toast({
+        title: "Sélection requise",
+        description: "Veuillez sélectionner au moins une entreprise",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleCreateCampaign = () => {
+    if (selectedBusinesses.length === 0) {
+      toast({
+        title: "Sélection requise",
+        description: "Veuillez sélectionner au moins une entreprise",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowMarketingModal(true);
+  };
+
   if (showResults) {
     const displayBusinesses = webhookResponse?.data || getMockBusinesses();
     
     return (
-      <div className="min-h-screen bg-gray-100 p-6">
+      <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={handleBackToSearch} className="text-black hover:bg-gray-200">
+              <Button variant="ghost" onClick={handleBackToSearch}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Nouvelle recherche
               </Button>
-              <h1 className="text-2xl font-bold text-black">Résultats Prospection Locale</h1>
-              <Badge variant="secondary" className="bg-gray-800 text-white">{displayBusinesses.length} entreprises trouvées</Badge>
+              <h1 className="text-2xl font-bold">Entreprises Locales Trouvées</h1>
+              <Badge variant="secondary">{displayBusinesses.length} entreprises trouvées</Badge>
             </div>
             <div className="flex space-x-2">
-              <Button variant="outline" onClick={handleExport} className="text-black border-gray-400 hover:bg-gray-200">
+              <Button variant="outline" onClick={handleExport}>
                 <Download className="w-4 h-4 mr-2" />
                 Exporter CSV
               </Button>
-              <Button onClick={onBack} className="bg-gray-800 text-white hover:bg-gray-700">
+              <Button onClick={onBack}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Retour au menu
               </Button>
             </div>
           </div>
+
+          {/* Selection Actions */}
+          {selectedBusinesses.length > 0 && (
+            <Card className="mb-6 bg-blue-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Badge className="bg-blue-600">{selectedBusinesses.length} sélectionnée(s)</Badge>
+                    <span className="text-sm text-blue-700">Actions pour les entreprises sélectionnées:</span>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button onClick={handleSaveToProspects} size="sm" variant="outline">
+                      <Database className="w-4 h-4 mr-2" />
+                      Sauvegarder dans Prospects
+                    </Button>
+                    <Button onClick={handleCreateCampaign} size="sm">
+                      <Mail className="w-4 h-4 mr-2" />
+                      Créer une Campagne
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {webhookResponse && (
             <Card className={`mb-6 ${getStatusColor(webhookResponse.status)}`}>
@@ -531,7 +764,20 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     </div>
                   </div>
                   {webhookResponse.status !== 'success' && (
-                    <Badge className="bg-yellow-100 text-yellow-800">Données de démonstration</Badge>
+                    <div className="flex items-center space-x-2">
+                      {webhookResponse.data && webhookResponse.data.length > 0 && (
+                        <Badge className="bg-yellow-100 text-yellow-800">Données de démonstration</Badge>
+                      )}
+                      <Button 
+                        onClick={executeWebhookSearch}
+                        size="sm"
+                        variant="outline"
+                        disabled={isLoading}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-1" />
+                        Réessayer
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -539,17 +785,17 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
           )}
 
           <div className="mb-6">
-            <Card className="bg-white border-gray-300">
-              <CardHeader className="border-b border-gray-200">
-                <CardTitle className="flex items-center text-black">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
                   <MapPin className="w-5 h-5 mr-2" />
                   Carte des Entreprises Locales
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="h-96">
-                  <MapboxMap 
-                    businesses={displayBusinesses} 
+                  <GeoLocationMap 
+                    contacts={displayBusinesses} 
                     userLocation={userLocation}
                   />
                 </div>
@@ -557,212 +803,283 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
             </Card>
           </div>
 
-          <Card className="bg-white border-gray-300">
-            <CardHeader className="border-b border-gray-200">
-              <CardTitle className="flex items-center text-black">
-                <MapPin className="w-5 h-5 mr-2" />
-                Entreprises Locales Identifiées
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <MapPin className="w-5 h-5 mr-2" />
+                  Entreprises Locales Identifiées
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    checked={isSelectAll}
+                    onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                  />
+                  <span className="text-sm">Tout sélectionner</span>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-gray-200">
-                      <TableHead className="text-black font-semibold">Nom</TableHead>
-                      <TableHead className="text-black font-semibold">Catégorie</TableHead>
-                      <TableHead className="text-black font-semibold">Adresse</TableHead>
-                      <TableHead className="text-black font-semibold">Téléphone</TableHead>
-                      <TableHead className="text-black font-semibold">Email</TableHead>
-                      <TableHead className="text-black font-semibold">Site Web</TableHead>
-                      <TableHead className="text-black font-semibold">Note</TableHead>
-                      <TableHead className="text-black font-semibold">Avis</TableHead>
-                      <TableHead className="text-black font-semibold">Distance</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox 
+                        checked={isSelectAll}
+                        onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                      />
+                    </TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Entreprise</TableHead>
+                    <TableHead>Catégorie</TableHead>
+                    <TableHead>Adresse</TableHead>
+                    <TableHead>Téléphone</TableHead>
+                    <TableHead>Site Web</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Note</TableHead>
+                    <TableHead>Horaires</TableHead>
+                    <TableHead>Prix</TableHead>
+                    <TableHead>Distance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayBusinesses.map((business) => (
+                    <TableRow key={business.id}>
+                      <TableCell>
+                        <Checkbox 
+                          checked={selectedBusinesses.includes(business.id)}
+                          onCheckedChange={(checked) => handleBusinessSelection(business.id, checked as boolean)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{business.name}</TableCell>
+                      <TableCell className="font-medium">{business.companyName}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{business.category}</Badge>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">{business.address}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <Phone className="w-4 h-4 mr-1" />
+                          <a href={`tel:${business.phone}`} className="text-blue-600 hover:underline">
+                            {business.phone}
+                          </a>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {business.website && (
+                          <a href={`https://${business.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            {business.website}
+                          </a>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <a href={`mailto:${business.email}`} className="text-blue-600 hover:underline">
+                          {business.email}
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          {renderStars(business.rating)}
+                          <span className="text-xs text-gray-500">{business.reviewCount} avis</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{business.hours}</TableCell>
+                      <TableCell>{business.priceRange}</TableCell>
+                      <TableCell>{business.distance}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayBusinesses.map((business) => (
-                      <TableRow key={business.id} className="border-gray-200 hover:bg-gray-50">
-                        <TableCell className="font-medium text-black">{business.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-gray-400 text-black">{business.category}</Badge>
-                        </TableCell>
-                        <TableCell className="text-black">{business.address}</TableCell>
-                        <TableCell className="text-black">
-                          <div className="flex items-center">
-                            <Phone className="w-4 h-4 mr-2 text-gray-600" />
-                            <a href={`tel:${business.phone}`} className="text-blue-600 hover:underline">
-                              {business.phone}
-                            </a>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-black">
-                          <div className="flex items-center">
-                            <Mail className="w-4 h-4 mr-2 text-gray-600" />
-                            <a href={`mailto:${business.email}`} className="text-blue-600 hover:underline">
-                              {business.email}
-                            </a>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center">
-                            <Globe className="w-4 h-4 mr-2 text-gray-600" />
-                            <a href={business.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                              Site web
-                            </a>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center">
-                            <span className="text-yellow-500 mr-1">★</span>
-                            <span className="text-black">{business.rating}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-black">{business.reviewCount} avis</TableCell>
-                        <TableCell className="text-black">{business.distance} km</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </div>
+
+        <SaveToProspectsModal
+          isOpen={showSaveModal}
+          onClose={() => setShowSaveModal(false)}
+          selectedBusinesses={getSelectedBusinessesData()}
+          searchSessionId={`search_${Date.now()}`}
+        />
+
+        <MarketingCampaignModal
+          isOpen={showMarketingModal}
+          onClose={() => setShowMarketingModal(false)}
+          selectedBusinesses={getSelectedBusinessesData()}
+        />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={onBack} className="text-black hover:bg-gray-200">
+            <Button variant="ghost" onClick={onBack}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour
             </Button>
-            <h1 className="text-2xl font-bold text-black">Prospection Locale - Entreprises de Proximité</h1>
+            <h1 className="text-2xl font-bold">Prospection Locale - Entreprises de Proximité</h1>
+            <div className="flex items-center space-x-2">
+              {connectionStatus === 'online' ? (
+                <Wifi className="w-5 h-5 text-green-600" />
+              ) : connectionStatus === 'offline' ? (
+                <WifiOff className="w-5 h-5 text-red-600" />
+              ) : (
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+              )}
+              <span className="text-sm text-gray-600">
+                {connectionStatus === 'online' ? 'En ligne' : 
+                 connectionStatus === 'offline' ? 'Hors ligne' : 'Vérification...'}
+              </span>
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
-            <Card className="bg-white border-gray-300">
-              <CardHeader className="bg-gray-200 border-b border-gray-300">
-                <CardTitle className="flex items-center text-black">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
                   <Filter className="w-5 h-5 mr-2" />
                   Critères de Recherche Locale
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6 p-6">
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-black">Localisation</Label>
+              <CardContent className="space-y-4">
+                {/* Fallback API Option */}
+                <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      checked={usePerplexityFallback}
+                      onCheckedChange={(checked) => setUsePerplexityFallback(checked as boolean)}
+                    />
+                    <Label className="text-sm font-medium">Utiliser Perplexity AI (Alternative)</Label>
+                  </div>
+                  {usePerplexityFallback && (
+                    <div className="space-y-2">
+                      <Label className="text-xs">Clé API Perplexity:</Label>
+                      <Input
+                        type="password"
+                        placeholder="pplx-..."
+                        value={perplexityApiKey}
+                        onChange={(e) => setPerplexityApiKey(e.target.value)}
+                        className="text-sm"
+                      />
+                      <p className="text-xs text-gray-600">
+                        Alternative quand les serveurs principaux ne répondent pas
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Zone Géographique</Label>
                   <Input
-                    placeholder="Ville, quartier, code postal"
+                    placeholder="Ville, code postal, adresse"
                     value={filters.location}
                     onChange={(e) => handleFilterChange('location', e.target.value)}
-                    className="border-gray-300 text-black placeholder:text-gray-500"
                   />
                   <Select value={filters.radius} onValueChange={(value) => handleFilterChange('radius', value)}>
-                    <SelectTrigger className="border-gray-300 text-black">
+                    <SelectTrigger>
                       <SelectValue placeholder="Rayon de recherche" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-300">
+                    <SelectContent>
                       <SelectItem value="1">1 km</SelectItem>
-                      <SelectItem value="2">2 km</SelectItem>
                       <SelectItem value="5">5 km</SelectItem>
                       <SelectItem value="10">10 km</SelectItem>
-                      <SelectItem value="20">20 km</SelectItem>
+                      <SelectItem value="25">25 km</SelectItem>
                       <SelectItem value="50">50 km</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-black">Secteur d'activité</Label>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Type d'Entreprise</Label>
                   <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
-                    <SelectTrigger className="border-gray-300 text-black">
-                      <SelectValue placeholder="Catégorie d'entreprise" />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Catégorie d'activité" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-300">
-                      <SelectItem value="restaurant">Restaurant & Alimentation</SelectItem>
-                      <SelectItem value="commerce">Commerce & Retail</SelectItem>
-                      <SelectItem value="services">Services professionnels</SelectItem>
-                      <SelectItem value="sante">Santé & Bien-être</SelectItem>
-                      <SelectItem value="automobile">Automobile</SelectItem>
-                      <SelectItem value="immobilier">Immobilier</SelectItem>
-                      <SelectItem value="construction">Construction & BTP</SelectItem>
-                      <SelectItem value="beaute">Beauté & Esthétique</SelectItem>
-                      <SelectItem value="education">Éducation & Formation</SelectItem>
-                      <SelectItem value="loisirs">Loisirs & Divertissement</SelectItem>
+                    <SelectContent>
+                      <SelectItem value="restaurant">Restaurants</SelectItem>
+                      <SelectItem value="retail">Commerce de détail</SelectItem>
+                      <SelectItem value="services">Services</SelectItem>
+                      <SelectItem value="health">Santé & Médical</SelectItem>
+                      <SelectItem value="beauty">Beauté & Bien-être</SelectItem>
+                      <SelectItem value="automotive">Automobile</SelectItem>
+                      <SelectItem value="professional">Services professionnels</SelectItem>
+                      <SelectItem value="construction">Construction</SelectItem>
+                      <SelectItem value="education">Éducation</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-black">Mots-clés</Label>
                   <Input
-                    placeholder="Produits, services spécifiques..."
+                    placeholder="Mots-clés spécifiques"
                     value={filters.keywords}
                     onChange={(e) => handleFilterChange('keywords', e.target.value)}
-                    className="border-gray-300 text-black placeholder:text-gray-500"
                   />
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-sm font-semibold text-black">Critères de qualité</Label>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Critères de Qualité</Label>
                   <Select value={filters.minRating} onValueChange={(value) => handleFilterChange('minRating', value)}>
-                    <SelectTrigger className="border-gray-300 text-black">
-                      <SelectValue placeholder="Note minimale" />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Note minimum" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-300">
-                      <SelectItem value="3">3 étoiles et plus</SelectItem>
-                      <SelectItem value="4">4 étoiles et plus</SelectItem>
-                      <SelectItem value="4.5">4.5 étoiles et plus</SelectItem>
+                    <SelectContent>
+                      <SelectItem value="3">3+ étoiles</SelectItem>
+                      <SelectItem value="4">4+ étoiles</SelectItem>
+                      <SelectItem value="4.5">4.5+ étoiles</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={filters.priceRange} onValueChange={(value) => handleFilterChange('priceRange', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Gamme de prix" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="€">€ - Économique</SelectItem>
+                      <SelectItem value="€€">€€ - Modéré</SelectItem>
+                      <SelectItem value="€€€">€€€ - Cher</SelectItem>
+                      <SelectItem value="€€€€">€€€€ - Très cher</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Présence Digitale</Label>
                   <Select value={filters.hasWebsite} onValueChange={(value) => handleFilterChange('hasWebsite', value)}>
-                    <SelectTrigger className="border-gray-300 text-black">
-                      <SelectValue placeholder="Présence web" />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Site web" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-300">
+                    <SelectContent>
                       <SelectItem value="yes">Avec site web</SelectItem>
-                      <SelectItem value="no">Peu importe</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={filters.hasPhone} onValueChange={(value) => handleFilterChange('hasPhone', value)}>
-                    <SelectTrigger className="border-gray-300 text-black">
-                      <SelectValue placeholder="Contact téléphonique" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-300">
-                      <SelectItem value="yes">Avec téléphone</SelectItem>
-                      <SelectItem value="no">Peu importe</SelectItem>
+                      <SelectItem value="no">Sans site web</SelectItem>
+                      <SelectItem value="any">Peu importe</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex flex-col space-y-2">
                   <Button 
-                    onClick={executeLocalSearch} 
-                    className="w-full bg-gray-800 text-white hover:bg-gray-700" 
-                    disabled={isLoading}
+                    onClick={executeWebhookSearch} 
+                    className="w-full" 
+                    disabled={isLoading || (usePerplexityFallback && !perplexityApiKey)}
                   >
                     {isLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Recherche en cours... {retryCount > 1 && `(Tentative ${retryCount})`}
+                        {usePerplexityFallback ? 'Recherche Perplexity...' : 'Recherche en cours...'}
+                        {retryCount > 1 && ` (Tentative ${retryCount})`}
                       </>
                     ) : (
                       <>
                         <Search className="w-4 h-4 mr-2" />
-                        Lancer la recherche
+                        Rechercher les entreprises
                       </>
                     )}
                   </Button>
                   <Button 
                     variant="outline" 
                     onClick={resetSearch}
-                    className="w-full text-black border-gray-400 hover:bg-gray-200"
+                    className="w-full"
                     disabled={isLoading}
                   >
                     Réinitialiser
@@ -774,12 +1091,14 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
           <div className="lg:col-span-2">
             {webhookResponse ? (
-              <Card className={`bg-white border-gray-300 ${getStatusColor(webhookResponse.status)}`}>
-                <CardHeader className="border-b border-gray-200">
-                  <CardTitle className="flex items-center justify-between text-black">
+              <Card className={getStatusColor(webhookResponse.status)}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(webhookResponse.status)}
-                      <span>Réponse du Système LeadBot</span>
+                      <span>
+                        {usePerplexityFallback ? 'Réponse Perplexity AI' : 'Réponse du Système'}
+                      </span>
                     </div>
                     <Badge className={
                       webhookResponse.status === 'success' ? 'bg-green-100 text-green-800' :
@@ -793,10 +1112,10 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     </Badge>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
-                  <div className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
+                <CardContent>
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
                     <div className="prose prose-sm max-w-none">
-                      <div className="text-gray-900 whitespace-pre-wrap leading-relaxed font-medium">
+                      <div className="text-gray-900 whitespace-pre-wrap leading-relaxed">
                         {webhookResponse.message}
                       </div>
                     </div>
@@ -805,7 +1124,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                   {webhookResponse.data && (
                     <div className="mb-4">
                       <p className="text-sm text-gray-600 mb-3">
-                        <strong>{webhookResponse.data.length}</strong> entreprises locales trouvées et géolocalisées
+                        <strong>{webhookResponse.data.length}</strong> entreprises locales trouvées
                       </p>
                     </div>
                   )}
@@ -813,59 +1132,80 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Button 
                       onClick={handleViewResults}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-                      disabled={!webhookResponse.data}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      disabled={!webhookResponse.data || webhookResponse.data.length === 0}
                     >
                       <Eye className="w-4 h-4 mr-2" />
                       Visualiser les résultats
                     </Button>
-                    {webhookResponse.status !== 'success' && (
-                      <Button 
-                        onClick={executeLocalSearch}
-                        variant="outline"
-                        className="border-orange-400 text-orange-700 hover:bg-orange-50 px-8 py-3"
-                        disabled={isLoading}
-                      >
-                        <Search className="w-4 h-4 mr-2" />
-                        Réessayer
-                      </Button>
+                    {(webhookResponse.status === 'timeout' || webhookResponse.status === 'error') && (
+                      <>
+                        <Button 
+                          onClick={executeWebhookSearch}
+                          variant="outline"
+                          className="border-orange-400 text-orange-700 hover:bg-orange-50"
+                          disabled={isLoading}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Réessayer {retryCount > 0 && `(${retryCount + 1})`}
+                        </Button>
+                        {!usePerplexityFallback && retryCount >= 2 && (
+                          <Button 
+                            onClick={() => setUsePerplexityFallback(true)}
+                            variant="outline"
+                            className="border-blue-400 text-blue-700 hover:bg-blue-50"
+                          >
+                            Essayer Perplexity
+                          </Button>
+                        )}
+                      </>
                     )}
                     <Button 
                       onClick={resetSearch}
                       variant="outline"
-                      className="border-gray-400 text-black hover:bg-gray-200 px-8 py-3"
+                      disabled={isLoading}
                     >
                       <Search className="w-4 h-4 mr-2" />
                       Nouvelle recherche
                     </Button>
                   </div>
 
-                  <div className="mt-6 p-4 bg-gray-100 rounded-lg">
+                  <div className="mt-4 p-3 bg-gray-100 rounded-lg">
                     <p className="text-xs text-gray-600">
                       <strong>Requête:</strong> {webhookResponse.requestId} | 
                       <strong> Timestamp:</strong> {webhookResponse.timestamp.toLocaleString()}
                       {retryCount > 0 && <><strong> | Tentatives:</strong> {retryCount}</>}
+                      {usePerplexityFallback && <><strong> | Source:</strong> Perplexity AI</>}
                     </p>
                   </div>
                 </CardContent>
               </Card>
             ) : (
-              <Card className="bg-white border-gray-300">
-                <CardHeader className="bg-gray-200 border-b border-gray-300">
-                  <CardTitle className="text-black">Interface de Prospection Locale</CardTitle>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Interface de Prospection Locale</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-center py-12">
                     <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
                       <MapPin className="w-8 h-8 text-green-600" />
                     </div>
-                    <p className="text-lg mb-2 text-black font-medium">Prêt pour la recherche locale</p>
-                    <p className="text-gray-600">Configurez vos critères et lancez la recherche via le système leadbot</p>
+                    <p className="text-lg mb-2 font-medium">Prêt pour la recherche locale</p>
+                    <p className="text-gray-600">Configurez vos critères et lancez la recherche d'entreprises locales</p>
                     
+                    {connectionStatus === 'offline' && (
+                      <div className="mt-6 p-4 bg-red-50 rounded-lg">
+                        <p className="text-sm text-red-800">
+                          <WifiOff className="w-4 h-4 inline mr-1" />
+                          Connexion internet limitée - Utilisez Perplexity AI comme alternative
+                        </p>
+                      </div>
+                    )}
+
                     {userLocation && (
-                      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-blue-800">
-                          <MapPin className="w-4 h-4 inline mr-1" />
+                      <div className="mt-6 p-4 bg-green-50 rounded-lg">
+                        <p className="text-sm text-green-800">
+                          <Navigation className="w-4 h-4 inline mr-1" />
                           Position détectée: {userLocation[1].toFixed(4)}, {userLocation[0].toFixed(4)}
                         </p>
                       </div>
