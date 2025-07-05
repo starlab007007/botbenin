@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,7 +59,6 @@ interface LocalProspectingProps {
   onBack: () => void;
 }
 
-// Coordonnées des principales villes
 const getCoordinatesFromLocation = (location: string): [number, number] | undefined => {
   const locationLower = location.toLowerCase();
   
@@ -88,28 +88,15 @@ const getCoordinatesFromLocation = (location: string): [number, number] | undefi
     }
   }
 
-  return [2.3522, 6.4023]; // Défaut: Cotonou
+  return [2.3522, 6.4023];
 };
 
-// Fonction améliorée de parsing pour garantir la cohérence
 const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
   console.log('Parsing local business webhook response:', responseText);
   
   const businesses: LocalBusiness[] = [];
   
   try {
-    // Essayer d'abord de parser comme JSON
-    let parsedData;
-    try {
-      parsedData = JSON.parse(responseText);
-      if (Array.isArray(parsedData)) {
-        return parsedData.map((item, index) => createBusinessFromData(item, index + 1));
-      }
-    } catch (e) {
-      // Continuer avec le parsing de texte
-    }
-
-    // Parser le texte structuré
     const businessPattern = /\d+\.\s*\*\*(.*?)\*\*\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g;
     let match;
     let businessIndex = 1;
@@ -118,125 +105,77 @@ const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
       const businessName = match[1].trim();
       const details = match[2];
       
-      console.log(`Processing business: ${businessName}`);
+      console.log(`Found business: ${businessName}`);
 
-      const business = createBusinessFromText(businessName, details, businessIndex);
+      const addressMatch = details.match(/\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/);
+      const phoneMatch = details.match(/\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/);
+      const websiteMatch = details.match(/\*\*Site web\s*:\*\*\s*\[(.*?)\]/);
+      const categoryMatch = details.match(/\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/);
+
+      const address = addressMatch ? addressMatch[1].trim() : '';
+      const phone = phoneMatch ? phoneMatch[1].trim() : '';
+      const website = websiteMatch ? websiteMatch[1].trim() : '';
+      const category = categoryMatch ? categoryMatch[1].trim() : '';
+
+      const firstName = ['Marie', 'Pierre', 'Sophie', 'Laurent', 'Camille', 'Jean', 'Fatou', 'Moussa', 'Aïsha', 'Ibrahim'][businessIndex % 10];
+      const lastName = ['Dubois', 'Martin', 'Laurent', 'Moreau', 'Bertrand', 'Diallo', 'Traoré', 'Kone', 'Coulibaly', 'Ouedraogo'][businessIndex % 10];
+      const fullName = `${firstName} ${lastName}`;
+      
+      let email = '';
+      if (website) {
+        const domain = website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+        email = `contact@${domain}`;
+      } else {
+        email = `contact@${businessName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`;
+      }
+
+      const coordinates = getCoordinatesFromLocation(address);
+
+      const business: LocalBusiness = {
+        id: `local_${businessIndex}`,
+        name: fullName,
+        companyName: businessName,
+        category: category || 'Commerce local',
+        address: address,
+        phone: phone,
+        website: website || '',
+        rating: Math.random() * 2 + 3,
+        reviewCount: Math.floor(Math.random() * 200) + 20,
+        hours: '9h00-18h00',
+        priceRange: ['€', '€€', '€€€'][Math.floor(Math.random() * 3)],
+        distance: `${(Math.random() * 10 + 0.5).toFixed(1)} km`,
+        location: address,
+        coordinates: coordinates,
+        jobTitle: 'Propriétaire',
+        email: email,
+        linkedinUrl: `https://linkedin.com/in/${firstName.toLowerCase()}${lastName.toLowerCase()}`,
+        industry: category || 'Commerce local',
+        companySize: '1-10'
+      };
+
       businesses.push(business);
       businessIndex++;
     }
 
-    console.log(`Total businesses extracted: ${businesses.length}`);
+    console.log(`Total local businesses extracted: ${businesses.length}`);
     
     if (businesses.length === 0) {
-      console.log('No businesses found, using demo data');
-      return getDemoBusinesses();
+      console.log('No businesses found in response, using demo data');
+      return getMockBusinesses();
     }
 
     return businesses;
     
   } catch (error) {
     console.error('Error parsing webhook response:', error);
-    return getDemoBusinesses();
+    return getMockBusinesses();
   }
 };
 
-// Créer une entreprise à partir de données structurées
-const createBusinessFromData = (data: any, index: number): LocalBusiness => {
-  const companyName = data.name || data.companyName || `Entreprise ${index}`;
-  const contactName = data.contactName || generateContactName(index);
-  const address = data.address || data.location || 'Adresse non spécifiée';
-  const coordinates = data.coordinates || getCoordinatesFromLocation(address);
-
-  return {
-    id: `local_${index}`,
-    name: contactName,
-    companyName: companyName,
-    category: data.category || 'Commerce local',
-    address: address,
-    phone: data.phone || generatePhone(),
-    website: data.website || '',
-    rating: data.rating || (Math.random() * 2 + 3),
-    reviewCount: data.reviewCount || Math.floor(Math.random() * 200) + 20,
-    hours: data.hours || '9h00-18h00',
-    priceRange: data.priceRange || ['€', '€€', '€€€'][Math.floor(Math.random() * 3)],
-    distance: data.distance || `${(Math.random() * 10 + 0.5).toFixed(1)} km`,
-    location: address,
-    coordinates: coordinates,
-    jobTitle: data.jobTitle || 'Propriétaire',
-    email: data.email || generateEmail(companyName),
-    linkedinUrl: data.linkedinUrl || generateLinkedIn(contactName),
-    industry: data.industry || data.category || 'Commerce local',
-    companySize: data.companySize || '1-10'
-  };
-};
-
-// Créer une entreprise à partir de texte parsé
-const createBusinessFromText = (businessName: string, details: string, index: number): LocalBusiness => {
-  const addressMatch = details.match(/\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/);
-  const phoneMatch = details.match(/\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/);
-  const websiteMatch = details.match(/\*\*Site web\s*:\*\*\s*\[(.*?)\]/);
-  const categoryMatch = details.match(/\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/);
-
-  const address = addressMatch ? addressMatch[1].trim() : 'Adresse non spécifiée';
-  const phone = phoneMatch ? phoneMatch[1].trim() : generatePhone();
-  const website = websiteMatch ? websiteMatch[1].trim() : '';
-  const category = categoryMatch ? categoryMatch[1].trim() : 'Commerce local';
-
-  const contactName = generateContactName(index);
-  const coordinates = getCoordinatesFromLocation(address);
-
-  return {
-    id: `local_${index}`,
-    name: contactName,
-    companyName: businessName,
-    category: category,
-    address: address,
-    phone: phone,
-    website: website,
-    rating: Math.random() * 2 + 3,
-    reviewCount: Math.floor(Math.random() * 200) + 20,
-    hours: '9h00-18h00',
-    priceRange: ['€', '€€', '€€€'][Math.floor(Math.random() * 3)],
-    distance: `${(Math.random() * 10 + 0.5).toFixed(1)} km`,
-    location: address,
-    coordinates: coordinates,
-    jobTitle: 'Propriétaire',
-    email: generateEmail(businessName),
-    linkedinUrl: generateLinkedIn(contactName),
-    industry: category,
-    companySize: '1-10'
-  };
-};
-
-// Fonctions utilitaires
-const generateContactName = (index: number): string => {
-  const firstNames = ['Marie', 'Pierre', 'Sophie', 'Laurent', 'Camille', 'Jean', 'Fatou', 'Moussa', 'Aïsha', 'Ibrahim'];
-  const lastNames = ['Dubois', 'Martin', 'Laurent', 'Moreau', 'Bertrand', 'Diallo', 'Traoré', 'Kone', 'Coulibaly', 'Ouedraogo'];
-  return `${firstNames[index % firstNames.length]} ${lastNames[index % lastNames.length]}`;
-};
-
-const generatePhone = (): string => {
-  const prefixes = ['01', '02', '03', '04', '05', '06', '07'];
-  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-  const number = Math.floor(Math.random() * 90000000) + 10000000;
-  return `${prefix} ${number.toString().replace(/(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4')}`;
-};
-
-const generateEmail = (companyName: string): string => {
-  const cleanName = companyName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
-  return `contact@${cleanName}.com`;
-};
-
-const generateLinkedIn = (contactName: string): string => {
-  const cleanName = contactName.toLowerCase().replace(/\s+/g, '');
-  return `https://linkedin.com/in/${cleanName}`;
-};
-
-// Données de démonstration cohérentes
-const getDemoBusinesses = (): LocalBusiness[] => {
+const getMockBusinesses = (): LocalBusiness[] => {
   return [
     {
-      id: 'demo_1',
+      id: '1',
       name: 'Marie Dupont',
       companyName: 'Boulangerie Artisanale Dupont',
       category: 'Boulangerie',
@@ -257,7 +196,7 @@ const getDemoBusinesses = (): LocalBusiness[] => {
       companySize: '1-10'
     },
     {
-      id: 'demo_2',
+      id: '2',
       name: 'Pierre Martin',
       companyName: 'Restaurant Le Petit Bistrot',
       category: 'Restaurant',
@@ -270,7 +209,7 @@ const getDemoBusinesses = (): LocalBusiness[] => {
       priceRange: '€€€',
       distance: '1.2 km',
       location: '45 Avenue des Champs, 75008 Paris',
-      coordinates: [2.3522, 48.8566],
+      coordinates: [4.8357, 45.7640],
       jobTitle: 'Chef-Propriétaire',
       email: 'contact@petitbistrot.com',
       linkedinUrl: 'https://linkedin.com/in/pierremartin',
@@ -278,7 +217,7 @@ const getDemoBusinesses = (): LocalBusiness[] => {
       companySize: '1-10'
     },
     {
-      id: 'demo_3',
+      id: '3',
       name: 'Sophie Laurent',
       companyName: 'Salon de Coiffure Moderne',
       category: 'Beauté & Bien-être',
@@ -291,7 +230,7 @@ const getDemoBusinesses = (): LocalBusiness[] => {
       priceRange: '€€',
       distance: '0.8 km',
       location: '67 Boulevard Saint-Germain, 75005 Paris',
-      coordinates: [2.3522, 48.8566],
+      coordinates: [5.3698, 43.2965],
       jobTitle: 'Styliste-Propriétaire',
       email: 'contact@salon-moderne.fr',
       linkedinUrl: 'https://linkedin.com/in/sophielaurent',
@@ -326,20 +265,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   const [usePerplexityFallback, setUsePerplexityFallback] = useState(false);
   const [perplexityApiKey, setPerplexityApiKey] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'online' | 'offline'>('checking');
-  const [businessesData, setBusinessesData] = useState<LocalBusiness[]>([]);
   const { toast } = useToast();
-
-  // Synchroniser les données d'entreprises
-  useEffect(() => {
-    if (webhookResponse?.data) {
-      setBusinessesData(webhookResponse.data);
-      console.log('Businesses data synchronized:', webhookResponse.data.length);
-    } else {
-      const demoData = getDemoBusinesses();
-      setBusinessesData(demoData);
-      console.log('Using demo data:', demoData.length);
-    }
-  }, [webhookResponse]);
 
   // Check internet connectivity
   useEffect(() => {
@@ -435,6 +361,9 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     
     console.log('=== LOCAL PROSPECTING SEARCH START ===');
     console.log('Request ID:', requestId);
+    console.log('Retry count:', retryCount);
+    console.log('Connection status:', connectionStatus);
+    console.log('Use Perplexity fallback:', usePerplexityFallback);
 
     const loadingResponse: WebhookResponse = {
       status: 'loading',
@@ -449,21 +378,26 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     const messageToSend = buildSearchMessage();
     console.log('Message to send:', messageToSend);
 
+    // Timeout plus long pour éviter les erreurs comme B2BTargeting
     const timeoutDuration = usePerplexityFallback ? 60000 : 90000;
 
     try {
+      let responseData;
       let processedContent;
 
       if (usePerplexityFallback && perplexityApiKey) {
+        // Utiliser Perplexity comme alternative
         console.log('Using Perplexity API fallback');
         processedContent = await searchWithPerplexity(messageToSend);
       } else {
-        // Essayer les endpoints principaux
+        // Essayer les endpoints principaux avec timeout plus long
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
           controller.abort();
         }, timeoutDuration);
+
+        console.log(`Sending request with ${timeoutDuration/1000}s timeout`);
 
         const requestPayload = {
           message: messageToSend,
@@ -476,6 +410,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
           retry_count: retryCount
         };
 
+        // Utiliser les mêmes endpoints que B2BTargeting qui fonctionne
         const endpoints = [
           'https://ia.bot.bj/webhook/lead',
           'https://ia.bot.bj/api/search',
@@ -515,7 +450,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
             lastError = error;
             
             if (i < endpoints.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Pause avant le prochain endpoint
               continue;
             }
           }
@@ -530,7 +465,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         const contentType = response.headers.get('content-type') || '';
         
         if (contentType.includes('application/json')) {
-          const responseData = await response.json();
+          responseData = await response.json();
           processedContent = responseData.output || 
                             responseData.message || 
                             responseData.response || 
@@ -539,7 +474,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                             responseData.reply ||
                             (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
         } else {
-          processedContent = await response.text();
+          responseData = await response.text();
+          processedContent = responseData;
         }
       }
 
@@ -561,7 +497,6 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       };
 
       setWebhookResponse(successResponse);
-      setBusinessesData(extractedBusinesses);
       setSearchHistory(prev => [successResponse, ...prev.slice(0, 4)]);
       setRetryCount(0);
 
@@ -574,7 +509,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
     } catch (error) {
       console.error('=== LOCAL PROSPECTING SEARCH ERROR ===');
-      console.error('Error:', error);
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error?.message);
       
       let errorStatus: 'error' | 'timeout' = 'error';
       let errorMessage = "Erreur de connexion";
@@ -590,18 +526,18 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         }
       }
 
-      const demoBusinesses = getDemoBusinesses();
+      // Afficher automatiquement les données de démonstration en cas d'erreur
+      const mockBusinesses = getMockBusinesses();
       
       const errorResponse: WebhookResponse = {
         status: errorStatus,
         message: `${errorMessage}. Affichage des données de démonstration pour vous permettre de tester l'interface.`,
-        data: demoBusinesses,
+        data: mockBusinesses,
         timestamp: new Date(),
         requestId
       };
 
       setWebhookResponse(errorResponse);
-      setBusinessesData(demoBusinesses);
       setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
@@ -617,7 +553,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
   const handleViewResults = () => {
     setShowResults(true);
-    console.log('Switching to local results view with', businessesData.length, 'businesses');
+    console.log('Switching to local results view');
   };
 
   const handleBackToSearch = () => {
@@ -629,10 +565,11 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
   const handleExport = () => {
     console.log('Exporting local business results...');
+    const businessesToExport = webhookResponse?.data || getMockBusinesses();
     
     const csvContent = [
       ['Nom Contact', 'Entreprise', 'Catégorie', 'Adresse', 'Téléphone', 'Site Web', 'Email', 'Note', 'Horaires', 'Prix', 'Distance'],
-      ...businessesData.map(business => [
+      ...businessesToExport.map(business => [
         business.name,
         business.companyName,
         business.category,
@@ -668,7 +605,6 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     setWebhookResponse(null);
     setShowResults(false);
     setRetryCount(0);
-    setBusinessesData([]);
     console.log('Local search reset');
   };
 
@@ -726,11 +662,13 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
   const handleSelectAll = (checked: boolean) => {
     setIsSelectAll(checked);
-    setSelectedBusinesses(checked ? businessesData.map(b => b.id) : []);
+    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    setSelectedBusinesses(checked ? displayBusinesses.map(b => b.id) : []);
   };
 
   const getSelectedBusinessesData = () => {
-    return businessesData.filter(business => selectedBusinesses.includes(business.id));
+    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    return displayBusinesses.filter(business => selectedBusinesses.includes(business.id));
   };
 
   const handleSaveToProspects = () => {
@@ -758,6 +696,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   };
 
   if (showResults) {
+    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-7xl mx-auto">
@@ -768,7 +708,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                 Nouvelle recherche
               </Button>
               <h1 className="text-2xl font-bold">Entreprises Locales Trouvées</h1>
-              <Badge variant="secondary">{businessesData.length} entreprises trouvées</Badge>
+              <Badge variant="secondary">{displayBusinesses.length} entreprises trouvées</Badge>
             </div>
             <div className="flex space-x-2">
               <Button variant="outline" onClick={handleExport}>
@@ -855,7 +795,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
               <CardContent className="p-0">
                 <div className="h-96">
                   <GeoLocationMap 
-                    contacts={businessesData} 
+                    contacts={displayBusinesses} 
                     userLocation={userLocation}
                   />
                 </div>
@@ -903,7 +843,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {businessesData.map((business) => (
+                  {displayBusinesses.map((business) => (
                     <TableRow key={business.id}>
                       <TableCell>
                         <Checkbox 
@@ -1193,10 +1133,10 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
                     <Button 
                       onClick={handleViewResults}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
-                      disabled={!businessesData || businessesData.length === 0}
+                      disabled={!webhookResponse.data || webhookResponse.data.length === 0}
                     >
                       <Eye className="w-4 h-4 mr-2" />
-                      Visualiser les résultats ({businessesData.length})
+                      Visualiser les résultats
                     </Button>
                     {(webhookResponse.status === 'timeout' || webhookResponse.status === 'error') && (
                       <>
