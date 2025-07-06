@@ -1,22 +1,20 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { IABenefitsCards } from '@/components/IABenefitsCards';
 import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 import { QuickActions } from '@/components/home/QuickActions';
 import { AIModules } from '@/components/home/AIModules';
 import { AuditSection } from '@/components/home/AuditSection';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { Link } from 'react-router-dom';
 import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const HomePage: React.FC = () => {
   const { user } = useAuth();
-  const isMobile = useIsMobile();
 
   return (
-    <div className={`w-full space-y-6 sm:space-y-8 ${isMobile ? 'px-[2.5%]' : ''}`}>
+    <div className="w-full space-y-6 sm:space-y-8">
       {/* Header de bienvenue - responsive */}
       <WelcomeHeader userName={user?.name} />
 
