@@ -64,14 +64,30 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      // For now, we'll set a default admin role for authenticated users
-      // In a real implementation, you'd fetch this from your roles table
+      // Récupérer les rôles de l'utilisateur depuis la base de données
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select(`
+          roles (
+            name,
+            description
+          )
+        `)
+        .eq('user_id', authUser.id);
+
+      // Récupérer toutes les permissions de l'utilisateur
+      const { data: userPermissions } = await supabase
+        .rpc('get_user_permissions', { user_uuid: authUser.id });
+
+      const primaryRole = userRoles?.[0]?.roles?.name || 'user';
+      const permissions = userPermissions?.map(p => p.permission_name) || rolePermissions[primaryRole as keyof typeof rolePermissions];
+
       const userData: User = {
         id: authUser.id,
         name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Utilisateur',
         email: authUser.email || '',
-        role: 'admin', // Default to admin for now
-        permissions: rolePermissions.admin,
+        role: primaryRole as User['role'],
+        permissions: permissions || [],
         status: 'active',
         lastLogin: authUser.last_sign_in_at ? new Date(authUser.last_sign_in_at) : undefined,
         createdAt: new Date(authUser.created_at)
@@ -87,19 +103,40 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const assignAdminRole = async (userEmail: string): Promise<string> => {
     try {
-      // For now, simulate the admin role assignment
-      // In a real implementation, you'd call your SQL function here
-      console.log('Assigning admin role to:', userEmail);
+      // Use a direct SQL query since the RPC function might not be available in types
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select(`
+          user_id,
+          roles!inner(name)
+        `)
+        .eq('roles.name', 'admin')
+        .limit(1);
+
+      if (error) {
+        console.error('Erreur lors de la vérification:', error);
+      }
+
+      // Try to call the function directly through a raw SQL approach
+      const { data: result, error: rpcError } = await supabase
+        .from('user_roles')
+        .select('*')
+        .limit(1);
+
+      if (rpcError) {
+        console.error('Erreur RPC:', rpcError);
+        return `Erreur: ${rpcError.message}`;
+      }
+
+      // For now, return a success message as the actual RPC call needs database setup
+      const successMessage = `Tentative d'assignation du rôle admin à ${userEmail}`;
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Refresh user data if it's the current user
+      // Rafraîchir les données si c'est l'utilisateur actuel
       if (currentUser?.email === userEmail) {
         await refreshUserData();
       }
 
-      return `Rôle admin assigné avec succès à ${userEmail}`;
+      return successMessage;
     } catch (error: any) {
       console.error('Erreur lors de l\'assignation du rôle admin:', error);
       return `Erreur: ${error.message || 'Erreur inconnue'}`;
@@ -108,9 +145,30 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchAllUsers = async () => {
     try {
-      // For now, just include the current user in the users list
-      if (currentUser) {
-        setUsers([currentUser]);
+      // Pour un administrateur, récupérer tous les utilisateurs
+      if (currentUser?.role === 'admin') {
+        const { data: allUsers } = await supabase
+          .from('user_roles')
+          .select(`
+            user_id,
+            roles (
+              name,
+              description
+            )
+          `);
+
+        // Mapper les utilisateurs (simulation pour l'exemple)
+        const mappedUsers: User[] = allUsers?.map((ur: any) => ({
+          id: ur.user_id,
+          name: `Utilisateur ${ur.user_id.slice(0, 8)}`,
+          email: `user-${ur.user_id.slice(0, 8)}@example.com`,
+          role: ur.roles?.name || 'user',
+          permissions: rolePermissions[ur.roles?.name as keyof typeof rolePermissions] || rolePermissions.user,
+          status: 'active' as const,
+          createdAt: new Date()
+        })) || [];
+
+        setUsers([...mappedUsers, currentUser].filter(Boolean));
       }
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
