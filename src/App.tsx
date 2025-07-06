@@ -1,10 +1,9 @@
-
 import { Suspense, lazy } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -12,6 +11,7 @@ import Index from "./pages/Index";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
 import { LoadingSpinner } from "./components/LoadingSpinner";
+import { AdminPage } from '@/pages/AdminPage';
 
 // Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
@@ -53,65 +53,58 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light">
-      <TooltipProvider>
+function App() {
+  return (
+    <Router>
+      <UserProvider>
         <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <UserProvider>
-              <Suspense fallback={<LoadingSpinner />}>
-                <Routes>
-                  {/* Route d'accueil avec redirection vers home */}
-                  <Route path="/" element={<Navigate to="/home" replace />} />
-                  
-                  {/* Routes avec layout principal */}
-                  <Route element={<MainLayout />}>
-                    <Route path="/home" element={<HomePage />} />
-                    <Route path="/chat" element={<ChatPage />} />
-                    <Route path="/dashboard" element={<DashboardPage />} />
-                    
-                    {/* Gestion des bots */}
-                    <Route path="/bots" element={<BotManagementPage />} />
-                    <Route path="/automations" element={<AutomationsPage />} />
-                    
-                    {/* Campagnes de partage */}
-                    <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
-                    
-                    {/* Modules IA */}
-                    <Route path="/modules/business" element={<BusinessModule />} />
-                    <Route path="/modules/marketing" element={<MarketingModule />} />
-                    <Route path="/modules/gestion" element={<GestionModule />} />
-                    <Route path="/modules/citoyen" element={<CitoyenModule />} />
-                    
-                    {/* Support et compte */}
-                    <Route path="/support" element={<SupportPage />} />
-                    <Route path="/account" element={<AccountPage />} />
-                    
-                    {/* Administration */}
-                    <Route path="/admin/users" element={<UsersManagementPage />} />
-                    
-                    {/* Prospects avec layout spécial */}
-                    <Route path="/prospects" element={<ProspectsLayout />} />
-                  </Route>
-                  
-                  {/* Routes publiques sans layout */}
-                  <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
-                  <Route path="/bot-test/:botId" element={<BotTestPage />} />
-                  <Route path="/bot/:botId" element={<PublicBotChatPage />} />
-                  
-                  {/* Route 404 */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </UserProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+        <Routes>
+          {/* Route d'accueil avec redirection vers home */}
+          <Route path="/" element={<Navigate to="/home" replace />} />
+          
+          {/* Routes avec layout principal */}
+          <Route element={<MainLayout />}>
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            
+            {/* Gestion des bots */}
+            <Route path="/bots" element={<BotManagementPage />} />
+            <Route path="/automations" element={<AutomationsPage />} />
+            
+            {/* Campagnes de partage */}
+            <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
+            
+            {/* Modules IA */}
+            <Route path="/modules/business" element={<BusinessModule />} />
+            <Route path="/modules/marketing" element={<MarketingModule />} />
+            <Route path="/modules/gestion" element={<GestionModule />} />
+            <Route path="/modules/citoyen" element={<CitoyenModule />} />
+            
+            {/* Support et compte */}
+            <Route path="/support" element={<SupportPage />} />
+            <Route path="/account" element={<AccountPage />} />
+            
+            {/* Administration */}
+            <Route path="/admin/users" element={<UsersManagementPage />} />
+            
+            {/* Prospects avec layout spécial */}
+            <Route path="/prospects" element={<ProspectsLayout />} />
+          </Route>
+          
+          {/* Routes publiques sans layout */}
+          <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
+          <Route path="/bot-test/:botId" element={<BotTestPage />} />
+          <Route path="/bot/:botId" element={<PublicBotChatPage />} />
+          
+          {/* Route 404 */}
+          <Route path="*" element={<NotFound />} />
+          
+          <Route path="/admin" element={<AdminPage />} />
+        </Routes>
+      </UserProvider>
+    </Router>
+  );
+}
 
 export default App;
