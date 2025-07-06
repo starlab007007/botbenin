@@ -49,11 +49,6 @@ export const useAdminUsers = () => {
       for (const userRole of usersData || []) {
         if (processedUserIds.has(userRole.user_id)) continue;
         
-        // Récupérer les détails utilisateur depuis auth.users via RPC
-        const { data: authData, error: authError } = await supabase.rpc(
-          'get_admin_dashboard_stats'
-        );
-
         // Pour simuler les données utilisateur, on utilise l'ID
         const mockUser = {
           id: userRole.user_id,
@@ -78,10 +73,17 @@ export const useAdminUsers = () => {
           console.error('Erreur permissions:', permError);
         }
 
+        // Fix the permission mapping to match expected interface
+        const formattedPermissions = (permissions || []).map((perm: any) => ({
+          name: perm.permission_name,
+          category: perm.category,
+          source: perm.source
+        }));
+
         usersWithDetails.push({
           ...mockUser,
           roles: userRoles,
-          permissions: permissions || []
+          permissions: formattedPermissions
         });
 
         processedUserIds.add(userRole.user_id);

@@ -9,27 +9,37 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useRoles } from '@/hooks/useRoles';
 import { 
   Shield, 
   Plus, 
+  MoreVertical, 
   Settings, 
-  Crown, 
   Users, 
-  Eye
+  Key,
+  Crown
 } from 'lucide-react';
 
 export const RoleManagement: React.FC = () => {
-  const { roles, permissions, isLoading, createRole } = useRoles();
+  const { roles, permissions, isLoading, createRole, assignPermissionToRole, removePermissionFromRole } = useRoles();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDescription, setNewRoleDescription] = useState('');
 
-  const handleCreateRole = async () => {
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!newRoleName.trim()) return;
 
     await createRole({
@@ -47,32 +57,34 @@ export const RoleManagement: React.FC = () => {
       case 'admin': return Crown;
       case 'manager': return Shield;
       case 'user': return Users;
-      case 'viewer': return Eye;
+      case 'viewer': return Users;
       default: return Shield;
     }
   };
 
-  const getRoleColor = (roleName: string) => {
+  const getRoleBadgeColor = (roleName: string) => {
     switch (roleName) {
-      case 'admin': return 'from-red-500 to-red-600';
-      case 'manager': return 'from-blue-500 to-blue-600';
-      case 'user': return 'from-green-500 to-green-600';
-      case 'viewer': return 'from-gray-500 to-gray-600';
-      default: return 'from-purple-500 to-purple-600';
+      case 'admin': return 'bg-red-100 text-red-800 border-red-200';
+      case 'manager': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'user': return 'bg-green-100 text-green-800 border-green-200';
+      case 'viewer': return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-purple-100 text-purple-800 border-purple-200';
     }
   };
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(6)].map((_, i) => (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
           <Card key={i} className="animate-pulse">
-            <CardHeader>
-              <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-              <div className="h-4 bg-gray-200 rounded w-full"></div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -83,163 +95,127 @@ export const RoleManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gestion des rôles</h2>
-          <p className="text-gray-600 mt-1">
-            Créez et gérez les rôles et leurs permissions
-          </p>
-        </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Nouveau rôle
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Créer un nouveau rôle</DialogTitle>
-              <DialogDescription>
-                Définissez un nouveau rôle pour organiser les permissions
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Nom du rôle</label>
-                <Input
-                  placeholder="Ex: Modérateur"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Description</label>
-                <Textarea
-                  placeholder="Décrivez le rôle et ses responsabilités"
-                  value={newRoleDescription}
-                  onChange={(e) => setNewRoleDescription(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Annuler
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center">
+                <Shield className="w-5 h-5 mr-2" />
+                Gestion des rôles ({roles.length})
+              </CardTitle>
+              <CardDescription>
+                Créez et gérez les rôles et leurs permissions
+              </CardDescription>
+            </div>
+            
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nouveau rôle
                 </Button>
-                <Button onClick={handleCreateRole} disabled={!newRoleName.trim()}>
-                  Créer le rôle
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Statistiques des rôles */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total rôles</p>
-                <p className="text-2xl font-bold text-gray-900">{roles.length}</p>
-              </div>
-              <Shield className="w-8 h-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Rôles système</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {roles.filter(r => r.is_system_role).length}
-                </p>
-              </div>
-              <Settings className="w-8 h-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Rôles personnalisés</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {roles.filter(r => !r.is_system_role).length}
-                </p>
-              </div>
-              <Plus className="w-8 h-8 text-purple-500" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Permissions</p>
-                <p className="text-2xl font-bold text-gray-900">{permissions.length}</p>
-              </div>
-              <Crown className="w-8 h-8 text-yellow-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Liste des rôles */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {roles.map((role) => {
-          const RoleIcon = getRoleIcon(role.name);
-          const roleColor = getRoleColor(role.name);
-          
-          return (
-            <Card key={role.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 bg-gradient-to-r ${roleColor} rounded-lg flex items-center justify-center`}>
-                      <RoleIcon className="w-5 h-5 text-white" />
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Créer un nouveau rôle</DialogTitle>
+                  <DialogDescription>
+                    Définissez un nouveau rôle avec ses permissions
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateRole}>
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="roleName" className="block text-sm font-medium mb-1">
+                        Nom du rôle
+                      </label>
+                      <Input
+                        id="roleName"
+                        value={newRoleName}
+                        onChange={(e) => setNewRoleName(e.target.value)}
+                        placeholder="Ex: Modérateur"
+                        required
+                      />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">{role.name}</CardTitle>
-                      {role.is_system_role && (
-                        <Badge variant="secondary" className="text-xs">
-                          Système
-                        </Badge>
-                      )}
+                      <label htmlFor="roleDescription" className="block text-sm font-medium mb-1">
+                        Description
+                      </label>
+                      <Textarea
+                        id="roleDescription"
+                        value={newRoleDescription}
+                        onChange={(e) => setNewRoleDescription(e.target.value)}
+                        placeholder="Description du rôle et de ses responsabilités"
+                        rows={3}
+                      />
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <CardDescription className="mb-4">
-                  {role.description || 'Aucune description disponible'}
-                </CardDescription>
-                
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Créé le:</span>
-                    <span className="font-medium">
-                      {new Date(role.created_at).toLocaleDateString('fr-FR')}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <Button variant="outline" size="sm">
-                      <Settings className="w-4 h-4 mr-1" />
-                      Permissions
+                  <DialogFooter className="mt-6">
+                    <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                      Annuler
                     </Button>
-                    {!role.is_system_role && (
-                      <Button variant="outline" size="sm">
-                        Modifier
-                      </Button>
-                    )}
+                    <Button type="submit">
+                      Créer le rôle
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Liste des rôles */}
+      <div className="space-y-4">
+        {roles.map((role) => {
+          const RoleIcon = getRoleIcon(role.name);
+          return (
+            <Card key={role.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                      <RoleIcon className="w-6 h-6 text-white" />
+                    </div>
+                    
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h3 className="font-semibold text-gray-900">{role.name}</h3>
+                        <Badge className={getRoleBadgeColor(role.name)}>
+                          {role.is_system_role ? 'Système' : 'Personnalisé'}
+                        </Badge>
+                      </div>
+                      
+                      <p className="text-sm text-gray-600 mb-2">{role.description}</p>
+                      <p className="text-xs text-gray-500">
+                        Créé le: {new Date(role.created_at).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
                   </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>
+                        <Settings className="w-4 h-4 mr-2" />
+                        Modifier le rôle
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Key className="w-4 h-4 mr-2" />
+                        Gérer les permissions
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {!role.is_system_role && (
+                        <DropdownMenuItem className="text-red-600">
+                          <Settings className="w-4 h-4 mr-2" />
+                          Supprimer
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardContent>
             </Card>
