@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +23,8 @@ import {
 } from 'lucide-react';
 import { useUser } from '@/contexts/UserContext';
 import { AdminControlPanel } from '@/components/AdminControlPanel';
+import { AdminStats } from '@/components/AdminStats';
+import { defaultAdminStats } from '@/types/admin';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -144,7 +145,15 @@ export const UsersManagementPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Statistiques */}
+      {/* Statistiques globales pour admin */}
+      {hasPermission('platform.admin') && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Statistiques de la plateforme</h2>
+          <AdminStats stats={defaultAdminStats} isLoading={false} />
+        </div>
+      )}
+
+      {/* Statistiques utilisateurs locales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
           <Card key={index} className="relative overflow-hidden">

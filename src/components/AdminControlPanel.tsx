@@ -37,19 +37,11 @@ export const AdminControlPanel: React.FC = () => {
     try {
       const result = await assignAdminRole(newAdminEmail);
       
-      if (result.includes('succès')) {
-        toast({
-          title: "Succès !",
-          description: result,
-        });
-        setNewAdminEmail('');
-      } else {
-        toast({
-          title: "Information",
-          description: result,
-          variant: "default",
-        });
-      }
+      toast({
+        title: "Opération effectuée",
+        description: result,
+      });
+      setNewAdminEmail('');
     } catch (error) {
       toast({
         title: "Erreur",

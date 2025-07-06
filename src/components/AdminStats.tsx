@@ -11,27 +11,14 @@ import {
   Shield,
   AlertTriangle
 } from 'lucide-react';
-
-interface AdminDashboardStats {
-  total_users: number;
-  active_users_24h: number;
-  active_users_7d: number;
-  new_users_30d: number;
-  total_bots: number;
-  active_bots: number;
-  total_campaigns: number;
-  active_campaigns: number;
-  total_messages_24h: number;
-  total_subscriptions: number;
-  revenue_monthly: number;
-}
+import { AdminDashboardStats, defaultAdminStats } from '@/types/admin';
 
 interface AdminStatsProps {
   stats: AdminDashboardStats;
   isLoading?: boolean;
 }
 
-export const AdminStats: React.FC<AdminStatsProps> = ({ stats, isLoading = false }) => {
+export const AdminStats: React.FC<AdminStatsProps> = ({ stats = defaultAdminStats, isLoading = false }) => {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
