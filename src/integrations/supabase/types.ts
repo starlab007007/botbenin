@@ -4556,6 +4556,10 @@ export type Database = {
       }
     }
     Functions: {
+      assign_admin_role: {
+        Args: { user_email: string }
+        Returns: string
+      }
       auto_fix_session_issues: {
         Args: { p_bot_id?: string }
         Returns: {
