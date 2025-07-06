@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -28,6 +28,9 @@ const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(mo
 const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.SupportPage })));
 const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ default: module.AccountPage })));
 
+// Administration
+const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.UsersManagementPage })));
+
 // Modules IA spécialisés
 const BusinessModule = lazy(() => import("./pages/modules/BusinessModule").then(module => ({ default: module.BusinessModule })));
 const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").then(module => ({ default: module.MarketingModule })));
@@ -37,9 +40,8 @@ const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(mo
 // Campagnes de partage
 const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.SocialSharingCampaignsPage })));
 
-// Pages spéciales et admin
+// Pages spéciales
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
-const SimpleAdminPage = lazy(() => import("./pages/SimpleAdminPage").then(module => ({ default: module.SimpleAdminPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -51,69 +53,65 @@ const queryClient = new QueryClient({
   },
 });
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Router>
-            <AuthProvider>
-              <UserProvider>
-                <div className="min-h-screen bg-background">
-                  <Toaster />
-                  <Sonner />
-                  <Suspense fallback={<LoadingSpinner />}>
-                    <Routes>
-                      {/* Route d'accueil avec redirection vers home */}
-                      <Route path="/" element={<Navigate to="/home" replace />} />
-                      
-                      {/* Routes avec layout principal */}
-                      <Route element={<MainLayout />}>
-                        <Route path="/home" element={<HomePage />} />
-                        <Route path="/chat" element={<ChatPage />} />
-                        <Route path="/dashboard" element={<DashboardPage />} />
-                        
-                        {/* Gestion des bots */}
-                        <Route path="/bots" element={<BotManagementPage />} />
-                        <Route path="/automations" element={<AutomationsPage />} />
-                        
-                        {/* Campagnes de partage */}
-                        <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
-                        
-                        {/* Modules IA */}
-                        <Route path="/modules/business" element={<BusinessModule />} />
-                        <Route path="/modules/marketing" element={<MarketingModule />} />
-                        <Route path="/modules/gestion" element={<GestionModule />} />
-                        <Route path="/modules/citoyen" element={<CitoyenModule />} />
-                        
-                        {/* Support et compte */}
-                        <Route path="/support" element={<SupportPage />} />
-                        <Route path="/account" element={<AccountPage />} />
-                        
-                        {/* Administration */}
-                        <Route path="/admin" element={<SimpleAdminPage />} />
-                        
-                        {/* Prospects avec layout spécial */}
-                        <Route path="/prospects" element={<ProspectsLayout />} />
-                      </Route>
-                      
-                      {/* Routes publiques sans layout */}
-                      <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
-                      <Route path="/bot-test/:botId" element={<BotTestPage />} />
-                      <Route path="/bot/:botId" element={<PublicBotChatPage />} />
-                      
-                      {/* Route 404 */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </Suspense>
-                </div>
-              </UserProvider>
-            </AuthProvider>
-          </Router>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
-  );
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <ThemeProvider defaultTheme="light">
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <UserProvider>
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  {/* Route d'accueil avec redirection vers home */}
+                  <Route path="/" element={<Navigate to="/home" replace />} />
+                  
+                  {/* Routes avec layout principal */}
+                  <Route element={<MainLayout />}>
+                    <Route path="/home" element={<HomePage />} />
+                    <Route path="/chat" element={<ChatPage />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    
+                    {/* Gestion des bots */}
+                    <Route path="/bots" element={<BotManagementPage />} />
+                    <Route path="/automations" element={<AutomationsPage />} />
+                    
+                    {/* Campagnes de partage */}
+                    <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
+                    
+                    {/* Modules IA */}
+                    <Route path="/modules/business" element={<BusinessModule />} />
+                    <Route path="/modules/marketing" element={<MarketingModule />} />
+                    <Route path="/modules/gestion" element={<GestionModule />} />
+                    <Route path="/modules/citoyen" element={<CitoyenModule />} />
+                    
+                    {/* Support et compte */}
+                    <Route path="/support" element={<SupportPage />} />
+                    <Route path="/account" element={<AccountPage />} />
+                    
+                    {/* Administration */}
+                    <Route path="/admin/users" element={<UsersManagementPage />} />
+                    
+                    {/* Prospects avec layout spécial */}
+                    <Route path="/prospects" element={<ProspectsLayout />} />
+                  </Route>
+                  
+                  {/* Routes publiques sans layout */}
+                  <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
+                  <Route path="/bot-test/:botId" element={<BotTestPage />} />
+                  <Route path="/bot/:botId" element={<PublicBotChatPage />} />
+                  
+                  {/* Route 404 */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </UserProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
+  </QueryClientProvider>
+);
 
 export default App;
