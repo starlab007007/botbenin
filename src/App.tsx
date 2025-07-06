@@ -37,8 +37,9 @@ const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(mo
 // Campagnes de partage
 const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.SocialSharingCampaignsPage })));
 
-// Pages spéciales
+// Pages spéciales et admin
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
+const SimpleAdminPage = lazy(() => import("./pages/SimpleAdminPage").then(module => ({ default: module.SimpleAdminPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -53,7 +54,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Router>
             <AuthProvider>
@@ -88,6 +89,9 @@ function App() {
                         {/* Support et compte */}
                         <Route path="/support" element={<SupportPage />} />
                         <Route path="/account" element={<AccountPage />} />
+                        
+                        {/* Administration */}
+                        <Route path="/admin" element={<SimpleAdminPage />} />
                         
                         {/* Prospects avec layout spécial */}
                         <Route path="/prospects" element={<ProspectsLayout />} />
