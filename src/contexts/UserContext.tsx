@@ -103,12 +103,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const assignAdminRole = async (userEmail: string): Promise<string> => {
     try {
+      // Call the database function using rpc
       const { data, error } = await supabase.rpc('assign_admin_role', {
         user_email: userEmail
       });
 
       if (error) {
-        throw error;
+        console.error('Erreur RPC:', error);
+        return `Erreur: ${error.message}`;
       }
 
       // Rafraîchir les données si c'est l'utilisateur actuel
