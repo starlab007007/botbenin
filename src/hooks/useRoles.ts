@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -75,6 +74,7 @@ export const useRoles = () => {
         .from('roles')
         .insert({
           name: roleData.name,
+          display_name: roleData.name,
           description: roleData.description,
           is_system_role: false
         });
