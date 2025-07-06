@@ -30,7 +30,7 @@ export const useB2BBusinesses = () => {
     setIsLoading(true);
     try {
       let query = supabase
-        .from('b2b_businesses')
+        .from('b2b_businesses' as any)
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -41,7 +41,14 @@ export const useB2BBusinesses = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setBusinesses(data || []);
+      
+      // Transform the data to match our interface
+      const transformedData = (data || []).map((item: any) => ({
+        ...item,
+        coordinates: item.coordinates ? JSON.parse(item.coordinates) : undefined
+      }));
+      
+      setBusinesses(transformedData);
     } catch (error) {
       console.error('Error fetching B2B businesses:', error);
       toast({
@@ -65,11 +72,12 @@ export const useB2BBusinesses = () => {
         ...business,
         user_id: userData.user.id,
         search_session_id: sessionId,
-        source: 'b2b_search'
+        source: 'b2b_search',
+        coordinates: business.coordinates ? JSON.stringify(business.coordinates) : null
       }));
 
       const { data, error } = await supabase
-        .from('b2b_businesses')
+        .from('b2b_businesses' as any)
         .insert(businessesToInsert)
         .select();
 
@@ -96,7 +104,7 @@ export const useB2BBusinesses = () => {
 
   const transferToProspects = async (businessIds: string[], databaseId: string) => {
     try {
-      const { data, error } = await supabase.rpc('transfer_b2b_businesses_to_prospects', {
+      const { data, error } = await supabase.rpc('transfer_b2b_businesses_to_prospects' as any, {
         business_ids: businessIds,
         target_database_id: databaseId
       });

@@ -37,7 +37,7 @@ export const useLocalBusinesses = () => {
     setIsLoading(true);
     try {
       let query = supabase
-        .from('local_businesses')
+        .from('local_businesses' as any)
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -48,7 +48,14 @@ export const useLocalBusinesses = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setBusinesses(data || []);
+      
+      // Transform the data to match our interface
+      const transformedData = (data || []).map((item: any) => ({
+        ...item,
+        coordinates: item.coordinates ? JSON.parse(item.coordinates) : undefined
+      }));
+      
+      setBusinesses(transformedData);
     } catch (error) {
       console.error('Error fetching local businesses:', error);
       toast({
@@ -72,11 +79,12 @@ export const useLocalBusinesses = () => {
         ...business,
         user_id: userData.user.id,
         search_session_id: sessionId,
-        source: 'local_search'
+        source: 'local_search',
+        coordinates: business.coordinates ? JSON.stringify(business.coordinates) : null
       }));
 
       const { data, error } = await supabase
-        .from('local_businesses')
+        .from('local_businesses' as any)
         .insert(businessesToInsert)
         .select();
 
@@ -103,7 +111,7 @@ export const useLocalBusinesses = () => {
 
   const transferToProspects = async (businessIds: string[], databaseId: string) => {
     try {
-      const { data, error } = await supabase.rpc('transfer_local_businesses_to_prospects', {
+      const { data, error } = await supabase.rpc('transfer_local_businesses_to_prospects' as any, {
         business_ids: businessIds,
         target_database_id: databaseId
       });
