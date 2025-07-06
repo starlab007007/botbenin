@@ -4,14 +4,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Users, Bot, MessageSquare, BarChart3, Shield, AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { AdminDashboardStats } from '@/types/admin';
 
 export const AdminStats: React.FC = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-stats'],
-    queryFn: async () => {
+    queryFn: async (): Promise<AdminDashboardStats> => {
       const { data, error } = await supabase.rpc('get_admin_dashboard_stats');
       if (error) throw error;
-      return data[0] || {};
+      return data[0] || {
+        total_users: 0,
+        active_users_24h: 0,
+        active_users_7d: 0,
+        new_users_30d: 0,
+        total_bots: 0,
+        active_bots: 0,
+        total_campaigns: 0,
+        active_campaigns: 0,
+        total_messages_24h: 0,
+        total_subscriptions: 0,
+        revenue_monthly: 0,
+      };
     },
   });
 
@@ -85,7 +98,7 @@ export const AdminStats: React.FC = () => {
     },
     {
       title: 'Taux d\'Activité',
-      value: stats?.total_users > 0 ? Math.round((stats?.active_users_24h / stats?.total_users) * 100) : 0,
+      value: stats?.total_users && stats?.total_users > 0 ? Math.round((stats?.active_users_24h / stats?.total_users) * 100) : 0,
       change: '% utilisateurs actifs',
       icon: BarChart3,
       color: 'text-pink-600',
