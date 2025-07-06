@@ -2,10 +2,12 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { 
+import { Badge } from '@/components/ui/badge';
+import { useRoles } from '@/hooks/useRoles';
+import { Shield, Plus, Check, X } from 'lucide-react';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -14,226 +16,173 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useRoles } from '@/hooks/useRoles';
-import { 
-  Shield, 
-  Plus, 
-  MoreVertical, 
-  Settings, 
-  Users, 
-  Key,
-  Crown
-} from 'lucide-react';
+import { Label } from '@/components/ui/label';
 
 export const RoleManagement: React.FC = () => {
   const { roles, permissions, isLoading, createRole, assignPermissionToRole, removePermissionFromRole } = useRoles();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleDescription, setNewRoleDescription] = useState('');
-
-  const handleCreateRole = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRoleName.trim()) return;
-
-    await createRole({
-      name: newRoleName.trim(),
-      description: newRoleDescription.trim()
-    });
-
-    setNewRoleName('');
-    setNewRoleDescription('');
-    setIsCreateDialogOpen(false);
-  };
-
-  const getRoleIcon = (roleName: string) => {
-    switch (roleName) {
-      case 'admin': return Crown;
-      case 'manager': return Shield;
-      case 'user': return Users;
-      case 'viewer': return Users;
-      default: return Shield;
-    }
-  };
-
-  const getRoleBadgeColor = (roleName: string) => {
-    switch (roleName) {
-      case 'admin': return 'bg-red-100 text-red-800 border-red-200';
-      case 'manager': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'user': return 'bg-green-100 text-green-800 border-green-200';
-      case 'viewer': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-purple-100 text-purple-800 border-purple-200';
-    }
-  };
+  const [newRole, setNewRole] = useState({ name: '', description: '' });
 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        {[...Array(3)].map((_, i) => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-                <div className="flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        <Card>
+          <CardHeader>
+            <CardTitle>Gestion des Rôles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="animate-pulse space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  const handleCreateRole = async () => {
+    if (newRole.name.trim() && newRole.description.trim()) {
+      await createRole(newRole);
+      setNewRole({ name: '', description: '' });
+      setIsCreateDialogOpen(false);
+    }
+  };
+
+  const handlePermissionToggle = async (roleId: string, permissionId: string, hasPermission: boolean) => {
+    if (hasPermission) {
+      await removePermissionFromRole(roleId, permissionId);
+    } else {
+      await assignPermissionToRole(roleId, permissionId);
+    }
+  };
+
+  const groupedPermissions = permissions.reduce((acc, permission) => {
+    if (!acc[permission.category]) {
+      acc[permission.category] = [];
+    }
+    acc[permission.category].push(permission);
+    return acc;
+  }, {} as Record<string, typeof permissions>);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center">
-                <Shield className="w-5 h-5 mr-2" />
-                Gestion des rôles ({roles.length})
+              <CardTitle className="flex items-center space-x-2">
+                <Shield className="w-5 h-5" />
+                <span>Gestion des Rôles</span>
               </CardTitle>
               <CardDescription>
-                Créez et gérez les rôles et leurs permissions
+                Créer et gérer les rôles et leurs permissions
               </CardDescription>
             </div>
-            
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />
-                  Nouveau rôle
+                  Nouveau Rôle
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Créer un nouveau rôle</DialogTitle>
                   <DialogDescription>
-                    Définissez un nouveau rôle avec ses permissions
+                    Définissez le nom et la description du nouveau rôle
                   </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleCreateRole}>
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="roleName" className="block text-sm font-medium mb-1">
-                        Nom du rôle
-                      </label>
-                      <Input
-                        id="roleName"
-                        value={newRoleName}
-                        onChange={(e) => setNewRoleName(e.target.value)}
-                        placeholder="Ex: Modérateur"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="roleDescription" className="block text-sm font-medium mb-1">
-                        Description
-                      </label>
-                      <Textarea
-                        id="roleDescription"
-                        value={newRoleDescription}
-                        onChange={(e) => setNewRoleDescription(e.target.value)}
-                        placeholder="Description du rôle et de ses responsabilités"
-                        rows={3}
-                      />
-                    </div>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Nom du rôle</Label>
+                    <Input
+                      id="name"
+                      value={newRole.name}
+                      onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                      placeholder="Ex: moderator"
+                    />
                   </div>
-                  <DialogFooter className="mt-6">
-                    <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                      Annuler
-                    </Button>
-                    <Button type="submit">
-                      Créer le rôle
-                    </Button>
-                  </DialogFooter>
-                </form>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={newRole.description}
+                      onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+                      placeholder="Description du rôle..."
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={handleCreateRole}
+                    disabled={!newRole.name.trim() || !newRole.description.trim()}
+                  >
+                    Créer le rôle
+                  </Button>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
         </CardHeader>
-      </Card>
-
-      {/* Liste des rôles */}
-      <div className="space-y-4">
-        {roles.map((role) => {
-          const RoleIcon = getRoleIcon(role.name);
-          return (
-            <Card key={role.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                      <RoleIcon className="w-6 h-6 text-white" />
+        <CardContent>
+          <div className="grid gap-6">
+            {roles.map((role) => (
+              <Card key={role.id} className="border-l-4 border-l-blue-500">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg capitalize">{role.name}</CardTitle>
+                      <CardDescription>{role.description}</CardDescription>
                     </div>
-                    
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">{role.name}</h3>
-                        <Badge className={getRoleBadgeColor(role.name)}>
-                          {role.is_system_role ? 'Système' : 'Personnalisé'}
-                        </Badge>
-                      </div>
-                      
-                      <p className="text-sm text-gray-600 mb-2">{role.description}</p>
-                      <p className="text-xs text-gray-500">
-                        Créé le: {new Date(role.created_at).toLocaleDateString('fr-FR')}
-                      </p>
-                    </div>
+                    {role.is_system_role && (
+                      <Badge variant="secondary">Système</Badge>
+                    )}
                   </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Settings className="w-4 h-4 mr-2" />
-                        Modifier le rôle
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Key className="w-4 h-4 mr-2" />
-                        Gérer les permissions
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {!role.is_system_role && (
-                        <DropdownMenuItem className="text-red-600">
-                          <Settings className="w-4 h-4 mr-2" />
-                          Supprimer
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {roles.length === 0 && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <CardTitle className="text-xl text-gray-900 mb-2">Aucun rôle</CardTitle>
-            <CardDescription>
-              Commencez par créer votre premier rôle personnalisé.
-            </CardDescription>
-          </CardContent>
-        </Card>
-      )}
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {Object.entries(groupedPermissions).map(([category, categoryPermissions]) => (
+                      <div key={category} className="space-y-2">
+                        <h4 className="font-medium text-sm text-gray-900 capitalize">
+                          {category}
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {categoryPermissions.map((permission) => {
+                            const hasPermission = role.permissions?.some(p => p.id === permission.id) || false;
+                            return (
+                              <div
+                                key={permission.id}
+                                className={`flex items-center justify-between p-2 border rounded cursor-pointer transition-colors ${
+                                  hasPermission 
+                                    ? 'bg-green-50 border-green-200' 
+                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                }`}
+                                onClick={() => handlePermissionToggle(role.id, permission.id, hasPermission)}
+                              >
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium">{permission.name}</div>
+                                  <div className="text-xs text-gray-500">{permission.description}</div>
+                                </div>
+                                {hasPermission ? (
+                                  <Check className="w-4 h-4 text-green-600" />
+                                ) : (
+                                  <X className="w-4 h-4 text-gray-400" />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
