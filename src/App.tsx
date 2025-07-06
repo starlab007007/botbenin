@@ -30,6 +30,7 @@ const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ d
 
 // Administration
 const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.UsersManagementPage })));
+const AdminPage = lazy(() => import("./pages/AdminPage").then(module => ({ default: module.AdminPage })));
 
 // Modules IA spécialisés
 const BusinessModule = lazy(() => import("./pages/modules/BusinessModule").then(module => ({ default: module.BusinessModule })));
@@ -92,6 +93,7 @@ const App = () => (
                     
                     {/* Administration */}
                     <Route path="/admin/users" element={<UsersManagementPage />} />
+                    <Route path="/admin" element={<AdminPage />} />
                     
                     {/* Prospects avec layout spécial */}
                     <Route path="/prospects" element={<ProspectsLayout />} />
