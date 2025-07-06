@@ -57,42 +57,65 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         return;
       }
 
-      // Vérifier si l'utilisateur est admin
-      const { data: adminCheck, error: adminError } = await supabase.rpc(
-        'is_admin',
-        { user_uuid: user.id }
-      );
+      // Vérifier si l'utilisateur est admin avec gestion d'erreur
+      let isUserAdmin = false;
+      let userPermissions: string[] = [];
+      
+      try {
+        const { data: adminCheck, error: adminError } = await supabase.rpc(
+          'is_admin',
+          { user_uuid: user.id }
+        );
 
-      // Récupérer les permissions de l'utilisateur
-      const { data: permissions, error: permError } = await supabase.rpc(
-        'get_user_permissions',
-        { user_uuid: user.id }
-      );
+        if (!adminError) {
+          isUserAdmin = adminCheck === true;
+        }
+      } catch (error) {
+        console.log('Admin check not available, using default permissions');
+      }
 
-      const userPermissions = (permissions || []).map((p: any) => p.permission_name);
-      const isUserAdmin = adminCheck === true;
+      // Récupérer les permissions avec gestion d'erreur
+      try {
+        const { data: permissions, error: permError } = await supabase.rpc(
+          'get_user_permissions',
+          { user_uuid: user.id }
+        );
 
-      // Récupérer les rôles de l'utilisateur
-      const { data: userRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select(`
-          roles:role_id (
-            name
-          )
-        `)
-        .eq('user_id', user.id);
+        if (!permError && permissions) {
+          userPermissions = permissions.map((p: any) => p.permission_name);
+        }
+      } catch (error) {
+        console.log('Permissions check not available, using default permissions');
+      }
 
-      const primaryRole = userRoles?.[0]?.roles?.name || 'user';
+      // Récupérer les rôles avec gestion d'erreur
+      let primaryRole: UserRole = 'user';
+      try {
+        const { data: userRoles, error: rolesError } = await supabase
+          .from('user_roles')
+          .select(`
+            roles:role_id (
+              name
+            )
+          `)
+          .eq('user_id', user.id);
+
+        if (!rolesError && userRoles && userRoles.length > 0) {
+          primaryRole = (userRoles[0]?.roles?.name || 'user') as UserRole;
+        }
+      } catch (error) {
+        console.log('Roles check not available, using default role');
+      }
 
       const currentUserData: User = {
         id: user.id,
         name: user.email?.split('@')[0] || 'Utilisateur',
         email: user.email || '',
-        role: primaryRole as UserRole,
+        role: isUserAdmin ? 'admin' : primaryRole,
         status: 'active',
         lastLogin: new Date(),
         createdAt: new Date(user.created_at),
-        permissions: userPermissions
+        permissions: isUserAdmin ? ['all'] : userPermissions
       };
 
       setCurrentUser(currentUserData);
@@ -143,10 +166,14 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const hasPermission = (permission: string): boolean => {
     if (!currentUser) return false;
-    return currentUser.role === 'admin' || currentUser.permissions.includes(permission);
+    return currentUser.role === 'admin' || 
+           currentUser.permissions.includes('all') || 
+           currentUser.permissions.includes(permission);
   };
 
-  const isAdmin = currentUser?.role === 'admin' || false;
+  const isAdmin = currentUser?.role === 'admin' || 
+                  currentUser?.permissions.includes('all') || 
+                  false;
 
   useEffect(() => {
     fetchCurrentUser();

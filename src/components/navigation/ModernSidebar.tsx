@@ -1,418 +1,190 @@
+
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, 
-  MessageCircle, 
-  Workflow, 
+  MessageSquare, 
   BarChart3, 
+  Bot, 
+  Zap, 
+  Share2, 
   Briefcase, 
-  Megaphone, 
-  FolderOpen, 
-  Users as UsersIcon, 
-  User, 
-  HelpCircle,
-  Bot,
-  Database,
-  Settings,
-  Zap,
-  Target,
-  Building,
+  TrendingUp, 
+  Settings, 
+  Users2, 
+  HelpCircle, 
+  User,
   Shield,
-  X,
-  Share2
+  X
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useUser } from '@/contexts/UserContext';
 
 interface ModernSidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const mainMenuItems = [
-  { 
-    title: 'Accueil', 
-    path: '/home', 
-    icon: Home, 
-    color: 'from-blue-500 to-blue-600',
-    description: 'Vue d\'ensemble'
-  },
-  { 
-    title: 'Chat IA', 
-    path: '/chat', 
-    icon: MessageCircle, 
-    color: 'from-green-500 to-green-600',
-    description: 'Assistant intelligent'
-  },
-  { 
-    title: 'Dashboard', 
-    path: '/dashboard', 
-    icon: BarChart3, 
-    color: 'from-purple-500 to-purple-600',
-    description: 'Tableaux de bord'
-  },
+const navigationItems = [
+  { name: 'Accueil', href: '/home', icon: Home },
+  { name: 'Chat IA', href: '/chat', icon: MessageSquare },
+  { name: 'Tableau de bord', href: '/dashboard', icon: BarChart3 },
+  { name: 'Mes Bots', href: '/bots', icon: Bot },
+  { name: 'Automatisations', href: '/automations', icon: Zap },
+  { name: 'Campagnes', href: '/social-campaigns', icon: Share2 },
+  { name: 'Prospects', href: '/prospects', icon: Users2 },
 ];
 
-const botManagementItems = [
-  { 
-    title: 'Mes Bots', 
-    path: '/bots', 
-    icon: Bot, 
-    color: 'from-indigo-500 to-indigo-600',
-    badge: 'Pro'
-  },
-  { 
-    title: 'Automatisations', 
-    path: '/automations', 
-    icon: Zap, 
-    color: 'from-orange-500 to-orange-600',
-    badge: 'New'
-  },
-];
-
-const marketingItems = [
-  { 
-    title: 'Campagnes Sociales', 
-    path: '/social-campaigns', 
-    icon: Share2, 
-    color: 'from-emerald-500 to-emerald-600',
-    description: 'Partage personnalisé',
-    badge: 'New'
-  },
-];
-
-const crmItems = [
-  { 
-    title: 'Prospects', 
-    path: '/prospects', 
-    icon: Target, 
-    color: 'from-pink-500 to-pink-600',
-    description: 'Gestion CRM'
-  },
-];
-
-const aiModules = [
-  { 
-    title: 'IA Business', 
-    path: '/modules/business', 
-    icon: Briefcase, 
-    color: 'from-blue-600 to-blue-700',
-    description: 'Solutions B2B'
-  },
-  { 
-    title: 'IA Marketing', 
-    path: '/modules/marketing', 
-    icon: Megaphone, 
-    color: 'from-pink-500 to-pink-600',
-    description: 'Campagnes & Lead'
-  },
-  { 
-    title: 'IA Gestion', 
-    path: '/modules/gestion', 
-    icon: FolderOpen, 
-    color: 'from-indigo-500 to-indigo-600',
-    description: 'Organisation'
-  },
-  { 
-    title: 'IA Citoyen', 
-    path: '/modules/citoyen', 
-    icon: Building, 
-    color: 'from-teal-500 to-teal-600',
-    description: 'Services publics'
-  },
+const modules = [
+  { name: 'Business', href: '/modules/business', icon: Briefcase },
+  { name: 'Marketing', href: '/modules/marketing', icon: TrendingUp },
+  { name: 'Gestion', href: '/modules/gestion', icon: Settings },
+  { name: 'Citoyen', href: '/modules/citoyen', icon: Users2 },
 ];
 
 const bottomItems = [
-  { 
-    title: 'Support', 
-    path: '/support', 
-    icon: HelpCircle, 
-    color: 'from-gray-500 to-gray-600' 
-  },
-  { 
-    title: 'Mon Compte', 
-    path: '/account', 
-    icon: User, 
-    color: 'from-gray-500 to-gray-600' 
-  },
+  { name: 'Support', href: '/support', icon: HelpCircle },
+  { name: 'Mon Compte', href: '/account', icon: User },
 ];
 
 export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
-  const { user } = useAuth();
   const isMobile = useIsMobile();
+  const { isAdmin } = useUser();
 
-  const isActive = (path: string) => {
-    if (path === '/home') {
-      return location.pathname === '/' || location.pathname === '/home';
-    }
-    return location.pathname.startsWith(path);
-  };
+  // Ajouter l'administration pour les admins
+  const adminItems = isAdmin ? [
+    { name: 'Administration', href: '/admin', icon: Shield },
+  ] : [];
 
-  const hasAdminAccess = user?.permissions.includes('manage_users');
+  const allBottomItems = [...bottomItems, ...adminItems];
 
-  const NavItem = ({ item, showDescription = false }: { item: any; showDescription?: boolean }) => (
-    <NavLink
-      to={item.path}
-      onClick={onClose}
-      className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 relative ${
-        isActive(item.path)
-          ? 'bg-white shadow-md border border-gray-100'
-          : 'hover:bg-white/60 hover:shadow-sm'
-      }`}
-    >
-      <div className={`w-10 h-10 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
-        <item.icon className="w-5 h-5 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className={`font-medium truncate ${
-            isActive(item.path) ? 'text-gray-900' : 'text-gray-700'
-          }`}>
-            {item.title}
-          </span>
-          {item.badge && (
-            <Badge variant="secondary" className="ml-2 text-xs px-2 py-0.5">
-              {item.badge}
-            </Badge>
-          )}
+  const sidebarContent = (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <Bot className="w-5 h-5 text-white" />
+          </div>
+          <span className="font-bold text-xl text-gray-900">Bot.bj</span>
         </div>
-        {showDescription && item.description && (
-          <p className="text-xs text-gray-500 truncate">{item.description}</p>
+        {isMobile && (
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md hover:bg-gray-100"
+          >
+            <X className="w-5 h-5" />
+          </button>
         )}
       </div>
-      {isActive(item.path) && (
-        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-600 rounded-r-full"></div>
-      )}
-    </NavLink>
-  );
 
-  return (
-    <>
-      {/* Sidebar mobile en plein écran */}
-      {isMobile ? (
-        <div className={`fixed inset-0 z-40 transform transition-transform duration-300 ease-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}>
-          <div className="w-full h-full bg-gradient-to-b from-gray-50 to-gray-100 overflow-y-auto">
-            {/* Header mobile en plein largeur */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
-              <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
+      {/* Navigation */}
+      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+        {/* Main Navigation */}
+        <div className="space-y-1">
+          {navigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.href;
+            
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={isMobile ? onClose : undefined}
+                className={cn(
+                  "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                  isActive
+                    ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                )}
+              >
+                <Icon className="w-5 h-5 mr-3" />
+                {item.name}
+              </Link>
+            );
+          })}
+        </div>
 
-            <nav className="p-4 space-y-6">
-              {/* Menu Principal */}
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                  Menu Principal
-                </h3>
-                <div className="space-y-2">
-                  {mainMenuItems.map((item) => (
-                    <NavItem key={item.path} item={item} showDescription />
-                  ))}
-                </div>
-              </div>
-
-              {/* Gestion des Bots */}
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                  Bots & Automatisation
-                </h3>
-                <div className="space-y-2">
-                  {botManagementItems.map((item) => (
-                    <NavItem key={item.path} item={item} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Marketing */}
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                  Marketing & Social
-                </h3>
-                <div className="space-y-2">
-                  {marketingItems.map((item) => (
-                    <NavItem key={item.path} item={item} showDescription />
-                  ))}
-                </div>
-              </div>
-
-              {/* CRM */}
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                  CRM & Prospects
-                </h3>
-                <div className="space-y-2">
-                  {crmItems.map((item) => (
-                    <NavItem key={item.path} item={item} showDescription />
-                  ))}
-                </div>
-              </div>
-
-              {/* Modules IA */}
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                  Modules IA Spécialisés
-                </h3>
-                <div className="space-y-2">
-                  {aiModules.map((item) => (
-                    <NavItem key={item.path} item={item} showDescription />
-                  ))}
-                </div>
-              </div>
-
-              {/* Administration */}
-              {hasAdminAccess && (
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                    Administration
-                  </h3>
-                  <div className="space-y-2">
-                    <NavLink
-                      to="/admin/users"
-                      onClick={onClose}
-                      className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                        isActive('/admin/users')
-                          ? 'bg-white shadow-md border border-gray-100'
-                          : 'hover:bg-white/60 hover:shadow-sm'
-                      }`}
-                    >
-                      <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                        <Shield className="w-5 h-5 text-white" />
-                      </div>
-                      <span className={`font-medium ${
-                        isActive('/admin/users') ? 'text-gray-900' : 'text-gray-700'
-                      }`}>
-                        Utilisateurs
-                      </span>
-                    </NavLink>
-                  </div>
-                </div>
-              )}
-
-              {/* Support & Compte */}
-              <div className="border-t border-gray-200 pt-6">
-                <div className="space-y-2">
-                  {bottomItems.map((item) => (
-                    <NavItem key={item.path} item={item} />
-                  ))}
-                </div>
-              </div>
-            </nav>
+        {/* Modules Section */}
+        <div className="pt-6">
+          <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            Modules IA
+          </h3>
+          <div className="space-y-1">
+            {modules.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.href;
+              
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  onClick={isMobile ? onClose : undefined}
+                  className={cn(
+                    "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                    isActive
+                      ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <Icon className="w-5 h-5 mr-3" />
+                  {item.name}
+                </Link>
+              );
+            })}
           </div>
         </div>
-      ) : (
-        /* Sidebar desktop */
-        <div className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gradient-to-b from-gray-50 to-gray-100 border-r border-gray-200 overflow-y-auto transform transition-transform duration-300 ease-out z-40 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0`}>
+      </nav>
+
+      {/* Bottom Navigation */}
+      <div className="border-t border-gray-200 p-4 space-y-1">
+        {allBottomItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.href;
           
-          <nav className="p-4 space-y-8">
-            {/* Menu Principal */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                Menu Principal
-              </h3>
-              <div className="space-y-2">
-                {mainMenuItems.map((item) => (
-                  <NavItem key={item.path} item={item} showDescription />
-                ))}
-              </div>
-            </div>
+          return (
+            <Link
+              key={item.name}
+              to={item.href}
+              onClick={isMobile ? onClose : undefined}
+              className={cn(
+                "flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                isActive
+                  ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              )}
+            >
+              <Icon className="w-5 h-5 mr-3" />
+              {item.name}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
 
-            {/* Gestion des Bots */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                Bots & Automatisation
-              </h3>
-              <div className="space-y-2">
-                {botManagementItems.map((item) => (
-                  <NavItem key={item.path} item={item} />
-                ))}
-              </div>
-            </div>
-
-            {/* Marketing */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                Marketing & Social
-              </h3>
-              <div className="space-y-2">
-                {marketingItems.map((item) => (
-                  <NavItem key={item.path} item={item} showDescription />
-                ))}
-              </div>
-            </div>
-
-            {/* CRM */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                CRM & Prospects
-              </h3>
-              <div className="space-y-2">
-                {crmItems.map((item) => (
-                  <NavItem key={item.path} item={item} showDescription />
-                ))}
-              </div>
-            </div>
-
-            {/* Modules IA */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                Modules IA Spécialisés
-              </h3>
-              <div className="space-y-2">
-                {aiModules.map((item) => (
-                  <NavItem key={item.path} item={item} showDescription />
-                ))}
-              </div>
-            </div>
-
-            {/* Administration */}
-            {hasAdminAccess && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-                  Administration
-                </h3>
-                <div className="space-y-2">
-                  <NavLink
-                    to="/admin/users"
-                    onClick={onClose}
-                    className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                      isActive('/admin/users')
-                        ? 'bg-white shadow-md border border-gray-100'
-                        : 'hover:bg-white/60 hover:shadow-sm'
-                    }`}
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                      <Shield className="w-5 h-5 text-white" />
-                    </div>
-                    <span className={`font-medium ${
-                      isActive('/admin/users') ? 'text-gray-900' : 'text-gray-700'
-                    }`}>
-                      Utilisateurs
-                    </span>
-                  </NavLink>
-                </div>
-              </div>
-            )}
-
-            {/* Support & Compte */}
-            <div className="border-t border-gray-200 pt-6">
-              <div className="space-y-2">
-                {bottomItems.map((item) => (
-                  <NavItem key={item.path} item={item} />
-                ))}
-              </div>
-            </div>
-          </nav>
+  if (isMobile) {
+    return (
+      <>
+        {/* Mobile Sidebar */}
+        <div className={cn(
+          "fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
+          {sidebarContent}
         </div>
-      )}
-    </>
+      </>
+    );
+  }
+
+  // Desktop Sidebar
+  return (
+    <div className="hidden lg:flex lg:flex-shrink-0">
+      <div className="flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full top-16 z-30">
+        {sidebarContent}
+      </div>
+    </div>
   );
 };
