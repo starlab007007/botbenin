@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -103,40 +102,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const assignAdminRole = async (userEmail: string): Promise<string> => {
     try {
-      // Use a direct SQL query since the RPC function might not be available in types
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select(`
-          user_id,
-          roles!inner(name)
-        `)
-        .eq('roles.name', 'admin')
-        .limit(1);
+      // Utiliser la nouvelle fonction SQL pour assigner le rôle admin
+      const { data, error } = await supabase.rpc('assign_admin_role', {
+        user_email: userEmail
+      });
 
       if (error) {
-        console.error('Erreur lors de la vérification:', error);
+        console.error('Erreur lors de l\'assignation du rôle admin:', error);
+        return `Erreur: ${error.message}`;
       }
 
-      // Try to call the function directly through a raw SQL approach
-      const { data: result, error: rpcError } = await supabase
-        .from('user_roles')
-        .select('*')
-        .limit(1);
-
-      if (rpcError) {
-        console.error('Erreur RPC:', rpcError);
-        return `Erreur: ${rpcError.message}`;
-      }
-
-      // For now, return a success message as the actual RPC call needs database setup
-      const successMessage = `Tentative d'assignation du rôle admin à ${userEmail}`;
-      
       // Rafraîchir les données si c'est l'utilisateur actuel
       if (currentUser?.email === userEmail) {
         await refreshUserData();
       }
 
-      return successMessage;
+      return data || `Rôle admin assigné avec succès à ${userEmail}`;
     } catch (error: any) {
       console.error('Erreur lors de l\'assignation du rôle admin:', error);
       return `Erreur: ${error.message || 'Erreur inconnue'}`;
