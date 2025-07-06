@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,7 @@ import { GeoLocationMap } from './GeoLocationMap';
 import { SaveToProspectsModal } from './SaveToProspectsModal';
 import { MarketingCampaignModal } from './MarketingCampaignModal';
 import { useToast } from '@/hooks/use-toast';
+import { useLocalBusinesses } from '@/hooks/useLocalBusinesses';
 
 interface LocalFilters {
   businessType: string;
@@ -265,7 +265,10 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   const [usePerplexityFallback, setUsePerplexityFallback] = useState(false);
   const [perplexityApiKey, setPerplexityApiKey] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  
   const { toast } = useToast();
+  const { businesses: savedBusinesses, saveBusinesses, transferToProspects, fetchBusinesses } = useLocalBusinesses();
 
   // Check internet connectivity
   useEffect(() => {
@@ -356,11 +359,14 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
   const executeWebhookSearch = async () => {
     const requestId = `local_req_${Date.now()}`;
+    const sessionId = `local_session_${Date.now()}`;
+    setCurrentSessionId(sessionId);
     setIsLoading(true);
     setRetryCount(prev => prev + 1);
     
     console.log('=== LOCAL PROSPECTING SEARCH START ===');
     console.log('Request ID:', requestId);
+    console.log('Session ID:', sessionId);
     console.log('Retry count:', retryCount);
     console.log('Connection status:', connectionStatus);
     console.log('Use Perplexity fallback:', usePerplexityFallback);
@@ -402,7 +408,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         const requestPayload = {
           message: messageToSend,
           timestamp: new Date().toISOString(),
-          session_id: `local_search_${Date.now()}`,
+          session_id: sessionId,
           user_id: 'local_user',
           source: 'bot_bj_platform',
           context: 'local_prospecting',
@@ -488,6 +494,37 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
       const extractedBusinesses = parseWebhookResponse(processedContent);
       console.log('Extracted businesses:', extractedBusinesses);
 
+      // Save businesses to database
+      if (extractedBusinesses.length > 0) {
+        try {
+          const businessesToSave = extractedBusinesses.map(business => ({
+            name: business.name,
+            company_name: business.companyName,
+            category: business.category,
+            address: business.address,
+            phone: business.phone,
+            website: business.website,
+            email: business.email,
+            rating: business.rating,
+            review_count: business.reviewCount,
+            hours: business.hours,
+            price_range: business.priceRange,
+            distance: business.distance,
+            location: business.location,
+            coordinates: business.coordinates,
+            job_title: business.jobTitle,
+            linkedin_url: business.linkedinUrl,
+            industry: business.industry,
+            company_size: business.companySize
+          }));
+
+          await saveBusinesses(businessesToSave, sessionId);
+        } catch (saveError) {
+          console.error('Error saving businesses to database:', saveError);
+          // Continue even if save fails
+        }
+      }
+
       const successResponse: WebhookResponse = {
         status: 'success',
         message: processedContent.trim(),
@@ -502,7 +539,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
       toast({
         title: "Prospection Locale - Succès",
-        description: `${extractedBusinesses.length} entreprises locales trouvées`,
+        description: `${extractedBusinesses.length} entreprises locales trouvées et sauvegardées`,
       });
 
       console.log('Local prospecting search completed successfully');
@@ -528,6 +565,34 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
       // Afficher automatiquement les données de démonstration en cas d'erreur
       const mockBusinesses = getMockBusinesses();
+      
+      // Save mock businesses to database for demo
+      try {
+        const businessesToSave = mockBusinesses.map(business => ({
+          name: business.name,
+          company_name: business.companyName,
+          category: business.category,
+          address: business.address,
+          phone: business.phone,
+          website: business.website,
+          email: business.email,
+          rating: business.rating,
+          review_count: business.reviewCount,
+          hours: business.hours,
+          price_range: business.priceRange,
+          distance: business.distance,
+          location: business.location,
+          coordinates: business.coordinates,
+          job_title: business.jobTitle,
+          linkedin_url: business.linkedinUrl,
+          industry: business.industry,
+          company_size: business.companySize
+        }));
+
+        await saveBusinesses(businessesToSave, sessionId);
+      } catch (saveError) {
+        console.error('Error saving demo businesses:', saveError);
+      }
       
       const errorResponse: WebhookResponse = {
         status: errorStatus,
@@ -695,8 +760,53 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
     setShowMarketingModal(true);
   };
 
+  const handleTransferToProspects = async (databaseId: string) => {
+    try {
+      const businessIds = selectedBusinesses.filter(id => 
+        savedBusinesses.some(b => b.id === id)
+      );
+
+      if (businessIds.length === 0) {
+        toast({
+          title: "Erreur",
+          description: "Aucune entreprise sauvegardée sélectionnée",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await transferToProspects(businessIds, databaseId);
+      setSelectedBusinesses([]);
+    } catch (error) {
+      console.error('Error transferring to prospects:', error);
+    }
+  };
+
   if (showResults) {
-    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    // Use saved businesses from database if available, otherwise use webhook response data
+    const displayBusinesses = currentSessionId ? 
+      savedBusinesses.filter(b => b.search_session_id === currentSessionId).map(b => ({
+        id: b.id,
+        name: b.name,
+        companyName: b.company_name,
+        category: b.category || '',
+        address: b.address || '',
+        phone: b.phone || '',
+        website: b.website || '',
+        rating: b.rating || 0,
+        reviewCount: b.review_count || 0,
+        hours: b.hours || '',
+        priceRange: b.price_range || '',
+        distance: b.distance || '',
+        location: b.location || '',
+        coordinates: b.coordinates as [number, number] | undefined,
+        jobTitle: b.job_title || '',
+        email: b.email || '',
+        linkedinUrl: b.linkedin_url || '',
+        industry: b.industry || '',
+        companySize: b.company_size || ''
+      })) : 
+      webhookResponse?.data || getMockBusinesses();
     
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -898,7 +1008,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
           isOpen={showSaveModal}
           onClose={() => setShowSaveModal(false)}
           selectedBusinesses={getSelectedBusinessesData()}
-          searchSessionId={`search_${Date.now()}`}
+          searchSessionId={currentSessionId}
+          onTransfer={handleTransferToProspects}
         />
 
         <MarketingCampaignModal
