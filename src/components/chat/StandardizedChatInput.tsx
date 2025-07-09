@@ -3,19 +3,24 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Paperclip, Smile, Send, Sparkles } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { HybridSuggestionSystem } from '@/components/HybridSuggestionSystem';
 
 interface StandardizedChatInputProps {
   newMessage: string;
   setNewMessage: (message: string) => void;
   onSendMessage: () => void;
   isTyping: boolean;
+  botId?: string;
+  userContext?: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general';
 }
 
 export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
   newMessage,
   setNewMessage,
   onSendMessage,
-  isTyping
+  isTyping,
+  botId,
+  userContext = 'general'
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(true);
   const isMobile = useIsMobile();
@@ -36,42 +41,27 @@ export const StandardizedChatInput: React.FC<StandardizedChatInputProps> = ({
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    setNewMessage(suggestion);
+  const handleSuggestionClick = (action: string) => {
+    setNewMessage(action);
     setShowSuggestions(false);
+    // Auto-send the suggestion
+    setTimeout(() => {
+      if (action.trim()) {
+        onSendMessage();
+      }
+    }, 100);
   };
 
   return (
     <div className="bg-white border-t border-gray-200">
-      {/* Suggestions de messages centrées */}
+      {/* Intelligent Suggestions */}
       {showSuggestions && newMessage.trim() === '' && (
         <div className={`${isMobile ? 'p-4' : 'p-6'} border-b border-gray-100 bg-gray-50`}>
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="w-8 h-8 text-white" />
-            </div>
-            <h3 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold text-gray-900 mb-2`}>
-              Comment puis-je vous aider?
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Voici quelques suggestions pour commencer
-            </p>
-            <div className="space-y-3">
-              {messageSuggestions.slice(0, 3).map((suggestion, index) => (
-                <Button
-                  key={index}
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  variant="outline"
-                  size={isMobile ? "default" : "lg"}
-                  className={`w-full text-left justify-start text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-700 transition-all ${isMobile ? 'py-3 px-4 text-sm' : ''} ${
-                    index === 0 ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-600' : ''
-                  }`}
-                >
-                  {suggestion}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <HybridSuggestionSystem
+            botId={botId}
+            userContext={userContext}
+            onSuggestionClick={handleSuggestionClick}
+          />
         </div>
       )}
 

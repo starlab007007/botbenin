@@ -434,6 +434,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
         onSendMessage={() => handleSendMessage()}
+        botId={urlBotId}
+        userContext={getUserContext()}
       />
     </div>
   );

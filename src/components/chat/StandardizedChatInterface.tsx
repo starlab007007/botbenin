@@ -78,6 +78,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           setNewMessage={setNewMessage}
           onSendMessage={onSendMessage}
           isTyping={isTyping}
+          botId={selectedAgent?.id}
+          userContext={selectedAgent?.chatContext as any || 'general'}
         />
       </div>
     </div>
