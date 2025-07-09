@@ -95,15 +95,17 @@ export const AdminPage: React.FC = () => {
 
           <TabsContent value="dashboard" className="space-y-6">
             <AdminStats stats={{
-              total_bots: 0,
-              active_bots: 0,
               total_users: 0,
               active_users_24h: 0,
               active_users_7d: 0,
               new_users_30d: 0,
-              new_bots_30d: 0,
-              active_subscriptions: 0,
-              total_link_clicks: 0
+              total_bots: 0,
+              active_bots: 0,
+              total_campaigns: 0,
+              active_campaigns: 0,
+              total_messages_24h: 0,
+              total_subscriptions: 0,
+              revenue_monthly: 0
             }} />
           </TabsContent>
 
