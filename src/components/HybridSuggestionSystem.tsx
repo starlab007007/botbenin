@@ -4,7 +4,7 @@ import { SuggestionCards } from '@/components/SuggestionCards';
 
 interface HybridSuggestionSystemProps {
   botId?: string;
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general';
   onSuggestionClick: (action: string) => void;
 }
 

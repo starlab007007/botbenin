@@ -425,6 +425,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         isLoading={isLoading || (loadingHistory && messages.length === 0) || isInitializing}
         onToggleBookmark={toggleBookmark}
         onSuggestionClick={handleSuggestionClick}
+        botId={urlBotId}
       />
       
       <ChatInputArea
