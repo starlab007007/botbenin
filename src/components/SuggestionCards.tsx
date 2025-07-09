@@ -14,7 +14,11 @@ import {
   Car,
   Utensils,
   ShoppingBag,
-  Wrench
+  Wrench,
+  Eye,
+  Sparkles,
+  GraduationCap,
+  Building
 } from 'lucide-react';
 
 interface Suggestion {
@@ -27,7 +31,7 @@ interface Suggestion {
 }
 
 interface SuggestionCardsProps {
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'immobilier' | 'optique' | 'cosmetiques' | 'consultations_formations' | 'general';
   onSuggestionClick: (suggestion: Suggestion) => void;
 }
 
@@ -41,35 +45,187 @@ export const SuggestionCards: React.FC<SuggestionCardsProps> = ({
         return [
           {
             id: 'r1',
-            title: 'Cuisine française',
-            description: 'Découvrez les meilleurs restaurants français',
+            title: 'Spécialité du jour',
+            description: 'Découvrez les plats d\'aujourd\'hui',
             icon: Utensils,
-            category: 'Cuisine',
-            action: 'Je cherche un restaurant français gastronomique'
+            category: 'Menu',
+            action: 'Quelle est votre spécialité du jour ?'
           },
           {
             id: 'r2',
-            title: 'Réservation rapide',
-            description: 'Trouvez une table disponible maintenant',
+            title: 'Réservation',
+            description: 'Réserver une table facilement',
             icon: Calendar,
             category: 'Disponibilité',
-            action: 'J\'ai besoin d\'une table pour 4 personnes ce soir'
+            action: 'Avez-vous une table disponible pour ce soir ?'
           },
           {
             id: 'r3',
-            title: 'Restaurant avec terrasse',
-            description: 'Profitez d\'un repas en extérieur',
-            icon: Home,
-            category: 'Ambiance',
-            action: 'Restaurant avec terrasse ensoleillée pour déjeuner'
+            title: 'Livraison',
+            description: 'Service de livraison à domicile',
+            icon: Car,
+            category: 'Service',
+            action: 'Proposez-vous la livraison à domicile ?'
+          }
+        ];
+        
+      case 'immobilier':
+        return [
+          {
+            id: 'immo1',
+            title: 'Appartement 2 pièces',
+            description: 'Rechercher un logement à Cotonou',
+            icon: Building,
+            category: 'Location',
+            action: 'Je cherche un appartement 2 pièces à Cotonou'
           },
           {
-            id: 'r4',
-            title: 'Événement spécial',
-            description: 'Restaurants pour anniversaires et célébrations',
+            id: 'immo2',
+            title: 'Prix au m²',
+            description: 'Connaître les tarifs immobiliers',
+            icon: BarChart3,
+            category: 'Prix',
+            action: 'Quels sont les prix au m² à Calavi ?'
+          },
+          {
+            id: 'immo3',
+            title: 'Terrain constructible',
+            description: 'Trouver un terrain à bâtir',
+            icon: MapPin,
+            category: 'Terrain',
+            action: 'Avez-vous des terrains constructibles ?'
+          }
+        ];
+        
+      case 'optique':
+        return [
+          {
+            id: 'opt1',
+            title: 'Examen de vue',
+            description: 'Contrôle de votre vision',
+            icon: Eye,
+            category: 'Consultation',
+            action: 'J\'ai besoin d\'un examen de vue'
+          },
+          {
+            id: 'opt2',
+            title: 'Marques de lunettes',
+            description: 'Découvrir notre sélection',
+            icon: Eye,
+            category: 'Produits',
+            action: 'Quelles marques de lunettes proposez-vous ?'
+          },
+          {
+            id: 'opt3',
+            title: 'Mutuelle santé',
+            description: 'Prise en charge assurance',
+            icon: FileText,
+            category: 'Paiement',
+            action: 'Acceptez-vous la mutuelle santé ?'
+          },
+          {
+            id: 'opt4',
+            title: 'Lunettes progressives',
+            description: 'Tarifs des verres progressifs',
+            icon: BarChart3,
+            category: 'Prix',
+            action: 'Combien coûte une paire de lunettes progressives ?'
+          },
+          {
+            id: 'opt5',
+            title: 'Lentilles de contact',
+            description: 'Alternative aux lunettes',
+            icon: Eye,
+            category: 'Produits',
+            action: 'Proposez-vous des lentilles de contact ?'
+          }
+        ];
+        
+      case 'cosmetiques':
+        return [
+          {
+            id: 'cosm1',
+            title: 'Peau grasse',
+            description: 'Soins adaptés aux peaux grasses',
+            icon: Sparkles,
+            category: 'Soins',
+            action: 'Quels produits pour peau grasse ?'
+          },
+          {
+            id: 'cosm2',
+            title: 'Anti-âge',
+            description: 'Produits contre le vieillissement',
+            icon: Sparkles,
+            category: 'Soins',
+            action: 'Avez-vous des soins anti-âge ?'
+          },
+          {
+            id: 'cosm3',
+            title: 'Fond de teint',
+            description: 'Teint parfait pour peau mate',
+            icon: Sparkles,
+            category: 'Maquillage',
+            action: 'Je cherche un fond de teint pour peau mate'
+          },
+          {
+            id: 'cosm4',
+            title: 'Produits bio',
+            description: 'Cosmétiques naturels et bio',
+            icon: Sparkles,
+            category: 'Bio',
+            action: 'Proposez-vous des produits bio ?'
+          }
+        ];
+        
+      case 'consultations_formations':
+        return [
+          {
+            id: 'form1',
+            title: 'Nos formations',
+            description: 'Catalogue de formations disponibles',
+            icon: GraduationCap,
+            category: 'Formation',
+            action: 'Quelles formations proposez-vous ?'
+          },
+          {
+            id: 'form2',
+            title: 'Rendez-vous',
+            description: 'Prendre un rendez-vous de consultation',
+            icon: Calendar,
+            category: 'Consultation',
+            action: 'Comment prendre rendez-vous ?'
+          },
+          {
+            id: 'form3',
+            title: 'Formation en ligne',
+            description: 'Apprentissage à distance',
+            icon: MessageSquare,
+            category: 'E-learning',
+            action: 'Proposez-vous des formations en ligne ?'
+          },
+          {
+            id: 'form4',
+            title: 'Coût consultation',
+            description: 'Tarifs de nos consultations',
+            icon: BarChart3,
+            category: 'Prix',
+            action: 'Quel est le coût d\'une consultation ?'
+          },
+          {
+            id: 'form5',
+            title: 'Certifications',
+            description: 'Reconnaissance officielle',
+            icon: FileText,
+            category: 'Certification',
+            action: 'Avez-vous des certifications reconnues ?'
+          },
+          {
+            id: 'form6',
+            title: 'Management',
+            description: 'Formations en gestion d\'équipe',
             icon: Users,
-            category: 'Événement',
-            action: 'Restaurant romantique pour un anniversaire de mariage'
+            category: 'Management',
+            action: 'Formations disponibles en management ?'
           }
         ];
         
