@@ -461,7 +461,6 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         isLoading={isProcessing}
         onToggleBookmark={toggleBookmark}
         onSuggestionClick={handleSuggestionClick}
-        botId={botId}
       />
       
       <ChatInputArea

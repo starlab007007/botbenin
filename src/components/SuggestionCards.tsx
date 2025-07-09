@@ -27,7 +27,7 @@ interface Suggestion {
 }
 
 interface SuggestionCardsProps {
-  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'automation' | 'general';
+  userContext: 'business' | 'marketing' | 'gestion' | 'citoyen' | 'services_locaux' | 'restaurant' | 'general';
   onSuggestionClick: (suggestion: Suggestion) => void;
 }
 
@@ -250,42 +250,6 @@ export const SuggestionCards: React.FC<SuggestionCardsProps> = ({
             icon: MapPin,
             category: 'Services',
             action: 'Je cherche un restaurant italien ouvert ce soir'
-          }
-        ];
-
-      case 'automation':
-        return [
-          {
-            id: 'a1',
-            title: 'Créer une automatisation',
-            description: 'Configurez des workflows automatisés',
-            icon: Zap,
-            category: 'Workflow',
-            action: 'Créer une nouvelle automatisation pour mes tâches'
-          },
-          {
-            id: 'a2',
-            title: 'Analyser les performances',
-            description: 'Consultez les statistiques de vos automatisations',
-            icon: BarChart3,
-            category: 'Analytics',
-            action: 'Afficher les performances de mes automatisations'
-          },
-          {
-            id: 'a3',
-            title: 'Optimiser les processus',
-            description: 'Améliorez l\'efficacité de vos workflows',
-            icon: TrendingUp,
-            category: 'Optimisation',
-            action: 'Comment optimiser mes processus automatisés ?'
-          },
-          {
-            id: 'a4',
-            title: 'Support automation',
-            description: 'Obtenez de l\'aide pour vos automatisations',
-            icon: MessageSquare,
-            category: 'Support',
-            action: 'J\'ai besoin d\'aide avec mes automatisations'
           }
         ];
       

@@ -3,7 +3,6 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { ChatMessage } from '@/components/ChatMessage';
 import { SuggestionCards } from '@/components/SuggestionCards';
-import { HybridSuggestionSystem } from '@/components/HybridSuggestionSystem';
 import { useSearchParams } from 'react-router-dom';
 
 interface Message {
@@ -21,7 +20,6 @@ interface ChatMessageAreaProps {
   isLoading: boolean;
   onToggleBookmark: (messageId: string) => void;
   onSuggestionClick: (suggestion: any) => void;
-  botId?: string; // Ajout du botId optionnel
 }
 
 // Utilitaire pour détecter les appareils mobiles
@@ -37,14 +35,10 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
   isLoading,
   onToggleBookmark,
   onSuggestionClick,
-  botId: propBotId, // Renommer pour éviter la confusion
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [usedSuggestions, setUsedSuggestions] = useState<Set<string>>(new Set());
   const [searchParams] = useSearchParams();
-  
-  // Récupérer le botId des props ou des paramètres URL en fallback
-  const botId = propBotId || searchParams.get('bot');
   
   // Détecter si c'est un lien partagé
   const isSharedLink = searchParams.get('entry') === 'shortened_link' || 
@@ -220,32 +214,22 @@ export const ChatMessageArea: React.FC<ChatMessageAreaProps> = ({
               Voici quelques suggestions pour commencer
             </p>
             
-            {/* Système de suggestions hybride (intelligent + fallback) */}
-            {botId ? (
-              <div className={`${isMobile ? 'w-[90%]' : 'max-w-4xl'} mx-auto`}>
-                <HybridSuggestionSystem
-                  botId={botId}
-                  userContext={userContext}
-                  onSuggestionClick={(action) => handleSuggestionClick({ action })}
-                />
-              </div>
-            ) : (
-              <div className={`space-y-4 ${isMobile ? 'w-[90%]' : 'max-w-md'} mx-auto`}>
-                {getInitialSuggestions().map((suggestion, index) => (
-                  <button 
-                    key={suggestion.action}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    className={`w-full ${
-                      index === 0 
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg' 
-                        : 'bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-blue-300 shadow-md'
-                    } rounded-2xl ${isMobile ? 'py-4 px-5 text-base' : 'py-5 px-7 text-lg'} font-semibold transition-all duration-200 transform hover:scale-105`}
-                  >
-                    {suggestion.action}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Suggestion buttons initiales adaptées au mobile */}
+            <div className={`space-y-4 ${isMobile ? 'w-[90%]' : 'max-w-md'} mx-auto`}>
+              {getInitialSuggestions().map((suggestion, index) => (
+                <button 
+                  key={suggestion.action}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className={`w-full ${
+                    index === 0 
+                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg' 
+                      : 'bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-blue-300 shadow-md'
+                  } rounded-2xl ${isMobile ? 'py-4 px-5 text-base' : 'py-5 px-7 text-lg'} font-semibold transition-all duration-200 transform hover:scale-105`}
+                >
+                  {suggestion.action}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

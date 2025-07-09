@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/contexts/UserContext';
 import { AdminControlPanel } from '@/components/AdminControlPanel';
@@ -8,7 +7,6 @@ import { AdminStats } from '@/components/AdminStats';
 import { UsersManagement } from '@/components/UsersManagement';
 import { SystemLogs } from '@/components/SystemLogs';
 import { GlobalSettings } from '@/components/GlobalSettings';
-import { IntelligentSuggestionsDemo } from '@/components/IntelligentSuggestionsDemo';
 import { 
   Shield, 
   Users, 
@@ -72,7 +70,7 @@ export const AdminPage: React.FC = () => {
       {/* Contenu Principal */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard" className="flex items-center space-x-2">
               <BarChart3 className="w-4 h-4" />
               <span>Dashboard</span>
@@ -92,10 +90,6 @@ export const AdminPage: React.FC = () => {
             <TabsTrigger value="settings" className="flex items-center space-x-2">
               <Settings className="w-4 h-4" />
               <span>Paramètres</span>
-            </TabsTrigger>
-            <TabsTrigger value="test" className="flex items-center space-x-2">
-              <Crown className="w-4 h-4" />
-              <span>Tests IA</span>
             </TabsTrigger>
           </TabsList>
 
@@ -129,57 +123,6 @@ export const AdminPage: React.FC = () => {
 
           <TabsContent value="settings" className="space-y-6">
             <GlobalSettings />
-          </TabsContent>
-
-          <TabsContent value="test" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Crown className="w-5 h-5 text-purple-500" />
-                  <span>Tests du Système de Suggestions Intelligentes</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="text-sm text-gray-600">
-                    <p className="mb-4">
-                      Testez le nouveau système de suggestions intelligentes qui s'adapte automatiquement aux domaines des bots.
-                      Le système utilise l'IA pour détecter le contexte et proposer des suggestions personnalisées.
-                    </p>
-                  </div>
-
-                  <div className="flex space-x-4">
-                    <Button
-                      onClick={() => window.open('/test-suggestions', '_blank')}
-                      className="bg-purple-600 hover:bg-purple-700"
-                    >
-                      🧪 Ouvrir la page de test complète
-                    </Button>
-                    
-                    <Button
-                      onClick={() => window.open('/test-suggestions?context=restaurant', '_blank')}
-                      variant="outline"
-                    >
-                      🍽️ Test contexte Restaurant
-                    </Button>
-                    
-                    <Button
-                      onClick={() => window.open('/test-suggestions?context=business', '_blank')}
-                      variant="outline"
-                    >
-                      💼 Test contexte Business
-                    </Button>
-                  </div>
-
-                  <div className="border-t pt-6">
-                    <h4 className="font-semibold mb-4">Aperçu rapide du système :</h4>
-                    <IntelligentSuggestionsDemo
-                      userContext="services_locaux"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>

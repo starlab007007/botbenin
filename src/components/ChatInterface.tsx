@@ -425,7 +425,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         isLoading={isLoading || (loadingHistory && messages.length === 0) || isInitializing}
         onToggleBookmark={toggleBookmark}
         onSuggestionClick={handleSuggestionClick}
-        botId={urlBotId}
       />
       
       <ChatInputArea
@@ -434,8 +433,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         onInputChange={setInputValue}
         onKeyPress={handleKeyPress}
         onSendMessage={() => handleSendMessage()}
-        botId={urlBotId}
-        userContext={getUserContext()}
       />
     </div>
   );

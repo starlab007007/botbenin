@@ -542,120 +542,6 @@ export type Database = {
           },
         ]
       }
-      bot_domain_assignments: {
-        Row: {
-          assigned_by: string | null
-          bot_id: string
-          confidence_score: number | null
-          created_at: string
-          domain_id: string
-          id: string
-        }
-        Insert: {
-          assigned_by?: string | null
-          bot_id: string
-          confidence_score?: number | null
-          created_at?: string
-          domain_id: string
-          id?: string
-        }
-        Update: {
-          assigned_by?: string | null
-          bot_id?: string
-          confidence_score?: number | null
-          created_at?: string
-          domain_id?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owner_conversations"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_performance_metrics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_stats"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_visitor_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bots"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "detailed_bot_stats"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_domain_id_fkey"
-            columns: ["domain_id"]
-            isOneToOne: false
-            referencedRelation: "bot_domains"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bot_domains: {
-        Row: {
-          context_indicators: Json | null
-          created_at: string
-          description: string | null
-          id: string
-          keywords: string[] | null
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          context_indicators?: Json | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          keywords?: string[] | null
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          context_indicators?: Json | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          keywords?: string[] | null
-          name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       bot_owners: {
         Row: {
           created_at: string
@@ -1455,59 +1341,6 @@ export type Database = {
           resource?: string
         }
         Relationships: []
-      }
-      domain_suggestions: {
-        Row: {
-          action_prompt: string
-          category: string
-          conditions: Json | null
-          created_at: string
-          description: string
-          domain_id: string
-          icon_name: string
-          id: string
-          is_active: boolean | null
-          priority: number | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          action_prompt: string
-          category: string
-          conditions?: Json | null
-          created_at?: string
-          description: string
-          domain_id: string
-          icon_name: string
-          id?: string
-          is_active?: boolean | null
-          priority?: number | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          action_prompt?: string
-          category?: string
-          conditions?: Json | null
-          created_at?: string
-          description?: string
-          domain_id?: string
-          icon_name?: string
-          id?: string
-          is_active?: boolean | null
-          priority?: number | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "domain_suggestions_domain_id_fkey"
-            columns: ["domain_id"]
-            isOneToOne: false
-            referencedRelation: "bot_domains"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       enhanced_chat_sessions: {
         Row: {
@@ -3085,96 +2918,6 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      suggestion_metrics: {
-        Row: {
-          bot_id: string | null
-          clicked_count: number | null
-          conversion_rate: number | null
-          created_at: string
-          id: string
-          last_clicked: string | null
-          suggestion_id: string
-          updated_at: string
-        }
-        Insert: {
-          bot_id?: string | null
-          clicked_count?: number | null
-          conversion_rate?: number | null
-          created_at?: string
-          id?: string
-          last_clicked?: string | null
-          suggestion_id: string
-          updated_at?: string
-        }
-        Update: {
-          bot_id?: string | null
-          clicked_count?: number | null
-          conversion_rate?: number | null
-          created_at?: string
-          id?: string
-          last_clicked?: string | null
-          suggestion_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owner_conversations"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_performance_metrics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_stats"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_visitor_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bots"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "detailed_bot_stats"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_suggestion_id_fkey"
-            columns: ["suggestion_id"]
-            isOneToOne: false
-            referencedRelation: "domain_suggestions"
             referencedColumns: ["id"]
           },
         ]
@@ -4915,13 +4658,6 @@ export type Database = {
         }
         Returns: string
       }
-      detect_bot_domain: {
-        Args: { p_bot_id: string }
-        Returns: {
-          domain_id: string
-          confidence_score: number
-        }[]
-      }
       diagnose_all_session_ambiguities: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -5083,19 +4819,6 @@ export type Database = {
           user_email: string
           ip_address: string
           user_agent: string
-        }[]
-      }
-      get_intelligent_suggestions: {
-        Args: { p_bot_id: string; p_limit?: number }
-        Returns: {
-          suggestion_id: string
-          title: string
-          description: string
-          action_prompt: string
-          icon_name: string
-          category: string
-          domain_name: string
-          confidence_score: number
         }[]
       }
       get_or_create_bot_user_for_session: {
