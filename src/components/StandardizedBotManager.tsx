@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { BotConfigService, StandardBotConfig } from '@/services/botConfigService';
 import { SystemRepairService } from '@/services/systemRepairService';
 import { supabase } from '@/integrations/supabase/client';
-import { Bot, CheckCircle, XCircle, AlertTriangle, Save, Zap, RefreshCw, Wrench } from 'lucide-react';
+import { Bot, CheckCircle, XCircle, AlertTriangle, Save, Zap, RefreshCw, Wrench, Search } from 'lucide-react';
 
 interface StandardizedBotManagerProps {
   botId?: string;
@@ -26,8 +26,14 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [validation, setValidation] = useState({ isValid: true, errors: [], warnings: [] });
   const [saveAttempts, setSaveAttempts] = useState(0);
+  const [systemDiagnosis, setSystemDiagnosis] = useState<{
+    hasIssues: boolean;
+    issues: string[];
+    canAutoRepair: boolean;
+  } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -63,6 +69,36 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
     }
   };
 
+  const handleDiagnoseSystem = async () => {
+    setIsDiagnosing(true);
+    try {
+      const diagnosis = await SystemRepairService.diagnoseSystemIssues();
+      setSystemDiagnosis(diagnosis);
+      
+      if (diagnosis.hasIssues) {
+        toast({
+          title: "Problèmes détectés",
+          description: `${diagnosis.issues.length} problème(s) trouvé(s). ${diagnosis.canAutoRepair ? 'Réparation automatique disponible.' : 'Réparation manuelle requise.'}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Système en bon état",
+          description: "Aucun problème détecté dans votre configuration",
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du diagnostic:', error);
+      toast({
+        title: "Erreur de diagnostic",
+        description: "Impossible d'analyser l'état du système",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
+
   const handleAutoRepair = async () => {
     setIsRepairing(true);
     try {
@@ -70,6 +106,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       if (success) {
         // Réinitialise le compteur de tentatives après une réparation réussie
         setSaveAttempts(0);
+        setSystemDiagnosis(null);
       }
     } catch (error) {
       console.error('Erreur lors de la réparation automatique:', error);
@@ -83,16 +120,19 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
     
     if (error?.message) {
       if (error.message.includes('row-level security')) {
-        return "Problème de sécurité des données détecté. Cliquez sur 'Réparation Auto' pour corriger.";
+        return "Problème de sécurité des données détecté. Utilisez le diagnostic pour analyser.";
       }
       if (error.message.includes('owner_id')) {
-        return "Problème de propriétaire de bot. Réparation automatique disponible.";
+        return "Problème de propriétaire de bot. Diagnostic et réparation disponibles.";
       }
       if (error.message.includes('permission')) {
-        return "Problème de permissions. Essayez la réparation automatique.";
+        return "Problème de permissions. Essayez le diagnostic système.";
       }
       if (error.message.includes('unique constraint')) {
         return "Un bot avec ce nom existe déjà. Veuillez choisir un autre nom.";
+      }
+      if (error.message.includes('op ANY/ALL')) {
+        return "Erreur de politique de sécurité. Utilisez la réparation automatique.";
       }
       return error.message;
     }
@@ -101,7 +141,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       return error.details;
     }
     
-    return "Erreur inconnue lors de la sauvegarde. Essayez la réparation automatique.";
+    return "Erreur inconnue lors de la sauvegarde. Essayez le diagnostic système.";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -232,6 +272,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
 
       // Réinitialiser le compteur de tentatives après succès
       setSaveAttempts(0);
+      setSystemDiagnosis(null);
 
     } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
@@ -244,12 +285,12 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
         variant: "destructive",
       });
 
-      // Proposer la réparation automatique après 2 tentatives échouées
-      if (saveAttempts >= 2) {
+      // Proposer le diagnostic après 1 tentative échouée
+      if (saveAttempts >= 1 && !systemDiagnosis) {
         setTimeout(() => {
           toast({
-            title: "Réparation automatique disponible",
-            description: "Cliquez sur le bouton 'Réparation Auto' pour corriger les problèmes système",
+            title: "Diagnostic disponible",
+            description: "Cliquez sur 'Diagnostic Système' pour analyser les problèmes",
           });
         }, 2000);
       }
@@ -374,34 +415,72 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
               {saveAttempts} tentative(s)
             </Badge>
           )}
+
+          {/* Indicateur de diagnostic */}
+          {systemDiagnosis && systemDiagnosis.hasIssues && (
+            <Badge variant="outline" className="text-red-600 border-red-600">
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              {systemDiagnosis.issues.length} problème(s) détecté(s)
+            </Badge>
+          )}
         </div>
       </CardHeader>
 
       <CardContent>
-        {/* Bouton de réparation automatique */}
+        {/* Outils de diagnostic et réparation */}
         {saveAttempts >= 1 && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-medium text-yellow-800">Problème de sauvegarde détecté</h4>
                 <p className="text-sm text-yellow-700 mt-1">
-                  Utilisez la réparation automatique pour corriger les problèmes système
+                  Utilisez les outils de diagnostic pour analyser et réparer les problèmes
                 </p>
-              </div>
-              <Button
-                type="button"
-                onClick={handleAutoRepair}
-                disabled={isRepairing}
-                variant="outline"
-                className="border-yellow-600 text-yellow-700 hover:bg-yellow-100"
-              >
-                {isRepairing ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2" />
-                ) : (
-                  <Wrench className="w-4 h-4 mr-2" />
+                {systemDiagnosis && (
+                  <div className="mt-2">
+                    <p className="text-sm text-yellow-800 font-medium">Problèmes détectés :</p>
+                    <ul className="text-xs text-yellow-700 list-disc list-inside">
+                      {systemDiagnosis.issues.map((issue, index) => (
+                        <li key={index}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-                Réparation Auto
-              </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  onClick={handleDiagnoseSystem}
+                  disabled={isDiagnosing}
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-600 text-blue-700 hover:bg-blue-100"
+                >
+                  {isDiagnosing ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2" />
+                  ) : (
+                    <Search className="w-4 h-4 mr-2" />
+                  )}
+                  Diagnostic
+                </Button>
+                {systemDiagnosis?.canAutoRepair && (
+                  <Button
+                    type="button"
+                    onClick={handleAutoRepair}
+                    disabled={isRepairing}
+                    variant="outline"
+                    size="sm"
+                    className="border-yellow-600 text-yellow-700 hover:bg-yellow-100"
+                  >
+                    {isRepairing ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2" />
+                    ) : (
+                      <Wrench className="w-4 h-4 mr-2" />
+                    )}
+                    Réparation Auto
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}

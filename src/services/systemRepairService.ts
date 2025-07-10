@@ -19,8 +19,11 @@ export class SystemRepairService {
       // 3. Nettoyer les sessions orphelines
       await this.cleanupOrphanedSessions();
 
+      // 4. Tester la création de bot après réparation
+      const testSuccess = await this.testBotCreation();
+      
       console.log('[SystemRepair] Réparation automatique terminée avec succès');
-      return true;
+      return testSuccess;
 
     } catch (error) {
       console.error('[SystemRepair] Erreur lors de la réparation:', error);
@@ -204,5 +207,60 @@ export class SystemRepairService {
       });
       return false;
     }
+  }
+
+  /**
+   * Diagnostic avancé des problèmes système
+   */
+  static async diagnoseSystemIssues(): Promise<{ 
+    hasIssues: boolean; 
+    issues: string[]; 
+    canAutoRepair: boolean 
+  }> {
+    const issues: string[] = [];
+    let canAutoRepair = true;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        issues.push("Utilisateur non authentifié");
+        canAutoRepair = false;
+        return { hasIssues: true, issues, canAutoRepair };
+      }
+
+      // Vérifier l'existence du bot_owner
+      const { data: ownerData } = await supabase
+        .from('bot_owners')
+        .select('id, max_bots')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!ownerData) {
+        issues.push("Compte propriétaire de bot manquant");
+      } else if (ownerData.max_bots !== 10) {
+        issues.push("Limite de bots incorrecte");
+      }
+
+      // Tester les politiques RLS
+      try {
+        const { error: testError } = await supabase.rpc('test_bot_creation_fixed');
+        if (testError) {
+          issues.push("Problème avec les politiques RLS");
+        }
+      } catch (error) {
+        issues.push("Erreur critique des politiques de sécurité");
+        canAutoRepair = false;
+      }
+
+    } catch (error) {
+      issues.push("Erreur système critique");
+      canAutoRepair = false;
+    }
+
+    return {
+      hasIssues: issues.length > 0,
+      issues,
+      canAutoRepair
+    };
   }
 }
