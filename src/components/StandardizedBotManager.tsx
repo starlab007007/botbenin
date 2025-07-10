@@ -87,15 +87,35 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       setIsLoading(true);
 
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Non authentifié');
+      if (!user) {
+        throw new Error('Vous devez être connecté pour créer un bot');
+      }
 
-      const { data: ownerData } = await supabase
+      // Vérifier ou créer automatiquement le bot_owner
+      let { data: ownerData, error: ownerError } = await supabase
         .from('bot_owners')
-        .select('id')
+        .select('id, max_bots')
         .eq('user_id', user.id)
         .single();
 
-      if (!ownerData) throw new Error('Propriétaire non trouvé');
+      if (ownerError || !ownerData) {
+        // Créer automatiquement le bot_owner si il n'existe pas
+        const { data: newOwnerData, error: createOwnerError } = await supabase
+          .from('bot_owners')
+          .insert({
+            user_id: user.id,
+            max_bots: 10,
+            subscription_plan: 'free'
+          })
+          .select('id, max_bots')
+          .single();
+
+        if (createOwnerError) {
+          console.error('Erreur lors de la création du propriétaire:', createOwnerError);
+          throw new Error('Impossible de créer votre compte propriétaire de bot');
+        }
+        ownerData = newOwnerData;
+      }
 
       if (botId) {
         // Mise à jour - ensure all required fields are properly typed
@@ -155,11 +175,27 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
         if (onSave) onSave(data);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
+      
+      let errorMessage = "Impossible de sauvegarder le bot";
+      
+      // Messages d'erreur spécifiques
+      if (error.message?.includes('Vous devez être connecté')) {
+        errorMessage = "Vous devez être connecté pour créer un bot";
+      } else if (error.message?.includes('compte propriétaire')) {
+        errorMessage = "Erreur de configuration du compte. Veuillez réessayer.";
+      } else if (error.code === '23505') {
+        errorMessage = "Un bot avec ce nom existe déjà";
+      } else if (error.code === 'PGRST116') {
+        errorMessage = "Permission refusée. Vérifiez vos droits d'accès.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder le bot",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

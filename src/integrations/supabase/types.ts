@@ -4915,6 +4915,17 @@ export type Database = {
         }
         Returns: string
       }
+      debug_bot_creation: {
+        Args: { user_uuid?: string }
+        Returns: {
+          user_id: string
+          has_bot_owner: boolean
+          bot_owner_id: string
+          max_bots: number
+          current_bot_count: number
+          can_create_bot: boolean
+        }[]
+      }
       detect_bot_domain: {
         Args: { p_bot_id: string }
         Returns: {
