@@ -4984,7 +4984,7 @@ export type Database = {
         }[]
       }
       generate_public_chat_url: {
-        Args: { bot_id: string }
+        Args: { p_bot_id: string }
         Returns: string
       }
       generate_short_code: {
@@ -5280,6 +5280,14 @@ export type Database = {
         Returns: {
           test_name: string
           status: string
+          details: string
+        }[]
+      }
+      test_complete_bot_creation_flow: {
+        Args: { p_user_id?: string }
+        Returns: {
+          step_name: string
+          success: boolean
           details: string
         }[]
       }
