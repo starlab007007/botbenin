@@ -5085,6 +5085,15 @@ export type Database = {
           user_agent: string
         }[]
       }
+      get_final_bot_policies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          policy_name: string
+          policy_type: string
+          is_active: boolean
+          description: string
+        }[]
+      }
       get_intelligent_suggestions: {
         Args: { p_bot_id: string; p_limit?: number }
         Returns: {
@@ -5252,6 +5261,14 @@ export type Database = {
         Returns: {
           test_category: string
           test_result: string
+          details: string
+        }[]
+      }
+      test_bot_creation_fixed: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_name: string
+          status: string
           details: string
         }[]
       }
