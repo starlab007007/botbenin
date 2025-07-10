@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bot, Workflow, ArrowLeft, Globe, MessageSquare, Lock, AlertCircle } from 'lucide-react';
+import { SystemRepairService } from '@/services/systemRepairService';
+import { Bot, Workflow, ArrowLeft, Globe, MessageSquare, Lock, AlertCircle, Wrench, RefreshCw } from 'lucide-react';
 
 interface BotAutomationCreatorProps {
   onBack: () => void;
@@ -16,9 +17,11 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   const [webhookUrl, setWebhookUrl] = useState('');
   const [botName, setBotName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
   const [botCount, setBotCount] = useState(0);
-  const [maxBots, setMaxBots] = useState(10); // Fixed to 10 for free plan
+  const [maxBots, setMaxBots] = useState(10);
   const [isCheckingLimits, setIsCheckingLimits] = useState(true);
+  const [creationAttempts, setCreationAttempts] = useState(0);
   const { toast } = useToast();
   const { user, isAuthenticated, session } = useAuth();
 
@@ -36,6 +39,11 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       const userId = session?.user?.id;
       if (!userId) return;
 
+      // Tentative de réparation préventive si nécessaire
+      if (creationAttempts >= 1) {
+        await SystemRepairService.repairUserSystem(userId);
+      }
+
       // Récupérer ou créer le bot_owner
       let { data: ownerData, error: ownerSelectError } = await supabase
         .from('bot_owners')
@@ -49,7 +57,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
           .insert({ 
             user_id: userId,
             subscription_plan: 'free',
-            max_bots: 10 // Fixed to 10 for free plan
+            max_bots: 10
           })
           .select('id, max_bots')
           .single();
@@ -69,7 +77,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       if (countError) throw countError;
 
       setBotCount(existingBots || 0);
-      setMaxBots(10); // Always set to 10 for free plan
+      setMaxBots(10);
     } catch (error) {
       console.error('Erreur lors de la vérification des limites:', error);
       toast({
@@ -79,6 +87,21 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       });
     } finally {
       setIsCheckingLimits(false);
+    }
+  };
+
+  const handleAutoRepair = async () => {
+    setIsRepairing(true);
+    try {
+      const success = await SystemRepairService.performCompleteRepair();
+      if (success) {
+        setCreationAttempts(0);
+        await checkBotLimits(); // Re-vérifier les limites après réparation
+      }
+    } catch (error) {
+      console.error('Erreur lors de la réparation automatique:', error);
+    } finally {
+      setIsRepairing(false);
     }
   };
 
@@ -93,7 +116,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
   };
 
   const createBotFromWebhook = async () => {
-    // Vérification de l'authentification
     if (!isAuthenticated || !session) {
       toast({
         title: "Authentification requise",
@@ -103,7 +125,6 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       return;
     }
 
-    // Vérification des limites - Fixed to 10
     if (botCount >= 10) {
       toast({
         title: "Limite atteinte",
@@ -141,9 +162,16 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     }
 
     setIsCreating(true);
+    setCreationAttempts(prev => prev + 1);
 
     try {
       const userId = session.user.id;
+
+      // Réparation automatique si c'est la 2ème tentative ou plus
+      if (creationAttempts >= 1) {
+        console.log('[BotCreator] Tentative de réparation automatique...');
+        await SystemRepairService.repairUserSystem(userId);
+      }
 
       // Récupérer le bot_owner
       let { data: ownerData, error: ownerSelectError } = await supabase
@@ -158,7 +186,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
           .insert({ 
             user_id: userId,
             subscription_plan: 'free',
-            max_bots: 10 // Fixed to 10 for free plan
+            max_bots: 10
           })
           .select('id, max_bots')
           .single();
@@ -169,7 +197,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
 
       if (!ownerData) throw new Error('Impossible de récupérer les données du propriétaire');
 
-      // Vérifier à nouveau les limites avant création - Fixed to 10
+      // Vérifier à nouveau les limites avant création
       const { count: currentBotCount, error: countError } = await supabase
         .from('bots')
         .select('id', { count: 'exact' })
@@ -224,6 +252,8 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
       // Tester la connexion webhook
       testWebhookConnection(webhookUrl, newBot.id, newBot.chat_title).catch(console.warn);
 
+      // Réinitialiser le compteur de tentatives après succès
+      setCreationAttempts(0);
       onBotCreated(newBot.id);
 
     } catch (error) {
@@ -235,6 +265,16 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
         description: errorMessage,
         variant: "destructive",
       });
+
+      // Proposer la réparation automatique après 2 tentatives échouées
+      if (creationAttempts >= 2) {
+        setTimeout(() => {
+          toast({
+            title: "Réparation automatique disponible",
+            description: "Cliquez sur le bouton 'Réparation Auto' pour corriger les problèmes système",
+          });
+        }, 2000);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -390,7 +430,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
     );
   }
 
-  const isLimitReached = botCount >= 10; // Fixed limit check to 10
+  const isLimitReached = botCount >= 10;
 
   return (
     <div className="space-y-6">
@@ -416,6 +456,11 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               <p className="text-blue-700 text-sm">
                 {botCount} / 10 chatbots créés
               </p>
+              {creationAttempts > 0 && (
+                <p className="text-blue-600 text-xs mt-1">
+                  {creationAttempts} tentative(s) de création
+                </p>
+              )}
             </div>
             <div className="text-right">
               <div className="w-16 h-2 bg-blue-200 rounded-full overflow-hidden">
@@ -428,6 +473,36 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
           </div>
         </CardContent>
       </Card>
+
+      {/* Bouton de réparation automatique */}
+      {creationAttempts >= 1 && (
+        <Card className="max-w-2xl border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-yellow-800">Problème de création détecté</h4>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Utilisez la réparation automatique pour corriger les problèmes système
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={handleAutoRepair}
+                disabled={isRepairing}
+                variant="outline"
+                className="border-yellow-600 text-yellow-700 hover:bg-yellow-100"
+              >
+                {isRepairing ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2" />
+                ) : (
+                  <Wrench className="w-4 h-4 mr-2" />
+                )}
+                Réparation Auto
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Message de limite atteinte */}
       {isLimitReached && (
@@ -522,6 +597,7 @@ export const BotAutomationCreator: React.FC<BotAutomationCreatorProps> = ({ onBa
               <li>• Session ID et user_id au format Bot.Bj</li>
               <li>• Gestion d'erreurs et fallback intégrés</li>
               <li>• Logs détaillés pour debugging</li>
+              <li>• Réparation automatique en cas de problème</li>
             </ul>
           </div>
         </CardContent>

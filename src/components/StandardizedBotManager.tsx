@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { BotConfigService, StandardBotConfig } from '@/services/botConfigService';
+import { SystemRepairService } from '@/services/systemRepairService';
 import { supabase } from '@/integrations/supabase/client';
-import { Bot, CheckCircle, XCircle, AlertTriangle, Save, Zap } from 'lucide-react';
+import { Bot, CheckCircle, XCircle, AlertTriangle, Save, Zap, RefreshCw, Wrench } from 'lucide-react';
 
 interface StandardizedBotManagerProps {
   botId?: string;
@@ -25,7 +25,9 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
   const [formData, setFormData] = useState(BotConfigService.getDefaultBotConfig());
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
   const [validation, setValidation] = useState({ isValid: true, errors: [], warnings: [] });
+  const [saveAttempts, setSaveAttempts] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -61,9 +63,50 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
     }
   };
 
+  const handleAutoRepair = async () => {
+    setIsRepairing(true);
+    try {
+      const success = await SystemRepairService.performCompleteRepair();
+      if (success) {
+        // Réinitialise le compteur de tentatives après une réparation réussie
+        setSaveAttempts(0);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la réparation automatique:', error);
+    } finally {
+      setIsRepairing(false);
+    }
+  };
+
+  const getDetailedErrorMessage = (error: any): string => {
+    console.log('Analyse détaillée de l\'erreur:', error);
+    
+    if (error?.message) {
+      if (error.message.includes('row-level security')) {
+        return "Problème de sécurité des données détecté. Cliquez sur 'Réparation Auto' pour corriger.";
+      }
+      if (error.message.includes('owner_id')) {
+        return "Problème de propriétaire de bot. Réparation automatique disponible.";
+      }
+      if (error.message.includes('permission')) {
+        return "Problème de permissions. Essayez la réparation automatique.";
+      }
+      if (error.message.includes('unique constraint')) {
+        return "Un bot avec ce nom existe déjà. Veuillez choisir un autre nom.";
+      }
+      return error.message;
+    }
+    
+    if (error?.details) {
+      return error.details;
+    }
+    
+    return "Erreur inconnue lors de la sauvegarde. Essayez la réparation automatique.";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!validation.isValid) {
       toast({
         title: "Configuration invalide",
@@ -73,7 +116,6 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       return;
     }
 
-    // Ensure required fields are present
     if (!formData.name?.trim()) {
       toast({
         title: "Erreur",
@@ -83,11 +125,18 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       return;
     }
 
-    try {
-      setIsLoading(true);
+    setIsLoading(true);
+    setSaveAttempts(prev => prev + 1);
 
+    try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Non authentifié');
+
+      // Tentative de réparation automatique si c'est la 2ème tentative ou plus
+      if (saveAttempts >= 1) {
+        console.log('[BotManager] Tentative de réparation automatique avant sauvegarde...');
+        await SystemRepairService.repairUserSystem(user.id);
+      }
 
       const { data: ownerData } = await supabase
         .from('bot_owners')
@@ -95,10 +144,36 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
         .eq('user_id', user.id)
         .single();
 
-      if (!ownerData) throw new Error('Propriétaire non trouvé');
+      if (!ownerData) {
+        // Créer automatiquement le bot_owner manquant
+        console.log('[BotManager] Création automatique du bot_owner...');
+        const { data: newOwner, error: ownerError } = await supabase
+          .from('bot_owners')
+          .insert({
+            user_id: user.id,
+            subscription_plan: 'free',
+            max_bots: 10
+          })
+          .select('id')
+          .single();
+
+        if (ownerError) throw ownerError;
+        if (!newOwner) throw new Error('Impossible de créer le propriétaire');
+
+        console.log('[BotManager] Bot_owner créé automatiquement');
+      }
+
+      // Récupérer à nouveau les données du propriétaire
+      const { data: finalOwnerData } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!finalOwnerData) throw new Error('Propriétaire non trouvé après création');
 
       if (botId) {
-        // Mise à jour - ensure all required fields are properly typed
+        // Mise à jour
         const updateData = {
           name: formData.name.trim(),
           description: formData.description?.trim() || '',
@@ -114,7 +189,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
           .from('bots')
           .update(updateData)
           .eq('id', botId)
-          .eq('owner_id', ownerData.id)
+          .eq('owner_id', finalOwnerData.id)
           .select()
           .single();
 
@@ -127,7 +202,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
 
         if (onSave) onSave(data);
       } else {
-        // Création - ensure all required fields are properly typed
+        // Création
         const insertData = {
           name: formData.name.trim(),
           description: formData.description?.trim() || '',
@@ -136,7 +211,7 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
           chat_context: formData.chat_context || 'general',
           share_enabled: formData.share_enabled || false,
           is_active: formData.is_active !== false,
-          owner_id: ownerData.id
+          owner_id: finalOwnerData.id
         };
 
         const { data, error } = await supabase
@@ -155,13 +230,29 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
         if (onSave) onSave(data);
       }
 
-    } catch (error) {
+      // Réinitialiser le compteur de tentatives après succès
+      setSaveAttempts(0);
+
+    } catch (error: any) {
       console.error('Erreur lors de la sauvegarde:', error);
+      
+      const detailedMessage = getDetailedErrorMessage(error);
+      
       toast({
-        title: "Erreur",
-        description: "Impossible de sauvegarder le bot",
+        title: "Erreur de sauvegarde",
+        description: detailedMessage,
         variant: "destructive",
       });
+
+      // Proposer la réparation automatique après 2 tentatives échouées
+      if (saveAttempts >= 2) {
+        setTimeout(() => {
+          toast({
+            title: "Réparation automatique disponible",
+            description: "Cliquez sur le bouton 'Réparation Auto' pour corriger les problèmes système",
+          });
+        }, 2000);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -275,10 +366,46 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
               {validation.warnings.length} avertissement(s)
             </Badge>
           )}
+
+          {/* Indicateur de tentatives de sauvegarde */}
+          {saveAttempts > 0 && (
+            <Badge variant="outline" className="text-orange-600 border-orange-600">
+              <RefreshCw className="w-3 h-3 mr-1" />
+              {saveAttempts} tentative(s)
+            </Badge>
+          )}
         </div>
       </CardHeader>
 
       <CardContent>
+        {/* Bouton de réparation automatique */}
+        {saveAttempts >= 1 && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium text-yellow-800">Problème de sauvegarde détecté</h4>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Utilisez la réparation automatique pour corriger les problèmes système
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={handleAutoRepair}
+                disabled={isRepairing}
+                variant="outline"
+                className="border-yellow-600 text-yellow-700 hover:bg-yellow-100"
+              >
+                {isRepairing ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-2" />
+                ) : (
+                  <Wrench className="w-4 h-4 mr-2" />
+                )}
+                Réparation Auto
+              </Button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Nom du bot */}
           <div>
