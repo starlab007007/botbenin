@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Loader, User, Globe, Lock } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 interface BotSession {
   id: string;
@@ -38,8 +37,6 @@ export const UnifiedSessionList: React.FC<UnifiedSessionListProps> = ({
   onQueryChange,
   onSessionSelect,
 }) => {
-  const isMobile = useIsMobile();
-  
   // Filtrer les sessions selon la requête
   const filteredSessions = sessions.filter(session => {
     if (!query) return true;
@@ -66,12 +63,12 @@ export const UnifiedSessionList: React.FC<UnifiedSessionListProps> = ({
   };
 
   return (
-    <Card className={`${isMobile ? 'w-full min-h-screen' : 'w-1/3'} flex flex-col gap-2 ${isMobile ? 'px-[2.5%] py-4' : 'px-3 py-4'} overflow-auto`}>
+    <Card className="w-1/3 flex flex-col gap-2 px-3 py-4 overflow-auto">
       <div className="flex items-center gap-2 mb-2">
         <MessageSquare className="text-primary w-4 h-4" />
         <span className="font-semibold">Toutes les sessions</span>
         <Input
-          className={`ml-auto ${isMobile ? 'max-w-[40%]' : 'max-w-[130px]'}`}
+          className="ml-auto max-w-[130px]"
           placeholder="Rechercher…"
           value={query}
           onChange={e => onQueryChange(e.target.value)}
@@ -93,7 +90,7 @@ export const UnifiedSessionList: React.FC<UnifiedSessionListProps> = ({
             type="button"
             key={`${session.source_type}-${session.id}`}
             className={cn(
-              `p-3 mb-2 w-full bg-gray-50 hover:bg-blue-50 flex flex-col border transition cursor-pointer rounded-lg text-left ${isMobile ? 'min-h-[80px]' : ''}`,
+              "p-3 mb-2 w-full bg-gray-50 hover:bg-blue-50 flex flex-col border transition cursor-pointer rounded-lg text-left",
               selectedSession?.id === session.id && "border-blue-600 shadow"
             )}
             onClick={() => onSessionSelect(session)}
@@ -101,9 +98,7 @@ export const UnifiedSessionList: React.FC<UnifiedSessionListProps> = ({
             <div className="flex items-center justify-between mb-2">
               <div className="font-medium truncate flex items-center gap-2">
                 {getSessionIcon(session)}
-                <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>
-                  Session {session.session_token.slice(0, 10)}…
-                </span>
+                Session {session.session_token.slice(0, 10)}…
               </div>
               <div className="flex items-center gap-1">
                 <Badge 
@@ -115,7 +110,7 @@ export const UnifiedSessionList: React.FC<UnifiedSessionListProps> = ({
               </div>
             </div>
             
-            <div className={`text-xs text-gray-600 mb-1 ${isMobile ? 'break-words' : ''}`}>
+            <div className="text-xs text-gray-600 mb-1">
               {getSessionLabel(session)}
             </div>
             
@@ -125,7 +120,7 @@ export const UnifiedSessionList: React.FC<UnifiedSessionListProps> = ({
                 : "Inconnue"}
             </div>
             
-            <div className={`text-[10px] text-gray-500 ${isMobile ? 'break-words' : ''}`}>
+            <div className="text-[10px] text-gray-500">
               Entrée: {session.entry_point} • Messages: {session.total_messages || 0}
             </div>
             

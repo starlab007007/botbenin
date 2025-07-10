@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { SecurityManager } from '@/services/security/SecurityManager';
 
 interface LiveChatBot {
   id: string;
@@ -12,7 +13,6 @@ interface LiveChatBot {
   is_active: boolean;
   public_chat_url: string;
   owner_name?: string;
-  display_in_live_chat?: boolean;
 }
 
 export const useLiveChatBots = () => {
@@ -25,11 +25,19 @@ export const useLiveChatBots = () => {
       setLoading(true);
       setError(null);
 
-      console.log('[useLiveChatBots] === RÉCUPÉRATION BOTS PUBLICS POUR TOUS LES UTILISATEURS ===');
-      console.log('[useLiveChatBots] Aucune authentification requise - accès public total');
+      console.log('[useLiveChatBots] Fetching secure live chat bots...');
 
-      // Requête pour TOUS les bots publics - sans authentification requise
-      const { data: publicBots, error: publicBotsError } = await supabase
+      // Limitation du taux de requêtes
+      if (!SecurityManager.checkRateLimit('fetch_live_bots', {
+        windowMs: 60000, // 1 minute
+        maxRequests: 30
+      })) {
+        setError('Trop de requêtes, veuillez patienter');
+        return;
+      }
+
+      // Récupération sécurisée des bots
+      const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select(`
           id,
@@ -41,74 +49,102 @@ export const useLiveChatBots = () => {
           is_active,
           public_chat_url,
           display_in_live_chat,
-          share_enabled,
-          created_at
+          bot_owners!inner(
+            user_id,
+            users(full_name)
+          )
         `)
+        .eq('display_in_live_chat', true)
         .eq('is_active', true)
-        .eq('share_enabled', true)
         .order('created_at', { ascending: false });
 
-      console.log('[useLiveChatBots] Résultat requête Supabase:', {
-        success: !publicBotsError,
-        botsCount: publicBots?.length || 0,
-        error: publicBotsError
-      });
-
-      if (publicBotsError) {
-        console.error('[useLiveChatBots] Erreur Supabase:', publicBotsError);
-        throw publicBotsError;
+      if (botsError) {
+        await SecurityManager.auditSuspiciousActivity({
+          action: 'live_bots_fetch_error',
+          additionalData: { error: botsError.message }
+        });
+        throw new Error('Erreur lors de la récupération des bots');
       }
 
-      // Tous les bots actifs et partagés sont considérés comme publics
-      const formattedBots: LiveChatBot[] = (publicBots || []).map((bot: any) => {
-        console.log('[useLiveChatBots] Formatage bot public:', {
-          id: bot.id,
-          name: bot.name,
-          isActive: bot.is_active,
-          shareEnabled: bot.share_enabled,
-          displayInLiveChat: bot.display_in_live_chat
-        });
+      console.log('[useLiveChatBots] Raw data retrieved:', botsData?.length || 0);
+
+      // Validation et filtrage sécurisé des bots
+      const validBots = (botsData || []).filter(botData => {
+        // Validation de l'ID du bot
+        const idValidation = SecurityManager.validateAndSanitizeInput(botData.id, 'uuid');
+        if (!idValidation.isValid) {
+          console.warn(`[useLiveChatBots] Bot with invalid ID ignored:`, botData.id);
+          return false;
+        }
+
+        // Validation du webhook
+        const hasValidWebhook = botData.webhook_url && 
+          SecurityManager.validateWebhookUrl(botData.webhook_url);
         
+        if (!hasValidWebhook) {
+          console.warn(`[useLiveChatBots] Bot ${botData.name} ignored: invalid webhook`);
+          return false;
+        }
+
+        // Validation des autres champs
+        const nameValidation = SecurityManager.validateAndSanitizeInput(botData.name, 'string');
+        if (!nameValidation.isValid) {
+          console.warn(`[useLiveChatBots] Bot with invalid name ignored`);
+          return false;
+        }
+
+        return botData.display_in_live_chat === true && botData.is_active === true;
+      });
+
+      // Formatage sécurisé des données
+      const formattedBots: LiveChatBot[] = validBots.map((botData: any) => {
+        const nameValidation = SecurityManager.validateAndSanitizeInput(botData.name, 'string');
+        const descValidation = SecurityManager.validateAndSanitizeInput(
+          botData.description || 'Assistant IA intelligent', 
+          'string'
+        );
+        const titleValidation = SecurityManager.validateAndSanitizeInput(
+          botData.chat_title || botData.name, 
+          'string'
+        );
+
         return {
-          id: bot.id,
-          name: bot.name || 'Bot Sans Nom',
-          description: bot.description || 'Assistant IA intelligent disponible 24/7 pour vous aider avec vos questions',
-          webhook_url: bot.webhook_url || '',
-          chat_title: bot.chat_title || bot.name || 'Assistant IA',
-          chat_context: bot.chat_context || 'general',
-          is_active: true,
-          public_chat_url: bot.public_chat_url || `https://bot.bj/chat/${bot.id}`,
-          owner_name: 'Bot.Bj Team',
-          display_in_live_chat: bot.display_in_live_chat !== false // Par défaut true
+          id: botData.id,
+          name: nameValidation.sanitized || 'Bot',
+          description: descValidation.sanitized || 'Assistant IA intelligent',
+          webhook_url: botData.webhook_url, // Déjà validé
+          chat_title: titleValidation.sanitized || nameValidation.sanitized || 'Bot',
+          chat_context: botData.chat_context || 'assistance',
+          is_active: botData.is_active,
+          public_chat_url: botData.public_chat_url,
+          owner_name: botData.bot_owners?.users?.full_name || 'Propriétaire'
         };
       });
 
-      console.log('[useLiveChatBots] === RÉSULTAT FINAL ===');
-      console.log('[useLiveChatBots] Bots publics trouvés:', formattedBots.length);
-      console.log('[useLiveChatBots] Détails des bots:', formattedBots.map(b => ({
-        id: b.id,
-        name: b.name,
-        hasWebhook: !!b.webhook_url,
-        context: b.chat_context,
-        displayInLiveChat: b.display_in_live_chat
-      })));
+      console.log('[useLiveChatBots] Valid formatted bots:', formattedBots.length);
 
       setBots(formattedBots);
       
       if (formattedBots.length === 0) {
-        console.warn('[useLiveChatBots] AUCUN BOT PUBLIC TROUVÉ !');
-        setError('Aucun assistant IA public n\'est actuellement disponible.');
-      } else {
-        console.log('[useLiveChatBots] SUCCESS: Bots publics chargés pour tous les utilisateurs !');
+        console.warn('[useLiveChatBots] No valid bots found for live chat');
+        setError('Aucun chatbot sécurisé disponible pour le chat en direct');
       }
 
+      // Audit de sécurité pour le succès
+      await SecurityManager.auditSuspiciousActivity({
+        action: 'live_bots_fetched_successfully',
+        additionalData: { count: formattedBots.length }
+      });
+
     } catch (err: any) {
-      console.error('[useLiveChatBots] === ERREUR CRITIQUE ===');
-      console.error('[useLiveChatBots] Type:', err?.constructor?.name);
-      console.error('[useLiveChatBots] Message:', err?.message);
-      console.error('[useLiveChatBots] Stack:', err?.stack);
+      console.error('[useLiveChatBots] Secure fetch error:', err);
       
-      setError('Impossible de charger les assistants IA publics. Veuillez réessayer.');
+      await SecurityManager.auditSuspiciousActivity({
+        action: 'live_bots_fetch_failed',
+        additionalData: { error: err.message }
+      });
+
+      setError('Impossible de charger les bots sécurisés');
       setBots([]);
     } finally {
       setLoading(false);
@@ -116,12 +152,11 @@ export const useLiveChatBots = () => {
   };
 
   const refreshBots = () => {
-    console.log('[useLiveChatBots] === ACTUALISATION MANUELLE ===');
+    console.log('[useLiveChatBots] Secure refresh requested...');
     fetchLiveChatBots();
   };
 
   useEffect(() => {
-    console.log('[useLiveChatBots] === INITIALISATION HOOK ===');
     fetchLiveChatBots();
   }, []);
 

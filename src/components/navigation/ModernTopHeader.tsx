@@ -20,7 +20,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
-import { useIsMobile } from '@/hooks/use-mobile';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +50,6 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useIsMobile();
 
   const handleLogoClick = () => {
     navigate('/home');
@@ -90,14 +88,14 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 
   return (
     <>
-      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 sticky top-0 z-50 shadow-sm">
+      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-40 shadow-sm">
         {/* Gauche */}
-        <div className="flex items-center space-x-2 sm:space-x-4">
+        <div className="flex items-center space-x-4">
           {/* Bouton menu mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className="p-2"
+            className="lg:hidden"
             onClick={onMenuClick}
           >
             <Menu className="w-5 h-5" />
@@ -106,42 +104,38 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           {/* Logo */}
           <button 
             onClick={handleLogoClick}
-            className="flex items-center space-x-2 sm:space-x-3 hover:opacity-80 transition-opacity"
+            className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
           >
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
               <span className="text-white font-bold text-sm">B</span>
             </div>
-            {!isMobile && (
-              <span className="text-xl font-bold text-gray-900">Bot.Bj</span>
-            )}
+            <span className="text-xl font-bold text-gray-900 hidden sm:block">Bot.Bj</span>
           </button>
         </div>
 
-        {/* Centre - Barre de recherche (masquée sur mobile très petit) */}
-        {!isMobile && (
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Rechercher... (Ctrl+K)"
-                className="pl-10 pr-4 w-full bg-gray-50 border-gray-200 focus:bg-white"
-                onClick={() => setShowCommandDialog(true)}
-                readOnly
-              />
-              <kbd className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
-                ⌘K
-              </kbd>
-            </div>
+        {/* Centre - Barre de recherche */}
+        <div className="hidden md:flex flex-1 max-w-md mx-8">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              placeholder="Rechercher... (Ctrl+K)"
+              className="pl-10 pr-4 w-full bg-gray-50 border-gray-200 focus:bg-white"
+              onClick={() => setShowCommandDialog(true)}
+              readOnly
+            />
+            <kbd className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+              ⌘K
+            </kbd>
           </div>
-        )}
+        </div>
 
         {/* Droite */}
-        <div className="flex items-center space-x-1 sm:space-x-2">
+        <div className="flex items-center space-x-2 lg:space-x-4">
           {/* Recherche mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className="md:hidden p-2"
+            className="md:hidden"
             onClick={() => setShowCommandDialog(true)}
           >
             <Search className="w-5 h-5" />
@@ -149,58 +143,52 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 
           {/* Notifications */}
           {isAuthenticated && (
-            <Button variant="ghost" size="sm" className="relative p-2">
+            <Button variant="ghost" size="sm" className="relative">
               <Bell className="w-5 h-5" />
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs"></span>
             </Button>
           )}
 
-          {!isMobile && <ThemeToggle />}
+          <ThemeToggle />
           
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 h-10 px-2">
+                <Button variant="ghost" className="flex items-center space-x-2 h-10">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm">
                       {getUserInitials(user!.name)}
                     </AvatarFallback>
                   </Avatar>
-                  {!isMobile && (
-                    <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-24 truncate">
-                      {user!.name}
-                    </span>
-                  )}
+                  <span className="hidden sm:block text-sm font-medium text-gray-700">
+                    {user!.name}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               
-              <DropdownMenuContent 
-                align="end" 
-                className={`${isMobile ? 'w-screen max-w-sm' : 'w-56'} bg-white border border-gray-200 shadow-lg z-50`}
-                sideOffset={8}
-              >
+              <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-200 shadow-lg">
                 <div className="px-3 py-2 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-900 truncate">{user!.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{user!.email}</p>
+                  <p className="text-sm font-medium text-gray-900">{user!.name}</p>
+                  <p className="text-xs text-gray-500">{user!.email}</p>
                   <p className="text-xs text-blue-600 capitalize mt-1">{user!.role}</p>
                 </div>
                 
                 <DropdownMenuItem asChild>
-                  <Link to="/home" className="flex items-center cursor-pointer w-full">
+                  <Link to="/home" className="flex items-center cursor-pointer">
                     <Home className="w-4 h-4 mr-2" />
                     Accueil
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem asChild>
-                  <Link to="/account" className="flex items-center cursor-pointer w-full">
+                  <Link to="/account" className="flex items-center cursor-pointer">
                     <User className="w-4 h-4 mr-2" />
                     Mon Profil
                   </Link>
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild>
-                  <Link to="/account" className="flex items-center cursor-pointer w-full">
+                  <Link to="/account" className="flex items-center cursor-pointer">
                     <Settings className="w-4 h-4 mr-2" />
                     Paramètres
                   </Link>
@@ -210,7 +198,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link to="/admin/users" className="flex items-center cursor-pointer w-full">
+                      <Link to="/admin/users" className="flex items-center cursor-pointer">
                         <Users className="w-4 h-4 mr-2" />
                         Administration
                       </Link>
@@ -219,7 +207,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
                 )}
                 
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 w-full">
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
                   <LogOut className="w-4 h-4 mr-2" />
                   Déconnexion
                 </DropdownMenuItem>
@@ -228,11 +216,11 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           ) : (
             <Button
               onClick={() => setShowAuthModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
               size="sm"
             >
-              <User className="w-4 h-4 mr-1" />
-              {!isMobile && 'Connexion'}
+              <User className="w-4 h-4 mr-2" />
+              Connexion
             </Button>
           )}
         </div>
@@ -244,32 +232,26 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
         onClose={() => setShowAuthModal(false)} 
       />
 
-      {/* Command Dialog mobile-optimized */}
-      <CommandDialog 
-        open={showCommandDialog} 
-        onOpenChange={setShowCommandDialog}
-      >
-        <div className={isMobile ? 'h-screen' : ''}>
-          <CommandInput placeholder="Rechercher des fonctionnalités..." />
-          <CommandList className={isMobile ? 'max-h-[calc(100vh-120px)]' : ''}>
-            <CommandEmpty>Aucun résultat trouvé.</CommandEmpty>
-            <CommandGroup heading="Actions rapides">
-              {quickActions.map((action) => (
-                <CommandItem
-                  key={action.path}
-                  onSelect={() => {
-                    navigate(action.path);
-                    setShowCommandDialog(false);
-                  }}
-                  className="py-3"
-                >
-                  <action.icon className="mr-2 h-4 w-4" />
-                  <span>{action.name}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </div>
+      {/* Command Dialog */}
+      <CommandDialog open={showCommandDialog} onOpenChange={setShowCommandDialog}>
+        <CommandInput placeholder="Rechercher des fonctionnalités..." />
+        <CommandList>
+          <CommandEmpty>Aucun résultat trouvé.</CommandEmpty>
+          <CommandGroup heading="Actions rapides">
+            {quickActions.map((action) => (
+              <CommandItem
+                key={action.path}
+                onSelect={() => {
+                  navigate(action.path);
+                  setShowCommandDialog(false);
+                }}
+              >
+                <action.icon className="mr-2 h-4 w-4" />
+                <span>{action.name}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
       </CommandDialog>
     </>
   );

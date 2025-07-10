@@ -93,7 +93,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt, className })
           alt={alt}
           className={`w-full h-auto object-contain transition-all duration-300 ${className}`}
           style={{ 
-            imageRendering: 'auto',
+            imageRendering: 'high-quality',
             maxHeight: '500px'
           }}
           onClick={() => setIsModalOpen(true)}
@@ -192,7 +192,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({ src, alt, className })
               style={{ 
                 transform: `scale(${zoom}) rotate(${rotation}deg) translate(${position.x}px, ${position.y}px)`,
                 transformOrigin: 'center',
-                imageRendering: 'auto',
+                imageRendering: 'high-quality',
                 maxHeight: zoom === 1 ? '90vh' : 'none',
                 maxWidth: zoom === 1 ? '90vw' : 'none'
               }}
