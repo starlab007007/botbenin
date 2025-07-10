@@ -1,42 +1,37 @@
 
-// Utilitaires d'optimisation des images simplifiés pour améliorer les performances
+// Utilitaires d'optimisation ultra-rapides
 export class ImageOptimizer {
   /**
-   * Optimise une URL d'image avec des paramètres légers
+   * Optimise une URL d'image avec conversion directe
    */
   static optimizeImageUrl(url: string): string {
-    // Optimisations simples et rapides
+    if (!url) return '';
+
+    // Google Drive - conversion directe et rapide
     if (url.includes('drive.google.com')) {
-      return url.replace(/\/view\?usp=sharing/, '/uc?export=view&sz=w800');
+      return url.replace(/\/view\?usp=sharing/, '/uc?export=view');
     }
 
+    // Dropbox - conversion directe
     if (url.includes('dropbox.com')) {
       return url.replace('?dl=0', '?raw=1');
     }
 
-    if (url.includes('unsplash.com')) {
-      const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}q=75&w=800`;
-    }
-
-    if (url.includes('pixabay.com')) {
-      return url.replace('_150.', '_640.').replace('_1280.', '_640.');
-    }
-
-    if (url.includes('cloudinary.com')) {
-      return url.replace(/\/w_\d+/, '/w_800').replace(/\/q_\d+/, '/q_75');
+    // Imgur - optimisation directe
+    if (url.includes('imgur.com')) {
+      return url.replace(/[bmts]\.jpg$/, '.jpg').replace(/[bmts]\.png$/, '.png');
     }
     
     return url;
   }
 
   /**
-   * Vérifie rapidement si une URL est une image
+   * Validation rapide d'URL d'image
    */
   static async isValidImageUrl(url: string): Promise<boolean> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 secondes max
       
       const response = await fetch(url, { 
         method: 'HEAD',
@@ -44,7 +39,6 @@ export class ImageOptimizer {
       });
       
       clearTimeout(timeoutId);
-      
       const contentType = response.headers.get('content-type');
       return contentType?.startsWith('image/') || false;
     } catch {
@@ -53,26 +47,79 @@ export class ImageOptimizer {
   }
 }
 
-// Extraction et validation des prix (simplifiée)
+// Extraction de prix ultra-rapide
 export class PriceExtractor {
-  private static readonly CURRENCY_SYMBOLS = {
-    '€': 'EUR',
-    '$': 'USD', 
-    '£': 'GBP',
-    '¥': 'JPY',
-    '₹': 'INR',
-    '₽': 'RUB',
-    '₦': 'NGN',
-    '₵': 'GHS'
-  };
-
-  private static readonly CURRENCY_CODES = [
-    'FCFA', 'CFA', 'XOF', 'XAF', 'MAD', 'TND', 'EGP', 'NGN', 'GHS', 
-    'EUR', 'USD', 'GBP', 'JPY', 'CNY', 'INR', 'RUB'
+  private static readonly PRICE_PATTERNS = [
+    /(\d+(?:\s?\d{3})*)\s*FCFA/gi,
+    /(\d+(?:\s?\d{3})*)\s*CFA/gi,
+    /(\d+(?:[,\.]\d+)*)\s*€/gi,
+    /\$(\d+(?:[,\.]\d+)*)/gi,
+    /£(\d+(?:[,\.]\d+)*)/gi,
   ];
 
   /**
-   * Extrait les prix d'un texte de manière optimisée
+   * Extraction rapide du premier prix trouvé
+   */
+  static getBestPrice(text: string): {
+    price: string;
+    currency: string;
+    formatted: string;
+  } | null {
+    if (!text) return null;
+
+    for (const pattern of this.PRICE_PATTERNS) {
+      const match = text.match(pattern);
+      if (match) {
+        const fullMatch = match[0];
+        const numericPart = match[1] || match[0].replace(/[^\d,\.]/g, '');
+        
+        // Formatage rapide
+        if (fullMatch.includes('FCFA') || fullMatch.includes('CFA')) {
+          return {
+            price: numericPart,
+            currency: 'FCFA',
+            formatted: `${numericPart} FCFA`
+          };
+        }
+        
+        if (fullMatch.includes('€')) {
+          return {
+            price: numericPart,
+            currency: 'EUR',
+            formatted: `${numericPart} €`
+          };
+        }
+        
+        if (fullMatch.includes('$')) {
+          return {
+            price: numericPart,
+            currency: 'USD',
+            formatted: `$${numericPart}`
+          };
+        }
+        
+        if (fullMatch.includes('£')) {
+          return {
+            price: numericPart,
+            currency: 'GBP',
+            formatted: `£${numericPart}`
+          };
+        }
+
+        // Fallback
+        return {
+          price: numericPart,
+          currency: 'UNKNOWN',
+          formatted: fullMatch
+        };
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Extraction complète des prix (pour compatibilité)
    */
   static extractPrices(text: string): Array<{
     price: string;
@@ -80,87 +127,13 @@ export class PriceExtractor {
     formatted: string;
     confidence: number;
   }> {
-    const prices: Array<{
-      price: string;
-      currency: string;
-      formatted: string;
-      confidence: number;
-    }> = [];
-
-    // Patterns optimisés
-    const patterns = [
-      {
-        regex: /(?:prix|price|coût|cost)\s*:?\s*(\d+(?:[,\.\s]\d+)*)\s*(FCFA|CFA|EUR|USD|GBP|JPY|CNY|INR|NGN|GHS)/gi,
+    const bestPrice = this.getBestPrice(text);
+    if (bestPrice) {
+      return [{
+        ...bestPrice,
         confidence: 0.9
-      },
-      {
-        regex: /([€$£¥₹₽₦₵])\s*(\d+(?:[,\.\s]\d+)*)/gi,
-        confidence: 0.8
-      },
-      {
-        regex: /(\d+(?:[,\.\s]\d+)*)\s*(FCFA|CFA|EUR|USD|GBP|JPY|CNY|INR|NGN|GHS)/gi,
-        confidence: 0.7
-      }
-    ];
-
-    patterns.forEach(({ regex, confidence }) => {
-      const matches = text.matchAll(regex);
-      for (const match of matches) {
-        let price = '';
-        let currency = '';
-
-        if (match[1] && match[2]) {
-          price = match[1].replace(/[,\s]/g, '');
-          currency = match[2];
-        } else if (match[0]) {
-          const symbol = match[1];
-          currency = this.CURRENCY_SYMBOLS[symbol as keyof typeof this.CURRENCY_SYMBOLS] || symbol;
-          price = match[2]?.replace(/[,\s]/g, '') || '';
-        }
-
-        if (price && currency) {
-          prices.push({
-            price,
-            currency,
-            formatted: this.formatPrice(price, currency),
-            confidence
-          });
-        }
-      }
-    });
-
-    return prices.sort((a, b) => b.confidence - a.confidence);
-  }
-
-  private static formatPrice(price: string, currency: string): string {
-    const numericPrice = parseFloat(price.replace(/[^\d\.]/g, ''));
-    
-    if (isNaN(numericPrice)) return `${price} ${currency}`;
-
-    if (currency === 'FCFA' || currency === 'CFA') {
-      return `${numericPrice.toLocaleString('fr-FR')} FCFA`;
+      }];
     }
-    
-    if (currency === 'EUR') {
-      return `${numericPrice.toLocaleString('fr-FR')} €`;
-    }
-    
-    if (currency === 'USD') {
-      return `$${numericPrice.toLocaleString('en-US')}`;
-    }
-
-    return `${numericPrice.toLocaleString()} ${currency}`;
-  }
-
-  /**
-   * Obtient le meilleur prix détecté
-   */
-  static getBestPrice(text: string): {
-    price: string;
-    currency: string;
-    formatted: string;
-  } | null {
-    const prices = this.extractPrices(text);
-    return prices.length > 0 ? prices[0] : null;
+    return [];
   }
 }

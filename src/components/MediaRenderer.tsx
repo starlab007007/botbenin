@@ -1,8 +1,7 @@
 
 import React from 'react';
 import { UrlDetector, UrlInfo } from '@/utils/urlDetection';
-import { ImageDisplay } from '@/components/ImageDisplay';
-import { ProductImageDisplay } from '@/components/ProductImageDisplay';
+import { OptimizedImageDisplay } from '@/components/OptimizedImageDisplay';
 
 interface MediaRendererProps {
   content: string;
@@ -139,48 +138,29 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return [text];
   };
 
-  // Fonction AMÉLIORÉE pour nettoyer le contenu - suppression COMPLÈTE des codes HTML
+  // Nettoyage agressif du contenu HTML
   const cleanContent = (text: string): string => {
     let cleanedText = text;
     
-    // Supprimer TOUS les tags HTML et leur contenu
+    // Supprimer TOUS les éléments HTML
     cleanedText = cleanedText.replace(/<[^>]*>/g, '');
     
-    // Supprimer les blocs JSON complets
+    // Supprimer les structures JSON
     cleanedText = cleanedText.replace(/\{[^{}]*"Image_URL"[^{}]*\}/g, '');
-    
-    // Supprimer les patterns comme "Image_URL": "..."
     cleanedText = cleanedText.replace(/"Image_URL"\s*:\s*"[^"]*"/g, '');
-    
-    // Supprimer TOUS les patterns de code avec des crochets et accolades
     cleanedText = cleanedText.replace(/\{[^{}]*\}/g, '');
     cleanedText = cleanedText.replace(/\[[^\[\]]*\]/g, '');
     
-    // Supprimer les mots-clés techniques isolés
-    cleanedText = cleanedText.replace(/\b(Image_URL|Source|Description|json|div|class|span|strong)\b\s*[:=]?\s*/gi, '');
-    
-    // Supprimer les attributs HTML résiduels
-    cleanedText = cleanedText.replace(/class\s*=\s*["'][^"']*["']/gi, '');
-    cleanedText = cleanedText.replace(/style\s*=\s*["'][^"']*["']/gi, '');
-    
-    // Supprimer les entités HTML
-    cleanedText = cleanedText.replace(/&[a-zA-Z0-9#]+;/g, '');
-    
-    // Nettoyer les espaces multiples et retours à la ligne
+    // Nettoyer les espaces et retours à la ligne
     cleanedText = cleanedText.replace(/\s{2,}/g, ' ').trim();
-    
-    // Supprimer les lignes qui ne contiennent que des caractères spéciaux
-    cleanedText = cleanedText.replace(/^[{}\[\]:,"'\s]*$/gm, '');
     
     return cleanedText;
   };
 
-  // Fonction principale pour traiter les URLs avec détection intelligente
+  // Fonction principale pour traiter les URLs avec détection rapide
   const processUrlsWithMediaDetection = (text: string): React.ReactNode[] => {
-    // Nettoyer d'abord le contenu de TOUT code HTML
     const cleanedText = cleanContent(text);
     
-    // Si après nettoyage il ne reste rien d'utile, ne rien afficher
     if (!cleanedText || cleanedText.trim().length < 3) {
       return [];
     }
@@ -188,7 +168,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     const urlInfos = UrlDetector.extractUrls(cleanedText);
     
     if (urlInfos.length === 0) {
-      // Pas d'URLs trouvées, traiter pour emails et WhatsApp seulement
       return processContent(cleanedText);
     }
 
@@ -203,7 +182,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       const startIndex = match.index;
       const urlInfo = urlInfos[urlIndex++];
 
-      // Ajouter le texte avant l'URL (s'il y en a)
+      // Ajouter le texte avant l'URL
       if (startIndex > lastIndex) {
         const beforeText = cleanedText.substring(lastIndex, startIndex);
         if (beforeText.trim()) {
@@ -212,18 +191,18 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         }
       }
 
-      // Traiter l'URL selon son type
+      // Traiter l'URL selon son type avec le nouveau composant optimisé
       if (urlInfo.type === 'image' || urlInfo.type === 'google_sheet' || urlInfo.type === 'google_doc') {
-        // Utiliser ProductImageDisplay pour détecter et afficher automatiquement les prix
         parts.push(
-          <ProductImageDisplay 
+          <OptimizedImageDisplay 
             key={startIndex} 
             urlInfo={urlInfo}
-            content={cleanedText} // Passer le contenu pour extraction des prix
+            content={cleanedText}
+            showPrice={true}
           />
         );
       } else {
-        // URL normale, afficher comme lien
+        // URL normale
         parts.push(
           <a 
             key={startIndex}
@@ -254,7 +233,6 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
   // Fonction principale pour traiter le contenu (emails et WhatsApp)
   const processContent = (text: string): React.ReactNode[] => {
-    // Traiter les WhatsApp d'abord
     const whatsappProcessed = processWhatsApp(text);
     
     if (whatsappProcessed.length > 1 || React.isValidElement(whatsappProcessed[0])) {
@@ -276,18 +254,14 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
     return lines.map((line, index) => {
       let formattedLine = line;
       
-      // Gras avec **texte** ou __texte__
+      // Formatage markdown simple
       formattedLine = formattedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       formattedLine = formattedLine.replace(/__(.*?)__/g, '<strong>$1</strong>');
-      
-      // Italique avec *texte* ou _texte_
       formattedLine = formattedLine.replace(/\*(.*?)\*/g, '<em>$1</em>');
       formattedLine = formattedLine.replace(/_(.*?)_/g, '<em>$1</em>');
-      
-      // Souligné avec ~~texte~~
       formattedLine = formattedLine.replace(/~~(.*?)~~/g, '<u>$1</u>');
       
-      // Titres avec ###
+      // Titres
       if (formattedLine.startsWith('### ')) {
         formattedLine = `<h3 class="text-lg font-bold text-blue-700 mt-3 mb-2">${formattedLine.substring(4)}</h3>`;
       } else if (formattedLine.startsWith('## ')) {
@@ -296,30 +270,30 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
         formattedLine = `<h1 class="text-2xl font-bold text-blue-900 mt-4 mb-3">${formattedLine.substring(2)}</h1>`;
       }
       
-      // Listes avec - ou *
+      // Listes
       if (formattedLine.trim().startsWith('- ')) {
         formattedLine = `<div class="ml-4 mb-1"><span class="text-blue-600 font-bold">•</span> ${formattedLine.trim().substring(2)}</div>`;
       } else if (formattedLine.trim().startsWith('* ')) {
         formattedLine = `<div class="ml-4 mb-1"><span class="text-blue-600 font-bold">•</span> ${formattedLine.trim().substring(2)}</div>`;
       }
       
-      // Numérotation avec 1., 2., etc.
+      // Numérotation
       const numberedMatch = formattedLine.match(/^(\d+)\.\s+(.*)$/);
       if (numberedMatch) {
         formattedLine = `<div class="ml-4 mb-2"><span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-bold mr-2">${numberedMatch[1]}</span>${numberedMatch[2]}</div>`;
       }
       
-      // Citations avec >
+      // Citations
       if (formattedLine.trim().startsWith('> ')) {
         formattedLine = `<blockquote class="border-l-4 border-blue-300 pl-4 py-2 bg-blue-50 italic text-gray-700 my-2">${formattedLine.trim().substring(2)}</blockquote>`;
       }
       
-      // Lignes vides pour l'espacement
+      // Lignes vides
       if (formattedLine.trim() === '') {
         return <div key={index} className="h-2"></div>;
       }
       
-      // Vérifier si la ligne contient des liens/images - utiliser la nouvelle fonction
+      // Vérifier si la ligne contient des URLs
       const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]\(\)]+)/gi;
       if (urlRegex.test(formattedLine)) {
         return (
@@ -332,7 +306,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       // Traiter le contenu pour les emails et WhatsApp
       const processedContent = processContent(formattedLine);
       
-      // Si on a du contenu formaté avec du HTML, l'afficher avec dangerouslySetInnerHTML
+      // Si formaté avec HTML, afficher avec dangerouslySetInnerHTML
       if (typeof processedContent[0] === 'string' && processedContent.length === 1 && 
           (formattedLine.includes('<') || formattedLine.includes('strong>') || formattedLine.includes('<em>'))) {
         return (
