@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UrlInfo } from '@/utils/urlDetection';
+import { imageCache } from '@/utils/imageCache';
 
 interface OptimizedImageDisplayProps {
   urlInfo: UrlInfo;
@@ -15,162 +16,205 @@ export const OptimizedImageDisplay: React.FC<OptimizedImageDisplayProps> = ({
   className = '',
   showPrice = false 
 }) => {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string>('');
+  const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [finalImageUrl, setFinalImageUrl] = useState<string>('');
+  const [detectedPrice, setDetectedPrice] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const mountedRef = useRef(true);
 
-  // Optimisation URL immédiate
-  const optimizeUrl = (url: string): string => {
-    if (!url) return '';
-    
-    // Google Drive - conversion directe
-    if (url.includes('drive.google.com/file/d/')) {
-      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (fileIdMatch?.[1]) {
-        return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
-      }
-    }
-    
-    // Google Sheets
-    if (url.includes('docs.google.com/spreadsheets')) {
-      const sheetIdMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-      if (sheetIdMatch?.[1]) {
-        return `https://docs.google.com/spreadsheets/d/${sheetIdMatch[1]}/export?format=png&size=0&gid=0`;
-      }
-    }
-    
-    // Dropbox
-    if (url.includes('dropbox.com')) {
-      return url.replace('?dl=0', '?raw=1');
-    }
-    
-    // Imgur optimisation
-    if (url.includes('imgur.com')) {
-      return url.replace(/[bmts]\.jpg$/, '.jpg').replace(/[bmts]\.png$/, '.png');
-    }
-    
-    return url;
-  };
-
-  // Extraction prix rapide
-  const extractPrice = (text: string): string | null => {
+  // Extract price function
+  const extractPrice = useCallback((text: string): string | null => {
     if (!showPrice || !text) return null;
     
     const pricePatterns = [
-      /(\d+(?:\s?\d{3})*)\s*FCFA/gi,
-      /(\d+(?:\s?\d{3})*)\s*CFA/gi,
+      /(\d+(?:\s?\d{3})*)\s*(?:FCFA|CFA)/gi,
       /(\d+(?:[,\.]\d+)*)\s*€/gi,
       /\$(\d+(?:[,\.]\d+)*)/gi,
+      /(\d+(?:[,\.]\d+)*)\s*(?:USD|EUR|GBP)/gi,
     ];
     
     for (const pattern of pricePatterns) {
       const match = text.match(pattern);
-      if (match) {
-        return match[0];
-      }
+      if (match) return match[0];
     }
     return null;
-  };
+  }, [showPrice]);
 
-  useEffect(() => {
-    // Nettoyer les timeouts précédents
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-
-    const originalUrl = urlInfo.processedUrl || urlInfo.url;
-    if (!originalUrl) {
-      setImageError(true);
-      return;
-    }
-
-    const optimizedUrl = optimizeUrl(originalUrl);
-    setImageUrl(optimizedUrl);
-    setImageLoaded(false);
-    setImageError(false);
-
-    // Timeout agressif de 4 secondes
-    timeoutRef.current = setTimeout(() => {
-      if (!imageLoaded) {
-        console.warn('Image timeout:', optimizedUrl);
-        setImageError(true);
+  // URL optimization function
+  const optimizeImageUrl = useCallback((url: string): string => {
+    if (!url) return '';
+    
+    try {
+      // Google Drive optimization
+      if (url.includes('drive.google.com/file/d/')) {
+        const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (fileIdMatch?.[1]) {
+          return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
+        }
       }
-    }, 4000);
+      
+      // Google Sheets optimization
+      if (url.includes('docs.google.com/spreadsheets')) {
+        const sheetIdMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        if (sheetIdMatch?.[1]) {
+          return `https://docs.google.com/spreadsheets/d/${sheetIdMatch[1]}/export?format=png&size=0&gid=0&portrait=false&fitw=true`;
+        }
+      }
+      
+      // Dropbox optimization
+      if (url.includes('dropbox.com')) {
+        return url.replace(/\?dl=0$/, '?raw=1').replace(/\?dl=1$/, '?raw=1');
+      }
+      
+      // Imgur optimization
+      if (url.includes('imgur.com')) {
+        return url.replace(/[bmts]\.jpg$/, '.jpg').replace(/[bmts]\.png$/, '.png');
+      }
+      
+      return url;
+    } catch (error) {
+      console.warn('URL optimization failed:', error);
+      return url;
+    }
+  }, []);
 
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+  // Initialize component
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    const processUrl = async () => {
+      const originalUrl = urlInfo.processedUrl || urlInfo.url;
+      if (!originalUrl) {
+        setImageStatus('error');
+        return;
+      }
+
+      const optimizedUrl = optimizeImageUrl(originalUrl);
+      setFinalImageUrl(optimizedUrl);
+
+      // Extract price if needed
+      if (showPrice && content) {
+        const price = extractPrice(content);
+        setDetectedPrice(price);
+      }
+
+      // Check cache first
+      const cacheStatus = imageCache.getStatus(optimizedUrl);
+      if (cacheStatus === 'loaded') {
+        if (mountedRef.current) {
+          setImageStatus('loaded');
+        }
+        return;
+      }
+      
+      if (cacheStatus === 'error') {
+        if (mountedRef.current) {
+          setImageStatus('error');
+        }
+        return;
+      }
+
+      // Start loading
+      setImageStatus('loading');
+      
+      try {
+        const success = await imageCache.preloadImage(optimizedUrl);
+        if (mountedRef.current) {
+          setImageStatus(success ? 'loaded' : 'error');
+        }
+      } catch (error) {
+        console.warn('Image preload failed:', error);
+        if (mountedRef.current) {
+          setImageStatus('error');
+        }
       }
     };
-  }, [urlInfo.processedUrl, urlInfo.url, imageLoaded]);
 
-  const handleImageLoad = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    processUrl();
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [urlInfo.url, urlInfo.processedUrl, optimizeImageUrl, extractPrice, content, showPrice]);
+
+  // Handle image load events
+  const handleImageLoad = useCallback(() => {
+    if (mountedRef.current) {
+      setImageStatus('loaded');
     }
-    setImageLoaded(true);
-    setImageError(false);
-  };
+  }, []);
 
-  const handleImageError = () => {
-    console.warn('Image error:', imageUrl);
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+  const handleImageError = useCallback(() => {
+    console.warn('Direct image load failed:', finalImageUrl);
+    if (mountedRef.current) {
+      setImageStatus('error');
     }
-    setImageError(true);
-    setImageLoaded(false);
-  };
+  }, [finalImageUrl]);
 
-  // Si erreur, ne rien afficher
-  if (imageError || !imageUrl) {
+  // Don't render anything if error or no URL
+  if (imageStatus === 'error' || !finalImageUrl) {
     return null;
   }
 
-  const detectedPrice = extractPrice(content);
-
   return (
     <div className="my-2 max-w-lg">
-      {/* Loading léger */}
-      {!imageLoaded && !imageError && (
-        <div className="flex items-center justify-center min-h-[100px] bg-gray-50 rounded-md border animate-pulse">
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-blue-400 rounded-full animate-spin"></div>
-            <span className="text-xs text-gray-500">Chargement...</span>
+      {/* Enhanced loading state */}
+      {imageStatus === 'loading' && (
+        <div className="flex items-center justify-center min-h-[120px] bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-200 animate-pulse">
+          <div className="flex flex-col items-center space-y-3">
+            <div className="relative">
+              <div className="w-8 h-8 border-3 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 w-8 h-8 border-3 border-transparent border-b-purple-400 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-medium text-blue-700 animate-pulse">Chargement de l'image...</div>
+              <div className="text-xs text-blue-500 mt-1">Optimisation en cours</div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Image optimisée */}
-      {imageUrl && (
-        <div className="relative overflow-hidden rounded-md shadow-sm hover:shadow-md transition-shadow duration-200">
+      {/* Image display */}
+      {imageStatus === 'loaded' && finalImageUrl && (
+        <div className="relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300 group">
           <img
             ref={imgRef}
-            src={imageUrl}
-            alt="Image"
-            className={`${imageLoaded ? 'block' : 'hidden'} w-full h-auto object-contain max-h-[250px] transition-opacity duration-200 ${className}`}
-            loading="eager"
-            decoding="sync"
+            src={finalImageUrl}
+            alt="Image optimisée"
+            className={`w-full h-auto object-contain max-h-[400px] transition-all duration-300 group-hover:scale-[1.02] ${className}`}
+            loading="lazy"
+            decoding="async"
             onLoad={handleImageLoad}
             onError={handleImageError}
-            style={{ imageRendering: 'auto' }}
+            style={{ 
+              imageRendering: 'auto',
+              transform: 'translateZ(0)' // Force hardware acceleration
+            }}
           />
           
-          {/* Prix en overlay */}
-          {detectedPrice && imageLoaded && (
-            <div className="absolute top-1 left-1">
-              <div className="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold shadow">
+          {/* Price overlay */}
+          {detectedPrice && (
+            <div className="absolute top-2 left-2 z-10">
+              <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1.5 rounded-full text-sm font-bold shadow-lg backdrop-blur-sm">
                 {detectedPrice}
               </div>
             </div>
           )}
 
-          {/* Badge optimisé */}
-          {imageLoaded && (
-            <div className="absolute top-1 right-1">
-              <div className="bg-black/40 text-white text-xs px-1 py-0.5 rounded">
-                ✓
+          {/* Success indicator */}
+          <div className="absolute top-2 right-2 z-10">
+            <div className="bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full flex items-center space-x-1">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+              <span>Optimisé</span>
+            </div>
+          </div>
+
+          {/* Image type indicator */}
+          {urlInfo.type !== 'image' && (
+            <div className="absolute bottom-2 right-2 z-10">
+              <div className="bg-blue-500/80 backdrop-blur-sm text-white text-xs px-2 py-1 rounded">
+                {urlInfo.type === 'google_sheet' ? 'Google Sheet' : 
+                 urlInfo.type === 'google_doc' ? 'Google Doc' : 'Document'}
               </div>
             </div>
           )}

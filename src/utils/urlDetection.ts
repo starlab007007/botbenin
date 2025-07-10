@@ -1,13 +1,14 @@
 
-// Utility functions for URL detection and processing (ultra-optimisées)
+// Enhanced utility functions for URL detection and processing
 export interface UrlInfo {
   url: string;
   type: 'image' | 'google_sheet' | 'google_doc' | 'regular';
   processedUrl?: string;
+  priority?: number; // For loading priority
 }
 
 export class UrlDetector {
-  private static imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|tiff)(\?.*)?$/i;
+  private static imageExtensions = /\.(jpg|jpeg|png|gif|bmp|webp|svg|ico|tiff|avif)(\?.*)?$/i;
   
   private static imageDomains = [
     'imgur.com',
@@ -21,48 +22,72 @@ export class UrlDetector {
     'unsplash.com',
     'pixabay.com',
     'pexels.com',
-    'cloudinary.com'
+    'cloudinary.com',
+    'amazonaws.com',
+    'cloudfront.net',
+    'fastly.com',
+    'githubusercontent.com'
   ];
 
+  // Enhanced URL validation
+  private static isValidImageUrl(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
   static detectUrlType(url: string): UrlInfo {
+    if (!this.isValidImageUrl(url)) {
+      return { url, type: 'regular', priority: 0 };
+    }
+
     const urlInfo: UrlInfo = {
       url,
-      type: 'regular'
+      type: 'regular',
+      priority: 1
     };
 
-    // Google Sheets - détection rapide
+    // Google Sheets - high priority
     if (url.includes('docs.google.com/spreadsheets')) {
       urlInfo.type = 'google_sheet';
       urlInfo.processedUrl = this.convertGoogleSheetToImage(url);
+      urlInfo.priority = 3;
       return urlInfo;
     }
 
-    // Google Docs - détection rapide
+    // Google Docs - high priority
     if (url.includes('docs.google.com/document')) {
       urlInfo.type = 'google_doc';
       urlInfo.processedUrl = this.convertGoogleDocToImage(url);
+      urlInfo.priority = 3;
       return urlInfo;
     }
 
-    // Google Drive - détection rapide
+    // Google Drive - medium priority
     if (url.includes('drive.google.com/file/d/') || url.includes('googleusercontent.com')) {
       urlInfo.type = 'image';
       urlInfo.processedUrl = this.convertGoogleDriveUrl(url);
+      urlInfo.priority = 2;
       return urlInfo;
     }
 
-    // Extensions d'images - test rapide
+    // Direct image extensions - highest priority
     if (this.imageExtensions.test(url)) {
       urlInfo.type = 'image';
-      urlInfo.processedUrl = url;
+      urlInfo.processedUrl = this.optimizeDirectImageUrl(url);
+      urlInfo.priority = 4;
       return urlInfo;
     }
 
-    // Domaines d'images - recherche optimisée
+    // Known image domains - medium priority
     for (const domain of this.imageDomains) {
       if (url.includes(domain)) {
         urlInfo.type = 'image';
-        urlInfo.processedUrl = url;
+        urlInfo.processedUrl = this.optimizeImageDomainUrl(url, domain);
+        urlInfo.priority = 2;
         return urlInfo;
       }
     }
@@ -70,11 +95,50 @@ export class UrlDetector {
     return urlInfo;
   }
 
+  private static optimizeDirectImageUrl(url: string): string {
+    // Add cache busting and optimization parameters
+    const urlObj = new URL(url);
+    
+    // For some CDNs, add optimization parameters
+    if (url.includes('unsplash.com')) {
+      urlObj.searchParams.set('auto', 'format');
+      urlObj.searchParams.set('fit', 'max');
+      urlObj.searchParams.set('w', '800');
+    }
+    
+    return urlObj.toString();
+  }
+
+  private static optimizeImageDomainUrl(url: string, domain: string): string {
+    try {
+      switch (domain) {
+        case 'imgur.com':
+          // Remove size modifiers for better quality
+          return url.replace(/[bmts]\.jpg$/, '.jpg').replace(/[bmts]\.png$/, '.png');
+        
+        case 'dropbox.com':
+          return url.replace('?dl=0', '?raw=1').replace('?dl=1', '?raw=1');
+        
+        case 'amazonaws.com':
+        case 'cloudfront.net':
+          // These are usually already optimized
+          return url;
+        
+        default:
+          return url;
+      }
+    } catch (error) {
+      console.warn('Failed to optimize URL for domain:', domain, error);
+      return url;
+    }
+  }
+
   private static convertGoogleSheetToImage(url: string): string {
     try {
       const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
       if (match?.[1]) {
-        return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=png&size=0&gid=0`;
+        // Use export format with better quality settings
+        return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=png&size=0&gid=0&portrait=false&fitw=true`;
       }
     } catch (error) {
       console.warn('Failed to convert Google Sheet URL:', error);
@@ -102,6 +166,11 @@ export class UrlDetector {
           return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}`;
         }
       }
+      
+      // Handle Google Drive direct links
+      if (url.includes('googleusercontent.com')) {
+        return url;
+      }
     } catch (error) {
       console.warn('Failed to convert Google Drive URL:', error);
     }
@@ -115,9 +184,12 @@ export class UrlDetector {
 
     while ((match = urlRegex.exec(text)) !== null) {
       const urlInfo = this.detectUrlType(match[0]);
-      urls.push(urlInfo);
+      if (urlInfo.type !== 'regular') {
+        urls.push(urlInfo);
+      }
     }
 
-    return urls;
+    // Sort by priority (higher priority first)
+    return urls.sort((a, b) => (b.priority || 0) - (a.priority || 0));
   }
 }
