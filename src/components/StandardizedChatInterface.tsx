@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useToast, toast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
 import { ChatHeader } from '@/components/ChatHeader';
@@ -17,7 +16,7 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   isBookmarked?: boolean;
-  isHistoryMessage?: boolean; // Nouveau champ pour marquer les messages d'historique
+  isHistoryMessage?: boolean;
 }
 
 interface StandardizedChatInterfaceProps {
@@ -45,6 +44,9 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [initializationComplete, setInitializationComplete] = useState(false);
+  
+  // Référence pour éviter les envois multiples
+  const sendingRef = useRef(false);
 
   // Use session manager hook
   const {
@@ -145,7 +147,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         content: item.message_content,
         isUser: item.message_type === 'user',
         timestamp: new Date(item.message_timestamp),
-        isHistoryMessage: true, // Marquer comme message d'historique
+        isHistoryMessage: true,
       }));
 
       if (mappedHistory.length > 0) {
@@ -163,19 +165,51 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
           content: welcomeMessage,
           isUser: false,
           timestamp: new Date(),
-          isHistoryMessage: true, // Le message de bienvenue est aussi considéré comme historique
+          isHistoryMessage: true,
         }]);
       }
     }
   }, [historyMessages, botConfig, loadingHistory, sessionReady]);
 
-  // Optimized message sending with useCallback
+  // Fonction d'envoi optimisée avec protection contre les envois multiples
   const handleSendMessage = useCallback(async (messageText?: string) => {
     const textToSend = messageText || inputValue;
-    if (!textToSend.trim() || isProcessing || !botConfig) return;
+    
+    console.log(`[StandardizedChatInterface] === OPTIMIZED SEND MESSAGE ===`);
+    console.log('Text to send:', textToSend);
+    console.log('Is processing:', isProcessing);
+    console.log('Sending ref:', sendingRef.current);
+    console.log('Bot config exists:', !!botConfig);
+    console.log('Session error:', sessionError);
 
-    // More lenient session check - allow sending even if session is still initializing
+    // Vérifications strictes et optimisées
+    if (!textToSend.trim()) {
+      console.log('Empty message, aborting');
+      return;
+    }
+
+    if (sendingRef.current) {
+      console.log('Already sending, aborting to prevent duplicate');
+      return;
+    }
+
+    if (isProcessing) {
+      console.log('Already processing, aborting');
+      return;
+    }
+
+    if (!botConfig) {
+      console.log('No bot config, aborting');
+      toast({
+        title: "Configuration manquante",
+        description: "Le bot n'est pas encore configuré. Veuillez patienter.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (sessionError) {
+      console.log('Session error, aborting');
       toast({
         title: "Erreur de session",
         description: "Problème avec votre session. Veuillez rafraîchir la page.",
@@ -184,13 +218,14 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       return;
     }
 
-    console.log(`[StandardizedChatInterface] === SENDING MESSAGE ===`);
-
+    // Marquer immédiatement comme en cours d'envoi
+    sendingRef.current = true;
+    setIsProcessing(true);
     setShowSuggestions(false);
 
-    const userDisplay = isGuest && guestUser
-      ? guestUser.displayName
-      : undefined;
+    console.log('=== SENDING MESSAGE IMMEDIATELY ===');
+
+    const userDisplay = isGuest && guestUser ? guestUser.displayName : undefined;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -201,24 +236,22 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
       ...(userDisplay ? { content: `[${userDisplay}] ${textToSend}` } : {}),
     };
 
-    // Save user message if session token available
+    // Ajouter le message utilisateur immédiatement à l'interface
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue(''); // Vider l'input immédiatement
+
+    // Sauvegarder le message utilisateur en arrière-plan
     if (sessionToken) {
       try {
         const messageId = await saveChatMessage(botId, sessionToken, textToSend, "user");
         console.log(`[StandardizedChatInterface] User message saved with ID: ${messageId}`);
       } catch (saveError) {
         console.warn('[StandardizedChatInterface] Failed to save user message:', saveError);
-        // Continue without blocking
       }
     }
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsProcessing(true);
-
     try {
       const controller = new AbortController();
-      // AUGMENTATION DU TIMEOUT : de 15s à 45s
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
       const headers = BotConfigService.getStandardWebhookHeaders(
@@ -236,6 +269,8 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         sessionToken || 'fallback_session',
         isTest
       );
+
+      console.log('Sending to webhook:', botConfig.webhook_url);
 
       const response = await fetch(botConfig.webhook_url, {
         method: 'POST',
@@ -278,10 +313,10 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         content: processedContent.trim(),
         isUser: false,
         timestamp: new Date(),
-        isHistoryMessage: false, // Nouveau message, pas d'historique - aura l'animation
+        isHistoryMessage: false,
       };
 
-      // Save bot response if session token available
+      // Sauvegarder la réponse du bot
       if (sessionToken) {
         try {
           const responseId = await saveChatMessage(botId, sessionToken, processedContent.trim(), "bot");
@@ -322,7 +357,12 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
         variant: "destructive",
       });
     } finally {
+      // Réinitialiser les états
       setIsProcessing(false);
+      setTimeout(() => {
+        sendingRef.current = false;
+        console.log('Send process completed, ready for next message');
+      }, 500);
     }
   }, [inputValue, isProcessing, botConfig, sessionError, sessionToken, isGuest, guestUser, botId, isTest]);
 
