@@ -5166,23 +5166,22 @@ export type Database = {
         Returns: string
       }
       get_owner_all_conversations: {
-        Args: { p_limit?: number; p_offset?: number; p_bot_id?: string }
+        Args: { p_limit?: number; p_offset?: number; p_bot_filter?: string }
         Returns: {
-          bot_id: string | null
-          bot_name: string | null
-          bot_user_id: string | null
-          conversation_start: string | null
-          is_active_today: boolean | null
-          last_bot_message: string | null
-          last_message_at: string | null
-          last_user_message: string | null
-          message_count: number | null
-          owner_id: string | null
-          session_id: string | null
-          user_email: string | null
-          user_first_seen: string | null
-          user_last_active: string | null
-          user_name: string | null
+          bot_id: string
+          bot_name: string
+          session_id: string
+          bot_user_id: string
+          user_name: string
+          user_email: string
+          conversation_start: string
+          last_message_at: string
+          message_count: number
+          user_first_seen: string
+          user_last_active: string
+          is_active_today: boolean
+          last_user_message: string
+          last_bot_message: string
         }[]
       }
       get_owner_complete_stats: {
@@ -5371,6 +5370,15 @@ export type Database = {
           test_category: string
           test_result: string
           details: string
+        }[]
+      }
+      test_owner_access_complete: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_name: string
+          status: string
+          details: string
+          data_preview: Json
         }[]
       }
       test_session_token_resolution: {
