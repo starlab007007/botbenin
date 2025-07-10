@@ -5427,6 +5427,14 @@ export type Database = {
         Args: { user_uuid: string; permission_name: string }
         Returns: boolean
       }
+      validate_owner_complete_access: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          validation_step: string
+          status: string
+          result_details: Json
+        }[]
+      }
       verify_bot_access_final: {
         Args: { p_bot_id: string }
         Returns: boolean
