@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { UrlDetector, UrlInfo } from '@/utils/urlDetection';
-import { OptimizedImageDisplay } from '@/components/OptimizedImageDisplay';
+import { ImageDisplay } from '@/components/ImageDisplay';
 
 interface MediaRendererProps {
   content: string;
@@ -213,13 +213,11 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
       // Traiter l'URL selon son type
       if (urlInfo.type === 'image' || urlInfo.type === 'google_sheet' || urlInfo.type === 'google_doc') {
-        // Afficher l'image optimisée avec lazy loading et compression
+        // Afficher UNIQUEMENT l'image, sans aucun texte ni lien
         parts.push(
-          <OptimizedImageDisplay 
+          <ImageDisplay 
             key={startIndex} 
             urlInfo={urlInfo}
-            lazy={true}
-            containerWidth={800}
           />
         );
       } else {
