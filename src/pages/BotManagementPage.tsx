@@ -171,7 +171,7 @@ export const BotManagementPage: React.FC = () => {
     }
   };
 
-  // Si l'utilisateur n'est pas authentifié - VÉRIFICATION PRIORITAIRE
+  // Si l'utilisateur n'est pas authentifié
   if (!isAuthenticated) {
     return (
       <>
@@ -226,7 +226,6 @@ export const BotManagementPage: React.FC = () => {
     );
   }
 
-  // Les formulaires de bot ne sont accessibles qu'aux utilisateurs authentifiés
   if (showCreateForm) {
     return (
       <div className="container mx-auto px-4 py-8">

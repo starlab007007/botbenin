@@ -1,199 +1,236 @@
 
 import React, { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Database, Users, Plus } from 'lucide-react';
-import { useProspectDatabases } from '@/hooks/useProspectDatabases';
-import { CreateDatabaseModal } from '@/components/prospects/CreateDatabaseModal';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Database, Users } from 'lucide-react';
 
-interface SelectedBusiness {
+interface LocalBusiness {
   id: string;
   name: string;
   companyName: string;
-  email: string;
+  category: string;
+  address: string;
   phone: string;
+  website: string;
+  email: string;
+  rating: number;
+  reviewCount: number;
+  hours: string;
+  priceRange: string;
+  distance: string;
+  coordinates?: [number, number];
+  jobTitle: string;
+  linkedinUrl: string;
+  industry: string;
+  companySize: string;
+}
+
+interface ProspectDatabase {
+  id: string;
+  name: string;
+  description?: string;
 }
 
 interface SaveToProspectsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedBusinesses: SelectedBusiness[];
+  selectedBusinesses: LocalBusiness[];
   searchSessionId: string;
-  onTransfer?: (databaseId: string) => Promise<void>;
 }
 
 export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
   isOpen,
   onClose,
   selectedBusinesses,
-  searchSessionId,
-  onTransfer
+  searchSessionId
 }) => {
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>('');
-  const [isTransferring, setIsTransferring] = useState(false);
-  const [isCreateDatabaseOpen, setIsCreateDatabaseOpen] = useState(false);
-  
-  const { databases, fetchDatabases } = useProspectDatabases();
+  const [databases, setDatabases] = useState<ProspectDatabase[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
 
-  const handleTransfer = async () => {
-    if (!selectedDatabaseId || !onTransfer) return;
-    
-    setIsTransferring(true);
+  React.useEffect(() => {
+    if (isOpen) {
+      loadDatabases();
+    }
+  }, [isOpen]);
+
+  const loadDatabases = async () => {
+    setIsLoading(true);
     try {
-      await onTransfer(selectedDatabaseId);
-      onClose();
+      const { data, error } = await supabase
+        .from('prospect_databases')
+        .select('id, name, description')
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setDatabases(data || []);
     } catch (error) {
-      console.error('Transfer failed:', error);
+      console.error('Error loading databases:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les bases de données",
+        variant: "destructive",
+      });
     } finally {
-      setIsTransferring(false);
+      setIsLoading(false);
     }
   };
 
-  const handleDatabaseCreated = () => {
-    fetchDatabases();
-    setIsCreateDatabaseOpen(false);
+  const saveBusinessesToDatabase = async () => {
+    if (!selectedDatabaseId) {
+      toast({
+        title: "Base de données requise",
+        description: "Veuillez sélectionner une base de données",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Erreur d'authentification",
+          description: "Vous devez être connecté pour sauvegarder des entreprises",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // First, save businesses to local_businesses table
+      const businessesToSave = selectedBusinesses.map(business => ({
+        user_id: user.id,
+        search_session_id: searchSessionId,
+        name: business.name,
+        company_name: business.companyName,
+        category: business.category,
+        address: business.address,
+        phone: business.phone,
+        website: business.website,
+        email: business.email,
+        rating: business.rating,
+        review_count: business.reviewCount,
+        hours: business.hours,
+        price_range: business.priceRange,
+        distance: business.distance,
+        coordinates: business.coordinates ? { lat: business.coordinates[1], lng: business.coordinates[0] } : null,
+        job_title: business.jobTitle,
+        linkedin_url: business.linkedinUrl,
+        industry: business.industry,
+        company_size: business.companySize
+      }));
+
+      const { data: savedBusinesses, error: saveError } = await supabase
+        .from('local_businesses')
+        .insert(businessesToSave)
+        .select('id');
+
+      if (saveError) throw saveError;
+
+      // Then transfer to prospects using the database function
+      const businessIds = savedBusinesses?.map(b => b.id) || [];
+      const { data: transferResult, error: transferError } = await supabase
+        .rpc('transfer_local_businesses_to_prospects', {
+          business_ids: businessIds,
+          target_database_id: selectedDatabaseId
+        });
+
+      if (transferError) throw transferError;
+
+      toast({
+        title: "Succès",
+        description: `${transferResult} entreprises ajoutées à la base de prospects`,
+      });
+
+      onClose();
+    } catch (error) {
+      console.error('Error saving businesses:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les entreprises",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <Database className="w-5 h-5 mr-2" />
-              Sauvegarder dans les Prospects
-            </DialogTitle>
-          </DialogHeader>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center">
+            <Database className="w-5 h-5 mr-2" />
+            Sauvegarder dans les Prospects
+          </DialogTitle>
+          <DialogDescription>
+            Ajoutez {selectedBusinesses.length} entreprise(s) à votre base de prospects
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-6">
-            {/* Sélection des entreprises */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center">
-                  <Users className="w-5 h-5 mr-2" />
-                  Entreprises sélectionnées
-                  <Badge className="ml-2">{selectedBusinesses.length}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {selectedBusinesses.map((business) => (
-                    <div key={business.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <div className="font-medium">{business.name}</div>
-                        <div className="text-sm text-gray-600">{business.companyName}</div>
-                        <div className="text-xs text-gray-500">
-                          {business.email} • {business.phone}
-                        </div>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="database">Base de données de destination</Label>
+            {isLoading ? (
+              <div className="flex items-center space-x-2 p-2 border rounded">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Chargement des bases...</span>
+              </div>
+            ) : (
+              <Select value={selectedDatabaseId} onValueChange={setSelectedDatabaseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une base de données" />
+                </SelectTrigger>
+                <SelectContent>
+                  {databases.map((db) => (
+                    <SelectItem key={db.id} value={db.id}>
+                      <div className="flex items-center">
+                        <Users className="w-4 h-4 mr-2" />
+                        {db.name}
                       </div>
-                    </div>
+                    </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <h4 className="font-medium text-sm mb-2">Entreprises sélectionnées:</h4>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {selectedBusinesses.map((business, index) => (
+                <div key={index} className="text-xs text-gray-600">
+                  • {business.companyName} ({business.name})
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Sélection de la base de données */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Base de données de destination</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Select value={selectedDatabaseId} onValueChange={setSelectedDatabaseId}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Choisir une base de données..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {databases.map((db) => (
-                        <SelectItem key={db.id} value={db.id}>
-                          <div className="flex items-center">
-                            <Database className="w-4 h-4 mr-2" />
-                            <div>
-                              <div className="font-medium">{db.name}</div>
-                              {db.description && (
-                                <div className="text-xs text-gray-500">{db.description}</div>
-                              )}
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsCreateDatabaseOpen(true)}
-                    className="flex items-center"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nouvelle
-                  </Button>
-                </div>
-
-                {databases.length === 0 && (
-                  <div className="text-center py-4 text-gray-500">
-                    <Database className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>Aucune base de données trouvée</p>
-                    <p className="text-sm">Créez votre première base de données</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Informations sur le transfert */}
-            <Card className="bg-blue-50 border-blue-200">
-              <CardContent className="p-4">
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Database className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-medium text-blue-900 mb-1">Que va-t-il se passer ?</p>
-                    <ul className="text-blue-700 space-y-1">
-                      <li>• Les entreprises seront ajoutées comme nouveaux prospects</li>
-                      <li>• Les informations complètes seront préservées</li>
-                      <li>• Le statut sera défini sur "Nouveau"</li>
-                      <li>• La source sera marquée comme "Recherche Locale"</li>
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Actions */}
-            <div className="flex justify-end space-x-3">
-              <Button variant="outline" onClick={onClose}>
-                Annuler
-              </Button>
-              <Button
-                onClick={handleTransfer}
-                disabled={!selectedDatabaseId || selectedBusinesses.length === 0 || isTransferring}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {isTransferring ? (
-                  'Transfert en cours...'
-                ) : (
-                  `Transférer ${selectedBusinesses.length} entreprise${selectedBusinesses.length > 1 ? 's' : ''}`
-                )}
-              </Button>
+              ))}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
 
-      <CreateDatabaseModal
-        isOpen={isCreateDatabaseOpen}
-        onClose={() => setIsCreateDatabaseOpen(false)}
-        onDatabaseCreated={handleDatabaseCreated}
-      />
-    </>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={onClose} disabled={isSaving}>
+              Annuler
+            </Button>
+            <Button onClick={saveBusinessesToDatabase} disabled={isSaving || !selectedDatabaseId}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sauvegarde...
+                </>
+              ) : (
+                'Sauvegarder'
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };

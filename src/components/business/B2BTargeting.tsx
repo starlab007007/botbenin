@@ -268,14 +268,14 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     setIsLoading(true);
     setRetryCount(prev => prev + 1);
     
-    console.log('=== B2B SEARCH VIA CHATBOT START ===');
+    console.log('=== B2B SEARCH VIA LEADBOT WEBHOOK START ===');
     console.log('Request ID:', requestId);
     console.log('Retry count:', retryCount);
     console.log('Search filters:', filters);
 
     const loadingResponse: WebhookResponse = {
       status: 'loading',
-      message: 'Recherche en cours via le système de chat...',
+      message: 'Recherche en cours via le système leadbot...',
       timestamp: new Date(),
       requestId
     };
@@ -293,7 +293,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         controller.abort();
       }, timeoutDuration);
 
-      console.log('Sending request via ChatInterface webhook (lead)');
+      console.log('Sending request via LeadBot webhook (https://ia.bot.bj/webhook/leadbot)');
 
       const requestPayload = {
         message: messageToSend,
@@ -306,7 +306,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
-      const response = await fetch('https://ia.bot.bj/webhook/lead', {
+      const response = await fetch('https://ia.bot.bj/webhook/leadbot', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -320,7 +320,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       clearTimeout(timeoutId);
 
-      console.log('Response received!');
+      console.log('Response received from leadbot webhook!');
       console.log('Status:', response.status, 'Status Text:', response.statusText);
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
@@ -336,7 +336,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       if (contentType.includes('application/json')) {
         responseData = await response.json();
-        console.log('JSON Response:', JSON.stringify(responseData, null, 2));
+        console.log('JSON Response from leadbot:', JSON.stringify(responseData, null, 2));
         
         processedContent = responseData.output || 
                           responseData.message || 
@@ -347,18 +347,18 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                           (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
         responseData = await response.text();
-        console.log('Text Response:', responseData);
+        console.log('Text Response from leadbot:', responseData);
         processedContent = responseData;
       }
 
-      console.log('Processed content:', processedContent);
+      console.log('Processed content from leadbot:', processedContent);
 
       if (!processedContent || processedContent.trim() === '') {
-        throw new Error('Empty or invalid response from webhook');
+        throw new Error('Empty or invalid response from leadbot webhook');
       }
 
       const extractedContacts = parseWebhookResponse(processedContent);
-      console.log('Extracted contacts:', extractedContacts);
+      console.log('Extracted contacts from leadbot response:', extractedContacts);
 
       const successResponse: WebhookResponse = {
         status: 'success',
@@ -373,29 +373,29 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       setRetryCount(0);
 
       toast({
-        title: "Recherche B2B - Succès",
-        description: `${extractedContacts.length} contacts trouvés et géolocalisés`,
+        title: "Recherche B2B - Succès avec LeadBot",
+        description: `${extractedContacts.length} contacts trouvés et géolocalisés via leadbot`,
       });
 
-      console.log('B2B search completed successfully via lead webhook');
+      console.log('B2B search completed successfully via leadbot webhook');
 
     } catch (error) {
-      console.error('=== B2B SEARCH ERROR ===');
+      console.error('=== B2B SEARCH ERROR WITH LEADBOT ===');
       console.error('Error type:', error?.constructor?.name);
       console.error('Error message:', error?.message);
       console.error('Full error:', error);
       
       let errorStatus: 'error' | 'timeout' = 'error';
-      let errorMessage = "Erreur de connexion au système de chat";
+      let errorMessage = "Erreur de connexion au système leadbot";
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           errorStatus = 'timeout';
-          errorMessage = `Timeout de la requête (${retryCount > 1 ? 45 : 30}s)`;
+          errorMessage = `Timeout de la requête leadbot (${retryCount > 1 ? 45 : 30}s)`;
         } else if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Impossible de se connecter au webhook du système de chat";
+          errorMessage = "Impossible de se connecter au webhook leadbot";
         } else if (error.message.includes('CORS')) {
-          errorMessage = "Problème CORS avec le webhook";
+          errorMessage = "Problème CORS avec le webhook leadbot";
         }
       }
 

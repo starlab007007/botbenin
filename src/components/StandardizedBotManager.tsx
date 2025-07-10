@@ -89,33 +89,13 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Non authentifié');
 
-      // Récupérer ou créer un bot_owner
-      let { data: ownerData, error: ownerError } = await supabase
+      const { data: ownerData } = await supabase
         .from('bot_owners')
-        .select('id, max_bots')
+        .select('id')
         .eq('user_id', user.id)
         .single();
 
-      if (ownerError || !ownerData) {
-        console.log('Création d\'un nouveau bot_owner pour l\'utilisateur:', user.id);
-        
-        const { data: newOwner, error: createError } = await supabase
-          .from('bot_owners')
-          .insert({ 
-            user_id: user.id,
-            subscription_plan: 'free',
-            max_bots: 10
-          })
-          .select('id, max_bots')
-          .single();
-
-        if (createError) {
-          console.error('Erreur lors de la création du bot_owner:', createError);
-          throw new Error(`Impossible de créer le compte propriétaire: ${createError.message}`);
-        }
-        
-        ownerData = newOwner;
-      }
+      if (!ownerData) throw new Error('Propriétaire non trouvé');
 
       if (botId) {
         // Mise à jour - ensure all required fields are properly typed
@@ -177,26 +157,9 @@ export const StandardizedBotManager: React.FC<StandardizedBotManagerProps> = ({
 
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      
-      // Déterminer le message d'erreur spécifique
-      let errorMessage = "Impossible de sauvegarder le bot";
-      if (error instanceof Error) {
-        if (error.message.includes('Non authentifié')) {
-          errorMessage = "Vous devez être connecté pour créer un bot";
-        } else if (error.message.includes('compte propriétaire')) {
-          errorMessage = error.message;
-        } else if (error.message.includes('duplicate key')) {
-          errorMessage = "Un bot avec ce nom existe déjà";
-        } else if (error.message.includes('violates row-level security')) {
-          errorMessage = "Permissions insuffisantes pour cette opération";
-        } else {
-          errorMessage = `Erreur de sauvegarde: ${error.message}`;
-        }
-      }
-      
       toast({
         title: "Erreur",
-        description: errorMessage,
+        description: "Impossible de sauvegarder le bot",
         variant: "destructive",
       });
     } finally {
