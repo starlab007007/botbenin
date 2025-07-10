@@ -13,7 +13,6 @@ import { Plus, Home, Mail } from 'lucide-react';
 import { BotManagerNav } from "./BotManagerNav";
 import { QRCodeModal } from "./QRCodeModal";
 import { useAuth } from '@/contexts/AuthContext';
-import { BotRLSDiagnostic } from './debug/BotRLSDiagnostic';
 
 // Import new components
 import { AuthGuard } from './bot-management/AuthGuard';
@@ -406,9 +405,6 @@ export const BotManagement: React.FC = () => {
       </div>
 
       <AuthGuard isAuthenticated={isAuthenticated}>
-        {/* Diagnostic additionnel pour surveiller les politiques RLS */}
-        <BotRLSDiagnostic />
-        
         <BotList
           bots={bots}
           botStats={botStats}
