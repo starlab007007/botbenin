@@ -2,6 +2,7 @@
 import React from 'react';
 import { UrlDetector, UrlInfo } from '@/utils/urlDetection';
 import { ImageDisplay } from '@/components/ImageDisplay';
+import { ProductImageDisplay } from '@/components/ProductImageDisplay';
 
 interface MediaRendererProps {
   content: string;
@@ -213,11 +214,12 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
 
       // Traiter l'URL selon son type
       if (urlInfo.type === 'image' || urlInfo.type === 'google_sheet' || urlInfo.type === 'google_doc') {
-        // Afficher UNIQUEMENT l'image, sans aucun texte ni lien
+        // Utiliser ProductImageDisplay pour détecter et afficher automatiquement les prix
         parts.push(
-          <ImageDisplay 
+          <ProductImageDisplay 
             key={startIndex} 
             urlInfo={urlInfo}
+            content={cleanedText} // Passer le contenu pour extraction des prix
           />
         );
       } else {

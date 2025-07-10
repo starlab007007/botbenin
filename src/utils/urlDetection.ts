@@ -21,7 +21,23 @@ export class UrlDetector {
     'flickr.com',
     'photobucket.com',
     'tinypic.com',
-    'imageshack.com'
+    'imageshack.com',
+    'unsplash.com',
+    'pixabay.com',
+    'pexels.com',
+    'freepik.com',
+    'shutterstock.com',
+    'gettyimages.com',
+    'istockphoto.com',
+    'adobe.com',
+    'canva.com',
+    'pinterest.com',
+    'instagram.com',
+    'facebook.com',
+    'cloudinary.com',
+    'images-amazon.com',
+    'media-amazon.com',
+    'ssl-images-amazon.com'
   ];
 
   static detectUrlType(url: string): UrlInfo {
@@ -79,6 +95,33 @@ export class UrlDetector {
       // Ajouter des paramètres pour une meilleure qualité
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}sz=w2000-h2000`;
+    }
+
+    if (url.includes('unsplash.com')) {
+      // Optimiser Unsplash pour haute résolution
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}q=80&w=2000&h=2000&fit=max`;
+    }
+
+    if (url.includes('pixabay.com')) {
+      // Remplacer les miniatures par les images complètes
+      return url.replace('_150.', '_1280.').replace('_640.', '_1280.');
+    }
+
+    if (url.includes('pexels.com')) {
+      // Optimiser Pexels
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}auto=compress&cs=tinysrgb&w=2000`;
+    }
+
+    if (url.includes('cloudinary.com')) {
+      // Optimiser Cloudinary
+      return url.replace(/\/c_scale,w_\d+/, '/c_scale,w_2000').replace(/\/q_\d+/, '/q_auto:best');
+    }
+
+    if (url.includes('amazon.com') || url.includes('ssl-images-amazon.com')) {
+      // Optimiser les images Amazon
+      return url.replace(/\._[A-Z0-9,_]+_\./, '._AC_UL2000_.');
     }
     
     return url;
