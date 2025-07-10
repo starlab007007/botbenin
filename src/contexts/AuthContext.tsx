@@ -193,9 +193,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        // Gérer les erreurs spécifiques d'inscription
+        let errorMessage = error.message;
+        
+        if (error.message?.includes('User already registered')) {
+          errorMessage = "Un compte existe déjà avec cette adresse email";
+        } else if (error.message?.includes('Password should be at least')) {
+          errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
+        } else if (error.message?.includes('Email not confirmed')) {
+          errorMessage = "Veuillez vérifier votre email et cliquer sur le lien de confirmation";
+        } else if (error.message?.includes('Invalid email')) {
+          errorMessage = "Adresse email invalide";
+        }
+        
         toast({
           title: "Erreur d'inscription",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
         });
         setIsLoading(false);
@@ -205,15 +218,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.user) {
         toast({
           title: "Compte créé avec succès",
-          description: "Vérifiez votre email pour confirmer votre compte",
+          description: "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
         });
         setIsLoading(false);
         return true;
       }
     } catch (error) {
+      console.error('Registration error:', error);
       toast({
         title: "Erreur d'inscription",
-        description: "Une erreur est survenue",
+        description: "Une erreur est survenue lors de la création du compte",
         variant: "destructive",
       });
     }
