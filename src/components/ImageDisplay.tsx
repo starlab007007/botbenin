@@ -100,7 +100,7 @@ export const ImageDisplay: React.FC<ImageDisplayProps> = ({ urlInfo, className }
         loading="eager"
         decoding="sync"
         fetchPriority="high"
-        style={{ imageRendering: 'high-quality' }}
+        style={{ imageRendering: 'auto' }}
       />
     </div>
   );

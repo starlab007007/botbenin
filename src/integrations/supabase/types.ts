@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instanciate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "12.2.3 (519615d)"
+  }
   public: {
     Tables: {
       access_logs: {
@@ -274,6 +279,13 @@ export type Database = {
             foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -530,6 +542,120 @@ export type Database = {
           },
         ]
       }
+      bot_domain_assignments: {
+        Row: {
+          assigned_by: string | null
+          bot_id: string
+          confidence_score: number | null
+          created_at: string
+          domain_id: string
+          id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          bot_id: string
+          confidence_score?: number | null
+          created_at?: string
+          domain_id: string
+          id?: string
+        }
+        Update: {
+          assigned_by?: string | null
+          bot_id?: string
+          confidence_score?: number | null
+          created_at?: string
+          domain_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "bot_domain_assignments_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "bot_domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_domains: {
+        Row: {
+          context_indicators: Json | null
+          created_at: string
+          description: string | null
+          id: string
+          keywords: string[] | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          context_indicators?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          keywords?: string[] | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          context_indicators?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          keywords?: string[] | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bot_owners: {
         Row: {
           created_at: string
@@ -592,6 +718,13 @@ export type Database = {
           user_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bot_users_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
           {
             foreignKeyName: "bot_users_bot_id_fkey"
             columns: ["bot_id"]
@@ -895,6 +1028,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -932,6 +1072,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_user_id"]
           },
           {
             foreignKeyName: "chat_messages_bot_user_id_fkey"
@@ -978,6 +1125,13 @@ export type Database = {
             foreignKeyName: "chat_sessions_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -1015,6 +1169,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_user_id"]
           },
           {
             foreignKeyName: "chat_sessions_bot_user_id_fkey"
@@ -1295,6 +1456,59 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_suggestions: {
+        Row: {
+          action_prompt: string
+          category: string
+          conditions: Json | null
+          created_at: string
+          description: string
+          domain_id: string
+          icon_name: string
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_prompt: string
+          category: string
+          conditions?: Json | null
+          created_at?: string
+          description: string
+          domain_id: string
+          icon_name: string
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          action_prompt?: string
+          category?: string
+          conditions?: Json | null
+          created_at?: string
+          description?: string
+          domain_id?: string
+          icon_name?: string
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_suggestions_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "bot_domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enhanced_chat_sessions: {
         Row: {
           bot_id: string
@@ -1361,6 +1575,13 @@ export type Database = {
             foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -1398,6 +1619,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_user_id"]
           },
           {
             foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
@@ -2357,6 +2585,13 @@ export type Database = {
             foreignKeyName: "shortened_links_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "shortened_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -2472,6 +2707,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
           {
             foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
             columns: ["bot_id"]
@@ -2843,6 +3085,96 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suggestion_metrics: {
+        Row: {
+          bot_id: string | null
+          clicked_count: number | null
+          conversion_rate: number | null
+          created_at: string
+          id: string
+          last_clicked: string | null
+          suggestion_id: string
+          updated_at: string
+        }
+        Insert: {
+          bot_id?: string | null
+          clicked_count?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          last_clicked?: string | null
+          suggestion_id: string
+          updated_at?: string
+        }
+        Update: {
+          bot_id?: string | null
+          clicked_count?: number | null
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          last_clicked?: string | null
+          suggestion_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggestion_metrics_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "suggestion_metrics_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "suggestion_metrics_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "suggestion_metrics_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "suggestion_metrics_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestion_metrics_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "suggestion_metrics_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "suggestion_metrics_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "domain_suggestions"
             referencedColumns: ["id"]
           },
         ]
@@ -4037,6 +4369,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -4074,6 +4413,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_user_id"]
           },
           {
             foreignKeyName: "chat_messages_bot_user_id_fkey"
@@ -4115,6 +4461,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -4157,7 +4510,42 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_user_id_fkey"
             columns: ["bot_user_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
             referencedRelation: "bot_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_owner_conversations: {
+        Row: {
+          bot_id: string | null
+          bot_name: string | null
+          bot_user_id: string | null
+          conversation_start: string | null
+          is_active_today: boolean | null
+          last_bot_message: string | null
+          last_message_at: string | null
+          last_user_message: string | null
+          message_count: number | null
+          owner_id: string | null
+          session_id: string | null
+          user_email: string | null
+          user_first_seen: string | null
+          user_last_active: string | null
+          user_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
             referencedColumns: ["id"]
           },
         ]
@@ -4349,6 +4737,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
             referencedRelation: "bot_performance_metrics"
             referencedColumns: ["bot_id"]
           },
@@ -4391,6 +4786,13 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_user_id_fkey"
             columns: ["bot_user_id"]
             isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
             referencedRelation: "bot_users"
             referencedColumns: ["id"]
           },
@@ -4416,6 +4818,10 @@ export type Database = {
       }
     }
     Functions: {
+      assign_admin_role: {
+        Args: { user_email: string }
+        Returns: string
+      }
       auto_fix_session_issues: {
         Args: { p_bot_id?: string }
         Returns: {
@@ -4508,6 +4914,13 @@ export type Database = {
           p_ip_address?: unknown
         }
         Returns: string
+      }
+      detect_bot_domain: {
+        Args: { p_bot_id: string }
+        Returns: {
+          domain_id: string
+          confidence_score: number
+        }[]
       }
       diagnose_all_session_ambiguities: {
         Args: Record<PropertyKey, never>
@@ -4604,6 +5017,44 @@ export type Database = {
           message_order_in_session: number
         }[]
       }
+      get_bot_owner_history: {
+        Args: {
+          p_bot_id: string
+          p_session_token?: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          message_id: string
+          message_content: string
+          message_type: string
+          message_timestamp: string
+          user_name: string
+          user_email: string
+          session_id: string
+          ip_address: string
+          user_agent: string
+          metadata: Json
+          bot_name: string
+          owner_id: string
+        }[]
+      }
+      get_bot_owner_stats: {
+        Args: { p_bot_id: string }
+        Returns: {
+          bot_id: string
+          bot_name: string
+          total_messages: number
+          total_users: number
+          total_sessions: number
+          messages_24h: number
+          active_users_24h: number
+          avg_messages_per_session: number
+          last_activity: string
+          creation_date: string
+          is_active: boolean
+        }[]
+      }
       get_chat_history: {
         Args: {
           p_bot_id: string
@@ -4634,6 +5085,28 @@ export type Database = {
           user_agent: string
         }[]
       }
+      get_final_bot_policies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          policy_name: string
+          policy_type: string
+          is_active: boolean
+          description: string
+        }[]
+      }
+      get_intelligent_suggestions: {
+        Args: { p_bot_id: string; p_limit?: number }
+        Returns: {
+          suggestion_id: string
+          title: string
+          description: string
+          action_prompt: string
+          icon_name: string
+          category: string
+          domain_name: string
+          confidence_score: number
+        }[]
+      }
       get_or_create_bot_user_for_session: {
         Args: {
           p_bot_id: string
@@ -4641,6 +5114,26 @@ export type Database = {
           p_user_name?: string
         }
         Returns: string
+      }
+      get_owner_all_conversations: {
+        Args: { p_limit?: number; p_offset?: number; p_bot_id?: string }
+        Returns: {
+          bot_id: string | null
+          bot_name: string | null
+          bot_user_id: string | null
+          conversation_start: string | null
+          is_active_today: boolean | null
+          last_bot_message: string | null
+          last_message_at: string | null
+          last_user_message: string | null
+          message_count: number | null
+          owner_id: string | null
+          session_id: string | null
+          user_email: string | null
+          user_first_seen: string | null
+          user_last_active: string | null
+          user_name: string | null
+        }[]
       }
       get_owner_dashboard_stats: {
         Args: { owner_uuid: string }
@@ -4656,6 +5149,20 @@ export type Database = {
           top_performing_bot_id: string
           top_performing_bot_name: string
           last_activity: string
+        }[]
+      }
+      get_owner_global_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          total_bots: number
+          active_bots: number
+          total_messages: number
+          total_users: number
+          messages_today: number
+          active_users_today: number
+          total_conversations: number
+          most_active_bot_id: string
+          most_active_bot_name: string
         }[]
       }
       get_unified_chat_history: {
@@ -4757,6 +5264,14 @@ export type Database = {
           details: string
         }[]
       }
+      test_bot_creation_fixed: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_name: string
+          status: string
+          details: string
+        }[]
+      }
       test_final_session_resolution: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -4825,21 +5340,25 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
@@ -4857,14 +5376,16 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
@@ -4880,14 +5401,16 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
@@ -4903,14 +5426,16 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
@@ -4918,14 +5443,16 @@ export type Enums<
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
