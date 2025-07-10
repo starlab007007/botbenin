@@ -5015,6 +5015,37 @@ export type Database = {
           revenue_monthly: number
         }[]
       }
+      get_bot_complete_history: {
+        Args: {
+          p_bot_id: string
+          p_limit?: number
+          p_offset?: number
+          p_session_filter?: string
+        }
+        Returns: {
+          message_id: string
+          bot_id: string
+          bot_user_id: string
+          session_token: string
+          message_content: string
+          message_type: string
+          message_timestamp: string
+          ip_address: string
+          user_agent: string
+          metadata: Json
+          user_name: string
+          user_email: string
+          user_first_seen: string
+          user_last_active: string
+          session_started_at: string
+          session_duration_minutes: number
+          session_total_messages: number
+          session_is_active: boolean
+          session_entry_point: string
+          bot_name: string
+          owner_id: string
+        }[]
+      }
       get_bot_detailed_history: {
         Args: {
           bot_uuid: string
@@ -5152,6 +5183,25 @@ export type Database = {
           user_first_seen: string | null
           user_last_active: string | null
           user_name: string | null
+        }[]
+      }
+      get_owner_complete_stats: {
+        Args: { p_owner_user_id?: string }
+        Returns: {
+          total_bots: number
+          active_bots: number
+          total_users: number
+          total_sessions: number
+          total_messages: number
+          active_users_24h: number
+          active_sessions_24h: number
+          messages_24h: number
+          avg_session_duration: number
+          avg_messages_per_session: number
+          top_bot_id: string
+          top_bot_name: string
+          top_bot_messages: number
+          last_activity: string
         }[]
       }
       get_owner_dashboard_stats: {
