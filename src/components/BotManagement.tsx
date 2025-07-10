@@ -77,16 +77,16 @@ export const BotManagement: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Récupérer le bot_owner
-      let { data: ownerData } = await supabase
+      // Récupérer le bot_owner avec gestion automatique de création
+      let { data: ownerData, error: ownerError } = await supabase
         .from('bot_owners')
         .select('id, max_bots')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (!ownerData) {
-        // Créer un bot_owner si il n'existe pas avec limite fixe de 10
-        const { data: newOwner } = await supabase
+        // Créer automatiquement le bot_owner si il n'existe pas
+        const { data: newOwner, error: createError } = await supabase
           .from('bot_owners')
           .insert({ 
             user_id: user.id,
@@ -96,10 +96,24 @@ export const BotManagement: React.FC = () => {
           .select('id, max_bots')
           .single();
         
-        ownerData = newOwner;
+        if (createError) {
+          console.error('Erreur création bot_owner:', createError);
+          // En cas d'erreur de création (conflit), essayer de récupérer l'existant
+          const { data: existingOwner } = await supabase
+            .from('bot_owners')
+            .select('id, max_bots')
+            .eq('user_id', user.id)
+            .single();
+          
+          ownerData = existingOwner;
+        } else {
+          ownerData = newOwner;
+        }
       }
 
-      if (!ownerData) return;
+      if (!ownerData) {
+        throw new Error('Impossible de configurer votre compte propriétaire de bots');
+      }
 
       // Récupérer les bots avec display_in_live_chat
       const { data: botsData, error } = await supabase

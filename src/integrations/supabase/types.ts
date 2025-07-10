@@ -4916,7 +4916,7 @@ export type Database = {
         Returns: string
       }
       debug_bot_creation: {
-        Args: { user_uuid?: string }
+        Args: { p_user_uuid?: string }
         Returns: {
           user_id: string
           has_bot_owner: boolean
@@ -4973,6 +4973,14 @@ export type Database = {
           issue_type: string
           count: number
           details: Json
+        }[]
+      }
+      fix_all_user_issues: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          fix_type: string
+          affected_count: number
+          details: string
         }[]
       }
       fix_session_inconsistencies: {
@@ -5266,6 +5274,14 @@ export type Database = {
           p_message_content: string
         }
         Returns: string
+      }
+      system_health_check: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          metric_name: string
+          metric_value: string
+          status: string
+        }[]
       }
       test_absolute_session_resolution: {
         Args: Record<PropertyKey, never>
