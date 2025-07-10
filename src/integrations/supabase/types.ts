@@ -5291,6 +5291,14 @@ export type Database = {
           details: string
         }[]
       }
+      test_bot_creation_fix: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          test_name: string
+          status: string
+          details: string
+        }[]
+      }
       test_bot_creation_fixed: {
         Args: Record<PropertyKey, never>
         Returns: {
