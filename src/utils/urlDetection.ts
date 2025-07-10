@@ -1,5 +1,5 @@
 
-// Utility functions for URL detection and processing
+// Utility functions for URL detection and processing (optimisées)
 export interface UrlInfo {
   url: string;
   type: 'image' | 'google_sheet' | 'google_doc' | 'regular';
@@ -18,26 +18,12 @@ export class UrlDetector {
     'ibb.co',
     'postimg.cc',
     'imgbb.com',
-    'flickr.com',
-    'photobucket.com',
-    'tinypic.com',
-    'imageshack.com',
     'unsplash.com',
     'pixabay.com',
     'pexels.com',
-    'freepik.com',
-    'shutterstock.com',
-    'gettyimages.com',
-    'istockphoto.com',
-    'adobe.com',
-    'canva.com',
-    'pinterest.com',
-    'instagram.com',
-    'facebook.com',
     'cloudinary.com',
-    'images-amazon.com',
-    'media-amazon.com',
-    'ssl-images-amazon.com'
+    'pinterest.com',
+    'instagram.com'
   ];
 
   static detectUrlType(url: string): UrlInfo {
@@ -46,35 +32,35 @@ export class UrlDetector {
       type: 'regular'
     };
 
-    // Check for Google Sheets
+    // Google Sheets - optimisé
     if (url.includes('docs.google.com/spreadsheets')) {
       urlInfo.type = 'google_sheet';
       urlInfo.processedUrl = this.convertGoogleSheetToImage(url);
       return urlInfo;
     }
 
-    // Check for Google Docs
+    // Google Docs - optimisé
     if (url.includes('docs.google.com/document')) {
       urlInfo.type = 'google_doc';
       urlInfo.processedUrl = this.convertGoogleDocToImage(url);
       return urlInfo;
     }
 
-    // Check for Google Drive
+    // Google Drive - optimisé
     if (url.includes('drive.google.com/file/d/') || url.includes('googleusercontent.com')) {
       urlInfo.type = 'image';
       urlInfo.processedUrl = this.convertGoogleDriveUrl(url);
       return urlInfo;
     }
 
-    // Check for image extensions
+    // Extensions d'images
     if (this.imageExtensions.test(url)) {
       urlInfo.type = 'image';
       urlInfo.processedUrl = this.enhanceImageUrl(url);
       return urlInfo;
     }
 
-    // Check for image domains
+    // Domaines d'images
     if (this.imageDomains.some(domain => url.includes(domain))) {
       urlInfo.type = 'image';
       urlInfo.processedUrl = this.enhanceImageUrl(url);
@@ -85,43 +71,27 @@ export class UrlDetector {
   }
 
   private static enhanceImageUrl(url: string): string {
-    // Améliorer la qualité des images selon le service
+    // Optimisations légères pour la vitesse
     if (url.includes('imgur.com')) {
-      // Remplacer les petites versions par les versions HD
       return url.replace(/[bmts]\.jpg$/, '.jpg').replace(/[bmts]\.png$/, '.png');
     }
     
     if (url.includes('googleusercontent.com')) {
-      // Ajouter des paramètres pour une meilleure qualité
       const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}sz=w2000-h2000`;
+      return `${url}${separator}sz=w800`;
     }
 
     if (url.includes('unsplash.com')) {
-      // Optimiser Unsplash pour haute résolution
       const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}q=80&w=2000&h=2000&fit=max`;
+      return `${url}${separator}q=75&w=800`;
     }
 
     if (url.includes('pixabay.com')) {
-      // Remplacer les miniatures par les images complètes
-      return url.replace('_150.', '_1280.').replace('_640.', '_1280.');
-    }
-
-    if (url.includes('pexels.com')) {
-      // Optimiser Pexels
-      const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}auto=compress&cs=tinysrgb&w=2000`;
+      return url.replace('_150.', '_640.').replace('_1280.', '_640.');
     }
 
     if (url.includes('cloudinary.com')) {
-      // Optimiser Cloudinary
-      return url.replace(/\/c_scale,w_\d+/, '/c_scale,w_2000').replace(/\/q_\d+/, '/q_auto:best');
-    }
-
-    if (url.includes('amazon.com') || url.includes('ssl-images-amazon.com')) {
-      // Optimiser les images Amazon
-      return url.replace(/\._[A-Z0-9,_]+_\./, '._AC_UL2000_.');
+      return url.replace(/\/w_\d+/, '/w_800').replace(/\/q_\d+/, '/q_75');
     }
     
     return url;
@@ -133,7 +103,6 @@ export class UrlDetector {
       
       const patterns = [
         /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
-        /\/spreadsheets\/u\/\d+\/d\/([a-zA-Z0-9-_]+)/,
         /key=([a-zA-Z0-9-_]+)/
       ];
 
@@ -146,8 +115,7 @@ export class UrlDetector {
       }
 
       if (sheetId) {
-        // Utiliser un format PNG haute qualité
-        return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=png&size=0&fzr=true&gid=0`;
+        return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=png&size=0&gid=0`;
       }
     } catch (error) {
       console.warn('Failed to convert Google Sheet URL:', error);
@@ -162,7 +130,6 @@ export class UrlDetector {
       
       if (match && match[1]) {
         const docId = match[1];
-        // Utiliser un format PNG haute qualité
         return `https://docs.google.com/document/d/${docId}/export?format=png`;
       }
     } catch (error) {
@@ -177,14 +144,8 @@ export class UrlDetector {
       if (url.includes('drive.google.com/file/d/')) {
         const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
         if (fileIdMatch && fileIdMatch[1]) {
-          // Utiliser une taille maximale pour la qualité HD
-          return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}&sz=w2000-h2000`;
+          return `https://drive.google.com/uc?export=view&id=${fileIdMatch[1]}&sz=w800`;
         }
-      }
-      
-      if (url.includes('docs.google.com/') && !url.includes('export=download')) {
-        const separator = url.includes('?') ? '&' : '?';
-        return `${url}${separator}export=download&sz=w2000-h2000`;
       }
     } catch (error) {
       console.warn('Failed to convert Google Drive URL:', error);
