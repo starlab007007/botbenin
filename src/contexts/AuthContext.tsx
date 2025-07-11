@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,6 +51,8 @@ interface AuthContextType {
   }) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updates: Partial<AuthUser>) => void;
+  changePassword: (newPassword: string) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -137,6 +140,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        console.error('[AuthContext] Login error:', error);
         toast({
           title: "Erreur de connexion",
           description: error.message,
@@ -154,10 +158,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
         return true;
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[AuthContext] Login exception:', error);
       toast({
         title: "Erreur de connexion",
-        description: "Une erreur est survenue",
+        description: "Une erreur est survenue lors de la connexion",
         variant: "destructive",
       });
     }
@@ -180,6 +185,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
+      console.log('[AuthContext] Starting registration for:', userData.email);
+      
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -193,6 +200,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        console.error('[AuthContext] Registration error:', error);
+        
         // Gérer les erreurs spécifiques d'inscription
         let errorMessage = error.message;
         
@@ -216,6 +225,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
+        console.log('[AuthContext] Registration successful for user:', data.user.id);
         toast({
           title: "Compte créé avec succès",
           description: "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
@@ -223,8 +233,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
         return true;
       }
-    } catch (error) {
-      console.error('Registration error:', error);
+    } catch (error: any) {
+      console.error('[AuthContext] Registration exception:', error);
       toast({
         title: "Erreur d'inscription",
         description: "Une erreur est survenue lors de la création du compte",
@@ -247,11 +257,91 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         description: "Vous avez été déconnecté avec succès",
       });
     } catch (error) {
+      console.error('[AuthContext] Logout error:', error);
       toast({
         title: "Erreur",
         description: "Erreur lors de la déconnexion",
         variant: "destructive",
       });
+    }
+  };
+
+  const changePassword = async (newPassword: string): Promise<boolean> => {
+    try {
+      console.log('[AuthContext] Starting password change');
+      
+      if (!session) {
+        toast({
+          title: "Erreur",
+          description: "Vous devez être connecté pour changer votre mot de passe",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        console.error('[AuthContext] Password change error:', error);
+        toast({
+          title: "Erreur de modification",
+          description: error.message,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      console.log('[AuthContext] Password changed successfully');
+      toast({
+        title: "Mot de passe modifié",
+        description: "Votre mot de passe a été modifié avec succès",
+      });
+      return true;
+    } catch (error: any) {
+      console.error('[AuthContext] Password change exception:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de la modification du mot de passe",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const resetPassword = async (email: string): Promise<boolean> => {
+    try {
+      console.log('[AuthContext] Starting password reset for:', email);
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?reset=true`,
+      });
+
+      if (error) {
+        console.error('[AuthContext] Password reset error:', error);
+        toast({
+          title: "Erreur de réinitialisation",
+          description: error.message,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      console.log('[AuthContext] Password reset email sent successfully');
+      toast({
+        title: "Email envoyé",
+        description: "Un lien de réinitialisation a été envoyé à votre adresse email",
+      });
+      return true;
+    } catch (error: any) {
+      console.error('[AuthContext] Password reset exception:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de l'envoi de l'email",
+        variant: "destructive",
+      });
+      return false;
     }
   };
 
@@ -299,6 +389,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       register,
       logout,
       updateProfile,
+      changePassword,
+      resetPassword,
       isLoading
     }}>
       {children}
