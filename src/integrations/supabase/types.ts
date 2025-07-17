@@ -5157,6 +5157,10 @@ export type Database = {
           confidence_score: number
         }[]
       }
+      get_or_create_bot_owner: {
+        Args: { user_uuid: string }
+        Returns: string
+      }
       get_or_create_bot_user_for_session: {
         Args: {
           p_bot_id: string
