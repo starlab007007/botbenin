@@ -50,6 +50,8 @@ interface AuthContextType {
   }) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updates: Partial<AuthUser>) => void;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -267,6 +269,119 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
+    setIsLoading(true);
+    
+    try {
+      // D'abord, vérifier le mot de passe actuel en tentant de se reconnecter
+      if (!supabaseUser?.email) {
+        toast({
+          title: "Erreur",
+          description: "Email utilisateur non trouvé",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: supabaseUser.email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        toast({
+          title: "Erreur",
+          description: "Mot de passe actuel incorrect",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      // Si la vérification réussit, changer le mot de passe
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        let errorMessage = error.message;
+        
+        if (error.message?.includes('Password should be at least')) {
+          errorMessage = "Le nouveau mot de passe doit contenir au moins 6 caractères";
+        }
+        
+        toast({
+          title: "Erreur de changement de mot de passe",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      toast({
+        title: "Mot de passe changé",
+        description: "Votre mot de passe a été mis à jour avec succès",
+      });
+      setIsLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Password change error:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors du changement de mot de passe",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return false;
+    }
+  };
+
+  const resetPassword = async (email: string): Promise<boolean> => {
+    setIsLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+
+      if (error) {
+        let errorMessage = error.message;
+        
+        if (error.message?.includes('Email not found')) {
+          errorMessage = "Aucun compte trouvé avec cette adresse email";
+        } else if (error.message?.includes('Email rate limit exceeded')) {
+          errorMessage = "Trop de tentatives. Veuillez réessayer plus tard";
+        }
+        
+        toast({
+          title: "Erreur de réinitialisation",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      toast({
+        title: "Email envoyé",
+        description: "Un lien de réinitialisation a été envoyé à votre adresse email",
+      });
+      setIsLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Password reset error:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de la réinitialisation",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return false;
+    }
+  };
+
   const enableGuestMode = () => {
     // Si déjà authentifié, on ne fait rien
     if (supabaseUser || user) return;
@@ -299,6 +414,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       register,
       logout,
       updateProfile,
+      changePassword,
+      resetPassword,
       isLoading
     }}>
       {children}

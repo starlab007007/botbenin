@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserHistoryManagement } from '@/components/UserHistoryManagement';
+import { PasswordChangeForm } from '@/components/PasswordChangeForm';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -209,10 +210,14 @@ export const AccountPage: React.FC = () => {
 
       <Card className="uniform-card">
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 p-1 bg-gray-100 rounded-t-xl">
+          <TabsList className="grid w-full grid-cols-5 p-1 bg-gray-100 rounded-t-xl">
             <TabsTrigger value="profile" className="flex items-center space-x-2">
               <User className="w-4 h-4" />
               <span>Profil</span>
+            </TabsTrigger>
+            <TabsTrigger value="password" className="flex items-center space-x-2">
+              <Key className="w-4 h-4" />
+              <span>Mot de passe</span>
             </TabsTrigger>
             <TabsTrigger value="subscription" className="flex items-center space-x-2">
               <Crown className="w-4 h-4" />
@@ -325,6 +330,12 @@ export const AccountPage: React.FC = () => {
                   </div>
                 </div>
               </Card>
+            </TabsContent>
+            
+            <TabsContent value="password" className="mt-0 space-y-6">
+              <div className="flex justify-center">
+                <PasswordChangeForm />
+              </div>
             </TabsContent>
             
             <TabsContent value="subscription" className="mt-0 space-y-6">

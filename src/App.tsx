@@ -41,6 +41,7 @@ const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(mo
 const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.SocialSharingCampaignsPage })));
 
 // Pages spéciales
+const SystemTestPage = lazy(() => import("./pages/SystemTestPage").then(module => ({ default: module.SystemTestPage })));
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -92,6 +93,9 @@ const App = () => (
                     
                     {/* Administration */}
                     <Route path="/admin/users" element={<UsersManagementPage />} />
+                    
+                    {/* Tests système */}
+                    <Route path="/system-test" element={<SystemTestPage />} />
                     
                     {/* Prospects avec layout spécial */}
                     <Route path="/prospects" element={<ProspectsLayout />} />

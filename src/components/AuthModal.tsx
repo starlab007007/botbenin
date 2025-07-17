@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Phone, KeyRound } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register } = useAuth();
+  const { login, register, resetPassword } = useAuth();
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -27,6 +27,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPhone, setRegisterPhone] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+
+  // Reset password form state
+  const [resetEmail, setResetEmail] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +67,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(false);
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    const success = await resetPassword(resetEmail);
+    if (success) {
+      setResetEmail('');
+    }
+    
+    setIsLoading(false);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -72,9 +87,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         </DialogHeader>
         
         <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="login">Connexion</TabsTrigger>
             <TabsTrigger value="register">Inscription</TabsTrigger>
+            <TabsTrigger value="reset">Mot de passe</TabsTrigger>
           </TabsList>
           
           <TabsContent value="login">
@@ -130,6 +146,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 {isLoading ? "Connexion..." : "Se connecter"}
               </Button>
             </form>
+            
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Mot de passe oublié ?{' '}
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => {
+                    // Basculer vers l'onglet reset
+                    const resetTab = document.querySelector('[value="reset"]') as HTMLButtonElement;
+                    resetTab?.click();
+                  }}
+                >
+                  Réinitialiser
+                </button>
+              </p>
+            </div>
           </TabsContent>
           
           <TabsContent value="register">
@@ -217,6 +250,51 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 {isLoading ? "Inscription..." : "S'inscrire"}
               </Button>
             </form>
+          </TabsContent>
+          
+          <TabsContent value="reset">
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="votre@email.com"
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? "Envoi..." : "Envoyer le lien de réinitialisation"}
+              </Button>
+            </form>
+            
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                Vous vous souvenez de votre mot de passe ?{' '}
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => {
+                    // Basculer vers l'onglet login
+                    const loginTab = document.querySelector('[value="login"]') as HTMLButtonElement;
+                    loginTab?.click();
+                  }}
+                >
+                  Se connecter
+                </button>
+              </p>
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>
