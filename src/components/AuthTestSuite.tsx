@@ -63,6 +63,7 @@ export const AuthTestSuite: React.FC = () => {
       }
     } catch (error) {
       const duration = Date.now() - startTime;
+      console.error('🧪 Erreur dans test:', testName, error);
       updateTestResult(testName, 'error', `Erreur: ${error}`, duration);
       return false;
     }
@@ -70,20 +71,32 @@ export const AuthTestSuite: React.FC = () => {
 
   const testRegistration = async (): Promise<boolean> => {
     console.log('🧪 Test inscription avec:', testEmail);
-    const result = await register({
-      name: 'Test User',
-      email: testEmail,
-      password: testPassword,
-      phone: '+33123456789'
-    });
-    return result;
+    try {
+      const result = await register({
+        name: 'Test User',
+        email: testEmail,
+        password: testPassword,
+        phone: '+33123456789'
+      });
+      console.log('🧪 Résultat inscription:', result);
+      return result;
+    } catch (error) {
+      console.error('🧪 Erreur inscription:', error);
+      return false;
+    }
   };
 
   const testLogin = async (): Promise<boolean> => {
     console.log('🧪 Test connexion avec:', testEmail);
     await sleep(1000); // Attendre que l'inscription soit complète
-    const result = await login(testEmail, testPassword);
-    return result;
+    try {
+      const result = await login(testEmail, testPassword);
+      console.log('🧪 Résultat connexion:', result);
+      return result;
+    } catch (error) {
+      console.error('🧪 Erreur connexion:', error);
+      return false;
+    }
   };
 
   const testLogout = async (): Promise<boolean> => {
