@@ -1,5 +1,6 @@
 import React from 'react';
 import { AuthTestSuite } from '@/components/AuthTestSuite';
+import { InscriptionTestValidator } from '@/components/InscriptionTestValidator';
 
 export const SystemTestPage: React.FC = () => {
   return (
@@ -8,7 +9,11 @@ export const SystemTestPage: React.FC = () => {
         <h1 className="text-3xl font-bold">Tests Système d'Authentification</h1>
         <p className="text-gray-600 mt-2">Validation complète du processus d'authentification</p>
       </div>
-      <AuthTestSuite />
+      
+      <div className="space-y-8">
+        <InscriptionTestValidator />
+        <AuthTestSuite />
+      </div>
     </div>
   );
 };
