@@ -36,7 +36,7 @@ export const useLiveChatBots = () => {
         return;
       }
 
-      // Récupération sécurisée des bots
+      // Récupération sécurisée des bots - TOUS les bots publics et visibles
       const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select(`
@@ -47,6 +47,7 @@ export const useLiveChatBots = () => {
           chat_title,
           chat_context,
           is_active,
+          share_enabled,
           public_chat_url,
           display_in_live_chat,
           bot_owners!inner(
@@ -54,8 +55,8 @@ export const useLiveChatBots = () => {
             users(full_name)
           )
         `)
-        .eq('display_in_live_chat', true)
         .eq('is_active', true)
+        .eq('share_enabled', true)
         .order('created_at', { ascending: false });
 
       if (botsError) {
@@ -93,7 +94,8 @@ export const useLiveChatBots = () => {
           return false;
         }
 
-        return botData.display_in_live_chat === true && botData.is_active === true;
+        // Inclure tous les bots actifs et partageables (publics)
+        return botData.is_active === true && botData.share_enabled === true;
       });
 
       // Formatage sécurisé des données
