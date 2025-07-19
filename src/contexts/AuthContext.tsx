@@ -218,9 +218,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
+        // Vérifier si l'email a été confirmé automatiquement
+        const isConfirmed = data.user.email_confirmed_at !== null;
+        
         toast({
           title: "Compte créé avec succès",
-          description: "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
+          description: isConfirmed 
+            ? "Votre compte est prêt à utiliser !" 
+            : "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
         });
         setIsLoading(false);
         return true;

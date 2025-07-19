@@ -2,6 +2,7 @@ import React from 'react';
 import { AuthTestSuite } from '@/components/AuthTestSuite';
 import { InscriptionTestValidator } from '@/components/InscriptionTestValidator';
 import { InscriptionDebugger } from '@/components/InscriptionDebugger';
+import { TestInscriptionDirecte } from '@/components/TestInscriptionDirecte';
 
 export const SystemTestPage: React.FC = () => {
   return (
@@ -12,6 +13,7 @@ export const SystemTestPage: React.FC = () => {
       </div>
       
       <div className="space-y-8">
+        <TestInscriptionDirecte />
         <InscriptionDebugger />
         <InscriptionTestValidator />
         <AuthTestSuite />
