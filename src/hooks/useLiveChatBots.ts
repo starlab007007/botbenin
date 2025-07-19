@@ -25,7 +25,7 @@ export const useLiveChatBots = () => {
       setLoading(true);
       setError(null);
 
-      console.log('[useLiveChatBots] Fetching secure live chat bots...');
+      console.log('[useLiveChatBots] DÉMARRAGE - Récupération de TOUS les bots publics...');
 
       // Limitation du taux de requêtes
       if (!SecurityManager.checkRateLimit('fetch_live_bots', {
@@ -36,7 +36,9 @@ export const useLiveChatBots = () => {
         return;
       }
 
-      // Récupération sécurisée des bots - TOUS les bots publics et visibles
+      // Récupération de TOUS les bots publics et visibles - VERSION SIMPLIFIÉE
+      console.log('[useLiveChatBots] Exécution de la requête pour récupérer tous les bots actifs...');
+      
       const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select(`
@@ -48,23 +50,22 @@ export const useLiveChatBots = () => {
           chat_context,
           is_active,
           share_enabled,
-          public_chat_url,
-          display_in_live_chat,
-          bot_owners!inner(
-            user_id,
-            users(full_name)
-          )
+          public_chat_url
         `)
         .eq('is_active', true)
         .eq('share_enabled', true)
         .order('created_at', { ascending: false });
 
+      console.log('[useLiveChatBots] Requête exécutée. Erreur:', botsError);
+      console.log('[useLiveChatBots] Données reçues:', botsData);
+
       if (botsError) {
+        console.error('[useLiveChatBots] Erreur Supabase détaillée:', botsError);
         await SecurityManager.auditSuspiciousActivity({
           action: 'live_bots_fetch_error',
           additionalData: { error: botsError.message }
         });
-        throw new Error('Erreur lors de la récupération des bots');
+        throw new Error(`Erreur lors de la récupération des bots: ${botsError.message}`);
       }
 
       console.log('[useLiveChatBots] Raw data retrieved:', botsData?.length || 0);
@@ -119,7 +120,7 @@ export const useLiveChatBots = () => {
           chat_context: botData.chat_context || 'assistance',
           is_active: botData.is_active,
           public_chat_url: botData.public_chat_url,
-          owner_name: botData.bot_owners?.users?.full_name || 'Propriétaire'
+          owner_name: 'Propriétaire Bot.BJ'
         };
       });
 
