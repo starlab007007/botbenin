@@ -76,6 +76,301 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
           </div>
         </div>
       </div>
+
+      {/* Pricing Section */}
+      <div className="max-w-7xl mx-auto px-4 py-16 mt-16">
+        <Card className="p-8 bg-white/80 backdrop-blur-sm border-warm-beige-200 rounded-xl">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">🌟 Modèle Économique Bot.Bj</h2>
+            <p className="text-gray-700">Structure tarifaire adaptée à tous vos besoins</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Starter */}
+            <div className="border border-gray-300 rounded-xl p-6 hover:shadow-lg transition-all duration-300 bg-white">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">🔹 Starter</h3>
+                <div className="text-2xl font-bold text-green-600 mb-1">Gratuit</div>
+                <p className="text-sm text-gray-600">Petites entreprises</p>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">1 Agent IA</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">1 000 messages/mois</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Support email</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Intégrations de base</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Tableau de bord analytique</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Suivi des statistiques en temps réel</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">QR code de bot</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Partage sur les réseaux sociaux</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Lien webhook</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-red-500 mr-2">❌</span>
+                  <span className="text-gray-500">Relances automatisées</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-red-500 mr-2">❌</span>
+                  <span className="text-gray-500">Scoring des leads</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-red-500 mr-2">❌</span>
+                  <span className="text-gray-500">Envois multicanaux</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-red-500 mr-2">❌</span>
+                  <span className="text-gray-500">Prospection du marché</span>
+                </div>
+              </div>
+              
+              <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white">
+                Choisir ce plan
+              </Button>
+            </div>
+
+            {/* Professional */}
+            <div className="border-2 border-blue-500 rounded-xl p-6 hover:shadow-lg transition-all duration-300 relative bg-white">
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <span className="bg-blue-500 text-white px-4 py-1 rounded-full text-xs font-medium">Recommandé</span>
+              </div>
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">🔹 Professional</h3>
+                <div className="text-2xl font-bold text-blue-600 mb-1">7 500 CFA/mois</div>
+                <p className="text-sm text-gray-600">PME / PMI</p>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">2 Agents IA</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">10 000 messages/mois</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Génération de leads & qualification</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Relances automatisées</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Emails (5 000/mois)</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">CRM de suivi des contacts</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Intégrations complètes</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Support prioritaire</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Lien de bot personnalisé</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Prospection automatisée</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Tableau de bord analytique</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Suivi des statistiques en temps réel</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">QR code de bot</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Partage sur les réseaux sociaux</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Lien webhook</span>
+                </div>
+              </div>
+              
+              <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white">
+                Choisir ce plan
+              </Button>
+            </div>
+
+            {/* Enterprise */}
+            <div className="border border-gray-300 rounded-xl p-6 hover:shadow-lg transition-all duration-300 bg-white">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">🔹 Enterprise</h3>
+                <div className="text-2xl font-bold text-purple-600 mb-1">15 500 CFA/mois</div>
+                <p className="text-sm text-gray-600">Grandes entreprises</p>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">4 Agents IA</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Messages illimités</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Qualification dynamique + IA</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Relances automatiques + manuelles</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Emails/SMS/WhatsApp illimités</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Automatisation marketing + IA prédictive</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">A/B Testing, scoring évolutif</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Personnalisation avancée</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Support dédié 24/7</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Prospection multicanal avec ciblage IA</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Tableau de bord analytique</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Suivi des statistiques en temps réel</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">QR code de bot</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Partage sur les réseaux sociaux</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Lien webhook</span>
+                </div>
+              </div>
+              
+              <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white">
+                Choisir ce plan
+              </Button>
+            </div>
+
+            {/* Custom */}
+            <div className="border border-gray-300 rounded-xl p-6 hover:shadow-lg transition-all duration-300 bg-white">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">🔹 Custom</h3>
+                <div className="text-2xl font-bold text-orange-600 mb-1">Sur devis</div>
+                <p className="text-sm text-gray-600">Secteur public & Corporate</p>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Solution sur mesure</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Développements spécifiques</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">SLA garanti</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Formation et onboarding complet</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Gestion multi-workspace</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Prospection & campagnes à la demande</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Tableau de bord analytique</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Suivi des statistiques en temps réel</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">QR code de bot</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Partage sur les réseaux sociaux</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <span className="text-gray-900">Lien webhook</span>
+                </div>
+              </div>
+              
+              <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white">
+                Choisir ce plan
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };
