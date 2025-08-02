@@ -6,6 +6,7 @@ import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 import { QuickActions } from '@/components/home/QuickActions';
 import { AIModules } from '@/components/home/AIModules';
 import { AuditSection } from '@/components/home/AuditSection';
+import { PricingSection } from '@/components/home/PricingSection';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export const HomePage: React.FC = () => {
@@ -29,6 +30,11 @@ export const HomePage: React.FC = () => {
       {/* Section "L'IA est faite pour vous si" en bas */}
       <div>
         <IABenefitsCards />
+      </div>
+
+      {/* Section des plans tarifaires */}
+      <div className="-mx-[2.5%] sm:mx-0">
+        <PricingSection />
       </div>
     </div>
   );
