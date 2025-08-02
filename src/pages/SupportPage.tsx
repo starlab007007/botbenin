@@ -276,6 +276,299 @@ export const SupportPage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* Pricing Section */}
+      <Card className="p-8 bg-white border border-gray-200 rounded-xl">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-black mb-2">🌟 Modèle Économique Bot.Bj</h2>
+          <p className="text-black">Structure tarifaire adaptée à tous vos besoins</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Starter */}
+          <div className="border border-gray-300 rounded-xl p-6 hover:shadow-lg transition-all duration-300">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-bold text-black mb-2">🔹 Starter</h3>
+              <div className="text-2xl font-bold text-green-600 mb-1">Gratuit</div>
+              <p className="text-sm text-gray-600">Petites entreprises</p>
+            </div>
+            
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">1 Agent IA</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">1 000 messages/mois</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Support email</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Intégrations de base</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Tableau de bord analytique</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Suivi des statistiques en temps réel</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">QR code de bot</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Partage sur les réseaux sociaux</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Lien webhook</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-red-500 mr-2">❌</span>
+                <span className="text-gray-500">Relances automatisées</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-red-500 mr-2">❌</span>
+                <span className="text-gray-500">Scoring des leads</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-red-500 mr-2">❌</span>
+                <span className="text-gray-500">Envois multicanaux</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-red-500 mr-2">❌</span>
+                <span className="text-gray-500">Prospection du marché</span>
+              </div>
+            </div>
+            
+            <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white">
+              Choisir ce plan
+            </Button>
+          </div>
+
+          {/* Professional */}
+          <div className="border-2 border-blue-500 rounded-xl p-6 hover:shadow-lg transition-all duration-300 relative">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-blue-500 text-white px-4 py-1 rounded-full text-xs font-medium">Recommandé</span>
+            </div>
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-bold text-black mb-2">🔹 Professional</h3>
+              <div className="text-2xl font-bold text-blue-600 mb-1">7 500 CFA/mois</div>
+              <p className="text-sm text-gray-600">PME / PMI</p>
+            </div>
+            
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">2 Agents IA</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">10 000 messages/mois</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Génération de leads & qualification</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Relances automatisées</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Emails (5 000/mois)</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">CRM de suivi des contacts</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Intégrations complètes</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Support prioritaire</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Lien de bot personnalisé</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Prospection automatisée</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Tableau de bord analytique</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Suivi des statistiques en temps réel</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">QR code de bot</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Partage sur les réseaux sociaux</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Lien webhook</span>
+              </div>
+            </div>
+            
+            <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white">
+              Choisir ce plan
+            </Button>
+          </div>
+
+          {/* Enterprise */}
+          <div className="border border-gray-300 rounded-xl p-6 hover:shadow-lg transition-all duration-300">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-bold text-black mb-2">🔹 Enterprise</h3>
+              <div className="text-2xl font-bold text-purple-600 mb-1">15 500 CFA/mois</div>
+              <p className="text-sm text-gray-600">Grandes entreprises</p>
+            </div>
+            
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">4 Agents IA</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Messages illimités</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Qualification dynamique + IA</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Relances automatiques + manuelles</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Emails/SMS/WhatsApp illimités</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Automatisation marketing + IA prédictive</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">A/B Testing, scoring évolutif</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Personnalisation avancée</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Support dédié 24/7</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Prospection multicanal avec ciblage IA</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Tableau de bord analytique</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Suivi des statistiques en temps réel</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">QR code de bot</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Partage sur les réseaux sociaux</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Lien webhook</span>
+              </div>
+            </div>
+            
+            <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white">
+              Choisir ce plan
+            </Button>
+          </div>
+
+          {/* Custom */}
+          <div className="border border-gray-300 rounded-xl p-6 hover:shadow-lg transition-all duration-300">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-bold text-black mb-2">🔹 Custom</h3>
+              <div className="text-2xl font-bold text-orange-600 mb-1">Sur devis</div>
+              <p className="text-sm text-gray-600">Secteur public & Corporate</p>
+            </div>
+            
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Solution sur mesure</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Développements spécifiques</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">SLA garanti</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Formation et onboarding complet</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Gestion multi-workspace</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Prospection & campagnes à la demande</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Tableau de bord analytique</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Suivi des statistiques en temps réel</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">QR code de bot</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Partage sur les réseaux sociaux</span>
+              </div>
+              <div className="flex items-center text-sm">
+                <span className="text-green-500 mr-2">✅</span>
+                <span className="text-black">Lien webhook</span>
+              </div>
+            </div>
+            
+            <Button className="w-full bg-gray-600 hover:bg-gray-700 text-white">
+              Choisir ce plan
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };
