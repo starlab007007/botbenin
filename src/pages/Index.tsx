@@ -38,7 +38,9 @@ const Index = () => {
     <div className="min-h-screen gradient-warm">
       <div className="w-full max-w-[1440px] mx-auto">
         {!showChat ? (
-          <LandingHero onStartChat={handleStartChat} />
+          <div>
+            <LandingHero onStartChat={handleStartChat} />
+          </div>
         ) : (
           <div className={isMobile ? 'px-[2.5%]' : 'px-4 sm:px-6 lg:px-8'}>
             <ChatInterface onBackToLanding={handleBackToLanding} />
