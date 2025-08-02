@@ -1,60 +1,106 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check } from 'lucide-react';
+import { Check, X, Diamond } from 'lucide-react';
 
 export const PricingSection: React.FC = () => {
   const plans = [
     {
       name: "Starter",
-      price: "29€",
-      period: "/mois",
-      description: "Parfait pour débuter avec l'IA",
+      price: "Gratuit",
+      period: "",
+      description: "Petites entreprises",
       features: [
-        "1 bot IA inclus",
-        "1000 messages/mois",
-        "Support par email",
-        "Intégration de base",
-        "Tableau de bord simple"
+        { text: "1 Agent IA", included: true },
+        { text: "1 000 messages/mois", included: true },
+        { text: "Support email", included: true },
+        { text: "Intégrations de base", included: true },
+        { text: "Tableau de bord analytique", included: true },
+        { text: "Suivi des statistiques en temps réel", included: true },
+        { text: "QR code de bot", included: true },
+        { text: "Partage sur les réseaux sociaux", included: true },
+        { text: "Lien webhook", included: true },
+        { text: "Relances automatisées", included: false },
+        { text: "Scoring des leads", included: false },
+        { text: "Envois multicanaux", included: false },
+        { text: "Prospection du marché", included: false }
       ],
-      buttonText: "Commencer",
+      buttonText: "Choisir ce plan",
       buttonVariant: "outline" as const,
       popular: false
     },
     {
       name: "Professional",
-      price: "79€",
+      price: "7 500 CFA",
       period: "/mois",
-      description: "Pour les entreprises en croissance",
+      description: "PME / PMI",
       features: [
-        "5 bots IA inclus",
-        "10 000 messages/mois",
-        "Support prioritaire",
-        "Intégrations avancées",
-        "Analytics détaillées",
-        "API accès",
-        "Personnalisation avancée"
+        { text: "2 Agents IA", included: true },
+        { text: "10 000 messages/mois", included: true },
+        { text: "Génération de leads & qualification", included: true },
+        { text: "Relances automatisées", included: true },
+        { text: "Emails (5 000/mois)", included: true },
+        { text: "CRM de suivi des contacts", included: true },
+        { text: "Intégrations complètes", included: true },
+        { text: "Support prioritaire", included: true },
+        { text: "Lien de bot personnalisé", included: true },
+        { text: "Prospection automatisée", included: true },
+        { text: "Tableau de bord analytique", included: true },
+        { text: "Suivi des statistiques en temps réel", included: true },
+        { text: "QR code de bot", included: true },
+        { text: "Partage sur les réseaux sociaux", included: true },
+        { text: "Lien webhook", included: true }
       ],
-      buttonText: "Choisir Pro",
+      buttonText: "Choisir ce plan",
       buttonVariant: "default" as const,
       popular: true
     },
     {
       name: "Enterprise",
-      price: "Sur mesure",
-      period: "",
-      description: "Solution complète pour grandes entreprises",
+      price: "15 500 CFA",
+      period: "/mois",
+      description: "Grandes entreprises",
       features: [
-        "Bots IA illimités",
-        "Messages illimités",
-        "Support dédié 24/7",
-        "Intégrations sur mesure",
-        "Formation équipe",
-        "SLA garanti",
-        "Sécurité renforcée"
+        { text: "4 Agents IA", included: true },
+        { text: "Messages illimités", included: true },
+        { text: "Qualification dynamique IA", included: true },
+        { text: "Relances automatiques + manuelles", included: true },
+        { text: "Emails/SMS/WhatsApp illimités", included: true },
+        { text: "Automatisation marketing IA prédictive", included: true },
+        { text: "A/B Testing, scoring évolutif", included: true },
+        { text: "Personnalisation avancée", included: true },
+        { text: "Support dédié 24/7", included: true },
+        { text: "Prospection multicanal avec ciblage IA", included: true },
+        { text: "Tableau de bord analytique", included: true },
+        { text: "Suivi des statistiques en temps réel", included: true },
+        { text: "QR code de bot", included: true },
+        { text: "Partage sur les réseaux sociaux", included: true },
+        { text: "Lien webhook", included: true }
       ],
-      buttonText: "Nous contacter",
+      buttonText: "Choisir ce plan",
+      buttonVariant: "outline" as const,
+      popular: false
+    },
+    {
+      name: "Custom",
+      price: "Sur devis",
+      period: "",
+      description: "Secteur public & Corporate",
+      features: [
+        { text: "Solution sur mesure", included: true },
+        { text: "Développements spécifiques", included: true },
+        { text: "SLA garanti", included: true },
+        { text: "Formation et onboarding complet", included: true },
+        { text: "Gestion multi-workspace", included: true },
+        { text: "Prospection & campagnes à la demande", included: true },
+        { text: "Tableau de bord analytique", included: true },
+        { text: "Suivi des statistiques en temps réel", included: true },
+        { text: "QR code de bot", included: true },
+        { text: "Partage sur les réseaux sociaux", included: true },
+        { text: "Lien webhook", included: true }
+      ],
+      buttonText: "Choisir ce plan",
       buttonVariant: "outline" as const,
       popular: false
     }
@@ -65,54 +111,74 @@ export const PricingSection: React.FC = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-            Choisissez votre plan
+            Structure tarifaire adaptée à tous vos besoins
           </h2>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-            Des solutions adaptées à chaque étape de votre transformation digitale
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {plans.map((plan, index) => (
             <Card 
               key={index} 
               className={`relative ${
                 plan.popular 
-                  ? 'border-primary shadow-lg scale-105 bg-card/80 backdrop-blur-sm' 
-                  : 'bg-card/50 backdrop-blur-sm hover:bg-card/80'
-              } transition-all duration-300 hover:shadow-lg`}
+                  ? 'border-2 border-primary shadow-lg bg-card' 
+                  : 'border border-border bg-card hover:shadow-md'
+              } transition-all duration-300`}
             >
               {plan.popular && (
                 <Badge 
-                  className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground"
+                  className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-1 rounded-full"
                 >
-                  Plus populaire
+                  Recommandé
                 </Badge>
               )}
               
-              <CardHeader className="text-center pb-8">
-                <CardTitle className="text-xl font-semibold text-foreground">
-                  {plan.name}
-                </CardTitle>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold text-foreground">
-                    {plan.price}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {plan.period}
-                  </span>
+              <CardHeader className="text-center pb-6">
+                <div className="flex items-center justify-center mb-2">
+                  <Diamond className="h-5 w-5 text-primary mr-2" />
+                  <CardTitle className="text-lg font-semibold text-foreground">
+                    {plan.name}
+                  </CardTitle>
                 </div>
-                <CardDescription className="mt-2 text-muted-foreground">
+                
+                <div className="mb-2">
+                  {plan.name === "Starter" ? (
+                    <span className="text-2xl font-bold text-green-600">
+                      {plan.price}
+                    </span>
+                  ) : plan.name === "Custom" ? (
+                    <span className="text-2xl font-bold text-orange-600">
+                      {plan.price}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-2xl font-bold text-primary">
+                        {plan.price}
+                      </span>
+                      <span className="text-muted-foreground text-sm">
+                        {plan.period}
+                      </span>
+                    </>
+                  )}
+                </div>
+                
+                <p className="text-sm text-muted-foreground">
                   {plan.description}
-                </CardDescription>
+                </p>
               </CardHeader>
 
-              <CardContent className="space-y-4">
-                <ul className="space-y-3">
+              <CardContent className="space-y-3 px-4">
+                <ul className="space-y-2">
                   {plan.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="flex items-center gap-3">
-                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                      <span className="text-sm text-foreground">{feature}</span>
+                    <li key={featureIndex} className="flex items-start gap-2">
+                      {feature.included ? (
+                        <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <X className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                      )}
+                      <span className={`text-xs ${feature.included ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {feature.text}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -120,19 +186,13 @@ export const PricingSection: React.FC = () => {
                 <Button 
                   variant={plan.buttonVariant}
                   className="w-full mt-6"
-                  size="lg"
+                  size="sm"
                 >
                   {plan.buttonText}
                 </Button>
               </CardContent>
             </Card>
           ))}
-        </div>
-
-        <div className="text-center mt-12">
-          <p className="text-sm text-muted-foreground">
-            Tous les plans incluent une période d'essai gratuite de 14 jours
-          </p>
         </div>
       </div>
     </section>
