@@ -2,16 +2,13 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { MapPin, Globe } from 'lucide-react';
-import { GoogleMapsView } from './GoogleMapsView';
+import { MapboxMap } from './MapboxMap';
 
 interface Contact {
   id: string;
   name: string;
   companyName: string;
-  jobTitle: string;
   location: string;
-  email: string;
-  phone: string;
   coordinates?: [number, number];
 }
 
@@ -147,23 +144,23 @@ const SimpleMap: React.FC<GeoLocationMapProps> = ({ contacts, userLocation }) =>
 };
 
 export const GeoLocationMap: React.FC<GeoLocationMapProps> = ({ contacts, userLocation }) => {
-  const [useSimpleMap, setUseSimpleMap] = useState(false);
+  const [useAdvancedMap, setUseAdvancedMap] = useState(false);
 
-  if (useSimpleMap) {
+  if (useAdvancedMap) {
     return (
       <div className="w-full h-full relative">
         <div className="absolute top-2 left-2 z-10">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setUseSimpleMap(false)}
+            onClick={() => setUseAdvancedMap(false)}
             className="bg-white text-black border-gray-300 hover:bg-gray-100"
           >
-            <Globe className="w-4 h-4 mr-1" />
-            Google Maps
+            <MapPin className="w-4 h-4 mr-1" />
+            Carte simple
           </Button>
         </div>
-        <SimpleMap contacts={contacts} userLocation={userLocation} />
+        <MapboxMap contacts={contacts} userLocation={userLocation} />
       </div>
     );
   }
@@ -174,14 +171,14 @@ export const GeoLocationMap: React.FC<GeoLocationMapProps> = ({ contacts, userLo
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setUseSimpleMap(true)}
+          onClick={() => setUseAdvancedMap(true)}
           className="bg-white text-black border-gray-300 hover:bg-gray-100"
         >
-          <MapPin className="w-4 h-4 mr-1" />
-          Carte simple
+          <Globe className="w-4 h-4 mr-1" />
+          Carte Mapbox
         </Button>
       </div>
-      <GoogleMapsView contacts={contacts} userLocation={userLocation} />
+      <SimpleMap contacts={contacts} userLocation={userLocation} />
     </div>
   );
 };

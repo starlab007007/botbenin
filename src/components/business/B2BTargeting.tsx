@@ -174,7 +174,7 @@ const getMockContacts = (): B2BContact[] => {
       coordinates: [2.3522, 48.8566]
     },
     {
-      id: '2', 
+      id: '2',
       name: 'Pierre Martin',
       companyName: 'InnovSolutions',
       jobTitle: 'Responsable Commercial',
