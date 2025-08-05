@@ -271,20 +271,42 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
   const buildSearchMessage = (criteria: SearchCriteria) => {
     const searchTerms = [];
     
-    if (criteria.companyName) searchTerms.push(`Entreprise: ${criteria.companyName}`);
-    if (criteria.industry.length > 0) searchTerms.push(`Secteur: ${criteria.industry.join(', ')}`);
-    if (criteria.jobTitle) searchTerms.push(`Poste: ${criteria.jobTitle}`);
+    // Prioriser les termes larges pour Google Maps
     if (criteria.location) searchTerms.push(`Localisation: ${criteria.location}`);
-    if (criteria.companySize) searchTerms.push(`Taille entreprise: ${criteria.companySize}`);
-    if (criteria.department) searchTerms.push(`Département: ${criteria.department}`);
-    if (criteria.seniority) searchTerms.push(`Expérience: ${criteria.seniority}`);
-    if (criteria.keywords.length > 0) searchTerms.push(`Mots-clés: ${criteria.keywords.join(', ')}`);
-
-    if (searchTerms.length === 0) {
-      return "Je cherche des contacts B2B et des entreprises pour ma prospection. Pouvez-vous m'aider à identifier des prospects pertinents avec leurs coordonnées complètes ?";
+    if (criteria.industry.length > 0) {
+      // Utiliser des termes plus génériques pour Google Maps
+      const broadIndustryTerms = criteria.industry.map(industry => {
+        switch(industry) {
+          case 'Technologie':
+            return 'informatique';
+          case 'Finance':
+            return 'banque';
+          case 'Santé':
+            return 'médical';
+          case 'Commerce':
+            return 'magasin';
+          case 'Services':
+            return 'service';
+          default:
+            return industry.toLowerCase();
+        }
+      });
+      searchTerms.push(`Type d'entreprise: ${broadIndustryTerms.join(' ou ')}`);
+    }
+    
+    // Simplifier les autres critères pour éviter les recherches trop spécifiques
+    if (criteria.companyName) searchTerms.push(`Nom: ${criteria.companyName}`);
+    if (criteria.keywords.length > 0) {
+      // Prendre seulement les mots-clés les plus génériques
+      const broadKeywords = criteria.keywords.slice(0, 2);
+      searchTerms.push(`Activité: ${broadKeywords.join(' ')}`);
     }
 
-    return `Je recherche des contacts B2B avec les critères suivants: ${searchTerms.join(', ')}. Pouvez-vous m'aider à identifier des prospects correspondant à ces critères avec leurs informations complètes (nom, adresse, téléphone, site web, secteur) ?`;
+    if (searchTerms.length === 0) {
+      return "Je cherche des entreprises locales pour ma prospection via Google Maps. Pouvez-vous m'aider à identifier des entreprises avec leurs coordonnées complètes ?";
+    }
+
+    return `Je recherche des entreprises via Google Maps avec les critères suivants: ${searchTerms.join(', ')}. Utilisez des termes génériques pour obtenir plus de résultats sur Google Maps et donnez-moi les informations complètes (nom, adresse, téléphone, site web, catégorie) ?`;
   };
 
   const executeSearch = async (criteria: SearchCriteria) => {

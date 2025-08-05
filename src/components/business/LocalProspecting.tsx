@@ -295,19 +295,46 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   const buildSearchMessage = () => {
     const searchCriteria = [];
     
+    // Optimisation pour Google Maps Scraper
     if (filters.location) searchCriteria.push(`Zone: ${filters.location}`);
     if (filters.radius) searchCriteria.push(`Rayon: ${filters.radius} km`);
-    if (filters.category) searchCriteria.push(`Catégorie: ${filters.category}`);
-    if (filters.keywords) searchCriteria.push(`Mots-clés: ${filters.keywords}`);
-    if (filters.minRating) searchCriteria.push(`Note minimum: ${filters.minRating}`);
-    if (filters.priceRange) searchCriteria.push(`Prix: ${filters.priceRange}`);
-    if (filters.hasWebsite) searchCriteria.push(`Site web: ${filters.hasWebsite}`);
-
-    if (searchCriteria.length === 0) {
-      return "Je cherche des entreprises locales et des commerces de proximité pour ma prospection. Pouvez-vous m'aider à identifier des entreprises locales avec leurs coordonnées complètes (nom, adresse, téléphone, site web, horaires) ?";
+    
+    // Utiliser des catégories plus génériques
+    if (filters.category) {
+      const broadCategory = getBroadCategory(filters.category);
+      searchCriteria.push(`Type: ${broadCategory}`);
+    }
+    
+    // Simplifier les mots-clés
+    if (filters.keywords) {
+      const simpleKeywords = filters.keywords.split(' ').slice(0, 2).join(' ');
+      searchCriteria.push(`Activité: ${simpleKeywords}`);
     }
 
-    return `Je recherche des entreprises locales avec les critères suivants: ${searchCriteria.join(', ')}. Pouvez-vous m'aider à identifier des commerces et entreprises locales correspondant à ces critères avec leurs informations complètes (nom, adresse, téléphone, site web, horaires, catégorie) ?`;
+    if (searchCriteria.length === 0) {
+      return "Je cherche des entreprises locales via Google Maps pour ma prospection. Utilisez des termes génériques comme 'magasin', 'restaurant', 'service' pour obtenir plus de résultats. Donnez-moi les coordonnées complètes (nom, adresse, téléphone, site web, horaires) ?";
+    }
+
+    return `Je recherche des entreprises via Google Maps avec: ${searchCriteria.join(', ')}. Utilisez des termes génériques pour Google Maps et donnez-moi les informations complètes (nom, adresse, téléphone, site web, horaires, catégorie) de chaque entreprise trouvée ?`;
+  };
+
+  const getBroadCategory = (category: string): string => {
+    const categoryMap: { [key: string]: string } = {
+      'Technologie SaaS': 'informatique',
+      'Software': 'informatique', 
+      'Développement': 'informatique',
+      'Fintech': 'finance',
+      'Banque digitale': 'banque',
+      'E-commerce': 'commerce',
+      'Restauration rapide': 'restaurant',
+      'Café': 'café',
+      'Hôtellerie': 'hôtel',
+      'Santé digitale': 'médical',
+      'Conseil en management': 'conseil',
+      'Formation professionnelle': 'formation'
+    };
+    
+    return categoryMap[category] || category.toLowerCase();
   };
 
   const searchWithPerplexity = async (searchQuery: string) => {

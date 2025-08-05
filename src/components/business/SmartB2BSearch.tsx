@@ -63,8 +63,9 @@ interface SmartB2BSearchProps {
 }
 
 const INDUSTRIES = [
-  'Technologie', 'Finance', 'Santé', 'Education', 'Commerce', 'Industrie',
-  'Services', 'Transport', 'Immobilier', 'Agriculture', 'Tourisme', 'Média'
+  'Technologie', 'Informatique', 'Finance', 'Santé', 'Education', 'Commerce', 'Industrie',
+  'Services', 'Transport', 'Immobilier', 'Agriculture', 'Tourisme', 'Média', 'Restaurant',
+  'Construction', 'Energie', 'Télécommunications', 'Conseil', 'Formation'
 ];
 
 const COMPANY_SIZES = [
@@ -197,17 +198,24 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
   const generateAISuggestions = (currentFilters: SmartSearchFilters): string[] => {
     const suggestions: string[] = [];
     
+    // Suggestions plus larges et efficaces pour Google Maps
     if (currentFilters.industry.includes('Technologie')) {
-      suggestions.push('startup innovante', 'SaaS', 'développement web', 'IA');
+      suggestions.push('informatique', 'ordinateur', 'software', 'digital');
+    }
+    if (currentFilters.industry.includes('Informatique')) {
+      suggestions.push('technologie', 'ordinateur', 'réparation', 'vente');
     }
     if (currentFilters.industry.includes('Finance')) {
-      suggestions.push('fintech', 'banque digitale', 'investissement', 'crypto');
+      suggestions.push('banque', 'assurance', 'crédit', 'finance');
     }
-    if (currentFilters.jobTitle.includes('CEO')) {
-      suggestions.push('décideur', 'stratégie', 'croissance', 'leadership');
+    if (currentFilters.industry.includes('Commerce')) {
+      suggestions.push('magasin', 'boutique', 'vente', 'commerce');
     }
-    if (currentFilters.jobTitle.includes('CTO')) {
-      suggestions.push('innovation', 'tech lead', 'architecture', 'DevOps');
+    if (currentFilters.industry.includes('Restaurant')) {
+      suggestions.push('restaurant', 'café', 'bar', 'restauration');
+    }
+    if (currentFilters.industry.includes('Services')) {
+      suggestions.push('service', 'prestation', 'conseil', 'assistance');
     }
     
     return suggestions.slice(0, 6);
@@ -258,13 +266,21 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
       return;
     }
 
-    if (filters.industry.length === 0 && !filters.jobTitle && filters.keywords.length === 0) {
+    if (filters.industry.length === 0 && filters.keywords.length === 0) {
       toast({
         title: "Critères insuffisants",
-        description: "Veuillez définir au moins un critère de recherche",
+        description: "Veuillez définir au moins un secteur d'activité ou des mots-clés pour Google Maps",
         variant: "destructive",
       });
       return;
+    }
+
+    // Avertissement pour les recherches trop spécifiques
+    if (filters.industry.length > 0 && filters.keywords.length > 2) {
+      toast({
+        title: "Recommandation",
+        description: "Pour de meilleurs résultats avec Google Maps, utilisez des termes plus généraux",
+      });
     }
 
     onSearch(filters);
