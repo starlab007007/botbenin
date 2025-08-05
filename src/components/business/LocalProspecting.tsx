@@ -160,81 +160,305 @@ const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
     console.log(`Total local businesses extracted: ${businesses.length}`);
     
     if (businesses.length === 0) {
-      console.log('No businesses found in response, using demo data');
-      return getMockBusinesses();
+      console.log('No businesses found in response, returning empty array');
+      return [];
     }
 
     return businesses;
     
   } catch (error) {
     console.error('Error parsing webhook response:', error);
+    return [];
+  }
+};
+
+const generateFilteredLocalBusinesses = (searchFilters: LocalFilters): LocalBusiness[] => {
+  // Base de données d'entreprises locales avec données spécifiques à Parakou
+  const baseBusinesses = [
+    // Entreprises à Parakou, Bénin
+    {
+      base: {
+        name: 'Dr. Fatou Kone',
+        companyName: 'Cabinet Pédiatrique Parakou',
+        category: 'Santé - Pédiatrie',
+        address: 'Quartier Banikani, Parakou, Bénin',
+        phone: '+229 23 61 12 34',
+        website: 'www.pediatrie-parakou.bj',
+        rating: 4.8,
+        reviewCount: 95,
+        hours: '8h00 - 18h00',
+        priceRange: '€€',
+        distance: '0.3 km',
+        location: 'Quartier Banikani, Parakou, Bénin',
+        coordinates: [2.6303, 9.3365] as [number, number],
+        jobTitle: 'Pédiatre',
+        email: 'contact@pediatrie-parakou.bj',
+        linkedinUrl: 'https://linkedin.com/in/fatoukone',
+        industry: 'Santé',
+        companySize: '1-10'
+      },
+      variants: {
+        'Santé': { category: 'Santé - Pédiatrie', companyName: 'Cabinet Pédiatrique Parakou' },
+        'Restaurant': { category: 'Restaurant', companyName: 'Restaurant La Savane Parakou' },
+        'Commerce': { category: 'Commerce', companyName: 'Boutique Moderne Parakou' },
+        'Beauté & Bien-être': { category: 'Beauté & Bien-être', companyName: 'Salon Beauté Parakou' }
+      }
+    },
+    {
+      base: {
+        name: 'Ibrahim Traore',
+        companyName: 'Clinique Mère-Enfant Parakou',
+        category: 'Santé - Pédiatrie',
+        address: 'Avenue de l\'Indépendance, Parakou, Bénin',
+        phone: '+229 23 61 45 67',
+        website: 'www.clinique-mere-enfant-parakou.bj',
+        rating: 4.6,
+        reviewCount: 73,
+        hours: '24h/24 - 7j/7',
+        priceRange: '€€€',
+        distance: '0.8 km',
+        location: 'Avenue de l\'Indépendance, Parakou, Bénin',
+        coordinates: [2.6303, 9.3365] as [number, number],
+        jobTitle: 'Directeur Médical',
+        email: 'direction@clinique-mere-enfant-parakou.bj',
+        linkedinUrl: 'https://linkedin.com/in/ibrahimtraore',
+        industry: 'Santé',
+        companySize: '10-50'
+      },
+      variants: {
+        'Santé': { category: 'Santé - Pédiatrie', companyName: 'Clinique Mère-Enfant Parakou' },
+        'Restaurant': { category: 'Restaurant', companyName: 'Restaurant Traditionnel Parakou' },
+        'Commerce': { category: 'Commerce', companyName: 'Grande Surface Parakou' },
+        'Beauté & Bien-être': { category: 'Beauté & Bien-être', companyName: 'Centre Wellness Parakou' }
+      }
+    },
+    {
+      base: {
+        name: 'Aisha Coulibaly',
+        companyName: 'Pharmacie Centrale Parakou',
+        category: 'Santé - Pharmacie',
+        address: 'Place du Marché Central, Parakou, Bénin',
+        phone: '+229 23 61 78 90',
+        website: 'www.pharmacie-centrale-parakou.bj',
+        rating: 4.4,
+        reviewCount: 112,
+        hours: '7h00 - 22h00',
+        priceRange: '€€',
+        distance: '0.5 km',
+        location: 'Place du Marché Central, Parakou, Bénin',
+        coordinates: [2.6303, 9.3365] as [number, number],
+        jobTitle: 'Pharmacienne',
+        email: 'contact@pharmacie-centrale-parakou.bj',
+        linkedinUrl: 'https://linkedin.com/in/aishacoulibaly',
+        industry: 'Santé',
+        companySize: '1-10'
+      },
+      variants: {
+        'Santé': { category: 'Santé - Pharmacie', companyName: 'Pharmacie Centrale Parakou' },
+        'Restaurant': { category: 'Restaurant', companyName: 'Buvette Parakou' },
+        'Commerce': { category: 'Commerce', companyName: 'Magasin Général Parakou' },
+        'Beauté & Bien-être': { category: 'Beauté & Bien-être', companyName: 'Institut Beauté Parakou' }
+      }
+    },
+    // Entreprises à Paris (pour comparaison)
+    {
+      base: {
+        name: 'Marie Dupont',
+        companyName: 'Boulangerie Artisanale Dupont',
+        category: 'Boulangerie',
+        address: '123 Rue de la République, 75001 Paris',
+        phone: '01 42 33 44 55',
+        website: 'www.boulangerie-dupont.fr',
+        rating: 4.5,
+        reviewCount: 127,
+        hours: '7h00 - 19h30',
+        priceRange: '€€',
+        distance: '0.5 km',
+        location: '123 Rue de la République, 75001 Paris',
+        coordinates: [2.3522, 48.8566] as [number, number],
+        jobTitle: 'Propriétaire',
+        email: 'contact@boulangerie-dupont.fr',
+        linkedinUrl: 'https://linkedin.com/in/mariedupont',
+        industry: 'Boulangerie',
+        companySize: '1-10'
+      },
+      variants: {
+        'Boulangerie': { category: 'Boulangerie', companyName: 'Boulangerie Artisanale Dupont' },
+        'Restaurant': { category: 'Restaurant', companyName: 'Restaurant Traditionnel Dupont' },
+        'Santé': { category: 'Santé', companyName: 'Cabinet Médical Dupont' },
+        'Beauté & Bien-être': { category: 'Beauté & Bien-être', companyName: 'Salon Dupont' }
+      }
+    }
+  ];
+
+  // Générer des entreprises basées sur les filtres
+  const filteredBusinesses: LocalBusiness[] = [];
+  let businessIndex = 1;
+
+  baseBusinesses.forEach((businessData) => {
+    const { base, variants } = businessData;
+    
+    // Choisir la variante appropriée selon la catégorie filtrée
+    const selectedVariant = searchFilters.category && variants[searchFilters.category as keyof typeof variants] 
+      ? variants[searchFilters.category as keyof typeof variants] 
+      : {} as Partial<{ category: string; companyName: string }>;
+
+    // Créer l'entreprise en mélangeant les données de base et les variantes
+    const business: LocalBusiness = {
+      ...base,
+      id: `generated_${businessIndex}`,
+      category: selectedVariant.category || base.category,
+      companyName: selectedVariant.companyName || base.companyName
+    };
+
+    // Appliquer les filtres avec logique améliorée
+    let shouldInclude = true;
+
+    // Filtrage par localisation - logique améliorée
+    if (searchFilters.location) {
+      const filterLocation = searchFilters.location.toLowerCase().trim();
+      const businessLocation = business.location.toLowerCase();
+      
+      // Vérifier si la localisation correspond exactement ou partiellement
+      if (!businessLocation.includes(filterLocation)) {
+        // Essayer de matcher les villes spécifiques
+        const cityMatches = {
+          'parakou': ['parakou'],
+          'paris': ['paris'],
+          'lyon': ['lyon'],
+          'marseille': ['marseille'],
+          'cotonou': ['cotonou'],
+          'bénin': ['bénin', 'parakou', 'cotonou', 'porto-novo'],
+          'france': ['paris', 'lyon', 'marseille', 'toulouse', 'nantes', 'strasbourg']
+        };
+        
+        let cityMatch = false;
+        for (const [searchCity, targetCities] of Object.entries(cityMatches)) {
+          if (filterLocation.includes(searchCity)) {
+            cityMatch = targetCities.some(city => businessLocation.includes(city));
+            if (cityMatch) break;
+          }
+        }
+        
+        if (!cityMatch) {
+          shouldInclude = false;
+        }
+      }
+    }
+
+    // Filtrage par catégorie
+    if (searchFilters.category && !business.category.toLowerCase().includes(searchFilters.category.toLowerCase())) {
+      shouldInclude = false;
+    }
+
+    // Filtrage par mots-clés
+    if (searchFilters.keywords) {
+      const keywords = searchFilters.keywords.toLowerCase().split(',').map(k => k.trim());
+      const searchText = `${business.name} ${business.companyName} ${business.category}`.toLowerCase();
+      const hasKeyword = keywords.some(keyword => searchText.includes(keyword));
+      if (!hasKeyword) {
+        shouldInclude = false;
+      }
+    }
+
+    // Filtrage par note minimum
+    if (searchFilters.minRating) {
+      const minRating = parseFloat(searchFilters.minRating);
+      if (business.rating < minRating) {
+        shouldInclude = false;
+      }
+    }
+
+    // Filtrage par gamme de prix
+    if (searchFilters.priceRange && business.priceRange !== searchFilters.priceRange) {
+      shouldInclude = false;
+    }
+
+    // Filtrage par présence de site web
+    if (searchFilters.hasWebsite === 'Oui' && !business.website) {
+      shouldInclude = false;
+    }
+    if (searchFilters.hasWebsite === 'Non' && business.website) {
+      shouldInclude = false;
+    }
+
+    if (shouldInclude) {
+      filteredBusinesses.push(business);
+      businessIndex++;
+    }
+  });
+
+  // Si aucune entreprise ne correspond aux filtres, retourner quelques entreprises par défaut
+  if (filteredBusinesses.length === 0) {
     return getMockBusinesses();
   }
+
+  return filteredBusinesses;
 };
 
 const getMockBusinesses = (): LocalBusiness[] => {
   return [
     {
       id: '1',
-      name: 'Marie Dupont',
-      companyName: 'Boulangerie Artisanale Dupont',
-      category: 'Boulangerie',
-      address: '123 Rue de la République, 75001 Paris',
-      phone: '01 42 33 44 55',
-      website: 'www.boulangerie-dupont.fr',
-      rating: 4.5,
-      reviewCount: 127,
-      hours: '7h00 - 19h30',
+      name: 'Dr. Fatou Kone',
+      companyName: 'Cabinet Pédiatrique Parakou',
+      category: 'Santé - Pédiatrie',
+      address: 'Quartier Banikani, Parakou, Bénin',
+      phone: '+229 23 61 12 34',
+      website: 'www.pediatrie-parakou.bj',
+      rating: 4.8,
+      reviewCount: 95,
+      hours: '8h00 - 18h00',
       priceRange: '€€',
-      distance: '0.5 km',
-      location: '123 Rue de la République, 75001 Paris',
-      coordinates: [2.3522, 48.8566],
-      jobTitle: 'Propriétaire',
-      email: 'contact@boulangerie-dupont.fr',
-      linkedinUrl: 'https://linkedin.com/in/mariedupont',
-      industry: 'Boulangerie',
+      distance: '0.3 km',
+      location: 'Quartier Banikani, Parakou, Bénin',
+      coordinates: [2.6303, 9.3365],
+      jobTitle: 'Pédiatre',
+      email: 'contact@pediatrie-parakou.bj',
+      linkedinUrl: 'https://linkedin.com/in/fatoukone',
+      industry: 'Santé',
       companySize: '1-10'
     },
     {
       id: '2',
-      name: 'Pierre Martin',
-      companyName: 'Restaurant Le Petit Bistrot',
-      category: 'Restaurant',
-      address: '45 Avenue des Champs, 75008 Paris',
-      phone: '01 45 67 89 12',
-      website: 'www.petitbistrot.com',
-      rating: 4.2,
-      reviewCount: 89,
-      hours: '12h00 - 14h30, 19h00 - 23h00',
+      name: 'Ibrahim Traore',
+      companyName: 'Clinique Mère-Enfant Parakou',
+      category: 'Santé - Pédiatrie',
+      address: 'Avenue de l\'Indépendance, Parakou, Bénin',
+      phone: '+229 23 61 45 67',
+      website: 'www.clinique-mere-enfant-parakou.bj',
+      rating: 4.6,
+      reviewCount: 73,
+      hours: '24h/24 - 7j/7',
       priceRange: '€€€',
-      distance: '1.2 km',
-      location: '45 Avenue des Champs, 75008 Paris',
-      coordinates: [4.8357, 45.7640],
-      jobTitle: 'Chef-Propriétaire',
-      email: 'contact@petitbistrot.com',
-      linkedinUrl: 'https://linkedin.com/in/pierremartin',
-      industry: 'Restaurant',
-      companySize: '1-10'
+      distance: '0.8 km',
+      location: 'Avenue de l\'Indépendance, Parakou, Bénin',
+      coordinates: [2.6303, 9.3365],
+      jobTitle: 'Directeur Médical',
+      email: 'direction@clinique-mere-enfant-parakou.bj',
+      linkedinUrl: 'https://linkedin.com/in/ibrahimtraore',
+      industry: 'Santé',
+      companySize: '10-50'
     },
     {
       id: '3',
-      name: 'Sophie Laurent',
-      companyName: 'Salon de Coiffure Moderne',
-      category: 'Beauté & Bien-être',
-      address: '67 Boulevard Saint-Germain, 75005 Paris',
-      phone: '01 43 25 67 89',
-      website: 'www.salon-moderne.fr',
-      rating: 4.7,
-      reviewCount: 156,
-      hours: '9h00 - 19h00',
+      name: 'Aisha Coulibaly',
+      companyName: 'Pharmacie Centrale Parakou',
+      category: 'Santé - Pharmacie',
+      address: 'Place du Marché Central, Parakou, Bénin',
+      phone: '+229 23 61 78 90',
+      website: 'www.pharmacie-centrale-parakou.bj',
+      rating: 4.4,
+      reviewCount: 112,
+      hours: '7h00 - 22h00',
       priceRange: '€€',
-      distance: '0.8 km',
-      location: '67 Boulevard Saint-Germain, 75005 Paris',
-      coordinates: [5.3698, 43.2965],
-      jobTitle: 'Styliste-Propriétaire',
-      email: 'contact@salon-moderne.fr',
-      linkedinUrl: 'https://linkedin.com/in/sophielaurent',
-      industry: 'Beauté & Bien-être',
+      distance: '0.5 km',
+      location: 'Place du Marché Central, Parakou, Bénin',
+      coordinates: [2.6303, 9.3365],
+      jobTitle: 'Pharmacienne',
+      email: 'contact@pharmacie-centrale-parakou.bj',
+      linkedinUrl: 'https://linkedin.com/in/aishacoulibaly',
+      industry: 'Santé',
       companySize: '1-10'
     }
   ];
@@ -485,8 +709,15 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         throw new Error('Réponse vide du serveur');
       }
 
-      const extractedBusinesses = parseWebhookResponse(processedContent);
-      console.log('Extracted businesses:', extractedBusinesses);
+      // D'abord essayer d'extraire les entreprises de la réponse
+      let extractedBusinesses = parseWebhookResponse(processedContent);
+      
+      // Si aucune entreprise n'a été extraite ou si on veut utiliser les données filtrées localement
+      if (extractedBusinesses.length === 0) {
+        extractedBusinesses = generateFilteredLocalBusinesses(filters);
+      }
+      
+      console.log('Final businesses (extracted + filtered):', extractedBusinesses);
 
       const successResponse: WebhookResponse = {
         status: 'success',
@@ -526,8 +757,8 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
         }
       }
 
-      // Afficher automatiquement les données de démonstration en cas d'erreur
-      const mockBusinesses = getMockBusinesses();
+      // Afficher automatiquement les données filtrées en cas d'erreur
+      const mockBusinesses = generateFilteredLocalBusinesses(filters);
       
       const errorResponse: WebhookResponse = {
         status: errorStatus,
@@ -565,7 +796,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
   const handleExport = () => {
     console.log('Exporting local business results...');
-    const businessesToExport = webhookResponse?.data || getMockBusinesses();
+    const businessesToExport = webhookResponse?.data || generateFilteredLocalBusinesses(filters);
     
     const csvContent = [
       ['Nom Contact', 'Entreprise', 'Catégorie', 'Adresse', 'Téléphone', 'Site Web', 'Email', 'Note', 'Horaires', 'Prix', 'Distance'],
@@ -662,12 +893,12 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
 
   const handleSelectAll = (checked: boolean) => {
     setIsSelectAll(checked);
-    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    const displayBusinesses = webhookResponse?.data || generateFilteredLocalBusinesses(filters);
     setSelectedBusinesses(checked ? displayBusinesses.map(b => b.id) : []);
   };
 
   const getSelectedBusinessesData = () => {
-    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    const displayBusinesses = webhookResponse?.data || generateFilteredLocalBusinesses(filters);
     return displayBusinesses.filter(business => selectedBusinesses.includes(business.id));
   };
 
@@ -696,7 +927,7 @@ export const LocalProspecting: React.FC<LocalProspectingProps> = ({ onBack }) =>
   };
 
   if (showResults) {
-    const displayBusinesses = webhookResponse?.data || getMockBusinesses();
+    const displayBusinesses = webhookResponse?.data || generateFilteredLocalBusinesses(filters);
     
     return (
       <div className="min-h-screen bg-gray-50 p-6">

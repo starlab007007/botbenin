@@ -290,8 +290,73 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
   };
 
 const generateFilteredContacts = (): B2BContact[] => {
-    // Base de données de contacts simulés avec vraies données géolocalisées
+    // Base de données de contacts simulés avec vraies données géolocalisées incluant Parakou
     const basseContacts = [
+      // Contacts pour Parakou, Bénin
+      {
+        base: {
+          name: 'Fatou Kone',
+          companyName: 'Centre Médical Parakou',
+          jobTitle: 'Directrice Médicale',
+          location: 'Parakou, Bénin',
+          email: 'fatou.kone@centre-medical-parakou.bj',
+          phone: '+229 23 61 12 34',
+          industry: 'Healthcare',
+          companySize: '50-100',
+          coordinates: [2.6303, 9.3365] as [number, number]
+        },
+        variants: {
+          technology: { companyName: 'TechSolutions Parakou', industry: 'Technology', jobTitle: 'Directrice Innovation' },
+          finance: { companyName: 'Banque Parakou', industry: 'Finance', jobTitle: 'Directrice Agence' },
+          healthcare: { companyName: 'Clinique Pédiatrique Parakou', industry: 'Healthcare', jobTitle: 'Directrice Médicale' },
+          consulting: { companyName: 'Conseil Santé Nord Bénin', industry: 'Consulting', jobTitle: 'Consultante Senior' },
+          marketing: { companyName: 'Communication Santé', industry: 'Marketing', jobTitle: 'Responsable Marketing' },
+          retail: { companyName: 'Pharmacie Centrale Parakou', industry: 'Retail', jobTitle: 'Pharmacienne Responsable' }
+        }
+      },
+      {
+        base: {
+          name: 'Ibrahim Traore',
+          companyName: 'Hôpital Pédiatrique Parakou',
+          jobTitle: 'Pédiatre Chef de Service',
+          location: 'Parakou, Bénin',
+          email: 'ibrahim.traore@hopital-pediatrique.bj',
+          phone: '+229 23 61 45 67',
+          industry: 'Healthcare',
+          companySize: '100-200',
+          coordinates: [2.6303, 9.3365] as [number, number]
+        },
+        variants: {
+          technology: { companyName: 'Innovation Médicale Parakou', industry: 'Technology', jobTitle: 'Directeur Innovation' },
+          finance: { companyName: 'Assurance Santé Parakou', industry: 'Finance', jobTitle: 'Responsable Médical' },
+          healthcare: { companyName: 'Centre Pédiatrique Spécialisé', industry: 'Healthcare', jobTitle: 'Pédiatre Chef de Service' },
+          consulting: { companyName: 'Expertise Médicale Nord', industry: 'Consulting', jobTitle: 'Expert Médical' },
+          marketing: { companyName: 'Promotion Santé Enfant', industry: 'Marketing', jobTitle: 'Responsable Communication' },
+          retail: { companyName: 'Équipements Médicaux Parakou', industry: 'Retail', jobTitle: 'Responsable Commercial' }
+        }
+      },
+      {
+        base: {
+          name: 'Aisha Coulibaly',
+          companyName: 'Clinique Mère-Enfant Parakou',
+          jobTitle: 'Sage-Femme Chef',
+          location: 'Parakou, Bénin',
+          email: 'aisha.coulibaly@clinique-mere-enfant.bj',
+          phone: '+229 23 61 78 90',
+          industry: 'Healthcare',
+          companySize: '20-50',
+          coordinates: [2.6303, 9.3365] as [number, number]
+        },
+        variants: {
+          technology: { companyName: 'TéléSanté Mère-Enfant', industry: 'Technology', jobTitle: 'Responsable Télémédecine' },
+          finance: { companyName: 'Mutuelle Santé Femmes', industry: 'Finance', jobTitle: 'Responsable Programmes' },
+          healthcare: { companyName: 'Centre Santé Reproductive', industry: 'Healthcare', jobTitle: 'Sage-Femme Chef' },
+          consulting: { companyName: 'Conseil Santé Maternelle', industry: 'Consulting', jobTitle: 'Experte Santé Maternelle' },
+          marketing: { companyName: 'Éducation Santé Femmes', industry: 'Marketing', jobTitle: 'Responsable Sensibilisation' },
+          retail: { companyName: 'Matériel Médical Mère-Enfant', industry: 'Retail', jobTitle: 'Responsable Ventes' }
+        }
+      },
+      // Contacts pour Paris, France
       {
         base: {
           name: 'Marie Dubois',
@@ -446,17 +511,77 @@ const generateFilteredContacts = (): B2BContact[] => {
         coordinates: base.coordinates
       };
 
-      // Appliquer les filtres
+      // Appliquer les filtres avec logique améliorée
       let shouldInclude = true;
 
+      // Filtrage par nom d'entreprise
       if (filters.companyName && !contact.companyName.toLowerCase().includes(filters.companyName.toLowerCase())) {
         shouldInclude = false;
       }
-      if (filters.location && !contact.location.toLowerCase().includes(filters.location.toLowerCase())) {
-        shouldInclude = false;
+
+      // Filtrage par localisation - logique améliorée
+      if (filters.location) {
+        const filterLocation = filters.location.toLowerCase().trim();
+        const contactLocation = contact.location.toLowerCase();
+        
+        // Vérifier si la localisation correspond exactement ou partiellement
+        if (!contactLocation.includes(filterLocation)) {
+          // Essayer de matcher les villes spécifiques
+          const cityMatches = {
+            'parakou': ['parakou'],
+            'paris': ['paris'],
+            'lyon': ['lyon'],
+            'marseille': ['marseille'],
+            'toulouse': ['toulouse'],
+            'nantes': ['nantes'],
+            'strasbourg': ['strasbourg'],
+            'cotonou': ['cotonou'],
+            'bénin': ['bénin', 'parakou', 'cotonou', 'porto-novo'],
+            'france': ['paris', 'lyon', 'marseille', 'toulouse', 'nantes', 'strasbourg', 'montpellier', 'bordeaux']
+          };
+          
+          let cityMatch = false;
+          for (const [searchCity, targetCities] of Object.entries(cityMatches)) {
+            if (filterLocation.includes(searchCity)) {
+              cityMatch = targetCities.some(city => contactLocation.includes(city));
+              if (cityMatch) break;
+            }
+          }
+          
+          if (!cityMatch) {
+            shouldInclude = false;
+          }
+        }
       }
+
+      // Filtrage par titre de poste
       if (filters.jobTitle && !contact.jobTitle.toLowerCase().includes(filters.jobTitle.toLowerCase())) {
         shouldInclude = false;
+      }
+
+      // Filtrage par secteur d'activité
+      if (filters.industry && contact.industry !== filters.industry) {
+        shouldInclude = false;
+      }
+
+      // Filtrage par taille d'entreprise
+      if (filters.companySize && contact.companySize !== filters.companySize) {
+        shouldInclude = false;
+      }
+
+      // Filtrage par département
+      if (filters.department && !contact.jobTitle.toLowerCase().includes(filters.department.toLowerCase())) {
+        shouldInclude = false;
+      }
+
+      // Filtrage par mots-clés
+      if (filters.keywords) {
+        const keywords = filters.keywords.toLowerCase().split(',').map(k => k.trim());
+        const searchText = `${contact.name} ${contact.companyName} ${contact.jobTitle} ${contact.industry}`.toLowerCase();
+        const hasKeyword = keywords.some(keyword => searchText.includes(keyword));
+        if (!hasKeyword) {
+          shouldInclude = false;
+        }
       }
 
       if (shouldInclude) {
