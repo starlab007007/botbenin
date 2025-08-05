@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Search, Filter, Download, Users, MapPin, Mail, Phone, Eye, MessageSquare, Loader2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { GoogleMapsView } from './GoogleMapsView';
+import { GeoLocationMap } from './GeoLocationMap';
 import { useToast } from '@/hooks/use-toast';
 
 interface B2BFilters {
@@ -198,32 +198,6 @@ const getMockContacts = (): B2BContact[] => {
       industry: 'Marketing',
       companySize: '50-100',
       coordinates: [5.3698, 43.2965]
-    },
-    {
-      id: '4',
-      name: 'Laurent Moreau',
-      companyName: 'Innovation Labs',
-      jobTitle: 'Directeur R&D',
-      location: 'Toulouse, France',
-      linkedinUrl: 'https://linkedin.com/in/laurentmoreau',
-      email: 'laurent.moreau@innovlabs.fr',
-      phone: '+33 5 61 23 45 67',
-      industry: 'Technology',
-      companySize: '200-500',
-      coordinates: [1.4442, 43.6047]
-    },
-    {
-      id: '5',
-      name: 'Camille Bertrand',
-      companyName: 'Green Solutions',
-      jobTitle: 'Responsable Développement Durable',
-      location: 'Nantes, France',
-      linkedinUrl: 'https://linkedin.com/in/camillebertrand',
-      email: 'camille.bertrand@greensolutions.fr',
-      phone: '+33 2 40 12 34 56',
-      industry: 'Environmental',
-      companySize: '100-200',
-      coordinates: [-1.5534, 47.2184]
     }
   ];
 };
@@ -289,371 +263,107 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     return `Je recherche des contacts B2B avec les critères suivants: ${searchCriteria.join(', ')}. Pouvez-vous m'aider à identifier des prospects correspondant à ces critères avec leurs informations complètes (nom, adresse, téléphone, site web, secteur) ?`;
   };
 
-const generateFilteredContacts = (): B2BContact[] => {
-    // Base de données de contacts simulés avec vraies données géolocalisées incluant Parakou
-    const basseContacts = [
-      // Contacts pour Parakou, Bénin
-      {
-        base: {
-          name: 'Fatou Kone',
-          companyName: 'Centre Médical Parakou',
-          jobTitle: 'Directrice Médicale',
-          location: 'Parakou, Bénin',
-          email: 'fatou.kone@centre-medical-parakou.bj',
-          phone: '+229 23 61 12 34',
-          industry: 'Healthcare',
-          companySize: '50-100',
-          coordinates: [2.6303, 9.3365] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'TechSolutions Parakou', industry: 'Technology', jobTitle: 'Directrice Innovation' },
-          finance: { companyName: 'Banque Parakou', industry: 'Finance', jobTitle: 'Directrice Agence' },
-          healthcare: { companyName: 'Clinique Pédiatrique Parakou', industry: 'Healthcare', jobTitle: 'Directrice Médicale' },
-          consulting: { companyName: 'Conseil Santé Nord Bénin', industry: 'Consulting', jobTitle: 'Consultante Senior' },
-          marketing: { companyName: 'Communication Santé', industry: 'Marketing', jobTitle: 'Responsable Marketing' },
-          retail: { companyName: 'Pharmacie Centrale Parakou', industry: 'Retail', jobTitle: 'Pharmacienne Responsable' }
-        }
-      },
-      {
-        base: {
-          name: 'Ibrahim Traore',
-          companyName: 'Hôpital Pédiatrique Parakou',
-          jobTitle: 'Pédiatre Chef de Service',
-          location: 'Parakou, Bénin',
-          email: 'ibrahim.traore@hopital-pediatrique.bj',
-          phone: '+229 23 61 45 67',
-          industry: 'Healthcare',
-          companySize: '100-200',
-          coordinates: [2.6303, 9.3365] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'Innovation Médicale Parakou', industry: 'Technology', jobTitle: 'Directeur Innovation' },
-          finance: { companyName: 'Assurance Santé Parakou', industry: 'Finance', jobTitle: 'Responsable Médical' },
-          healthcare: { companyName: 'Centre Pédiatrique Spécialisé', industry: 'Healthcare', jobTitle: 'Pédiatre Chef de Service' },
-          consulting: { companyName: 'Expertise Médicale Nord', industry: 'Consulting', jobTitle: 'Expert Médical' },
-          marketing: { companyName: 'Promotion Santé Enfant', industry: 'Marketing', jobTitle: 'Responsable Communication' },
-          retail: { companyName: 'Équipements Médicaux Parakou', industry: 'Retail', jobTitle: 'Responsable Commercial' }
-        }
-      },
-      {
-        base: {
-          name: 'Aisha Coulibaly',
-          companyName: 'Clinique Mère-Enfant Parakou',
-          jobTitle: 'Sage-Femme Chef',
-          location: 'Parakou, Bénin',
-          email: 'aisha.coulibaly@clinique-mere-enfant.bj',
-          phone: '+229 23 61 78 90',
-          industry: 'Healthcare',
-          companySize: '20-50',
-          coordinates: [2.6303, 9.3365] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'TéléSanté Mère-Enfant', industry: 'Technology', jobTitle: 'Responsable Télémédecine' },
-          finance: { companyName: 'Mutuelle Santé Femmes', industry: 'Finance', jobTitle: 'Responsable Programmes' },
-          healthcare: { companyName: 'Centre Santé Reproductive', industry: 'Healthcare', jobTitle: 'Sage-Femme Chef' },
-          consulting: { companyName: 'Conseil Santé Maternelle', industry: 'Consulting', jobTitle: 'Experte Santé Maternelle' },
-          marketing: { companyName: 'Éducation Santé Femmes', industry: 'Marketing', jobTitle: 'Responsable Sensibilisation' },
-          retail: { companyName: 'Matériel Médical Mère-Enfant', industry: 'Retail', jobTitle: 'Responsable Ventes' }
-        }
-      },
-      // Contacts pour Paris, France
-      {
-        base: {
-          name: 'Marie Dubois',
-          companyName: 'TechCorp France',
-          jobTitle: 'Directrice Marketing',
-          location: 'Paris, France',
-          email: 'marie.dubois@techcorp.fr',
-          phone: '+33 1 42 86 88 02',
-          industry: 'Technology',
-          companySize: '500-1000',
-          coordinates: [2.3522, 48.8566] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'InnovTech Solutions', industry: 'Technology', jobTitle: 'Directrice Innovation' },
-          finance: { companyName: 'Capital Finance', industry: 'Finance', jobTitle: 'Directeur Financier' },
-          healthcare: { companyName: 'MediCare Plus', industry: 'Healthcare', jobTitle: 'Responsable Médical' },
-          consulting: { companyName: 'Strategy Conseil', industry: 'Consulting', jobTitle: 'Consultant Senior' },
-          marketing: { companyName: 'Digital Marketing Pro', industry: 'Marketing', jobTitle: 'Directrice Marketing' },
-          retail: { companyName: 'Commerce Plus', industry: 'Retail', jobTitle: 'Responsable Commercial' }
-        }
-      },
-      {
-        base: {
-          name: 'Pierre Martin',
-          companyName: 'InnovSolutions',
-          jobTitle: 'Responsable Commercial',
-          location: 'Lyon, France',
-          email: 'pierre.martin@innovsolutions.fr',
-          phone: '+33 4 78 42 33 69',
-          industry: 'Consulting',
-          companySize: '100-500',
-          coordinates: [4.8357, 45.7640] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'Lyon Tech Hub', industry: 'Technology', jobTitle: 'CTO' },
-          finance: { companyName: 'Banque Rhône', industry: 'Finance', jobTitle: 'Analyste Financier' },
-          healthcare: { companyName: 'Santé Innovation', industry: 'Healthcare', jobTitle: 'Directeur R&D' },
-          consulting: { companyName: 'Conseil Stratégique Lyon', industry: 'Consulting', jobTitle: 'Responsable Commercial' },
-          marketing: { companyName: 'Agence Creative', industry: 'Marketing', jobTitle: 'Directeur Créatif' },
-          retail: { companyName: 'Distribution Lyon', industry: 'Retail', jobTitle: 'Manager Ventes' }
-        }
-      },
-      {
-        base: {
-          name: 'Sophie Laurent',
-          companyName: 'Digital Agency Pro',
-          jobTitle: 'CEO',
-          location: 'Marseille, France',
-          email: 'sophie.laurent@digitalagency.fr',
-          phone: '+33 4 91 54 92 00',
-          industry: 'Marketing',
-          companySize: '50-100',
-          coordinates: [5.3698, 43.2965] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'Marseille Tech', industry: 'Technology', jobTitle: 'Directrice Innovation' },
-          finance: { companyName: 'Finance Méditerranée', industry: 'Finance', jobTitle: 'Directrice Investissements' },
-          healthcare: { companyName: 'Clinique Moderne', industry: 'Healthcare', jobTitle: 'Directrice Médicale' },
-          consulting: { companyName: 'Conseil PACA', industry: 'Consulting', jobTitle: 'Associée' },
-          marketing: { companyName: 'Communication Sud', industry: 'Marketing', jobTitle: 'CEO' },
-          retail: { companyName: 'Commerce Méditerranée', industry: 'Retail', jobTitle: 'Directrice Régionale' }
-        }
-      },
-      {
-        base: {
-          name: 'Laurent Moreau',
-          companyName: 'Innovation Labs',
-          jobTitle: 'Directeur R&D',
-          location: 'Toulouse, France',
-          email: 'laurent.moreau@innovlabs.fr',
-          phone: '+33 5 61 23 45 67',
-          industry: 'Technology',
-          companySize: '200-500',
-          coordinates: [1.4442, 43.6047] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'Aerospace Tech Toulouse', industry: 'Technology', jobTitle: 'Directeur R&D' },
-          finance: { companyName: 'Capital Sud-Ouest', industry: 'Finance', jobTitle: 'Directeur Investissements' },
-          healthcare: { companyName: 'BioTech Research', industry: 'Healthcare', jobTitle: 'Directeur Scientifique' },
-          consulting: { companyName: 'Stratégie Aéronautique', industry: 'Consulting', jobTitle: 'Expert Consultant' },
-          marketing: { companyName: 'Marketing Aerospace', industry: 'Marketing', jobTitle: 'Directeur Marketing' },
-          retail: { companyName: 'Distribution Occitanie', industry: 'Retail', jobTitle: 'Responsable Développement' }
-        }
-      },
-      {
-        base: {
-          name: 'Camille Bertrand',
-          companyName: 'Green Solutions',
-          jobTitle: 'Responsable Développement Durable',
-          location: 'Nantes, France',
-          email: 'camille.bertrand@greensolutions.fr',
-          phone: '+33 2 40 12 34 56',
-          industry: 'Environmental',
-          companySize: '100-200',
-          coordinates: [-1.5534, 47.2184] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'EcoTech Nantes', industry: 'Technology', jobTitle: 'Directeur Innovation Verte' },
-          finance: { companyName: 'Finance Durable', industry: 'Finance', jobTitle: 'Responsable ESG' },
-          healthcare: { companyName: 'Santé Environnement', industry: 'Healthcare', jobTitle: 'Directeur Santé Publique' },
-          consulting: { companyName: 'Conseil Environnemental', industry: 'Consulting', jobTitle: 'Expert Environnement' },
-          marketing: { companyName: 'Communication Verte', industry: 'Marketing', jobTitle: 'Responsable Communication RSE' },
-          environmental: { companyName: 'Solutions Durables', industry: 'Environmental', jobTitle: 'Responsable Développement Durable' }
-        }
-      },
-      {
-        base: {
-          name: 'Jean Durand',
-          companyName: 'Financial Group',
-          jobTitle: 'Analyste Senior',
-          location: 'Strasbourg, France',
-          email: 'jean.durand@financialgroup.fr',
-          phone: '+33 3 88 15 24 36',
-          industry: 'Finance',
-          companySize: '1000+',
-          coordinates: [7.7521, 48.5734] as [number, number]
-        },
-        variants: {
-          technology: { companyName: 'FinTech Strasbourg', industry: 'Technology', jobTitle: 'Chief Data Officer' },
-          finance: { companyName: 'Banque Européenne Strasbourg', industry: 'Finance', jobTitle: 'Analyste Senior' },
-          healthcare: { companyName: 'Assurance Santé', industry: 'Healthcare', jobTitle: 'Directeur Actuariat' },
-          consulting: { companyName: 'Conseil Financier Europe', industry: 'Consulting', jobTitle: 'Partner Senior' },
-          marketing: { companyName: 'Marketing Financier', industry: 'Marketing', jobTitle: 'Directeur Marketing Produits' }
-        }
-      }
-    ];
-
-    // Générer des contacts basés sur les filtres
-    const filteredContacts: B2BContact[] = [];
-    let contactIndex = 1;
-
-    basseContacts.forEach((contactData) => {
-      const { base, variants } = contactData;
-      
-      // Choisir la variante appropriée selon l'industrie filtrée
-      const selectedVariant = filters.industry && variants[filters.industry as keyof typeof variants] 
-        ? variants[filters.industry as keyof typeof variants] 
-        : {} as Partial<{ companyName: string; jobTitle: string; industry: string }>;
-
-      // Créer le contact en mélangeant les données de base et les variantes
-      const contact: B2BContact = {
-        id: `generated_${contactIndex}`,
-        name: base.name,
-        companyName: selectedVariant.companyName || base.companyName,
-        jobTitle: selectedVariant.jobTitle || base.jobTitle,
-        location: base.location,
-        linkedinUrl: `https://linkedin.com/in/${base.name.toLowerCase().replace(/\s+/g, '')}`,
-        email: base.email,
-        phone: base.phone,
-        industry: selectedVariant.industry || base.industry,
-        companySize: base.companySize,
-        coordinates: base.coordinates
-      };
-
-      // Appliquer les filtres avec logique améliorée
-      let shouldInclude = true;
-
-      // Filtrage par nom d'entreprise
-      if (filters.companyName && !contact.companyName.toLowerCase().includes(filters.companyName.toLowerCase())) {
-        shouldInclude = false;
-      }
-
-      // Filtrage par localisation - logique améliorée
-      if (filters.location) {
-        const filterLocation = filters.location.toLowerCase().trim();
-        const contactLocation = contact.location.toLowerCase();
-        
-        // Vérifier si la localisation correspond exactement ou partiellement
-        if (!contactLocation.includes(filterLocation)) {
-          // Essayer de matcher les villes spécifiques
-          const cityMatches = {
-            'parakou': ['parakou'],
-            'paris': ['paris'],
-            'lyon': ['lyon'],
-            'marseille': ['marseille'],
-            'toulouse': ['toulouse'],
-            'nantes': ['nantes'],
-            'strasbourg': ['strasbourg'],
-            'cotonou': ['cotonou'],
-            'bénin': ['bénin', 'parakou', 'cotonou', 'porto-novo'],
-            'france': ['paris', 'lyon', 'marseille', 'toulouse', 'nantes', 'strasbourg', 'montpellier', 'bordeaux']
-          };
-          
-          let cityMatch = false;
-          for (const [searchCity, targetCities] of Object.entries(cityMatches)) {
-            if (filterLocation.includes(searchCity)) {
-              cityMatch = targetCities.some(city => contactLocation.includes(city));
-              if (cityMatch) break;
-            }
-          }
-          
-          if (!cityMatch) {
-            shouldInclude = false;
-          }
-        }
-      }
-
-      // Filtrage par titre de poste
-      if (filters.jobTitle && !contact.jobTitle.toLowerCase().includes(filters.jobTitle.toLowerCase())) {
-        shouldInclude = false;
-      }
-
-      // Filtrage par secteur d'activité
-      if (filters.industry && contact.industry !== filters.industry) {
-        shouldInclude = false;
-      }
-
-      // Filtrage par taille d'entreprise
-      if (filters.companySize && contact.companySize !== filters.companySize) {
-        shouldInclude = false;
-      }
-
-      // Filtrage par département
-      if (filters.department && !contact.jobTitle.toLowerCase().includes(filters.department.toLowerCase())) {
-        shouldInclude = false;
-      }
-
-      // Filtrage par mots-clés
-      if (filters.keywords) {
-        const keywords = filters.keywords.toLowerCase().split(',').map(k => k.trim());
-        const searchText = `${contact.name} ${contact.companyName} ${contact.jobTitle} ${contact.industry}`.toLowerCase();
-        const hasKeyword = keywords.some(keyword => searchText.includes(keyword));
-        if (!hasKeyword) {
-          shouldInclude = false;
-        }
-      }
-
-      if (shouldInclude) {
-        filteredContacts.push(contact);
-        contactIndex++;
-      }
-    });
-
-    // Si aucun contact ne correspond aux filtres, retourner quelques contacts par défaut
-    if (filteredContacts.length === 0) {
-      return getMockContacts();
-    }
-
-    return filteredContacts;
-  };
-
   const executeWebhookSearch = async () => {
     const requestId = `req_${Date.now()}`;
     setIsLoading(true);
     setRetryCount(prev => prev + 1);
     
-    console.log('=== B2B SEARCH START ===');
+    console.log('=== B2B SEARCH VIA CHATBOT START ===');
     console.log('Request ID:', requestId);
+    console.log('Retry count:', retryCount);
     console.log('Search filters:', filters);
 
     const loadingResponse: WebhookResponse = {
       status: 'loading',
-      message: 'Analyse des critères et recherche de contacts B2B...',
+      message: 'Recherche en cours via le système de chat...',
       timestamp: new Date(),
       requestId
     };
     setWebhookResponse(loadingResponse);
 
+    const messageToSend = buildSearchMessage();
+    console.log('Message to send:', messageToSend);
+
     try {
-      // Simuler un délai de recherche réaliste
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const foundContacts = generateFilteredContacts();
+      const timeoutDuration = retryCount > 1 ? 45000 : 30000;
       
-      // Construire un message de réponse détaillé
-      const searchCriteria = [];
-      if (filters.companyName) searchCriteria.push(`Entreprise: "${filters.companyName}"`);
-      if (filters.industry) searchCriteria.push(`Secteur: ${filters.industry}`);
-      if (filters.jobTitle) searchCriteria.push(`Poste: "${filters.jobTitle}"`);
-      if (filters.location) searchCriteria.push(`Localisation: "${filters.location}"`);
-      if (filters.companySize) searchCriteria.push(`Taille: ${filters.companySize}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.log(`Request timeout after ${timeoutDuration/1000} seconds`);
+        controller.abort();
+      }, timeoutDuration);
 
-      const responseMessage = `**Recherche B2B Terminée avec Succès**
+      console.log('Sending request via ChatInterface webhook (lead)');
 
-Critères de recherche appliqués: ${searchCriteria.length > 0 ? searchCriteria.join(', ') : 'Recherche générale'}
+      const requestPayload = {
+        message: messageToSend,
+        timestamp: new Date().toISOString(),
+        session_id: `b2b_search_${Date.now()}`,
+        user_id: 'b2b_user',
+        source: 'bot_bj_platform',
+        context: 'b2b_targeting'
+      };
 
-**Résultats trouvés: ${foundContacts.length} contacts qualifiés**
+      console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
 
-${foundContacts.slice(0, 3).map((contact, index) => `
-${index + 1}. **${contact.companyName}**
-   Contact: ${contact.name}
-   Poste: ${contact.jobTitle}
-   Localisation: ${contact.location}
-   Secteur: ${contact.industry}
-   Taille: ${contact.companySize} employés
-   Email: ${contact.email}
-   Téléphone: ${contact.phone}
-`).join('')}
+      const response = await fetch('https://ia.bot.bj/webhook/lead', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'Bot.Bj-Platform/1.0',
+        },
+        body: JSON.stringify(requestPayload),
+        signal: controller.signal,
+        mode: 'cors',
+      });
 
-${foundContacts.length > 3 ? `... et ${foundContacts.length - 3} autres contacts` : ''}
+      clearTimeout(timeoutId);
 
-Tous les contacts ont été géolocalisés et sont affichés sur la carte interactive. Vous pouvez visualiser les résultats complets et exporter les données.`;
+      console.log('Response received!');
+      console.log('Status:', response.status, 'Status Text:', response.statusText);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      console.log('Content-Type:', contentType);
+
+      let responseData;
+      let processedContent;
+
+      if (contentType.includes('application/json')) {
+        responseData = await response.json();
+        console.log('JSON Response:', JSON.stringify(responseData, null, 2));
+        
+        processedContent = responseData.output || 
+                          responseData.message || 
+                          responseData.response || 
+                          responseData.text || 
+                          responseData.content ||
+                          responseData.reply ||
+                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+      } else {
+        responseData = await response.text();
+        console.log('Text Response:', responseData);
+        processedContent = responseData;
+      }
+
+      console.log('Processed content:', processedContent);
+
+      if (!processedContent || processedContent.trim() === '') {
+        throw new Error('Empty or invalid response from webhook');
+      }
+
+      const extractedContacts = parseWebhookResponse(processedContent);
+      console.log('Extracted contacts:', extractedContacts);
 
       const successResponse: WebhookResponse = {
         status: 'success',
-        message: responseMessage,
-        data: foundContacts,
+        message: processedContent.trim(),
+        data: extractedContacts,
         timestamp: new Date(),
         requestId
       };
@@ -664,18 +374,36 @@ Tous les contacts ont été géolocalisés et sont affichés sur la carte intera
 
       toast({
         title: "Recherche B2B - Succès",
-        description: `${foundContacts.length} contacts trouvés et géolocalisés`,
+        description: `${extractedContacts.length} contacts trouvés et géolocalisés`,
       });
 
-      console.log('B2B search completed successfully');
+      console.log('B2B search completed successfully via lead webhook');
 
     } catch (error) {
-      console.error('B2B Search Error:', error);
+      console.error('=== B2B SEARCH ERROR ===');
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Error message:', error?.message);
+      console.error('Full error:', error);
       
+      let errorStatus: 'error' | 'timeout' = 'error';
+      let errorMessage = "Erreur de connexion au système de chat";
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorStatus = 'timeout';
+          errorMessage = `Timeout de la requête (${retryCount > 1 ? 45 : 30}s)`;
+        } else if (error.message.includes('Failed to fetch')) {
+          errorMessage = "Impossible de se connecter au webhook du système de chat";
+        } else if (error.message.includes('CORS')) {
+          errorMessage = "Problème CORS avec le webhook";
+        }
+      }
+
       const mockContacts = getMockContacts();
+      
       const errorResponse: WebhookResponse = {
-        status: 'error',
-        message: 'Erreur lors de la recherche. Affichage des données de démonstration.',
+        status: errorStatus,
+        message: `${errorMessage}. Affichage des données de démonstration.`,
         data: mockContacts,
         timestamp: new Date(),
         requestId
@@ -685,8 +413,8 @@ Tous les contacts ont été géolocalisés et sont affichés sur la carte intera
       setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
-        title: "Recherche B2B - Erreur",
-        description: "Erreur lors de la recherche, données de démo affichées",
+        title: "Recherche B2B - Utilisation des données de démo",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -842,20 +570,10 @@ Tous les contacts ont été géolocalisés et sont affichés sur la carte intera
               </CardHeader>
               <CardContent className="p-0">
                 <div className="h-96">
-                  {displayContacts && displayContacts.length > 0 ? (
-                    <GoogleMapsView 
-                      contacts={displayContacts} 
-                      userLocation={userLocation}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                      <div className="text-center p-6">
-                        <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune donnée de localisation</h3>
-                        <p className="text-gray-500 text-sm">Lancez une recherche pour afficher les contacts sur la carte</p>
-                      </div>
-                    </div>
-                  )}
+                  <GeoLocationMap 
+                    contacts={displayContacts} 
+                    userLocation={userLocation}
+                  />
                 </div>
               </CardContent>
             </Card>
