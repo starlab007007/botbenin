@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { SmartB2BSearch } from './SmartB2BSearch';
 import { GeoLocationMap } from './GeoLocationMap';
+import { B2BResultsManager } from './B2BResultsManager';
 import { useToast } from '@/hooks/use-toast';
 
 interface B2BContact {
@@ -618,8 +619,17 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
               </CardContent>
             </Card>
 
-            {/* Visualization */}
+            {/* Advanced Results Management */}
             {currentStep === 3 && (
+              <B2BResultsManager
+                contacts={searchResults}
+                onExport={handleExport}
+                searchSessionId={`b2b_session_${Date.now()}`}
+              />
+            )}
+
+            {/* Visualization */}
+            {currentStep === 4 && (
               <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
                 <CardHeader>
                   <div className="flex items-center justify-between">
