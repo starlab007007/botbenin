@@ -52,6 +52,7 @@ interface WorkflowStep {
 
 interface SearchCriteria {
   location: string;
+  locationCoordinates?: { lat: number; lng: number };
   radius: number;
   useGPS: boolean;
   companyName: string;
@@ -111,18 +112,36 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
     }
   ];
 
-  const getCoordinatesFromLocation = (location: string): [number, number] | undefined => {
+  const getCoordinatesFromLocation = (location: string, searchCriteria?: SearchCriteria): [number, number] | undefined => {
+    // Priorité 1: Utiliser les coordonnées précises du critère de recherche si disponibles
+    if (searchCriteria?.locationCoordinates) {
+      return [searchCriteria.locationCoordinates.lng, searchCriteria.locationCoordinates.lat];
+    }
+
+    // Priorité 2: Parsing basique pour extraire des coordonnées du texte
+    const coordMatch = location.match(/lat:\s*([-\d.]+),?\s*lng?:\s*([-\d.]+)/i);
+    if (coordMatch) {
+      return [parseFloat(coordMatch[2]), parseFloat(coordMatch[1])];
+    }
+
+    // Priorité 3: Villes connues (fallback)
     const locationLower = location.toLowerCase();
-    
     const cityCoordinates: { [key: string]: [number, number] } = {
       'cotonou': [2.3522, 6.4023],
       'porto-novo': [2.6037, 6.4968],
       'parakou': [2.6303, 9.3365],
+      'abomey': [1.9931, 7.1827],
       'paris': [2.3522, 48.8566],
       'lyon': [4.8357, 45.7640],
       'marseille': [5.3698, 43.2965],
       'toulouse': [1.4442, 43.6047],
       'bordeaux': [-0.5792, 44.8378],
+      'dakar': [-17.4441, 14.6928],
+      'bamako': [-8.0029, 12.6392],
+      'ouagadougou': [-1.5247, 12.3714],
+      'niamey': [2.1111, 13.5116],
+      'lomé': [1.2255, 6.1375],
+      'conakry': [-13.6773, 9.6412],
     };
 
     for (const [city, coords] of Object.entries(cityCoordinates)) {
@@ -131,6 +150,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
       }
     }
 
+    // Priorité 4: Coordonnées par défaut (Cotonou)
     return [2.3522, 6.4023];
   };
 
@@ -170,7 +190,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
           email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`;
         }
 
-        const coordinates = getCoordinatesFromLocation(address);
+        const coordinates = getCoordinatesFromLocation(address, searchCriteria);
 
         const contact: B2BContact = {
           id: `contact_${contactIndex}`,

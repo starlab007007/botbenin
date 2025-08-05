@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,6 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 interface SmartSearchFilters {
   // Localisation intelligente
   location: string;
+  locationCoordinates?: { lat: number; lng: number };
   radius: number;
   useGPS: boolean;
   
@@ -88,6 +90,7 @@ const SENIORITY_LEVELS = [
 export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch }) => {
   const [filters, setFilters] = useState<SmartSearchFilters>({
     location: '',
+    locationCoordinates: undefined,
     radius: 25,
     useGPS: false,
     companyName: '',
@@ -108,33 +111,76 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
   const [userLocation, setUserLocation] = useState<string>('');
   const { toast } = useToast();
 
-  // Géolocalisation automatique
+  // Géolocalisation automatique avec reverse geocoding
   useEffect(() => {
     if (filters.useGPS && navigator.geolocation) {
+      toast({
+        title: "Recherche de position...",
+        description: "Localisation en cours...",
+      });
+
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
             const { latitude, longitude } = position.coords;
-            // Reverse geocoding approximatif
-            const location = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`;
-            setUserLocation(location);
-            setFilters(prev => ({ ...prev, location }));
             
-            toast({
-              title: "Localisation détectée",
-              description: "Votre position a été automatiquement configurée",
-            });
+            // Reverse geocoding avec Nominatim pour obtenir une vraie adresse
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=fr&addressdetails=1`
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              const formattedAddress = data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+              
+              setUserLocation(formattedAddress);
+              setFilters(prev => ({ 
+                ...prev, 
+                location: formattedAddress,
+                locationCoordinates: { lat: latitude, lng: longitude }
+              }));
+              
+              toast({
+                title: "Position détectée avec succès",
+                description: "Votre adresse a été automatiquement configurée",
+              });
+            } else {
+              throw new Error('Reverse geocoding failed');
+            }
           } catch (error) {
             console.error('Erreur géolocalisation:', error);
+            
+            // Fallback avec coordonnées si reverse geocoding échoue
+            const { latitude, longitude } = position.coords;
+            const fallbackLocation = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            
+            setUserLocation(fallbackLocation);
+            setFilters(prev => ({ 
+              ...prev, 
+              location: fallbackLocation,
+              locationCoordinates: { lat: latitude, lng: longitude }
+            }));
+            
+            toast({
+              title: "Position détectée",
+              description: "Coordonnées configurées automatiquement",
+            });
           }
         },
         (error) => {
           console.error('Erreur GPS:', error);
+          setFilters(prev => ({ ...prev, useGPS: false }));
+          
           toast({
             title: "Géolocalisation indisponible",
             description: "Veuillez saisir manuellement votre localisation",
             variant: "destructive",
           });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 600000 // 10 minutes
         }
       );
     }
@@ -227,6 +273,7 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
   const resetFilters = () => {
     setFilters({
       location: '',
+      locationCoordinates: undefined,
       radius: 25,
       useGPS: false,
       companyName: '',
@@ -319,13 +366,21 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                 {!filters.useGPS && (
                   <div className="space-y-2">
                     <Label htmlFor="location">Ville, région ou pays</Label>
-                    <Input
-                      id="location"
-                      placeholder="Ex: Paris, Cotonou, Bordeaux..."
+                    <AddressAutocomplete
                       value={filters.location}
-                      onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
+                      onChange={(address, coordinates) => {
+                        setFilters(prev => ({
+                          ...prev,
+                          location: address,
+                          locationCoordinates: coordinates
+                        }));
+                      }}
+                      placeholder="Ex: Paris, Cotonou, Bordeaux..."
                       className="text-lg"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      🔍 Saisissez au moins 3 caractères pour voir les suggestions d'adresses
+                    </p>
                   </div>
                 )}
 
