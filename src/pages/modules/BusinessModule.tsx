@@ -12,20 +12,29 @@ import {
 } from 'lucide-react';
 import { B2BTargeting } from '@/components/business/B2BTargeting';
 import { LocalProspecting } from '@/components/business/LocalProspecting';
+import { CompleteB2BWorkflow } from '@/components/business/CompleteB2BWorkflow';
 
-type ViewMode = 'menu' | 'ciblage-b2b' | 'prospection-locale' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
+type ViewMode = 'menu' | 'ciblage-b2b' | 'ciblage-b2b-complet' | 'prospection-locale' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
 
 export const BusinessModule: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewMode>('menu');
 
   const businessOptions = [
     {
-      id: 'ciblage-b2b',
-      title: "Ciblage B2B (Entreprises & Contacts)",
-      description: "Identifiez et qualifiez avec précision des entreprises et des contacts professionnels selon des critères avancés pour une prospection B2B efficace.",
+      id: 'ciblage-b2b-complet',
+      title: "Workflow B2B Complet",
+      description: "Processus intégré : sélection des critères intelligents, recherche via webhook, affichage des résultats et visualisation sur carte interactive.",
       icon: Users,
       color: 'bg-blue-100',
       iconColor: 'text-blue-600'
+    },
+    {
+      id: 'ciblage-b2b',
+      title: "Ciblage B2B (Version Simple)",
+      description: "Version basique du ciblage B2B pour tester les fonctionnalités de recherche et d'affichage des contacts professionnels.",
+      icon: Target,
+      color: 'bg-cyan-100',
+      iconColor: 'text-cyan-600'
     },
     {
       id: 'prospection-locale',
@@ -71,6 +80,10 @@ export const BusinessModule: React.FC = () => {
   };
 
   // Render different views based on current selection
+  if (currentView === 'ciblage-b2b-complet') {
+    return <CompleteB2BWorkflow onBack={handleBackToMenu} />;
+  }
+
   if (currentView === 'ciblage-b2b') {
     return <B2BTargeting onBack={handleBackToMenu} />;
   }
