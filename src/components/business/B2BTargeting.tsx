@@ -202,7 +202,10 @@ const getMockContacts = (): B2BContact[] => {
   ];
 };
 
+import { SmartB2BSearch } from './SmartB2BSearch';
+
 export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
+  const [useSmartSearch, setUseSmartSearch] = useState(true);
   const [filters, setFilters] = useState<B2BFilters>({
     companyName: '',
     industry: '',
@@ -461,6 +464,25 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     link.click();
   };
 
+  const handleSmartSearch = (smartFilters: any) => {
+    // Convertir les filtres intelligents vers le format traditionnel
+    setFilters({
+      companyName: smartFilters.companyName || '',
+      industry: smartFilters.industry.join(', ') || '',
+      companySize: smartFilters.companySize || '',
+      location: smartFilters.location || '',
+      jobTitle: smartFilters.jobTitle || '',
+      experience: smartFilters.seniority || '',
+      department: smartFilters.department || '',
+      keywords: smartFilters.keywords.join(', ') || ''
+    });
+    
+    // Exécuter la recherche automatiquement
+    setTimeout(() => {
+      executeWebhookSearch();
+    }, 100);
+  };
+
   const resetSearch = () => {
     setFilters({
       companyName: '',
@@ -508,6 +530,16 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     }
   };
 
+  // Interface de recherche intelligente
+  if (useSmartSearch && !showResults) {
+    return (
+      <SmartB2BSearch 
+        onBack={onBack}
+        onSearch={handleSmartSearch}
+      />
+    );
+  }
+
   if (showResults) {
     const displayContacts = webhookResponse?.data || getMockContacts();
     
@@ -516,7 +548,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={handleBackToSearch} className="text-black hover:bg-gray-200">
+              <Button variant="ghost" onClick={() => setUseSmartSearch(true)} className="text-black hover:bg-gray-200">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Nouvelle recherche
               </Button>
