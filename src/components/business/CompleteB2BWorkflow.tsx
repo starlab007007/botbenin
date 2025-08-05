@@ -194,7 +194,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
         const coordinates = getCoordinatesFromLocation(address, searchCriteria);
 
         const contact: B2BContact = {
-          id: `contact_${contactIndex}`,
+          id: `webhook_${contactIndex}`,
           name: fullName,
           companyName: companyName,
           jobTitle: category === 'Ingénieur civil' ? 'Directeur Technique' : 'Manager',
@@ -211,17 +211,15 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
         contactIndex++;
       }
 
-      console.log(`Total contacts extracted: ${contacts.length}`);
+      console.log(`Total webhook contacts extracted: ${contacts.length}`);
       
-      if (contacts.length === 0) {
-        return getMockContacts();
-      }
-
+      // Retourner uniquement les résultats webhook - pas de fallback sur les données mock
       return contacts;
       
     } catch (error) {
       console.error('Error parsing webhook response:', error);
-      return getMockContacts();
+      // Retourner un tableau vide en cas d'erreur de parsing
+      return [];
     }
   };
 
@@ -362,26 +360,32 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
       }
 
       const extractedContacts = parseWebhookResponse(processedContent);
-      setSearchResults(extractedContacts);
-      setCurrentStep(2);
-
-      toast({
-        title: "Recherche terminée avec succès",
-        description: `${extractedContacts.length} contacts trouvés et géolocalisés`,
-      });
+      
+      if (extractedContacts.length > 0) {
+        setSearchResults(extractedContacts);
+        setCurrentStep(2);
+        toast({
+          title: "Recherche terminée avec succès",
+          description: `${extractedContacts.length} contacts trouvés via webhook`,
+        });
+      } else {
+        setSearchResults([]);
+        setSearchError("Aucun contact trouvé dans la réponse webhook");
+        toast({
+          title: "Aucun résultat",
+          description: "La recherche n'a retourné aucun contact",
+          variant: "destructive",
+        });
+      }
 
     } catch (error) {
       console.error('Search error:', error);
       setSearchError(error instanceof Error ? error.message : 'Erreur inconnue');
-      
-      // En cas d'erreur, utiliser les données de démonstration
-      const mockContacts = getMockContacts();
-      setSearchResults(mockContacts);
-      setCurrentStep(2);
+      setSearchResults([]);
       
       toast({
-        title: "Recherche B2B - Données de démonstration",
-        description: "Utilisation des données de test en raison d'une erreur de connexion",
+        title: "Erreur de recherche",
+        description: "Impossible de se connecter au service de recherche",
         variant: "destructive",
       });
     } finally {

@@ -157,18 +157,14 @@ const parseWebhookResponse = (responseText: string): LocalBusiness[] => {
       businessIndex++;
     }
 
-    console.log(`Total local businesses extracted: ${businesses.length}`);
+    console.log(`Total webhook businesses extracted: ${businesses.length}`);
     
-    if (businesses.length === 0) {
-      console.log('No businesses found in response, using demo data');
-      return getMockBusinesses();
-    }
-
+    // Retourner uniquement les résultats webhook
     return businesses;
     
   } catch (error) {
     console.error('Error parsing webhook response:', error);
-    return getMockBusinesses();
+    return [];
   }
 };
 

@@ -143,18 +143,14 @@ const parseWebhookResponse = (responseText: string): B2BContact[] => {
       console.log('Created contact:', contact);
     }
 
-    console.log(`Total contacts extracted: ${contacts.length}`);
+    console.log(`Total webhook contacts extracted: ${contacts.length}`);
     
-    if (contacts.length === 0) {
-      console.log('No contacts found in response, using demo data');
-      return getMockContacts();
-    }
-
+    // Retourner uniquement les résultats webhook
     return contacts;
     
   } catch (error) {
     console.error('Error parsing webhook response:', error);
-    return getMockContacts();
+    return [];
   }
 };
 
@@ -364,8 +360,8 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       console.log('Extracted contacts:', extractedContacts);
 
       const successResponse: WebhookResponse = {
-        status: 'success',
-        message: processedContent.trim(),
+        status: extractedContacts.length > 0 ? 'success' : 'error',
+        message: extractedContacts.length > 0 ? processedContent.trim() : 'Aucun contact trouvé dans la réponse',
         data: extractedContacts,
         timestamp: new Date(),
         requestId
@@ -373,12 +369,20 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
       setWebhookResponse(successResponse);
       setSearchHistory(prev => [successResponse, ...prev.slice(0, 4)]);
-      setRetryCount(0);
-
-      toast({
-        title: "Recherche B2B - Succès",
-        description: `${extractedContacts.length} contacts trouvés et géolocalisés`,
-      });
+      
+      if (extractedContacts.length > 0) {
+        setRetryCount(0);
+        toast({
+          title: "Recherche B2B - Succès",
+          description: `${extractedContacts.length} contacts trouvés via webhook`,
+        });
+      } else {
+        toast({
+          title: "Aucun résultat",
+          description: "La recherche n'a retourné aucun contact",
+          variant: "destructive",
+        });
+      }
 
       console.log('B2B search completed successfully via lead webhook');
 
@@ -402,12 +406,10 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         }
       }
 
-      const mockContacts = getMockContacts();
-      
       const errorResponse: WebhookResponse = {
         status: errorStatus,
-        message: `${errorMessage}. Affichage des données de démonstration.`,
-        data: mockContacts,
+        message: errorMessage,
+        data: [],
         timestamp: new Date(),
         requestId
       };
@@ -416,7 +418,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       setSearchHistory(prev => [errorResponse, ...prev.slice(0, 4)]);
       
       toast({
-        title: "Recherche B2B - Utilisation des données de démo",
+        title: "Erreur de recherche",
         description: errorMessage,
         variant: "destructive",
       });
