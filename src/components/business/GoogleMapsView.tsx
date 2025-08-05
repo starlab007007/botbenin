@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
+import { MapFallback } from './MapFallback';
 
 interface Contact {
   id: string;
@@ -17,7 +18,8 @@ interface GoogleMapsViewProps {
   userLocation: [number, number] | null;
 }
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyC6d3z9tSgnTvcqujuQdMGK3CqVQ5tKcpQ';
+// Configuration Google Maps avec clé de démonstration
+const GOOGLE_MAPS_API_KEY = 'AIzaSyBHNrKJDRs1D1qYs4aUAj0PKmVx6nD4qKY';
 
 export const GoogleMapsView: React.FC<GoogleMapsViewProps> = ({ contacts, userLocation }) => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -34,7 +36,9 @@ export const GoogleMapsView: React.FC<GoogleMapsViewProps> = ({ contacts, userLo
         const loader = new Loader({
           apiKey: GOOGLE_MAPS_API_KEY,
           version: 'weekly',
-          libraries: ['places']
+          libraries: ['places'],
+          region: 'FR',
+          language: 'fr'
         });
 
         const google = await loader.load();
@@ -188,7 +192,23 @@ export const GoogleMapsView: React.FC<GoogleMapsViewProps> = ({ contacts, userLo
         setIsLoading(false);
       } catch (error) {
         console.error('Erreur lors de l\'initialisation de Google Maps:', error);
-        setError('Impossible de charger Google Maps. Vérifiez votre connexion internet.');
+        let errorMessage = 'Impossible de charger Google Maps. ';
+        
+        if (error instanceof Error) {
+          if (error.message.includes('API key')) {
+            errorMessage += 'Clé API invalide ou expirée.';
+          } else if (error.message.includes('network')) {
+            errorMessage += 'Vérifiez votre connexion internet.';
+          } else if (error.message.includes('quota')) {
+            errorMessage += 'Quota d\'utilisation dépassé.';
+          } else {
+            errorMessage += 'Erreur de configuration : ' + error.message;
+          }
+        } else {
+          errorMessage += 'Erreur inconnue.';
+        }
+        
+        setError(errorMessage);
         setIsLoading(false);
       }
     };
@@ -197,14 +217,7 @@ export const GoogleMapsView: React.FC<GoogleMapsViewProps> = ({ contacts, userLo
   }, [contacts, userLocation]);
 
   if (error) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
-        <div className="text-center p-6">
-          <div className="text-red-600 text-lg font-semibold mb-2">Erreur de chargement</div>
-          <div className="text-gray-600 text-sm">{error}</div>
-        </div>
-      </div>
-    );
+    return <MapFallback contacts={contacts} userLocation={userLocation} />;
   }
 
   return (

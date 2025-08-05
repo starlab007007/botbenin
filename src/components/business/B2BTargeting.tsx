@@ -717,10 +717,20 @@ Tous les contacts ont été géolocalisés et sont affichés sur la carte intera
               </CardHeader>
               <CardContent className="p-0">
                 <div className="h-96">
-                  <GoogleMapsView 
-                    contacts={displayContacts} 
-                    userLocation={userLocation}
-                  />
+                  {displayContacts && displayContacts.length > 0 ? (
+                    <GoogleMapsView 
+                      contacts={displayContacts} 
+                      userLocation={userLocation}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                      <div className="text-center p-6">
+                        <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune donnée de localisation</h3>
+                        <p className="text-gray-500 text-sm">Lancez une recherche pour afficher les contacts sur la carte</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
