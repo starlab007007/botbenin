@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAutomationBots } from '@/hooks/useAutomationBots';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Loader2, 
   Mail, 
@@ -308,9 +309,46 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
   };
 
   const finalizeQualificationProcess = async () => {
+    const contacts = getAvailableContacts();
+    let sentCount = 0;
+    let errorCount = 0;
+
+    for (const contact of contacts) {
+      try {
+        const selectedBotData = getSelectedBot();
+        if (!selectedBotData) continue;
+        
+        const botShareUrl = getBotShareUrl(selectedBotData.id);
+        const personalizedMessage = generatePersonalizedMessage(contact);
+        
+        const { error } = await supabase.functions.invoke('send-qualification-email', {
+          body: {
+            to: contact.email,
+            subject: `Qualification automatisée - ${contact.companyName}`,
+            message: personalizedMessage,
+            senderInfo: senderInfo,
+            botLink: botShareUrl,
+            contactName: contact.name,
+            companyName: contact.companyName
+          }
+        });
+
+        if (error) {
+          console.error('Erreur envoi email:', error);
+          errorCount++;
+        } else {
+          sentCount++;
+        }
+      } catch (error) {
+        console.error('Erreur lors de l\'envoi:', error);
+        errorCount++;
+      }
+    }
+
     toast({
-      title: "Qualification IA lancée avec succès",
-      description: `${getAvailableContacts().length} messages avec bots automatisés envoyés`,
+      title: "Qualification IA lancée",
+      description: `${sentCount} emails envoyés avec succès${errorCount > 0 ? `, ${errorCount} erreurs` : ''}`,
+      variant: sentCount > 0 ? "default" : "destructive"
     });
     
     // Proposer la finalisation en campagne
