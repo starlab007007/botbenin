@@ -111,10 +111,20 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
 
       if (result?.data) {
         console.log('Data loaded successfully:', result.data.length, 'prospects');
-        setData(result.data);
+        
+        // Validation: s'assurer que toutes les données ont la source "Google Sheets"
+        const validatedData = result.data.map(item => ({
+          ...item,
+          source: 'Google Sheets', // Force la source à Google Sheets
+          id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        }));
+        
+        console.log('Validated data with Google Sheets source:', validatedData);
+        setData(validatedData);
+        
         toast({
-          title: "Données chargées",
-          description: `${result.data.length} prospects importés depuis Google Sheets`,
+          title: "Données Google Sheets chargées",
+          description: `${validatedData.length} prospects importés UNIQUEMENT depuis Google Sheets`,
           variant: "default"
         });
       } else {
@@ -273,22 +283,42 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
             <Button
               variant="outline"
               onClick={async () => {
-                console.log('=== Testing API connectivity ===');
+                console.log('=== Testing Google Sheets connectivity via edge function ===');
                 try {
-                  const testResponse = await fetch('https://sheets.googleapis.com/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms?fields=sheets.properties');
-                  console.log('Direct API test response:', testResponse.status, testResponse.statusText);
-                  const testData = await testResponse.json();
-                  console.log('Direct API test data:', testData);
-                  toast({
-                    title: "Test de connectivité",
-                    description: `API accessible: ${testResponse.ok ? 'OUI' : 'NON'}`,
-                    variant: testResponse.ok ? "default" : "destructive"
+                  // Test avec une feuille publique connue
+                  const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
+                    body: {
+                      spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+                      sheetName: 'Class Data'
+                    }
                   });
+                  
+                  console.log('Test result:', { result, error });
+                  
+                  if (error) {
+                    toast({
+                      title: "Test de connectivité",
+                      description: `API NON accessible: ${error.message}`,
+                      variant: "destructive"
+                    });
+                  } else if (result?.data) {
+                    toast({
+                      title: "Test de connectivité",
+                      description: `API accessible: OUI (${result.data.length} prospects test trouvés)`,
+                      variant: "default"
+                    });
+                  } else {
+                    toast({
+                      title: "Test de connectivité",
+                      description: "API accessible mais aucune donnée retournée",
+                      variant: "default"
+                    });
+                  }
                 } catch (error) {
-                  console.error('Direct API test failed:', error);
+                  console.error('Test connectivity failed:', error);
                   toast({
                     title: "Test de connectivité",
-                    description: "Impossible d'accéder à l'API Google Sheets",
+                    description: "Erreur lors du test de connectivité",
                     variant: "destructive"
                   });
                 }
@@ -412,7 +442,13 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
           <TabsContent value="all" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Liste complète des prospects</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Liste complète des prospects</CardTitle>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-sm text-green-600 font-medium">Source: Google Sheets</span>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
