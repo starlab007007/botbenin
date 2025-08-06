@@ -381,10 +381,10 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
         <DialogHeader>
           <DialogTitle className="flex items-center">
             {getModalIcon()}
-            {getModalTitle()}
+            {getModalTitle()} avec Bots IA Automatisés
           </DialogTitle>
           <DialogDescription>
-            Qualification automatisée avec IA pour {availableContacts.length} contact(s) • {botOptions.length} bot(s) disponible(s)
+            🤖 Sélectionnez un bot automatisé et partagez des liens personnalisés avec messages IA pour {availableContacts.length} contact(s) • {botOptions.length} bot(s) disponible(s)
           </DialogDescription>
         </DialogHeader>
 
