@@ -27,13 +27,20 @@ export function useProspectDatabases() {
     setError(null);
     
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.error('Erreur authentification:', authError);
+        throw authError;
+      }
+      
       if (!userData?.user) {
+        console.log('Utilisateur non connecté');
         setDatabases([]);
         setIsLoading(false);
         return;
       }
 
+      console.log('Récupération des bases pour user:', userData.user.id);
       const { data, error } = await supabase
         .from("prospect_databases")
         .select("*")
@@ -42,15 +49,25 @@ export function useProspectDatabases() {
 
       if (error) {
         console.error('Erreur récupération bases de données:', error);
-        setError(error);
-        setDatabases([]);
-      } else {
-        setDatabases(data || []);
+        throw error;
       }
-    } catch (error) {
-      console.error('Erreur inattendue récupération bases de données:', error);
+
+      console.log('Bases récupérées:', data);
+      setDatabases(data || []);
+    } catch (error: any) {
+      console.error('Erreur dans fetchDatabases:', error);
       setError(error);
       setDatabases([]);
+      
+      // Si c'est une erreur RLS ou de permissions, on essaie de créer une base par défaut
+      if (error?.code === 'PGRST301' || error?.message?.includes('permission denied')) {
+        console.log('Tentative de création base par défaut...');
+        try {
+          await createDatabase('Ma première base', 'Base de données créée automatiquement');
+        } catch (createError) {
+          console.error('Impossible de créer la base par défaut:', createError);
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -60,13 +77,14 @@ export function useProspectDatabases() {
     setIsLoading(true);
     setError(null);
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      
       if (!userData?.user) {
-        const error = "Vous devez être connecté.";
-        setError(error);
-        setIsLoading(false);
-        return null;
+        throw new Error("Vous devez être connecté.");
       }
+
+      console.log('Création base de données:', { name, description, user_id: userData.user.id });
       
       const { data: inserted, error: insertError } = await supabase
         .from("prospect_databases")
@@ -81,28 +99,38 @@ export function useProspectDatabases() {
 
       if (insertError) {
         console.error('Erreur création base de données:', insertError);
-        setError(insertError);
-        setIsLoading(false);
-        return null;
+        throw insertError;
       }
 
-      if (inserted) {
-        setDatabases((arr) => [inserted, ...arr]);
-        toast({
-          title: "Base de données créée",
-          description: `La base "${name}" a été créée avec succès.`,
-        });
-        setIsLoading(false);
-        return inserted;
+      console.log('Base créée:', inserted);
+      setDatabases((arr) => [inserted, ...arr]);
+      
+      toast({
+        title: "Base de données créée",
+        description: `La base "${name}" a été créée avec succès.`,
+      });
+      
+      return inserted;
+    } catch (error: any) {
+      console.error('Erreur création base:', error);
+      setError(error);
+      
+      let errorMessage = "Impossible de créer la base de données";
+      if (error?.message?.includes('duplicate key')) {
+        errorMessage = "Une base avec ce nom existe déjà";
+      } else if (error?.code === 'PGRST301') {
+        errorMessage = "Problème de permissions. Veuillez vous reconnecter.";
       }
       
-      setIsLoading(false);
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
       return null;
-    } catch (error) {
-      console.error('Erreur inattendue:', error);
-      setError(error);
+    } finally {
       setIsLoading(false);
-      return null;
     }
   }
 

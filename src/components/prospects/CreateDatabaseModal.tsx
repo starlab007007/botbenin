@@ -42,15 +42,17 @@ export const CreateDatabaseModal: React.FC<CreateDatabaseModalProps> = ({
     setIsLoading(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log('🚀 Création nouvelle base de données');
+      
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      
       if (!user) {
-        toast({
-          title: "Erreur d'authentification",
-          description: "Vous devez être connecté pour créer une base de données",
-          variant: "destructive",
-        });
-        return;
+        throw new Error("Vous devez être connecté pour créer une base de données");
       }
+
+      console.log('👤 Utilisateur:', user.id);
+      console.log('📝 Données base:', { name: name.trim(), description: description.trim(), isActive });
 
       const { data, error } = await supabase
         .from('prospect_databases')
@@ -63,7 +65,12 @@ export const CreateDatabaseModal: React.FC<CreateDatabaseModalProps> = ({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erreur création:', error);
+        throw error;
+      }
+
+      console.log('✅ Base créée:', data);
 
       toast({
         title: "Base de données créée",
@@ -77,11 +84,21 @@ export const CreateDatabaseModal: React.FC<CreateDatabaseModalProps> = ({
       
       onClose();
       onSuccess?.();
-    } catch (error) {
-      console.error('Error creating database:', error);
+    } catch (error: any) {
+      console.error('💥 Erreur création base:', error);
+      
+      let errorMessage = "Impossible de créer la base de données";
+      if (error?.code === '23505' || error?.message?.includes('duplicate key')) {
+        errorMessage = "Une base avec ce nom existe déjà";
+      } else if (error?.code === 'PGRST301') {
+        errorMessage = "Problème de permissions. Veuillez vous reconnecter.";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de créer la base de données",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

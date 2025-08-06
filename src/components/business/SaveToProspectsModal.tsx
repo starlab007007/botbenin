@@ -83,17 +83,34 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
 
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log('🚀 Début sauvegarde des entreprises');
+      
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      
       if (!user) {
-        toast({
-          title: "Erreur d'authentification",
-          description: "Vous devez être connecté pour sauvegarder des entreprises",
-          variant: "destructive",
-        });
-        return;
+        throw new Error("Vous devez être connecté pour sauvegarder des entreprises");
       }
 
-      // First, save businesses to local_businesses table
+      console.log('👤 Utilisateur connecté:', user.id);
+      console.log('📊 Entreprises à sauvegarder:', selectedBusinesses.length);
+      console.log('🗄️ Base de destination:', selectedDatabaseId);
+
+      // Vérifier que la base de données existe et appartient à l'utilisateur
+      const { data: dbCheck, error: dbError } = await supabase
+        .from('prospect_databases')
+        .select('id, name')
+        .eq('id', selectedDatabaseId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (dbError || !dbCheck) {
+        throw new Error("Base de données non trouvée ou accès refusé");
+      }
+
+      console.log('✅ Base de données vérifiée:', dbCheck.name);
+
+      // Préparer les données d'entreprises
       const businessesToSave = selectedBusinesses.map(business => ({
         user_id: user.id,
         search_session_id: searchSessionId,
@@ -116,34 +133,57 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
         company_size: business.companySize
       }));
 
+      console.log('💾 Sauvegarde dans local_businesses...');
       const { data: savedBusinesses, error: saveError } = await supabase
         .from('local_businesses')
         .insert(businessesToSave)
         .select('id');
 
-      if (saveError) throw saveError;
+      if (saveError) {
+        console.error('❌ Erreur sauvegarde local_businesses:', saveError);
+        throw saveError;
+      }
 
-      // Then transfer to prospects using the database function
+      console.log('✅ Entreprises sauvegardées:', savedBusinesses?.length);
+
+      // Transférer vers prospects en utilisant la fonction RPC
       const businessIds = savedBusinesses?.map(b => b.id) || [];
+      console.log('🔄 Transfert vers prospects...');
+      
       const { data: transferResult, error: transferError } = await supabase
         .rpc('transfer_local_businesses_to_prospects', {
           business_ids: businessIds,
           target_database_id: selectedDatabaseId
         });
 
-      if (transferError) throw transferError;
+      if (transferError) {
+        console.error('❌ Erreur transfert:', transferError);
+        throw transferError;
+      }
+
+      console.log('✅ Transfert terminé:', transferResult, 'prospects créés');
 
       toast({
         title: "Succès",
-        description: `${transferResult} entreprises ajoutées à la base de prospects`,
+        description: `${transferResult || selectedBusinesses.length} entreprises ajoutées à la base "${dbCheck.name}"`,
       });
 
       onClose();
-    } catch (error) {
-      console.error('Error saving businesses:', error);
+    } catch (error: any) {
+      console.error('💥 Erreur sauvegarde:', error);
+      
+      let errorMessage = "Impossible de sauvegarder les entreprises";
+      if (error?.code === 'PGRST301') {
+        errorMessage = "Problème de permissions. Veuillez vous reconnecter.";
+      } else if (error?.message?.includes('duplicate key')) {
+        errorMessage = "Certaines entreprises existent déjà dans cette base";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder les entreprises",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -183,6 +223,20 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
               <div className="flex items-center space-x-2 p-2 border rounded">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span className="text-sm">Chargement des bases...</span>
+              </div>
+            ) : databases.length === 0 ? (
+              <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                <p className="text-sm text-gray-500 mb-2">Aucune base de données trouvée</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCreateDatabase}
+                  className="flex items-center"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Créer votre première base
+                </Button>
               </div>
             ) : (
               <Select value={selectedDatabaseId} onValueChange={setSelectedDatabaseId}>
