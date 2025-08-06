@@ -54,3 +54,6 @@ inspector_port = 8083
 
 [functions.send-qualification-email]
 verify_jwt = false
+
+[functions.send-qualification-email-resend]
+verify_jwt = false

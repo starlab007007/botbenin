@@ -322,7 +322,7 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
         const personalizedMessage = generatePersonalizedMessage(contact);
         
         console.log('Envoi email vers:', contact.email);
-        const { data, error } = await supabase.functions.invoke('send-qualification-email', {
+        const { data, error } = await supabase.functions.invoke('send-qualification-email-resend', {
           body: {
             to: contact.email,
             subject: `Qualification automatisée - ${contact.companyName}`,

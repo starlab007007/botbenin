@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,13 +36,19 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Vérifier que la clé Resend existe
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    if (!resendApiKey) {
+      throw new Error('RESEND_API_KEY non configuré dans les secrets Supabase');
+    }
+
+    const resend = new Resend(resendApiKey);
     const requestData: QualificationEmailRequest = await req.json();
     const { to, subject, message, senderInfo, botLink, contactName, companyName } = requestData;
 
-    console.log('Envoi email qualification:', {
+    console.log('Envoi email qualification via Resend:', {
       to,
       subject,
-      from: 'bot.bjdata@gmail.com',
       timestamp: new Date().toISOString()
     });
 
@@ -84,59 +90,21 @@ const handler = async (req: Request): Promise<Response> => {
 </body>
 </html>`;
 
-    // Vérifier que le mot de passe Gmail existe
-    const gmailPassword = Deno.env.get('GMAIL_APP_PASSWORD');
-    if (!gmailPassword) {
-      throw new Error('GMAIL_APP_PASSWORD non configuré dans les secrets Supabase');
-    }
-
-    // Configuration SMTP Gmail
-    const client = new SmtpClient();
+    // Envoi de l'email via Resend
+    console.log('Tentative d\'envoi via Resend...');
     
-    console.log('Tentative de connexion SMTP Gmail...');
-    
-    try {
-      await client.connectTLS({
-        hostname: "smtp.gmail.com",
-        port: 587,
-        username: "bot.bjdata@gmail.com",
-        password: gmailPassword,
-      });
-      console.log('Connexion SMTP établie avec succès');
+    const emailResult = await resend.emails.send({
+      from: "BJ Data <bot@bjdata.com>", // Utiliser un domaine vérifié
+      to: [to],
+      subject: subject,
+      text: message, // Version texte
+      html: htmlMessage, // Version HTML
+      headers: {
+        'X-Entity-Ref-ID': `qualification-${Date.now()}`,
+      },
+    });
 
-      // Envoi de l'email via SMTP
-      console.log('Envoi de l\'email vers:', to);
-      
-      const emailResult = await client.send({
-        from: "BJ Data <bot.bjdata@gmail.com>",
-        to: [to],
-        subject: subject,
-        content: message, // Message texte brut
-        html: htmlMessage, // Version HTML
-      });
-      
-      console.log('Email envoyé avec succès, résultat:', emailResult);
-      
-      await client.close();
-      console.log('Connexion SMTP fermée');
-      
-    } catch (smtpError: any) {
-      console.error('Erreur SMTP détaillée:', {
-        message: smtpError.message,
-        stack: smtpError.stack,
-        code: smtpError.code
-      });
-      
-      try {
-        await client.close();
-      } catch (closeError) {
-        console.error('Erreur fermeture SMTP:', closeError);
-      }
-      
-      throw new Error(`Échec envoi SMTP: ${smtpError.message}`);
-    }
-
-    console.log('Email envoyé avec succès:', emailResult);
+    console.log('Email envoyé avec succès via Resend:', emailResult);
 
     // Logging de l'activité
     const { error: logError } = await supabase
@@ -150,7 +118,8 @@ const handler = async (req: Request): Promise<Response> => {
         company_name: companyName,
         sender_info: senderInfo,
         sent_at: new Date().toISOString(),
-        status: 'sent'
+        status: 'sent',
+        email_id: emailResult.data?.id || 'resend-' + Date.now()
       });
 
     if (logError) {
@@ -161,9 +130,10 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Email de qualification envoyé avec succès',
+        message: 'Email de qualification envoyé avec succès via Resend',
         recipient: to,
-        bot_link: botLink
+        bot_link: botLink,
+        email_id: emailResult.data?.id
       }),
       {
         status: 200,
@@ -172,11 +142,11 @@ const handler = async (req: Request): Promise<Response> => {
     );
 
   } catch (error: any) {
-    console.error("Erreur dans send-qualification-email:", error);
+    console.error("Erreur dans send-qualification-email-resend:", error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        details: 'Erreur lors de l\'envoi de l\'email de qualification'
+        details: 'Erreur lors de l\'envoi de l\'email de qualification via Resend'
       }),
       {
         status: 500,
