@@ -17,7 +17,8 @@ import {
   Star,
   StarOff,
   Plus,
-  Download
+  Download,
+  User
 } from 'lucide-react';
 import { 
   DropdownMenu, 
@@ -30,6 +31,9 @@ import { useProspects } from '@/hooks/useProspects';
 import { useToast } from '@/hooks/use-toast';
 import { ProspectExportModal } from './ProspectExportModal';
 import { CreateCampaignModal } from './CreateCampaignModal';
+import { EditProspectModal } from './EditProspectModal';
+import { ProspectDetailsModal } from './ProspectDetailsModal';
+import { ProspectActionsPanel } from './ProspectActionsPanel';
 
 interface ProspectListProps {
   searchTerm: string;
@@ -71,11 +75,15 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
     }
   };
 
+  const [editingProspect, setEditingProspect] = useState<any>(null);
+  const [viewingProspect, setViewingProspect] = useState<any>(null);
+
   const handleEdit = (prospect: any) => {
-    toast({
-      title: "Fonctionnalité disponible",
-      description: `Édition du prospect "${prospect.first_name} ${prospect.last_name}".`,
-    });
+    setEditingProspect(prospect);
+  };
+
+  const handleView = (prospect: any) => {
+    setViewingProspect(prospect);
   };
 
   const handleContact = (prospect: any, method: 'email' | 'phone') => {
@@ -179,37 +187,13 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
         </Card>
       </div>
 
-      {/* Actions en lot */}
-      {selectedProspects.length > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Users className="w-5 h-5 text-blue-600" />
-                <span className="font-medium">{selectedProspects.length} prospect(s) sélectionné(s)</span>
-              </div>
-              <div className="flex space-x-2">
-                <Button variant="outline" size="sm">
-                  <Mail className="w-4 h-4 mr-1" />
-                  Email en lot
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
-                  <Download className="w-4 h-4 mr-1" />
-                  Exporter
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsCampaignOpen(true)}>
-                  <Mail className="w-4 h-4 mr-1" />
-                  Campagne
-                </Button>
-                <Button variant="destructive" size="sm">
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  Supprimer
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Panel d'actions */}
+      <ProspectActionsPanel
+        selectedProspects={selectedProspects}
+        onExport={() => setIsExportOpen(true)}
+        onCreateCampaign={() => setIsCampaignOpen(true)}
+        onClearSelection={() => setSelectedProspects([])}
+      />
 
       {/* Liste des prospects */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -225,7 +209,10 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
                     className="rounded border-gray-300"
                   />
                   <div>
-                    <h3 className="font-semibold text-lg">
+                    <h3 
+                      className="font-semibold text-lg cursor-pointer hover:text-primary"
+                      onClick={() => handleView(prospect)}
+                    >
                       {prospect.first_name} {prospect.last_name}
                     </h3>
                     {prospect.company && (
@@ -255,6 +242,10 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleView(prospect)}>
+                        <User className="w-4 h-4 mr-2" />
+                        Voir détails
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleEdit(prospect)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Modifier
@@ -345,6 +336,31 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
         isOpen={isCampaignOpen}
         onClose={() => setIsCampaignOpen(false)}
         selectedProspects={selectedProspects}
+      />
+      
+      <EditProspectModal
+        isOpen={!!editingProspect}
+        onClose={() => setEditingProspect(null)}
+        prospect={editingProspect}
+        onSuccess={() => {
+          setEditingProspect(null);
+        }}
+      />
+      
+      <ProspectDetailsModal
+        isOpen={!!viewingProspect}
+        onClose={() => setViewingProspect(null)}
+        prospect={viewingProspect}
+        onEdit={(prospect) => {
+          setViewingProspect(null);
+          setEditingProspect(prospect);
+        }}
+        onDelete={async (prospectId) => {
+          if (window.confirm('Êtes-vous sûr de vouloir supprimer ce prospect ?')) {
+            await deleteProspect(prospectId);
+            setViewingProspect(null);
+          }
+        }}
       />
     </div>
   );

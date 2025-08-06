@@ -30,6 +30,7 @@ import { CreateDatabaseModal } from '@/components/prospects/CreateDatabaseModal'
 import { ProspectExportModal } from '@/components/prospects/ProspectExportModal';
 import { GlobalReportModal } from '@/components/prospects/GlobalReportModal';
 import { CreateCampaignModal } from '@/components/prospects/CreateCampaignModal';
+import { CampaignManagerModal } from '@/components/prospects/CampaignManagerModal';
 import { useProspectDatabases } from '@/hooks/useProspectDatabases';
 
 export const ProspectsPage: React.FC = () => {
@@ -39,6 +40,7 @@ export const ProspectsPage: React.FC = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isGlobalReportOpen, setIsGlobalReportOpen] = useState(false);
   const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
+  const [isCampaignManagerOpen, setIsCampaignManagerOpen] = useState(false);
   const [activeView, setActiveView] = useState<'databases' | 'prospects' | 'analytics'>('databases');
   const { stats } = useProspectDatabases();
 
@@ -128,6 +130,10 @@ export const ProspectsPage: React.FC = () => {
                 <DropdownMenuItem onClick={() => setIsCreateCampaignOpen(true)}>
                   <Mail className="w-4 h-4 mr-2" />
                   Nouvelle campagne
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsCampaignManagerOpen(true)}>
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Gérer les campagnes
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -330,6 +336,11 @@ export const ProspectsPage: React.FC = () => {
       <CreateCampaignModal
         isOpen={isCreateCampaignOpen}
         onClose={() => setIsCreateCampaignOpen(false)}
+      />
+      
+      <CampaignManagerModal
+        isOpen={isCampaignManagerOpen}
+        onClose={() => setIsCampaignManagerOpen(false)}
       />
     </div>
   );
