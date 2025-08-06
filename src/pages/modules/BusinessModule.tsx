@@ -14,6 +14,7 @@ import { B2BTargeting } from '@/components/business/B2BTargeting';
 import { LocalProspecting } from '@/components/business/LocalProspecting';
 import { CompleteB2BWorkflow } from '@/components/business/CompleteB2BWorkflow';
 import { LeadQualificationWorkflow } from '@/components/business/LeadQualificationWorkflow';
+import { LeadQualificationMenu } from '@/components/business/LeadQualificationMenu';
 
 type ViewMode = 'menu' | 'ciblage-b2b' | 'ciblage-b2b-complet' | 'prospection-locale' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
 
@@ -99,24 +100,8 @@ export const BusinessModule: React.FC = () => {
     return <LocalProspecting onBack={handleBackToMenu} />;
   }
 
-  // TODO: Implement other views
   if (currentView === 'scoring-leads') {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={handleBackToMenu} className="mb-6">
-            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-            Retour au menu
-          </Button>
-          <Card className="p-8 text-center">
-            <Target className="w-16 h-16 mx-auto mb-4 text-orange-600" />
-            <h2 className="text-2xl font-bold mb-4">Scoring & Qualification des Leads</h2>
-            <p className="text-gray-600 mb-6">Cette fonctionnalité sera bientôt disponible.</p>
-            <p className="text-sm text-gray-500">Système de scoring automatique des prospects basé sur l'IA.</p>
-          </Card>
-        </div>
-      </div>
-    );
+    return <LeadQualificationMenu onBack={handleBackToMenu} />;
   }
 
   if (currentView === 'listes-prospects') {
