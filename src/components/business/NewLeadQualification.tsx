@@ -126,6 +126,10 @@ Cordialement,`
     }));
   };
 
+  const getBotShareUrl = (botId: string) => {
+    return `https://bot.bj/bot/${botId}`;
+  };
+
   const generateBotLink = () => {
     if (!campaign.selectedBot) {
       toast({
@@ -138,7 +142,7 @@ Cordialement,`
 
     const selectedBotData = botOptions.find(bot => bot.id === campaign.selectedBot);
     if (selectedBotData) {
-      const link = selectedBotData.public_chat_url;
+      const link = getBotShareUrl(selectedBotData.id);
       setBotLink(link);
       
       // Mettre à jour le message avec le lien
