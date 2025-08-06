@@ -321,7 +321,8 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
         const botShareUrl = getBotShareUrl(selectedBotData.id);
         const personalizedMessage = generatePersonalizedMessage(contact);
         
-        const { error } = await supabase.functions.invoke('send-qualification-email', {
+        console.log('Envoi email vers:', contact.email);
+        const { data, error } = await supabase.functions.invoke('send-qualification-email', {
           body: {
             to: contact.email,
             subject: `Qualification automatisée - ${contact.companyName}`,
@@ -332,6 +333,8 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
             companyName: contact.companyName
           }
         });
+        
+        console.log('Réponse function:', { data, error });
 
         if (error) {
           console.error('Erreur envoi email:', error);

@@ -87,14 +87,17 @@ const handler = async (req: Request): Promise<Response> => {
     // Configuration SMTP Gmail
     const client = new SmtpClient();
     
+    console.log('Tentative de connexion SMTP Gmail...');
     await client.connectTLS({
       hostname: "smtp.gmail.com",
       port: 587,
       username: "bot.bjdata@gmail.com",
       password: Deno.env.get('GMAIL_APP_PASSWORD') ?? '',
     });
+    console.log('Connexion SMTP établie avec succès');
 
     // Envoi de l'email via SMTP
+    console.log('Envoi de l\'email vers:', to);
     const emailResult = await client.send({
       from: "bot.bjdata@gmail.com",
       to: to,
@@ -102,6 +105,7 @@ const handler = async (req: Request): Promise<Response> => {
       content: htmlMessage,
       html: htmlMessage,
     });
+    console.log('Email envoyé, résultat:', emailResult);
 
     await client.close();
 
