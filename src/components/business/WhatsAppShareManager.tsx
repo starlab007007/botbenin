@@ -91,14 +91,32 @@ export const WhatsAppShareManager: React.FC<WhatsAppShareManagerProps> = ({
   };
 
   const formatPhoneForWhatsApp = (phone: string) => {
-    // Nettoyer et formater le numéro
-    return phone.replace(/[^\d+]/g, '');
+    // Nettoyer et formater le numéro pour WhatsApp
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    
+    // S'assurer que le numéro commence par +
+    if (!cleaned.startsWith('+')) {
+      // Si ça commence par 33, ajouter le +
+      if (cleaned.startsWith('33')) {
+        cleaned = '+' + cleaned;
+      }
+      // Si ça commence par 0, remplacer par +33
+      else if (cleaned.startsWith('0')) {
+        cleaned = '+33' + cleaned.substring(1);
+      }
+      // Sinon ajouter +33 par défaut
+      else {
+        cleaned = '+33' + cleaned;
+      }
+    }
+    
+    return cleaned;
   };
 
   const generateWhatsAppLink = (contact: Contact, customMessage: string) => {
     const formattedPhone = formatPhoneForWhatsApp(contact.phone);
     const encodedMessage = encodeURIComponent(customMessage);
-    return `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+    return `https://wa.me/${formattedPhone.replace(/[^\d]/g, '')}?text=${encodedMessage}`;
   };
 
   const handleWhatsAppShare = async (contact: Contact) => {
@@ -110,8 +128,16 @@ export const WhatsAppShareManager: React.FC<WhatsAppShareManagerProps> = ({
     const whatsappLink = generateWhatsAppLink(contact, personalizedMessage);
     
     try {
-      // Ouvrir WhatsApp
-      window.open(whatsappLink, '_blank');
+      // Créer un élément a temporaire pour forcer l'ouverture
+      const tempLink = document.createElement('a');
+      tempLink.href = whatsappLink;
+      tempLink.target = '_blank';
+      tempLink.rel = 'noopener noreferrer';
+      
+      // Ajouter au DOM, cliquer, puis supprimer
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
       
       // Marquer comme envoyé
       const status: ContactStatus = {
@@ -126,9 +152,11 @@ export const WhatsAppShareManager: React.FC<WhatsAppShareManagerProps> = ({
       
       toast({
         title: "WhatsApp ouvert",
-        description: `Message préparé pour ${contact.name}`,
+        description: `Message préparé pour ${contact.name} - ${formatPhoneForWhatsApp(contact.phone)}`,
       });
     } catch (error) {
+      console.error('Erreur WhatsApp:', error);
+      
       const status: ContactStatus = {
         contactId: contact.id,
         name: contact.name,
@@ -141,9 +169,20 @@ export const WhatsAppShareManager: React.FC<WhatsAppShareManagerProps> = ({
       
       toast({
         title: "Erreur",
-        description: "Impossible d'ouvrir WhatsApp",
+        description: "Impossible d'ouvrir WhatsApp. Copiez le lien manuellement.",
         variant: "destructive",
       });
+      
+      // Fallback: copier le lien dans le presse-papiers
+      try {
+        await navigator.clipboard.writeText(whatsappLink);
+        toast({
+          title: "Lien copié",
+          description: "Le lien WhatsApp a été copié dans le presse-papiers",
+        });
+      } catch (clipboardError) {
+        console.error('Erreur copie:', clipboardError);
+      }
     }
   };
 

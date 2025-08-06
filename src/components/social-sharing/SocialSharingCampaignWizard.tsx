@@ -57,34 +57,50 @@ export const SocialSharingCampaignWizard: React.FC<{
     }
     setIsLoading(true);
     
-    const campaignData = {
-      name: data.name,
-      description: data.description,
-      previewImages: [],
-      targetPlatforms: data.targetPlatforms,
-      customMessage: data.customMessage,
-      botId: data.botId,
-      trackingParameters: {
-        contacts_count: data.contacts?.length || 0,
-        qualification_type: data.qualificationType,
-        created_from: 'qualification_process',
-        utm_source: 'campaign_finalization',
-        utm_medium: data.qualificationType,
-        utm_campaign: 'lead_management'
-      }
-    };
+    try {
+      const campaignData = {
+        name: data.name,
+        description: data.description,
+        previewImages: [],
+        targetPlatforms: data.targetPlatforms,
+        customMessage: data.customMessage,
+        botId: data.botId,
+        trackingParameters: {
+          contacts_count: data.contacts?.length || 0,
+          qualification_type: data.qualificationType,
+          created_from: 'qualification_process',
+          utm_source: 'campaign_finalization',
+          utm_medium: data.qualificationType,
+          utm_campaign: 'lead_management'
+        }
+      };
 
-    const result = await createCampaign(campaignData);
-    await fetchCampaigns();
-    setIsLoading(false);
-    
-    if (result) {
+      const result = await createCampaign(campaignData);
+      
+      if (result) {
+        await fetchCampaigns();
+        toast({ 
+          title: "Campagne créée avec succès", 
+          description: `Campagne "${data.name}" créée avec ${data.contacts?.length || 0} contact(s)` 
+        });
+        afterCreate && afterCreate();
+        onClose();
+      } else {
+        toast({ 
+          title: "Erreur création", 
+          description: "Impossible de créer la campagne. Vérifiez votre connexion.",
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      console.error('Erreur création campagne:', error);
       toast({ 
-        title: "Campagne finalisée", 
-        description: `Campagne "${data.name}" créée avec ${data.contacts?.length || 0} contact(s)` 
+        title: "Erreur", 
+        description: "Une erreur inattendue s'est produite.",
+        variant: "destructive" 
       });
-      afterCreate && afterCreate();
-      onClose();
+    } finally {
+      setIsLoading(false);
     }
   };
 

@@ -84,29 +84,48 @@ export function useSocialSharingCampaigns() {
   async function createCampaign(data: Partial<SocialSharingCampaign> & { botId?: string }) {
     setIsLoading(true);
     setError(null);
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) {
-      setError("Vous devez être connecté.");
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        const error = "Vous devez être connecté.";
+        setError(error);
+        setIsLoading(false);
+        return null;
+      }
+      
+      // fill required owner_id from current user
+      const dbInsert = mapCampaignToDbInsert({
+        ...data,
+        ownerId: userData.user.id,
+      });
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("social_sharing_campaigns")
+        .insert([dbInsert])
+        .select("*")
+        .maybeSingle();
+
+      if (insertError) {
+        console.error('Erreur création campagne:', insertError);
+        setError(insertError);
+        setIsLoading(false);
+        return null;
+      }
+
+      if (inserted) {
+        setCampaigns((arr) => [mapDbRowToCampaign(inserted), ...arr]);
+        setIsLoading(false);
+        return mapDbRowToCampaign(inserted);
+      }
+      
+      setIsLoading(false);
+      return null;
+    } catch (error) {
+      console.error('Erreur inattendue:', error);
+      setError(error);
       setIsLoading(false);
       return null;
     }
-    // fill required owner_id from current user
-    const dbInsert = mapCampaignToDbInsert({
-      ...data,
-      ownerId: userData.user.id,
-    });
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("social_sharing_campaigns")
-      .insert([dbInsert])
-      .select("*")
-      .maybeSingle();
-
-    if (insertError) setError(insertError);
-
-    if (inserted) setCampaigns((arr) => [mapDbRowToCampaign(inserted), ...arr]);
-    setIsLoading(false);
-    return inserted ? mapDbRowToCampaign(inserted) : null;
   }
 
   async function updateCampaign(id: string, data: Partial<SocialSharingCampaign>) {
