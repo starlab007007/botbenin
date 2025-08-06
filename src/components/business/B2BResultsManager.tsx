@@ -20,7 +20,9 @@ import {
   Download,
   Sparkles,
   Target,
-  CheckCircle
+  CheckCircle,
+  Bug,
+  Eye
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { SaveToProspectsModal } from './SaveToProspectsModal';
@@ -39,6 +41,11 @@ interface B2BContact {
   industry: string;
   companySize: string;
   coordinates?: [number, number];
+  facebookUrl?: string;
+  instagramUrl?: string;
+  description?: string;
+  services?: string;
+  rawData?: string;
 }
 
 interface B2BResultsManagerProps {
@@ -57,7 +64,16 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showQualificationModal, setShowQualificationModal] = useState(false);
   const [qualificationType, setQualificationType] = useState<'sms' | 'email' | 'whatsapp'>('email');
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
   const { toast } = useToast();
+
+  // Log the contacts data for debugging
+  React.useEffect(() => {
+    console.log('B2BResultsManager received contacts:', contacts);
+    if (contacts.length > 0) {
+      console.log('First contact sample:', contacts[0]);
+    }
+  }, [contacts]);
 
   const handleSelectAll = () => {
     if (selectedContacts.length === contacts.length) {
@@ -232,6 +248,41 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
             </Button>
           </div>
 
+          {/* Debug Panel */}
+          <div className="mb-4">
+            <Button
+              onClick={() => setShowDebugInfo(!showDebugInfo)}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Bug className="w-4 h-4" />
+              {showDebugInfo ? 'Masquer' : 'Afficher'} les données de debug
+            </Button>
+            
+            {showDebugInfo && (
+              <Card className="mt-2 bg-gray-50 border-gray-200">
+                <CardContent className="p-4">
+                  <h4 className="font-medium mb-2">Données reçues du webhook:</h4>
+                  <div className="text-xs max-h-40 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap">
+                      {JSON.stringify(contacts.slice(0, 2), null, 2)}
+                    </pre>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    Contacts avec téléphone: {contacts.filter(c => c.phone && c.phone.trim() !== '').length} / {contacts.length}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Contacts avec secteur: {contacts.filter(c => c.industry && c.industry.trim() !== '' && c.industry !== 'Non spécifié').length} / {contacts.length}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Contacts avec adresse: {contacts.filter(c => c.location && c.location.trim() !== '' && c.location !== 'Localisation non précisée').length} / {contacts.length}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
           {/* Lead Qualification Section */}
           <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
             <CardHeader>
@@ -330,16 +381,16 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       <p className="font-medium">{contact.companyName}</p>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm">{contact.industry}</p>
+                      <p className="text-sm">{contact.industry || 'Non spécifié'}</p>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Phone className="w-3 h-3" />
-                        {contact.phone || ''}
+                        {contact.phone || 'Non renseigné'}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <p className="text-sm">{contact.location}</p>
+                      <p className="text-sm">{contact.location || 'Localisation non précisée'}</p>
                     </TableCell>
                     <TableCell>
                       <Button size="sm" variant="outline" asChild>
@@ -355,11 +406,18 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       </Button>
                     </TableCell>
                     <TableCell>
-                      {contact.linkedinUrl && contact.linkedinUrl.trim() !== '' && !contact.linkedinUrl.includes('linkedin.com/in/') ? (
+                      {contact.linkedinUrl && contact.linkedinUrl.trim() !== '' ? (
                         <Button size="sm" variant="outline" asChild>
                           <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer">
                             <Globe className="w-3 h-3 mr-1" />
                             Site web
+                          </a>
+                        </Button>
+                      ) : contact.facebookUrl && contact.facebookUrl.trim() !== '' ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={contact.facebookUrl} target="_blank" rel="noopener noreferrer">
+                            <Globe className="w-3 h-3 mr-1" />
+                            Facebook
                           </a>
                         </Button>
                       ) : (
@@ -367,7 +425,16 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       )}
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-gray-500">-</span>
+                      {contact.instagramUrl && contact.instagramUrl.trim() !== '' ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={contact.instagramUrl} target="_blank" rel="noopener noreferrer">
+                            <Globe className="w-3 h-3 mr-1" />
+                            Instagram
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-gray-500">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

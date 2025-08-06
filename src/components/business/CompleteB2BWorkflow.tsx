@@ -41,6 +41,11 @@ interface B2BContact {
   industry: string;
   companySize: string;
   coordinates?: [number, number];
+  facebookUrl?: string;
+  instagramUrl?: string;
+  description?: string;
+  services?: string;
+  rawData?: string; // Pour conserver les données originales du webhook
 }
 
 interface WorkflowStep {
@@ -213,14 +218,44 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
             /\*\*Site web\s*:\*\*\s*\[(.*?)\]/i,
             /Site web\s*:\s*(.*?)(?:\n|$)/i,
             /Website\s*:\s*(.*?)(?:\n|$)/i,
-            /URL\s*:\s*(.*?)(?:\n|$)/i
+            /URL\s*:\s*(.*?)(?:\n|$)/i,
+            /www\.\S+/i,
+            /https?:\/\/\S+/i
           ];
           
           const categoryPatterns = [
             /\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/i,
             /Catégorie\s*:\s*(.*?)(?:\n|$)/i,
             /Type\s*:\s*(.*?)(?:\n|$)/i,
-            /Secteur\s*:\s*(.*?)(?:\n|$)/i
+            /Secteur\s*:\s*(.*?)(?:\n|$)/i,
+            /Activité\s*:\s*(.*?)(?:\n|$)/i,
+            /Spécialité\s*:\s*(.*?)(?:\n|$)/i
+          ];
+
+          const emailPatterns = [
+            /\*\*Email\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Email\s*:\s*(.*?)(?:\n|$)/i,
+            /E-mail\s*:\s*(.*?)(?:\n|$)/i,
+            /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+          ];
+
+          const facebookPatterns = [
+            /\*\*Facebook\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Facebook\s*:\s*(.*?)(?:\n|$)/i,
+            /facebook\.com\/\S+/i
+          ];
+
+          const instagramPatterns = [
+            /\*\*Instagram\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Instagram\s*:\s*(.*?)(?:\n|$)/i,
+            /instagram\.com\/\S+/i
+          ];
+
+          const descriptionPatterns = [
+            /\*\*Description\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Description\s*:\s*(.*?)(?:\n|$)/i,
+            /Services\s*:\s*(.*?)(?:\n|$)/i,
+            /Spécialisé\s*dans\s*(.*?)(?:\n|$)/i
           ];
 
           // Extraction avec fallbacks
@@ -228,6 +263,10 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
           let phone = '';
           let website = '';
           let category = '';
+          let email = '';
+          let facebook = '';
+          let instagram = '';
+          let description = '';
 
           for (const addressPattern of addressPatterns) {
             const match = details.match(addressPattern);
@@ -249,6 +288,10 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
             const match = details.match(websitePattern);
             if (match) {
               website = match[1].trim();
+              // Nettoyer les URLs
+              if (website && !website.startsWith('http')) {
+                website = website.startsWith('www.') ? `https://${website}` : `https://www.${website}`;
+              }
               break;
             }
           }
@@ -257,6 +300,38 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
             const match = details.match(categoryPattern);
             if (match) {
               category = match[1].trim();
+              break;
+            }
+          }
+
+          for (const emailPattern of emailPatterns) {
+            const match = details.match(emailPattern);
+            if (match) {
+              email = match[1] ? match[1].trim() : match[0].trim();
+              break;
+            }
+          }
+
+          for (const facebookPattern of facebookPatterns) {
+            const match = details.match(facebookPattern);
+            if (match) {
+              facebook = match[1].trim();
+              break;
+            }
+          }
+
+          for (const instagramPattern of instagramPatterns) {
+            const match = details.match(instagramPattern);
+            if (match) {
+              instagram = match[1].trim();
+              break;
+            }
+          }
+
+          for (const descriptionPattern of descriptionPatterns) {
+            const match = details.match(descriptionPattern);
+            if (match) {
+              description = match[1].trim();
               break;
             }
           }
@@ -276,11 +351,16 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
             jobTitle: '', // Poste vide par défaut
             location: address || 'Localisation non précisée',
             linkedinUrl: website || '',
-            email: '', // Email vide par défaut
+            email: email || '',
             phone: phone || '',
             industry: category || 'Non spécifié',
             companySize: '', // Taille d'entreprise vide par défaut
-            coordinates: coordinates
+            coordinates: coordinates,
+            facebookUrl: facebook || '',
+            instagramUrl: instagram || '',
+            description: description || '',
+            services: description || '',
+            rawData: details // Conserver les données brutes pour debug
           };
 
           contacts.push(contact);
