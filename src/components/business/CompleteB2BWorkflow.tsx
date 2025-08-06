@@ -396,6 +396,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
         processedContent = responseData;
       }
 
+      console.log('Raw webhook response:', processedContent);
       const extractedContacts = parseWebhookResponse(processedContent);
       
       if (extractedContacts.length > 0) {
@@ -407,13 +408,15 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
           description: `${extractedContacts.length} contacts trouvés via webhook`,
         });
       } else {
-        // Même sans résultats, passer à l'étape suivante pour afficher les options
-        setSearchResults([]);
-        setSearchError("Aucun contact trouvé dans la réponse webhook");
+        // En cas d'échec, utiliser des données de test temporaires pour debugging
+        console.log('No webhook results, using test data for debugging');
+        const testContacts = getMockContacts();
+        setSearchResults(testContacts);
+        setSearchError("Test data loaded - webhook parsing failed");
         setCurrentStep(2);
         toast({
-          title: "Aucun résultat",
-          description: "La recherche n'a retourné aucun contact. Vous pouvez modifier vos critères.",
+          title: "Mode test activé",
+          description: `${testContacts.length} contacts de test chargés pour débugger l'affichage`,
           variant: "destructive",
         });
       }
@@ -751,8 +754,26 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
               </CardContent>
             </Card>
 
+            {/* Debug Information */}
+            {currentStep >= 2 && (
+              <Card className="mb-4 border-yellow-200 bg-yellow-50">
+                <CardHeader>
+                  <CardTitle className="text-sm text-yellow-800">Debug Information</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-yellow-700">
+                    Current Step: {currentStep}, Search Results Length: {searchResults.length}, 
+                    Search Error: {searchError ? 'Yes' : 'No'}
+                  </p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Search Results Data: {JSON.stringify(searchResults, null, 2)}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Advanced Results Management */}
-            {currentStep >= 2 && searchResults.length > 0 && (
+            {currentStep >= 2 && (
               <B2BResultsManager
                 contacts={searchResults}
                 onExport={handleExport}
