@@ -2385,20 +2385,6 @@ export type Database = {
             referencedRelation: "prospect_databases"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "prospects_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prospects_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       role_permissions: {
