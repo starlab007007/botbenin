@@ -110,6 +110,9 @@ export const SocialSharingCampaignWizard: React.FC<{
     setIsLoading(true);
     
     try {
+      console.log('🚀 Début création campagne');
+      console.log('📊 Données entrées:', data);
+
       const campaignData = {
         name: data.name,
         description: data.description,
@@ -127,11 +130,14 @@ export const SocialSharingCampaignWizard: React.FC<{
         }
       };
 
-      console.log('Création campagne avec données:', campaignData);
+      console.log('📤 Données finales envoyées à createCampaign:', campaignData);
       
       const result = await createCampaign(campaignData);
       
+      console.log('📥 Résultat création:', result);
+      
       if (result) {
+        console.log('✅ Campagne créée avec succès!');
         await fetchCampaigns();
         toast({ 
           title: "Campagne créée avec succès", 
@@ -140,6 +146,7 @@ export const SocialSharingCampaignWizard: React.FC<{
         afterCreate && afterCreate();
         onClose();
       } else {
+        console.error('❌ Création échouée - result null');
         toast({ 
           title: "Erreur création", 
           description: "Impossible de créer la campagne. Vérifiez votre connexion.",
@@ -147,10 +154,10 @@ export const SocialSharingCampaignWizard: React.FC<{
         });
       }
     } catch (error) {
-      console.error('Erreur création campagne:', error);
+      console.error('💥 Erreur création campagne:', error);
       toast({ 
         title: "Erreur", 
-        description: "Une erreur inattendue s'est produite.",
+        description: `Une erreur inattendue s'est produite: ${error?.message || error}`,
         variant: "destructive" 
       });
     } finally {
