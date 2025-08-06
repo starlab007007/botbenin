@@ -15,6 +15,7 @@ import { LocalProspecting } from '@/components/business/LocalProspecting';
 import { CompleteB2BWorkflow } from '@/components/business/CompleteB2BWorkflow';
 import { LeadQualificationWorkflow } from '@/components/business/LeadQualificationWorkflow';
 import { LeadQualificationMenu } from '@/components/business/LeadQualificationMenu';
+import { GoogleSheetsImport } from '@/components/business/GoogleSheetsImport';
 
 type ViewMode = 'menu' | 'ciblage-b2b' | 'ciblage-b2b-complet' | 'prospection-locale' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
 
@@ -105,22 +106,7 @@ export const BusinessModule: React.FC = () => {
   }
 
   if (currentView === 'listes-prospects') {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={handleBackToMenu} className="mb-6">
-            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-            Retour au menu
-          </Button>
-          <Card className="p-8 text-center">
-            <Upload className="w-16 h-16 mx-auto mb-4 text-purple-600" />
-            <h2 className="text-2xl font-bold mb-4">Mes Listes de Prospects (Import)</h2>
-            <p className="text-gray-600 mb-6">Cette fonctionnalité sera bientôt disponible.</p>
-            <p className="text-sm text-gray-500">Import et enrichissement de vos listes de contacts existantes.</p>
-          </Card>
-        </div>
-      </div>
-    );
+    return <GoogleSheetsImport onBack={handleBackToMenu} />;
   }
 
   if (currentView === 'campagnes-engagement') {
