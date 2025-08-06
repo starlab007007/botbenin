@@ -26,6 +26,8 @@ import {
   Copy,
   Zap
 } from 'lucide-react';
+import { WhatsAppShareManager } from './WhatsAppShareManager';
+import { SocialSharingCampaignWizard } from '../social-sharing/SocialSharingCampaignWizard';
 
 interface B2BContact {
   id: string;
@@ -244,6 +246,10 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
     }
   };
 
+  const [showWhatsAppManager, setShowWhatsAppManager] = useState(false);
+  const [showCampaignWizard, setShowCampaignWizard] = useState(false);
+  const [campaignSummary, setCampaignSummary] = useState<any>(null);
+
   const handleStartQualification = async () => {
     if (!selectedBot) {
       toast({
@@ -276,33 +282,14 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
     try {
       await simulateEnhancedQualificationProcess();
       
-      toast({
-        title: "Qualification IA lancée avec succès",
-        description: `${getAvailableContacts().length} messages avec bots automatisés envoyés`,
-      });
+      // Préparation des données pour WhatsApp Manager
+      if (qualificationType === 'whatsapp') {
+        setShowWhatsAppManager(true);
+      } else {
+        // Pour email/SMS, processus direct
+        await finalizeQualificationProcess();
+      }
       
-      // Simulation de la création des données de qualification avec tracking
-      const qualificationData = {
-        type: qualificationType,
-        contacts: getAvailableContacts().length,
-        template: selectedTemplate,
-        selectedBot: selectedBot,
-        botData: getSelectedBot(),
-        criteria: qualificationCriteria,
-        message: customMessage,
-        sender: senderInfo,
-        automationEnabled,
-        tracking: {
-          utm_source: 'lead_qualification',
-          utm_medium: qualificationType,
-          utm_campaign: 'automated_qualification'
-        },
-        createdAt: new Date().toISOString()
-      };
-      
-      console.log('Enhanced qualification data:', qualificationData);
-      
-      onClose();
     } catch (error) {
       console.error('Error starting enhanced qualification:', error);
       toast({
@@ -314,6 +301,22 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
       setIsProcessing(false);
       setProcessingStep(0);
     }
+  };
+
+  const finalizeQualificationProcess = async () => {
+    toast({
+      title: "Qualification IA lancée avec succès",
+      description: `${getAvailableContacts().length} messages avec bots automatisés envoyés`,
+    });
+    
+    // Proposer la finalisation en campagne
+    setShowCampaignWizard(true);
+  };
+
+  const handleCampaignFinalization = (summary: any) => {
+    setCampaignSummary(summary);
+    setShowCampaignWizard(true);
+    setShowWhatsAppManager(false);
   };
 
   const getModalTitle = () => {
@@ -707,11 +710,47 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
               className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             >
               <Send className="w-4 h-4 mr-2" />
-              Lancer qualification IA
+              {qualificationType === 'whatsapp' ? 'Valider et partager sur WhatsApp' : 'Lancer qualification IA'}
             </Button>
           </div>
         </div>
       </DialogContent>
+      
+      {/* WhatsApp Share Manager */}
+      {showWhatsAppManager && (
+        <WhatsAppShareManager
+          isOpen={showWhatsAppManager}
+          onClose={() => setShowWhatsAppManager(false)}
+          contacts={getAvailableContacts()}
+          message={customMessage}
+          onFinalizeCampaign={handleCampaignFinalization}
+        />
+      )}
+      
+      {/* Campaign Wizard for Finalization */}
+      {showCampaignWizard && (
+        <SocialSharingCampaignWizard
+          onClose={() => {
+            setShowCampaignWizard(false);
+            onClose();
+          }}
+          afterCreate={() => {
+            toast({
+              title: "Campagne finalisée",
+              description: "Votre campagne a été sauvegardée avec succès",
+            });
+          }}
+          initialData={{
+            campaignName: `Qualification ${qualificationType} - ${new Date().toLocaleDateString()}`,
+            description: `Campagne de qualification via ${qualificationType} avec ${getAvailableContacts().length} contacts`,
+            platforms: [qualificationType],
+            contacts: getAvailableContacts(),
+            qualificationType: qualificationType,
+            botId: selectedBot,
+            customMessage: customMessage
+          }}
+        />
+      )}
     </Dialog>
   );
 };

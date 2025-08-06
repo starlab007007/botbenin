@@ -35,10 +35,19 @@ const CampaignCreationStep = ({ data, setData, onFinish, isLoading }: any) => (
 export const SocialSharingCampaignWizard: React.FC<{
   onClose: () => void;
   afterCreate?: () => void;
-}> = ({ onClose, afterCreate }) => {
+  initialData?: any;
+}> = ({ onClose, afterCreate, initialData }) => {
   const { createCampaign, fetchCampaigns } = useSocialSharingCampaigns();
   const { toast } = useToast();
-  const [data, setData] = useState<any>({ name: "" });
+  const [data, setData] = useState<any>({ 
+    name: initialData?.campaignName || "",
+    description: initialData?.description || "",
+    targetPlatforms: initialData?.platforms || [],
+    contacts: initialData?.contacts || [],
+    qualificationType: initialData?.qualificationType || "",
+    botId: initialData?.botId || "",
+    customMessage: initialData?.customMessage || ""
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleFinish = async () => {
@@ -47,18 +56,36 @@ export const SocialSharingCampaignWizard: React.FC<{
       return;
     }
     setIsLoading(true);
-    await createCampaign({
+    
+    const campaignData = {
       name: data.name,
-      description: "",
+      description: data.description,
       previewImages: [],
-      targetPlatforms: [],
-      customMessage: ""
-    });
+      targetPlatforms: data.targetPlatforms,
+      customMessage: data.customMessage,
+      botId: data.botId,
+      trackingParameters: {
+        contacts_count: data.contacts?.length || 0,
+        qualification_type: data.qualificationType,
+        created_from: 'qualification_process',
+        utm_source: 'campaign_finalization',
+        utm_medium: data.qualificationType,
+        utm_campaign: 'lead_management'
+      }
+    };
+
+    const result = await createCampaign(campaignData);
     await fetchCampaigns();
     setIsLoading(false);
-    toast({ title: "Campagne créée", description: "Votre campagne a été ajoutée." });
-    afterCreate && afterCreate();
-    onClose();
+    
+    if (result) {
+      toast({ 
+        title: "Campagne finalisée", 
+        description: `Campagne "${data.name}" créée avec ${data.contacts?.length || 0} contact(s)` 
+      });
+      afterCreate && afterCreate();
+      onClose();
+    }
   };
 
   return (
