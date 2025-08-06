@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
 
@@ -10,19 +10,34 @@ export interface ProspectDatabase {
   created_at: string;
   updated_at: string;
   user_id: string;
+  prospect_count?: number;
+  last_activity?: string;
 }
 
 export function useProspectDatabases() {
   const [databases, setDatabases] = useState<ProspectDatabase[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<any>(null);
+  const [lastFetch, setLastFetch] = useState<number>(0);
   const { toast } = useToast();
 
+  // Cache intelligent - évite les requêtes trop fréquentes
+  const shouldRefetch = useCallback(() => {
+    const now = Date.now();
+    return now - lastFetch > 30000; // 30 secondes
+  }, [lastFetch]);
+
   useEffect(() => {
-    fetchDatabases();
+    if (shouldRefetch()) {
+      fetchDatabases();
+    }
   }, []);
 
-  async function fetchDatabases() {
+  const fetchDatabases = useCallback(async (force = false) => {
+    if (!force && !shouldRefetch()) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     
@@ -41,19 +56,31 @@ export function useProspectDatabases() {
       }
 
       console.log('Récupération des bases pour user:', userData.user.id);
+      
+      // Requête optimisée avec jointure pour récupérer le nombre de prospects
       const { data, error } = await supabase
         .from("prospect_databases")
-        .select("*")
+        .select(`
+          *,
+          prospects:prospects(count)
+        `)
         .eq('user_id', userData.user.id)
-        .order("created_at", { ascending: false });
+        .order("updated_at", { ascending: false });
 
       if (error) {
         console.error('Erreur récupération bases de données:', error);
         throw error;
       }
 
-      console.log('Bases récupérées:', data);
-      setDatabases(data || []);
+      // Transformation des données pour inclure prospect_count
+      const enrichedDatabases = (data || []).map(db => ({
+        ...db,
+        prospect_count: Array.isArray(db.prospects) ? db.prospects.length : 0
+      }));
+
+      console.log('Bases récupérées:', enrichedDatabases.length);
+      setDatabases(enrichedDatabases);
+      setLastFetch(Date.now());
     } catch (error: any) {
       console.error('Erreur dans fetchDatabases:', error);
       setError(error);
@@ -71,7 +98,7 @@ export function useProspectDatabases() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [shouldRefetch]);
 
   async function createDatabase(name: string, description?: string) {
     setIsLoading(true);
@@ -178,13 +205,28 @@ export function useProspectDatabases() {
     return { error: null };
   }
 
+  // Statistiques calculées
+  const stats = useMemo(() => {
+    const totalProspects = databases.reduce((sum, db) => sum + (db.prospect_count || 0), 0);
+    const activeDatabases = databases.filter(db => db.is_active).length;
+    
+    return {
+      totalDatabases: databases.length,
+      activeDatabases,
+      totalProspects,
+      averageProspectsPerDatabase: activeDatabases > 0 ? Math.round(totalProspects / activeDatabases) : 0
+    };
+  }, [databases]);
+
   return { 
     databases, 
     isLoading, 
-    error, 
+    error,
+    stats,
     createDatabase, 
     fetchDatabases, 
     updateDatabase, 
-    deleteDatabase 
+    deleteDatabase,
+    refreshDatabases: () => fetchDatabases(true)
   };
 }

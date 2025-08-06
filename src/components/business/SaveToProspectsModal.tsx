@@ -57,18 +57,22 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
   const { databases, isLoading, fetchDatabases } = useProspectDatabases();
 
   React.useEffect(() => {
-    if (isOpen) {
-      fetchDatabases();
+    if (isOpen && databases.length === 0) {
+      fetchDatabases(true); // Force le rechargement si pas de données
     }
-  }, [isOpen, fetchDatabases]);
+  }, [isOpen, databases.length, fetchDatabases]);
 
   const handleCreateDatabase = () => {
     setShowCreateModal(true);
   };
 
-  const handleDatabaseCreated = () => {
+  const handleDatabaseCreated = async () => {
     setShowCreateModal(false);
-    fetchDatabases(); // Rafraîchir la liste
+    await fetchDatabases(true); // Force le rechargement
+    // Auto-sélectionner la nouvelle base si c'est la seule
+    if (databases.length === 1) {
+      setSelectedDatabaseId(databases[0].id);
+    }
   };
 
   const saveBusinessesToDatabase = async () => {

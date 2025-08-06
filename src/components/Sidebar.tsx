@@ -23,9 +23,6 @@ const menuItems = [
 
 const aiModules = [
   { title: 'Agent IA Business', path: '/modules/business', icon: Briefcase, color: 'bg-blue-600' },
-  { title: 'Agent IA Marketing', path: '/modules/marketing', icon: Megaphone, color: 'bg-pink-500' },
-  { title: 'Agent IA Gestion', path: '/modules/gestion', icon: FolderOpen, color: 'bg-indigo-500' },
-  { title: 'IA Citoyen', path: '/modules/citoyen', icon: UsersIcon, color: 'bg-teal-500' },
 ];
 
 const bottomItems = [

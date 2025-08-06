@@ -83,9 +83,6 @@ const App = () => (
                     
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
-                    <Route path="/modules/marketing" element={<MarketingModule />} />
-                    <Route path="/modules/gestion" element={<GestionModule />} />
-                    <Route path="/modules/citoyen" element={<CitoyenModule />} />
                     
                     {/* Support et compte */}
                     <Route path="/support" element={<SupportPage />} />
