@@ -13,6 +13,7 @@ import {
 import { B2BTargeting } from '@/components/business/B2BTargeting';
 import { LocalProspecting } from '@/components/business/LocalProspecting';
 import { CompleteB2BWorkflow } from '@/components/business/CompleteB2BWorkflow';
+import { LeadQualificationWorkflow } from '@/components/business/LeadQualificationWorkflow';
 
 type ViewMode = 'menu' | 'ciblage-b2b' | 'ciblage-b2b-complet' | 'prospection-locale' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
 
@@ -81,7 +82,14 @@ export const BusinessModule: React.FC = () => {
 
   // Render different views based on current selection
   if (currentView === 'ciblage-b2b-complet') {
-    return <CompleteB2BWorkflow onBack={handleBackToMenu} />;
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <CompleteB2BWorkflow onBack={handleBackToMenu} />
+          <LeadQualificationWorkflow />
+        </div>
+      </div>
+    );
   }
 
   if (currentView === 'ciblage-b2b') {

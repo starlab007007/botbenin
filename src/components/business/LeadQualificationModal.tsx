@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { EnhancedLeadQualificationModal } from './EnhancedLeadQualificationModal';
 import { 
   Loader2, 
   Mail, 
@@ -18,7 +19,8 @@ import {
   Sparkles,
   CheckCircle,
   AlertCircle,
-  Send
+  Send,
+  Zap
 } from 'lucide-react';
 
 interface B2BContact {
@@ -123,6 +125,19 @@ export const LeadQualificationModal: React.FC<LeadQualificationModalProps> = ({
   selectedContacts,
   qualificationType
 }) => {
+  const [useAdvancedMode, setUseAdvancedMode] = useState(false);
+
+  // Si le mode avancé est activé, utiliser le modal amélioré
+  if (useAdvancedMode) {
+    return (
+      <EnhancedLeadQualificationModal
+        isOpen={isOpen}
+        onClose={onClose}
+        selectedContacts={selectedContacts}
+        qualificationType={qualificationType}
+      />
+    );
+  }
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [customSubject, setCustomSubject] = useState('');
@@ -470,14 +485,29 @@ export const LeadQualificationModal: React.FC<LeadQualificationModalProps> = ({
             </TabsContent>
           </Tabs>
 
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={onClose} disabled={isProcessing}>
-              Annuler
-            </Button>
-            <Button onClick={handleStartQualification} disabled={isProcessing || availableContacts.length === 0}>
-              <Send className="w-4 h-4 mr-2" />
-              Lancer la Qualification ({availableContacts.length})
-            </Button>
+          <div className="flex justify-between items-center pt-4 border-t">
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setUseAdvancedMode(true)}
+                className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                disabled={isProcessing}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Mode IA Avancé
+              </Button>
+              <span className="text-xs text-gray-500">Avec bots automatisés</span>
+            </div>
+            
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={onClose} disabled={isProcessing}>
+                Annuler
+              </Button>
+              <Button onClick={handleStartQualification} disabled={isProcessing || availableContacts.length === 0}>
+                <Send className="w-4 h-4 mr-2" />
+                Lancer la Qualification ({availableContacts.length})
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
