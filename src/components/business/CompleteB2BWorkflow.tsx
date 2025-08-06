@@ -362,6 +362,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
       const extractedContacts = parseWebhookResponse(processedContent);
       
       if (extractedContacts.length > 0) {
+        console.log('Setting search results:', extractedContacts);
         setSearchResults(extractedContacts);
         setCurrentStep(2);
         toast({
@@ -624,7 +625,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
             </Card>
 
             {/* Advanced Results Management */}
-            {currentStep === 3 && (
+            {currentStep >= 2 && searchResults.length > 0 && (
               <B2BResultsManager
                 contacts={searchResults}
                 onExport={handleExport}
