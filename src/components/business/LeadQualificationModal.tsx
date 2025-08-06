@@ -53,6 +53,8 @@ const EMAIL_TEMPLATES = [
 
 Nous avons identifié {companyName} comme une entreprise qui pourrait bénéficier de nos solutions.
 
+🤖 Qualification rapide avec notre assistant IA : {botLink}
+
 Pouvez-vous me confirmer si vous seriez intéressé(e) par :
 - Une présentation de 15 minutes de nos services
 - L'envoi d'une documentation détaillée
@@ -85,12 +87,12 @@ const SMS_TEMPLATES = [
   {
     id: 'sms-quick',
     name: 'SMS Rapide',
-    template: 'Bonjour {name}, {companyName} pourrait bénéficier de nos solutions. Intéressé(e) ? Répondez OUI/NON. Merci!'
+    template: 'Bonjour {name}, {companyName} pourrait bénéficier de nos solutions. Qualification IA : {botLink} - Intéressé(e) ? Répondez OUI/NON. Merci!'
   },
   {
     id: 'sms-meeting',
     name: 'SMS Rendez-vous',
-    template: 'Bonjour {name} de {companyName}, je peux vous présenter nos solutions en 15min. Disponible cette semaine ? Répondez OUI/NON.'
+    template: 'Bonjour {name} de {companyName}, qualification IA 15min : {botLink} - Disponible cette semaine ? Répondez OUI/NON.'
   }
 ];
 
@@ -101,6 +103,8 @@ const WHATSAPP_TEMPLATES = [
     template: `Bonjour {name} 👋
 
 Je vous contacte car {companyName} pourrait être intéressée par nos solutions pour le secteur {industry}.
+
+🤖 Qualification rapide avec notre assistant IA : {botLink}
 
 Seriez-vous disponible pour un échange rapide de 10 minutes ?
 

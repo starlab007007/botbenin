@@ -51,3 +51,6 @@ enabled = true
 ip_version = "ipv4"
 port = 54327
 inspector_port = 8083
+
+[functions.send-qualification-email]
+verify_jwt = false

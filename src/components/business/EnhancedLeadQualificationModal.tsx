@@ -169,6 +169,10 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
     return botOptions.find(bot => bot.id === selectedBot);
   };
 
+  const getBotShareUrl = (botId: string) => {
+    return `https://bot.bj/bot/${botId}`;
+  };
+
   const generateBotLink = (contact: B2BContact) => {
     const selectedBotData = getSelectedBot();
     if (!selectedBotData) return 'Sélectionnez un bot d\'abord';
@@ -183,7 +187,7 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
       lead_id: contact.id
     });
 
-    return `${selectedBotData.public_chat_url}&${params.toString()}`;
+    return `${getBotShareUrl(selectedBotData.id)}?${params.toString()}`;
   };
 
   const handleTemplateChange = (templateId: string) => {
