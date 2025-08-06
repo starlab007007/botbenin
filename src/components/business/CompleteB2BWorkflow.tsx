@@ -108,7 +108,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
       id: 'visualization',
       title: 'Visualisation',
       description: 'Vue tableau et géolocalisation sur carte',
-      status: currentStep === 3 ? 'active' : currentStep > 3 ? 'completed' : 'pending',
+      status: currentStep === 4 ? 'active' : currentStep > 4 ? 'completed' : 'pending',
       icon: <MapPin className="w-5 h-5" />
     }
   ];
@@ -158,61 +158,157 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
   const parseWebhookResponse = (responseText: string): B2BContact[] => {
     console.log('Parsing webhook response:', responseText);
     
+    if (!responseText || typeof responseText !== 'string') {
+      console.warn('Invalid webhook response: empty or not string');
+      return [];
+    }
+    
     const contacts: B2BContact[] = [];
     
     try {
-      const companyPattern = /\d+\.\s*\*\*(.*?)\*\*\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g;
-      let match;
-      let contactIndex = 1;
+      // Pattern amélioré pour capturer différents formats de réponse
+      const patterns = [
+        // Format principal avec numérotation et markdown
+        /\d+\.\s*\*\*(.*?)\*\*\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g,
+        // Format alternatif sans markdown
+        /\d+\.\s*(.*?)\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g,
+        // Format simple avec tirets
+        /-\s*(.*?)\s*\n([\s\S]*?)(?=\n-|\n\n|$)/g
+      ];
 
-      while ((match = companyPattern.exec(responseText)) !== null) {
-        const companyName = match[1].trim();
-        const details = match[2];
+      let totalMatches = 0;
+      
+      for (const pattern of patterns) {
+        let match;
+        let contactIndex = 1;
         
-        const addressMatch = details.match(/\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/);
-        const phoneMatch = details.match(/\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/);
-        const websiteMatch = details.match(/\*\*Site web\s*:\*\*\s*\[(.*?)\]/);
-        const categoryMatch = details.match(/\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/);
+        // Reset du pattern pour chaque utilisation
+        pattern.lastIndex = 0;
 
-        const address = addressMatch ? addressMatch[1].trim() : '';
-        const phone = phoneMatch ? phoneMatch[1].trim() : '';
-        const website = websiteMatch ? websiteMatch[1].trim() : '';
-        const category = categoryMatch ? categoryMatch[1].trim() : '';
+        while ((match = pattern.exec(responseText)) !== null) {
+          const companyName = match[1].trim().replace(/\*\*/g, ''); // Nettoyer les ** markdown
+          const details = match[2];
+          
+          // Éviter les doublons
+          if (contacts.some(c => c.companyName === companyName)) {
+            continue;
+          }
+          
+          // Patterns de recherche plus flexibles
+          const addressPatterns = [
+            /\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Adresse\s*:\s*(.*?)(?:\n|$)/i,
+            /Localisation\s*:\s*(.*?)(?:\n|$)/i,
+            /Lieu\s*:\s*(.*?)(?:\n|$)/i
+          ];
+          
+          const phonePatterns = [
+            /\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Téléphone\s*:\s*(.*?)(?:\n|$)/i,
+            /Tel\s*:\s*(.*?)(?:\n|$)/i,
+            /Phone\s*:\s*(.*?)(?:\n|$)/i
+          ];
+          
+          const websitePatterns = [
+            /\*\*Site web\s*:\*\*\s*\[(.*?)\]/i,
+            /Site web\s*:\s*(.*?)(?:\n|$)/i,
+            /Website\s*:\s*(.*?)(?:\n|$)/i,
+            /URL\s*:\s*(.*?)(?:\n|$)/i
+          ];
+          
+          const categoryPatterns = [
+            /\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Catégorie\s*:\s*(.*?)(?:\n|$)/i,
+            /Type\s*:\s*(.*?)(?:\n|$)/i,
+            /Secteur\s*:\s*(.*?)(?:\n|$)/i
+          ];
 
-        // Pas de génération de noms fictifs
-        const fullName = '';
+          // Extraction avec fallbacks
+          let address = '';
+          let phone = '';
+          let website = '';
+          let category = '';
+
+          for (const addressPattern of addressPatterns) {
+            const match = details.match(addressPattern);
+            if (match) {
+              address = match[1].trim();
+              break;
+            }
+          }
+
+          for (const phonePattern of phonePatterns) {
+            const match = details.match(phonePattern);
+            if (match) {
+              phone = match[1].trim();
+              break;
+            }
+          }
+
+          for (const websitePattern of websitePatterns) {
+            const match = details.match(websitePattern);
+            if (match) {
+              website = match[1].trim();
+              break;
+            }
+          }
+
+          for (const categoryPattern of categoryPatterns) {
+            const match = details.match(categoryPattern);
+            if (match) {
+              category = match[1].trim();
+              break;
+            }
+          }
+
+          // Validation et nettoyage des données
+          if (!companyName || companyName.length < 2) {
+            console.warn('Skipping invalid company name:', companyName);
+            continue;
+          }
+
+          const coordinates = getCoordinatesFromLocation(address, searchCriteria);
+
+          const contact: B2BContact = {
+            id: `webhook_${Date.now()}_${contactIndex}`,
+            name: '', // Nom du contact vide par défaut
+            companyName: companyName,
+            jobTitle: '', // Poste vide par défaut
+            location: address || 'Localisation non précisée',
+            linkedinUrl: website || '',
+            email: '', // Email vide par défaut
+            phone: phone || '',
+            industry: category || 'Non spécifié',
+            companySize: '', // Taille d'entreprise vide par défaut
+            coordinates: coordinates
+          };
+
+          contacts.push(contact);
+          contactIndex++;
+          totalMatches++;
+        }
         
-        // Pas de génération d'emails fictifs
-        let email = '';
-
-        const coordinates = getCoordinatesFromLocation(address, searchCriteria);
-
-        const contact: B2BContact = {
-          id: `webhook_${contactIndex}`,
-          name: '',
-          companyName: companyName,
-          jobTitle: '',
-          location: address,
-          linkedinUrl: website || '',
-          email: email,
-          phone: phone,
-          industry: category || '',
-          companySize: '',
-          coordinates: coordinates
-        };
-
-        contacts.push(contact);
-        contactIndex++;
+        // Si on trouve des résultats avec ce pattern, on arrête d'essayer les autres
+        if (totalMatches > 0) {
+          break;
+        }
       }
 
       console.log(`Total webhook contacts extracted: ${contacts.length}`);
       
-      // Retourner uniquement les résultats webhook - pas de fallback sur les données mock
-      return contacts;
+      // Validation finale
+      const validContacts = contacts.filter(contact => 
+        contact.companyName && 
+        contact.companyName.trim().length > 0 &&
+        contact.companyName !== 'Non spécifié'
+      );
+      
+      console.log(`Valid contacts after filtering: ${validContacts.length}`);
+      return validContacts;
       
     } catch (error) {
       console.error('Error parsing webhook response:', error);
-      // Retourner un tableau vide en cas d'erreur de parsing
+      console.error('Response text sample:', responseText.substring(0, 500));
       return [];
     }
   };
@@ -444,7 +540,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
     } else if (stepIndex === 2 && searchResults.length > 0) {
       setCurrentStep(2);
     } else if (stepIndex === 3 && searchResults.length > 0) {
-      setCurrentStep(3);
+      setCurrentStep(4);
     }
   };
 
@@ -465,7 +561,7 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
   };
 
   const handleViewResults = () => {
-    setCurrentStep(3);
+    setCurrentStep(4);
   };
 
   const handleExport = () => {
