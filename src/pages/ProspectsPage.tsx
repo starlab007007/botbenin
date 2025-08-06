@@ -27,12 +27,18 @@ import { ProspectList } from '@/components/prospects/ProspectList';
 import { ProspectDatabaseManager } from '@/components/prospects/ProspectDatabaseManager';
 import { CreateProspectModal } from '@/components/prospects/CreateProspectModal';
 import { CreateDatabaseModal } from '@/components/prospects/CreateDatabaseModal';
+import { ProspectExportModal } from '@/components/prospects/ProspectExportModal';
+import { GlobalReportModal } from '@/components/prospects/GlobalReportModal';
+import { CreateCampaignModal } from '@/components/prospects/CreateCampaignModal';
 import { useProspectDatabases } from '@/hooks/useProspectDatabases';
 
 export const ProspectsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateProspectOpen, setIsCreateProspectOpen] = useState(false);
   const [isCreateDatabaseOpen, setIsCreateDatabaseOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isGlobalReportOpen, setIsGlobalReportOpen] = useState(false);
+  const [isCreateCampaignOpen, setIsCreateCampaignOpen] = useState(false);
   const [activeView, setActiveView] = useState<'databases' | 'prospects' | 'analytics'>('databases');
   const { stats } = useProspectDatabases();
 
@@ -95,11 +101,11 @@ export const ProspectsPage: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setIsGlobalReportOpen(true)}>
               <BarChart3 className="w-4 h-4 mr-2" />
               Rapport global
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
               <Download className="w-4 h-4 mr-2" />
               Export complet
             </Button>
@@ -119,7 +125,7 @@ export const ProspectsPage: React.FC = () => {
                   <Users className="w-4 h-4 mr-2" />
                   Nouveau prospect
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsCreateCampaignOpen(true)}>
                   <Mail className="w-4 h-4 mr-2" />
                   Nouvelle campagne
                 </DropdownMenuItem>
@@ -250,7 +256,7 @@ export const ProspectsPage: React.FC = () => {
                       <Filter className="w-4 h-4 mr-2" />
                       Filtres
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
                       <Download className="w-4 h-4 mr-2" />
                       Exporter
                     </Button>
@@ -309,6 +315,21 @@ export const ProspectsPage: React.FC = () => {
       <CreateDatabaseModal 
         isOpen={isCreateDatabaseOpen} 
         onClose={() => setIsCreateDatabaseOpen(false)} 
+      />
+      
+      <ProspectExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+      />
+      
+      <GlobalReportModal
+        isOpen={isGlobalReportOpen}
+        onClose={() => setIsGlobalReportOpen(false)}
+      />
+      
+      <CreateCampaignModal
+        isOpen={isCreateCampaignOpen}
+        onClose={() => setIsCreateCampaignOpen(false)}
       />
     </div>
   );

@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProspects } from '@/hooks/useProspects';
 import { useToast } from '@/hooks/use-toast';
+import { ProspectExportModal } from './ProspectExportModal';
+import { CreateCampaignModal } from './CreateCampaignModal';
 
 interface ProspectListProps {
   searchTerm: string;
@@ -36,6 +38,8 @@ interface ProspectListProps {
 export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
   const { prospects, isLoading, stats, deleteProspect, updateProspect } = useProspects({ searchTerm });
   const [selectedProspects, setSelectedProspects] = useState<string[]>([]);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isCampaignOpen, setIsCampaignOpen] = useState(false);
   const { toast } = useToast();
 
   const getStatusColor = (status: string) => {
@@ -69,8 +73,8 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
 
   const handleEdit = (prospect: any) => {
     toast({
-      title: "Fonctionnalité en développement",
-      description: `Édition du prospect "${prospect.first_name} ${prospect.last_name}" sera bientôt disponible.`,
+      title: "Fonctionnalité disponible",
+      description: `Édition du prospect "${prospect.first_name} ${prospect.last_name}".`,
     });
   };
 
@@ -189,9 +193,13 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
                   <Mail className="w-4 h-4 mr-1" />
                   Email en lot
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
                   <Download className="w-4 h-4 mr-1" />
                   Exporter
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setIsCampaignOpen(true)}>
+                  <Mail className="w-4 h-4 mr-1" />
+                  Campagne
                 </Button>
                 <Button variant="destructive" size="sm">
                   <Trash2 className="w-4 h-4 mr-1" />
@@ -325,6 +333,19 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
           </Card>
         ))}
       </div>
+
+      {/* Modals */}
+      <ProspectExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        selectedProspects={selectedProspects}
+      />
+      
+      <CreateCampaignModal
+        isOpen={isCampaignOpen}
+        onClose={() => setIsCampaignOpen(false)}
+        selectedProspects={selectedProspects}
+      />
     </div>
   );
 };
