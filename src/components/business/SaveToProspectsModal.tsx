@@ -6,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Database, Users } from 'lucide-react';
+import { Loader2, Database, Users, Plus } from 'lucide-react';
+import { CreateDatabaseModal } from '../prospects/CreateDatabaseModal';
+import { useProspectDatabases } from '@/hooks/useProspectDatabases';
 
 interface LocalBusiness {
   id: string;
@@ -49,38 +51,24 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
   searchSessionId
 }) => {
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>('');
-  const [databases, setDatabases] = useState<ProspectDatabase[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const { toast } = useToast();
+  const { databases, isLoading, fetchDatabases } = useProspectDatabases();
 
   React.useEffect(() => {
     if (isOpen) {
-      loadDatabases();
+      fetchDatabases();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchDatabases]);
 
-  const loadDatabases = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('prospect_databases')
-        .select('id, name, description')
-        .eq('is_active', true)
-        .order('name');
+  const handleCreateDatabase = () => {
+    setShowCreateModal(true);
+  };
 
-      if (error) throw error;
-      setDatabases(data || []);
-    } catch (error) {
-      console.error('Error loading databases:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les bases de données",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleDatabaseCreated = () => {
+    setShowCreateModal(false);
+    fetchDatabases(); // Rafraîchir la liste
   };
 
   const saveBusinessesToDatabase = async () => {
@@ -178,7 +166,19 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
 
         <div className="space-y-4">
           <div>
-            <Label htmlFor="database">Base de données de destination</Label>
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="database">Base de données de destination</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCreateDatabase}
+                className="flex items-center"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Nouvelle base
+              </Button>
+            </div>
             {isLoading ? (
               <div className="flex items-center space-x-2 p-2 border rounded">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -190,7 +190,7 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
                   <SelectValue placeholder="Sélectionner une base de données" />
                 </SelectTrigger>
                 <SelectContent>
-                  {databases.map((db) => (
+                  {databases.filter(db => db.is_active).map((db) => (
                     <SelectItem key={db.id} value={db.id}>
                       <div className="flex items-center">
                         <Users className="w-4 h-4 mr-2" />
@@ -231,6 +231,12 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
           </div>
         </div>
       </DialogContent>
+      
+      <CreateDatabaseModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={handleDatabaseCreated}
+      />
     </Dialog>
   );
 };

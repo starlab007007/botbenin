@@ -1,11 +1,12 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSocialSharingCampaigns } from "@/hooks/useSocialSharingCampaigns";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Étape unique simplifiée
 const CampaignCreationStep = ({ data, setData, onFinish, isLoading }: any) => (
@@ -49,6 +50,47 @@ export const SocialSharingCampaignWizard: React.FC<{
     customMessage: initialData?.customMessage || ""
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // Charger automatiquement le premier bot disponible si aucun n'est spécifié
+  useEffect(() => {
+    const loadDefaultBot = async () => {
+      if (!data.botId) {
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          if (!userData?.user) return;
+
+          // Récupérer l'ID du bot_owner
+          const { data: botOwnerData } = await supabase
+            .from('bot_owners')
+            .select('id')
+            .eq('user_id', userData.user.id)
+            .maybeSingle();
+
+          if (!botOwnerData) return;
+
+          // Récupérer le premier bot actif de l'utilisateur
+          const { data: botsData } = await supabase
+            .from('bots')
+            .select('id')
+            .eq('owner_id', botOwnerData.id)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+
+          if (botsData?.id) {
+            setData(prev => ({
+              ...prev,
+              botId: botsData.id
+            }));
+          }
+        } catch (error) {
+          console.error('Erreur chargement bot par défaut:', error);
+        }
+      }
+    };
+
+    loadDefaultBot();
+  }, [data.botId]);
 
   const handleFinish = async () => {
     if (!data.name) {

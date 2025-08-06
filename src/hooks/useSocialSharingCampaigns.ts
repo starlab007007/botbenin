@@ -80,34 +80,20 @@ export function useSocialSharingCampaigns() {
         return;
       }
 
-      // Récupérer l'ID du bot_owner
-      const botOwnerId = await getBotOwnerId(userData.user.id);
-      if (!botOwnerId) {
-        setCampaigns([]);
-        setIsLoading(false);
-        return;
-      }
-
-      // Récupérer les campagnes via la relation bot_owners
+      // Récupérer les campagnes directement par owner_id (user_id)
       const { data, error } = await supabase
         .from("social_sharing_campaigns")
-        .select(`
-          *,
-          bots!inner(
-            id,
-            name,
-            owner_id
-          )
-        `)
-        .eq('bots.owner_id', botOwnerId)
+        .select("*")
+        .eq('owner_id', userData.user.id)
         .order("created_at", { ascending: false });
 
       if (error) {
         console.error('Erreur récupération campagnes:', error);
         setError(error);
+        setCampaigns([]);
+      } else {
+        setCampaigns(Array.isArray(data) ? data.map(mapDbRowToCampaign) : []);
       }
-
-      setCampaigns(Array.isArray(data) ? data.map(mapDbRowToCampaign) : []);
     } catch (error) {
       console.error('Erreur inattendue récupération campagnes:', error);
       setError(error);
@@ -158,18 +144,18 @@ export function useSocialSharingCampaigns() {
         return null;
       }
       
-      // Récupérer l'ID du bot_owner pour cet utilisateur
-      const botOwnerId = await getBotOwnerId(userData.user.id);
-      if (!botOwnerId) {
-        setError("Impossible de trouver ou créer votre profil propriétaire de bot.");
-        setIsLoading(false);
-        return null;
-      }
-
       // Valider que le bot_id est fourni et valide
       if (!data.botId || data.botId.trim() === '') {
         const error = "Un bot doit être sélectionné pour créer une campagne.";
         setError(error);
+        setIsLoading(false);
+        return null;
+      }
+
+      // Récupérer l'ID du bot_owner pour cet utilisateur
+      const botOwnerId = await getBotOwnerId(userData.user.id);
+      if (!botOwnerId) {
+        setError("Impossible de trouver ou créer votre profil propriétaire de bot.");
         setIsLoading(false);
         return null;
       }
@@ -190,10 +176,11 @@ export function useSocialSharingCampaigns() {
       }
       
       // Préparer les données avec les IDs corrects
+      // owner_id fait référence à user_id directement, pas bot_owners.id
       const dbInsert = mapCampaignToDbInsert({
         ...data,
         botId: data.botId, // ID du bot validé
-        ownerId: botOwnerId, // ID du bot_owner (pas l'user_id directement)
+        ownerId: userData.user.id, // user_id directement
       });
 
       console.log('Données campagne à insérer:', dbInsert);
