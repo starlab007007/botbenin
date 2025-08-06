@@ -747,7 +747,7 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
             platforms: [qualificationType],
             contacts: getAvailableContacts(),
             qualificationType: qualificationType,
-            botId: selectedBot,
+            botId: typeof selectedBot === 'string' ? selectedBot : selectedBot || '',
             customMessage: customMessage
           }}
         />

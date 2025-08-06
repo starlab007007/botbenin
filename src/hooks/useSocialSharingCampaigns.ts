@@ -70,15 +70,80 @@ export function useSocialSharingCampaigns() {
   async function fetchCampaigns() {
     setIsLoading(true);
     setError(null);
-    const { data, error } = await supabase
-      .from("social_sharing_campaigns")
-      .select("*")
-      .order("created_at", { ascending: false });
+    
+    try {
+      // Récupérer l'utilisateur connecté
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) {
+        setCampaigns([]);
+        setIsLoading(false);
+        return;
+      }
 
-    if (error) setError(error);
+      // Récupérer l'ID du bot_owner
+      const botOwnerId = await getBotOwnerId(userData.user.id);
+      if (!botOwnerId) {
+        setCampaigns([]);
+        setIsLoading(false);
+        return;
+      }
 
-    setCampaigns(Array.isArray(data) ? data.map(mapDbRowToCampaign) : []);
-    setIsLoading(false);
+      // Récupérer les campagnes via la relation bot_owners
+      const { data, error } = await supabase
+        .from("social_sharing_campaigns")
+        .select(`
+          *,
+          bots!inner(
+            id,
+            name,
+            owner_id
+          )
+        `)
+        .eq('bots.owner_id', botOwnerId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error('Erreur récupération campagnes:', error);
+        setError(error);
+      }
+
+      setCampaigns(Array.isArray(data) ? data.map(mapDbRowToCampaign) : []);
+    } catch (error) {
+      console.error('Erreur inattendue récupération campagnes:', error);
+      setError(error);
+      setCampaigns([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Fonction utilitaire pour récupérer ou créer l'ID du bot_owner
+  async function getBotOwnerId(userId: string): Promise<string | null> {
+    // Essayer de récupérer un bot_owner existant
+    let { data } = await supabase
+      .from('bot_owners')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (data?.id) {
+      return data.id;
+    }
+
+    // Si pas trouvé, essayer de créer un bot_owner via la fonction Supabase
+    try {
+      const { data: newOwnerData } = await supabase.rpc('get_or_create_bot_owner', {
+        user_uuid: userId
+      });
+      
+      if (newOwnerData) {
+        return newOwnerData;
+      }
+    } catch (error) {
+      console.error('Erreur création bot_owner:', error);
+    }
+    
+    return null;
   }
 
   async function createCampaign(data: Partial<SocialSharingCampaign> & { botId?: string }) {
@@ -93,11 +158,45 @@ export function useSocialSharingCampaigns() {
         return null;
       }
       
-      // fill required owner_id from current user
+      // Récupérer l'ID du bot_owner pour cet utilisateur
+      const botOwnerId = await getBotOwnerId(userData.user.id);
+      if (!botOwnerId) {
+        setError("Impossible de trouver ou créer votre profil propriétaire de bot.");
+        setIsLoading(false);
+        return null;
+      }
+
+      // Valider que le bot_id est fourni et valide
+      if (!data.botId || data.botId.trim() === '') {
+        const error = "Un bot doit être sélectionné pour créer une campagne.";
+        setError(error);
+        setIsLoading(false);
+        return null;
+      }
+
+      // Vérifier que le bot existe et appartient à l'utilisateur
+      const { data: botData, error: botError } = await supabase
+        .from('bots')
+        .select('id')
+        .eq('id', data.botId)
+        .eq('owner_id', botOwnerId)
+        .maybeSingle();
+
+      if (botError || !botData) {
+        console.error('Bot non trouvé ou non autorisé:', botError);
+        setError("Bot non trouvé ou vous n'êtes pas autorisé à l'utiliser.");
+        setIsLoading(false);
+        return null;
+      }
+      
+      // Préparer les données avec les IDs corrects
       const dbInsert = mapCampaignToDbInsert({
         ...data,
-        ownerId: userData.user.id,
+        botId: data.botId, // ID du bot validé
+        ownerId: botOwnerId, // ID du bot_owner (pas l'user_id directement)
       });
+
+      console.log('Données campagne à insérer:', dbInsert);
 
       const { data: inserted, error: insertError } = await supabase
         .from("social_sharing_campaigns")

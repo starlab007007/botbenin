@@ -55,6 +55,16 @@ export const SocialSharingCampaignWizard: React.FC<{
       toast({ title: "Nom requis", variant: "destructive" });
       return;
     }
+
+    if (!data.botId || data.botId.trim() === '') {
+      toast({ 
+        title: "Bot requis", 
+        description: "Veuillez sélectionner un bot pour cette campagne",
+        variant: "destructive" 
+      });
+      return;
+    }
+
     setIsLoading(true);
     
     try {
@@ -64,7 +74,7 @@ export const SocialSharingCampaignWizard: React.FC<{
         previewImages: [],
         targetPlatforms: data.targetPlatforms,
         customMessage: data.customMessage,
-        botId: data.botId,
+        botId: data.botId, // S'assurer que le botId est fourni
         trackingParameters: {
           contacts_count: data.contacts?.length || 0,
           qualification_type: data.qualificationType,
@@ -75,6 +85,8 @@ export const SocialSharingCampaignWizard: React.FC<{
         }
       };
 
+      console.log('Création campagne avec données:', campaignData);
+      
       const result = await createCampaign(campaignData);
       
       if (result) {
