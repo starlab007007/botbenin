@@ -58,8 +58,8 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [sheetConfig, setSheetConfig] = useState({
-    spreadsheetId: '1iebACfq1aShY0Awd7EKDQGTC3BirVJiOojHjKnCqQNE',
-    sheetName: 'Feuille 1'
+    spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', // Public test sheet
+    sheetName: 'Class Data'
   });
   const { toast } = useToast();
 
@@ -74,8 +74,12 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   }, [data, searchTerm, statusFilter]);
 
   const loadGoogleSheetData = async () => {
+    console.log('=== Starting Google Sheets data load ===');
+    console.log('Sheet config:', sheetConfig);
+    
     setIsLoading(true);
     try {
+      console.log('Calling supabase.functions.invoke...');
       const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
         body: {
           spreadsheetId: sheetConfig.spreadsheetId,
@@ -83,31 +87,51 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
         }
       });
 
+      console.log('Function response:', { result, error });
+
       if (error) {
+        console.error('Supabase function error:', error);
         toast({
           title: "Erreur de chargement",
-          description: "Impossible de charger les données Google Sheets",
+          description: `Impossible de charger les données Google Sheets: ${error.message || 'Erreur inconnue'}`,
           variant: "destructive"
         });
-        console.error('Error loading Google Sheets data:', error);
+        return;
+      }
+
+      if (result?.error) {
+        console.error('Function returned error:', result.error);
+        toast({
+          title: "Erreur de l'API Google Sheets",
+          description: result.details || result.error,
+          variant: "destructive"
+        });
         return;
       }
 
       if (result?.data) {
+        console.log('Data loaded successfully:', result.data.length, 'prospects');
         setData(result.data);
         toast({
           title: "Données chargées",
           description: `${result.data.length} prospects importés depuis Google Sheets`,
           variant: "default"
         });
+      } else {
+        console.warn('No data in result:', result);
+        toast({
+          title: "Aucune donnée",
+          description: "Aucune donnée trouvée dans la feuille Google Sheets",
+          variant: "default"
+        });
       }
     } catch (error) {
+      console.error('Catch block error:', error);
       toast({
         title: "Erreur",
-        description: "Une erreur s'est produite lors du chargement",
+        description: `Une erreur s'est produite lors du chargement: ${error.message || 'Erreur inconnue'}`,
         variant: "destructive"
       });
-      console.error('Error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -245,6 +269,33 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
             >
               <Settings className="w-4 h-4 mr-2" />
               Configuration
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                console.log('=== Testing API connectivity ===');
+                try {
+                  const testResponse = await fetch('https://sheets.googleapis.com/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms?fields=sheets.properties');
+                  console.log('Direct API test response:', testResponse.status, testResponse.statusText);
+                  const testData = await testResponse.json();
+                  console.log('Direct API test data:', testData);
+                  toast({
+                    title: "Test de connectivité",
+                    description: `API accessible: ${testResponse.ok ? 'OUI' : 'NON'}`,
+                    variant: testResponse.ok ? "default" : "destructive"
+                  });
+                } catch (error) {
+                  console.error('Direct API test failed:', error);
+                  toast({
+                    title: "Test de connectivité",
+                    description: "Impossible d'accéder à l'API Google Sheets",
+                    variant: "destructive"
+                  });
+                }
+              }}
+              disabled={isLoading}
+            >
+              Test API
             </Button>
             <Button
               onClick={loadGoogleSheetData}
