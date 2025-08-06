@@ -31,7 +31,10 @@ export const SocialSharingCampaignsList: React.FC = () => {
       {showWizard && (
         <SocialSharingCampaignWizard
           onClose={() => setShowWizard(false)}
-          afterCreate={() => setShowWizard(false)}
+          afterCreate={() => {
+            fetchCampaigns();
+            setShowWizard(false);
+          }}
         />
       )}
       
