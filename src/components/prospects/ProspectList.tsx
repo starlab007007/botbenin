@@ -34,6 +34,9 @@ import { CreateCampaignModal } from './CreateCampaignModal';
 import { EditProspectModal } from './EditProspectModal';
 import { ProspectDetailsModal } from './ProspectDetailsModal';
 import { ProspectActionsPanel } from './ProspectActionsPanel';
+import { ProspectTopActions } from './ProspectTopActions';
+import { ProspectActionsModal } from './ProspectActionsModal';
+import { ProspectStatsCards } from './ProspectStatsCards';
 
 interface ProspectListProps {
   searchTerm: string;
@@ -77,6 +80,8 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
 
   const [editingProspect, setEditingProspect] = useState<any>(null);
   const [viewingProspect, setViewingProspect] = useState<any>(null);
+  const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
+  const [activeView, setActiveView] = useState('list');
 
   const handleEdit = (prospect: any) => {
     setEditingProspect(prospect);
@@ -153,47 +158,32 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
 
   return (
     <div className="space-y-6">
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.totalProspects}</div>
-            <div className="text-sm text-muted-foreground">Total</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.newProspects}</div>
-            <div className="text-sm text-muted-foreground">Nouveaux</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{stats.contactedProspects}</div>
-            <div className="text-sm text-muted-foreground">Contactés</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">{stats.qualifiedProspects}</div>
-            <div className="text-sm text-muted-foreground">Qualifiés</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-700">{stats.convertedProspects}</div>
-            <div className="text-sm text-muted-foreground">Convertis</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Barre d'actions principale */}
+      <ProspectTopActions
+        activeView={activeView}
+        onViewChange={setActiveView}
+        onCampaignOpen={() => setIsCampaignOpen(true)}
+        onExportOpen={() => setIsExportOpen(true)}
+        onActionsOpen={() => setIsActionsModalOpen(true)}
+        onCreateProspect={() => {
+          toast({
+            title: "Créer un prospect",
+            description: "Fonctionnalité de création disponible dans la page principale.",
+          });
+        }}
+        searchTerm={searchTerm}
+      />
 
-      {/* Panel d'actions */}
+      {/* Panel d'actions pour sélection */}
       <ProspectActionsPanel
         selectedProspects={selectedProspects}
         onExport={() => setIsExportOpen(true)}
         onCreateCampaign={() => setIsCampaignOpen(true)}
         onClearSelection={() => setSelectedProspects([])}
       />
+
+      {/* Statistiques visuelles */}
+      <ProspectStatsCards stats={stats} />
 
       {/* Liste des prospects */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -361,6 +351,12 @@ export const ProspectList: React.FC<ProspectListProps> = ({ searchTerm }) => {
             setViewingProspect(null);
           }
         }}
+      />
+      
+      <ProspectActionsModal
+        isOpen={isActionsModalOpen}
+        onClose={() => setIsActionsModalOpen(false)}
+        selectedProspects={selectedProspects}
       />
     </div>
   );

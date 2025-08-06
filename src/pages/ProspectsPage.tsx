@@ -9,18 +9,16 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { 
   Database, 
   Users, 
-  Search, 
-  Filter, 
-  Download, 
   Plus, 
-  Import,
-  MoreVertical,
   BarChart3,
   Target,
-  Calendar,
   TrendingUp,
   Activity,
   Mail,
+  Search,
+  Filter,
+  Download,
+  Import,
   Phone
 } from 'lucide-react';
 import { ProspectList } from '@/components/prospects/ProspectList';
@@ -242,8 +240,8 @@ export const ProspectsPage: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="prospects" className="space-y-6">
-          <div className="space-y-6">
-            {/* Barre de recherche pour les prospects */}
+          <div className="space-y-4">
+            {/* Barre de recherche intégrée */}
             <Card>
               <CardContent className="p-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
