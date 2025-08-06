@@ -2,122 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useQualificationCampaigns } from '@/hooks/useQualificationCampaigns';
 import { 
   ArrowLeft,
-  FileSpreadsheet,
   Download,
   Eye,
-  Filter,
   Search,
   BarChart3,
   Users,
   TrendingUp,
-  Clock,
   Star,
-  Calendar,
   CheckCircle,
   XCircle,
   AlertTriangle
 } from 'lucide-react';
-
-interface QualificationResult {
-  id: string;
-  campaignName: string;
-  contactName: string;
-  companyName: string;
-  email: string;
-  phone: string;
-  channel: 'whatsapp' | 'sms' | 'email';
-  status: 'completed' | 'partial' | 'no-response';
-  score: number;
-  responses: {
-    question: string;
-    answer: string;
-    score?: number;
-  }[];
-  createdAt: string;
-  completedAt?: string;
-  botUsed: string;
-}
 
 interface LeadQualificationResultsProps {
   onBack: () => void;
 }
 
 export const LeadQualificationResults: React.FC<LeadQualificationResultsProps> = ({ onBack }) => {
-  const { results, exportResults } = useQualificationCampaigns();
-  const [filteredResults, setFilteredResults] = useState<QualificationResult[]>([]);
+  const { results, exportResults: exportCampaignResults } = useQualificationCampaigns();
+  const [filteredResults, setFilteredResults] = useState(results);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [channelFilter, setChannelFilter] = useState<string>('all');
-  const [selectedResult, setSelectedResult] = useState<QualificationResult | null>(null);
+  const [selectedResult, setSelectedResult] = useState<any>(null);
   const { toast } = useToast();
-
-  // Données d'exemple
-  useEffect(() => {
-    const mockResults: QualificationResult[] = [
-      {
-        id: '1',
-        campaignName: 'Qualification Entreprises Tech',
-        contactName: 'Marie Dubois',
-        companyName: 'TechnoSoft SARL',
-        email: 'marie.dubois@technosoft.fr',
-        phone: '+33123456789',
-        channel: 'whatsapp',
-        status: 'completed',
-        score: 8.5,
-        responses: [
-          { question: 'Quel est votre budget annuel pour ce type de solution ?', answer: '15-25K€', score: 9 },
-          { question: 'Dans quel délai souhaitez-vous implémenter la solution ?', answer: '3-6 mois', score: 8 },
-          { question: 'Qui prend la décision finale ?', answer: 'Je suis décisionnaire', score: 10 },
-          { question: 'Avez-vous déjà une solution en place ?', answer: 'Solution obsolète', score: 7 }
-        ],
-        createdAt: '2024-01-15T10:30:00Z',
-        completedAt: '2024-01-15T11:45:00Z',
-        botUsed: 'Bot Qualification B2B Pro'
-      },
-      {
-        id: '2',
-        campaignName: 'Prospection PME Normandie',
-        contactName: 'Jean Martin',
-        companyName: 'Martin & Associés',
-        email: 'j.martin@martin-associes.fr',
-        phone: '+33234567890',
-        channel: 'email',
-        status: 'partial',
-        score: 5.2,
-        responses: [
-          { question: 'Quel est votre budget annuel pour ce type de solution ?', answer: '5-10K€', score: 6 },
-          { question: 'Dans quel délai souhaitez-vous implémenter la solution ?', answer: 'Pas défini', score: 4 },
-          { question: 'Qui prend la décision finale ?', answer: 'Non répondu', score: 0 }
-        ],
-        createdAt: '2024-01-14T14:20:00Z',
-        botUsed: 'Bot Qualification Standard'
-      },
-      {
-        id: '3',
-        campaignName: 'Qualification Startups Paris',
-        contactName: 'Sophie Chen',
-        companyName: 'InnovateLab',
-        email: 'sophie@innovatelab.fr',
-        phone: '+33345678901',
-        channel: 'sms',
-        status: 'no-response',
-        score: 0,
-        responses: [],
-        createdAt: '2024-01-13T09:15:00Z',
-        botUsed: 'Bot Qualification Startup'
-      }
-    ];
-    
-    setResults(mockResults);
-    setFilteredResults(mockResults);
-  }, []);
 
   // Filtrer les résultats
   useEffect(() => {
@@ -165,14 +79,11 @@ export const LeadQualificationResults: React.FC<LeadQualificationResultsProps> =
     return <Badge className={config.className}>{config.label}</Badge>;
   };
 
-  const exportResults = () => {
-    toast({
-      title: "Export en cours",
-      description: "Les résultats sont en cours d'export au format Excel...",
-    });
+  const handleExportResults = () => {
+    exportCampaignResults();
   };
 
-  const openDetailedView = (result: QualificationResult) => {
+  const openDetailedView = (result: any) => {
     setSelectedResult(result);
   };
 
@@ -232,9 +143,9 @@ export const LeadQualificationResults: React.FC<LeadQualificationResultsProps> =
               {/* Réponses */}
               <div>
                 <h4 className="font-semibold mb-4">Réponses aux Questions de Qualification</h4>
-                {selectedResult.responses.length > 0 ? (
+                {selectedResult.responses && selectedResult.responses.length > 0 ? (
                   <div className="space-y-4">
-                    {selectedResult.responses.map((response, index) => (
+                    {selectedResult.responses.map((response: any, index: number) => (
                       <Card key={index} className="p-4">
                         <div className="space-y-2">
                           <p className="font-medium text-gray-900">{response.question}</p>
@@ -271,7 +182,7 @@ export const LeadQualificationResults: React.FC<LeadQualificationResultsProps> =
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retour au menu
           </Button>
-          <Button onClick={exportResults} className="flex items-center space-x-2">
+          <Button onClick={handleExportResults} className="flex items-center space-x-2">
             <Download className="w-4 h-4" />
             <span>Exporter Excel</span>
           </Button>
