@@ -308,23 +308,60 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
     return `Je recherche des entreprises via Google Maps avec les critères suivants: ${searchTerms.join(', ')}. Utilisez des termes génériques pour obtenir plus de résultats sur Google Maps et donnez-moi les informations complètes (nom, adresse, téléphone, site web, catégorie) ?`;
   };
 
+  const buildWebhookPayload = (criteria: SearchCriteria) => {
+    return {
+      // Message de recherche principal
+      message: buildSearchMessage(criteria),
+      
+      // Données enrichies pour le webhook
+      searchData: {
+        // Recherche Avancée & IA
+        advancedAiSearch: {
+          enabled: criteria.aiSuggestions,
+          qualityScore: criteria.qualityScore,
+          prioritizeLocal: criteria.prioritizeLocal
+        },
+        
+        // Mots-clés stratégiques
+        strategicKeywords: criteria.keywords,
+        
+        // Description libre de la recherche
+        freeTextDescription: criteria.description,
+        
+        // Critères de recherche détaillés
+        searchCriteria: {
+          location: criteria.location,
+          coordinates: criteria.locationCoordinates,
+          radius: criteria.radius,
+          useGPS: criteria.useGPS,
+          companyName: criteria.companyName,
+          industry: criteria.industry,
+          companySize: criteria.companySize,
+          jobTitle: criteria.jobTitle,
+          seniority: criteria.seniority,
+          department: criteria.department
+        }
+      },
+      
+      // Métadonnées de session
+      timestamp: new Date().toISOString(),
+      session_id: `b2b_workflow_${Date.now()}`,
+      user_id: 'b2b_user',
+      source: 'bot_bj_platform',
+      context: 'complete_b2b_workflow'
+    };
+  };
+
   const executeSearch = async (criteria: SearchCriteria) => {
     setIsSearching(true);
     setSearchError(null);
     setCurrentStep(1);
 
-    const searchMessage = buildSearchMessage(criteria);
-    console.log('Executing search with message:', searchMessage);
+    console.log('Executing search with enhanced criteria:', criteria);
 
     try {
-      const requestPayload = {
-        message: searchMessage,
-        timestamp: new Date().toISOString(),
-        session_id: `b2b_workflow_${Date.now()}`,
-        user_id: 'b2b_user',
-        source: 'bot_bj_platform',
-        context: 'complete_b2b_workflow'
-      };
+      const requestPayload = buildWebhookPayload(criteria);
+      console.log('Sending enhanced webhook payload:', requestPayload);
 
       const response = await fetch('https://ia.bot.bj/webhook/lead', {
         method: 'POST',
@@ -370,11 +407,13 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
           description: `${extractedContacts.length} contacts trouvés via webhook`,
         });
       } else {
+        // Même sans résultats, passer à l'étape suivante pour afficher les options
         setSearchResults([]);
         setSearchError("Aucun contact trouvé dans la réponse webhook");
+        setCurrentStep(2);
         toast({
           title: "Aucun résultat",
-          description: "La recherche n'a retourné aucun contact",
+          description: "La recherche n'a retourné aucun contact. Vous pouvez modifier vos critères.",
           variant: "destructive",
         });
       }
@@ -383,10 +422,11 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
       console.error('Search error:', error);
       setSearchError(error instanceof Error ? error.message : 'Erreur inconnue');
       setSearchResults([]);
+      setCurrentStep(2); // Aller à l'étape des résultats même en cas d'erreur
       
       toast({
         title: "Erreur de recherche",
-        description: "Impossible de se connecter au service de recherche",
+        description: "Impossible de se connecter au service de recherche. Vous pouvez réessayer.",
         variant: "destructive",
       });
     } finally {
@@ -397,6 +437,36 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
   const handleCriteriaSubmit = (criteria: SearchCriteria) => {
     setSearchCriteria(criteria);
     executeSearch(criteria);
+  };
+
+  const handleStepNavigation = (stepIndex: number) => {
+    if (stepIndex === 0) {
+      setCurrentStep(0);
+      setSearchError(null);
+    } else if (stepIndex === 1 && searchCriteria) {
+      // Relancer la recherche
+      executeSearch(searchCriteria);
+    } else if (stepIndex === 2 && searchResults.length > 0) {
+      setCurrentStep(2);
+    } else if (stepIndex === 3 && searchResults.length > 0) {
+      setCurrentStep(3);
+    }
+  };
+
+  const handleReturnToModules = () => {
+    if (window.confirm('Êtes-vous sûr de vouloir retourner aux modules ? Vos résultats actuels seront perdus.')) {
+      onBack();
+    }
+  };
+
+  const handleResetSearch = () => {
+    if (window.confirm('Êtes-vous sûr de vouloir réinitialiser la recherche ?')) {
+      setCurrentStep(0);
+      setSearchCriteria(null);
+      setSearchResults([]);
+      setSearchError(null);
+      setIsSearching(false);
+    }
   };
 
   const handleViewResults = () => {
@@ -462,11 +532,11 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
           <div className="flex items-center">
             <Button
               variant="ghost"
-              onClick={onBack}
+              onClick={handleReturnToModules}
               className="mr-4 hover:bg-white/50"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour
+              Retour aux modules
             </Button>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -477,9 +547,19 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-yellow-500" />
-            <span className="text-sm text-gray-600">IA Intégrée</span>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={handleResetSearch}
+              size="sm"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+            >
+              Réinitialiser
+            </Button>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-yellow-500" />
+              <span className="text-sm text-gray-600">IA Intégrée</span>
+            </div>
           </div>
         </div>
 
@@ -496,22 +576,23 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
               {workflowSteps.map((step, index) => (
                 <div
                   key={step.id}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-4 rounded-lg border-2 transition-all cursor-pointer hover:shadow-md ${
                     step.status === 'active' 
                       ? 'border-blue-500 bg-blue-50' 
                       : step.status === 'completed'
-                      ? 'border-green-500 bg-green-50'
+                      ? 'border-green-500 bg-green-50 hover:bg-green-100'
                       : step.status === 'error'
                       ? 'border-red-500 bg-red-50'
                       : 'border-gray-200 bg-gray-50'
                   }`}
+                  onClick={() => handleStepNavigation(index)}
                 >
                   <div className="flex items-center gap-3 mb-2">
                     {getStepStatusIcon(step)}
                     <span className="font-medium">{step.title}</span>
                   </div>
                   <p className="text-sm text-gray-600">{step.description}</p>
-                  <div className="mt-2">
+                  <div className="mt-2 flex items-center justify-between">
                     <Badge 
                       variant={step.status === 'completed' ? 'default' : 'secondary'}
                       className="text-xs"
@@ -520,6 +601,9 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
                        step.status === 'active' ? 'En cours' : 
                        step.status === 'error' ? 'Erreur' : 'En attente'}
                     </Badge>
+                    {step.status === 'completed' && (
+                      <span className="text-xs text-blue-600 font-medium">Cliquer pour revoir</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -596,11 +680,54 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
               </CardHeader>
               <CardContent>
                 {searchError && (
-                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                      <AlertCircle className="w-4 h-4 inline mr-1" />
-                      {searchError} - Affichage des données de démonstration
-                    </p>
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-red-800 mb-1">Erreur de recherche</h4>
+                        <p className="text-sm text-red-700 mb-3">{searchError}</p>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => searchCriteria && executeSearch(searchCriteria)}
+                            className="text-red-700 border-red-300 hover:bg-red-100"
+                          >
+                            Réessayer
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setCurrentStep(0)}
+                            className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                          >
+                            Modifier critères
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {searchResults.length === 0 && !searchError && currentStep >= 2 && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-blue-800 mb-1">Aucun résultat trouvé</h4>
+                        <p className="text-sm text-blue-700 mb-3">Votre recherche n'a retourné aucun contact. Essayez d'élargir vos critères.</p>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setCurrentStep(0)}
+                            className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                          >
+                            Modifier la recherche
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 
