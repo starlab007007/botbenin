@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,15 +46,6 @@ const handler = async (req: Request): Promise<Response> => {
       timestamp: new Date().toISOString()
     });
 
-    // Configuration SMTP Gmail pour bot.bjdata@gmail.com
-    const smtpConfig = {
-      hostname: 'smtp.gmail.com',
-      port: 587,
-      username: 'bot.bjdata@gmail.com',
-      password: Deno.env.get('GMAIL_APP_PASSWORD'), // mot de passe d'application Gmail
-      tls: true
-    };
-
     // Construction du message email HTML
     const htmlMessage = `
 <!DOCTYPE html>
@@ -92,30 +84,28 @@ const handler = async (req: Request): Promise<Response> => {
 </body>
 </html>`;
 
-    // Envoi via l'API de messagerie (simulation pour cette démo)
-    // Dans un vrai environnement, utiliser nodemailer ou service SMTP
-    const emailResult = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        service_id: 'gmail',
-        template_id: 'qualification_template',
-        user_id: Deno.env.get('EMAILJS_USER_ID'),
-        template_params: {
-          to_email: to,
-          from_name: senderInfo,
-          from_email: 'bot.bjdata@gmail.com',
-          subject: subject,
-          message: message,
-          bot_link: botLink,
-          contact_name: contactName,
-          company_name: companyName,
-          html_message: htmlMessage
-        }
-      })
+    // Configuration SMTP Gmail
+    const client = new SmtpClient();
+    
+    await client.connectTLS({
+      hostname: "smtp.gmail.com",
+      port: 587,
+      username: "bot.bjdata@gmail.com",
+      password: Deno.env.get('GMAIL_APP_PASSWORD') ?? '',
     });
+
+    // Envoi de l'email via SMTP
+    const emailResult = await client.send({
+      from: "bot.bjdata@gmail.com",
+      to: to,
+      subject: subject,
+      content: htmlMessage,
+      html: htmlMessage,
+    });
+
+    await client.close();
+
+    console.log('Email envoyé avec succès:', emailResult);
 
     // Logging de l'activité
     const { error: logError } = await supabase
@@ -129,15 +119,12 @@ const handler = async (req: Request): Promise<Response> => {
         company_name: companyName,
         sender_info: senderInfo,
         sent_at: new Date().toISOString(),
-        status: emailResult.ok ? 'sent' : 'failed'
+        status: 'sent'
       });
 
     if (logError) {
       console.error('Erreur logging email:', logError);
-    }
-
-    if (!emailResult.ok) {
-      throw new Error(`Erreur envoi email: ${emailResult.statusText}`);
+      // Ne pas bloquer l'envoi même si le logging échoue
     }
 
     return new Response(
