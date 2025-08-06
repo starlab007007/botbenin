@@ -305,13 +305,14 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Entreprise</TableHead>
-                  <TableHead>Poste</TableHead>
-                  <TableHead>Localisation</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>Nom entreprise</TableHead>
+                  <TableHead>Secteur</TableHead>
+                  <TableHead>Ville</TableHead>
                   <TableHead>Téléphone</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Adresse</TableHead>
+                  <TableHead>lien Google Maps</TableHead>
+                  <TableHead>Site web / Facebook</TableHead>
+                  <TableHead>Instagram</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -327,30 +328,15 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       />
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <p className="font-medium">{contact.name}</p>
-                        <p className="text-sm text-gray-600">{contact.industry}</p>
-                      </div>
+                      <p className="font-medium">{contact.companyName}</p>
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <p className="font-medium">{contact.companyName}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {contact.companySize}
-                        </Badge>
-                      </div>
+                      <p className="text-sm">{contact.industry}</p>
                     </TableCell>
-                    <TableCell>{contact.jobTitle}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {contact.location}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Mail className="w-3 h-3" />
-                        {contact.email}
+                        {contact.location.split(',')[0]}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -360,11 +346,31 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       </div>
                     </TableCell>
                     <TableCell>
+                      <p className="text-sm">{contact.location}</p>
+                    </TableCell>
+                    <TableCell>
                       <Button size="sm" variant="outline" asChild>
-                        <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer">
-                          <Globe className="w-3 h-3" />
+                        <a 
+                          href={`https://maps.google.com/?q=${encodeURIComponent(contact.location)}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600"
+                        >
+                          <MapPin className="w-3 h-3 mr-1" />
+                          Maps
                         </a>
                       </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer">
+                          <Globe className="w-3 h-3 mr-1" />
+                          LinkedIn
+                        </a>
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-gray-500">-</span>
                     </TableCell>
                   </TableRow>
                 ))}
