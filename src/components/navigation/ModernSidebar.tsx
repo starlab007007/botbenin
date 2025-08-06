@@ -101,27 +101,6 @@ const aiModules = [
     color: 'from-blue-600 to-blue-700',
     description: 'Solutions B2B'
   },
-  { 
-    title: 'IA Marketing', 
-    path: '/modules/marketing', 
-    icon: Megaphone, 
-    color: 'from-pink-500 to-pink-600',
-    description: 'Campagnes & Lead'
-  },
-  { 
-    title: 'IA Gestion', 
-    path: '/modules/gestion', 
-    icon: FolderOpen, 
-    color: 'from-indigo-500 to-indigo-600',
-    description: 'Organisation'
-  },
-  { 
-    title: 'IA Citoyen', 
-    path: '/modules/citoyen', 
-    icon: Building, 
-    color: 'from-teal-500 to-teal-600',
-    description: 'Services publics'
-  },
 ];
 
 const bottomItems = [
