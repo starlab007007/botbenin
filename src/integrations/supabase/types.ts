@@ -2387,6 +2387,51 @@ export type Database = {
           },
         ]
       }
+      qualification_emails: {
+        Row: {
+          bot_link: string
+          company_name: string | null
+          contact_name: string | null
+          created_at: string
+          id: string
+          message: string
+          recipient_email: string
+          sender_info: string | null
+          sent_at: string
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          bot_link: string
+          company_name?: string | null
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          recipient_email: string
+          sender_info?: string | null
+          sent_at?: string
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          bot_link?: string
+          company_name?: string | null
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          recipient_email?: string
+          sender_info?: string | null
+          sent_at?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
           id: string
