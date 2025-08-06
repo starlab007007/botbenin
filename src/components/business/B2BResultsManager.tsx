@@ -307,7 +307,6 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                   </TableHead>
                   <TableHead>Nom entreprise</TableHead>
                   <TableHead>Secteur</TableHead>
-                  <TableHead>Ville</TableHead>
                   <TableHead>Téléphone</TableHead>
                   <TableHead>Adresse</TableHead>
                   <TableHead>lien Google Maps</TableHead>
@@ -334,15 +333,9 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       <p className="text-sm">{contact.industry}</p>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        {contact.location.split(',')[0]}
-                      </div>
-                    </TableCell>
-                    <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Phone className="w-3 h-3" />
-                        {contact.phone}
+                        {contact.phone || ''}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -362,12 +355,16 @@ export const B2BResultsManager: React.FC<B2BResultsManagerProps> = ({
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="outline" asChild>
-                        <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer">
-                          <Globe className="w-3 h-3 mr-1" />
-                          LinkedIn
-                        </a>
-                      </Button>
+                      {contact.linkedinUrl && contact.linkedinUrl.trim() !== '' && !contact.linkedinUrl.includes('linkedin.com/in/') ? (
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer">
+                            <Globe className="w-3 h-3 mr-1" />
+                            Site web
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-gray-500">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-gray-500">-</span>

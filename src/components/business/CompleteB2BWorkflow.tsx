@@ -179,31 +179,25 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
         const website = websiteMatch ? websiteMatch[1].trim() : '';
         const category = categoryMatch ? categoryMatch[1].trim() : '';
 
-        const firstName = ['Marie', 'Pierre', 'Sophie', 'Laurent', 'Camille', 'Jean', 'Fatou', 'Moussa', 'Aïsha', 'Ibrahim'][contactIndex % 10];
-        const lastName = ['Dubois', 'Martin', 'Laurent', 'Moreau', 'Bertrand', 'Diallo', 'Traoré', 'Kone', 'Coulibaly', 'Ouedraogo'][contactIndex % 10];
-        const fullName = `${firstName} ${lastName}`;
+        // Pas de génération de noms fictifs
+        const fullName = '';
         
+        // Pas de génération d'emails fictifs
         let email = '';
-        if (website) {
-          const domain = website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-          email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`;
-        } else {
-          email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${companyName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`;
-        }
 
         const coordinates = getCoordinatesFromLocation(address, searchCriteria);
 
         const contact: B2BContact = {
           id: `webhook_${contactIndex}`,
-          name: fullName,
+          name: '',
           companyName: companyName,
-          jobTitle: category === 'Ingénieur civil' ? 'Directeur Technique' : 'Manager',
+          jobTitle: '',
           location: address,
-          linkedinUrl: `https://linkedin.com/in/${firstName.toLowerCase()}${lastName.toLowerCase()}`,
+          linkedinUrl: website || '',
           email: email,
           phone: phone,
-          industry: category || 'Technology',
-          companySize: '10-50',
+          industry: category || '',
+          companySize: '',
           coordinates: coordinates
         };
 
@@ -408,15 +402,13 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
           description: `${extractedContacts.length} contacts trouvés via webhook`,
         });
       } else {
-        // En cas d'échec, utiliser des données de test temporaires pour debugging
-        console.log('No webhook results, using test data for debugging');
-        const testContacts = getMockContacts();
-        setSearchResults(testContacts);
-        setSearchError("Test data loaded - webhook parsing failed");
+        // Aucun résultat trouvé
+        setSearchResults([]);
+        setSearchError("Aucun contact trouvé dans la réponse webhook");
         setCurrentStep(2);
         toast({
-          title: "Mode test activé",
-          description: `${testContacts.length} contacts de test chargés pour débugger l'affichage`,
+          title: "Aucun résultat",
+          description: "La recherche n'a retourné aucun contact. Vous pouvez modifier vos critères.",
           variant: "destructive",
         });
       }
@@ -754,23 +746,6 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
               </CardContent>
             </Card>
 
-            {/* Debug Information */}
-            {currentStep >= 2 && (
-              <Card className="mb-4 border-yellow-200 bg-yellow-50">
-                <CardHeader>
-                  <CardTitle className="text-sm text-yellow-800">Debug Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-yellow-700">
-                    Current Step: {currentStep}, Search Results Length: {searchResults.length}, 
-                    Search Error: {searchError ? 'Yes' : 'No'}
-                  </p>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Search Results Data: {JSON.stringify(searchResults, null, 2)}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Advanced Results Management */}
             {currentStep >= 2 && (
