@@ -161,15 +161,16 @@ export function useSocialSharingCampaigns() {
       }
 
       // Vérifier que le bot existe et appartient à l'utilisateur
+      // Les bots utilisent bot_owners.id, donc on doit vérifier avec botOwnerId
       const { data: botData, error: botError } = await supabase
         .from('bots')
-        .select('id')
+        .select('id, owner_id')
         .eq('id', data.botId)
         .eq('owner_id', botOwnerId)
         .maybeSingle();
 
       if (botError || !botData) {
-        console.error('Bot non trouvé ou non autorisé:', botError);
+        console.error('Bot non trouvé ou non autorisé:', botError, 'botId:', data.botId, 'expectedOwnerId:', botOwnerId);
         setError("Bot non trouvé ou vous n'êtes pas autorisé à l'utiliser.");
         setIsLoading(false);
         return null;
@@ -184,6 +185,9 @@ export function useSocialSharingCampaigns() {
       });
 
       console.log('Données campagne à insérer:', dbInsert);
+      console.log('Bot validé:', botData);
+      console.log('Utilisateur:', userData.user.id);
+      console.log('Bot Owner ID:', botOwnerId);
 
       const { data: inserted, error: insertError } = await supabase
         .from("social_sharing_campaigns")
@@ -192,8 +196,14 @@ export function useSocialSharingCampaigns() {
         .maybeSingle();
 
       if (insertError) {
-        console.error('Erreur création campagne:', insertError);
-        setError(insertError);
+        console.error('Erreur création campagne complète:', insertError);
+        console.error('Détails de l\'erreur:', {
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          code: insertError.code
+        });
+        setError(`Erreur de création: ${insertError.message}`);
         setIsLoading(false);
         return null;
       }
