@@ -723,6 +723,7 @@ export const EnhancedLeadQualificationModal: React.FC<EnhancedLeadQualificationM
           onClose={() => setShowWhatsAppManager(false)}
           contacts={getAvailableContacts()}
           message={customMessage}
+          selectedBot={getSelectedBot()}
           onFinalizeCampaign={handleCampaignFinalization}
         />
       )}

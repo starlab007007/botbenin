@@ -39,6 +39,11 @@ interface WhatsAppShareManagerProps {
   onClose: () => void;
   contacts: Contact[];
   message: string;
+  selectedBot?: {
+    id: string;
+    name: string;
+    public_chat_url: string;
+  };
   onFinalizeCampaign: (summary: CampaignSummary) => void;
 }
 
@@ -63,6 +68,7 @@ export const WhatsAppShareManager: React.FC<WhatsAppShareManagerProps> = ({
   onClose,
   contacts,
   message,
+  selectedBot,
   onFinalizeCampaign
 }) => {
   const [validatedContacts, setValidatedContacts] = useState<Contact[]>([]);
@@ -119,11 +125,30 @@ export const WhatsAppShareManager: React.FC<WhatsAppShareManagerProps> = ({
     return `https://wa.me/${formattedPhone.replace(/[^\d]/g, '')}?text=${encodedMessage}`;
   };
 
+  const generateBotLink = (contact: Contact) => {
+    if (!selectedBot) return 'Bot non sélectionné';
+
+    const params = new URLSearchParams({
+      utm_source: 'lead_qualification',
+      utm_medium: 'whatsapp',
+      utm_campaign: 'automated_qualification',
+      contact_name: contact.name,
+      company: contact.companyName,
+      industry: contact.industry,
+      lead_id: contact.id
+    });
+
+    return `${selectedBot.public_chat_url}&${params.toString()}`;
+  };
+
   const handleWhatsAppShare = async (contact: Contact) => {
+    const botLink = generateBotLink(contact);
+    
     const personalizedMessage = message
       .replace(/{name}/g, contact.name)
       .replace(/{companyName}/g, contact.companyName)
-      .replace(/{industry}/g, contact.industry);
+      .replace(/{industry}/g, contact.industry)
+      .replace(/{botLink}/g, botLink);
 
     const whatsappLink = generateWhatsAppLink(contact, personalizedMessage);
     
