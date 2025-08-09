@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { useSocialSharingCampaigns } from '@/hooks/useSocialSharingCampaigns';
 import { Loader2, Mail, Users, Target, Sparkles } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface B2BContact {
   id: string;
@@ -99,6 +100,34 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   const { toast } = useToast();
   const { createCampaign } = useSocialSharingCampaigns();
 
+  const [selectedBotId, setSelectedBotId] = useState('');
+  const [botOptions, setBotOptions] = useState<{ id: string; name: string }[]>([]);
+  const [loadingBots, setLoadingBots] = useState(false);
+
+  useEffect(() => {
+    const loadBots = async () => {
+      setLoadingBots(true);
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData?.user) { setBotOptions([]); return; }
+        const { data: owner } = await supabase
+          .from('bot_owners')
+          .select('id')
+          .eq('user_id', userData.user.id)
+          .maybeSingle();
+        if (!owner?.id) { setBotOptions([]); return; }
+        const { data: bots } = await supabase
+          .from('bots')
+          .select('id, name')
+          .eq('owner_id', owner.id)
+          .order('created_at', { ascending: false });
+        setBotOptions((bots || []).map((b: any) => ({ id: b.id, name: b.name })));
+      } finally {
+        setLoadingBots(false);
+      }
+    };
+    loadBots();
+  }, []);
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplate(templateId);
     const template = CAMPAIGN_TEMPLATES.find(t => t.id === templateId);
@@ -127,6 +156,14 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   };
 
   const handleCreateCampaign = async () => {
+    if (!selectedBotId) {
+      toast({
+        title: "Bot requis",
+        description: "Sélectionnez le bot pour cette campagne",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!campaignName.trim()) {
       toast({
         title: "Nom requis",
@@ -158,6 +195,7 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     try {
       // Préparer les données de la campagne
       const campaignData = {
+        botId: selectedBotId,
         name: campaignName,
         customMessage: customMessage,
         isActive: true,
@@ -273,6 +311,20 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Configuration de campagne */}
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="campaignBot">Bot de la campagne</Label>
+                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                  <SelectTrigger id="campaignBot">
+                    <SelectValue placeholder={loadingBots ? 'Chargement des bots...' : 'Sélectionner un bot'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {botOptions.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="campaignName">Nom de la campagne</Label>
                 <Input
