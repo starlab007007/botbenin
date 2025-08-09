@@ -24,7 +24,7 @@ import {
   Monitor
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
-import { cleanPublicUrl } from './botManagementUtils';
+
 
 interface Bot {
   id: string;
@@ -73,7 +73,7 @@ export const BotCard: React.FC<BotCardProps> = ({
   onShareWhatsApp,
   onQRClick
 }) => {
-  const cleanedUrl = cleanPublicUrl(bot.public_chat_url);
+  const standardizedUrl = `https://bot.bj/bot/${bot.id}`;
 
   return (
     <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
@@ -157,7 +157,7 @@ export const BotCard: React.FC<BotCardProps> = ({
         {/* Actions de partage */}
         <div className="grid grid-cols-3 gap-1">
           <Button
-            onClick={() => onCopy(cleanedUrl, `Lien public de ${bot.name}`)}
+            onClick={() => onCopy(standardizedUrl, `Lien public de ${bot.name}`)}
             variant="outline"
             size="sm"
             className="text-gray-600 border-gray-200 hover:bg-gray-50"
@@ -173,7 +173,7 @@ export const BotCard: React.FC<BotCardProps> = ({
             <FaWhatsapp className="w-3 h-3" />
           </Button>
           <Button
-            onClick={() => onQRClick(cleanedUrl, bot.name)}
+            onClick={() => onQRClick(standardizedUrl, bot.name)}
             variant="outline"
             size="sm"
             className="text-purple-600 border-purple-200 hover:bg-purple-50"
@@ -209,7 +209,7 @@ export const BotCard: React.FC<BotCardProps> = ({
 
         {/* Lien public */}
         <div className="text-xs text-gray-500 truncate bg-gray-50 p-2 rounded">
-          {cleanedUrl}
+          {standardizedUrl}
         </div>
       </CardContent>
     </Card>

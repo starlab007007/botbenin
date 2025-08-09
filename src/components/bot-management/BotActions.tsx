@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { initializeVisitorTracking } from '@/utils/visitorTracking';
 import { copyToClipboard } from '@/lib/utils';
-import { cleanPublicUrl } from '../botManagementUtils';
+
 import QRCode from 'qrcode';
 import { FaWhatsapp } from 'react-icons/fa';
 
@@ -59,27 +59,9 @@ export const useBotActions = () => {
 
       await initializeVisitorTracking(bot.id, 'bot_test');
       
-      const chatParams = new URLSearchParams({
-        bot: bot.id,
-        webhook: encodeURIComponent(bot.webhook_url),
-        context: bot.chat_context || 'automation',
-        title: bot.chat_title || bot.name,
-        test: 'true',
-        bot_name: bot.name
-      });
-
-      const chatUrl = `/chat?${chatParams.toString()}`;
-      
-      console.log('URL de chat générée:', chatUrl);
-      console.log('Paramètres transmis:', {
-        botId: bot.id,
-        webhookUrl: bot.webhook_url,
-        chatTitle: bot.chat_title,
-        chatContext: bot.chat_context,
-        botName: bot.name
-      });
-
-      const chatWindow = window.open(chatUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+      const testUrl = `https://bot.bj/bot/${bot.id}`;
+      console.log('URL de test standardisée:', testUrl);
+      const chatWindow = window.open(testUrl, '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
       
       if (!chatWindow) {
         toast({
@@ -105,18 +87,11 @@ export const useBotActions = () => {
   };
 
   const shareOnWhatsApp = (bot: Bot) => {
-    let shareUrl = bot.public_chat_url;
-    
-    if (!shareUrl) {
-      shareUrl = `https://bot.bj/bot/${bot.id}`;
-    }
-    
-    shareUrl = shareUrl.replace(/https:\/\/ia\.bot\.bj/g, 'https://bot.bj');
+    const shareUrl = `https://bot.bj/bot/${bot.id}`;
     
     console.log('=== PARTAGE WHATSAPP ===');
     console.log('Bot:', bot.name);
-    console.log('Lien public original:', bot.public_chat_url);
-    console.log('Lien nettoyé pour partage:', shareUrl);
+    console.log('Lien standardisé:', shareUrl);
 
     const customMessage = `🤖 Découvrez ${bot.name} - votre assistant IA intelligent disponible 24/7 ! 
 
