@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, MessageCircle, PhoneCall, CreditCard } from 'lucide-react';
-import { Link } from 'react-router-dom';
+
 import { MTNMomoPaymentModal } from '@/components/payments/MTNMomoPaymentModal';
 
 interface Plan {
@@ -185,9 +185,9 @@ export const PricingSection: React.FC = () => {
                     <PhoneCall className="mr-2 h-4 w-4" /> WhatsApp
                   </Button>
                   <Button size="sm" variant="outline" className="w-full" asChild>
-                    <Link to="/chat/0484686a-34c8-4eeb-8974-90b079ee9fe2">
+                    <a href="https://bot.bj/bot/0484686a-34c8-4eeb-8974-90b079ee9fe2" target="_blank" rel="noopener noreferrer">
                       <MessageCircle className="mr-2 h-4 w-4" /> Discuter
-                    </Link>
+                    </a>
                   </Button>
                 </div>
               </CardContent>
