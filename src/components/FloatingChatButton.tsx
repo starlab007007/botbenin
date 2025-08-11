@@ -119,7 +119,7 @@ export const FloatingChatButton: React.FC = () => {
             </div>
             {/* Chat Interface */}
             <div className="h-[calc(100%-2.5rem)]">
-              <ChatInterface onBackToLanding={handleMinimize} />
+              <ChatInterface onBackToLanding={handleMinimize} webhookUrl="https://bot.bj/bot/0484686a-34c8-4eeb-8974-90b079ee9fe2" />
             </div>
           </div>
         </div>

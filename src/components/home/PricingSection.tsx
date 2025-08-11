@@ -119,8 +119,8 @@ export const PricingSection: React.FC = () => {
     const text = encodeURIComponent(
       `Bonjour, je souhaite souscrire au ${plan.name} (${price}).\n\nFonctionnalités clés:\n- ${plan.features.slice(0, 6).join('\n- ')}\n\nMerci de me recontacter.`
     );
-    // Utilise l'interface WhatsApp générique pour choisir le contact
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    // Ouvre WhatsApp avec le numéro Bénin dédié
+    window.open(`https://wa.me/2290140299191?text=${text}`, '_blank');
   };
 
   return (
@@ -185,7 +185,7 @@ export const PricingSection: React.FC = () => {
                     <PhoneCall className="mr-2 h-4 w-4" /> WhatsApp
                   </Button>
                   <Button size="sm" variant="outline" className="w-full" asChild>
-                    <Link to="/chat">
+                    <Link to="/chat/0484686a-34c8-4eeb-8974-90b079ee9fe2">
                       <MessageCircle className="mr-2 h-4 w-4" /> Discuter
                     </Link>
                   </Button>
