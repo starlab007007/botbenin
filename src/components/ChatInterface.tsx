@@ -141,7 +141,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       toast({
         title: "Session en cours d'initialisation",
         description: "Veuillez patienter quelques instants...",
-        variant: "destructive",
+        variant: "default",
+        duration: 2000,
       });
       return;
     }

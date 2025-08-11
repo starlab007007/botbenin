@@ -44,25 +44,6 @@ export const FloatingChatButton: React.FC = () => {
 
   return (
     <>
-      {/* Floating chat button only if not opened */}
-      {chatState === 'default' && (
-        <div className={`fixed bottom-4 right-4 lg:bottom-6 lg:right-6 z-50 ${isMobile ? 'mr-[2.5%]' : ''}`}>
-          <Button
-            onClick={() => setChatState('default')}
-            className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 group relative overflow-hidden"
-            size="icon"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-500/20 animate-pulse" />
-            <div className="relative z-10">
-              <MessageCircle className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
-              <Sparkles className="w-3 h-3 absolute -top-1 -right-1 text-white animate-pulse" />
-            </div>
-          </Button>
-          {/* Breathing animation ring */}
-          <div className="absolute inset-0 rounded-full bg-blue-500/30 animate-ping" />
-        </div>
-      )}
-
       {/* Modal Chat - taille normale ou plein écran */}
       {(chatState === 'default' || chatState === 'maximized') && (
         <div className={`fixed inset-0 z-40 ${chatState === 'default' ? 'bg-black/50 backdrop-blur-sm' : 'bg-black/70 backdrop-blur'} transition-all`}>
