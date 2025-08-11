@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 type ChatWindowState = 'default' | 'maximized' | 'minimized';
 
 export const FloatingChatButton: React.FC = () => {
-  const [chatState, setChatState] = useState<ChatWindowState>('default');
+  const [chatState, setChatState] = useState<ChatWindowState>('minimized');
   const isMobile = useIsMobile();
 
   // Gérer ouverture/fermeture

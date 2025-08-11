@@ -63,3 +63,6 @@ verify_jwt = false
 
 [functions.prospect-qualification]
 verify_jwt = false
+
+[functions.mtn-momo-initiate]
+verify_jwt = false
