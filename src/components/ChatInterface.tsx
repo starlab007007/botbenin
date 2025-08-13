@@ -138,11 +138,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     // Vérification simplifiée de la session
     if (!isReady || !sessionToken) {
+      // Si la session est en cours d'initialisation, attendre un peu et réessayer
+      if (isInitializing) {
+        setTimeout(() => {
+          if (isReady && sessionToken) {
+            handleSendMessage(textToSend);
+          }
+        }, 1000);
+        return;
+      }
+      
       toast({
-        title: "Session en cours d'initialisation",
-        description: "Veuillez patienter quelques instants...",
-        variant: "default",
-        duration: 2000,
+        title: "Erreur de session",
+        description: "Impossible d'initialiser la session. Veuillez recharger la page.",
+        variant: "destructive",
+        duration: 3000,
       });
       return;
     }
