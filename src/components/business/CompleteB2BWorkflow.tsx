@@ -14,7 +14,8 @@ import {
   Database,
   Download,
   ExternalLink,
-  Play
+  Play,
+  ArrowLeft
 } from 'lucide-react';
 import { B2BTargeting } from './B2BTargeting';
 import { LocalProspecting } from './LocalProspecting';
@@ -23,7 +24,11 @@ import { SmartB2BSearch } from './SmartB2BSearch';
 
 type WorkflowStep = 'overview' | 'b2b-targeting' | 'local-prospecting' | 'google-sheets' | 'smart-search';
 
-export const CompleteB2BWorkflow: React.FC = () => {
+interface CompleteB2BWorkflowProps {
+  onBack?: () => void;
+}
+
+export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack }) => {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('overview');
 
   const workflowOptions = [
@@ -82,19 +87,25 @@ export const CompleteB2BWorkflow: React.FC = () => {
       case 'local-prospecting':
         return <LocalProspecting onBack={() => setCurrentStep('overview')} />;
       case 'smart-search':
-        return <SmartB2BSearch onBack={() => setCurrentStep('overview')} />;
+        return <SmartB2BSearch onBack={() => setCurrentStep('overview')} onSearch={(filters) => console.log('Search filters:', filters)} />;
       default:
         return (
           <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
             <div className="max-w-7xl mx-auto space-y-8">
               {/* En-tête principal */}
               <div className="text-center space-y-4">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white mb-4">
-                  <Users className="w-8 h-8" />
-                </div>
-                <h1 className="text-4xl font-bold text-gray-900">
-                  IA Business - Génération de Prospects
-                </h1>
+                 {onBack && (
+                   <Button variant="ghost" onClick={onBack} className="mb-4">
+                     <ArrowLeft className="w-4 h-4 mr-2" />
+                     Retour au menu
+                   </Button>
+                 )}
+                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white mb-4">
+                   <Users className="w-8 h-8" />
+                 </div>
+                 <h1 className="text-4xl font-bold text-gray-900">
+                   IA Business - Génération de Prospects
+                 </h1>
                 <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                   Découvrez nos outils d'intelligence artificielle pour identifier, qualifier et gérer vos prospects B2B de manière automatisée et efficace.
                 </p>
