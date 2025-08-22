@@ -60,8 +60,8 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [sheetConfig, setSheetConfig] = useState({
-    spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-    sheetName: 'Class Data'
+    spreadsheetId: '1iebACfq1aShY0Awd7EKDQGTC3BirVJiOojHjKnCqQNE',
+    sheetName: 'Feuille 1'
   });
   const [lastLoadTime, setLastLoadTime] = useState<Date | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle');
