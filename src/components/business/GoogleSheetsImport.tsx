@@ -568,11 +568,17 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
                   <Input
                     value={sheetConfig.spreadsheetId}
                     onChange={(e) => setSheetConfig(prev => ({ ...prev, spreadsheetId: e.target.value }))}
-                    placeholder="ID du spreadsheet"
+                    placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Trouvez l'ID dans l'URL de votre Google Sheet
-                  </p>
+                  <div className="text-xs text-gray-600 mt-2 p-3 bg-blue-50 rounded-md">
+                    <p className="font-medium mb-1">📋 Comment obtenir l'ID :</p>
+                    <p>1. Ouvrez votre Google Sheet dans le navigateur</p>
+                    <p>2. Copiez l'ID depuis l'URL :</p>
+                    <p className="font-mono text-blue-700 text-xs break-all mt-1">
+                      https://docs.google.com/spreadsheets/d/<span className="bg-yellow-200 px-1">VOTRE_ID_ICI</span>/edit
+                    </p>
+                    <p className="mt-1">3. Collez l'ID dans le champ ci-dessus</p>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Nom de la feuille</label>
