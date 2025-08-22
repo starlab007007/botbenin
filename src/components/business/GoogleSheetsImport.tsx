@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   ArrowLeft, 
   Search, 
-  Filter, 
   Download,
   RefreshCw,
   Settings,
@@ -16,12 +16,14 @@ import {
   Mail,
   Phone,
   Building2,
-  MapPin,
   Loader2,
   Eye,
   CheckCircle2,
   AlertCircle,
-  Play
+  Play,
+  FileSpreadsheet,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,28 +60,31 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [sheetConfig, setSheetConfig] = useState({
-    spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', // Public test sheet
+    spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
     sheetName: 'Class Data'
   });
+  const [lastLoadTime, setLastLoadTime] = useState<Date | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle');
   const { toast } = useToast();
 
-  // Load data on component mount
+  // Chargement automatique au démarrage
   useEffect(() => {
     loadGoogleSheetData();
   }, []);
 
-  // Filter data when search term or status filter changes
+  // Filtrage des données
   useEffect(() => {
     filterData();
   }, [data, searchTerm, statusFilter]);
 
-  const loadGoogleSheetData = async () => {
-    console.log('=== Starting Google Sheets data load ===');
-    console.log('Sheet config:', sheetConfig);
+  const loadGoogleSheetData = async (showToast = true) => {
+    console.log('=== Chargement des données Google Sheets ===');
+    console.log('Configuration:', sheetConfig);
     
     setIsLoading(true);
+    setConnectionStatus('testing');
+    
     try {
-      console.log('Calling supabase.functions.invoke...');
       const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
         body: {
           spreadsheetId: sheetConfig.spreadsheetId,
@@ -87,61 +92,75 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
         }
       });
 
-      console.log('Function response:', { result, error });
+      console.log('Réponse de la fonction:', { result, error });
 
       if (error) {
-        console.error('Supabase function error:', error);
-        toast({
-          title: "Erreur de chargement",
-          description: `Impossible de charger les données Google Sheets: ${error.message || 'Erreur inconnue'}`,
-          variant: "destructive"
-        });
+        console.error('Erreur Supabase:', error);
+        setConnectionStatus('error');
+        if (showToast) {
+          toast({
+            title: "Erreur de connexion",
+            description: `Impossible de se connecter aux Google Sheets: ${error.message}`,
+            variant: "destructive"
+          });
+        }
         return;
       }
 
       if (result?.error) {
-        console.error('Function returned error:', result.error);
-        toast({
-          title: "Erreur de l'API Google Sheets",
-          description: result.details || result.error,
-          variant: "destructive"
-        });
+        console.error('Erreur de la fonction:', result.error);
+        setConnectionStatus('error');
+        if (showToast) {
+          toast({
+            title: "Erreur Google Sheets",
+            description: result.details || result.error,
+            variant: "destructive"
+          });
+        }
         return;
       }
 
-      if (result?.data) {
-        console.log('Data loaded successfully:', result.data.length, 'prospects');
+      if (result?.data && Array.isArray(result.data)) {
+        console.log('Données chargées avec succès:', result.data.length, 'prospects');
         
-        // Validation: s'assurer que toutes les données ont la source "Google Sheets"
         const validatedData = result.data.map(item => ({
           ...item,
-          source: 'Google Sheets', // Force la source à Google Sheets
+          source: 'Google Sheets',
           id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         }));
         
-        console.log('Validated data with Google Sheets source:', validatedData);
         setData(validatedData);
+        setLastLoadTime(new Date());
+        setConnectionStatus('connected');
         
-        toast({
-          title: "Données Google Sheets chargées",
-          description: `${validatedData.length} prospects importés UNIQUEMENT depuis Google Sheets`,
-          variant: "default"
-        });
+        if (showToast) {
+          toast({
+            title: "✅ Google Sheets connecté",
+            description: `${validatedData.length} prospects chargés depuis votre feuille`,
+            variant: "default"
+          });
+        }
       } else {
-        console.warn('No data in result:', result);
-        toast({
-          title: "Aucune donnée",
-          description: "Aucune donnée trouvée dans la feuille Google Sheets",
-          variant: "default"
-        });
+        console.warn('Aucune donnée trouvée:', result);
+        setConnectionStatus('error');
+        if (showToast) {
+          toast({
+            title: "Aucune donnée",
+            description: "Aucun prospect trouvé dans la feuille Google Sheets",
+            variant: "default"
+          });
+        }
       }
     } catch (error) {
-      console.error('Catch block error:', error);
-      toast({
-        title: "Erreur",
-        description: `Une erreur s'est produite lors du chargement: ${error.message || 'Erreur inconnue'}`,
-        variant: "destructive"
-      });
+      console.error('Erreur lors du chargement:', error);
+      setConnectionStatus('error');
+      if (showToast) {
+        toast({
+          title: "Erreur",
+          description: `Erreur technique: ${error.message}`,
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +169,6 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   const filterData = () => {
     let filtered = [...data];
 
-    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(item =>
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -160,7 +178,6 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
       );
     }
 
-    // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(item => item.status === statusFilter);
     }
@@ -168,10 +185,46 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
     setFilteredData(filtered);
   };
 
-  const getLastFiveResults = () => {
-    return [...filteredData]
-      .sort((a, b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime())
-      .slice(0, 5);
+  const testConnection = async () => {
+    setConnectionStatus('testing');
+    try {
+      const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
+        body: {
+          spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+          sheetName: 'Class Data'
+        }
+      });
+      
+      if (error) {
+        setConnectionStatus('error');
+        toast({
+          title: "Test de connexion",
+          description: `❌ Connexion échouée: ${error.message}`,
+          variant: "destructive"
+        });
+      } else if (result?.data) {
+        setConnectionStatus('connected');
+        toast({
+          title: "Test de connexion",
+          description: `✅ Connexion réussie! API Google Sheets accessible`,
+          variant: "default"
+        });
+      } else {
+        setConnectionStatus('error');
+        toast({
+          title: "Test de connexion",
+          description: "❌ API accessible mais aucune donnée retournée",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      setConnectionStatus('error');
+      toast({
+        title: "Test de connexion",
+        description: "❌ Erreur lors du test de connectivité",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSelectRow = (id: string) => {
@@ -187,54 +240,6 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
       setSelectedRows([]);
     } else {
       setSelectedRows(filteredData.map(item => item.id));
-    }
-  };
-
-  const handleQualificationAction = async () => {
-    if (selectedRows.length === 0) {
-      toast({
-        title: "Sélection requise",
-        description: "Veuillez sélectionner au moins un prospect pour la qualification",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const selectedProspects = filteredData.filter(item => selectedRows.includes(item.id));
-      
-      // Launch qualification process
-      const { data: result, error } = await supabase.functions.invoke('prospect-qualification', {
-        body: {
-          prospects: selectedProspects,
-          qualificationType: 'email' // Default to email qualification
-        }
-      });
-
-      if (error) {
-        toast({
-          title: "Erreur de qualification",
-          description: "Impossible de lancer le processus de qualification",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "Qualification lancée",
-        description: `Processus de qualification démarré pour ${selectedRows.length} prospects`,
-        variant: "default"
-      });
-
-      // Clear selection
-      setSelectedRows([]);
-    } catch (error) {
-      console.error('Qualification error:', error);
-      toast({
-        title: "Erreur",
-        description: "Une erreur s'est produite lors de la qualification",
-        variant: "destructive"
-      });
     }
   };
 
@@ -254,21 +259,44 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
     return 'text-red-600';
   };
 
+  const getConnectionStatusIcon = () => {
+    switch (connectionStatus) {
+      case 'testing': return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
+      case 'connected': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case 'error': return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default: return <Globe className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
   const uniqueStatuses = [...new Set(data.map(item => item.status))];
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        {/* En-tête avec statut de connexion */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Button variant="ghost" onClick={onBack}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour au menu
+              Retour
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Mes Listes de Prospects (Import)</h1>
-              <p className="text-gray-600">Gestion et qualification des prospects via Google Sheets</p>
+              <h1 className="text-2xl font-bold flex items-center">
+                <FileSpreadsheet className="w-6 h-6 mr-2 text-green-600" />
+                Mes Listes de Prospects (Google Sheets)
+              </h1>
+              <div className="flex items-center space-x-2 mt-1">
+                {getConnectionStatusIcon()}
+                <p className="text-gray-600">
+                  {connectionStatus === 'connected' && lastLoadTime 
+                    ? `Connecté - Dernière sync: ${lastLoadTime.toLocaleTimeString()}`
+                    : connectionStatus === 'testing' 
+                    ? 'Test de connexion en cours...'
+                    : connectionStatus === 'error'
+                    ? 'Erreur de connexion aux Google Sheets'
+                    : 'Prêt à se connecter'}
+                </p>
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -282,53 +310,18 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
             </Button>
             <Button
               variant="outline"
-              onClick={async () => {
-                console.log('=== Testing Google Sheets connectivity via edge function ===');
-                try {
-                  // Test avec une feuille publique connue
-                  const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
-                    body: {
-                      spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-                      sheetName: 'Class Data'
-                    }
-                  });
-                  
-                  console.log('Test result:', { result, error });
-                  
-                  if (error) {
-                    toast({
-                      title: "Test de connectivité",
-                      description: `API NON accessible: ${error.message}`,
-                      variant: "destructive"
-                    });
-                  } else if (result?.data) {
-                    toast({
-                      title: "Test de connectivité",
-                      description: `API accessible: OUI (${result.data.length} prospects test trouvés)`,
-                      variant: "default"
-                    });
-                  } else {
-                    toast({
-                      title: "Test de connectivité",
-                      description: "API accessible mais aucune donnée retournée",
-                      variant: "default"
-                    });
-                  }
-                } catch (error) {
-                  console.error('Test connectivity failed:', error);
-                  toast({
-                    title: "Test de connectivité",
-                    description: "Erreur lors du test de connectivité",
-                    variant: "destructive"
-                  });
-                }
-              }}
+              onClick={testConnection}
               disabled={isLoading}
             >
+              {connectionStatus === 'testing' ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Globe className="w-4 h-4 mr-2" />
+              )}
               Test API
             </Button>
             <Button
-              onClick={loadGoogleSheetData}
+              onClick={() => loadGoogleSheetData()}
               disabled={isLoading}
             >
               {isLoading ? (
@@ -341,7 +334,7 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
           </div>
         </div>
 
-        {/* Statistics Cards */}
+        {/* Cartes de statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4">
@@ -391,7 +384,7 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
           </Card>
         </div>
 
-        {/* Filters and Actions */}
+        {/* Filtres et actions */}
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -421,164 +414,148 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
                   {selectedRows.length} sélectionné(s)
                 </span>
                 <Button
-                  onClick={handleQualificationAction}
-                  disabled={selectedRows.length === 0}
+                  onClick={handleSelectAll}
+                  variant="outline"
+                  size="sm"
                 >
-                  <Play className="w-4 h-4 mr-2" />
-                  Lancer Qualification
+                  {selectedRows.length === filteredData.length ? 'Désélectionner' : 'Tout sélectionner'}
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="all">Tous les prospects</TabsTrigger>
-            <TabsTrigger value="recent">5 derniers ajouts</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="all" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Liste complète des prospects</CardTitle>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-sm text-green-600 font-medium">Source: Google Sheets</span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex items-center justify-center p-8">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                    <span className="ml-2">Chargement des données...</span>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>
-                            <input
-                              type="checkbox"
-                              checked={selectedRows.length === filteredData.length && filteredData.length > 0}
-                              onChange={handleSelectAll}
-                              className="mr-2"
-                            />
-                          </TableHead>
-                          <TableHead>Nom</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Entreprise</TableHead>
-                          <TableHead>Poste</TableHead>
-                          <TableHead>Téléphone</TableHead>
-                          <TableHead>Statut</TableHead>
-                          <TableHead>Score</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredData.map((prospect) => (
-                          <TableRow key={prospect.id}>
-                            <TableCell>
-                              <input
-                                type="checkbox"
-                                checked={selectedRows.includes(prospect.id)}
-                                onChange={() => handleSelectRow(prospect.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="font-medium">{prospect.name}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                                {prospect.email}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <Building2 className="w-4 h-4 mr-2 text-gray-400" />
-                                {prospect.company}
-                              </div>
-                            </TableCell>
-                            <TableCell>{prospect.position}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                                {prospect.phone}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={getStatusBadgeVariant(prospect.status)}>
-                                {prospect.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <span className={`font-semibold ${getScoreColor(prospect.score)}`}>
-                                {prospect.score}/10
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <Button variant="outline" size="sm">
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+        {/* Tableau des prospects */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center">
+                <FileSpreadsheet className="w-5 h-5 mr-2 text-green-600" />
+                Liste complète des prospects
+              </CardTitle>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-sm text-green-600 font-medium">Source: Google Sheets</span>
+                {data.length > 0 && (
+                  <Button variant="outline" size="sm">
+                    <Download className="w-4 h-4 mr-1" />
+                    Exporter ({data.length})
+                  </Button>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="recent" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>5 derniers prospects ajoutés</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4">
-                  {getLastFiveResults().map((prospect) => (
-                    <Card key={prospect.id} className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading && data.length === 0 ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="w-8 h-8 animate-spin mr-3" />
+                <span>Connexion aux Google Sheets en cours...</span>
+              </div>
+            ) : data.length === 0 ? (
+              <div className="text-center p-8">
+                <FileSpreadsheet className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Aucun prospect trouvé</h3>
+                <p className="text-gray-600 mb-4">
+                  Vérifiez votre configuration Google Sheets ou testez la connexion
+                </p>
+                <div className="flex justify-center space-x-2">
+                  <Button onClick={() => setIsConfigModalOpen(true)} variant="outline">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Configuration
+                  </Button>
+                  <Button onClick={testConnection}>
+                    <Globe className="w-4 h-4 mr-2" />
+                    Test connexion
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        <input
+                          type="checkbox"
+                          checked={selectedRows.length === filteredData.length && filteredData.length > 0}
+                          onChange={handleSelectAll}
+                          className="mr-2"
+                        />
+                      </TableHead>
+                      <TableHead>Nom</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Entreprise</TableHead>
+                      <TableHead>Poste</TableHead>
+                      <TableHead>Téléphone</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData.map((prospect) => (
+                      <TableRow key={prospect.id}>
+                        <TableCell>
                           <input
                             type="checkbox"
                             checked={selectedRows.includes(prospect.id)}
                             onChange={() => handleSelectRow(prospect.id)}
                           />
-                          <div>
-                            <h3 className="font-semibold">{prospect.name}</h3>
-                            <p className="text-sm text-gray-600">{prospect.position} chez {prospect.company}</p>
-                            <div className="flex items-center space-x-4 mt-1">
-                              <span className="text-sm text-gray-500">{prospect.email}</span>
-                              <Badge variant={getStatusBadgeVariant(prospect.status)} className="text-xs">
-                                {prospect.status}
-                              </Badge>
-                            </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{prospect.name}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            <Mail className="w-4 h-4 mr-2 text-gray-400" />
+                            {prospect.email}
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-lg font-bold ${getScoreColor(prospect.score)}`}>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            <Building2 className="w-4 h-4 mr-2 text-gray-400" />
+                            {prospect.company}
+                          </div>
+                        </TableCell>
+                        <TableCell>{prospect.position}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            <Phone className="w-4 h-4 mr-2 text-gray-400" />
+                            {prospect.phone}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(prospect.status)}>
+                            {prospect.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`font-semibold ${getScoreColor(prospect.score)}`}>
                             {prospect.score}/10
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1">
+                            <Button variant="outline" size="sm">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            {prospect.linkedin && (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={prospect.linkedin} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              </Button>
+                            )}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(prospect.created_date).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Configuration Modal */}
+        {/* Modal de configuration */}
         {isConfigModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <Card className="w-full max-w-md mx-4">
@@ -593,6 +570,9 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
                     onChange={(e) => setSheetConfig(prev => ({ ...prev, spreadsheetId: e.target.value }))}
                     placeholder="ID du spreadsheet"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Trouvez l'ID dans l'URL de votre Google Sheet
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Nom de la feuille</label>
