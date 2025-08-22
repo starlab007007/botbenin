@@ -35,11 +35,21 @@ serve(async (req) => {
     // If we have an API key, try real Google Sheets API
     if (GOOGLE_API_KEY) {
       try {
-        const range = `${sheetName}!A:Z`;
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?key=${GOOGLE_API_KEY}`;
+        // Essayer d'abord avec des guillemets simples autour du nom de la feuille
+        const quotedRange = `'${sheetName}'!A:Z`;
+        let url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(quotedRange)}?key=${GOOGLE_API_KEY}`;
         
-        console.log('Calling Google Sheets API...');
-        const response = await fetch(url);
+        console.log('Calling Google Sheets API with quoted range...');
+        console.log('URL:', url);
+        let response = await fetch(url);
+        
+        // Si ça ne marche pas avec des guillemets, essayer sans
+        if (!response.ok) {
+          console.log('Quoted range failed, trying without quotes...');
+          const simpleRange = `${sheetName}!A:Z`;
+          url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(simpleRange)}?key=${GOOGLE_API_KEY}`;
+          response = await fetch(url);
+        }
         
         if (response.ok) {
           const sheetsData = await response.json();
@@ -116,7 +126,23 @@ serve(async (req) => {
         } else {
           const errorText = await response.text();
           console.error('Google Sheets API error:', response.status, errorText);
-          throw new Error(`API Google Sheets: ${response.status} - ${errorText}`);
+          
+          // Essayer de parser l'erreur pour donner des suggestions spécifiques
+          let suggestion = 'Vérifiez votre ID de feuille et les permissions';
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.error?.message?.includes('Unable to parse range')) {
+              suggestion = `Le nom de feuille "${sheetName}" est invalide. Essayez "Sheet1" ou vérifiez les noms d'onglets dans votre Google Sheet.`;
+            } else if (errorData.error?.message?.includes('not found')) {
+              suggestion = 'Google Sheet introuvable. Vérifiez que le fichier existe et est partagé publiquement.';
+            } else if (errorData.error?.message?.includes('permission')) {
+              suggestion = 'Problème de permissions. Assurez-vous que le Google Sheet est partagé en lecture publique.';
+            }
+          } catch (e) {
+            // Garder le message par défaut si on ne peut pas parser l'erreur
+          }
+          
+          throw new Error(`API Google Sheets: ${response.status} - ${errorText}\nSuggestion: ${suggestion}`);
         }
       } catch (apiError) {
         console.error('Google Sheets API failed:', apiError);

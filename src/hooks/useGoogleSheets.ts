@@ -42,8 +42,9 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
   const { toast } = useToast();
 
   const loadData = useCallback(async (showNotification = true) => {
-    if (!config.spreadsheetId || !config.sheetName) {
-      setError('Configuration Google Sheets incomplète');
+    if (!config.spreadsheetId) {
+      setError('ID Google Sheet manquant');
+      setConnectionStatus('error');
       return;
     }
 
@@ -54,22 +55,55 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
     try {
       console.log('🔄 Chargement Google Sheets:', config);
 
-      const { data: result, error: functionError } = await supabase.functions.invoke('google-sheets-reader', {
-        body: {
-          spreadsheetId: config.spreadsheetId,
-          sheetName: config.sheetName
+      // Si aucun nom de feuille spécifié, essayer les noms les plus courants
+      const sheetNamesToTry = config.sheetName 
+        ? [config.sheetName]
+        : ['Sheet1', 'Feuille1', 'Feuil1', 'Class Data', 'Data', 'Prospects', 'Liste'];
+
+      let lastError = null;
+      let successData = null;
+
+      for (const sheetName of sheetNamesToTry) {
+        try {
+          console.log(`Tentative avec feuille: "${sheetName}"`);
+          
+          const { data: result, error: functionError } = await supabase.functions.invoke('google-sheets-reader', {
+            body: {
+              spreadsheetId: config.spreadsheetId,
+              sheetName: sheetName
+            }
+          });
+
+          if (functionError) {
+            console.log(`Erreur function pour "${sheetName}":`, functionError);
+            lastError = new Error(`Erreur Supabase: ${functionError.message}`);
+            continue;
+          }
+
+          if (result?.error) {
+            console.log(`Erreur result pour "${sheetName}":`, result.error);
+            lastError = new Error(result.details || result.error);
+            continue;
+          }
+
+          if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
+            console.log(`✅ Succès avec feuille "${sheetName}": ${result.data.length} éléments`);
+            successData = { result, sheetName };
+            break;
+          } else {
+            console.log(`Feuille "${sheetName}" trouvée mais vide`);
+            lastError = new Error(`La feuille "${sheetName}" ne contient pas de données`);
+          }
+        } catch (err) {
+          console.log(`Exception pour "${sheetName}":`, err);
+          lastError = err;
+          continue;
         }
-      });
-
-      if (functionError) {
-        throw new Error(`Erreur Supabase: ${functionError.message}`);
       }
 
-      if (result?.error) {
-        throw new Error(result.details || result.error);
-      }
-
-      if (result?.data && Array.isArray(result.data)) {
+      if (successData) {
+        const { result, sheetName: workingSheetName } = successData;
+        
         const processedData = result.data.map(item => ({
           ...item,
           source: 'Google Sheets',
@@ -79,28 +113,23 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
         setData(processedData);
         setLastSync(new Date());
         setConnectionStatus('connected');
+        
+        // Mettre à jour la config avec le nom de feuille qui fonctionne
+        if (workingSheetName !== config.sheetName) {
+          setConfig(prev => ({ ...prev, sheetName: workingSheetName }));
+        }
 
         if (showNotification) {
           toast({
             title: "✅ Synchronisation réussie",
-            description: `${processedData.length} prospects chargés depuis Google Sheets`,
+            description: `${processedData.length} prospects chargés depuis la feuille "${workingSheetName}"`,
             duration: 3000,
           });
         }
 
         console.log('✅ Données chargées:', processedData.length, 'prospects');
       } else {
-        setData([]);
-        setConnectionStatus('error');
-        setError('Aucune donnée trouvée dans la feuille');
-        
-        if (showNotification) {
-          toast({
-            title: "⚠️ Aucune donnée",
-            description: "La feuille Google Sheets semble vide",
-            variant: "default",
-          });
-        }
+        throw lastError || new Error('Aucune feuille valide trouvée dans le Google Sheet');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
