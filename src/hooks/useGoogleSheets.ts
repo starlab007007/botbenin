@@ -104,30 +104,44 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
       if (successData) {
         const { result, sheetName: workingSheetName } = successData;
         
-        const processedData = result.data.map(item => ({
-          ...item,
-          source: 'Google Sheets',
-          id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        }));
-
-        setData(processedData);
-        setLastSync(new Date());
-        setConnectionStatus('connected');
-        
-        // Mettre à jour la config avec le nom de feuille qui fonctionne
-        if (workingSheetName !== config.sheetName) {
-          setConfig(prev => ({ ...prev, sheetName: workingSheetName }));
+        // Vérifier les deux formats de réponse possibles
+        let processedData = [];
+        if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
+          processedData = result.data.map(item => ({
+            ...item,
+            source: 'Google Sheets',
+            id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          }));
+        } else if (result?.prospects && Array.isArray(result.prospects) && result.prospects.length > 0) {
+          processedData = result.prospects.map(item => ({
+            ...item,
+            source: 'Google Sheets',
+            id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          }));
         }
 
-        if (showNotification) {
-          toast({
-            title: "✅ Synchronisation réussie",
-            description: `${processedData.length} prospects chargés depuis la feuille "${workingSheetName}"`,
-            duration: 3000,
-          });
-        }
+        if (processedData.length > 0) {
+          setData(processedData);
+          setLastSync(new Date());
+          setConnectionStatus('connected');
+          
+          // Mettre à jour la config avec le nom de feuille qui fonctionne
+          if (workingSheetName !== config.sheetName) {
+            setConfig(prev => ({ ...prev, sheetName: workingSheetName }));
+          }
 
-        console.log('✅ Données chargées:', processedData.length, 'prospects');
+          if (showNotification) {
+            toast({
+              title: "✅ Synchronisation réussie",
+              description: `${processedData.length} prospects chargés depuis la feuille "${workingSheetName}"`,
+              duration: 3000,
+            });
+          }
+
+          console.log('✅ Données chargées:', processedData.length, 'prospects');
+        } else {
+          throw new Error('Aucune donnée valide trouvée dans la réponse');
+        }
       } else {
         throw lastError || new Error('Aucune feuille valide trouvée dans le Google Sheet');
       }

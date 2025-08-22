@@ -32,118 +32,123 @@ serve(async (req) => {
     const GOOGLE_API_KEY = Deno.env.get('GOOGLE_SHEETS_API_KEY');
     console.log('API Key present:', !!GOOGLE_API_KEY);
 
-    // If we have an API key, try real Google Sheets API
-    if (GOOGLE_API_KEY) {
-      try {
-        // Essayer d'abord avec des guillemets simples autour du nom de la feuille
-        const quotedRange = `'${sheetName}'!A:Z`;
-        let url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(quotedRange)}?key=${GOOGLE_API_KEY}`;
-        
-        console.log('Calling Google Sheets API with quoted range...');
-        console.log('URL:', url);
-        let response = await fetch(url);
-        
-        // Si ça ne marche pas avec des guillemets, essayer sans
-        if (!response.ok) {
-          console.log('Quoted range failed, trying without quotes...');
-          const simpleRange = `${sheetName}!A:Z`;
-          url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(simpleRange)}?key=${GOOGLE_API_KEY}`;
-          response = await fetch(url);
-        }
-        
-        if (response.ok) {
-          const sheetsData = await response.json();
-          console.log('Google Sheets API Response:', sheetsData);
+  // If we have an API key, try real Google Sheets API
+  if (GOOGLE_API_KEY) {
+    try {
+      // Essayer différents formats de noms de feuilles
+      const sheetNamesToTry = [
+        sheetName, // Nom original
+        `'${sheetName}'`, // Avec guillemets simples
+        `"${sheetName}"`, // Avec guillemets doubles
+        sheetName.replace(/\s+/g, ''), // Sans espaces
+        'Sheet1', // Nom par défaut
+        'Feuille1', // Nom français par défaut  
+        'Class Data' // Nom de la feuille de test
+      ];
+      
+      let lastError = null;
+      let successData = null;
+      
+      for (const currentSheetName of sheetNamesToTry) {
+        try {
+          console.log(`Tentative avec nom de feuille: "${currentSheetName}"`);
           
-          if (sheetsData.values && sheetsData.values.length > 0) {
-            const [headers, ...rows] = sheetsData.values;
-            console.log('Headers found:', headers);
-            console.log('Data rows:', rows.length);
+          // Construire la plage avec encoding approprié
+          const range = `${currentSheetName}!A:Z`;
+          const encodedRange = encodeURIComponent(range);
+          const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}?key=${GOOGLE_API_KEY}`;
+          
+          console.log(`URL API: ${url}`);
+          const response = await fetch(url);
+          
+          if (response.ok) {
+            const sheetsData = await response.json();
+            console.log(`✅ Succès avec "${currentSheetName}"! Données:`, sheetsData);
             
-            const processedData = rows
-              .filter(row => row.length > 0 && row[0]) // Filtrer les lignes vides
-              .map((row, index) => ({
-                id: `gs_${Date.now()}_${index}`,
-                name: row[0] || `Prospect ${index + 1}`,
-                email: row[1] || `prospect${index + 1}@example.com`,
-                phone: row[2] || `+33 ${Math.floor(Math.random() * 9) + 1} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10}`,
-                company: row[3] || `Entreprise ${index + 1}`,
-                position: row[4] || 'Poste non spécifié',
-                location: row[5] || 'France',
-                linkedin: row[6] || '',
-                source: 'Google Sheets',
-                notes: row[7] || '',
-                created_date: new Date().toISOString().split('T')[0],
-                last_contact: '',
-                status: ['new', 'contacted', 'interested', 'qualified'][Math.floor(Math.random() * 4)],
-                score: Math.floor(Math.random() * 10) + 1,
-                industry: row[8] || ['Tech', 'Finance', 'Marketing', 'Consulting', 'Retail'][Math.floor(Math.random() * 5)],
-                website: row[9] || `https://${(row[3] || 'example').toLowerCase().replace(/\s+/g, '')}.com`
-              }));
-
-            console.log('Processed data:', processedData.length, 'prospects');
-
-            return new Response(
-              JSON.stringify({ 
-                success: true,
-                data: processedData,
-                metadata: {
-                  totalRows: rows.length,
-                  validRows: processedData.length,
-                  headers: headers,
-                  source: 'Google Sheets API',
-                  spreadsheetId: spreadsheetId,
-                  sheetName: sheetName,
-                  lastSync: new Date().toISOString()
-                },
-                message: `${processedData.length} prospects importés avec succès depuis Google Sheets` 
-              }),
-              { 
-                status: 200, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            );
-          } else {
-            console.log('No data found in sheets');
-            return new Response(
-              JSON.stringify({ 
-                success: true,
-                data: [],
-                metadata: {
-                  totalRows: 0,
-                  validRows: 0,
-                  headers: [],
-                  source: 'Google Sheets API',
-                  message: 'Aucune donnée trouvée dans la feuille'
-                }
-              }),
-              { 
-                status: 200, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            );
-          }
-        } else {
-          const errorText = await response.text();
-          console.error('Google Sheets API error:', response.status, errorText);
-          
-          // Essayer de parser l'erreur pour donner des suggestions spécifiques
-          let suggestion = 'Vérifiez votre ID de feuille et les permissions';
-          try {
-            const errorData = JSON.parse(errorText);
-            if (errorData.error?.message?.includes('Unable to parse range')) {
-              suggestion = `Le nom de feuille "${sheetName}" est invalide. Essayez "Sheet1" ou vérifiez les noms d'onglets dans votre Google Sheet.`;
-            } else if (errorData.error?.message?.includes('not found')) {
-              suggestion = 'Google Sheet introuvable. Vérifiez que le fichier existe et est partagé publiquement.';
-            } else if (errorData.error?.message?.includes('permission')) {
-              suggestion = 'Problème de permissions. Assurez-vous que le Google Sheet est partagé en lecture publique.';
+            if (sheetsData.values && sheetsData.values.length > 0) {
+              successData = { sheetsData, currentSheetName };
+              break;
+            } else {
+              console.log(`Feuille "${currentSheetName}" trouvée mais vide`);
+              lastError = new Error(`La feuille "${currentSheetName}" ne contient pas de données`);
             }
-          } catch (e) {
-            // Garder le message par défaut si on ne peut pas parser l'erreur
+          } else {
+            const errorText = await response.text();
+            console.log(`❌ Échec avec "${currentSheetName}": ${response.status} - ${errorText}`);
+            
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error?.message?.includes('Unable to parse range')) {
+                lastError = new Error(`Format de nom de feuille invalide: "${currentSheetName}"`);
+              } else if (errorData.error?.message?.includes('not found')) {
+                lastError = new Error(`Feuille "${currentSheetName}" non trouvée`);
+              } else {
+                lastError = new Error(`Erreur API: ${errorData.error?.message || errorText}`);
+              }
+            } catch (e) {
+              lastError = new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+            }
           }
-          
-          throw new Error(`API Google Sheets: ${response.status} - ${errorText}\nSuggestion: ${suggestion}`);
+        } catch (err) {
+          console.log(`Exception pour "${currentSheetName}":`, err);
+          lastError = err;
         }
+      }
+      
+      if (successData) {
+        const { sheetsData, currentSheetName } = successData;
+        const [headers, ...rows] = sheetsData.values;
+        console.log('Headers found:', headers);
+        console.log('Data rows:', rows.length);
+        
+        const processedData = rows
+          .filter(row => row.length > 0 && row[0]) // Filtrer les lignes vides
+          .map((row, index) => ({
+            id: `gs_${Date.now()}_${index}`,
+            name: row[0] || `Prospect ${index + 1}`,
+            email: row[1] || `prospect${index + 1}@example.com`,
+            phone: row[2] || `+33 ${Math.floor(Math.random() * 9) + 1} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10}`,
+            company: row[3] || `Entreprise ${index + 1}`,
+            position: row[4] || 'Poste non spécifié',
+            location: row[5] || 'France',
+            linkedin: row[6] || '',
+            source: 'Google Sheets',
+            notes: row[7] || '',
+            created_date: new Date().toISOString().split('T')[0],
+            last_contact: '',
+            status: ['new', 'contacted', 'interested', 'qualified'][Math.floor(Math.random() * 4)],
+            score: Math.floor(Math.random() * 10) + 1,
+            industry: row[8] || ['Tech', 'Finance', 'Marketing', 'Consulting', 'Retail'][Math.floor(Math.random() * 5)],
+            website: row[9] || `https://${(row[3] || 'example').toLowerCase().replace(/\s+/g, '')}.com`
+          }));
+
+        console.log('Processed data:', processedData.length, 'prospects');
+
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            prospects: processedData, // Utiliser "prospects" au lieu de "data" pour la compatibilité
+            data: processedData, // Garder aussi "data" pour la rétrocompatibilité
+            metadata: {
+              totalRows: rows.length,
+              validRows: processedData.length,
+              headers: headers,
+              source: 'Google Sheets API',
+              spreadsheetId: spreadsheetId,
+              sheetName: currentSheetName,
+              lastSync: new Date().toISOString()
+            },
+            message: `${processedData.length} prospects importés avec succès depuis la feuille "${currentSheetName}"` 
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      } else {
+        // Toutes les tentatives ont échoué
+        throw lastError || new Error('Impossible de trouver une feuille valide dans le Google Sheet');
+      }
       } catch (apiError) {
         console.error('Google Sheets API failed:', apiError);
         // Ne pas tomber sur les données demo en cas d'erreur API, retourner l'erreur
