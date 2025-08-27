@@ -95,50 +95,42 @@ serve(async (req) => {
         }
       }
       
-      if (successData) {
+        if (successData) {
         const { sheetsData, currentSheetName } = successData;
         const [headers, ...rows] = sheetsData.values;
         console.log('Headers found:', headers);
         console.log('Data rows:', rows.length);
         
-        const processedData = rows
-          .filter(row => row.length > 0 && row[0]) // Filtrer les lignes vides
-          .map((row, index) => ({
-            id: `gs_${Date.now()}_${index}`,
-            name: row[0] || `Prospect ${index + 1}`,
-            email: row[1] || `prospect${index + 1}@example.com`,
-            phone: row[2] || `+33 ${Math.floor(Math.random() * 9) + 1} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10}`,
-            company: row[3] || `Entreprise ${index + 1}`,
-            position: row[4] || 'Poste non spécifié',
-            location: row[5] || 'France',
-            linkedin: row[6] || '',
-            source: 'Google Sheets',
-            notes: row[7] || '',
-            created_date: new Date().toISOString().split('T')[0],
-            last_contact: '',
-            status: ['new', 'contacted', 'interested', 'qualified'][Math.floor(Math.random() * 4)],
-            score: Math.floor(Math.random() * 10) + 1,
-            industry: row[8] || ['Tech', 'Finance', 'Marketing', 'Consulting', 'Retail'][Math.floor(Math.random() * 5)],
-            website: row[9] || `https://${(row[3] || 'example').toLowerCase().replace(/\s+/g, '')}.com`
-          }));
+        // Créer les enregistrements dynamiques basés sur les entêtes réelles
+        const dynamicRecords = rows
+          .filter(row => row.length > 0 && row.some(cell => cell && cell.toString().trim()))
+          .map((row, index) => {
+            const record: Record<string, any> = { id: `gs_${Date.now()}_${index}` };
+            headers.forEach((header: string, colIndex: number) => {
+              if (header && header.trim()) {
+                record[header.trim()] = row[colIndex] || '';
+              }
+            });
+            return record;
+          });
 
-        console.log('Processed data:', processedData.length, 'prospects');
+        console.log('Dynamic records created:', dynamicRecords.length);
 
         return new Response(
           JSON.stringify({ 
             success: true,
-            prospects: processedData, // Utiliser "prospects" au lieu de "data" pour la compatibilité
-            data: processedData, // Garder aussi "data" pour la rétrocompatibilité
+            headers: headers.filter((h: string) => h && h.trim()),
+            records: dynamicRecords,
             metadata: {
               totalRows: rows.length,
-              validRows: processedData.length,
-              headers: headers,
+              validRows: dynamicRecords.length,
+              headers: headers.filter((h: string) => h && h.trim()),
               source: 'Google Sheets API',
               spreadsheetId: spreadsheetId,
               sheetName: currentSheetName,
               lastSync: new Date().toISOString()
             },
-            message: `${processedData.length} prospects importés avec succès depuis la feuille "${currentSheetName}"` 
+            message: `${dynamicRecords.length} enregistrements importés avec succès depuis la feuille "${currentSheetName}"` 
           }),
           { 
             status: 200, 

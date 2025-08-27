@@ -87,7 +87,7 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   // Filtrage des données
   useEffect(() => {
     filterData();
-  }, [data, searchTerm, statusFilter]);
+  }, [data, searchTerm, statusFilter, dynamicRows, statusFilter]);
 
   const loadGoogleSheetData = async (showToast = true) => {
     console.log('=== Chargement des données Google Sheets ===');
@@ -135,43 +135,33 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
       }
 
       // Données dynamiques (colonnes + lignes)
-      const headers: string[] = result?.metadata?.headers || result?.columns || [];
-      const records: Array<Record<string, any>> = (result?.records as any[]) || [];
+      const headers: string[] = result?.headers || result?.metadata?.headers || [];
+      const records: Array<Record<string, any>> = result?.records || [];
 
-      if (headers.length && records.length) {
+      if (headers.length > 0) {
+        console.log('Headers:', headers);
+        console.log('Records:', records.length);
+        
         setDynamicHeaders(headers);
         setDynamicRows(records);
         setFilteredRows(records);
-        const foundStatusKey = headers.find((h) => h?.toLowerCase?.() === 'status' || h?.toLowerCase?.() === 'statut') || null;
+        
+        // Trouver la colonne de statut
+        const foundStatusKey = headers.find((h) => 
+          h?.toLowerCase?.().includes('status') || 
+          h?.toLowerCase?.().includes('statut') ||
+          h?.toLowerCase?.().includes('état')
+        ) || null;
         setStatusKey(foundStatusKey);
-      }
-
-      if (result?.data && Array.isArray(result.data)) {
-        console.log('Données normalisées chargées:', result.data.length, 'prospects');
-        const validatedData = result.data.map((item: any) => ({
-          ...item,
-          source: 'Google Sheets',
-          id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        }));
-        setData(validatedData);
+        
+        setData([]); // Clear old format data
         setLastLoadTime(new Date());
         setConnectionStatus('connected');
+        
         if (showToast) {
           toast({
             title: '✅ Google Sheets connecté',
-            description: `${validatedData.length} lignes chargées depuis votre feuille`,
-            variant: 'default'
-          });
-        }
-      } else if (headers.length) {
-        // Si on a des entêtes mais pas de "data" normalisée
-        setData([]);
-        setLastLoadTime(new Date());
-        setConnectionStatus('connected');
-        if (showToast) {
-          toast({
-            title: '✅ Google Sheets connecté',
-            description: `${records.length} lignes chargées depuis votre feuille`,
+            description: `${records.length} lignes chargées depuis votre feuille avec ${headers.length} colonnes`,
             variant: 'default'
           });
         }
@@ -181,7 +171,7 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
         if (showToast) {
           toast({
             title: 'Aucune donnée',
-            description: 'Aucun prospect trouvé dans la feuille Google Sheets',
+            description: 'Aucune donnée trouvée dans la feuille Google Sheets',
             variant: 'default'
           });
         }
@@ -202,22 +192,44 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   };
 
   const filterData = () => {
-    let filtered = [...data];
+    // Si on a des données dynamiques, les filtrer
+    if (hasDynamic) {
+      let filtered = [...dynamicRows];
 
-    if (searchTerm) {
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.position.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      if (searchTerm) {
+        filtered = filtered.filter(row => {
+          const searchableValues = Object.values(row).join(' ').toLowerCase();
+          return searchableValues.includes(searchTerm.toLowerCase());
+        });
+      }
+
+      if (statusFilter !== 'all' && statusKey) {
+        filtered = filtered.filter(row => {
+          const rowStatus = row[statusKey]?.toString().toLowerCase() || '';
+          return rowStatus === statusFilter.toLowerCase();
+        });
+      }
+
+      setFilteredRows(filtered);
+    } else {
+      // Sinon filtrer les anciennes données
+      let filtered = [...data];
+
+      if (searchTerm) {
+        filtered = filtered.filter(item =>
+          item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.position.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter(item => item.status === statusFilter);
+      }
+
+      setFilteredData(filtered);
     }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(item => item.status === statusFilter);
-    }
-
-    setFilteredData(filtered);
   };
 
   const testConnection = async () => {
@@ -402,8 +414,8 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Prospects</p>
-                  <p className="text-2xl font-bold">{data.length}</p>
+                  <p className="text-sm text-gray-600">Total Enregistrements</p>
+                  <p className="text-2xl font-bold">{totalCount}</p>
                 </div>
                 <Users className="w-8 h-8 text-blue-600" />
               </div>
@@ -414,7 +426,7 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Qualifiés</p>
-                  <p className="text-2xl font-bold">{data.filter(d => d.status === 'qualified').length}</p>
+                  <p className="text-2xl font-bold">{qualifiedCount}</p>
                 </div>
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
               </div>
@@ -425,7 +437,7 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">En attente</p>
-                  <p className="text-2xl font-bold">{data.filter(d => d.status === 'new').length}</p>
+                  <p className="text-2xl font-bold">{pendingCount}</p>
                 </div>
                 <AlertCircle className="w-8 h-8 text-orange-600" />
               </div>
@@ -436,9 +448,7 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Score Moyen</p>
-                  <p className="text-2xl font-bold">
-                    {data.length > 0 ? (data.reduce((sum, d) => sum + d.score, 0) / data.length).toFixed(1) : '0'}
-                  </p>
+                  <p className="text-2xl font-bold">{avgScore}</p>
                 </div>
                 <Eye className="w-8 h-8 text-purple-600" />
               </div>
@@ -471,18 +481,28 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
                   ))}
                 </select>
               </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">
-                  {selectedRows.length} sélectionné(s)
-                </span>
-                <Button
-                  onClick={handleSelectAll}
-                  variant="outline"
-                  size="sm"
-                >
-                  {selectedRows.length === filteredData.length ? 'Désélectionner' : 'Tout sélectionner'}
-                </Button>
-              </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">
+                    {selectedRows.length} sélectionné(s)
+                  </span>
+                  <Button
+                    onClick={() => {
+                      if (hasDynamic) {
+                        if (selectedRows.length === filteredRows.length) {
+                          setSelectedRows([]);
+                        } else {
+                          setSelectedRows(filteredRows.map(r => r.id));
+                        }
+                      } else {
+                        handleSelectAll();
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {selectedRows.length === (hasDynamic ? filteredRows.length : filteredData.length) ? 'Désélectionner' : 'Tout sélectionner'}
+                  </Button>
+                </div>
             </div>
           </CardContent>
         </Card>
@@ -498,25 +518,25 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 <span className="text-sm text-green-600 font-medium">Source: Google Sheets</span>
-                {data.length > 0 && (
+                {data.length > 0 || hasDynamic && totalCount > 0 && (
                   <Button variant="outline" size="sm">
                     <Download className="w-4 h-4 mr-1" />
-                    Exporter ({data.length})
+                    Exporter ({totalCount})
                   </Button>
                 )}
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading && data.length === 0 ? (
+            {isLoading && totalCount === 0 ? (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="w-8 h-8 animate-spin mr-3" />
                 <span>Connexion aux Google Sheets en cours...</span>
               </div>
-            ) : data.length === 0 ? (
+            ) : totalCount === 0 ? (
               <div className="text-center p-8">
                 <FileSpreadsheet className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Aucun prospect trouvé</h3>
+                <h3 className="text-lg font-semibold mb-2">Aucune donnée trouvée</h3>
                 <p className="text-gray-600 mb-4">
                   Vérifiez votre configuration Google Sheets ou testez la connexion
                 </p>
@@ -531,7 +551,65 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
                   </Button>
                 </div>
               </div>
+            ) : hasDynamic ? (
+              // Affichage dynamique basé sur les colonnes du sheet
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <input
+                          type="checkbox"
+                          checked={filteredRows.length > 0 && filteredRows.every(row => selectedRows.includes(row.id))}
+                          onChange={() => {
+                            if (filteredRows.every(row => selectedRows.includes(row.id))) {
+                              setSelectedRows(prev => prev.filter(id => !filteredRows.map(r => r.id).includes(id)));
+                            } else {
+                              setSelectedRows(prev => [...new Set([...prev, ...filteredRows.map(r => r.id)])]);
+                            }
+                          }}
+                          className="mr-2"
+                        />
+                      </TableHead>
+                      {dynamicHeaders.map((header, index) => (
+                        <TableHead key={index}>{header}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRows.map((row, rowIndex) => (
+                      <TableRow key={row.id || rowIndex}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedRows.includes(row.id)}
+                            onChange={() => {
+                              if (selectedRows.includes(row.id)) {
+                                setSelectedRows(prev => prev.filter(id => id !== row.id));
+                              } else {
+                                setSelectedRows(prev => [...prev, row.id]);
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        {dynamicHeaders.map((header, colIndex) => (
+                          <TableCell key={colIndex} className={colIndex === 0 ? "font-medium" : ""}>
+                            {header === statusKey && row[header] ? (
+                              <Badge variant="outline">
+                                {row[header]}
+                              </Badge>
+                            ) : (
+                              row[header] || '-'
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
+              // Affichage statique pour les anciennes données (fallback)
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
