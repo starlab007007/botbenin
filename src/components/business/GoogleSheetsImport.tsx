@@ -65,7 +65,19 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
   });
   const [lastLoadTime, setLastLoadTime] = useState<Date | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle');
+  // Données dynamiques basées sur les entêtes du Google Sheet
+  const [dynamicHeaders, setDynamicHeaders] = useState<string[]>([]);
+  const [dynamicRows, setDynamicRows] = useState<Array<Record<string, any>>>([]);
+  const [filteredRows, setFilteredRows] = useState<Array<Record<string, any>>>([]);
+  const [statusKey, setStatusKey] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Extrait l'ID du Google Sheet si l'utilisateur colle l'URL complète
+  const extractSheetId = (input: string) => {
+    const match = input.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : input.trim();
+  };
+
 
   // Chargement automatique au démarrage
   useEffect(() => {
@@ -84,10 +96,12 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
     setIsLoading(true);
     setConnectionStatus('testing');
     
+    const sanitizedId = extractSheetId(sheetConfig.spreadsheetId);
+    
     try {
       const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
         body: {
-          spreadsheetId: sheetConfig.spreadsheetId,
+          spreadsheetId: sanitizedId,
           sheetName: sheetConfig.sheetName
         }
       });
@@ -99,9 +113,9 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
         setConnectionStatus('error');
         if (showToast) {
           toast({
-            title: "Erreur de connexion",
+            title: 'Erreur de connexion',
             description: `Impossible de se connecter aux Google Sheets: ${error.message}`,
-            variant: "destructive"
+            variant: 'destructive'
           });
         }
         return;
@@ -112,32 +126,53 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
         setConnectionStatus('error');
         if (showToast) {
           toast({
-            title: "Erreur Google Sheets",
+            title: 'Erreur Google Sheets',
             description: result.details || result.error,
-            variant: "destructive"
+            variant: 'destructive'
           });
         }
         return;
       }
 
+      // Données dynamiques (colonnes + lignes)
+      const headers: string[] = result?.metadata?.headers || result?.columns || [];
+      const records: Array<Record<string, any>> = (result?.records as any[]) || [];
+
+      if (headers.length && records.length) {
+        setDynamicHeaders(headers);
+        setDynamicRows(records);
+        setFilteredRows(records);
+        const foundStatusKey = headers.find((h) => h?.toLowerCase?.() === 'status' || h?.toLowerCase?.() === 'statut') || null;
+        setStatusKey(foundStatusKey);
+      }
+
       if (result?.data && Array.isArray(result.data)) {
-        console.log('Données chargées avec succès:', result.data.length, 'prospects');
-        
-        const validatedData = result.data.map(item => ({
+        console.log('Données normalisées chargées:', result.data.length, 'prospects');
+        const validatedData = result.data.map((item: any) => ({
           ...item,
           source: 'Google Sheets',
           id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         }));
-        
         setData(validatedData);
         setLastLoadTime(new Date());
         setConnectionStatus('connected');
-        
         if (showToast) {
           toast({
-            title: "✅ Google Sheets connecté",
-            description: `${validatedData.length} prospects chargés depuis votre feuille`,
-            variant: "default"
+            title: '✅ Google Sheets connecté',
+            description: `${validatedData.length} lignes chargées depuis votre feuille`,
+            variant: 'default'
+          });
+        }
+      } else if (headers.length) {
+        // Si on a des entêtes mais pas de "data" normalisée
+        setData([]);
+        setLastLoadTime(new Date());
+        setConnectionStatus('connected');
+        if (showToast) {
+          toast({
+            title: '✅ Google Sheets connecté',
+            description: `${records.length} lignes chargées depuis votre feuille`,
+            variant: 'default'
           });
         }
       } else {
@@ -145,20 +180,20 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
         setConnectionStatus('error');
         if (showToast) {
           toast({
-            title: "Aucune donnée",
-            description: "Aucun prospect trouvé dans la feuille Google Sheets",
-            variant: "default"
+            title: 'Aucune donnée',
+            description: 'Aucun prospect trouvé dans la feuille Google Sheets',
+            variant: 'default'
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors du chargement:', error);
       setConnectionStatus('error');
       if (showToast) {
         toast({
-          title: "Erreur",
+          title: 'Erreur',
           description: `Erreur technique: ${error.message}`,
-          variant: "destructive"
+          variant: 'destructive'
         });
       }
     } finally {
@@ -268,7 +303,34 @@ export const GoogleSheetsImport: React.FC<GoogleSheetsImportProps> = ({ onBack }
     }
   };
 
-  const uniqueStatuses = [...new Set(data.map(item => item.status))];
+  const dynamicUniqueStatuses = statusKey
+    ? Array.from(new Set(dynamicRows.map((r) => (r[statusKey!] ?? '').toString()).filter(Boolean)))
+    : [];
+  const uniqueStatuses = dynamicUniqueStatuses.length > 0
+    ? dynamicUniqueStatuses
+    : Array.from(new Set(data.map((item) => item.status)));
+
+  const hasDynamic = dynamicHeaders.length > 0 && dynamicRows.length > 0;
+
+  const totalCount = hasDynamic ? dynamicRows.length : data.length;
+  const qualifiedCount = hasDynamic && statusKey
+    ? dynamicRows.filter((r) => (r[statusKey!] ?? '').toString().toLowerCase() === 'qualified').length
+    : data.filter((d) => d.status === 'qualified').length;
+  const pendingCount = hasDynamic && statusKey
+    ? dynamicRows.filter((r) => (r[statusKey!] ?? '').toString().toLowerCase() === 'new').length
+    : data.filter((d) => d.status === 'new').length;
+  const scoreKey = hasDynamic
+    ? dynamicHeaders.find((h) => ['score', 'note', 'rating'].includes(h.toLowerCase())) || null
+    : null;
+  const avgScore = hasDynamic && scoreKey
+    ? (() => {
+        const nums = dynamicRows
+          .map((r) => parseFloat(String(r[scoreKey!]).replace(',', '.')))
+          .filter((n) => !isNaN(n));
+        return nums.length ? Number((nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1)) : 0;
+      })()
+    : (data.length > 0 ? Number((data.reduce((sum, d) => sum + d.score, 0) / data.length).toFixed(1)) : 0);
+
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
