@@ -119,8 +119,11 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: true,
-            headers: headers.filter((h: string) => h && h.trim()),
+            // Always return `data` for frontend compatibility
+            data: dynamicRecords,
+            // Keep `records` for backward compatibility
             records: dynamicRecords,
+            headers: headers.filter((h: string) => h && h.trim()),
             metadata: {
               totalRows: rows.length,
               validRows: dynamicRecords.length,
@@ -143,17 +146,157 @@ serve(async (req) => {
       }
       } catch (apiError) {
         console.error('Google Sheets API failed:', apiError);
-        // Ne pas tomber sur les données demo en cas d'erreur API, retourner l'erreur
-        return new Response(
-          JSON.stringify({ 
-            error: 'Erreur API Google Sheets',
-            details: apiError.message,
-            suggestion: 'Vérifiez votre ID de feuille et les permissions'
-          }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+
+        // Fallback public access (sheet published to the web): GViz JSON then CSV
+        try {
+          const sheetNamesToTry = [
+            sheetName,
+            `'${sheetName}'`,
+            `"${sheetName}"`,
+            sheetName.replace(/\s+/g, ''),
+            'Sheet1',
+            'Feuille1',
+            'Class Data'
+          ];
+
+          // 1) Try GViz JSON (does not require API key if sheet is published)
+          for (const currentSheetName of sheetNamesToTry) {
+            try {
+              console.log(`GViz JSON fallback attempt for: "${currentSheetName}"`);
+              const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(currentSheetName)}`;
+              const gvizRes = await fetch(gvizUrl);
+              if (!gvizRes.ok) {
+                console.log(`GViz JSON returned ${gvizRes.status}`);
+                continue;
+              }
+              const gvizText = await gvizRes.text();
+              // Extract JSON payload from setResponse(...)
+              const jsonPayload = gvizText.replace(/^.*setResponse\(/s, '').replace(/\);\s*$/s, '');
+              const gviz = JSON.parse(jsonPayload);
+              const cols = gviz?.table?.cols || [];
+              const rows = gviz?.table?.rows || [];
+              if (cols.length === 0 || rows.length === 0) continue;
+
+              const headers = cols.map((c: any) => (c?.label || c?.id || '').toString().trim()).filter((h: string) => !!h);
+              const values = rows.map((r: any) => (r?.c || []).map((c: any) => (c?.f ?? c?.v ?? '')));
+
+              const dynamicRecords = values
+                .filter((row: any[]) => row.some(cell => (cell ?? '').toString().trim() !== ''))
+                .map((row: any[], idx: number) => {
+                  const rec: Record<string, any> = { id: `gs_${Date.now()}_${idx}` };
+                  headers.forEach((h: string, i: number) => { rec[h] = row[i] ?? ''; });
+                  return rec;
+                });
+
+              if (dynamicRecords.length > 0) {
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    data: dynamicRecords,
+                    records: dynamicRecords,
+                    headers,
+                    metadata: {
+                      totalRows: values.length,
+                      validRows: dynamicRecords.length,
+                      headers,
+                      source: 'Google GViz (public)',
+                      spreadsheetId,
+                      sheetName: currentSheetName,
+                      lastSync: new Date().toISOString()
+                    },
+                    message: `${dynamicRecords.length} enregistrements importés via le fallback public (GViz)`
+                  }),
+                  { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+            } catch (e) {
+              console.log('GViz JSON parse error:', e);
+              continue;
+            }
           }
+
+          // 2) Try GViz CSV as a secondary fallback
+          const parseCsv = (text: string): string[][] => {
+            const rows: string[][] = [];
+            let row: string[] = [];
+            let cur = '';
+            let inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+              const ch = text[i];
+              const next = text[i + 1];
+              if (ch === '"') {
+                if (inQuotes && next === '"') { cur += '"'; i++; }
+                else { inQuotes = !inQuotes; }
+              } else if (ch === ',' && !inQuotes) {
+                row.push(cur); cur = '';
+              } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+                if (cur !== '' || row.length > 0) { row.push(cur); rows.push(row); row = []; cur = ''; }
+              } else {
+                cur += ch;
+              }
+            }
+            if (cur !== '' || row.length > 0) { row.push(cur); rows.push(row); }
+            return rows;
+          };
+
+          for (const currentSheetName of sheetNamesToTry) {
+            try {
+              console.log(`GViz CSV fallback attempt for: "${currentSheetName}"`);
+              const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(currentSheetName)}`;
+              const csvRes = await fetch(csvUrl);
+              if (!csvRes.ok) { console.log(`GViz CSV returned ${csvRes.status}`); continue; }
+              const csvText = await csvRes.text();
+              const rows = parseCsv(csvText);
+              if (!rows || rows.length < 2) continue;
+              const headers = rows[0].map(h => (h || '').trim()).filter(Boolean);
+              const dataRows = rows.slice(1);
+              const dynamicRecords = dataRows
+                .filter(r => r.some(cell => (cell ?? '').toString().trim() !== ''))
+                .map((r, idx) => {
+                  const rec: Record<string, any> = { id: `gs_${Date.now()}_${idx}` };
+                  headers.forEach((h, i) => { rec[h] = r[i] ?? ''; });
+                  return rec;
+                });
+
+              if (dynamicRecords.length > 0) {
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    data: dynamicRecords,
+                    records: dynamicRecords,
+                    headers,
+                    metadata: {
+                      totalRows: dataRows.length,
+                      validRows: dynamicRecords.length,
+                      headers,
+                      source: 'Google GViz CSV (public)',
+                      spreadsheetId,
+                      sheetName: currentSheetName,
+                      lastSync: new Date().toISOString()
+                    },
+                    message: `${dynamicRecords.length} enregistrements importés via le fallback public (CSV)`
+                  }),
+                  { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+            } catch (e) {
+              console.log('GViz CSV parse error:', e);
+              continue;
+            }
+          }
+        } catch (fallbackError) {
+          console.log('Public fallback attempts failed with error:', fallbackError);
+        }
+
+        // If all attempts failed, return 200 with an explanatory error payload
+        return new Response(
+          JSON.stringify({
+            error: 'Accès refusé ou feuille non publiée',
+            details: (apiError as any)?.message || 'Impossible d\'accéder à la feuille avec l\'API standard',
+            suggestion: 'Rendez la feuille publique et publiez-la sur le web (Fichier > Partager > Publier sur le web), puis réessayez.',
+            data: []
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } else {
