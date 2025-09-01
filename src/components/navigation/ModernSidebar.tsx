@@ -20,7 +20,7 @@ import {
   Building,
   Shield,
   X,
-  Share2
+  Phone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -74,11 +74,11 @@ const botManagementItems = [
 
 const marketingItems = [
   { 
-    title: 'Campagnes Sociales', 
-    path: '/social-campaigns', 
-    icon: Share2, 
-    color: 'from-emerald-500 to-emerald-600',
-    description: 'Partage personnalisé',
+    title: 'WhatsApp Connect', 
+    path: '/whatsapp-connect', 
+    icon: Phone, 
+    color: 'from-green-500 to-green-600',
+    description: 'Connexion WhatsApp',
     badge: 'New'
   },
 ];
@@ -205,10 +205,10 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           </div>
         </div>
 
-        {/* Marketing */}
+        {/* WhatsApp */}
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Marketing & Social
+            Communication
           </h3>
           <div className="space-y-2">
             {marketingItems.map((item) => (
