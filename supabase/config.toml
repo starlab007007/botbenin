@@ -75,3 +75,6 @@ verify_jwt = false
 
 [functions.waha-health-check]
 verify_jwt = false
+
+[functions.waha-auto-auth]
+verify_jwt = true

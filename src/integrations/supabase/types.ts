@@ -3829,40 +3829,49 @@ export type Database = {
       whatsapp_accounts: {
         Row: {
           created_at: string
+          dashboard_authenticated: boolean | null
           id: string
           last_activity: string | null
+          last_auth_attempt: string | null
           phone_number: string | null
           qr_code: string | null
           session_name: string
           status: string
           updated_at: string
           user_id: string
+          waha_authenticated: boolean | null
           waha_session_data: Json | null
           webhook_url: string | null
         }
         Insert: {
           created_at?: string
+          dashboard_authenticated?: boolean | null
           id?: string
           last_activity?: string | null
+          last_auth_attempt?: string | null
           phone_number?: string | null
           qr_code?: string | null
           session_name: string
           status?: string
           updated_at?: string
           user_id: string
+          waha_authenticated?: boolean | null
           waha_session_data?: Json | null
           webhook_url?: string | null
         }
         Update: {
           created_at?: string
+          dashboard_authenticated?: boolean | null
           id?: string
           last_activity?: string | null
+          last_auth_attempt?: string | null
           phone_number?: string | null
           qr_code?: string | null
           session_name?: string
           status?: string
           updated_at?: string
           user_id?: string
+          waha_authenticated?: boolean | null
           waha_session_data?: Json | null
           webhook_url?: string | null
         }
