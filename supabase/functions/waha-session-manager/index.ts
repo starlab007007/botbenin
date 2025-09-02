@@ -55,19 +55,31 @@ serve(async (req) => {
 
     console.log(`WAHA ${action} request for session: ${sessionName}`);
 
-    const wahaHeaders = {
-      'Content-Type': 'application/json',
-      'X-API-Key': wahaApiKey,
+    // Build multiple auth header variants to handle different WAHA setups
+    const buildHeaders = (extra: Record<string, string> = {}) => [
+      { 'Content-Type': 'application/json', 'X-API-Key': wahaApiKey!, ...extra },
+      { 'Content-Type': 'application/json', 'X-API-KEY': wahaApiKey!, ...extra },
+      { 'Content-Type': 'application/json', 'x-api-key': wahaApiKey!, ...extra },
+      { 'Content-Type': 'application/json', 'Authorization': `Bearer ${wahaApiKey}`!, ...extra },
+    ];
+
+    const wahaFetch = async (endpoint: string, init: RequestInit = {}) => {
+      // Try all header variants; return on first non-401/403 or last response
+      let lastRes: Response | null = null;
+      for (const headers of buildHeaders(init.headers as Record<string,string>)) {
+        const res = await fetch(`${wahaBaseUrl}${endpoint}`, { ...init, headers });
+        if (res.status !== 401 && res.status !== 403) return res;
+        lastRes = res;
+      }
+      return lastRes!;
     };
 
     let wahaResponse: WAHAResponse = { success: false };
-
     switch (action) {
       case 'create':
         // Create session in WAHA
-        const createResponse = await fetch(`${wahaBaseUrl}/api/sessions`, {
+        const createResponse = await wahaFetch(`/api/sessions`, {
           method: 'POST',
-          headers: wahaHeaders,
           body: JSON.stringify({
             name: sessionName,
             config: {
@@ -105,15 +117,15 @@ serve(async (req) => {
           wahaResponse = { success: true, data: sessionData };
         } else {
           const errorData = await createResponse.text();
-          throw new Error(`WAHA create failed: ${errorData}`);
+          console.error('WAHA create failed:', createResponse.status, errorData);
+          wahaResponse = { success: false, error: `WAHA create failed: ${errorData}`, data: { status: createResponse.status } };
         }
         break;
 
       case 'start':
         // Start session in WAHA
-        const startResponse = await fetch(`${wahaBaseUrl}/api/sessions/${sessionName}/start`, {
+        const startResponse = await wahaFetch(`/api/sessions/${sessionName}/start`, {
           method: 'POST',
-          headers: wahaHeaders,
         });
 
         if (startResponse.ok) {
@@ -132,15 +144,15 @@ serve(async (req) => {
           wahaResponse = { success: true, data: startData };
         } else {
           const errorData = await startResponse.text();
-          throw new Error(`WAHA start failed: ${errorData}`);
+          console.error('WAHA start failed:', startResponse.status, errorData);
+          wahaResponse = { success: false, error: `WAHA start failed: ${errorData}`, data: { status: startResponse.status } };
         }
         break;
 
       case 'qr':
         // Get QR code from WAHA
-        const qrResponse = await fetch(`${wahaBaseUrl}/api/sessions/${sessionName}/auth/qr`, {
+        const qrResponse = await wahaFetch(`/api/sessions/${sessionName}/auth/qr`, {
           method: 'GET',
-          headers: wahaHeaders,
         });
 
         if (qrResponse.ok) {
@@ -163,16 +175,15 @@ serve(async (req) => {
           };
         } else {
           const errorData = await qrResponse.text();
-          console.error('QR fetch failed:', errorData);
-          wahaResponse = { success: false, error: `QR fetch failed: ${errorData}` };
+          console.error('QR fetch failed:', qrResponse.status, errorData);
+          wahaResponse = { success: false, error: `QR fetch failed: ${errorData}`, data: { status: qrResponse.status } };
         }
         break;
 
       case 'status':
         // Get session status from WAHA
-        const statusResponse = await fetch(`${wahaBaseUrl}/api/sessions/${sessionName}`, {
+        const statusResponse = await wahaFetch(`/api/sessions/${sessionName}`, {
           method: 'GET',
-          headers: wahaHeaders,
         });
 
         if (statusResponse.ok) {
@@ -191,15 +202,16 @@ serve(async (req) => {
 
           wahaResponse = { success: true, data: statusData };
         } else {
-          wahaResponse = { success: false, error: 'Session not found' };
+          const errorText = await statusResponse.text();
+          console.error('WAHA status failed:', statusResponse.status, errorText);
+          wahaResponse = { success: false, error: 'Session not found', data: { status: statusResponse.status } };
         }
         break;
 
       case 'stop':
         // Stop session in WAHA
-        const stopResponse = await fetch(`${wahaBaseUrl}/api/sessions/${sessionName}/stop`, {
+        const stopResponse = await wahaFetch(`/api/sessions/${sessionName}/stop`, {
           method: 'POST',
-          headers: wahaHeaders,
         });
 
         if (stopResponse.ok) {
@@ -217,15 +229,15 @@ serve(async (req) => {
           wahaResponse = { success: true };
         } else {
           const errorData = await stopResponse.text();
-          throw new Error(`WAHA stop failed: ${errorData}`);
+          console.error('WAHA stop failed:', stopResponse.status, errorData);
+          wahaResponse = { success: false, error: `WAHA stop failed: ${errorData}`, data: { status: stopResponse.status } };
         }
         break;
 
       case 'delete':
         // Delete session from WAHA
-        const deleteResponse = await fetch(`${wahaBaseUrl}/api/sessions/${sessionName}`, {
+        const deleteResponse = await wahaFetch(`/api/sessions/${sessionName}`, {
           method: 'DELETE',
-          headers: wahaHeaders,
         });
 
         if (deleteResponse.ok) {
@@ -239,7 +251,8 @@ serve(async (req) => {
           wahaResponse = { success: true };
         } else {
           const errorData = await deleteResponse.text();
-          throw new Error(`WAHA delete failed: ${errorData}`);
+          console.error('WAHA delete failed:', deleteResponse.status, errorData);
+          wahaResponse = { success: false, error: `WAHA delete failed: ${errorData}`, data: { status: deleteResponse.status } };
         }
         break;
 
@@ -256,10 +269,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: (error as { message?: string }).message || 'Unknown error'
       }),
       {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
