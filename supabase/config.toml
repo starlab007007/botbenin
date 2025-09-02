@@ -72,3 +72,6 @@ verify_jwt = false
 
 [functions.waha-session-manager]
 verify_jwt = false
+
+[functions.waha-health-check]
+verify_jwt = false

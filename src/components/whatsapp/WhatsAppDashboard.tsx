@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useWhatsAppAccounts } from '@/hooks/useWhatsAppAccounts';
 import { useWhatsAppAutoProvisioning } from '@/hooks/useWhatsAppAutoProvisioning';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
+import WAHAHealthCheck from './WAHAHealthCheck';
 import { 
   MessageCircle,
   Smartphone,
@@ -24,7 +25,8 @@ import {
   Users,
   MessageSquare,
   Settings,
-  Zap
+  Zap,
+  Activity
 } from 'lucide-react';
 
 const WhatsAppDashboard: React.FC = () => {
@@ -166,6 +168,9 @@ const WhatsAppDashboard: React.FC = () => {
           WAHA Admin (Admin)
         </Button>
       </div>
+
+      {/* Diagnostic WAHA */}
+      <WAHAHealthCheck />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

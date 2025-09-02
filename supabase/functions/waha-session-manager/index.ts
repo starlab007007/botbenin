@@ -91,20 +91,56 @@ serve(async (req) => {
     };
 
     const wahaFetch = async (endpoint: string, init: RequestInit = {}) => {
+      const headerVariants = buildHeaders(init.headers as Record<string,string>);
+      console.log(`Attempting WAHA request to ${wahaBaseUrl}${endpoint}`);
+      console.log(`Available auth variants: ${headerVariants.length}`);
+      
       // Try all header variants; return on first non-401/403 or last response
       let lastRes: Response | null = null;
-      for (const headers of buildHeaders(init.headers as Record<string,string>)) {
-        const res = await fetch(`${wahaBaseUrl}${endpoint}`, { ...init, headers });
-        if (res.status !== 401 && res.status !== 403) return res;
-        lastRes = res;
+      for (let i = 0; i < headerVariants.length; i++) {
+        const headers = headerVariants[i];
+        console.log(`Trying auth variant ${i + 1}:`, Object.keys(headers).filter(k => k.toLowerCase().includes('auth') || k.toLowerCase().includes('api')));
+        
+        try {
+          const res = await fetch(`${wahaBaseUrl}${endpoint}`, { ...init, headers });
+          console.log(`Auth variant ${i + 1} response: ${res.status} ${res.statusText}`);
+          
+          if (res.status !== 401 && res.status !== 403) {
+            console.log(`Success with auth variant ${i + 1}`);
+            return res;
+          }
+          lastRes = res;
+        } catch (fetchError) {
+          console.error(`Auth variant ${i + 1} fetch error:`, fetchError);
+          if (i === headerVariants.length - 1) {
+            throw fetchError;
+          }
+        }
       }
+      
+      console.log(`All auth variants failed, returning last response: ${lastRes?.status}`);
       return lastRes!;
     };
 
     let wahaResponse: WAHAResponse = { success: false };
     switch (action) {
       case 'create':
+        // Test WAHA connectivity first
+        console.log('Testing WAHA connectivity...');
+        const testResponse = await wahaFetch('/api/sessions', { method: 'GET' });
+        console.log(`WAHA connectivity test: ${testResponse.status} ${testResponse.statusText}`);
+        
+        if (testResponse.status === 401 || testResponse.status === 403) {
+          console.error('WAHA authentication failed on connectivity test');
+          wahaResponse = { 
+            success: false, 
+            error: `WAHA authentication failed. Please verify API key or dashboard credentials. Status: ${testResponse.status}` 
+          };
+          break;
+        }
+        
         // Create session in WAHA
+        console.log('Creating WAHA session...');
         const createResponse = await wahaFetch(`/api/sessions`, {
           method: 'POST',
           body: JSON.stringify({
@@ -122,6 +158,7 @@ serve(async (req) => {
 
         if (createResponse.ok) {
           const sessionData = await createResponse.json();
+          console.log('WAHA session created successfully:', sessionData);
           
           // Save session to database
           const { error: dbError } = await supabase
@@ -145,7 +182,11 @@ serve(async (req) => {
         } else {
           const errorData = await createResponse.text();
           console.error('WAHA create failed:', createResponse.status, errorData);
-          wahaResponse = { success: false, error: `WAHA create failed: ${errorData}`, data: { status: createResponse.status } };
+          wahaResponse = { 
+            success: false, 
+            error: `WAHA create failed: ${errorData}`, 
+            data: { status: createResponse.status } 
+          };
         }
         break;
 
