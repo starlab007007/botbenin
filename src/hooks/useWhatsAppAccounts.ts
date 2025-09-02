@@ -92,7 +92,7 @@ export const useWhatsAppAccounts = () => {
     }
   };
 
-  const loadData = async () => {
+const loadData = async () => {
     setLoading(true);
     try {
       await Promise.all([loadAccounts(), loadBots(), loadBotLinks()]);
@@ -101,14 +101,24 @@ export const useWhatsAppAccounts = () => {
     }
   };
 
-  const createSession = async (sessionName: string, phoneNumber?: string) => {
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('AUTH_REQUIRED');
+    }
+    return { Authorization: `Bearer ${session.access_token}` } as Record<string, string>;
+  };
+
+const createSession = async (sessionName: string, phoneNumber?: string) => {
     try {
+      const headers = await getAuthHeaders();
       const { data, error } = await supabase.functions.invoke('waha-session-manager', {
         body: {
           action: 'create',
           sessionName,
           phoneNumber,
         },
+        headers,
       });
 
       if (error) throw error;
@@ -127,20 +137,22 @@ export const useWhatsAppAccounts = () => {
       console.error('Failed to create session:', error);
       toast({
         title: "Erreur",
-        description: error.message || "Impossible de créer la session",
+        description: error.message === 'AUTH_REQUIRED' ? 'Veuillez vous connecter pour créer une session' : (error.message || "Impossible de créer la session"),
         variant: "destructive",
       });
       throw error;
     }
   };
 
-  const startSession = async (sessionName: string) => {
+const startSession = async (sessionName: string) => {
     try {
+      const headers = await getAuthHeaders();
       const { data, error } = await supabase.functions.invoke('waha-session-manager', {
         body: {
           action: 'start',
           sessionName,
         },
+        headers,
       });
 
       if (error) throw error;
@@ -159,20 +171,22 @@ export const useWhatsAppAccounts = () => {
       console.error('Failed to start session:', error);
       toast({
         title: "Erreur",
-        description: error.message || "Impossible de démarrer la session",
+        description: error.message === 'AUTH_REQUIRED' ? 'Veuillez vous connecter pour démarrer la session' : (error.message || "Impossible de démarrer la session"),
         variant: "destructive",
       });
       throw error;
     }
   };
 
-  const getQRCode = async (sessionName: string) => {
+const getQRCode = async (sessionName: string) => {
     try {
+      const headers = await getAuthHeaders();
       const { data, error } = await supabase.functions.invoke('waha-session-manager', {
         body: {
           action: 'qr',
           sessionName,
         },
+        headers,
       });
 
       if (error) throw error;
@@ -188,13 +202,15 @@ export const useWhatsAppAccounts = () => {
     }
   };
 
-  const stopSession = async (sessionName: string) => {
+const stopSession = async (sessionName: string) => {
     try {
+      const headers = await getAuthHeaders();
       const { data, error } = await supabase.functions.invoke('waha-session-manager', {
         body: {
           action: 'stop',
           sessionName,
         },
+        headers,
       });
 
       if (error) throw error;
@@ -213,20 +229,22 @@ export const useWhatsAppAccounts = () => {
       console.error('Failed to stop session:', error);
       toast({
         title: "Erreur",
-        description: "Impossible d'arrêter la session",
+        description: error.message === 'AUTH_REQUIRED' ? 'Veuillez vous connecter pour arrêter la session' : "Impossible d'arrêter la session",
         variant: "destructive",
       });
       throw error;
     }
   };
 
-  const deleteSession = async (sessionName: string) => {
+const deleteSession = async (sessionName: string) => {
     try {
+      const headers = await getAuthHeaders();
       const { data, error } = await supabase.functions.invoke('waha-session-manager', {
         body: {
           action: 'delete',
           sessionName,
         },
+        headers,
       });
 
       if (error) throw error;
@@ -245,7 +263,7 @@ export const useWhatsAppAccounts = () => {
       console.error('Failed to delete session:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de supprimer la session",
+        description: error.message === 'AUTH_REQUIRED' ? 'Veuillez vous connecter pour supprimer la session' : "Impossible de supprimer la session",
         variant: "destructive",
       });
       throw error;
@@ -332,8 +350,9 @@ export const useWhatsAppAccounts = () => {
     }
   };
 
-  const sendMessage = async (sessionName: string, to: string, message: string, messageType: 'text' | 'image' | 'file' = 'text', mediaUrl?: string) => {
+const sendMessage = async (sessionName: string, to: string, message: string, messageType: 'text' | 'image' | 'file' = 'text', mediaUrl?: string) => {
     try {
+      const headers = await getAuthHeaders();
       const { data, error } = await supabase.functions.invoke('waha-send-message', {
         body: {
           sessionName,
@@ -342,6 +361,7 @@ export const useWhatsAppAccounts = () => {
           messageType,
           mediaUrl,
         },
+        headers,
       });
 
       if (error) throw error;
@@ -359,7 +379,7 @@ export const useWhatsAppAccounts = () => {
       console.error('Failed to send message:', error);
       toast({
         title: "Erreur",
-        description: error.message || "Impossible d'envoyer le message",
+        description: error.message === 'AUTH_REQUIRED' ? 'Veuillez vous connecter pour envoyer un message' : (error.message || "Impossible d'envoyer le message"),
         variant: "destructive",
       });
       throw error;

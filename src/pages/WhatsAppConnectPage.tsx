@@ -12,6 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useWhatsAppAccounts } from '@/hooks/useWhatsAppAccounts';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
+import { useAuth } from '@/contexts/AuthContext';
+import { AuthGuard } from '@/components/bot-management/AuthGuard';
 import { 
   MessageCircle,
   Smartphone,
@@ -100,6 +102,8 @@ const WhatsAppConnectPage: React.FC = () => {
   const [autoResponseEnabled, setAutoResponseEnabled] = useState(true);
   const [responseDelay, setResponseDelay] = useState(2);
 
+  const { isAuthenticated } = useAuth();
+
   const { 
     accounts, 
     bots, 
@@ -160,11 +164,19 @@ const WhatsAppConnectPage: React.FC = () => {
     }
   ];
 
-  const handleCreateSession = async () => {
+const handleCreateSession = async () => {
     if (!newSessionName.trim()) {
       toast({
         title: "Erreur",
         description: "Veuillez entrer un nom de session",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!isAuthenticated) {
+      toast({
+        title: "Connexion requise",
+        description: "Veuillez vous connecter pour créer une session WhatsApp",
         variant: "destructive",
       });
       return;
@@ -279,7 +291,8 @@ const WhatsAppConnectPage: React.FC = () => {
     );
   }
 
-  return (
+return (
+    <AuthGuard isAuthenticated={isAuthenticated}>
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       {/* En-tête */}
       <div className="mb-8 text-center">
@@ -965,9 +978,10 @@ const WhatsAppConnectPage: React.FC = () => {
               </Button>
             </div>
           </div>
-        </DialogContent>
+    </DialogContent>
       </Dialog>
     </div>
+    </AuthGuard>
   );
 };
 
