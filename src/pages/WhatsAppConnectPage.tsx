@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +95,7 @@ const WhatsAppConnectPage: React.FC = () => {
   const [selectedBot, setSelectedBot] = useState<string>('');
   const [newSessionName, setNewSessionName] = useState('');
   const [qrCode, setQrCode] = useState<string>('');
+  const [qrRefreshing, setQrRefreshing] = useState(false);
   const [welcomeMessage, setWelcomeMessage] = useState('Bonjour! Je suis votre assistant IA. Comment puis-je vous aider?');
   const [autoResponseEnabled, setAutoResponseEnabled] = useState(true);
   const [responseDelay, setResponseDelay] = useState(2);
@@ -104,6 +105,7 @@ const WhatsAppConnectPage: React.FC = () => {
     bots, 
     botLinks, 
     loading, 
+    loadData,
     createSession, 
     startSession, 
     getQRCode, 
@@ -115,21 +117,21 @@ const WhatsAppConnectPage: React.FC = () => {
     sendMessage 
   } = useWhatsAppAccounts();
 
-  // Utiliser le hook pour les messages WhatsApp
-  const { messages, contacts, getMessageStats } = useWhatsAppMessages(selectedAccount);
+  // Utiliser le hook pour les messages WhatsApp seulement si un compte est sélectionné
+  const { messages, contacts, getMessageStats } = useWhatsAppMessages(selectedAccount || undefined);
 
   const { toast } = useToast();
 
-  // Calculer les étapes completées
-  const completedSteps = () => {
+  // Calculer les étapes completées avec useMemo pour performance
+  const completedSteps = useMemo(() => {
     const steps = [
       accounts.some(a => a.status === 'connected'), // Étape 1: WhatsApp connecté
       botLinks.some(bl => bl.is_active), // Étape 2: Bot lié
       botLinks.some(bl => bl.auto_response_enabled), // Étape 3: Auto-réponse configurée
-      false // Étape 4: Widget intégré (à implémenter plus tard)
+      accounts.some(a => a.status === 'connected') && botLinks.some(bl => bl.is_active) // Étape 4: Monitoring disponible
     ];
     return steps;
-  };
+  }, [accounts, botLinks]);
 
   const steps = [
     {
@@ -185,22 +187,57 @@ const WhatsAppConnectPage: React.FC = () => {
   const proceedWithConnection = async () => {
     setShowWarningModal(false);
     setShowConnectionModal(true);
+    setQrCode('');
     
     const account = accounts.find(a => a.id === selectedAccount);
     if (account) {
       try {
         await startSession(account.session_name);
-        // Attendre et récupérer le QR code
-        setTimeout(async () => {
-          const qrCodeData = await getQRCode(account.session_name);
-          if (qrCodeData) {
-            setQrCode(qrCodeData);
-          }
-        }, 2000);
+        // Récupérer le QR code avec retry
+        await refreshQRCode(account.session_name);
       } catch (error) {
         console.error('Error starting session:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de démarrer la session",
+          variant: "destructive",
+        });
+        setShowConnectionModal(false);
       }
     }
+  };
+
+  const refreshQRCode = async (sessionName: string) => {
+    setQrRefreshing(true);
+    let retryCount = 0;
+    const maxRetries = 5;
+    
+    const tryGetQR = async (): Promise<void> => {
+      try {
+        const qrCodeData = await getQRCode(sessionName);
+        if (qrCodeData) {
+          setQrCode(qrCodeData);
+          setQrRefreshing(false);
+          return;
+        }
+      } catch (error) {
+        console.error(`QR code attempt ${retryCount + 1} failed:`, error);
+      }
+      
+      retryCount++;
+      if (retryCount < maxRetries) {
+        setTimeout(tryGetQR, 2000);
+      } else {
+        setQrRefreshing(false);
+        toast({
+          title: "Erreur QR Code",
+          description: "Impossible de générer le QR code. Essayez de redémarrer la session.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    setTimeout(tryGetQR, 1000); // Délai initial pour laisser la session se créer
   };
 
   const handleLinkBot = async () => {
@@ -221,8 +258,18 @@ const WhatsAppConnectPage: React.FC = () => {
     }
   };
 
-  const connectedAccounts = accounts.filter(a => a.status === 'connected');
-  const activeLinks = botLinks.filter(bl => bl.is_active);
+  const connectedAccounts = useMemo(() => accounts.filter(a => a.status === 'connected'), [accounts]);
+  const activeLinks = useMemo(() => botLinks.filter(bl => bl.is_active), [botLinks]);
+
+  // Mettre à jour les valeurs locales quand les données changent
+  useEffect(() => {
+    const currentLink = activeLinks.find(link => link.whatsapp_account_id === selectedAccount);
+    if (currentLink) {
+      setWelcomeMessage(currentLink.welcome_message);
+      setResponseDelay(currentLink.response_delay_seconds);
+      setAutoResponseEnabled(currentLink.auto_response_enabled);
+    }
+  }, [activeLinks, selectedAccount]);
 
   if (loading) {
     return (
@@ -248,13 +295,13 @@ const WhatsAppConnectPage: React.FC = () => {
       {/* Étapes du processus */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {steps.map((step, index) => (
-          <StepCard
-            key={step.number}
-            {...step}
-            isActive={currentStep === step.number}
-            isCompleted={completedSteps()[index]}
-            onClick={() => setCurrentStep(step.number)}
-          />
+            <StepCard
+              key={step.number}
+              {...step}
+              isActive={currentStep === step.number}
+              isCompleted={completedSteps[index]}
+              onClick={() => setCurrentStep(step.number)}
+            />
         ))}
       </div>
 
@@ -727,9 +774,22 @@ const WhatsAppConnectPage: React.FC = () => {
                 <div className="mt-6 flex gap-3">
                   <Button 
                     variant="outline"
-                    onClick={() => {
-                      // Rafraîchir les données
-                      window.location.reload();
+                    onClick={async () => {
+                      // Rafraîchir les données via les hooks
+                      try {
+                        await loadData();
+                        toast({
+                          title: "Actualisé",
+                          description: "Les données ont été mises à jour",
+                        });
+                      } catch (error) {
+                        console.error('Error refreshing data:', error);
+                        toast({
+                          title: "Erreur",
+                          description: "Impossible d'actualiser les données",
+                          variant: "destructive",
+                        });
+                      }
                     }}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
@@ -865,8 +925,10 @@ const WhatsAppConnectPage: React.FC = () => {
                 <img src={qrCode} alt="QR Code WhatsApp" className="mx-auto max-w-full" />
               ) : (
                 <div className="py-20">
-                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Génération du QR code...</p>
+                  <RefreshCw className={`w-8 h-8 mx-auto mb-2 ${qrRefreshing ? 'animate-spin' : ''}`} />
+                  <p className="text-sm text-muted-foreground">
+                    {qrRefreshing ? 'Génération du QR code...' : 'QR Code non disponible'}
+                  </p>
                 </div>
               )}
             </div>
@@ -887,27 +949,18 @@ const WhatsAppConnectPage: React.FC = () => {
                 onClick={async () => {
                   const account = accounts.find(a => a.id === selectedAccount);
                   if (account) {
-                    try {
-                      setQrCode('');
-                      const newQrCode = await getQRCode(account.session_name);
-                      if (newQrCode) {
-                        setQrCode(newQrCode);
-                      }
-                    } catch (error) {
-                      console.error('Error refreshing QR code:', error);
-                      toast({
-                        title: "Erreur",
-                        description: "Impossible de rafraîchir le QR code",
-                        variant: "destructive",
-                      });
-                    }
+                    await refreshQRCode(account.session_name);
                   }
                 }}
+                disabled={qrRefreshing}
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Actualiser QR
+                <RefreshCw className={`w-4 h-4 mr-2 ${qrRefreshing ? 'animate-spin' : ''}`} />
+                {qrRefreshing ? 'Génération...' : 'Nouveau QR Code'}
               </Button>
-              <Button variant="outline" onClick={() => setShowConnectionModal(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowConnectionModal(false)}
+              >
                 Fermer
               </Button>
             </div>

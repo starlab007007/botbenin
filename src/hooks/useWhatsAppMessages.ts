@@ -34,7 +34,11 @@ export const useWhatsAppMessages = (accountId?: string) => {
   const { toast } = useToast();
 
   const loadMessages = async () => {
-    if (!accountId) return;
+    if (!accountId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -60,7 +64,10 @@ export const useWhatsAppMessages = (accountId?: string) => {
   };
 
   const loadContacts = async () => {
-    if (!accountId) return;
+    if (!accountId) {
+      setContacts([]);
+      return;
+    }
 
     try {
       // Get unique contacts from messages
@@ -220,6 +227,11 @@ export const useWhatsAppMessages = (accountId?: string) => {
       return () => {
         subscription.unsubscribe();
       };
+    } else {
+      // Reset states when no account is selected
+      setMessages([]);
+      setContacts([]);
+      setLoading(false);
     }
   }, [accountId]);
 
