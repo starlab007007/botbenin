@@ -4246,13 +4246,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "whatsapp_conversations_last_message_id_fkey"
-            columns: ["last_message_id"]
-            isOneToOne: false
-            referencedRelation: "whatsapp_messages"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "whatsapp_conversations_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -4327,83 +4320,66 @@ export type Database = {
       }
       whatsapp_messages: {
         Row: {
-          contact_id: string
+          bot_link_id: string | null
           content: string | null
-          created_at: string | null
-          direction: string
+          created_at: string
+          from_number: string
           id: string
-          integration_id: string
-          is_read: boolean | null
-          media_caption: string | null
+          is_bot_response: boolean
+          is_from_me: boolean
           media_url: string | null
           message_id: string
           message_type: string
-          metadata: Json | null
-          status: string | null
           timestamp: string
-          user_id: string
+          to_number: string
+          waha_raw_data: Json | null
+          whatsapp_account_id: string
         }
         Insert: {
-          contact_id: string
+          bot_link_id?: string | null
           content?: string | null
-          created_at?: string | null
-          direction: string
+          created_at?: string
+          from_number: string
           id?: string
-          integration_id: string
-          is_read?: boolean | null
-          media_caption?: string | null
+          is_bot_response?: boolean
+          is_from_me?: boolean
           media_url?: string | null
           message_id: string
-          message_type: string
-          metadata?: Json | null
-          status?: string | null
-          timestamp: string
-          user_id: string
+          message_type?: string
+          timestamp?: string
+          to_number: string
+          waha_raw_data?: Json | null
+          whatsapp_account_id: string
         }
         Update: {
-          contact_id?: string
+          bot_link_id?: string | null
           content?: string | null
-          created_at?: string | null
-          direction?: string
+          created_at?: string
+          from_number?: string
           id?: string
-          integration_id?: string
-          is_read?: boolean | null
-          media_caption?: string | null
+          is_bot_response?: boolean
+          is_from_me?: boolean
           media_url?: string | null
           message_id?: string
           message_type?: string
-          metadata?: Json | null
-          status?: string | null
           timestamp?: string
-          user_id?: string
+          to_number?: string
+          waha_raw_data?: Json | null
+          whatsapp_account_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "whatsapp_messages_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "whatsapp_messages_bot_link_id_fkey"
+            columns: ["bot_link_id"]
             isOneToOne: false
-            referencedRelation: "whatsapp_contacts"
+            referencedRelation: "whatsapp_bot_links"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "whatsapp_messages_integration_id_fkey"
-            columns: ["integration_id"]
+            foreignKeyName: "whatsapp_messages_whatsapp_account_id_fkey"
+            columns: ["whatsapp_account_id"]
             isOneToOne: false
-            referencedRelation: "whatsapp_integrations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "whatsapp_accounts"
             referencedColumns: ["id"]
           },
         ]
