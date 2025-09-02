@@ -64,7 +64,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  const hasAdminAccess = user?.permissions.includes('manage_users');
+  const hasAdminAccess = !!user?.permissions?.includes?.('manage_users');
 
   const quickActions = [
     { name: 'Accueil', path: '/home', icon: Home },
