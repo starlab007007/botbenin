@@ -15,8 +15,8 @@ export interface WhatsAppMessage {
   is_from_me: boolean;
   is_bot_response: boolean;
   timestamp: string;
-  created_at: string;
   waha_raw_data?: any;
+  created_at: string;
 }
 
 export interface MessageContact {
