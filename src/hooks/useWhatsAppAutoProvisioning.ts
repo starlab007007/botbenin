@@ -39,11 +39,15 @@ export const useWhatsAppAutoProvisioning = () => {
       const sessionName = `user_${user.id.substring(0, 8)}_main`;
 
       // Check if session already exists
-      const { data: existingAccount } = await supabase
+      const { data: existingAccount, error: existingErr } = await supabase
         .from('whatsapp_accounts')
         .select('id, session_name')
         .eq('session_name', sessionName)
-        .single();
+        .maybeSingle();
+
+      if (existingErr) {
+        console.warn('Existing account lookup warning:', existingErr.message);
+      }
 
       if (existingAccount) {
         setIsProvisioned(true);
@@ -53,7 +57,7 @@ export const useWhatsAppAutoProvisioning = () => {
 
       // Get auth headers
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Authentication required');
+      if (!session) throw new Error('AUTH_REQUIRED');
 
       const headers = { Authorization: `Bearer ${session.access_token}` };
 
@@ -75,21 +79,21 @@ export const useWhatsAppAutoProvisioning = () => {
           description: "Votre session WhatsApp a été créée automatiquement",
         });
       } else {
-        throw new Error(data.error || 'Failed to create session');
+        const errMsg = data.error || 'Failed to create session';
+        throw new Error(errMsg);
       }
     } catch (error: any) {
       console.error('Auto-provisioning failed:', error);
       setProvisioningError(error.message);
       toast({
         title: "Erreur de configuration",
-        description: "Impossible de configurer WhatsApp automatiquement",
+        description: error.message || "Impossible de configurer WhatsApp automatiquement",
         variant: "destructive",
       });
     } finally {
       setIsProvisioning(false);
     }
   };
-
   useEffect(() => {
     if (isAuthenticated && user) {
       checkProvisioningStatus();

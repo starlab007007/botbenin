@@ -30,20 +30,23 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+    const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
+    const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
 
     // Debug logging for environment variables
     console.log('Environment check:');
     console.log('WAHA_BASE_URL:', wahaBaseUrl ? 'SET' : 'MISSING');
     console.log('WAHA_API_KEY:', wahaApiKey ? 'SET' : 'MISSING');
+    console.log('WAHA_DASHBOARD_USERNAME:', wahaDashUser ? 'SET' : 'MISSING');
+    console.log('WAHA_DASHBOARD_PASSWORD:', wahaDashPass ? 'SET' : 'MISSING');
     
-    if (!wahaBaseUrl || !wahaApiKey) {
-      const missingVars = [];
-      if (!wahaBaseUrl) missingVars.push('WAHA_BASE_URL');
-      if (!wahaApiKey) missingVars.push('WAHA_API_KEY');
-      
+    if (!wahaBaseUrl || (!wahaApiKey && !(wahaDashUser && wahaDashPass))) {
+      const missing: string[] = [];
+      if (!wahaBaseUrl) missing.push('WAHA_BASE_URL');
+      if (!wahaApiKey && !(wahaDashUser && wahaDashPass)) missing.push('WAHA_API_KEY or (WAHA_DASHBOARD_USERNAME + WAHA_DASHBOARD_PASSWORD)');
       return new Response(JSON.stringify({ 
         success: false, 
-        error: `WAHA configuration missing: ${missingVars.join(', ')}` 
+        error: `WAHA configuration missing: ${missing.join(', ')}` 
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -70,13 +73,22 @@ serve(async (req) => {
 
     console.log(`WAHA ${action} request for session: ${sessionName}`);
 
-    // Build multiple auth header variants to handle different WAHA setups
-    const buildHeaders = (extra: Record<string, string> = {}) => [
-      { 'Content-Type': 'application/json', 'X-API-Key': wahaApiKey!, ...extra },
-      { 'Content-Type': 'application/json', 'X-API-KEY': wahaApiKey!, ...extra },
-      { 'Content-Type': 'application/json', 'x-api-key': wahaApiKey!, ...extra },
-      { 'Content-Type': 'application/json', 'Authorization': `Bearer ${wahaApiKey}`!, ...extra },
-    ];
+    const buildHeaders = (extra: Record<string, string> = {}) => {
+      const variants: Record<string, string>[] = [];
+      if (wahaApiKey) {
+        variants.push(
+          { 'Content-Type': 'application/json', 'X-API-Key': wahaApiKey, ...extra },
+          { 'Content-Type': 'application/json', 'X-API-KEY': wahaApiKey, ...extra },
+          { 'Content-Type': 'application/json', 'x-api-key': wahaApiKey, ...extra },
+          { 'Content-Type': 'application/json', 'Authorization': `Bearer ${wahaApiKey}`, ...extra },
+        );
+      }
+      if (wahaDashUser && wahaDashPass) {
+        const basic = `Basic ${btoa(`${wahaDashUser}:${wahaDashPass}`)}`;
+        variants.push({ 'Content-Type': 'application/json', 'Authorization': basic, ...extra });
+      }
+      return variants;
+    };
 
     const wahaFetch = async (endpoint: string, init: RequestInit = {}) => {
       // Try all header variants; return on first non-401/403 or last response
