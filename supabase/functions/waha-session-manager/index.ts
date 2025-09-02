@@ -31,8 +31,23 @@ serve(async (req) => {
     const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
 
+    // Debug logging for environment variables
+    console.log('Environment check:');
+    console.log('WAHA_BASE_URL:', wahaBaseUrl ? 'SET' : 'MISSING');
+    console.log('WAHA_API_KEY:', wahaApiKey ? 'SET' : 'MISSING');
+    
     if (!wahaBaseUrl || !wahaApiKey) {
-      throw new Error('WAHA configuration missing');
+      const missingVars = [];
+      if (!wahaBaseUrl) missingVars.push('WAHA_BASE_URL');
+      if (!wahaApiKey) missingVars.push('WAHA_API_KEY');
+      
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: `WAHA configuration missing: ${missingVars.join(', ')}` 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
