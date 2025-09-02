@@ -30,13 +30,15 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+    const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN');
     const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
     const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
 
     // Debug logging for environment variables
     console.log('Environment check:');
     console.log('WAHA_BASE_URL:', wahaBaseUrl ? 'SET' : 'MISSING');
-    console.log('WAHA_API_KEY:', wahaApiKey ? 'SET' : 'MISSING');
+    console.log('WAHA_API_KEY (hash or plain):', wahaApiKey ? 'SET' : 'MISSING');
+    console.log('WAHA_API_KEY_PLAIN:', wahaApiKeyPlain ? 'SET' : 'MISSING');
     console.log('WAHA_DASHBOARD_USERNAME:', wahaDashUser ? 'SET' : 'MISSING');
     console.log('WAHA_DASHBOARD_PASSWORD:', wahaDashPass ? 'SET' : 'MISSING');
     
@@ -75,12 +77,15 @@ serve(async (req) => {
 
     const buildHeaders = (extra: Record<string, string> = {}) => {
       const variants: Record<string, string>[] = [];
-      if (wahaApiKey) {
+      if (wahaApiKey || wahaApiKeyPlain) {
+        const keyToUse = (wahaApiKeyPlain && wahaApiKeyPlain.length > 0) ? wahaApiKeyPlain : (wahaApiKey as string);
         variants.push(
-          { 'Content-Type': 'application/json', 'X-API-Key': wahaApiKey, ...extra },
-          { 'Content-Type': 'application/json', 'X-API-KEY': wahaApiKey, ...extra },
-          { 'Content-Type': 'application/json', 'x-api-key': wahaApiKey, ...extra },
-          { 'Content-Type': 'application/json', 'Authorization': `Bearer ${wahaApiKey}`, ...extra },
+          { 'Content-Type': 'application/json', 'X-Api-Key': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'X-API-Key': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'X-API-KEY': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'x-api-key': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'Authorization': `ApiKey ${keyToUse}`, ...extra },
+          { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keyToUse}`, ...extra },
         );
       }
       if (wahaDashUser && wahaDashPass) {

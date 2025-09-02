@@ -14,12 +14,14 @@ serve(async (req) => {
   try {
     const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+    const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN');
     const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
     const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
 
     console.log('WAHA Health Check');
     console.log('WAHA_BASE_URL:', wahaBaseUrl);
     console.log('WAHA_API_KEY:', wahaApiKey ? 'SET' : 'MISSING');
+    console.log('WAHA_API_KEY_PLAIN:', wahaApiKeyPlain ? 'SET' : 'MISSING');
     console.log('WAHA_DASHBOARD_USERNAME:', wahaDashUser ? 'SET' : 'MISSING');
     console.log('WAHA_DASHBOARD_PASSWORD:', wahaDashPass ? 'SET' : 'MISSING');
 
@@ -54,13 +56,15 @@ serve(async (req) => {
     }
 
     // Test 2: API Key variants
-    if (wahaApiKey) {
+    if (wahaApiKey || wahaApiKeyPlain) {
+      const keyToUse = (wahaApiKeyPlain && wahaApiKeyPlain.length > 0) ? wahaApiKeyPlain : (wahaApiKey as string);
       const apiKeyVariants = [
-        { 'X-API-Key': wahaApiKey },
-        { 'X-API-KEY': wahaApiKey },
-        { 'x-api-key': wahaApiKey },
-        { 'Authorization': `Bearer ${wahaApiKey}` },
-        { 'Authorization': `ApiKey ${wahaApiKey}` }
+        { 'X-Api-Key': keyToUse },
+        { 'X-API-Key': keyToUse },
+        { 'X-API-KEY': keyToUse },
+        { 'x-api-key': keyToUse },
+        { 'Authorization': `Bearer ${keyToUse}` },
+        { 'Authorization': `ApiKey ${keyToUse}` }
       ];
 
       for (let i = 0; i < apiKeyVariants.length; i++) {
