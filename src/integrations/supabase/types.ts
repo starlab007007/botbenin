@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -4866,16 +4866,16 @@ export type Database = {
         Args: { p_bot_id?: string }
         Returns: {
           cleaned_sessions: number
-          reconciled_users: number
           orphaned_messages: number
+          reconciled_users: number
         }[]
       }
       cleanup_orphaned_bot_data: {
         Args: Record<PropertyKey, never>
         Returns: {
           cleaned_links: number
-          cleaned_sessions: number
           cleaned_messages: number
+          cleaned_sessions: number
           details: Json
         }[]
       }
@@ -4885,11 +4885,11 @@ export type Database = {
       }
       collect_visitor_data: {
         Args: {
-          p_session_id: string
-          p_data_type: string
-          p_data_value: string
           p_collection_method?: string
           p_confidence_score?: number
+          p_data_type: string
+          p_data_value: string
+          p_session_id: string
         }
         Returns: string
       }
@@ -4897,19 +4897,19 @@ export type Database = {
         Args: {
           p_bot_id: string
           p_session_id: string
-          p_user_name?: string
           p_user_email?: string
+          p_user_name?: string
         }
         Returns: string
       }
       create_or_get_visitor_fingerprint: {
         Args: {
-          p_fingerprint_hash: string
           p_browser_info?: Json
-          p_screen_info?: Json
-          p_timezone?: string
+          p_fingerprint_hash: string
           p_language?: string
           p_platform?: string
+          p_screen_info?: Json
+          p_timezone?: string
           p_user_agent?: string
         }
         Returns: string
@@ -4920,58 +4920,58 @@ export type Database = {
       }
       create_visitor_session_final: {
         Args: {
-          p_fingerprint_id: string
           p_bot_id: string
           p_entry_point?: string
-          p_referrer_url?: string
-          p_utm_source?: string
-          p_utm_medium?: string
-          p_utm_campaign?: string
+          p_fingerprint_id: string
           p_ip_address?: unknown
+          p_referrer_url?: string
+          p_utm_campaign?: string
+          p_utm_medium?: string
+          p_utm_source?: string
         }
         Returns: string
       }
       debug_bot_creation: {
         Args: { p_user_uuid?: string }
         Returns: {
-          user_id: string
-          has_bot_owner: boolean
           bot_owner_id: string
-          max_bots: number
-          current_bot_count: number
           can_create_bot: boolean
+          current_bot_count: number
+          has_bot_owner: boolean
+          max_bots: number
+          user_id: string
         }[]
       }
       detect_bot_domain: {
         Args: { p_bot_id: string }
         Returns: {
-          domain_id: string
           confidence_score: number
+          domain_id: string
         }[]
       }
       diagnose_all_session_ambiguities: {
         Args: Record<PropertyKey, never>
         Returns: {
+          fix_needed: string
           function_name: string
           issue_description: string
           severity: string
-          fix_needed: string
         }[]
       }
       diagnose_bot_session_issues: {
         Args: { p_bot_id?: string }
         Returns: {
-          issue_type: string
           count: number
           details: Json
+          issue_type: string
           suggested_action: string
         }[]
       }
       diagnose_session_issues: {
         Args: Record<PropertyKey, never>
         Returns: {
-          issue_type: string
           count: number
+          issue_type: string
           sample_details: Json
         }[]
       }
@@ -4979,24 +4979,24 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           issue_type: string
-          status: string
           message: string
+          status: string
         }[]
       }
       diagnose_session_token_issues: {
         Args: Record<PropertyKey, never>
         Returns: {
-          issue_type: string
           count: number
           details: Json
+          issue_type: string
         }[]
       }
       fix_all_user_issues: {
         Args: Record<PropertyKey, never>
         Returns: {
-          fix_type: string
           affected_count: number
           details: string
+          fix_type: string
         }[]
       }
       fix_session_inconsistencies: {
@@ -5018,17 +5018,17 @@ export type Database = {
       get_admin_dashboard_stats: {
         Args: Record<PropertyKey, never>
         Returns: {
-          total_users: number
+          active_bots: number
+          active_campaigns: number
           active_users_24h: number
           active_users_7d: number
           new_users_30d: number
+          revenue_monthly: number
           total_bots: number
-          active_bots: number
           total_campaigns: number
-          active_campaigns: number
           total_messages_24h: number
           total_subscriptions: number
-          revenue_monthly: number
+          total_users: number
         }[]
       }
       get_bot_complete_history: {
@@ -5039,86 +5039,86 @@ export type Database = {
           p_session_filter?: string
         }
         Returns: {
-          message_id: string
           bot_id: string
+          bot_name: string
           bot_user_id: string
-          session_token: string
-          message_content: string
-          message_type: string
-          message_timestamp: string
           ip_address: string
-          user_agent: string
+          message_content: string
+          message_id: string
+          message_timestamp: string
+          message_type: string
           metadata: Json
-          user_name: string
+          owner_id: string
+          session_duration_minutes: number
+          session_entry_point: string
+          session_is_active: boolean
+          session_started_at: string
+          session_token: string
+          session_total_messages: number
+          user_agent: string
           user_email: string
           user_first_seen: string
           user_last_active: string
-          session_started_at: string
-          session_duration_minutes: number
-          session_total_messages: number
-          session_is_active: boolean
-          session_entry_point: string
-          bot_name: string
-          owner_id: string
+          user_name: string
         }[]
       }
       get_bot_detailed_history: {
         Args: {
           bot_uuid: string
-          owner_uuid: string
           limit_count?: number
           offset_count?: number
+          owner_uuid: string
         }
         Returns: {
-          message_id: string
-          message_content: string
-          message_type: string
-          message_timestamp: string
-          user_name: string
-          user_email: string
-          session_id: string
           ip_address: string
-          user_agent: string
-          session_start: string
+          message_content: string
+          message_id: string
           message_order_in_session: number
+          message_timestamp: string
+          message_type: string
+          session_id: string
+          session_start: string
+          user_agent: string
+          user_email: string
+          user_name: string
         }[]
       }
       get_bot_owner_history: {
         Args: {
           p_bot_id: string
-          p_session_token?: string
           p_limit?: number
           p_offset?: number
+          p_session_token?: string
         }
         Returns: {
-          message_id: string
-          message_content: string
-          message_type: string
-          message_timestamp: string
-          user_name: string
-          user_email: string
-          session_id: string
-          ip_address: string
-          user_agent: string
-          metadata: Json
           bot_name: string
+          ip_address: string
+          message_content: string
+          message_id: string
+          message_timestamp: string
+          message_type: string
+          metadata: Json
           owner_id: string
+          session_id: string
+          user_agent: string
+          user_email: string
+          user_name: string
         }[]
       }
       get_bot_owner_stats: {
         Args: { p_bot_id: string }
         Returns: {
-          bot_id: string
-          bot_name: string
-          total_messages: number
-          total_users: number
-          total_sessions: number
-          messages_24h: number
           active_users_24h: number
           avg_messages_per_session: number
-          last_activity: string
+          bot_id: string
+          bot_name: string
           creation_date: string
           is_active: boolean
+          last_activity: string
+          messages_24h: number
+          total_messages: number
+          total_sessions: number
+          total_users: number
         }[]
       }
       get_chat_history: {
@@ -5132,45 +5132,45 @@ export type Database = {
       get_chat_history_final: {
         Args: {
           p_bot_id: string
-          p_session_token?: string
           p_bot_user_id?: string
           p_limit?: number
+          p_session_token?: string
         }
         Returns: {
-          message_id: string
           bot_id: string
           bot_user_id: string
+          ip_address: string
           message_content: string
-          message_type: string
+          message_id: string
           message_timestamp: string
+          message_type: string
           metadata: Json
           session_id: string
-          user_name: string
-          user_email: string
-          ip_address: string
           user_agent: string
+          user_email: string
+          user_name: string
         }[]
       }
       get_final_bot_policies: {
         Args: Record<PropertyKey, never>
         Returns: {
+          description: string
+          is_active: boolean
           policy_name: string
           policy_type: string
-          is_active: boolean
-          description: string
         }[]
       }
       get_intelligent_suggestions: {
         Args: { p_bot_id: string; p_limit?: number }
         Returns: {
+          action_prompt: string
+          category: string
+          confidence_score: number
+          description: string
+          domain_name: string
+          icon_name: string
           suggestion_id: string
           title: string
-          description: string
-          action_prompt: string
-          icon_name: string
-          category: string
-          domain_name: string
-          confidence_score: number
         }[]
       }
       get_or_create_bot_owner: {
@@ -5186,105 +5186,105 @@ export type Database = {
         Returns: string
       }
       get_owner_all_conversations: {
-        Args: { p_limit?: number; p_offset?: number; p_bot_filter?: string }
+        Args: { p_bot_filter?: string; p_limit?: number; p_offset?: number }
         Returns: {
           bot_id: string
           bot_name: string
-          session_id: string
           bot_user_id: string
-          user_name: string
-          user_email: string
           conversation_start: string
+          is_active_today: boolean
+          last_bot_message: string
           last_message_at: string
+          last_user_message: string
           message_count: number
+          session_id: string
+          user_email: string
           user_first_seen: string
           user_last_active: string
-          is_active_today: boolean
-          last_user_message: string
-          last_bot_message: string
+          user_name: string
         }[]
       }
       get_owner_complete_stats: {
         Args: { p_owner_user_id?: string }
         Returns: {
-          total_bots: number
           active_bots: number
-          total_users: number
-          total_sessions: number
-          total_messages: number
-          active_users_24h: number
           active_sessions_24h: number
-          messages_24h: number
-          avg_session_duration: number
+          active_users_24h: number
           avg_messages_per_session: number
-          top_bot_id: string
-          top_bot_name: string
-          top_bot_messages: number
+          avg_session_duration: number
           last_activity: string
+          messages_24h: number
+          top_bot_id: string
+          top_bot_messages: number
+          top_bot_name: string
+          total_bots: number
+          total_messages: number
+          total_sessions: number
+          total_users: number
         }[]
       }
       get_owner_dashboard_stats: {
         Args: { owner_uuid: string }
         Returns: {
-          total_bots: number
           active_bots: number
-          total_users: number
-          total_sessions: number
-          total_messages: number
           active_users_24h: number
-          messages_24h: number
           avg_session_duration: number
+          last_activity: string
+          messages_24h: number
           top_performing_bot_id: string
           top_performing_bot_name: string
-          last_activity: string
+          total_bots: number
+          total_messages: number
+          total_sessions: number
+          total_users: number
         }[]
       }
       get_owner_global_stats: {
         Args: Record<PropertyKey, never>
         Returns: {
-          total_bots: number
           active_bots: number
-          total_messages: number
-          total_users: number
-          messages_today: number
           active_users_today: number
-          total_conversations: number
+          messages_today: number
           most_active_bot_id: string
           most_active_bot_name: string
+          total_bots: number
+          total_conversations: number
+          total_messages: number
+          total_users: number
         }[]
       }
       get_unified_chat_history: {
         Args: {
           p_bot_id: string
-          p_session_token?: string
           p_bot_user_id?: string
           p_limit?: number
+          p_session_token?: string
         }
         Returns: {
-          message_id: string
           bot_id: string
           bot_user_id: string
+          ip_address: string
           message_content: string
-          message_type: string
+          message_id: string
           message_timestamp: string
+          message_type: string
           metadata: Json
           session_id: string
-          user_name: string
-          user_email: string
-          ip_address: string
           user_agent: string
+          user_email: string
+          user_name: string
         }[]
       }
       get_user_permissions: {
         Args: { user_uuid: string }
         Returns: {
-          permission_name: string
           category: string
+          permission_name: string
           source: string
         }[]
       }
       hide_demo_account_data: {
-        Args: { user_id: string; data_value: string }
+        Args: { data_value: string; user_id: string }
         Returns: string
       }
       is_admin: {
@@ -5293,10 +5293,10 @@ export type Database = {
       }
       log_user_activity: {
         Args: {
-          p_user_id: string
           p_activity_type: string
           p_description?: string
           p_metadata?: Json
+          p_user_id: string
         }
         Returns: string
       }
@@ -5327,11 +5327,11 @@ export type Database = {
       save_message_final: {
         Args: {
           p_bot_id: string
-          p_session_token: string
+          p_ip_address?: string
           p_message_content: string
           p_message_type: string
           p_metadata?: Json
-          p_ip_address?: string
+          p_session_token: string
           p_user_agent?: string
         }
         Returns: string
@@ -5339,8 +5339,8 @@ export type Database = {
       send_manual_bot_response: {
         Args: {
           p_bot_id: string
-          p_session_token: string
           p_message_content: string
+          p_session_token: string
         }
         Returns: string
       }
@@ -5355,87 +5355,87 @@ export type Database = {
       test_absolute_session_resolution: {
         Args: Record<PropertyKey, never>
         Returns: {
+          details: string
           test_category: string
           test_result: string
-          details: string
         }[]
       }
       test_bot_creation_fix: {
         Args: Record<PropertyKey, never>
         Returns: {
-          test_name: string
-          status: string
           details: string
+          status: string
+          test_name: string
         }[]
       }
       test_bot_creation_fixed: {
         Args: Record<PropertyKey, never>
         Returns: {
-          test_name: string
-          status: string
           details: string
+          status: string
+          test_name: string
         }[]
       }
       test_complete_bot_creation_flow: {
         Args: { p_user_id?: string }
         Returns: {
+          details: string
           step_name: string
           success: boolean
-          details: string
         }[]
       }
       test_final_session_resolution: {
         Args: Record<PropertyKey, never>
         Returns: {
+          details: string
           test_category: string
           test_result: string
-          details: string
         }[]
       }
       test_owner_access_complete: {
         Args: Record<PropertyKey, never>
         Returns: {
-          test_name: string
-          status: string
-          details: string
           data_preview: Json
+          details: string
+          status: string
+          test_name: string
         }[]
       }
       test_session_token_resolution: {
         Args: Record<PropertyKey, never>
         Returns: {
-          test_name: string
-          status: string
           details: string
+          status: string
+          test_name: string
         }[]
       }
       test_system_final: {
         Args: Record<PropertyKey, never>
         Returns: {
-          test_name: string
-          status: string
           details: string
+          status: string
+          test_name: string
         }[]
       }
       track_link_click: {
         Args:
           | {
-              p_short_code: string
               p_ip_address?: unknown
-              p_user_agent?: string
               p_referrer?: string
+              p_short_code: string
+              p_user_agent?: string
             }
-          | { p_short_code: string; p_user_agent?: string; p_referrer?: string }
+          | { p_referrer?: string; p_short_code: string; p_user_agent?: string }
         Returns: string
       }
       track_visitor_event: {
         Args: {
-          p_session_id: string
-          p_event_type: string
-          p_event_data?: Json
-          p_page_url?: string
-          p_element_id?: string
           p_element_class?: string
+          p_element_id?: string
+          p_event_data?: Json
+          p_event_type: string
+          p_page_url?: string
+          p_session_id: string
         }
         Returns: string
       }
@@ -5444,15 +5444,15 @@ export type Database = {
         Returns: number
       }
       user_has_permission: {
-        Args: { user_uuid: string; permission_name: string }
+        Args: { permission_name: string; user_uuid: string }
         Returns: boolean
       }
       validate_owner_complete_access: {
         Args: Record<PropertyKey, never>
         Returns: {
-          validation_step: string
-          status: string
           result_details: Json
+          status: string
+          validation_step: string
         }[]
       }
       verify_bot_access_final: {
