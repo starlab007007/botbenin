@@ -3826,6 +3826,48 @@ export type Database = {
           },
         ]
       }
+      whatsapp_accounts: {
+        Row: {
+          created_at: string
+          id: string
+          last_activity: string | null
+          phone_number: string | null
+          qr_code: string | null
+          session_name: string
+          status: string
+          updated_at: string
+          user_id: string
+          waha_session_data: Json | null
+          webhook_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_activity?: string | null
+          phone_number?: string | null
+          qr_code?: string | null
+          session_name: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          waha_session_data?: Json | null
+          webhook_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_activity?: string | null
+          phone_number?: string | null
+          qr_code?: string | null
+          session_name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          waha_session_data?: Json | null
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_automations: {
         Row: {
           actions: Json | null
@@ -3892,6 +3934,99 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_bot_links: {
+        Row: {
+          auto_response_enabled: boolean | null
+          bot_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          response_delay_seconds: number | null
+          updated_at: string
+          welcome_message: string | null
+          whatsapp_account_id: string
+        }
+        Insert: {
+          auto_response_enabled?: boolean | null
+          bot_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          response_delay_seconds?: number | null
+          updated_at?: string
+          welcome_message?: string | null
+          whatsapp_account_id: string
+        }
+        Update: {
+          auto_response_enabled?: boolean | null
+          bot_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          response_delay_seconds?: number | null
+          updated_at?: string
+          welcome_message?: string | null
+          whatsapp_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_bot_links_whatsapp_account_id_fkey"
+            columns: ["whatsapp_account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_accounts"
             referencedColumns: ["id"]
           },
         ]

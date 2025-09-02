@@ -40,6 +40,9 @@ const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(mo
 // Campagnes de partage
 const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.SocialSharingCampaignsPage })));
 
+// WhatsApp Connect
+const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
+
 // Pages spéciales
 const SystemTestPage = lazy(() => import("./pages/SystemTestPage").then(module => ({ default: module.SystemTestPage })));
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
@@ -80,6 +83,9 @@ const App = () => (
                     
                     {/* Campagnes de partage */}
                     <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
+                    
+                    {/* WhatsApp Connect */}
+                    <Route path="/whatsapp-connect" element={<WhatsAppConnectPage />} />
                     
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
