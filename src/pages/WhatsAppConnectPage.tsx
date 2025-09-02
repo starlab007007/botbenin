@@ -110,8 +110,13 @@ const WhatsAppConnectPage: React.FC = () => {
     stopSession, 
     deleteSession,
     linkBot,
+    unlinkBot,
+    updateBotLink,
     sendMessage 
   } = useWhatsAppAccounts();
+
+  // Utiliser le hook pour les messages WhatsApp
+  const { messages, contacts, getMessageStats } = useWhatsAppMessages(selectedAccount);
 
   const { toast } = useToast();
 
@@ -330,7 +335,7 @@ const WhatsAppConnectPage: React.FC = () => {
                           >
                             {account.status === 'connected' ? 'Connecté' : 'Déconnecté'}
                           </Badge>
-                          {account.status !== 'connected' && (
+                          {account.status !== 'connected' ? (
                             <Button 
                               size="sm"
                               onClick={() => handleStartConnection(account.id)}
@@ -338,6 +343,47 @@ const WhatsAppConnectPage: React.FC = () => {
                             >
                               Scanner QR Code
                             </Button>
+                          ) : (
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    await stopSession(account.session_name);
+                                    toast({
+                                      title: "Session arrêtée",
+                                      description: "WhatsApp a été déconnecté",
+                                    });
+                                  } catch (error) {
+                                    console.error('Error stopping session:', error);
+                                  }
+                                }}
+                              >
+                                <Square className="w-3 h-3 mr-1" />
+                                Arrêter
+                              </Button>
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  if (confirm('Êtes-vous sûr de vouloir supprimer cette session?')) {
+                                    try {
+                                      await deleteSession(account.session_name);
+                                      toast({
+                                        title: "Session supprimée",
+                                        description: "La session a été supprimée avec succès",
+                                      });
+                                    } catch (error) {
+                                      console.error('Error deleting session:', error);
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Supprimer
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -485,9 +531,24 @@ const WhatsAppConnectPage: React.FC = () => {
                         <Label>Réponses automatiques</Label>
                         <Switch 
                           checked={link.auto_response_enabled}
-                          onCheckedChange={(checked) => {
-                            // Ici vous pourriez ajouter la logique pour mettre à jour
-                            console.log('Toggle auto response:', checked);
+                          onCheckedChange={async (checked) => {
+                            try {
+                              await updateBotLink(link.id, {
+                                auto_response_enabled: checked,
+                                response_delay_seconds: responseDelay
+                              });
+                              toast({
+                                title: "Mis à jour",
+                                description: `Auto-réponse ${checked ? 'activée' : 'désactivée'}`,
+                              });
+                            } catch (error) {
+                              console.error('Error updating bot link:', error);
+                              toast({
+                                title: "Erreur",
+                                description: "Impossible de mettre à jour la configuration",
+                                variant: "destructive",
+                              });
+                            }
                           }}
                         />
                       </div>
@@ -496,8 +557,18 @@ const WhatsAppConnectPage: React.FC = () => {
                         <Label>Délai de réponse (secondes)</Label>
                         <Input 
                           type="number" 
-                          value={responseDelay}
-                          onChange={(e) => setResponseDelay(Number(e.target.value))}
+                          value={link.response_delay_seconds || responseDelay}
+                          onChange={async (e) => {
+                            const newDelay = Number(e.target.value);
+                            setResponseDelay(newDelay);
+                            try {
+                              await updateBotLink(link.id, {
+                                response_delay_seconds: newDelay
+                              });
+                            } catch (error) {
+                              console.error('Error updating delay:', error);
+                            }
+                          }}
                           min="1"
                           max="30"
                         />
@@ -507,9 +578,45 @@ const WhatsAppConnectPage: React.FC = () => {
                         <Label>Message de bienvenue</Label>
                         <Textarea 
                           value={link.welcome_message}
-                          onChange={(e) => setWelcomeMessage(e.target.value)}
+                          onChange={async (e) => {
+                            const newMessage = e.target.value;
+                            setWelcomeMessage(newMessage);
+                            try {
+                              await updateBotLink(link.id, {
+                                welcome_message: newMessage
+                              });
+                            } catch (error) {
+                              console.error('Error updating welcome message:', error);
+                            }
+                          }}
                           rows={2}
                         />
+                      </div>
+
+                      <div className="flex justify-end">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              await unlinkBot(link.id);
+                              toast({
+                                title: "Bot déconnecté",
+                                description: "Le bot a été déconnecté avec succès",
+                              });
+                            } catch (error) {
+                              console.error('Error unlinking bot:', error);
+                              toast({
+                                title: "Erreur",
+                                description: "Impossible de déconnecter le bot",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Déconnecter
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -547,9 +654,9 @@ const WhatsAppConnectPage: React.FC = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">0</div>
+                      <div className="text-2xl font-bold">{messages.length}</div>
                       <p className="text-xs text-muted-foreground">
-                        +0% vs hier
+                        messages reçus
                       </p>
                     </CardContent>
                   </Card>
@@ -562,7 +669,7 @@ const WhatsAppConnectPage: React.FC = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">0</div>
+                      <div className="text-2xl font-bold">{contacts.length}</div>
                       <p className="text-xs text-muted-foreground">
                         conversations uniques
                       </p>
@@ -585,6 +692,75 @@ const WhatsAppConnectPage: React.FC = () => {
                       </p>
                     </CardContent>
                   </Card>
+                </div>
+
+                {/* Statistiques détaillées */}
+                {selectedAccount && (
+                  <Card className="mt-4">
+                    <CardHeader>
+                      <CardTitle className="text-base">Statistiques Détaillées</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Messages entrants</p>
+                          <p className="font-semibold">{getMessageStats().incomingMessages}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Messages sortants</p>
+                          <p className="font-semibold">{getMessageStats().outgoingMessages}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Réponses bot</p>
+                          <p className="font-semibold">{getMessageStats().botResponses}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Contacts uniques</p>
+                          <p className="font-semibold">{getMessageStats().uniqueContacts}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Actions de gestion */}
+                <div className="mt-6 flex gap-3">
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      // Rafraîchir les données
+                      window.location.reload();
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Actualiser
+                  </Button>
+                  
+                  {connectedAccounts.length > 0 && (
+                    <Button 
+                      variant="outline"
+                      onClick={async () => {
+                        const account = connectedAccounts[0];
+                        try {
+                          await stopSession(account.session_name);
+                          toast({
+                            title: "Session arrêtée",
+                            description: "La session WhatsApp a été déconnectée",
+                          });
+                        } catch (error) {
+                          console.error('Error stopping session:', error);
+                          toast({
+                            title: "Erreur",
+                            description: "Impossible d'arrêter la session",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <Square className="w-4 h-4 mr-2" />
+                      Arrêter Session
+                    </Button>
+                  )}
                 </div>
 
                 <div className="mt-6">
@@ -706,12 +882,33 @@ const WhatsAppConnectPage: React.FC = () => {
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setQrCode('')}>
+              <Button 
+                variant="outline" 
+                onClick={async () => {
+                  const account = accounts.find(a => a.id === selectedAccount);
+                  if (account) {
+                    try {
+                      setQrCode('');
+                      const newQrCode = await getQRCode(account.session_name);
+                      if (newQrCode) {
+                        setQrCode(newQrCode);
+                      }
+                    } catch (error) {
+                      console.error('Error refreshing QR code:', error);
+                      toast({
+                        title: "Erreur",
+                        description: "Impossible de rafraîchir le QR code",
+                        variant: "destructive",
+                      });
+                    }
+                  }
+                }}
+              >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Actualiser QR
               </Button>
               <Button variant="outline" onClick={() => setShowConnectionModal(false)}>
-                Annuler
+                Fermer
               </Button>
             </div>
           </div>
