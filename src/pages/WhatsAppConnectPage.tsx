@@ -1,7 +1,7 @@
 import React from 'react';
 import { AuthGuard } from '@/components/bot-management/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
-import SimplifiedWhatsAppManager from '@/components/whatsapp/SimplifiedWhatsAppManager';
+import ComprehensiveWhatsAppManager from '@/components/whatsapp/ComprehensiveWhatsAppManager';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -9,7 +9,7 @@ const WhatsAppConnectPage: React.FC = () => {
   return (
     <AuthGuard isAuthenticated={isAuthenticated}>
       <div className="container mx-auto px-4 py-8">
-        <SimplifiedWhatsAppManager />
+        <ComprehensiveWhatsAppManager />
       </div>
     </AuthGuard>
   );
