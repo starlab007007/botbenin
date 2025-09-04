@@ -1,0 +1,117 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const wahaBaseUrl = 'https://waha.bot.bj';
+    const wahaDashUser = 'admin';
+    const wahaDashPass = 'Starlab@007';
+
+    console.log('Testing WAHA authentication...');
+    
+    // Test 1: Dashboard login
+    console.log('=== TEST 1: Dashboard Login ===');
+    const loginUrl = `${wahaBaseUrl}/dashboard/auth`;
+    console.log('Login URL:', loginUrl);
+    
+    const formData = new URLSearchParams({
+      username: wahaDashUser,
+      password: wahaDashPass
+    });
+    
+    const loginRes = await fetch(loginUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Test/1.0)'
+      },
+      body: formData,
+      redirect: 'manual'
+    });
+    
+    console.log('Login response status:', loginRes.status);
+    console.log('Login response headers:', Object.fromEntries(loginRes.headers.entries()));
+    
+    const cookie = loginRes.headers.get('set-cookie');
+    console.log('Cookie received:', !!cookie);
+    if (cookie) console.log('Cookie preview:', cookie.substring(0, 100));
+    
+    // Test 2: Try API call with cookie
+    if (cookie) {
+      console.log('=== TEST 2: API Call with Cookie ===');
+      const apiUrl = `${wahaBaseUrl}/api/sessions`;
+      console.log('API URL:', apiUrl);
+      
+      const apiRes = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Cookie': cookie,
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Test/1.0)'
+        }
+      });
+      
+      console.log('API response status:', apiRes.status);
+      console.log('API response headers:', Object.fromEntries(apiRes.headers.entries()));
+      
+      if (apiRes.ok) {
+        const data = await apiRes.json();
+        console.log('API response data:', data);
+      } else {
+        const text = await apiRes.text();
+        console.log('API error response:', text.substring(0, 200));
+      }
+    }
+    
+    // Test 3: Direct dashboard access
+    console.log('=== TEST 3: Dashboard Access ===');
+    const dashboardRes = await fetch(`${wahaBaseUrl}/dashboard/`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Test/1.0)'
+      },
+      redirect: 'manual'
+    });
+    
+    console.log('Dashboard access status:', dashboardRes.status);
+    console.log('Dashboard response headers:', Object.fromEntries(dashboardRes.headers.entries()));
+
+    return new Response(JSON.stringify({
+      success: true,
+      tests: {
+        login: {
+          status: loginRes.status,
+          hasCookie: !!cookie
+        },
+        api: cookie ? {
+          status: 'tested with cookie'
+        } : {
+          status: 'skipped - no cookie'
+        },
+        dashboard: {
+          status: dashboardRes.status
+        }
+      }
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Test error:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

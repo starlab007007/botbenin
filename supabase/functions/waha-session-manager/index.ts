@@ -69,7 +69,7 @@ serve(async (req) => {
 
     console.log(`WAHA ${action} request for session: ${sessionName}`);
 
-    // Auth method: Dashboard login to get session cookie for API calls
+    // Dashboard authentication - the primary method for WAHA
     const authenticateDashboard = async (): Promise<string | null> => {
       try {
         console.log('Authenticating with WAHA dashboard...');
@@ -81,27 +81,34 @@ serve(async (req) => {
           password: wahaDashPass
         });
         
+        console.log('Attempting login with credentials: admin/[password hidden]');
+        
         const res = await fetch(loginUrl, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Client/1.0)'
           },
           body: formData,
-          redirect: 'manual' // Don't follow redirects automatically
+          redirect: 'manual' // Important: handle redirects manually
         });
         
         console.log('Dashboard auth response:', res.status, res.statusText);
+        console.log('Response headers:', Object.fromEntries(res.headers.entries()));
         
-        // Success could be 200, 302, or 303 (redirect after login)
+        // Check for success (login usually redirects on success)
         if (res.status === 200 || res.status === 302 || res.status === 303) {
           const cookie = res.headers.get('set-cookie');
           console.log('Dashboard auth success. Cookie available:', !!cookie);
+          if (cookie) {
+            console.log('Cookie preview:', cookie.substring(0, 100) + '...');
+          }
           return cookie;
         } else {
           console.log(`Dashboard auth failed: ${res.status} ${res.statusText}`);
           const text = await res.text();
-          console.log('Response body:', text.substring(0, 200));
+          console.log('Response body preview:', text.substring(0, 300));
           return null;
         }
       } catch (e) {
