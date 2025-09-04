@@ -69,50 +69,41 @@ serve(async (req) => {
 
     console.log(`WAHA ${action} request for session: ${sessionName}`);
 
-    // Auth method A: API login (/auth/login) to get cookie or bearer token usable for /api
-    const authenticateApi = async (): Promise<{ cookie?: string; bearer?: string } | null> => {
-      try {
-        console.log('Authenticating with WAHA API /auth/login...');
-        const body = new URLSearchParams({ username: wahaDashUser, password: wahaDashPass });
-        const res = await fetch(`${wahaBaseUrl}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body,
-        });
-        if (!res.ok) {
-          console.log(`API auth failed: ${res.status} ${res.statusText}`);
-          return null;
-        }
-        const cookie = res.headers.get('set-cookie') || undefined;
-        let bearer: string | undefined;
-        try {
-          const json = await res.clone().json();
-          bearer = (json?.token || json?.access_token) as string | undefined;
-        } catch (_) { /* ignore parse error */ }
-        console.log('API auth success. cookie:', !!cookie, 'bearer:', !!bearer);
-        return cookie || bearer ? { cookie, bearer } : { };
-      } catch (e) {
-        console.log('API auth error:', e);
-        return null;
-      }
-    };
-
-    // Auth method B: Dashboard login (cookie may be scoped to /dashboard only, last resort)
+    // Auth method: Dashboard login to get session cookie for API calls
     const authenticateDashboard = async (): Promise<string | null> => {
       try {
-        console.log('Authenticating with WAHA dashboard /dashboard/auth...');
-        const res = await fetch(`${wahaBaseUrl}/dashboard/auth`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ username: wahaDashUser, password: wahaDashPass }),
+        console.log('Authenticating with WAHA dashboard...');
+        const loginUrl = `${wahaBaseUrl}/dashboard/auth`;
+        console.log('Login URL:', loginUrl);
+        
+        const formData = new URLSearchParams({
+          username: wahaDashUser,
+          password: wahaDashPass
         });
-        if (!res.ok) {
+        
+        const res = await fetch(loginUrl, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          },
+          body: formData,
+          redirect: 'manual' // Don't follow redirects automatically
+        });
+        
+        console.log('Dashboard auth response:', res.status, res.statusText);
+        
+        // Success could be 200, 302, or 303 (redirect after login)
+        if (res.status === 200 || res.status === 302 || res.status === 303) {
+          const cookie = res.headers.get('set-cookie');
+          console.log('Dashboard auth success. Cookie available:', !!cookie);
+          return cookie;
+        } else {
           console.log(`Dashboard auth failed: ${res.status} ${res.statusText}`);
+          const text = await res.text();
+          console.log('Response body:', text.substring(0, 200));
           return null;
         }
-        const cookie = res.headers.get('set-cookie');
-        console.log('Dashboard auth success. cookie:', !!cookie);
-        return cookie;
       } catch (e) {
         console.log('Dashboard auth error:', e);
         return null;
@@ -124,27 +115,26 @@ serve(async (req) => {
       const url = `${wahaBaseUrl}${endpoint}`;
       console.log('Attempting WAHA request:', url);
 
-      // 1) Try API session (best match for /api endpoints)
-      const apiAuth = await authenticateApi();
-      if (apiAuth) {
+      // 1) Primary method: Dashboard authentication
+      const dashCookie = await authenticateDashboard();
+      if (dashCookie) {
         try {
           const res = await fetch(url, {
             ...init,
-            headers: {
-              'Content-Type': 'application/json',
-              ...(apiAuth.cookie ? { Cookie: apiAuth.cookie } : {}),
-              ...(apiAuth.bearer ? { Authorization: `Bearer ${apiAuth.bearer}` } : {}),
-              ...(init.headers || {}),
+            headers: { 
+              'Content-Type': 'application/json', 
+              'Cookie': dashCookie, 
+              ...(init.headers || {}) 
             },
           });
-          console.log('API session call ->', res.status, res.statusText);
+          console.log('Dashboard cookie call ->', res.status, res.statusText);
           if (res.ok || res.status !== 401) return res;
         } catch (e) {
-          console.log('API session call error:', e);
+          console.log('Dashboard cookie call error:', e);
         }
       }
 
-      // 2) Try API keys if provided
+      // 2) Fallback: Try API keys if provided
       const candidates: Record<string, string>[] = [];
       const key = wahaApiKeyPlain?.length ? wahaApiKeyPlain : wahaApiKey;
       if (key) {
@@ -170,22 +160,7 @@ serve(async (req) => {
         }
       }
 
-      // 3) Try dashboard cookie as a final fallback
-      const dashCookie = await authenticateDashboard();
-      if (dashCookie) {
-        try {
-          const res = await fetch(url, {
-            ...init,
-            headers: { 'Content-Type': 'application/json', Cookie: dashCookie, ...(init.headers || {}) },
-          });
-          console.log('Dashboard cookie call ->', res.status, res.statusText);
-          return res;
-        } catch (e) {
-          console.log('Dashboard cookie call error:', e);
-        }
-      }
-
-      // 4) Last attempt without auth
+      // 3) Last attempt without auth
       console.log('All auth methods failed. Final unauthenticated attempt.');
       return fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers || {}) } });
     };
