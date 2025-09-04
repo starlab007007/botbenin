@@ -23,8 +23,13 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
+    let wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+
+    // Clean base URL (remove trailing slash and /dashboard path)
+    if (wahaBaseUrl) {
+      wahaBaseUrl = wahaBaseUrl.replace(/\/$/, '').replace(/\/dashboard$/, '');
+    }
 
     if (!wahaBaseUrl || !wahaApiKey) {
       throw new Error('WAHA configuration missing');
