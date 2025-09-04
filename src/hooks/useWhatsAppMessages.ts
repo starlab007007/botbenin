@@ -4,53 +4,104 @@ import { useToast } from '@/hooks/use-toast';
 
 export interface WhatsAppMessage {
   id: string;
-  whatsapp_account_id: string;
-  bot_link_id?: string;
-  message_id: string;
-  from_number: string;
-  to_number: string;
-  message_type: string;
-  content?: string;
-  media_url?: string;
-  is_from_me: boolean;
-  is_bot_response: boolean;
+  session_name: string;
+  from: string;
+  to: string;
+  message: string;
+  message_type: 'text' | 'image' | 'video' | 'audio' | 'document';
+  direction: 'incoming' | 'outgoing';
+  status: 'sent' | 'delivered' | 'read' | 'failed';
   timestamp: string;
-  waha_raw_data?: any;
-  created_at: string;
+  metadata: any;
+  media_url?: string;
+  reply_to_message_id?: string;
 }
 
-export interface MessageContact {
+export interface WhatsAppContact {
+  id: string;
+  session_name: string;
   phone_number: string;
-  display_name?: string;
-  last_message?: string;
-  last_message_time?: string;
-  unread_count?: number;
+  name?: string;
+  profile_picture?: string;
+  last_seen: string;
+  is_contact: boolean;
+  is_blocked: boolean;
+  metadata: any;
+  message_count: number;
+  last_message: string;
+  last_message_timestamp: string;
 }
 
-export const useWhatsAppMessages = (accountId?: string) => {
+export const useWhatsAppMessages = () => {
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
-  const [contacts, setContacts] = useState<MessageContact[]>([]);
+  const [contacts, setContacts] = useState<WhatsAppContact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [messageLoading, setMessageLoading] = useState(false);
   const { toast } = useToast();
 
-  const loadMessages = async () => {
-    if (!accountId) {
-      setMessages([]);
-      setLoading(false);
-      return;
+  // Mock data for now since tables aren't created yet
+  const mockMessages: WhatsAppMessage[] = [
+    {
+      id: '1',
+      session_name: 'user_session_1',
+      from: '+237123456789',
+      to: 'bot',
+      message: 'Bonjour, comment allez-vous?',
+      message_type: 'text',
+      direction: 'incoming',
+      status: 'read',
+      timestamp: new Date().toISOString(),
+      metadata: {}
+    },
+    {
+      id: '2', 
+      session_name: 'user_session_1',
+      from: 'bot',
+      to: '+237123456789',
+      message: 'Bonjour! Je vais bien, merci. Comment puis-je vous aider?',
+      message_type: 'text',
+      direction: 'outgoing',
+      status: 'delivered',
+      timestamp: new Date().toISOString(),
+      metadata: {}
     }
+  ];
 
+  const mockContacts: WhatsAppContact[] = [
+    {
+      id: '1',
+      session_name: 'user_session_1',
+      phone_number: '+237123456789',
+      name: 'Client Test',
+      last_seen: new Date().toISOString(),
+      is_contact: true,
+      is_blocked: false,
+      metadata: {},
+      message_count: 15,
+      last_message: 'Bonjour, comment allez-vous?',
+      last_message_timestamp: new Date().toISOString()
+    },
+    {
+      id: '2',
+      session_name: 'user_session_1', 
+      phone_number: '+237987654321',
+      name: 'Prospect Commercial',
+      last_seen: new Date().toISOString(),
+      is_contact: false,
+      is_blocked: false,
+      metadata: {},
+      message_count: 8,
+      last_message: 'Merci pour les informations',
+      last_message_timestamp: new Date().toISOString()
+    }
+  ];
+
+  const loadMessages = async (sessionName?: string, limit: number = 50) => {
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('whatsapp_messages')
-        .select('*')
-        .eq('whatsapp_account_id', accountId)
-        .order('timestamp', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-      setMessages(data || []);
+      // For now, use mock data
+      // Later when tables are ready: 
+      // let query = supabase.from('whatsapp_messages').select('*')
+      setMessages(mockMessages);
     } catch (error: any) {
       console.error('Failed to load messages:', error);
       toast({
@@ -58,105 +109,129 @@ export const useWhatsAppMessages = (accountId?: string) => {
         description: "Impossible de charger les messages",
         variant: "destructive",
       });
+    }
+  };
+
+  const loadContacts = async (sessionName?: string) => {
+    try {
+      // For now, use mock data
+      // Later when tables are ready:
+      // let query = supabase.from('whatsapp_contacts').select('*')
+      setContacts(mockContacts);
+    } catch (error: any) {
+      console.error('Failed to load contacts:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les contacts",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadData = async (sessionName?: string) => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        loadMessages(sessionName),
+        loadContacts(sessionName)
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadContacts = async () => {
-    if (!accountId) {
-      setContacts([]);
-      return;
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('AUTH_REQUIRED');
     }
+    return { Authorization: `Bearer ${session.access_token}` } as Record<string, string>;
+  };
 
+  const sendMessage = async (
+    sessionName: string, 
+    to: string, 
+    message: string, 
+    messageType: 'text' | 'image' | 'video' | 'audio' | 'document' = 'text',
+    mediaUrl?: string,
+    replyToMessageId?: string
+  ) => {
+    setMessageLoading(true);
     try {
-      // Get unique contacts from messages
-      const { data, error } = await supabase
-        .from('whatsapp_messages')
-        .select('from_number, to_number, content, timestamp, is_from_me')
-        .eq('whatsapp_account_id', accountId)
-        .order('timestamp', { ascending: false });
-
-      if (error) throw error;
-
-      // Group messages by contact
-      const contactsMap = new Map<string, MessageContact>();
-
-      data?.forEach((message) => {
-        const contactNumber = message.is_from_me ? message.to_number : message.from_number;
-        
-        if (!contactsMap.has(contactNumber)) {
-          contactsMap.set(contactNumber, {
-            phone_number: contactNumber,
-            display_name: contactNumber.replace('@c.us', ''),
-            last_message: message.content || '[Média]',
-            last_message_time: message.timestamp,
-            unread_count: message.is_from_me ? 0 : 1,
-          });
-        } else {
-          const contact = contactsMap.get(contactNumber)!;
-          if (!message.is_from_me && message.timestamp > (contact.last_message_time || '')) {
-            contact.unread_count = (contact.unread_count || 0) + 1;
-          }
-        }
+      const headers = await getAuthHeaders();
+      const { data, error } = await supabase.functions.invoke('waha-send-message', {
+        body: {
+          sessionName,
+          to,
+          message,
+          messageType,
+          mediaUrl,
+          replyToMessageId,
+        },
+        headers,
       });
 
-      setContacts(Array.from(contactsMap.values()));
-    } catch (error: any) {
-      console.error('Failed to load contacts:', error);
-    }
-  };
-
-  const getMessagesForContact = async (contactNumber: string) => {
-    if (!accountId) return [];
-
-    try {
-      const { data, error } = await supabase
-        .from('whatsapp_messages')
-        .select('*')
-        .eq('whatsapp_account_id', accountId)
-        .or(`from_number.eq.${contactNumber},to_number.eq.${contactNumber}`)
-        .order('timestamp', { ascending: true });
-
       if (error) throw error;
-      return data || [];
+
+      if (data.success) {
+        toast({
+          title: "Message envoyé",
+          description: "Le message a été envoyé avec succès",
+        });
+        
+        // Add to mock messages for now
+        const newMessage: WhatsAppMessage = {
+          id: Date.now().toString(),
+          session_name: sessionName,
+          from: 'bot',
+          to,
+          message,
+          message_type: messageType,
+          direction: 'outgoing',
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+          metadata: {},
+          media_url: mediaUrl,
+          reply_to_message_id: replyToMessageId
+        };
+        setMessages(prev => [newMessage, ...prev]);
+        return data;
+      } else {
+        throw new Error(data.error || 'Failed to send message');
+      }
     } catch (error: any) {
-      console.error('Failed to load contact messages:', error);
-      return [];
+      console.error('Failed to send message:', error);
+      toast({
+        title: "Erreur d'envoi",
+        description: error.message || "Impossible d'envoyer le message",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setMessageLoading(false);
     }
   };
 
-  const markMessagesAsRead = async (contactNumber: string) => {
+  const markMessageAsRead = async (messageId: string) => {
     try {
-      // In a real implementation, you might want to track read status
-      // For now, we'll just update the local contacts state
-      setContacts(prev => 
-        prev.map(contact => 
-          contact.phone_number === contactNumber 
-            ? { ...contact, unread_count: 0 }
-            : contact
-        )
-      );
+      // Update local state for now
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId ? { ...msg, status: 'read' } : msg
+      ));
     } catch (error: any) {
-      console.error('Failed to mark messages as read:', error);
+      console.error('Failed to mark message as read:', error);
     }
   };
 
   const deleteMessage = async (messageId: string) => {
     try {
-      const { error } = await supabase
-        .from('whatsapp_messages')
-        .delete()
-        .eq('id', messageId);
-
-      if (error) throw error;
-
+      // Remove from local state for now
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      
       toast({
         title: "Message supprimé",
-        description: "Le message a été supprimé avec succès",
+        description: "Le message a été supprimé",
       });
-      
-      await loadMessages();
     } catch (error: any) {
       console.error('Failed to delete message:', error);
       toast({
@@ -164,87 +239,143 @@ export const useWhatsAppMessages = (accountId?: string) => {
         description: "Impossible de supprimer le message",
         variant: "destructive",
       });
+      throw error;
     }
   };
 
-  const searchMessages = async (query: string) => {
-    if (!accountId || !query.trim()) return [];
-
+  const blockContact = async (sessionName: string, phoneNumber: string) => {
     try {
-      const { data, error } = await supabase
-        .from('whatsapp_messages')
-        .select('*')
-        .eq('whatsapp_account_id', accountId)
-        .ilike('content', `%${query}%`)
-        .order('timestamp', { ascending: false })
-        .limit(50);
+      const headers = await getAuthHeaders();
+      const { data, error } = await supabase.functions.invoke('waha-manage-contact', {
+        body: {
+          sessionName,
+          phoneNumber,
+          action: 'block'
+        },
+        headers,
+      });
 
       if (error) throw error;
-      return data || [];
+
+      if (data.success) {
+        toast({
+          title: "Contact bloqué",
+          description: "Le contact a été bloqué",
+        });
+        await loadContacts(sessionName);
+        return data;
+      } else {
+        throw new Error(data.error || 'Failed to block contact');
+      }
     } catch (error: any) {
-      console.error('Failed to search messages:', error);
+      console.error('Failed to block contact:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de bloquer le contact",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const unblockContact = async (sessionName: string, phoneNumber: string) => {
+    try {
+      const headers = await getAuthHeaders();
+      const { data, error } = await supabase.functions.invoke('waha-manage-contact', {
+        body: {
+          sessionName,
+          phoneNumber,
+          action: 'unblock'
+        },
+        headers,
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Contact débloqué",
+          description: "Le contact a été débloqué",
+        });
+        await loadContacts(sessionName);
+        return data;
+      } else {
+        throw new Error(data.error || 'Failed to unblock contact');
+      }
+    } catch (error: any) {
+      console.error('Failed to unblock contact:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de débloquer le contact",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  const getMessageHistory = async (sessionName: string, phoneNumber: string, limit: number = 50) => {
+    try {
+      // Filter mock messages for now
+      return mockMessages.filter(msg => 
+        msg.session_name === sessionName && 
+        (msg.from === phoneNumber || msg.to === phoneNumber)
+      ).slice(0, limit);
+    } catch (error: any) {
+      console.error('Failed to get message history:', error);
       return [];
     }
   };
 
-  const getMessageStats = () => {
-    const totalMessages = messages.length;
-    const incomingMessages = messages.filter(m => !m.is_from_me).length;
-    const outgoingMessages = messages.filter(m => m.is_from_me).length;
-    const botResponses = messages.filter(m => m.is_bot_response).length;
-    const uniqueContacts = new Set(
-      messages.map(m => m.is_from_me ? m.to_number : m.from_number)
-    ).size;
+  const getMessageStats = async (sessionName?: string) => {
+    try {
+      const filteredMessages = sessionName 
+        ? mockMessages.filter(msg => msg.session_name === sessionName)
+        : mockMessages;
 
-    return {
-      totalMessages,
-      incomingMessages,
-      outgoingMessages,
-      botResponses,
-      uniqueContacts,
-    };
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const stats = {
+        total: filteredMessages.length,
+        today: filteredMessages.filter(msg => new Date(msg.timestamp) >= today).length,
+        incoming: filteredMessages.filter(msg => msg.direction === 'incoming').length,
+        outgoing: filteredMessages.filter(msg => msg.direction === 'outgoing').length,
+        delivered: filteredMessages.filter(msg => msg.status === 'delivered').length,
+        read: filteredMessages.filter(msg => msg.status === 'read').length,
+      };
+
+      return stats;
+    } catch (error: any) {
+      console.error('Failed to get message stats:', error);
+      return {
+        total: 0,
+        today: 0,
+        incoming: 0,
+        outgoing: 0,
+        delivered: 0,
+        read: 0,
+      };
+    }
   };
 
   useEffect(() => {
-    if (accountId) {
-      loadMessages();
-      loadContacts();
-
-      // Set up realtime subscription for messages
-      const subscription = supabase
-        .channel(`whatsapp_messages_${accountId}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'whatsapp_messages',
-          filter: `whatsapp_account_id=eq.${accountId}`
-        }, () => {
-          loadMessages();
-          loadContacts();
-        })
-        .subscribe();
-
-      return () => {
-        subscription.unsubscribe();
-      };
-    } else {
-      // Reset states when no account is selected
-      setMessages([]);
-      setContacts([]);
-      setLoading(false);
-    }
-  }, [accountId]);
+    loadData();
+  }, []);
 
   return {
     messages,
     contacts,
     loading,
+    messageLoading,
+    loadData,
     loadMessages,
     loadContacts,
-    getMessagesForContact,
-    markMessagesAsRead,
+    sendMessage,
+    markMessageAsRead,
     deleteMessage,
-    searchMessages,
+    blockContact,
+    unblockContact,
+    getMessageHistory,
     getMessageStats,
   };
 };

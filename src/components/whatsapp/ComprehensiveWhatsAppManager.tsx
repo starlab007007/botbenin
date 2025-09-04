@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useWhatsAppAccounts } from '@/hooks/useWhatsAppAccounts';
+import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
 import { useAuth } from '@/contexts/AuthContext';
 import AutoWAHAAuth from './AutoWAHAAuth';
 import { 
@@ -36,23 +37,6 @@ import {
   Copy
 } from 'lucide-react';
 
-interface Message {
-  id: string;
-  from: string;
-  to: string;
-  message: string;
-  timestamp: string;
-  type: 'incoming' | 'outgoing';
-  status: 'sent' | 'delivered' | 'read';
-}
-
-interface Contact {
-  id: string;
-  name: string;
-  phone: string;
-  lastSeen: string;
-  messagesCount: number;
-}
 
 const ComprehensiveWhatsAppManager: React.FC = () => {
   // State management
@@ -67,11 +51,9 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
   const [authCompleted, setAuthCompleted] = useState(false);
   
   // Message & Contact states
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [messageText, setMessageText] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
-  const [messageType, setMessageType] = useState<'text' | 'image' | 'file'>('text');
+  const [messageType, setMessageType] = useState<'text' | 'image' | 'document'>('text');
   
   // Session creation form
   const [newSessionName, setNewSessionName] = useState('');
@@ -91,48 +73,16 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
     stopSession,
     deleteSession,
     linkBot,
-    unlinkBot,
-    sendMessage
+    unlinkBot
   } = useWhatsAppAccounts();
 
-  // Mock data for demonstration
-  const mockMessages: Message[] = [
-    {
-      id: '1',
-      from: '+237123456789',
-      to: 'session_1',
-      message: 'Bonjour, comment allez-vous?',
-      timestamp: new Date().toISOString(),
-      type: 'incoming',
-      status: 'read'
-    },
-    {
-      id: '2',
-      from: 'session_1',
-      to: '+237123456789',
-      message: 'Bonjour! Je vais bien, merci. Comment puis-je vous aider?',
-      timestamp: new Date().toISOString(),
-      type: 'outgoing',
-      status: 'delivered'
-    }
-  ];
+  const {
+    messages,
+    contacts,
+    loading: messagesLoading,
+    sendMessage
+  } = useWhatsAppMessages();
 
-  const mockContacts: Contact[] = [
-    {
-      id: '1',
-      name: 'Client Test',
-      phone: '+237123456789',
-      lastSeen: '2024-01-09T10:30:00Z',
-      messagesCount: 15
-    },
-    {
-      id: '2',
-      name: 'Prospect Commercial',
-      phone: '+237987654321',
-      lastSeen: '2024-01-09T08:15:00Z',
-      messagesCount: 8
-    }
-  ];
 
   const userSessions = accounts.filter(account => 
     account.session_name.includes(user?.id?.substring(0, 8) || '')
@@ -227,17 +177,13 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
     setShowAuth(false);
   };
 
-  useEffect(() => {
-    setMessages(mockMessages);
-    setContacts(mockContacts);
-  }, []);
 
   // Show auth screen first
   if (showAuth && !authCompleted) {
     return <AutoWAHAAuth onAuthComplete={handleAuthComplete} />;
   }
 
-  if (accountsLoading) {
+  if (accountsLoading || messagesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -556,15 +502,15 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex items-start gap-4 p-4 rounded-lg ${
-                    message.type === 'incoming' ? 'bg-muted' : 'bg-blue-50'
+                    message.direction === 'incoming' ? 'bg-muted' : 'bg-blue-50'
                   }`}>
                     <div className={`w-2 h-2 rounded-full mt-2 ${
-                      message.type === 'incoming' ? 'bg-green-500' : 'bg-blue-500'
+                      message.direction === 'incoming' ? 'bg-green-500' : 'bg-blue-500'
                     }`}></div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium">
-                          {message.type === 'incoming' ? message.from : 'Vous'}
+                          {message.direction === 'incoming' ? message.from : 'Vous'}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {new Date(message.timestamp).toLocaleString()}
@@ -599,18 +545,18 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
                   <div key={contact.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
-                        {contact.name.charAt(0).toUpperCase()}
+                        {(contact.name || contact.phone_number).charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <h4 className="font-medium">{contact.name}</h4>
-                        <p className="text-sm text-muted-foreground">{contact.phone}</p>
+                        <h4 className="font-medium">{contact.name || contact.phone_number}</h4>
+                        <p className="text-sm text-muted-foreground">{contact.phone_number}</p>
                         <p className="text-xs text-muted-foreground">
-                          Dernière vue: {new Date(contact.lastSeen).toLocaleString()}
+                          Dernière vue: {new Date(contact.last_seen).toLocaleString()}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">{contact.messagesCount} messages</Badge>
+                      <Badge variant="outline">{contact.message_count} messages</Badge>
                       <Button size="sm" variant="outline">
                         <MessageSquare className="w-3 h-3 mr-1" />
                         Chat
@@ -840,14 +786,14 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
             
             <div>
               <label className="text-sm font-medium mb-2 block">Type de message</label>
-              <Select value={messageType} onValueChange={(value: 'text' | 'image' | 'file') => setMessageType(value)}>
+              <Select value={messageType} onValueChange={(value: 'text' | 'image' | 'document') => setMessageType(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="text">Texte</SelectItem>
                   <SelectItem value="image">Image</SelectItem>
-                  <SelectItem value="file">Fichier</SelectItem>
+                  <SelectItem value="document">Fichier</SelectItem>
                 </SelectContent>
               </Select>
             </div>

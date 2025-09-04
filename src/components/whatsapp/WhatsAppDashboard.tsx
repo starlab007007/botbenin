@@ -59,7 +59,7 @@ const WhatsAppDashboard: React.FC = () => {
 
   // Get messages for connected accounts
   const connectedAccountId = accounts.find(a => a.status === 'connected')?.id;
-  const { messages, contacts } = useWhatsAppMessages(connectedAccountId);
+  const { messages, contacts } = useWhatsAppMessages();
 
   const handleConnectWhatsApp = async (accountId: string, sessionName: string) => {
     try {
@@ -381,19 +381,19 @@ const WhatsAppDashboard: React.FC = () => {
               {messages.slice(0, 10).map((message, index) => (
                 <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
                   <div className={`w-2 h-2 rounded-full mt-2 ${
-                    message.is_from_me ? 'bg-blue-500' : 'bg-green-500'
+                    message.direction === 'outgoing' ? 'bg-blue-500' : 'bg-green-500'
                   }`}></div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-medium">
-                        {message.is_from_me ? 'Bot' : message.from_number?.replace('@c.us', '') || 'Contact'}
+                        {message.direction === 'outgoing' ? 'Bot' : message.from?.replace('@c.us', '') || 'Contact'}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(message.timestamp).toLocaleString()}
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2">
-                      {message.content || 'Message multimédia'}
+                      {message.message || 'Message multimédia'}
                     </p>
                   </div>
                 </div>
