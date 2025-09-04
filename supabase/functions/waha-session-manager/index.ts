@@ -28,7 +28,9 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    let wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
+
+    // Allow a safe default base URL to avoid missing config in dev
+    let wahaBaseUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
     const wahaApiKey = Deno.env.get('WAHA_API_KEY')?.trim();
     const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN')?.trim();
     const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME') || 'admin';
@@ -46,16 +48,6 @@ serve(async (req) => {
     console.log('WAHA_API_KEY_PLAIN:', wahaApiKeyPlain ? 'SET' : 'MISSING');
     console.log('WAHA_DASHBOARD_USERNAME:', wahaDashUser ? 'SET' : 'MISSING');
     console.log('WAHA_DASHBOARD_PASSWORD:', wahaDashPass ? 'SET' : 'MISSING');
-    
-    if (!wahaBaseUrl) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'WAHA configuration missing: WAHA_BASE_URL' 
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -77,306 +69,243 @@ serve(async (req) => {
 
     console.log(`WAHA ${action} request for session: ${sessionName}`);
 
-    // Function to authenticate with WAHA dashboard first
-    const authenticateWithDashboard = async (): Promise<string | null> => {
+    // Auth method A: API login (/auth/login) to get cookie or bearer token usable for /api
+    const authenticateApi = async (): Promise<{ cookie?: string; bearer?: string } | null> => {
       try {
-        console.log('Authenticating with WAHA dashboard...');
-        
-        // First, authenticate with the dashboard
-        const loginResponse = await fetch(`${wahaBaseUrl}/dashboard/auth`, {
+        console.log('Authenticating with WAHA API /auth/login...');
+        const body = new URLSearchParams({ username: wahaDashUser, password: wahaDashPass });
+        const res = await fetch(`${wahaBaseUrl}/auth/login`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            username: wahaDashUser,
-            password: wahaDashPass,
-          }),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
         });
-
-        if (!loginResponse.ok) {
-          console.log(`Dashboard auth failed: ${loginResponse.status} ${loginResponse.statusText}`);
+        if (!res.ok) {
+          console.log(`API auth failed: ${res.status} ${res.statusText}`);
           return null;
         }
-
-        // Extract session cookies
-        const cookies = loginResponse.headers.get('set-cookie');
-        console.log('Dashboard authentication successful, got cookies');
-        return cookies;
-      } catch (error) {
-        console.log(`Dashboard authentication error: ${error}`);
+        const cookie = res.headers.get('set-cookie') || undefined;
+        let bearer: string | undefined;
+        try {
+          const json = await res.clone().json();
+          bearer = (json?.token || json?.access_token) as string | undefined;
+        } catch (_) { /* ignore parse error */ }
+        console.log('API auth success. cookie:', !!cookie, 'bearer:', !!bearer);
+        return cookie || bearer ? { cookie, bearer } : { };
+      } catch (e) {
+        console.log('API auth error:', e);
         return null;
       }
     };
 
-    // Enhanced WAHA request function with dashboard authentication first
+    // Auth method B: Dashboard login (cookie may be scoped to /dashboard only, last resort)
+    const authenticateDashboard = async (): Promise<string | null> => {
+      try {
+        console.log('Authenticating with WAHA dashboard /dashboard/auth...');
+        const res = await fetch(`${wahaBaseUrl}/dashboard/auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ username: wahaDashUser, password: wahaDashPass }),
+        });
+        if (!res.ok) {
+          console.log(`Dashboard auth failed: ${res.status} ${res.statusText}`);
+          return null;
+        }
+        const cookie = res.headers.get('set-cookie');
+        console.log('Dashboard auth success. cookie:', !!cookie);
+        return cookie;
+      } catch (e) {
+        console.log('Dashboard auth error:', e);
+        return null;
+      }
+    };
+
+    // Core request wrapper
     const wahaFetch = async (endpoint: string, init: RequestInit = {}) => {
-      console.log(`Attempting WAHA request to ${wahaBaseUrl}${endpoint}`);
-      
-      // Method 1: First authenticate with dashboard to get session
-      const dashboardCookies = await authenticateWithDashboard();
-      
-      if (dashboardCookies) {
-        console.log('Using dashboard session for API calls');
+      const url = `${wahaBaseUrl}${endpoint}`;
+      console.log('Attempting WAHA request:', url);
+
+      // 1) Try API session (best match for /api endpoints)
+      const apiAuth = await authenticateApi();
+      if (apiAuth) {
         try {
-          const response = await fetch(`${wahaBaseUrl}${endpoint}`, {
+          const res = await fetch(url, {
             ...init,
             headers: {
               'Content-Type': 'application/json',
-              'Cookie': dashboardCookies,
-              ...init.headers,
+              ...(apiAuth.cookie ? { Cookie: apiAuth.cookie } : {}),
+              ...(apiAuth.bearer ? { Authorization: `Bearer ${apiAuth.bearer}` } : {}),
+              ...(init.headers || {}),
             },
           });
-          
-          console.log(`Dashboard session request: ${response.status} ${response.statusText}`);
-          
-          if (response.ok) {
-            return response;
-          }
-        } catch (error) {
-          console.log(`Dashboard session request error: ${error}`);
+          console.log('API session call ->', res.status, res.statusText);
+          if (res.ok || res.status !== 401) return res;
+        } catch (e) {
+          console.log('API session call error:', e);
         }
       }
 
-      // Method 2: Try API key methods as fallback
-      const authVariants = [];
-      
-      if (wahaApiKey || wahaApiKeyPlain) {
-        const keyToUse = (wahaApiKeyPlain && wahaApiKeyPlain.length > 0) ? wahaApiKeyPlain : (wahaApiKey as string);
-        authVariants.push(
-          { 'X-Api-Key': keyToUse },
-          { 'X-API-Key': keyToUse },
-          { 'X-API-KEY': keyToUse },
-          { 'x-api-key': keyToUse },
-          { 'Authorization': `Bearer ${keyToUse}` },
-          { 'Authorization': `ApiKey ${keyToUse}` }
+      // 2) Try API keys if provided
+      const candidates: Record<string, string>[] = [];
+      const key = wahaApiKeyPlain?.length ? wahaApiKeyPlain : wahaApiKey;
+      if (key) {
+        candidates.push(
+          { 'X-Api-Key': key },
+          { 'X-API-Key': key },
+          { 'X-API-KEY': key },
+          { 'x-api-key': key },
+          { 'Authorization': `Bearer ${key}` },
+          { 'Authorization': `ApiKey ${key}` },
         );
       }
-
-      console.log(`Trying ${authVariants.length} API key variants as fallback...`);
-      
-      // Try each authentication variant
-      for (let i = 0; i < authVariants.length; i++) {
-        const headers = authVariants[i];
-        console.log(`Trying auth variant ${i + 1}:`, Object.keys(headers).join(', '));
-        
+      for (let i = 0; i < candidates.length; i++) {
         try {
-          const response = await fetch(`${wahaBaseUrl}${endpoint}`, {
+          const res = await fetch(url, {
             ...init,
-            headers: {
-              'Content-Type': 'application/json',
-              ...init.headers,
-              ...headers,
-            },
+            headers: { 'Content-Type': 'application/json', ...(init.headers || {}), ...candidates[i] },
           });
-          
-          console.log(`Auth variant ${i + 1} response: ${response.status} ${response.statusText}`);
-          
-          if (response.ok) {
-            return response;
-          }
-        } catch (error) {
-          console.log(`Auth variant ${i + 1} failed: ${error}`);
+          console.log(`API key variant ${i + 1} ->`, res.status, res.statusText);
+          if (res.ok || res.status !== 401) return res;
+        } catch (e) {
+          console.log(`API key variant ${i + 1} error:`, e);
         }
       }
-      
-      // Method 3: Final attempt without authentication
-      console.log('All auth methods failed, trying without authentication...');
-      return fetch(`${wahaBaseUrl}${endpoint}`, {
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          ...init.headers,
-        },
-      });
+
+      // 3) Try dashboard cookie as a final fallback
+      const dashCookie = await authenticateDashboard();
+      if (dashCookie) {
+        try {
+          const res = await fetch(url, {
+            ...init,
+            headers: { 'Content-Type': 'application/json', Cookie: dashCookie, ...(init.headers || {}) },
+          });
+          console.log('Dashboard cookie call ->', res.status, res.statusText);
+          return res;
+        } catch (e) {
+          console.log('Dashboard cookie call error:', e);
+        }
+      }
+
+      // 4) Last attempt without auth
+      console.log('All auth methods failed. Final unauthenticated attempt.');
+      return fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers || {}) } });
     };
 
     let wahaResponse: WAHAResponse = { success: false };
     switch (action) {
-      case 'create':
+      case 'create': {
         console.log('Creating WAHA session...');
-        const createResponse = await wahaFetch(`/api/sessions`, {
+        const res = await wahaFetch(`/api/sessions`, {
           method: 'POST',
           body: JSON.stringify({
             name: sessionName,
             config: {
               webhooks: [
-                {
-                  url: `${supabaseUrl}/functions/v1/waha-webhook`,
-                  events: ['message', 'session.status'],
-                },
+                { url: `${supabaseUrl}/functions/v1/waha-webhook`, events: ['message', 'session.status'] },
               ],
             },
           }),
         });
 
-        if (createResponse.ok) {
-          const sessionData = await createResponse.json();
-          console.log('WAHA session created successfully:', sessionData);
-          
-          // Save session to database
-          const { error: dbError } = await supabase
-            .from('whatsapp_accounts')
-            .upsert({
-              user_id: user.id,
-              session_name: sessionName,
-              phone_number: phoneNumber,
-              status: 'disconnected',
-              webhook_url: `${supabaseUrl}/functions/v1/waha-webhook`,
-              waha_session_data: sessionData,
-              last_activity: new Date().toISOString(),
-            });
-
-          if (dbError) {
-            console.error('Database error:', dbError);
-            throw dbError;
-          }
-
+        if (res.ok) {
+          const sessionData = await res.json();
+          console.log('Session created:', sessionData);
+          const { error: dbError } = await supabase.from('whatsapp_accounts').upsert({
+            user_id: user.id,
+            session_name: sessionName,
+            phone_number: phoneNumber,
+            status: 'disconnected',
+            webhook_url: `${supabaseUrl}/functions/v1/waha-webhook`,
+            waha_session_data: sessionData,
+            last_activity: new Date().toISOString(),
+          });
+          if (dbError) throw dbError;
           wahaResponse = { success: true, data: sessionData };
-        } else if (createResponse.status === 409) {
-          // Session already exists, that's OK
-          console.log('Session already exists, proceeding...');
+        } else if (res.status === 409) {
           wahaResponse = { success: true, data: { name: sessionName, status: 'existing' } };
         } else {
-          const errorData = await createResponse.text();
-          console.error('WAHA create failed:', createResponse.status, errorData);
-          wahaResponse = { success: false, error: `WAHA create failed: ${errorData}` };
+          const txt = await res.text();
+          console.error('WAHA create failed:', res.status, txt);
+          wahaResponse = { success: false, error: `WAHA create failed: ${txt}` };
         }
         break;
+      }
 
-      case 'start':
-        console.log('Starting WAHA session...');
-        const startResponse = await wahaFetch(`/api/sessions/${sessionName}/start`, {
-          method: 'POST',
-        });
-
-        if (startResponse.ok) {
-          const startData = await startResponse.json();
-          
-          // Update database status
-          await supabase
-            .from('whatsapp_accounts')
-            .update({
-              status: 'connecting',
-              last_activity: new Date().toISOString(),
-            })
-            .eq('user_id', user.id)
-            .eq('session_name', sessionName);
-
-          wahaResponse = { success: true, data: startData };
+      case 'start': {
+        console.log('Starting session...');
+        const res = await wahaFetch(`/api/sessions/${sessionName}/start`, { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          await supabase.from('whatsapp_accounts').update({ status: 'connecting', last_activity: new Date().toISOString() })
+            .eq('user_id', user.id).eq('session_name', sessionName);
+          wahaResponse = { success: true, data };
         } else {
-          const errorData = await startResponse.text();
-          console.error('WAHA start failed:', startResponse.status, errorData);
-          wahaResponse = { success: false, error: `WAHA start failed: ${errorData}` };
+          const txt = await res.text();
+          console.error('WAHA start failed:', res.status, txt);
+          wahaResponse = { success: false, error: `WAHA start failed: ${txt}` };
         }
         break;
+      }
 
-      case 'qr':
-        console.log('Getting QR code from WAHA session...');
-        const qrResponse = await wahaFetch(`/api/sessions/${sessionName}/auth/qr`, {
-          method: 'GET',
-        });
-
-        if (qrResponse.ok) {
-          const qrData = await qrResponse.json();
-          
-          // Update database with QR code
-          await supabase
-            .from('whatsapp_accounts')
-            .update({
-              qr_code: qrData.qr || qrData.base64,
-              last_activity: new Date().toISOString(),
-            })
-            .eq('user_id', user.id)
-            .eq('session_name', sessionName);
-
-          wahaResponse = { 
-            success: true, 
-            data: qrData,
-            qrCode: qrData.qr || qrData.base64 
-          };
+      case 'qr': {
+        console.log('Fetching QR...');
+        const res = await wahaFetch(`/api/sessions/${sessionName}/auth/qr`, { method: 'GET' });
+        if (res.ok) {
+          const data = await res.json();
+          await supabase.from('whatsapp_accounts').update({ qr_code: data.qr || data.base64, last_activity: new Date().toISOString() })
+            .eq('user_id', user.id).eq('session_name', sessionName);
+          wahaResponse = { success: true, data, qrCode: data.qr || data.base64 };
         } else {
-          const errorData = await qrResponse.text();
-          console.error('QR fetch failed:', qrResponse.status, errorData);
-          wahaResponse = { success: false, error: `QR fetch failed: ${errorData}` };
+          const txt = await res.text();
+          console.error('QR fetch failed:', res.status, txt);
+          wahaResponse = { success: false, error: `QR fetch failed: ${txt}` };
         }
         break;
+      }
 
-      case 'status':
-        console.log('Getting WAHA session status...');
-        const statusResponse = await wahaFetch(`/api/sessions/${sessionName}`, {
-          method: 'GET',
-        });
-
-        if (statusResponse.ok) {
-          const statusData = await statusResponse.json();
-          
-          // Update database with current status
-          await supabase
-            .from('whatsapp_accounts')
-            .update({
-              status: statusData.status || 'disconnected',
-              waha_session_data: statusData,
-              last_activity: new Date().toISOString(),
-            })
-            .eq('user_id', user.id)
-            .eq('session_name', sessionName);
-
-          wahaResponse = { success: true, data: statusData };
+      case 'status': {
+        const res = await wahaFetch(`/api/sessions/${sessionName}`, { method: 'GET' });
+        if (res.ok) {
+          const data = await res.json();
+          await supabase.from('whatsapp_accounts').update({
+            status: data.status || 'disconnected',
+            waha_session_data: data,
+            last_activity: new Date().toISOString(),
+          }).eq('user_id', user.id).eq('session_name', sessionName);
+          wahaResponse = { success: true, data };
         } else {
-          const errorText = await statusResponse.text();
-          console.error('WAHA status failed:', statusResponse.status, errorText);
+          const txt = await res.text();
+          console.error('Status failed:', res.status, txt);
           wahaResponse = { success: false, error: 'Session not found' };
         }
         break;
+      }
 
-      case 'stop':
-        console.log('Stopping WAHA session...');
-        const stopResponse = await wahaFetch(`/api/sessions/${sessionName}/stop`, {
-          method: 'POST',
-        });
-
-        if (stopResponse.ok) {
-          // Update database status
-          await supabase
-            .from('whatsapp_accounts')
-            .update({
-              status: 'disconnected',
-              qr_code: null,
-              last_activity: new Date().toISOString(),
-            })
-            .eq('user_id', user.id)
-            .eq('session_name', sessionName);
-
+      case 'stop': {
+        const res = await wahaFetch(`/api/sessions/${sessionName}/stop`, { method: 'POST' });
+        if (res.ok) {
+          await supabase.from('whatsapp_accounts').update({ status: 'disconnected', qr_code: null, last_activity: new Date().toISOString() })
+            .eq('user_id', user.id).eq('session_name', sessionName);
           wahaResponse = { success: true };
         } else {
-          const errorData = await stopResponse.text();
-          console.error('WAHA stop failed:', stopResponse.status, errorData);
-          wahaResponse = { success: false, error: `WAHA stop failed: ${errorData}` };
+          const txt = await res.text();
+          console.error('Stop failed:', res.status, txt);
+          wahaResponse = { success: false, error: `WAHA stop failed: ${txt}` };
         }
         break;
+      }
 
-      case 'delete':
-        console.log('Deleting WAHA session...');
-        const deleteResponse = await wahaFetch(`/api/sessions/${sessionName}`, {
-          method: 'DELETE',
-        });
-
-        if (deleteResponse.ok) {
-          // Remove from database
-          await supabase
-            .from('whatsapp_accounts')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('session_name', sessionName);
-
+      case 'delete': {
+        const res = await wahaFetch(`/api/sessions/${sessionName}`, { method: 'DELETE' });
+        if (res.ok) {
+          await supabase.from('whatsapp_accounts').delete().eq('user_id', user.id).eq('session_name', sessionName);
           wahaResponse = { success: true };
         } else {
-          const errorData = await deleteResponse.text();
-          console.error('WAHA delete failed:', deleteResponse.status, errorData);
-          wahaResponse = { success: false, error: `WAHA delete failed: ${errorData}` };
+          const txt = await res.text();
+          console.error('Delete failed:', res.status, txt);
+          wahaResponse = { success: false, error: `WAHA delete failed: ${txt}` };
         }
         break;
+      }
 
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -389,14 +318,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('WAHA session manager error:', error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: (error as { message?: string }).message || 'Unknown error'
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ success: false, error: (error as { message?: string }).message || 'Unknown error' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
