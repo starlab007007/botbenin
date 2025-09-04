@@ -24,16 +24,57 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     let wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
-    const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+    const wahaApiKey = Deno.env.get('WAHA_API_KEY')?.trim();
+    const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN')?.trim();
+    const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
+    const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
 
     // Clean base URL (remove trailing slash and /dashboard path)
     if (wahaBaseUrl) {
       wahaBaseUrl = wahaBaseUrl.replace(/\/$/, '').replace(/\/dashboard$/, '');
     }
 
-    if (!wahaBaseUrl || !wahaApiKey) {
-      throw new Error('WAHA configuration missing');
+    if (!wahaBaseUrl || (!wahaApiKey && !wahaApiKeyPlain && !(wahaDashUser && wahaDashPass))) {
+      throw new Error('WAHA configuration missing: set WAHA_API_KEY or WAHA_API_KEY_PLAIN or dashboard credentials');
     }
+
+    const buildHeaders = (extra: Record<string, string> = {}) => {
+      const variants: Record<string, string>[] = [];
+      const keyToUse = (wahaApiKeyPlain && wahaApiKeyPlain.length > 0) ? wahaApiKeyPlain : (wahaApiKey || '');
+      if (keyToUse) {
+        variants.push(
+          { 'Content-Type': 'application/json', 'X-Api-Key': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'X-API-Key': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'X-API-KEY': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'x-api-key': keyToUse, ...extra },
+          { 'Content-Type': 'application/json', 'Authorization': `ApiKey ${keyToUse}`, ...extra },
+          { 'Content-Type': 'application/json', 'Authorization': `Bearer ${keyToUse}`, ...extra },
+        );
+      }
+      if (wahaDashUser && wahaDashPass) {
+        const basic = `Basic ${btoa(`${wahaDashUser}:${wahaDashPass}`)}`;
+        variants.push({ 'Content-Type': 'application/json', 'Authorization': basic, ...extra });
+      }
+      return variants;
+    };
+
+    const wahaFetch = async (endpoint: string, init: RequestInit = {}) => {
+      const headersVariants = buildHeaders(init.headers as Record<string,string>);
+      let lastRes: Response | null = null;
+      for (let i = 0; i < headersVariants.length; i++) {
+        const headers = headersVariants[i];
+        try {
+          const res = await fetch(`${wahaBaseUrl}${endpoint}`, { ...init, headers });
+          if (res.ok || (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 403)) {
+            return res;
+          }
+          lastRes = res;
+        } catch (e) {
+          if (i === headersVariants.length - 1) throw e;
+        }
+      }
+      return lastRes!;
+    };
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -65,11 +106,6 @@ serve(async (req) => {
       throw new Error('WhatsApp account not found or unauthorized');
     }
 
-    const wahaHeaders = {
-      'Content-Type': 'application/json',
-      'X-API-Key': wahaApiKey,
-    };
-
     let wahaEndpoint = '';
     let wahaPayload: any = {
       session: sessionName,
@@ -78,36 +114,32 @@ serve(async (req) => {
 
     switch (messageType) {
       case 'text':
-        wahaEndpoint = `${wahaBaseUrl}/api/sendText`;
+        wahaEndpoint = `/api/sendText`;
         wahaPayload.text = message;
         break;
-      
       case 'image':
-        wahaEndpoint = `${wahaBaseUrl}/api/sendImage`;
+        wahaEndpoint = `/api/sendImage`;
         wahaPayload.file = { url: mediaUrl };
         wahaPayload.caption = message;
         break;
-      
       case 'file':
-        wahaEndpoint = `${wahaBaseUrl}/api/sendFile`;
+        wahaEndpoint = `/api/sendFile`;
         wahaPayload.file = { url: mediaUrl };
         wahaPayload.caption = message;
         break;
-      
       default:
         throw new Error(`Unsupported message type: ${messageType}`);
     }
 
     console.log(`Sending ${messageType} message via WAHA:`, wahaPayload);
 
-    const wahaResponse = await fetch(wahaEndpoint, {
+    const wahaResponse = await wahaFetch(wahaEndpoint, {
       method: 'POST',
-      headers: wahaHeaders,
       body: JSON.stringify(wahaPayload),
     });
 
-    if (!wahaResponse.ok) {
-      const errorData = await wahaResponse.text();
+    if (!wahaResponse || !wahaResponse.ok) {
+      const errorData = wahaResponse ? await wahaResponse.text() : 'no response';
       throw new Error(`WAHA send failed: ${errorData}`);
     }
 

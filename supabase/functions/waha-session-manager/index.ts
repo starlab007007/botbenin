@@ -29,8 +29,8 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     let wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
-    const wahaApiKey = Deno.env.get('WAHA_API_KEY');
-    const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN');
+    const wahaApiKey = Deno.env.get('WAHA_API_KEY')?.trim();
+    const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN')?.trim();
     const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
     const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
 
