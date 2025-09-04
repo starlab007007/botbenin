@@ -50,12 +50,12 @@ serve(async (req) => {
     // Credentials for auto-authentication
     const apiCredentials = {
       username: 'admin',
-      password: 'admin'
+      password: 'Starlab@007'
     };
 
     const dashboardCredentials = {
       username: 'admin', 
-      password: 'admin2025'
+      password: 'Starlab@007'
     };
 
     // Test WAHA API authentication
