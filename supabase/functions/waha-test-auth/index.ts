@@ -18,24 +18,23 @@ serve(async (req) => {
 
     console.log('Testing WAHA authentication...');
     
-    // Test 1: Dashboard login
-    console.log('=== TEST 1: Dashboard Login ===');
-    const loginUrl = `${wahaBaseUrl}/dashboard/auth`;
-    console.log('Login URL:', loginUrl);
+    // Test 1: Dashboard login with Basic Auth
+    console.log('=== TEST 1: Dashboard Basic Auth ===');
     
-    const formData = new URLSearchParams({
-      username: wahaDashUser,
-      password: wahaDashPass
-    });
+    const credentials = btoa(`${wahaDashUser}:${wahaDashPass}`);
+    const authHeader = `Basic ${credentials}`;
+    console.log('Using Basic Auth for:', wahaDashUser);
     
-    const loginRes = await fetch(loginUrl, {
-      method: 'POST',
+    const dashboardUrl = `${wahaBaseUrl}/dashboard/`;
+    console.log('Dashboard URL:', dashboardUrl);
+    
+    const loginRes = await fetch(dashboardUrl, {
+      method: 'GET',
       headers: { 
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': authHeader,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Test/1.0)'
       },
-      body: formData,
       redirect: 'manual'
     });
     
@@ -46,20 +45,25 @@ serve(async (req) => {
     console.log('Cookie received:', !!cookie);
     if (cookie) console.log('Cookie preview:', cookie.substring(0, 100));
     
-    // Test 2: Try API call with cookie
+    // Test 2: Try API call with Basic Auth (and cookie if available)
+    console.log('=== TEST 2: API Call with Basic Auth ===');
+    const apiUrl = `${wahaBaseUrl}/api/sessions`;
+    console.log('API URL:', apiUrl);
+    
+    const apiHeaders: Record<string, string> = {
+      'Authorization': authHeader,
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Test/1.0)'
+    };
+    
     if (cookie) {
-      console.log('=== TEST 2: API Call with Cookie ===');
-      const apiUrl = `${wahaBaseUrl}/api/sessions`;
-      console.log('API URL:', apiUrl);
-      
-      const apiRes = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Cookie': cookie,
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Test/1.0)'
-        }
-      });
+      apiHeaders['Cookie'] = cookie;
+    }
+    
+    const apiRes = await fetch(apiUrl, {
+      method: 'GET',
+      headers: apiHeaders
+    });
       
       console.log('API response status:', apiRes.status);
       console.log('API response headers:', Object.fromEntries(apiRes.headers.entries()));
@@ -71,13 +75,13 @@ serve(async (req) => {
         const text = await apiRes.text();
         console.log('API error response:', text.substring(0, 200));
       }
-    }
     
-    // Test 3: Direct dashboard access
-    console.log('=== TEST 3: Dashboard Access ===');
+    // Test 3: Direct dashboard access with Basic Auth
+    console.log('=== TEST 3: Dashboard Access with Basic Auth ===');
     const dashboardRes = await fetch(`${wahaBaseUrl}/dashboard/`, {
       method: 'GET',
       headers: {
+        'Authorization': authHeader,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Test/1.0)'
       },
@@ -92,12 +96,12 @@ serve(async (req) => {
       tests: {
         login: {
           status: loginRes.status,
-          hasCookie: !!cookie
+          hasCookie: !!cookie,
+          useBasicAuth: true
         },
-        api: cookie ? {
-          status: 'tested with cookie'
-        } : {
-          status: 'skipped - no cookie'
+        api: {
+          status: apiRes.status,
+          authenticated: 'basic_auth_and_cookie'
         },
         dashboard: {
           status: dashboardRes.status

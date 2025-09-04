@@ -69,50 +69,47 @@ serve(async (req) => {
 
     console.log(`WAHA ${action} request for session: ${sessionName}`);
 
-    // Dashboard authentication - the primary method for WAHA
+    // Dashboard authentication using HTTP Basic Auth (as indicated by www-authenticate: Basic)
     const authenticateDashboard = async (): Promise<string | null> => {
       try {
-        console.log('Authenticating with WAHA dashboard...');
-        const loginUrl = `${wahaBaseUrl}/dashboard/auth`;
-        console.log('Login URL:', loginUrl);
+        console.log('Authenticating with WAHA dashboard using Basic Auth...');
         
-        const formData = new URLSearchParams({
-          username: wahaDashUser,
-          password: wahaDashPass
-        });
+        // Create Basic Auth header
+        const credentials = btoa(`${wahaDashUser}:${wahaDashPass}`);
+        const authHeader = `Basic ${credentials}`;
+        console.log('Using Basic Auth for:', wahaDashUser);
         
-        console.log('Attempting login with credentials: admin/[password hidden]');
+        // First, try to access dashboard to get session cookie
+        const dashboardUrl = `${wahaBaseUrl}/dashboard/`;
+        console.log('Accessing dashboard URL:', dashboardUrl);
         
-        const res = await fetch(loginUrl, {
-          method: 'POST',
+        const res = await fetch(dashboardUrl, {
+          method: 'GET',
           headers: { 
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': authHeader,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Client/1.0)'
           },
-          body: formData,
-          redirect: 'manual' // Important: handle redirects manually
+          redirect: 'manual'
         });
         
-        console.log('Dashboard auth response:', res.status, res.statusText);
+        console.log('Dashboard access response:', res.status, res.statusText);
         console.log('Response headers:', Object.fromEntries(res.headers.entries()));
         
-        // Check for success (login usually redirects on success)
-        if (res.status === 200 || res.status === 302 || res.status === 303) {
+        if (res.status === 200) {
           const cookie = res.headers.get('set-cookie');
-          console.log('Dashboard auth success. Cookie available:', !!cookie);
+          console.log('Dashboard auth success with Basic Auth. Cookie available:', !!cookie);
           if (cookie) {
             console.log('Cookie preview:', cookie.substring(0, 100) + '...');
           }
-          return cookie;
+          // For Basic Auth, we can also use the Authorization header directly
+          return cookie || authHeader;
         } else {
-          console.log(`Dashboard auth failed: ${res.status} ${res.statusText}`);
-          const text = await res.text();
-          console.log('Response body preview:', text.substring(0, 300));
+          console.log(`Dashboard Basic Auth failed: ${res.status} ${res.statusText}`);
           return null;
         }
       } catch (e) {
-        console.log('Dashboard auth error:', e);
+        console.log('Dashboard Basic Auth error:', e);
         return null;
       }
     };
@@ -122,22 +119,32 @@ serve(async (req) => {
       const url = `${wahaBaseUrl}${endpoint}`;
       console.log('Attempting WAHA request:', url);
 
-      // 1) Primary method: Dashboard authentication
-      const dashCookie = await authenticateDashboard();
-      if (dashCookie) {
+      // 1) Primary method: Dashboard authentication (Basic Auth or Cookie)
+      const dashAuth = await authenticateDashboard();
+      if (dashAuth) {
         try {
+          const headers: Record<string, string> = { 
+            'Content-Type': 'application/json',
+            ...(init.headers || {}) 
+          };
+          
+          // Check if it's a Basic Auth header or Cookie
+          if (dashAuth.startsWith('Basic ')) {
+            headers['Authorization'] = dashAuth;
+            console.log('Using Basic Auth header');
+          } else {
+            headers['Cookie'] = dashAuth;
+            console.log('Using Cookie');
+          }
+          
           const res = await fetch(url, {
             ...init,
-            headers: { 
-              'Content-Type': 'application/json', 
-              'Cookie': dashCookie, 
-              ...(init.headers || {}) 
-            },
+            headers
           });
-          console.log('Dashboard cookie call ->', res.status, res.statusText);
+          console.log('Dashboard auth call ->', res.status, res.statusText);
           if (res.ok || res.status !== 401) return res;
         } catch (e) {
-          console.log('Dashboard cookie call error:', e);
+          console.log('Dashboard auth call error:', e);
         }
       }
 
