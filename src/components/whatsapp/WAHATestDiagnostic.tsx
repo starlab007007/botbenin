@@ -8,6 +8,37 @@ export const WAHATestDiagnostic = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [testResults, setTestResults] = useState<any>(null);
 
+  const runComprehensiveTest = async () => {
+    setIsLoading(true);
+    try {
+      console.log('Running comprehensive WAHA test...');
+      
+      const { data, error } = await supabase.functions.invoke('waha-comprehensive-test', {
+        body: {}
+      });
+
+      if (error) {
+        console.error('Function error:', error);
+        toast.error(`Erreur: ${error.message}`);
+        return;
+      }
+
+      console.log('Comprehensive test results:', data);
+      setTestResults(data);
+      
+      if (data.success) {
+        toast.success('Tests complets terminés - analysez les résultats');
+      } else {
+        toast.error('Tests échoués');
+      }
+    } catch (error) {
+      console.error('Comprehensive test error:', error);
+      toast.error('Erreur lors du test complet');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const runDiagnostic = async () => {
     setIsLoading(true);
     try {
@@ -82,13 +113,21 @@ export const WAHATestDiagnostic = () => {
         <CardTitle>Diagnostic WAHA</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button 
+            onClick={runComprehensiveTest} 
+            disabled={isLoading}
+            variant="outline"
+          >
+            {isLoading ? 'Test complet...' : 'Test Complet WAHA'}
+          </Button>
+          
           <Button 
             onClick={runDiagnostic} 
             disabled={isLoading}
             variant="outline"
           >
-            {isLoading ? 'Test en cours...' : 'Tester Authentification'}
+            {isLoading ? 'Test en cours...' : 'Test Auth Simple'}
           </Button>
           
           <Button 
