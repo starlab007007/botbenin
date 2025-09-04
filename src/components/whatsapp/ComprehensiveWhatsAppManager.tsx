@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useWhatsAppAccounts } from '@/hooks/useWhatsAppAccounts';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
 import { useAuth } from '@/contexts/AuthContext';
-import AutoWAHAAuth from './AutoWAHAAuth';
+import WAHADashboardViewer from './WAHADashboardViewer';
 import { 
   MessageCircle,
   Smartphone,
@@ -34,7 +34,8 @@ import {
   Edit,
   Plus,
   Eye,
-  Copy
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 
 
@@ -47,8 +48,7 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [qrCode, setQrCode] = useState<string>('');
   const [qrRefreshing, setQrRefreshing] = useState(false);
-  const [showAuth, setShowAuth] = useState(true);
-  const [authCompleted, setAuthCompleted] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   
   // Message & Contact states
   const [messageText, setMessageText] = useState('');
@@ -172,15 +172,9 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
     }
   };
 
-  const handleAuthComplete = () => {
-    setAuthCompleted(true);
-    setShowAuth(false);
-  };
-
-
-  // Show auth screen first
-  if (showAuth && !authCompleted) {
-    return <AutoWAHAAuth onAuthComplete={handleAuthComplete} />;
+  // Show dashboard if requested
+  if (showDashboard) {
+    return <WAHADashboardViewer />;
   }
 
   if (accountsLoading || messagesLoading) {
@@ -216,6 +210,13 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
               <Shield className="w-4 h-4 mr-2" />
               WAHA Connecté
             </Badge>
+            <Button 
+              onClick={() => setShowDashboard(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg px-4 py-2 rounded-full"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Dashboard WAHA
+            </Button>
             <div className="flex items-center gap-2 bg-white/80 dark:bg-black/20 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span className="text-sm font-medium text-foreground">En ligne</span>

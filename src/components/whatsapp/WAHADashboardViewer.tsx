@@ -49,7 +49,7 @@ const WAHADashboardViewer: React.FC = () => {
               <div>
                 <p className="font-medium text-green-800">Dashboard WAHA Actif</p>
                 <p className="text-sm text-green-600">
-                  Connecté avec : admin / admin2025
+                  Connexion automatique avec : admin / Starlab@007
                 </p>
               </div>
             </div>
@@ -83,7 +83,7 @@ const WAHADashboardViewer: React.FC = () => {
       {/* Embedded Dashboard */}
       <div className="relative">
         <iframe
-          src="https://waha.bot.bj/dashboard/"
+          src="https://admin:Starlab%40007@waha.bot.bj/dashboard/"
           className={`w-full border rounded-lg shadow-lg transition-opacity duration-300 ${
             dashboardLoaded ? 'opacity-100' : 'opacity-0'
           }`}
@@ -103,7 +103,7 @@ const WAHADashboardViewer: React.FC = () => {
             </p>
             <div className="text-xs text-blue-500">
               <p>URL: https://waha.bot.bj/dashboard/</p>
-              <p>Utilisateur: admin | Mot de passe: admin2025</p>
+              <p>Utilisateur: admin | Mot de passe: Starlab@007</p>
             </div>
           </div>
         </CardContent>
