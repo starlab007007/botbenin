@@ -197,48 +197,58 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <MessageCircle className="w-8 h-8 text-green-500" />
-            WhatsApp Business Manager
-          </h1>
-          <p className="text-muted-foreground">
-            Gérez vos sessions WhatsApp, messages et intégrations IA
-          </p>
+      <div className="relative overflow-hidden bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/20 dark:to-blue-950/20 rounded-2xl p-8 mb-6">
+        <div className="relative z-10 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-display font-bold flex items-center gap-3 text-foreground mb-2">
+              <div className="relative">
+                <MessageCircle className="w-10 h-10 text-green-600 dark:text-green-400" />
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-pulse"></div>
+              </div>
+              WhatsApp Business Manager
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-2xl">
+              Interface complète pour gérer vos sessions WhatsApp, messages automatisés et intégrations IA avancées
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge className="bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg px-4 py-2">
+              <Shield className="w-4 h-4 mr-2" />
+              WAHA Connecté
+            </Badge>
+            <div className="flex items-center gap-2 bg-white/80 dark:bg-black/20 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-foreground">En ligne</span>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge className="bg-green-500">
-            <Shield className="w-3 h-3 mr-1" />
-            WAHA Connecté
-          </Badge>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 to-blue-500/5 animate-pulse-glow"></div>
       </div>
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="dashboard">
+        <TabsList className="grid w-full grid-cols-6 bg-white/80 dark:bg-black/20 backdrop-blur-sm border shadow-lg p-1 rounded-xl">
+          <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white transition-all duration-300">
             <BarChart3 className="w-4 h-4 mr-2" />
             Tableau de Bord
           </TabsTrigger>
-          <TabsTrigger value="sessions">
+          <TabsTrigger value="sessions" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-green-600 data-[state=active]:text-white transition-all duration-300">
             <Smartphone className="w-4 h-4 mr-2" />
             Sessions
           </TabsTrigger>
-          <TabsTrigger value="messages">
+          <TabsTrigger value="messages" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-purple-600 data-[state=active]:text-white transition-all duration-300">
             <MessageSquare className="w-4 h-4 mr-2" />
             Messages
           </TabsTrigger>
-          <TabsTrigger value="contacts">
+          <TabsTrigger value="contacts" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-orange-600 data-[state=active]:text-white transition-all duration-300">
             <Users className="w-4 h-4 mr-2" />
             Contacts
           </TabsTrigger>
-          <TabsTrigger value="bots">
+          <TabsTrigger value="bots" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white transition-all duration-300">
             <Bot className="w-4 h-4 mr-2" />
             Bots IA
           </TabsTrigger>
-          <TabsTrigger value="settings">
+          <TabsTrigger value="settings" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-gray-500 data-[state=active]:to-gray-600 data-[state=active]:text-white transition-all duration-300">
             <Settings className="w-4 h-4 mr-2" />
             Paramètres
           </TabsTrigger>
@@ -247,51 +257,63 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
         {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-6">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="relative overflow-hidden bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/20 dark:to-green-900/20 border-green-200 dark:border-green-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Sessions Actives</p>
-                    <p className="text-2xl font-bold text-green-600">{connectedSessions.length}</p>
+                    <p className="text-sm font-medium text-green-700 dark:text-green-300">Sessions Actives</p>
+                    <p className="text-3xl font-bold text-green-800 dark:text-green-200">{connectedSessions.length}</p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">En ligne maintenant</p>
                   </div>
-                  <Smartphone className="w-8 h-8 text-green-500" />
+                  <div className="relative">
+                    <Smartphone className="w-12 h-12 text-green-600 dark:text-green-400" />
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-pulse"></div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
             
-            <Card>
+            <Card className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Messages Aujourd'hui</p>
-                    <p className="text-2xl font-bold text-blue-600">{messages.length}</p>
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Messages Aujourd'hui</p>
+                    <p className="text-3xl font-bold text-blue-800 dark:text-blue-200">{messages.length}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Échanges récents</p>
                   </div>
-                  <MessageSquare className="w-8 h-8 text-blue-500" />
+                  <MessageSquare className="w-12 h-12 text-blue-600 dark:text-blue-400" />
                 </div>
               </CardContent>
             </Card>
             
-            <Card>
+            <Card className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/20 border-purple-200 dark:border-purple-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Contacts</p>
-                    <p className="text-2xl font-bold text-purple-600">{contacts.length}</p>
+                    <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Contacts</p>
+                    <p className="text-3xl font-bold text-purple-800 dark:text-purple-200">{contacts.length}</p>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Base de données</p>
                   </div>
-                  <Users className="w-8 h-8 text-purple-500" />
+                  <Users className="w-12 h-12 text-purple-600 dark:text-purple-400" />
                 </div>
               </CardContent>
             </Card>
             
-            <Card>
+            <Card className="relative overflow-hidden bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 border-orange-200 dark:border-orange-800 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Bots Actifs</p>
-                    <p className="text-2xl font-bold text-orange-600">{botLinks.filter(link => link.is_active).length}</p>
+                    <p className="text-sm font-medium text-orange-700 dark:text-orange-300">Bots Actifs</p>
+                    <p className="text-3xl font-bold text-orange-800 dark:text-orange-200">{botLinks.filter(link => link.is_active).length}</p>
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">IA opérationnelle</p>
                   </div>
-                  <Bot className="w-8 h-8 text-orange-500" />
+                  <div className="relative">
+                    <Bot className="w-12 h-12 text-orange-600 dark:text-orange-400" />
+                    {botLinks.filter(link => link.is_active).length > 0 && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full animate-pulse"></div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

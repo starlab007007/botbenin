@@ -35,6 +35,23 @@
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
 
+  /* WhatsApp Brand Colors */
+  --whatsapp-green: 142 70% 49%;
+  --whatsapp-green-light: 142 70% 95%;
+  --whatsapp-green-dark: 142 70% 35%;
+  
+  /* Beautiful Gradients */
+  --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.8));
+  --gradient-whatsapp: linear-gradient(135deg, hsl(var(--whatsapp-green)), hsl(var(--whatsapp-green-dark)));
+  --gradient-success: linear-gradient(135deg, hsl(142 70% 49%), hsl(142 70% 35%));
+  --gradient-info: linear-gradient(135deg, hsl(221.2 83.2% 53.3%), hsl(221.2 83.2% 43.3%));
+  --gradient-warning: linear-gradient(135deg, hsl(43 74% 66%), hsl(43 74% 56%));
+  
+  /* Enhanced Shadows */
+  --shadow-elegant: 0 10px 30px -10px hsl(var(--primary) / 0.3);
+  --shadow-whatsapp: 0 10px 30px -10px hsl(var(--whatsapp-green) / 0.3);
+  --shadow-card: 0 4px 20px -4px hsl(var(--foreground) / 0.1);
+
   --sidebar-background: 0 0% 98%;
   --sidebar-foreground: 240 5.3% 26.1%;
   --sidebar-primary: 240 5.9% 10%;
@@ -70,6 +87,15 @@
   --chart-3: 30 80% 55%;
   --chart-4: 280 65% 60%;
   --chart-5: 340 75% 55%;
+
+  /* Dark mode WhatsApp colors */
+  --whatsapp-green: 142 70% 55%;
+  --whatsapp-green-light: 142 30% 25%;
+  --whatsapp-green-dark: 142 70% 45%;
+  
+  /* Dark mode gradients */
+  --gradient-whatsapp: linear-gradient(135deg, hsl(var(--whatsapp-green)), hsl(var(--whatsapp-green-dark)));
+  --shadow-whatsapp: 0 10px 30px -10px hsl(var(--whatsapp-green) / 0.4);
 
   --sidebar-background: 240 5.9% 10%;
   --sidebar-foreground: 240 4.8% 95.9%;

@@ -146,85 +146,113 @@ const WhatsAppDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <MessageCircle className="w-6 h-6 text-green-500" />
-            Mon Dashboard WhatsApp
-          </h2>
-          <p className="text-muted-foreground">
-            Gérez vos sessions WhatsApp et bots IA intégrés
-          </p>
+      <div className="relative overflow-hidden bg-gradient-to-r from-green-50 via-blue-50 to-purple-50 dark:from-green-950/20 dark:via-blue-950/20 dark:to-purple-950/20 rounded-2xl p-8 mb-8">
+        <div className="relative z-10 flex items-center justify-between">
+          <div>
+            <h2 className="text-4xl font-display font-bold flex items-center gap-3 text-foreground mb-3">
+              <div className="relative">
+                <MessageCircle className="w-10 h-10 text-green-600 dark:text-green-400" />
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-pulse"></div>
+              </div>
+              Mon Dashboard WhatsApp
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl">
+              Tableau de bord principal pour gérer vos sessions WhatsApp et automatisations IA
+            </p>
+          </div>
+          
+          {/* Admin Access Button (only visible to admins) */}
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => window.open('https://waha.bot.bj', '_blank')}
+              className="flex items-center gap-2 bg-white/80 dark:bg-black/20 backdrop-blur-sm border-primary/20 hover:border-primary/40 transition-all duration-300"
+            >
+              <ExternalLink className="w-4 h-4" />
+              WAHA Admin
+            </Button>
+            <div className="flex items-center gap-2 bg-white/80 dark:bg-black/20 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-foreground">Système actif</span>
+            </div>
+          </div>
         </div>
-        
-        {/* Admin Access Button (only visible to admins) */}
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => window.open('https://waha.bot.bj', '_blank')}
-          className="flex items-center gap-2"
-        >
-          <ExternalLink className="w-4 h-4" />
-          WAHA Admin (Admin)
-        </Button>
+        <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-blue-500/5 to-purple-500/5 animate-pulse-glow"></div>
       </div>
 
       {/* Diagnostic WAHA */}
       <WAHAHealthCheck />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/20 dark:to-green-900/20 border-green-200 dark:border-green-800 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-green-100 rounded-full">
-                <Smartphone className="w-6 h-6 text-green-600" />
+              <div className="relative">
+                <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg">
+                  <Smartphone className="w-7 h-7 text-white" />
+                </div>
+                {connectedAccounts.length > 0 && (
+                  <div className="absolute -top-2 -right-2 w-5 h-5 bg-green-400 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-bold text-white">{connectedAccounts.length}</span>
+                  </div>
+                )}
               </div>
               <div>
-                <p className="text-2xl font-bold">{connectedAccounts.length}</p>
-                <p className="text-sm text-muted-foreground">Sessions connectées</p>
+                <p className="text-3xl font-bold text-green-800 dark:text-green-200">{connectedAccounts.length}</p>
+                <p className="text-sm font-medium text-green-700 dark:text-green-300">Sessions connectées</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">En ligne maintenant</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-blue-100 rounded-full">
-                <Bot className="w-6 h-6 text-blue-600" />
+              <div className="relative">
+                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg">
+                  <Bot className="w-7 h-7 text-white" />
+                </div>
+                {activeLinks.length > 0 && (
+                  <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-400 rounded-full animate-pulse"></div>
+                )}
               </div>
               <div>
-                <p className="text-2xl font-bold">{activeLinks.length}</p>
-                <p className="text-sm text-muted-foreground">Bots actifs</p>
+                <p className="text-3xl font-bold text-blue-800 dark:text-blue-200">{activeLinks.length}</p>
+                <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Bots actifs</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">IA opérationnelle</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/20 border-purple-200 dark:border-purple-800 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-purple-100 rounded-full">
-                <MessageSquare className="w-6 h-6 text-purple-600" />
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg">
+                <MessageSquare className="w-7 h-7 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{messages.length}</p>
-                <p className="text-sm text-muted-foreground">Messages récents</p>
+                <p className="text-3xl font-bold text-purple-800 dark:text-purple-200">{messages.length}</p>
+                <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Messages récents</p>
+                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Activité du jour</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 border-orange-200 dark:border-orange-800 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-orange-100 rounded-full">
-                <Users className="w-6 h-6 text-orange-600" />
+              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-lg">
+                <Users className="w-7 h-7 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{contacts.length}</p>
-                <p className="text-sm text-muted-foreground">Contacts actifs</p>
+                <p className="text-3xl font-bold text-orange-800 dark:text-orange-200">{contacts.length}</p>
+                <p className="text-sm font-medium text-orange-700 dark:text-orange-300">Contacts actifs</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Base de données</p>
               </div>
             </div>
           </CardContent>
