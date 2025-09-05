@@ -119,71 +119,79 @@ serve(async (req) => {
       const url = `${wahaBaseUrl}${endpoint}`;
       console.log('Attempting WAHA request:', url);
 
-      // 1) Primary method: Dashboard authentication (Basic Auth or Cookie)
+      // Determine best available API key (plain preferred)
+      const plainKey = wahaApiKeyPlain?.length ? wahaApiKeyPlain : (wahaApiKey && !wahaApiKey.startsWith('sha512:') ? wahaApiKey : undefined);
+      const apiKeyHeaderNames = ['X-Api-Key', 'X-API-Key', 'x-api-key'];
+
+      // 1) Primary method: combine Dashboard auth (Basic or Cookie) WITH Api-Key if present
       const dashAuth = await authenticateDashboard();
       if (dashAuth) {
         try {
-          const headers: Record<string, string> = { 
+          const baseHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
-            ...(init.headers || {}) 
+            'Accept': 'application/json',
+            ...(init.headers || {})
           };
-          
-          // Check if it's a Basic Auth header or Cookie
+
+          // Inject dashboard auth
           if (dashAuth.startsWith('Basic ')) {
-            headers['Authorization'] = dashAuth;
+            baseHeaders['Authorization'] = dashAuth;
             console.log('Using Basic Auth header');
           } else {
-            headers['Cookie'] = dashAuth;
+            baseHeaders['Cookie'] = dashAuth;
             console.log('Using Cookie');
           }
-          
-          const res = await fetch(url, {
-            ...init,
-            headers
-          });
-          console.log('Dashboard auth call ->', res.status, res.statusText);
-          if (res.ok || res.status !== 401) return res;
+
+          // Try with different Api-Key header casings if we have a key
+          if (plainKey) {
+            for (const hk of apiKeyHeaderNames) {
+              const headers = { ...baseHeaders, [hk]: plainKey };
+              const res = await fetch(url, { ...init, headers });
+              console.log(`Dashboard+ApiKey (${hk}) ->`, res.status, res.statusText);
+              if (res.ok || res.status !== 401) return res;
+            }
+          } else {
+            const res = await fetch(url, { ...init, headers: baseHeaders });
+            console.log('Dashboard auth call ->', res.status, res.statusText);
+            if (res.ok || res.status !== 401) return res;
+          }
         } catch (e) {
           console.log('Dashboard auth call error:', e);
         }
       }
 
-      // 2) Fallback: Try API keys if provided
-      const candidates: Record<string, string>[] = [];
-      const key = wahaApiKeyPlain?.length ? wahaApiKeyPlain : wahaApiKey;
-      if (key) {
-        candidates.push(
-          { 'X-Api-Key': key },
-          { 'X-API-Key': key },
-          { 'X-API-KEY': key },
-          { 'x-api-key': key },
-          { 'Authorization': `Bearer ${key}` },
-          { 'Authorization': `ApiKey ${key}` },
-        );
-      }
-      for (let i = 0; i < candidates.length; i++) {
+      // 2) Fallback: Api-Key only (no dashboard auth)
+      if (plainKey) {
+        for (const hk of apiKeyHeaderNames) {
+          try {
+            const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), [hk]: plainKey } as Record<string, string>;
+            const res = await fetch(url, { ...init, headers });
+            console.log(`API key variant (${hk}) ->`, res.status, res.statusText);
+            if (res.ok || res.status !== 401) return res;
+          } catch (e) {
+            console.log(`API key variant (${hk}) error:`, e);
+          }
+        }
+        // Some deployments accept Bearer token format
         try {
-          const res = await fetch(url, {
-            ...init,
-            headers: { 'Content-Type': 'application/json', ...(init.headers || {}), ...candidates[i] },
-          });
-          console.log(`API key variant ${i + 1} ->`, res.status, res.statusText);
+          const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), 'Authorization': `Bearer ${plainKey}` };
+          const res = await fetch(url, { ...init, headers });
+          console.log('API key variant (Bearer) ->', res.status, res.statusText);
           if (res.ok || res.status !== 401) return res;
         } catch (e) {
-          console.log(`API key variant ${i + 1} error:`, e);
+          console.log('API key variant (Bearer) error:', e);
         }
       }
 
       // 3) Last attempt without auth
       console.log('All auth methods failed. Final unauthenticated attempt.');
-      return fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers || {}) } });
+      return fetch(url, { ...init, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}) } });
     };
-
     let wahaResponse: WAHAResponse = { success: false };
     switch (action) {
       case 'create': {
         console.log('Creating WAHA session...');
-        const res = await wahaFetch(`/api/sessions`, {
+        const res = await wahaFetch(`/api/sessions/`, {
           method: 'POST',
           body: JSON.stringify({
             name: sessionName,
