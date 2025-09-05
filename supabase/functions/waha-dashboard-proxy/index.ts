@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
 };
 
 interface SessionsResponse {
@@ -47,11 +48,9 @@ serve(async (req) => {
       wahaPassword: wahaPassword ? 'SET' : 'NOT SET'
     });
 
-    const { method, url } = req;
-    const urlPath = new URL(url).searchParams.get('path') || '/api/sessions';
-    const fullWahaUrl = `${wahaUrl}${urlPath}`;
-
-    console.log(`Proxying ${method} request to: ${fullWahaUrl}`);
+    const { method: incomingMethod, url } = req;
+    let urlPath = new URL(url).searchParams.get('path') || '/api/sessions';
+    let finalMethod = incomingMethod;
 
     // Créer les headers d'authentification
     const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
@@ -61,28 +60,47 @@ serve(async (req) => {
       'Accept': 'application/json'
     };
 
-    // Pour les requêtes POST/PUT, récupérer le body
-    let body: any = null;
-    if (method === 'POST' || method === 'PUT') {
+    // Récupérer un éventuel corps JSON et permettre la surcharge du path/method
+    let bodyData: any = null;
+    if (incomingMethod === 'POST' || incomingMethod === 'PUT' || incomingMethod === 'PATCH') {
       try {
-        body = await req.json();
-        console.log('Request body:', JSON.stringify(body, null, 2));
+        const parsed = await req.json();
+        console.log('Incoming JSON:', JSON.stringify(parsed, null, 2));
+        if (parsed && typeof parsed === 'object' && (parsed.path || parsed.method || parsed.body)) {
+          urlPath = parsed.path || urlPath;
+          finalMethod = parsed.method || incomingMethod;
+          bodyData = parsed.body ?? (finalMethod === 'GET' ? null : parsed);
+        } else {
+          bodyData = parsed;
+        }
       } catch (e) {
         console.log('No JSON body or failed to parse:', e);
       }
     }
 
-    // Faire la requête vers WAHA
-    console.log('Making request to WAHA with headers:', { 
-      ...wahaHeaders, 
-      Authorization: 'Basic [REDACTED]' 
+    // Normaliser l'URL pour éviter les doubles slash
+    const base = (wahaUrl || '').replace(/\/+$/, '');
+    const pathNormalized = `/${(urlPath || '').replace(/^\/+/, '')}`;
+    const fullWahaUrl = `${base}${pathNormalized}`;
+
+    console.log(`Proxying ${finalMethod} request to: ${fullWahaUrl}`);
+    console.log('Making request to WAHA with headers:', {
+      ...wahaHeaders,
+      Authorization: 'Basic [REDACTED]'
     });
 
-    const wahaResponse = await fetch(fullWahaUrl, {
-      method,
+    let wahaResponse: Response = await fetch(fullWahaUrl, {
+      method: finalMethod,
       headers: wahaHeaders,
-      body: body ? JSON.stringify(body) : null,
+      body: bodyData ? JSON.stringify(bodyData) : null,
     });
+
+    // Fallback automatique vers /api/v2/sessions si 404 sur /api/sessions
+    if (wahaResponse.status === 404 && pathNormalized === '/api/sessions' && finalMethod === 'GET') {
+      const altUrl = `${base}/api/v2/sessions`;
+      console.log('Primary path returned 404. Retrying with:', altUrl);
+      wahaResponse = await fetch(altUrl, { method: 'GET', headers: wahaHeaders });
+    }
 
     console.log(`WAHA response status: ${wahaResponse.status}`);
 
@@ -98,7 +116,7 @@ serve(async (req) => {
     }
 
     // Synchroniser les données avec notre base de données si c'est une requête de sessions
-    if (urlPath === '/api/sessions' && method === 'GET' && wahaResponse.ok) {
+    if ((pathNormalized === '/api/sessions' || pathNormalized === '/api/v2/sessions') && finalMethod === 'GET' && wahaResponse.ok) {
       try {
         const sessions = Array.isArray(responseData) ? responseData : [];
         console.log(`Synchronizing ${sessions.length} sessions with database`);
