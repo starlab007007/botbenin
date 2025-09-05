@@ -183,7 +183,7 @@ export const useWAHADashboard = () => {
     }
   }, [makeWAHARequest]);
 
-  // Envoyer un message de test via notre edge function dédiée
+  // Envoyer un message de test via notre nouvelle edge function spécialisée
   const sendTestMessage = useCallback(async (sessionName: string, to: string, message: string) => {
     try {
       console.log('Sending test message via session:', sessionName);
@@ -193,23 +193,40 @@ export const useWAHADashboard = () => {
         throw new Error('Non authentifié');
       }
 
-      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/waha-send-message`, {
+      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/waha-dashboard-proxy`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sessionName,
-          to,
-          message,
-          messageType: 'text'
+          path: `/api/sessions/${sessionName}/messages/text`,
+          method: 'POST',
+          body: {
+            to: to,
+            text: message
+          }
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      // Enregistrer dans nos logs
+      const { error: logError } = await supabase
+        .from('waha_message_logs')
+        .insert({
+          session_name: sessionName,
+          to_number: to,
+          message_content: message,
+          message_type: 'text',
+          status: 'sent'
+        });
+
+      if (logError) {
+        console.warn('Erreur lors de l\'enregistrement du log:', logError);
       }
 
       toast.success('Message de test envoyé');

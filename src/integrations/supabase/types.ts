@@ -3826,6 +3826,45 @@ export type Database = {
           },
         ]
       }
+      waha_message_logs: {
+        Row: {
+          created_at: string
+          id: string
+          message_content: string
+          message_type: string | null
+          sent_at: string
+          session_name: string
+          status: string | null
+          to_number: string
+          user_id: string | null
+          waha_response: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message_content: string
+          message_type?: string | null
+          sent_at?: string
+          session_name: string
+          status?: string | null
+          to_number: string
+          user_id?: string | null
+          waha_response?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message_content?: string
+          message_type?: string | null
+          sent_at?: string
+          session_name?: string
+          status?: string | null
+          to_number?: string
+          user_id?: string | null
+          waha_response?: Json | null
+        }
+        Relationships: []
+      }
       waha_sessions_data: {
         Row: {
           account_info: Json | null
