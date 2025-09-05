@@ -21,7 +21,7 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { useWhatsAppAccounts } from '@/hooks/useWhatsAppAccounts';
+import { useWAHADashboard } from '@/hooks/useWAHADashboard';
 import { toast } from 'sonner';
 
 interface SessionData {
@@ -68,27 +68,32 @@ const WAHANativeDashboard: React.FC = () => {
   ]);
 
   const { 
-    accounts, 
+    sessions: wahaSessions, 
     createSession, 
     startSession, 
     getQRCode, 
     stopSession, 
     deleteSession,
+    sendTestMessage,
+    refreshData,
     loading 
-  } = useWhatsAppAccounts();
+  } = useWAHADashboard();
 
-  // Synchroniser avec les vraies données
+  // Synchroniser avec les vraies données WAHA
   useEffect(() => {
-    if (accounts.length > 0) {
-      const realSessions = accounts.map(account => ({
-        name: account.session_name,
-        status: account.status?.toUpperCase() as SessionData['status'] || 'DISCONNECTED',
-        account: account.phone_number ? `${account.phone_number}@c.us` : '',
-        server: 'WAHA'
+    if (wahaSessions.length > 0) {
+      const realSessions = wahaSessions.map(session => ({
+        name: session.name,
+        status: session.status as SessionData['status'],
+        account: session.config?.metadata?.phone_number ? 
+          `${session.config.metadata.phone_number}@c.us` : 
+          session.config?.metadata?.account || '',
+        server: 'WAHA',
+        lastActivity: session.lastActivity
       }));
-      setSessions(prev => [...realSessions, ...prev.filter(s => !realSessions.some(rs => rs.name === s.name))]);
+      setSessions(realSessions);
     }
-  }, [accounts]);
+  }, [wahaSessions]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -156,9 +161,10 @@ const WAHANativeDashboard: React.FC = () => {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Simuler un rafraîchissement des données
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      window.location.reload();
+      await refreshData();
+      toast.success('Données actualisées');
+    } catch (error) {
+      toast.error('Erreur lors de l\'actualisation');
     } finally {
       setIsRefreshing(false);
     }
@@ -166,8 +172,12 @@ const WAHANativeDashboard: React.FC = () => {
 
   const handleSendTestMessage = async (sessionName: string) => {
     try {
-      // Ici on utiliserait sendMessage du hook
-      toast.success(`Message de test envoyé via ${sessionName}`);
+      // Demander le numéro de destination
+      const phoneNumber = prompt('Entrez le numéro de téléphone (format international avec +):');
+      if (!phoneNumber) return;
+      
+      const message = prompt('Entrez votre message de test:') || 'Test message from WAHA Dashboard';
+      await sendTestMessage(sessionName, phoneNumber, message);
     } catch (error) {
       toast.error('Erreur lors de l\'envoi du message');
     }
@@ -461,7 +471,7 @@ const WAHANativeDashboard: React.FC = () => {
                 Fermer
               </Button>
               <Button 
-                onClick={() => handleRefresh()} 
+                onClick={() => handleGetQR(selectedSession)} 
                 className="flex-1 bg-green-600 hover:bg-green-700"
               >
                 Actualiser QR

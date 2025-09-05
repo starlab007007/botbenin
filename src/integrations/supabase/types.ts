@@ -3826,6 +3826,45 @@ export type Database = {
           },
         ]
       }
+      waha_sessions_data: {
+        Row: {
+          account_info: Json | null
+          created_at: string
+          id: string
+          last_activity: string | null
+          metadata: Json | null
+          phone_number: string | null
+          server_name: string | null
+          session_name: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_info?: Json | null
+          created_at?: string
+          id?: string
+          last_activity?: string | null
+          metadata?: Json | null
+          phone_number?: string | null
+          server_name?: string | null
+          session_name: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_info?: Json | null
+          created_at?: string
+          id?: string
+          last_activity?: string | null
+          metadata?: Json | null
+          phone_number?: string | null
+          server_name?: string | null
+          session_name?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_accounts: {
         Row: {
           created_at: string
