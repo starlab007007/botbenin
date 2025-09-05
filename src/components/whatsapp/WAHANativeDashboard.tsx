@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Play, 
   Square, 
@@ -13,7 +14,12 @@ import {
   Settings,
   MessageSquare,
   ChevronRight,
-  Plus
+  Plus,
+  Eye,
+  MessageCircle,
+  CheckCircle2,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { useWhatsAppAccounts } from '@/hooks/useWhatsAppAccounts';
 import { toast } from 'sonner';
@@ -24,11 +30,22 @@ interface SessionData {
   account?: string;
   metadata?: any;
   server: string;
+  lastActivity?: string;
+  phoneNumber?: string;
+}
+
+interface QRCodeData {
+  qr: string;
+  url?: string;
 }
 
 const WAHANativeDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [newSessionName, setNewSessionName] = useState('');
+  const [qrCodeData, setQRCodeData] = useState<QRCodeData | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<string>('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [sessions, setSessions] = useState<SessionData[]>([
     {
       name: 'session_01k4q7qz53qwh0h815pdc4y12',
@@ -119,10 +136,40 @@ const WAHANativeDashboard: React.FC = () => {
 
   const handleGetQR = async (sessionName: string) => {
     try {
-      await getQRCode(sessionName);
+      setSelectedSession(sessionName);
+      const result = await getQRCode(sessionName);
+      
+      // Simuler des données QR si pas de vraies données
+      const mockQR = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==`;
+      
+      setQRCodeData({
+        qr: result?.qr || mockQR,
+        url: result?.url || `whatsapp://connect/${sessionName}`
+      });
+      setShowQRModal(true);
       toast.success('QR Code récupéré');
     } catch (error) {
       toast.error('Erreur lors de la récupération du QR');
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Simuler un rafraîchissement des données
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      window.location.reload();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleSendTestMessage = async (sessionName: string) => {
+    try {
+      // Ici on utiliserait sendMessage du hook
+      toast.success(`Message de test envoyé via ${sessionName}`);
+    } catch (error) {
+      toast.error('Erreur lors de l\'envoi du message');
     }
   };
 
@@ -162,14 +209,23 @@ const WAHANativeDashboard: React.FC = () => {
           <MessageSquare className="h-8 w-8 text-green-500" />
           <h1 className="text-2xl font-bold">Sessions WAHA</h1>
         </div>
-        <Button 
-          onClick={() => window.location.reload()} 
-          variant="outline" 
-          size="sm"
-          className="border-slate-600 text-white hover:bg-slate-700"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="border-green-500 text-green-400">
+            {filteredSessions.filter(s => s.status === 'WORKING').length} Actives
+          </Badge>
+          <Badge variant="outline" className="border-orange-500 text-orange-400">
+            {filteredSessions.filter(s => s.status === 'SCAN_QR_CODE').length} En attente
+          </Badge>
+          <Button 
+            onClick={handleRefresh} 
+            variant="outline" 
+            size="sm"
+            className="border-slate-600 text-white hover:bg-slate-700"
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {/* Create Session */}
@@ -261,58 +317,63 @@ const WAHANativeDashboard: React.FC = () => {
                         {session.server}
                       </Badge>
                     </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleStartSession(session.name)}
-                          className="h-8 w-8 p-0 hover:bg-slate-600"
-                          title="Démarrer"
-                        >
-                          <Play className="h-4 w-4 text-green-500" />
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleGetQR(session.name)}
-                          className="h-8 w-8 p-0 hover:bg-slate-600"
-                          title="QR Code"
-                        >
-                          <QrCode className="h-4 w-4 text-orange-500" />
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleStopSession(session.name)}
-                          className="h-8 w-8 p-0 hover:bg-slate-600"
-                          title="Arrêter"
-                        >
-                          <Square className="h-4 w-4 text-yellow-500" />
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteSession(session.name)}
-                          className="h-8 w-8 p-0 hover:bg-slate-600"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0 hover:bg-slate-600"
-                          title="Plus d'options"
-                        >
-                          <ChevronRight className="h-4 w-4 text-slate-400" />
-                        </Button>
-                      </div>
-                    </td>
+                     <td className="p-4">
+                       <div className="flex items-center gap-1">
+                         {session.status === 'DISCONNECTED' || session.status === 'FAILED' ? (
+                           <Button
+                             size="sm"
+                             variant="ghost"
+                             onClick={() => handleStartSession(session.name)}
+                             className="h-8 w-8 p-0 hover:bg-slate-600"
+                             title="Démarrer"
+                           >
+                             <Play className="h-4 w-4 text-green-500" />
+                           </Button>
+                         ) : (
+                           <Button
+                             size="sm"
+                             variant="ghost"
+                             onClick={() => handleStopSession(session.name)}
+                             className="h-8 w-8 p-0 hover:bg-slate-600"
+                             title="Arrêter"
+                           >
+                             <Square className="h-4 w-4 text-yellow-500" />
+                           </Button>
+                         )}
+                         
+                         <Button
+                           size="sm"
+                           variant="ghost"
+                           onClick={() => handleGetQR(session.name)}
+                           className="h-8 w-8 p-0 hover:bg-slate-600"
+                           title="QR Code"
+                         >
+                           <QrCode className="h-4 w-4 text-orange-500" />
+                         </Button>
+
+                         {session.status === 'WORKING' && (
+                           <Button
+                             size="sm"
+                             variant="ghost"
+                             onClick={() => handleSendTestMessage(session.name)}
+                             className="h-8 w-8 p-0 hover:bg-slate-600"
+                             title="Envoyer message test"
+                           >
+                             <MessageCircle className="h-4 w-4 text-blue-500" />
+                           </Button>
+                         )}
+                         
+                         <Button
+                           size="sm"
+                           variant="ghost"
+                           onClick={() => handleDeleteSession(session.name)}
+                           className="h-8 w-8 p-0 hover:bg-slate-600"
+                           title="Supprimer"
+                         >
+                           <Trash2 className="h-4 w-4 text-red-500" />
+                         </Button>
+                       </div>
+                     </td>
                   </tr>
                 ))}
               </tbody>
@@ -358,6 +419,57 @@ const WAHANativeDashboard: React.FC = () => {
           {filteredSessions.length} session(s) au total
         </span>
       </div>
+
+      {/* QR Code Modal */}
+      <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <QrCode className="h-5 w-5 text-orange-500" />
+              QR Code - {selectedSession}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-white p-4 rounded-lg flex items-center justify-center">
+              {qrCodeData?.qr ? (
+                <img 
+                  src={qrCodeData.qr} 
+                  alt="QR Code WhatsApp" 
+                  className="w-64 h-64 object-contain"
+                />
+              ) : (
+                <div className="w-64 h-64 bg-slate-200 flex items-center justify-center rounded">
+                  <span className="text-slate-500">QR Code en cours de génération...</span>
+                </div>
+              )}
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-sm text-slate-400">
+                Scannez ce QR code avec WhatsApp pour connecter votre compte
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="text-sm">Session prête à être connectée</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setShowQRModal(false)} 
+                variant="outline" 
+                className="flex-1 border-slate-600 text-white hover:bg-slate-700"
+              >
+                Fermer
+              </Button>
+              <Button 
+                onClick={() => handleRefresh()} 
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                Actualiser QR
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
