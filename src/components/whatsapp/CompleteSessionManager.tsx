@@ -8,6 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Play, 
   Square, 
@@ -64,6 +66,7 @@ interface SessionDetails {
 }
 
 const CompleteSessionManager: React.FC = () => {
+  const { user, isAuthenticated } = useAuth();
   const [newSessionName, setNewSessionName] = useState('');
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
@@ -78,6 +81,7 @@ const CompleteSessionManager: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [createdSession, setCreatedSession] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [userSessions, setUserSessions] = useState<string[]>([]);
 
   const { 
     sessions, 
@@ -91,6 +95,44 @@ const CompleteSessionManager: React.FC = () => {
     loading 
   } = useWAHADashboard();
 
+  // Sauvegarder et récupérer les sessions de l'utilisateur depuis localStorage
+  const saveUserSession = (sessionName: string) => {
+    if (!user?.id) return;
+    
+    const storageKey = `whatsapp_sessions_${user.id}`;
+    const existingSessions = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    
+    if (!existingSessions.includes(sessionName)) {
+      existingSessions.push(sessionName);
+      localStorage.setItem(storageKey, JSON.stringify(existingSessions));
+      setUserSessions(existingSessions);
+    }
+  };
+
+  const loadUserSessions = () => {
+    if (!user?.id) return;
+    
+    const storageKey = `whatsapp_sessions_${user.id}`;
+    const existingSessions = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    setUserSessions(existingSessions);
+  };
+
+  const removeUserSession = (sessionName: string) => {
+    if (!user?.id) return;
+    
+    const storageKey = `whatsapp_sessions_${user.id}`;
+    const existingSessions = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    const updatedSessions = existingSessions.filter((name: string) => name !== sessionName);
+    localStorage.setItem(storageKey, JSON.stringify(updatedSessions));
+    setUserSessions(updatedSessions);
+  };
+
+  // Filtrer les sessions pour afficher seulement celles de l'utilisateur connecté
+  const getUserFilteredSessions = () => {
+    if (!user?.id || !userSessions.length) return [];
+    return sessions.filter(session => userSessions.includes(session.name));
+  };
+
   // Auto-refresh des sessions et détection de nouvelles sessions
   useEffect(() => {
     if (!autoRefresh) return;
@@ -101,6 +143,13 @@ const CompleteSessionManager: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
+
+  // Charger les sessions utilisateur au démarrage
+  useEffect(() => {
+    if (user?.id) {
+      loadUserSessions();
+    }
+  }, [user?.id]);
 
   // Détection automatique des nouvelles sessions créées
   useEffect(() => {
@@ -119,8 +168,17 @@ const CompleteSessionManager: React.FC = () => {
       return;
     }
 
+    if (!isAuthenticated) {
+      toast.error('Vous devez être connecté pour créer une session');
+      return;
+    }
+
     try {
       await createSession(newSessionName);
+      
+      // Sauvegarder la session pour cet utilisateur
+      saveUserSession(newSessionName);
+      
       setCreatedSession(newSessionName);
       setNewSessionName('');
       setShowCreateModal(false);
@@ -173,6 +231,10 @@ const CompleteSessionManager: React.FC = () => {
   const handleDeleteSession = async (sessionName: string) => {
     try {
       await deleteSession(sessionName);
+      
+      // Supprimer de la liste des sessions utilisateur
+      removeUserSession(sessionName);
+      
       toast.success(`Session "${sessionName}" supprimée`);
       refreshData();
     } catch (error) {
@@ -219,7 +281,10 @@ const CompleteSessionManager: React.FC = () => {
     setExpandedSession(expandedSession === sessionName ? null : sessionName);
   };
 
-  const filteredSessions = sessions.filter(session =>
+  // Obtenir les sessions filtrées de l'utilisateur
+  const userFilteredSessions = getUserFilteredSessions();
+
+  const filteredSessions = userFilteredSessions.filter(session =>
     session.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     session.config?.metadata?.phone_number?.includes(searchTerm)
   );
@@ -277,7 +342,7 @@ const CompleteSessionManager: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Sessions Actives</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {sessions.filter(s => s.status === 'WORKING').length}
+                    {userFilteredSessions.filter(s => s.status === 'WORKING').length}
                   </p>
                 </div>
               </div>
@@ -293,7 +358,7 @@ const CompleteSessionManager: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">En Attente QR</p>
                   <p className="text-2xl font-bold text-orange-600">
-                    {sessions.filter(s => s.status === 'SCAN_QR_CODE').length}
+                    {userFilteredSessions.filter(s => s.status === 'SCAN_QR_CODE').length}
                   </p>
                 </div>
               </div>
@@ -309,7 +374,7 @@ const CompleteSessionManager: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Arrêtées</p>
                   <p className="text-2xl font-bold text-slate-600">
-                    {sessions.filter(s => s.status === 'STOPPED').length}
+                    {userFilteredSessions.filter(s => s.status === 'STOPPED').length}
                   </p>
                 </div>
               </div>
@@ -324,7 +389,7 @@ const CompleteSessionManager: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-2xl font-bold text-blue-600">{sessions.length}</p>
+                  <p className="text-2xl font-bold text-blue-600">{userFilteredSessions.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -359,6 +424,8 @@ const CompleteSessionManager: React.FC = () => {
                   <Input
                     placeholder="Search by Name, Phone"
                     className="pl-9 w-64 bg-background/60"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
                 <Button variant="outline" size="sm" className="gap-2">
@@ -377,7 +444,7 @@ const CompleteSessionManager: React.FC = () => {
                   <span className="text-muted-foreground">Chargement des sessions...</span>
                 </div>
               </div>
-            ) : sessions.length === 0 ? (
+            ) : userFilteredSessions.length === 0 ? (
               <div className="text-center py-12">
                 <div className="mb-4">
                   <div className="mx-auto w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center">
