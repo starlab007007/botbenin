@@ -31,6 +31,7 @@ serve(async (req) => {
     }
 
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
+    console.log('🔧 Using WAHA URL:', wahaUrl);
     const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME') || 'admin';
     const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
