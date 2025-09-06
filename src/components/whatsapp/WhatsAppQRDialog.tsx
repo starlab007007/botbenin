@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { QrCode, Monitor, RefreshCw, ExternalLink, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useWAHADashboard } from '@/hooks/useWAHADashboard';
 import WAHADashboardIframe from './WAHADashboardIframe';
+import WAHAQRExtractor from './WAHAQRExtractor';
 
 interface WhatsAppQRDialogProps {
   open: boolean;
@@ -165,119 +166,14 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
           </TabsContent>
 
           <TabsContent value="qr" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <QrCode className="h-5 w-5" />
-                  QR Code Rapide - {sessionName}
-                  {sessionStarted && (
-                    <Badge variant="secondary" className="gap-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Session Active
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Alert className="flex-1 mr-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Scannez ce QR code avec votre téléphone WhatsApp pour connecter la session.
-                    </AlertDescription>
-                  </Alert>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={handleRetryQR}
-                      disabled={loading || wahaLoading}
-                      className="gap-2"
-                    >
-                      {loading || wahaLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                      Actualiser QR
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={openExternalDashboard}
-                      className="gap-2"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Dashboard Externe
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex justify-center">
-                  <div className="relative">
-                    {loading || wahaLoading ? (
-                      <div className="w-64 h-64 border-2 border-dashed border-muted-foreground/30 rounded-lg flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                          <p className="text-sm text-muted-foreground">
-                            Génération du QR...
-                            {retryCount > 0 && ` (Tentative ${retryCount + 1}/3)`}
-                          </p>
-                        </div>
-                      </div>
-                    ) : qrCode ? (
-                      <div className="p-4 bg-white rounded-lg border-2 border-primary/20 shadow-lg">
-                        <img 
-                          src={qrCode} 
-                          alt="QR Code WhatsApp" 
-                          className="w-64 h-64 object-contain"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-64 h-64 border-2 border-dashed border-muted/30 rounded-lg flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-3 text-center p-4">
-                          <AlertCircle className="h-8 w-8 text-muted-foreground" />
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium">
-                              QR Code en attente
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Cliquez sur "Actualiser QR" pour générer le code
-                            </p>
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={handleRetryQR}
-                            className="gap-2"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            Générer QR
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {qrCode && (
-                  <Alert>
-                    <CheckCircle2 className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>QR Code généré!</strong> Ouvrez WhatsApp sur votre téléphone, allez dans Appareils connectés {">"} Connecter un appareil, et scannez ce code.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {sessionStarted && (
-                  <Alert>
-                    <CheckCircle2 className="h-4 w-4" />
-                    <AlertDescription>
-                      Session "{sessionName}" active et prête à recevoir des connexions WhatsApp.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
+            <WAHAQRExtractor 
+              sessionName={sessionName}
+              onQRExtracted={(qrCode) => {
+                setQrCode(qrCode);
+                toast.success('QR Code extrait!');
+                onQRScanned?.();
+              }}
+            />
           </TabsContent>
         </Tabs>
 

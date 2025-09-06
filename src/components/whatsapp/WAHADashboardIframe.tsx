@@ -35,49 +35,20 @@ const WAHADashboardIframe: React.FC<WAHADashboardIframeProps> = ({
       return;
     }
 
+    if (qrExtractionStatus === 'extracting') {
+      console.log('⚠️ Extraction déjà en cours, annulation');
+      return;
+    }
+
     setQRExtractionStatus('extracting');
     setError(null);
 
     try {
       console.log(`🔍 Extraction du QR code pour la session: ${sessionName}`);
       
-      // Méthode 1: Essayer de communiquer avec l'iframe
-      if (iframeRef.current && iframeRef.current.contentWindow) {
-        iframeRef.current.contentWindow.postMessage({
-          type: 'extract-qr',
-          sessionName: sessionName
-        }, '*');
-
-        // Attendre une réponse pendant 5 secondes
-        const messageHandler = (event: MessageEvent) => {
-          if (event.data.type === 'qr-extracted') {
-            if (event.data.qrCode) {
-              setExtractedQR(event.data.qrCode);
-              setQRExtractionStatus('success');
-              onQRCodeExtracted?.(event.data.qrCode);
-              console.log('✅ QR code extrait avec succès depuis l\'iframe');
-            } else {
-              setQRExtractionStatus('error');
-              setError('QR code non trouvé dans l\'iframe');
-            }
-            window.removeEventListener('message', messageHandler);
-          }
-        };
-
-        window.addEventListener('message', messageHandler);
-        
-        // Timeout après 5 secondes
-        setTimeout(() => {
-          window.removeEventListener('message', messageHandler);
-          if (qrExtractionStatus === 'extracting') {
-            // Fallback: utiliser l'API proxy directement
-            extractQRViaProxy();
-          }
-        }, 5000);
-      } else {
-        // Pas d'iframe accessible, utiliser l'API proxy
-        extractQRViaProxy();
-      }
+      // Méthode directe: utiliser le proxy avec fallback simple
+      await extractQRViaProxy();
+      
     } catch (error) {
       console.error('❌ Erreur extraction QR:', error);
       setQRExtractionStatus('error');
@@ -85,35 +56,94 @@ const WAHADashboardIframe: React.FC<WAHADashboardIframeProps> = ({
     }
   };
 
-  // Méthode de fallback: extraire via proxy API
+  // Méthode simplifiée: extraire via proxy API seulement
   const extractQRViaProxy = async () => {
     try {
       console.log('🔄 Extraction QR via proxy API...');
       
-      // Utiliser fetch direct vers le proxy
-      const response = await fetch(`https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-dashboard-proxy?path=/api/sessions/${sessionName}/auth/qr`, {
-        method: 'GET',
-        headers: {
-          'Accept': '*/*',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const qrCode = data.qr || data.qrCode || data.base64 || data.image;
+      // Essayer d'abord de démarrer la session
+      console.log('▶️ Démarrage de la session...');
+      try {
+        const startResponse = await fetch(`https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-dashboard-proxy?path=/api/sessions/${sessionName}/start`, {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'application/json'
+          }
+        });
         
-        if (qrCode) {
-          setExtractedQR(qrCode);
-          setQRExtractionStatus('success');
-          onQRCodeExtracted?.(qrCode);
-          console.log('✅ QR code extrait via proxy API');
-        } else {
-          throw new Error('QR code non trouvé dans la réponse API');
+        if (startResponse.ok) {
+          console.log('✅ Session démarrée');
+          // Attendre un peu que la session soit prête
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
-      } else {
-        throw new Error(`API proxy error: ${response.status}`);
+      } catch (startError) {
+        console.warn('⚠️ Erreur démarrage session (peut être déjà active):', startError);
       }
+
+      // Essayer plusieurs endpoints QR avec ordre de priorité
+      const qrEndpoints = [
+        `/api/sessions/${sessionName}/auth/qr?format=base64`,
+        `/api/sessions/${sessionName}/qr?format=base64`,
+        `/api/sessions/${sessionName}/auth/qr`,
+        `/api/sessions/${sessionName}/qr`,
+        `/api/v2/sessions/${sessionName}/auth/qr?format=base64`,
+        `/api/v2/sessions/${sessionName}/qr?format=base64`,
+        `/api/${sessionName}/auth/qr?format=base64`,
+        `/api/${sessionName}/auth/qr`
+      ];
+
+      let lastError = null;
+      
+      for (const endpoint of qrEndpoints) {
+        try {
+          console.log(`📡 Test endpoint: ${endpoint}`);
+          
+          const response = await fetch(`https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-dashboard-proxy?path=${encodeURIComponent(endpoint)}`, {
+            method: 'GET',
+            headers: {
+              'Accept': '*/*',
+              'Content-Type': 'application/json'
+            }
+          });
+
+          console.log(`📊 Response status: ${response.status}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('📱 Response data keys:', Object.keys(data));
+            
+            // Chercher le QR dans plusieurs champs possibles
+            const qrCode = data.qr || data.qrCode || data.base64 || data.image || data.data?.qr || data.data?.base64;
+            
+            if (qrCode && typeof qrCode === 'string' && qrCode.length > 50) {
+              // Normaliser le QR code
+              let normalizedQR = qrCode.trim();
+              if (!normalizedQR.startsWith('data:image')) {
+                normalizedQR = `data:image/png;base64,${normalizedQR.replace(/\s+/g, '')}`;
+              }
+              
+              setExtractedQR(normalizedQR);
+              setQRExtractionStatus('success');
+              onQRCodeExtracted?.(normalizedQR);
+              console.log('✅ QR code extrait avec succès');
+              return;
+            }
+          }
+          
+          // Enregistrer l'erreur mais continuer
+          const errorData = await response.json().catch(() => ({ error: 'Parse error' }));
+          lastError = `${endpoint}: ${response.status} - ${errorData.error || errorData.message || 'Unknown'}`;
+          
+        } catch (endpointError) {
+          console.warn(`❌ Endpoint ${endpoint} failed:`, endpointError);
+          lastError = `${endpoint}: ${endpointError.message}`;
+        }
+      }
+
+      // Aucun endpoint n'a fonctionné
+      throw new Error(`Tous les endpoints QR ont échoué. Dernière erreur: ${lastError}`);
+      
     } catch (error) {
       console.error('❌ Erreur proxy API:', error);
       setQRExtractionStatus('error');
@@ -121,16 +151,17 @@ const WAHADashboardIframe: React.FC<WAHADashboardIframeProps> = ({
     }
   };
 
-  // Auto-extraction si demandée
+  // Auto-extraction si demandée (une seule fois)
   useEffect(() => {
-    if (autoExtractQR && sessionName && !isLoading && !error) {
+    if (autoExtractQR && sessionName && !isLoading && !error && qrExtractionStatus === 'idle') {
+      console.log('🎯 Auto-extraction QR activée');
       const timer = setTimeout(() => {
         extractQRCode();
-      }, 3000); // Attendre que l'iframe soit prêt
+      }, 4000); // Attendre que l'iframe soit prêt
       
       return () => clearTimeout(timer);
     }
-  }, [autoExtractQR, sessionName, isLoading, error]);
+  }, [autoExtractQR, sessionName, isLoading, error]); // Retirer qrExtractionStatus des dépendances pour éviter les boucles
 
   // Écouter les messages de l'iframe
   useEffect(() => {
