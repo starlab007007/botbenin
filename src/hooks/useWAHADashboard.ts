@@ -135,19 +135,41 @@ export const useWAHADashboard = () => {
   const startSession = useCallback(async (sessionName: string) => {
     try {
       console.log('Starting WAHA session:', sessionName);
+      setLoading(true);
       
-      await makeWAHARequest(`/api/sessions/${sessionName}/start`, {
-        method: 'POST'
+      const { data, error } = await supabase.functions.invoke('waha-session-manager', {
+        body: { action: 'start', sessionName }
       });
+      
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Erreur de communication avec le service');
+      }
+      
+      if (!data?.success) {
+        console.error('WAHA start failed:', data?.error);
+        throw new Error(data?.error || 'Erreur lors du démarrage de la session');
+      }
 
-      toast.success('Session démarrée');
+      toast.success(`Session "${sessionName}" démarrée avec succès`);
       await loadSessions(); // Recharger la liste
     } catch (error) {
       console.error('Error starting session:', error);
-      toast.error('Erreur lors du démarrage de la session');
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
+      // Messages d'erreur plus spécifiques
+      if (errorMessage.includes('Vérifiez que la session existe')) {
+        toast.error(`Session "${sessionName}" introuvable. Créez-la d'abord.`);
+      } else if (errorMessage.includes('API WAHA')) {
+        toast.error('Problème de configuration API WAHA - Contactez l\'administrateur');
+      } else {
+        toast.error(`Erreur lors du démarrage de "${sessionName}": ${errorMessage}`);
+      }
       throw error;
+    } finally {
+      setLoading(false);
     }
-  }, [makeWAHARequest, loadSessions]);
+  }, [loadSessions]);
 
   // Arrêter une session
   const stopSession = useCallback(async (sessionName: string) => {
