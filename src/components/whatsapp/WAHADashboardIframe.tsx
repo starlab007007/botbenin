@@ -11,8 +11,8 @@ const WAHADashboardIframe: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [cspBlocked, setCspBlocked] = useState(false);
 
-  // URL directe du dashboard WAHA
-  const dashboardUrl = 'https://waha.bot.bj/dashboard/';
+  // URL du dashboard WAHA via la fonction mirror Supabase (Méthode 1)
+  const dashboardUrl = 'https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-dashboard-mirror?path=/dashboard';
   const credentials = { username: 'admin', password: 'Starlab@007' };
 
   const handleIframeLoad = () => {
@@ -154,6 +154,7 @@ const WAHADashboardIframe: React.FC = () => {
           <div className="flex items-center gap-3">
             <Monitor className="h-5 w-5 text-primary" />
             <CardTitle>Dashboard WAHA Intégré</CardTitle>
+            <Badge variant="outline" className="text-xs">Mirror Proxy</Badge>
           </div>
           <div className="flex items-center gap-2">
             {!isLoading && !error && (
@@ -211,7 +212,7 @@ const WAHADashboardIframe: React.FC = () => {
               <span>👤 admin</span>
               <span>🔑 Starlab@007</span>
             </div>
-            <span>🔒 Iframe direct</span>
+            <span>🔄 Mirror Proxy (Méthode 1)</span>
           </div>
         </div>
       </CardContent>

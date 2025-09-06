@@ -14,23 +14,31 @@ serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get user authentication
-    const authHeader = req.headers.get('Authorization');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader?.replace('Bearer ', '') || ''
+    // Sécurité: Vérifier l'origine de la requête (allowlist)
+    const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
+    const allowedOrigins = [
+      'https://mvynepqulhflxtyymtzs.lovableproject.com',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://localhost:3000'
+    ];
+    
+    const isAllowedOrigin = allowedOrigins.some(allowed => 
+      origin.includes(allowed) || origin.startsWith(allowed)
     );
-
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
+    
+    if (!isAllowedOrigin && origin) {
+      console.warn('🚫 Accès refusé - Origine non autorisée:', origin);
+      return new Response(JSON.stringify({ 
+        error: 'Access denied',
+        message: 'Origin not allowed' 
+      }), {
+        status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    
+    console.log('✅ Origine autorisée:', origin || 'No origin (direct access)');
 
     // Configuration WAHA
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
@@ -107,15 +115,25 @@ serve(async (req) => {
     const responseBody = await wahaResponse.arrayBuffer();
     const contentType = wahaResponse.headers.get('content-type') || '';
 
-    // Prepare response headers
+    // Prepare response headers - IMPORTANT: Supprimer les en-têtes de sécurité qui bloquent l'iframe
     const responseHeaders = new Headers(corsHeaders);
     
-    // Copy important headers from WAHA response
+    // Copy important headers from WAHA response, but EXCLUDE security headers
     for (const [key, value] of wahaResponse.headers.entries()) {
-      if (['content-type', 'content-length', 'cache-control', 'expires', 'last-modified'].includes(key.toLowerCase())) {
+      const keyLower = key.toLowerCase();
+      if (['content-type', 'content-length', 'cache-control', 'expires', 'last-modified'].includes(keyLower)) {
         responseHeaders.set(key, value);
       }
+      // EXPLICITLY EXCLUDE these security headers that block iframe embedding
+      if (['x-frame-options', 'content-security-policy', 'x-content-type-options'].includes(keyLower)) {
+        console.log(`🔓 Suppression en-tête sécurité: ${key}`);
+        // Don't copy these headers
+      }
     }
+    
+    // Force headers to allow iframe embedding
+    responseHeaders.set('X-Frame-Options', 'ALLOWALL');
+    responseHeaders.delete('Content-Security-Policy');
 
     // Enhanced HTML rewriting for better proxy functionality
     if (contentType.includes('text/html')) {

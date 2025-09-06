@@ -19,23 +19,38 @@ serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client
+    // Initialize Supabase client for data sync only
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get user
-    const authHeader = req.headers.get('Authorization');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader?.replace('Bearer ', '') || ''
+    // Sécurité: Vérifier l'origine de la requête (allowlist)
+    const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
+    const allowedOrigins = [
+      'https://mvynepqulhflxtyymtzs.lovableproject.com',
+      'http://localhost:3000', 
+      'http://127.0.0.1:3000',
+      'https://localhost:3000',
+      // Autoriser aussi les appels depuis waha-dashboard-mirror
+      'https://mvynepqulhflxtyymtzs.functions.supabase.co'
+    ];
+    
+    const isAllowedOrigin = allowedOrigins.some(allowed => 
+      origin.includes(allowed) || origin.startsWith(allowed)
     );
-
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
+    
+    if (!isAllowedOrigin && origin) {
+      console.warn('🚫 Proxy - Accès refusé - Origine non autorisée:', origin);
+      return new Response(JSON.stringify({ 
+        error: 'Access denied',
+        message: 'Origin not allowed for proxy' 
+      }), {
+        status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    
+    console.log('✅ Proxy - Origine autorisée:', origin || 'No origin (direct access)');
 
     // Configuration WAHA
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
@@ -51,8 +66,15 @@ serve(async (req) => {
     });
 
     const { method: incomingMethod, url } = req;
-    let urlPath = new URL(url).searchParams.get('path') || '/api/sessions';
+    const urlObj = new URL(url);
+    let urlPath = urlObj.searchParams.get('path') || urlObj.searchParams.get('endpoint') || '/api/sessions';
     let finalMethod = incomingMethod;
+    
+    console.log('📡 Proxy request:', {
+      method: finalMethod,
+      path: urlPath,
+      params: Object.fromEntries(urlObj.searchParams.entries())
+    });
 
     // Récupérer un éventuel corps JSON et permettre la surcharge du path/method
     let bodyData: any = null;

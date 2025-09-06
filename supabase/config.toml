@@ -74,7 +74,10 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.waha-dashboard-proxy]
-verify_jwt = true
+verify_jwt = false
+
+[functions.waha-dashboard-mirror]
+verify_jwt = false
 
 [functions.waha-health-check]
 verify_jwt = false

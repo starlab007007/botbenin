@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { QrCode, Monitor, RefreshCw, ExternalLink, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useWAHADashboard } from '@/hooks/useWAHADashboard';
-import CompleteSessionManager from './CompleteSessionManager';
+import WAHADashboardIframe from './WAHADashboardIframe';
 
 interface WhatsAppQRDialogProps {
   open: boolean;
@@ -149,10 +149,10 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
               <Alert className="mb-4">
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Interface native WAHA activée!</strong> Gérez vos sessions WhatsApp directement depuis cette interface intégrée.
+                  <strong>Dashboard WAHA intégré!</strong> Interface complète via proxy miroir - plus de problèmes CSP/X-Frame-Options.
                 </AlertDescription>
               </Alert>
-              <CompleteSessionManager />
+              <WAHADashboardIframe />
             </div>
           </TabsContent>
 
