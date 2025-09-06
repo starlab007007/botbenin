@@ -18,6 +18,8 @@ serve(async (req) => {
     const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
     const allowedOrigins = [
       'https://mvynepqulhflxtyymtzs.lovableproject.com',
+      'https://preview--path-finding-ai-coach.lovable.app',
+      'https://e22c52ab-372c-49c8-ab35-fb1b4b55f0b1.sandbox.lovable.dev',
       'http://localhost:3000',
       'http://127.0.0.1:3000',
       'https://localhost:3000'
