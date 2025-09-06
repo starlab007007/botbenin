@@ -575,166 +575,234 @@ const CompleteSessionManager: React.FC = () => {
           </div>
         )}
 
-        {/* Liste des sessions - Style WAHA */}
-        <Card className="bg-gray-800 border-gray-700">
+        {/* Interface WAHA Dashboard - Table complète */}
+        <Card className="border-gray-700 bg-gray-900/50 backdrop-blur-sm">
           <CardHeader className="border-b border-gray-700">
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Activity className="h-5 w-5" />
-              Sessions WhatsApp
-              {loading && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-white flex items-center gap-3">
+                <Settings className="h-6 w-6 text-blue-400" />
+                Sessions WhatsApp - Interface WAHA Dashboard
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshData}
+                  disabled={loading}
+                  className="bg-gray-800 border-gray-600 text-gray-200 hover:bg-gray-700"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Actualiser
+                </Button>
+                <Badge variant="outline" className="bg-gray-700 border-gray-600 text-gray-200">
+                  {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="space-y-1">
-              {sessions.length === 0 ? (
-                <div className="text-center py-12">
-                  <Smartphone className="h-16 w-16 mx-auto text-gray-500 mb-4" />
-                  <h3 className="text-lg font-semibold mb-2 text-white">Aucune session trouvée</h3>
-                  <p className="text-gray-400 mb-4">Créez votre première session WhatsApp pour commencer</p>
-                  <Button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Créer une session
-                  </Button>
+            {loading ? (
+              <div className="flex items-center justify-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                <span className="ml-3 text-gray-400">Chargement des sessions WAHA...</span>
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="text-center p-12">
+                <Smartphone className="h-16 w-16 mx-auto text-gray-600 mb-4" />
+                <h3 className="text-xl font-semibold text-gray-300 mb-2">Aucune session WhatsApp</h3>
+                <p className="text-gray-500 mb-6">Créez votre première session pour commencer</p>
+                <Button
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nouvelle Session
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                {/* Header Table */}
+                <div className="grid grid-cols-12 gap-4 p-4 bg-gray-800 border-b border-gray-700 text-sm font-medium text-gray-300">
+                  <div className="col-span-3 flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Name
+                  </div>
+                  <div className="col-span-2">Metadata</div>
+                  <div className="col-span-2">Account</div>
+                  <div className="col-span-1">Status</div>
+                  <div className="col-span-1">Server</div>
+                  <div className="col-span-3 text-center">Actions</div>
                 </div>
-              ) : (
-                sessions.map((session) => (
-                  <Card key={session.name} className="border border-gray-700 bg-gray-800/50 m-2">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        {/* Nom de session à gauche */}
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${getStatusColor(session.status)}`} />
-                          <span className="text-white font-medium text-lg">{session.name}</span>
-                        </div>
 
-                        {/* Boutons d'action à droite - Style WAHA */}
-                        <div className="flex items-center gap-2">
-                          {/* Bouton principal selon le statut */}
-                          {session.status === 'SCAN_QR_CODE' && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleConnectWhatsApp(session.name)}
-                              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-full text-sm font-medium"
-                            >
-                              SCAN_QR_CODE
-                            </Button>
-                          )}
-                          {(session.status === 'DISCONNECTED' || session.status === 'STOPPED') && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleStartSession(session.name)}
-                              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full text-sm font-medium"
-                            >
-                              DÉMARRER
-                            </Button>
-                          )}
-                          {session.status === 'WORKING' && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleDisconnectSession(session.name)}
-                              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-medium"
-                            >
-                              ARRÊTER
-                            </Button>
-                          )}
-                          {session.status === 'STARTING' && (
-                            <Button
-                              size="sm"
-                              disabled
-                              className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium"
-                            >
-                              STARTING...
-                            </Button>
-                          )}
-
-                          {/* Boutons d'action secondaires */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRestartSession(session.name)}
-                            className="w-10 h-10 rounded-full border-gray-600 hover:bg-gray-700 p-0"
-                            title="Redémarrer"
-                          >
-                            <RotateCcw className="h-4 w-4 text-gray-300" />
-                          </Button>
-                          
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDeleteSession(session.name)}
-                            className="w-10 h-10 rounded-full border-gray-600 hover:bg-red-700 p-0"
-                            title="Supprimer"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-400" />
-                          </Button>
-
-                          {/* Badge de statut */}
-                          <Badge variant="outline" className="ml-2 bg-gray-700 border-gray-600 text-gray-200 text-xs">
-                            {session.status}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs bg-blue-500/20 border-blue-500/30 text-blue-300">
-                            WAHA
-                          </Badge>
-                        </div>
+                {/* Sessions List */}
+                {sessions.map((session) => (
+                  <div key={session.name} className="grid grid-cols-12 gap-4 p-4 border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
+                    {/* Name */}
+                    <div className="col-span-3 flex items-center gap-3">
+                      <div className="relative">
+                        <div className={`h-3 w-3 rounded-full ${getStatusColor(session.status)}`} />
+                        <div className={`absolute inset-0 h-3 w-3 rounded-full ${getStatusColor(session.status)} animate-ping opacity-30`} />
                       </div>
+                      <div>
+                        <div className="text-white font-medium">{session.name}</div>
+                        <div className="text-xs text-gray-500">Session {session.name.substring(0, 8)}...</div>
+                      </div>
+                    </div>
 
-                      {/* Affichage des actions immédiates pour les sessions stoppées ou nouvellement créées */}
-                      {(session.status === 'STOPPED' || session.status === 'DISCONNECTED' || createdSession === session.name) && (
-                        <div className="mt-4 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
-                          <div className="text-center mb-3">
-                            <Badge className="bg-yellow-500/20 border-yellow-500/30 text-yellow-300 px-3 py-1 text-xs">
-                              Session disponible - Actions immédiates
-                            </Badge>
+                    {/* Metadata */}
+                    <div className="col-span-2">
+                      <div className="text-gray-400 text-sm">
+                        {session.config?.metadata?.phone_number ? (
+                          <div className="flex items-center gap-1">
+                            <Smartphone className="h-3 w-3" />
+                            {session.config.metadata.phone_number}
                           </div>
-                          <div className="flex flex-wrap gap-2 justify-center">
-                            <Button
-                              size="sm"
-                              onClick={() => handleStartSession(session.name)}
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Démarrer
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleRestartSession(session.name)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <RotateCcw className="h-4 w-4 mr-1" />
-                              Redémarrer
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleDisconnectSession(session.name)}
-                              className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                            >
-                              <Square className="h-4 w-4 mr-1" />
-                              Arrêter
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleViewDetails(session.name)}
-                              className="bg-gray-600 hover:bg-gray-700 text-white"
-                            >
-                              <Settings className="h-4 w-4 mr-1" />
-                              Configuration
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleDeleteSession(session.name)}
-                              className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                              <Trash2 className="h-4 w-4 mr-1" />
-                              Supprimer
-                            </Button>
+                        ) : (
+                          <span className="text-gray-600">--</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Account */}
+                    <div className="col-span-2">
+                      <div className="text-gray-400 text-sm">
+                        {session.config?.metadata?.account || session.config?.metadata?.phone_number ? (
+                          <div>
+                            <div className="text-green-400 text-xs uppercase font-semibold">
+                              {session.config.metadata.account || 'WhatsApp User'}
+                            </div>
+                            <div className="text-gray-500 text-xs">
+                              {session.config.metadata.phone_number || 'No phone'}
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <span className="text-gray-600">Account (Phone Number)</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="col-span-1">
+                      <div className="flex items-center gap-1">
+                        {getStatusIcon(session.status)}
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${
+                            session.status === 'WORKING' ? 'bg-green-500/20 border-green-500/30 text-green-400' :
+                            session.status === 'FAILED' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
+                            session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/20 border-orange-500/30 text-orange-400' :
+                            session.status === 'STOPPED' ? 'bg-gray-500/20 border-gray-500/30 text-gray-400' :
+                            'bg-gray-500/20 border-gray-500/30 text-gray-400'
+                          }`}
+                        >
+                          {session.status}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Server */}
+                    <div className="col-span-1">
+                      <Badge variant="outline" className="bg-blue-500/20 border-blue-500/30 text-blue-400 text-xs">
+                        WAHA
+                      </Badge>
+                    </div>
+
+                    {/* Actions - Style WAHA Dashboard */}
+                    <div className="col-span-3 flex items-center justify-center gap-2">
+                      {/* Settings */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewDetails(session.name)}
+                        className="h-8 w-8 rounded-full bg-teal-500/20 border-teal-500/30 text-teal-400 hover:bg-teal-500/30 p-0"
+                        title="Paramètres"
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+
+                      {/* QR Code - seulement si SCAN_QR_CODE */}
+                      {session.status === 'SCAN_QR_CODE' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleConnectWhatsApp(session.name)}
+                          className="h-8 w-8 rounded-full bg-orange-500/20 border-orange-500/30 text-orange-400 hover:bg-orange-500/30 p-0"
+                          title="QR Code"
+                        >
+                          <QrCode className="h-4 w-4" />
+                        </Button>
                       )}
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
+
+                      {/* WhatsApp */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toast.info('WhatsApp Module - Synchronisé avec WAHA')}
+                        className="h-8 w-8 rounded-full bg-green-500/20 border-green-500/30 text-green-400 hover:bg-green-500/30 p-0"
+                        title="WhatsApp"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                      </Button>
+
+                      {/* Start */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStartSession(session.name)}
+                        className="h-8 w-8 rounded-full bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30 p-0"
+                        title="Démarrer"
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+
+                      {/* Restart */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRestartSession(session.name)}
+                        className="h-8 w-8 rounded-full bg-purple-500/20 border-purple-500/30 text-purple-400 hover:bg-purple-500/30 p-0"
+                        title="Redémarrer"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+
+                      {/* Stop */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDisconnectSession(session.name)}
+                        className="h-8 w-8 rounded-full bg-gray-500/20 border-gray-500/30 text-gray-400 hover:bg-gray-500/30 p-0"
+                        title="Arrêter"
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+
+                      {/* Transfer */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toast.info('Transfer - Fonction WAHA disponible')}
+                        className="h-8 w-8 rounded-full bg-orange-600/20 border-orange-600/30 text-orange-500 hover:bg-orange-600/30 p-0"
+                        title="Transfer"
+                      >
+                        <ArrowRightLeft className="h-4 w-4" />
+                      </Button>
+
+                      {/* Delete */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteSession(session.name)}
+                        className="h-8 w-8 rounded-full bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30 p-0"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
