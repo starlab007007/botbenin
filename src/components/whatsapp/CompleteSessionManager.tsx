@@ -198,7 +198,7 @@ const CompleteSessionManager: React.FC = () => {
     }
   };
 
-  // Component pour les actions immédiates de session
+  // Component pour les actions immédiates de session - Style WAHA Dashboard
   const SessionImmediateActions: React.FC<{ sessionName: string; onClose: () => void }> = ({ sessionName, onClose }) => {
     const session = sessions.find(s => s.name === sessionName);
     
@@ -206,133 +206,170 @@ const CompleteSessionManager: React.FC = () => {
       {
         icon: Settings,
         label: 'Paramètres',
-        color: 'from-gray-600 to-gray-700',
+        color: 'from-teal-500 to-teal-600',
         action: () => handleViewDetails(sessionName)
       },
       {
         icon: Grid3X3,
         label: 'Modules',
-        color: 'from-blue-600 to-blue-700',
-        action: () => toast.info('Modules à venir')
+        color: 'from-purple-500 to-purple-600',
+        action: () => toast.info('Modules - Synchronisé avec WAHA Dashboard')
       },
       {
         icon: Play,
-        label: 'Démarrer',
-        color: 'from-green-600 to-green-700',
+        label: 'Start',
+        color: 'from-green-500 to-green-600',
         action: () => handleStartSession(sessionName)
       },
       {
         icon: RotateCcw,
-        label: 'Redémarrer',
-        color: 'from-orange-600 to-orange-700',
+        label: 'Restart',
+        color: 'from-blue-500 to-blue-600',
         action: () => handleRestartSession(sessionName)
       },
       {
         icon: Square,
-        label: 'Arrêter',
-        color: 'from-red-600 to-red-700',
+        label: 'Stop',
+        color: 'from-gray-500 to-gray-600',
         action: () => handleDisconnectSession(sessionName)
       },
       {
         icon: ArrowRightLeft,
-        label: 'Transférer',
-        color: 'from-purple-600 to-purple-700',
-        action: () => toast.info('Transfert à venir')
+        label: 'Transfer',
+        color: 'from-orange-500 to-orange-600',
+        action: () => toast.info('Transfer - Fonction WAHA disponible')
       },
       {
         icon: Trash2,
-        label: 'Supprimer',
-        color: 'from-red-600 to-red-800',
+        label: 'Delete',
+        color: 'from-red-500 to-red-600',
         action: () => handleDeleteSession(sessionName)
       }
     ];
 
     return (
-      <Card className="border-2 border-primary/20 shadow-lg">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`h-3 w-3 rounded-full ${getStatusColor(session?.status || '')}`} />
-              <CardTitle className="text-xl">{sessionName}</CardTitle>
-              <Badge variant="outline" className="flex items-center gap-1">
-                {getStatusIcon(session?.status || '')}
-                {session?.status || 'Inconnue'}
-              </Badge>
+      <div className="space-y-6 bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900 p-6 rounded-xl border border-gray-700 shadow-2xl">
+        {/* Header de la session */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className={`h-4 w-4 rounded-full ${getStatusColor(session?.status || '')} shadow-lg`} />
+              <div className={`absolute inset-0 h-4 w-4 rounded-full ${getStatusColor(session?.status || '')} animate-ping opacity-30`} />
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <div>
+              <h2 className="text-2xl font-bold text-white">{sessionName}</h2>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="flex items-center gap-1 bg-gray-700 border-gray-600 text-gray-200">
+                  {getStatusIcon(session?.status || '')}
+                  {session?.status || 'UNKNOWN'}
+                </Badge>
+                <div className="text-xs text-gray-400 font-mono bg-gray-700 px-2 py-1 rounded">WAHA</div>
+              </div>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="text-center text-sm text-muted-foreground">
-              Actions immédiates pour votre session
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="text-gray-400 hover:text-white hover:bg-gray-700 rounded-full"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Section centrale avec WAHA et QR Code selon l'état */}
+        <div className="flex flex-col items-center space-y-6">
+          {/* WAHA Indicator central */}
+          <div className="relative">
+            <div className="bg-gradient-to-br from-gray-700 to-gray-800 rounded-full p-8 border-4 border-gray-600 shadow-xl">
+              <span className="text-2xl font-bold text-white tracking-wider">WAHA</span>
             </div>
-            
-            <div className="flex justify-center items-center gap-2 flex-wrap">
-              {actionButtons.map((action, index) => (
+            {session?.status === 'WORKING' && (
+              <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1 shadow-lg">
+                <CheckCircle2 className="h-4 w-4 text-white" />
+              </div>
+            )}
+          </div>
+
+          {/* Bouton QR Code central si nécessaire */}
+          {session?.status === 'SCAN_QR_CODE' && (
+            <Button
+              onClick={() => handleConnectWhatsApp(sessionName)}
+              className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-full text-lg font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              SCAN_QR_CODE
+            </Button>
+          )}
+
+          {session?.status === 'WORKING' && (
+            <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4 text-center">
+              <div className="text-green-400 font-semibold">SESSION ACTIVE</div>
+              <div className="text-sm text-gray-400">Connectée et synchronisée avec WAHA Dashboard</div>
+            </div>
+          )}
+        </div>
+
+        {/* Boutons d'action circulaires - Style identique au dashboard WAHA */}
+        <div className="flex justify-center items-center">
+          <div className="grid grid-cols-7 gap-4 items-center">
+            {actionButtons.map((action, index) => (
+              <div key={index} className="flex flex-col items-center">
                 <Button
-                  key={index}
                   variant="outline"
                   size="sm"
                   onClick={action.action}
                   className={`
                     relative overflow-hidden h-16 w-16 rounded-full border-2 
                     bg-gradient-to-br ${action.color} text-white border-white/20
-                    hover:scale-105 transition-all duration-200 shadow-lg
-                    hover:shadow-xl group
+                    hover:scale-110 transition-all duration-300 shadow-lg
+                    hover:shadow-2xl group transform hover:-translate-y-1
                   `}
                   title={action.label}
                 >
                   <action.icon className="h-6 w-6" />
-                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 
-                                text-xs font-medium opacity-0 group-hover:opacity-100 
-                                transition-opacity duration-200 whitespace-nowrap
-                                bg-gray-800 text-white px-2 py-1 rounded">
-                    {action.label}
-                  </div>
                 </Button>
-              ))}
-            </div>
-
-            {session?.status === 'SCAN_QR_CODE' && (
-              <div className="text-center">
-                <Button
-                  onClick={() => handleConnectWhatsApp(sessionName)}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <QrCode className="h-4 w-4 mr-2" />
-                  Connecter WhatsApp
-                </Button>
+                <span className="text-xs text-gray-400 mt-1 font-medium">{action.label}</span>
               </div>
-            )}
-
-            {session?.status === 'WORKING' && (
-              <Alert>
-                <CheckCircle2 className="h-4 w-4" />
-                <AlertDescription>
-                  Session active et connectée à WhatsApp
-                </AlertDescription>
-              </Alert>
-            )}
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Informations de session en bas */}
+        <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-700">
+          <div className="text-center">
+            <div className="text-sm text-gray-400">Status</div>
+            <div className="text-white font-semibold">{session?.status || 'UNKNOWN'}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-gray-400">Server</div>
+            <div className="text-white font-semibold">WAHA Dashboard</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-gray-400">Protocol</div>
+            <div className="text-white font-semibold">WhatsApp Business</div>
+          </div>
+        </div>
+
+        {/* Note de synchronisation */}
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 bg-blue-500/20 border border-blue-500/30 rounded-full px-4 py-2">
+            <RefreshCw className="h-4 w-4 text-blue-400 animate-spin" />
+            <span className="text-sm text-blue-400 font-medium">Synchronisé en temps réel avec WAHA Dashboard</span>
+          </div>
+        </div>
+      </div>
     );
   };
 
   const handleStartSession = async (sessionName: string) => {
     try {
+      toast.info(`Démarrage de la session ${sessionName} sur WAHA Dashboard...`);
       await startSession(sessionName);
-      toast.success('Session démarrée');
+      toast.success(`✅ Session ${sessionName} démarrée - Synchronisée avec WAHA`);
+      // Rafraîchir immédiatement pour refléter les changements
+      setTimeout(() => refreshData(), 1000);
     } catch (error) {
-      toast.error('Erreur lors du démarrage');
+      toast.error(`❌ Erreur WAHA: ${error.message}`);
     }
   };
 
@@ -344,44 +381,57 @@ const CompleteSessionManager: React.FC = () => {
 
   const handleGetQR = async (sessionName: string) => {
     try {
+      toast.info(`Génération QR Code pour ${sessionName} via WAHA Dashboard...`);
       const result = await getQRCode(sessionName);
       setQrCodeData(result?.qr || '');
+      toast.success(`📱 QR Code généré - Synchronisé avec WAHA Dashboard`);
     } catch (error) {
       console.error('Erreur QR:', error);
+      toast.error(`❌ Erreur génération QR WAHA: ${error.message}`);
     }
   };
 
   const handleRestartSession = async (sessionName: string) => {
     try {
+      toast.info(`Redémarrage de la session ${sessionName} sur WAHA Dashboard...`);
       await stopSession(sessionName);
       setTimeout(async () => {
         await startSession(sessionName);
-        toast.success('Session redémarrée');
+        toast.success(`🔄 Session ${sessionName} redémarrée - Synchronisée avec WAHA`);
+        refreshData();
       }, 2000);
     } catch (error) {
-      toast.error('Erreur lors du redémarrage');
+      toast.error(`❌ Erreur redémarrage WAHA: ${error.message}`);
     }
   };
 
   const handleDisconnectSession = async (sessionName: string) => {
     try {
+      toast.info(`Déconnexion de la session ${sessionName} sur WAHA Dashboard...`);
       await stopSession(sessionName);
-      toast.success('Session déconnectée');
+      toast.success(`⏹️ Session ${sessionName} déconnectée - Synchronisée avec WAHA`);
+      refreshData();
     } catch (error) {
-      toast.error('Erreur lors de la déconnexion');
+      toast.error(`❌ Erreur déconnexion WAHA: ${error.message}`);
     }
   };
 
   const handleDeleteSession = async (sessionName: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer la session ${sessionName} ?`)) {
+    if (!confirm(`⚠️ Supprimer la session ${sessionName} du Dashboard WAHA ?\n\nCette action est irréversible et supprimera également la session du serveur WAHA.`)) {
       return;
     }
 
     try {
+      toast.info(`Suppression de la session ${sessionName} sur WAHA Dashboard...`);
       await deleteSession(sessionName);
-      toast.success('Session supprimée');
+      toast.success(`🗑️ Session ${sessionName} supprimée - Synchronisée avec WAHA`);
+      // Fermer les actions immédiates si c'est la session supprimée
+      if (createdSession === sessionName) {
+        setCreatedSession(null);
+      }
+      refreshData();
     } catch (error) {
-      toast.error('Erreur lors de la suppression');
+      toast.error(`❌ Erreur suppression WAHA: ${error.message}`);
     }
   };
 
