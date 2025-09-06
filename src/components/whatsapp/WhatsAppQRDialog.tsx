@@ -37,56 +37,125 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
   // URL pour ouvrir le dashboard externe
   const externalDashboardUrl = `https://waha.bot.bj/dashboard`;
 
-  // Fonction pour récupérer le QR code directement
+  // Solution de contournement via dashboard proxy
   const fetchDirectQR = async () => {
     if (!sessionName) return;
     
     setLoading(true);
     try {
-      console.log('🔄 Démarrage de la session et récupération du QR...');
+      console.log('🔄 SOLUTION DE CONTOURNEMENT: Utilisation du dashboard proxy pour le QR...');
+      console.log('🔍 Diagnostic: API key WAHA manque de permissions d\'écriture (401 Unauthorized)');
       
-      // Démarrer la session d'abord
-      if (!sessionStarted) {
-        console.log('▶️ Démarrage de la session:', sessionName);
-        const startResponse = await supabase.functions.invoke('waha-session-manager', {
-          body: { action: 'start', sessionName }
+      // Étape 1: Essayer via dashboard proxy pour démarrer la session
+      console.log('▶️ Tentative de démarrage via dashboard proxy...');
+      try {
+        const proxyStartUrl = `/functions/v1/waha-dashboard-proxy?endpoint=api/sessions/${sessionName}/start`;
+        const startResponse = await fetch(proxyStartUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'Content-Type': 'application/json'
+          }
         });
         
-        if (startResponse.data?.success) {
+        if (startResponse.ok) {
+          console.log('✅ Session démarrée via proxy');
           setSessionStarted(true);
-          console.log('✅ Session démarrée avec succès');
         } else {
-          console.warn('⚠️ Démarrage de session non optimal:', startResponse.data?.error);
+          console.warn('⚠️ Démarrage proxy non optimal:', await startResponse.text());
         }
-        
-        // Attendre un peu après le démarrage
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (proxyError) {
+        console.warn('⚠️ Erreur proxy start:', proxyError);
       }
 
-      // Récupérer le QR code
-      console.log('📱 Récupération du QR code...');
-      const qrResponse = await supabase.functions.invoke('waha-session-manager', {
-        body: { action: 'qr', sessionName }
-      });
+      // Attendre avant QR
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      if (qrResponse.data?.success && qrResponse.data?.qrCode) {
-        console.log('✅ QR code récupéré avec succès');
-        setQrCode(qrResponse.data.qrCode);
-        toast.success('QR Code généré avec succès!');
+      // Étape 2: Récupérer QR via proxy
+      console.log('📱 Récupération QR via dashboard proxy...');
+      
+      const qrEndpoints = [
+        `api/sessions/${sessionName}/auth/qr`,
+        `api/v2/sessions/${sessionName}/auth/qr`,
+        `api/${sessionName}/auth/qr?format=base64`,
+        `api/v2/${sessionName}/auth/qr?format=base64`
+      ];
+
+      let qrSuccess = false;
+      for (const endpoint of qrEndpoints) {
+        try {
+          console.log(`🎯 Tentative QR endpoint: ${endpoint}`);
+          const qrUrl = `/functions/v1/waha-dashboard-proxy?endpoint=${endpoint}`;
+          const qrResponse = await fetch(qrUrl, {
+            headers: {
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+              'Accept': 'application/json,image/*'
+            }
+          });
+
+          if (qrResponse.ok) {
+            const contentType = qrResponse.headers.get('content-type') || '';
+            
+            if (contentType.includes('image/')) {
+              // QR code as image
+              const blob = await qrResponse.blob();
+              const qrDataUrl = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+              setQrCode(qrDataUrl);
+              qrSuccess = true;
+              break;
+            } else {
+              // QR code as JSON
+              const qrData = await qrResponse.json();
+              if (qrData.qr || qrData.qrCode) {
+                setQrCode(qrData.qr || qrData.qrCode);
+                qrSuccess = true;
+                break;
+              }
+            }
+          }
+        } catch (endpointError) {
+          console.warn(`❌ Endpoint ${endpoint} failed:`, endpointError);
+        }
+      }
+
+      if (qrSuccess) {
+        console.log('✅ QR code récupéré via proxy!');
+        toast.success('QR Code généré via dashboard proxy!');
       } else {
-        throw new Error(qrResponse.data?.error || 'Pas de QR code dans la réponse');
+        // Fallback: Essayer l'ancienne méthode une dernière fois
+        console.log('🔄 Fallback: Tentative avec l\'ancienne méthode...');
+        const qrResponse = await supabase.functions.invoke('waha-session-manager', {
+          body: { action: 'qr', sessionName }
+        });
+
+        if (qrResponse.data?.success && qrResponse.data?.qrCode) {
+          setQrCode(qrResponse.data.qrCode);
+          toast.success('QR Code généré!');
+        } else {
+          throw new Error(`PROBLÈME: API key WAHA manque de permissions d'écriture. Erreur: ${qrResponse.data?.error || 'QR non disponible'}`);
+        }
       }
     } catch (error) {
-      console.error('❌ Erreur récupération QR:', error);
-      toast.error(`Erreur: ${error.message}`);
+      console.error('❌ Toutes les méthodes ont échoué:', error);
       
-      // Retry logic
-      if (retryCount < 3) {
-        console.log(`🔄 Nouvelle tentative (${retryCount + 1}/3) dans 5 secondes...`);
+      // Message d'erreur détaillé pour l'utilisateur
+      toast.error(`❌ Erreur: ${error.message}\n\n🔧 Solution: Mettre à jour l'API key WAHA avec permissions complètes dans Supabase Secrets`);
+      
+      // Retry logic avec diagnostic
+      if (retryCount < 2) {
+        console.log(`🔄 Nouvelle tentative diagnostic (${retryCount + 1}/3) dans 5 secondes...`);
         setTimeout(() => {
           setRetryCount(prev => prev + 1);
           fetchDirectQR();
         }, 5000);
+      } else {
+        toast.error('❌ Échec après 3 tentatives. L\'API key WAHA doit être mise à jour avec des permissions complètes.', {
+          duration: 10000
+        });
       }
     } finally {
       setLoading(false);
@@ -249,20 +318,36 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
                       </div>
                     ) : (
                       <div className="w-64 h-64 border-2 border-dashed border-destructive/30 rounded-lg flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="flex flex-col items-center gap-3 text-center p-4">
                           <AlertCircle className="h-8 w-8 text-destructive" />
-                          <p className="text-sm text-destructive">
-                            QR Code non disponible
-                          </p>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={handleRetryQR}
-                            className="gap-2"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            Réessayer
-                          </Button>
+                          <div className="space-y-2">
+                            <p className="text-sm text-destructive font-medium">
+                              QR Code non disponible
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              API key WAHA manque de permissions d'écriture
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={handleRetryQR}
+                              className="gap-2"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                              Réessayer avec Proxy
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={openExternalDashboard}
+                              className="gap-2 text-xs"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Ouvrir Dashboard WAHA
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )}
