@@ -45,7 +45,7 @@ import {
   BarChart3,
   Monitor
 } from 'lucide-react';
-import { useWAHADashboard } from '@/hooks/useWAHADashboard';
+import { useWAHADashboard, WAHASession } from '@/hooks/useWAHADashboard';
 
 interface SessionStep {
   id: string;
@@ -82,6 +82,7 @@ const CompleteSessionManager: React.FC = () => {
   const [createdSession, setCreatedSession] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [userSessions, setUserSessions] = useState<string[]>([]);
+  const [userSessionsFromDB, setUserSessionsFromDB] = useState<any[]>([]);
 
   const { 
     sessions, 
@@ -131,8 +132,9 @@ const CompleteSessionManager: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('whatsapp_accounts')
-        .select('session_name, status')
-        .eq('user_id', user.id);
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Erreur lors du chargement des sessions:', error);
@@ -141,11 +143,9 @@ const CompleteSessionManager: React.FC = () => {
 
       const sessionNames = data?.map(account => account.session_name) || [];
       setUserSessions(sessionNames);
+      setUserSessionsFromDB(data || []);
       
-      // Synchroniser avec les sessions WAHA pour forcer l'affichage
-      if (sessionNames.length > 0) {
-        setTimeout(() => refreshData(), 500);
-      }
+      console.log('✅ Sessions chargées depuis Supabase:', sessionNames);
     } catch (error) {
       console.error('Erreur:', error);
     }
@@ -174,17 +174,63 @@ const CompleteSessionManager: React.FC = () => {
     }
   };
 
-  // Filtrer les sessions pour afficher seulement celles de l'utilisateur connecté
+  // Créer les sessions à afficher en combinant Supabase et WAHA
   const getUserFilteredSessions = () => {
     if (!user?.id) return [];
     
-    // Afficher toutes les sessions qui correspondent aux sessions de l'utilisateur OU
-    // les sessions qui viennent d'être créées (createdSession)
-    return sessions.filter(session => {
-      const isUserSession = userSessions.includes(session.name);
-      const isJustCreated = createdSession === session.name;
-      return isUserSession || isJustCreated;
+    // Créer des sessions hybrides à partir des données Supabase et WAHA
+    const hybridSessions: WAHASession[] = [];
+    
+    // D'abord, ajouter toutes les sessions depuis Supabase
+    userSessionsFromDB.forEach(dbSession => {
+      // Chercher si cette session existe aussi dans WAHA
+      const wahaSession = sessions.find(s => s.name === dbSession.session_name);
+      
+      if (wahaSession) {
+        // Session existe dans WAHA, utiliser les données WAHA enrichies
+        hybridSessions.push({
+          ...wahaSession,
+          status: wahaSession.status || 'STOPPED',
+          metadata: {
+            ...wahaSession.metadata,
+            dbStatus: dbSession.status,
+            createdAt: dbSession.created_at
+          }
+        });
+      } else {
+        // Session existe seulement en base, créer une session virtuelle
+        hybridSessions.push({
+          name: dbSession.session_name,
+          status: 'STOPPED',
+          config: {},
+          server: 'local',
+          metadata: {
+            dbStatus: dbSession.status,
+            createdAt: dbSession.created_at,
+            isFromDB: true
+          }
+        });
+      }
     });
+    
+    // Ajouter les sessions nouvellement créées qui ne sont pas encore en base
+    if (createdSession) {
+      const existsInHybrid = hybridSessions.some(s => s.name === createdSession);
+      if (!existsInHybrid) {
+        const wahaSession = sessions.find(s => s.name === createdSession);
+        if (wahaSession) {
+          hybridSessions.push({
+            ...wahaSession,
+            metadata: {
+              ...wahaSession.metadata,
+              isJustCreated: true
+            }
+          });
+        }
+      }
+    }
+    
+    return hybridSessions;
   };
 
   // Auto-refresh des sessions et détection de nouvelles sessions
@@ -230,16 +276,8 @@ const CompleteSessionManager: React.FC = () => {
       return;
     }
 
-    if (!isAuthenticated) {
-      toast.error('Vous devez être connecté pour créer une session');
-      return;
-    }
-
     try {
-      // Créer la session sur WAHA
-      await createSession(newSessionName);
-      
-      // Sauvegarder immédiatement dans la base de données
+      // Sauvegarder d'abord dans la base de données pour affichage immédiat
       await saveUserSession(newSessionName);
       
       // Marquer comme session créée pour affichage immédiat
@@ -247,16 +285,20 @@ const CompleteSessionManager: React.FC = () => {
       setNewSessionName('');
       setShowCreateModal(false);
       
-      // Plusieurs tentatives de refresh pour s'assurer que la session apparaît
-      const refreshAttempts = [0, 500, 1500, 3000, 5000];
-      refreshAttempts.forEach(delay => {
-        setTimeout(() => {
-          refreshData();
-          loadUserSessions(); // Recharger aussi les sessions utilisateur
-        }, delay);
-      });
+      // Recharger les sessions depuis Supabase immédiatement
+      await loadUserSessions();
       
-      toast.success(`✅ Session "${newSessionName}" créée et prête à démarrer!`);
+      toast.success(`✅ Session "${newSessionName}" créée et visible! Cliquez sur Démarrer pour l'activer.`);
+      
+      // Essayer de créer la session sur WAHA en arrière-plan
+      try {
+        await createSession(newSessionName);
+        // Synchroniser après création WAHA
+        setTimeout(() => refreshData(), 1000);
+      } catch (wahaError) {
+        console.warn('Session créée en base mais pas encore sur WAHA:', wahaError);
+      }
+      
     } catch (error) {
       console.error('Erreur création session:', error);
       toast.error('Erreur lors de la création de la session');
