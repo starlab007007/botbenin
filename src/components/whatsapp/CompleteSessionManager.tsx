@@ -10,7 +10,9 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import WAHACompleteDiagnostic from '@/components/whatsapp/WAHACompleteDiagnostic';
 import WAHAQRTester from '@/components/whatsapp/WAHAQRTester';
+import WAHATroubleshootingGuide from '@/components/whatsapp/WAHATroubleshootingGuide';
 import { 
   Play, 
   Square, 
@@ -512,7 +514,17 @@ const CompleteSessionManager: React.FC = () => {
       </div>
 
       <div className="container mx-auto px-6 py-6">
-        {/* Diagnostic Tester */}
+        {/* Guide de Résolution */}
+        <div className="mb-6">
+          <WAHATroubleshootingGuide />
+        </div>
+        
+        {/* Diagnostic Complet - Solution Définitive */}
+        <div className="mb-8">
+          <WAHACompleteDiagnostic />
+        </div>
+        
+        {/* Ancien Diagnostic Tester (pour comparaison) */}
         <div className="mb-6">
           <WAHAQRTester />
         </div>
