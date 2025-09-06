@@ -5645,6 +5645,14 @@ export type Database = {
         Args: { permission_name: string; user_uuid: string }
         Returns: boolean
       }
+      user_owns_bot: {
+        Args: { p_bot_id: string }
+        Returns: boolean
+      }
+      user_owns_whatsapp_account: {
+        Args: { acc_id: string }
+        Returns: boolean
+      }
       validate_owner_complete_access: {
         Args: Record<PropertyKey, never>
         Returns: {
