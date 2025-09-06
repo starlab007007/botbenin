@@ -1,7 +1,7 @@
 import React from 'react';
 import { AuthGuard } from '@/components/bot-management/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
-import WAHANativeDashboard from '@/components/whatsapp/WAHANativeDashboard';
+import CompleteSessionManager from '@/components/whatsapp/CompleteSessionManager';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -18,7 +18,7 @@ const WhatsAppConnectPage: React.FC = () => {
           </div>
         </div>
 
-        <WAHANativeDashboard />
+        <CompleteSessionManager />
       </div>
     </AuthGuard>
   );
