@@ -30,10 +30,8 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [dashboardUrl, setDashboardUrl] = useState<string>('');
 
-  // URL pour le dashboard intégré avec paramètre autoQr
-  const dashboardUrl = `/functions/v1/waha-dashboard-mirror?path=dashboard&autoQr=${encodeURIComponent(sessionName)}`;
-  
   // URL pour ouvrir le dashboard externe
   const externalDashboardUrl = `https://waha.bot.bj/dashboard`;
 
@@ -162,18 +160,31 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
     }
   };
 
-  // Auto-fetch QR when dialog opens
+  // Auto-fetch QR when dialog opens and prepare dashboard URL with token
   useEffect(() => {
-    if (open && sessionName) {
-      setRetryCount(0);
-      setSessionStarted(false);
-      setQrCode('');
-      
-      // Fetch QR after a short delay to ensure UI is ready
-      setTimeout(() => {
-        fetchDirectQR();
-      }, 1000);
-    }
+    const init = async () => {
+      if (open && sessionName) {
+        setRetryCount(0);
+        setSessionStarted(false);
+        setQrCode('');
+
+        // Récupérer le token d'accès pour l'iframe du dashboard mirror
+        try {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token || '';
+          const url = `/functions/v1/waha-dashboard-mirror?path=dashboard&autoQr=${encodeURIComponent(sessionName)}&token=${encodeURIComponent(token)}`;
+          setDashboardUrl(url);
+        } catch (e) {
+          console.warn('⚠️ Impossible de récupérer le token Supabase pour le dashboard mirror:', e);
+        }
+        
+        // Fetch QR after a short delay to ensure UI is ready
+        setTimeout(() => {
+          fetchDirectQR();
+        }, 1000);
+      }
+    };
+    init();
   }, [open, sessionName]);
 
   const handleDashboardLoad = () => {
