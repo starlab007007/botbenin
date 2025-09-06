@@ -98,6 +98,25 @@ const CompleteSessionManager: React.FC = () => {
   // État pour les sessions utilisateur depuis la base de données
   const [databaseSessions, setDatabaseSessions] = useState<any[]>([]);
 
+  // Sauvegarder une session en base pour l'utilisateur (fallback/optimiste)
+  const saveUserSession = async (sessionName: string) => {
+    if (!user?.id) return;
+    try {
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .upsert({
+          user_id: user.id,
+          session_name: sessionName,
+          status: 'disconnected'
+        }, { onConflict: 'user_id,session_name' });
+      if (error) {
+        console.error('Erreur sauvegarde session (fallback):', error);
+      }
+    } catch (e) {
+      console.error('Erreur (fallback):', e);
+    }
+  };
+
   // Charger les sessions de l'utilisateur depuis la base de données avec toutes les infos
   const loadUserSessions = async () => {
     if (!user?.id) return;
@@ -314,8 +333,9 @@ const CompleteSessionManager: React.FC = () => {
 
       if (response.error) {
         console.error('Erreur création session:', response.error);
-        toast.error('Erreur lors de la création de la session');
-        return;
+        // Fallback: créer l'entrée en base pour visibilité immédiate
+        await saveUserSession(newSessionName.trim());
+        toast.error('Création WAHA échouée, session ajoutée en attente (déconnectée)');
       }
 
       setCreatedSession(newSessionName);

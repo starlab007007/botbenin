@@ -203,27 +203,50 @@ serve(async (req) => {
           }),
         });
 
+        let sessionData: any = null;
         if (res.ok) {
-          const sessionData = await res.json();
+          sessionData = await res.json().catch(() => ({}));
           console.log('Session created:', sessionData);
-          const { error: dbError } = await supabase.from('whatsapp_accounts').upsert({
+          // Try to fetch status to ensure visibility in WAHA dashboard immediately
+          try {
+            const statusRes = await wahaFetch(`/api/sessions/${sessionName}`, { method: 'GET' });
+            if (statusRes.ok) {
+              const statusData = await statusRes.json().catch(() => ({}));
+              sessionData = { ...(sessionData || {}), ...statusData };
+            }
+          } catch (e) {
+            console.log('Status fetch after create failed:', e);
+          }
+        } else {
+          const txt = await res.text();
+          console.error('WAHA create failed:', res.status, txt);
+          // Still upsert a placeholder row so UI shows session immediately
+          const { error: placeholderErr } = await supabase.from('whatsapp_accounts').upsert({
             user_id: user.id,
             session_name: sessionName,
             phone_number: phoneNumber,
             status: 'disconnected',
             webhook_url: `${supabaseUrl}/functions/v1/waha-webhook`,
-            waha_session_data: sessionData,
+            waha_session_data: { error: `create_failed: ${txt}` },
             last_activity: new Date().toISOString(),
           });
-          if (dbError) throw dbError;
-          wahaResponse = { success: true, data: sessionData };
-        } else if (res.status === 409) {
-          wahaResponse = { success: true, data: { name: sessionName, status: 'existing' } };
-        } else {
-          const txt = await res.text();
-          console.error('WAHA create failed:', res.status, txt);
-          wahaResponse = { success: false, error: `WAHA create failed: ${txt}` };
+          if (placeholderErr) console.error('DB upsert placeholder error:', placeholderErr);
+          return new Response(JSON.stringify({ success: false, error: `WAHA create failed: ${txt}` }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
+
+        const { error: dbError } = await supabase.from('whatsapp_accounts').upsert({
+          user_id: user.id,
+          session_name: sessionName,
+          phone_number: phoneNumber,
+          status: sessionData?.status || 'STOPPED',
+          webhook_url: `${supabaseUrl}/functions/v1/waha-webhook`,
+          waha_session_data: sessionData,
+          last_activity: new Date().toISOString(),
+        });
+        if (dbError) throw dbError;
+        wahaResponse = { success: true, data: sessionData };
         break;
       }
 
@@ -245,7 +268,8 @@ serve(async (req) => {
 
       case 'qr': {
         console.log('Fetching QR...');
-        const res = await wahaFetch(`/api/sessions/${sessionName}/auth/qr`, { method: 'GET' });
+        // WAHA docs: POST /api/{session}/auth/qr
+        const res = await wahaFetch(`/api/${sessionName}/auth/qr`, { method: 'POST' });
         if (res.ok) {
           const data = await res.json();
           await supabase.from('whatsapp_accounts').update({ qr_code: data.qr || data.base64, last_activity: new Date().toISOString() })
