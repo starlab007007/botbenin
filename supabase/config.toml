@@ -78,3 +78,6 @@ verify_jwt = false
 
 [functions.waha-auto-auth]
 verify_jwt = true
+
+[functions.waha-dashboard-mirror]
+verify_jwt = false
