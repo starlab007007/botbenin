@@ -14,8 +14,6 @@ serve(async (req) => {
   }
 
   try {
-    console.log('🚀 WAHA Dashboard Mirror - Starting request processing');
-    
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -28,14 +26,11 @@ serve(async (req) => {
     );
 
     if (authError || !user) {
-      console.log('❌ Authentication failed');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    console.log('✅ User authenticated:', user.email);
 
     // Configuration WAHA
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
@@ -43,7 +38,7 @@ serve(async (req) => {
     const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
 
-    console.log('WAHA Configuration:', {
+    console.log('WAHA Dashboard Mirror - Configuration:', {
       wahaUrl: wahaUrl ? 'SET' : 'NOT SET',
       wahaUsername: wahaUsername ? 'SET' : 'NOT SET',
       wahaPassword: wahaPassword ? 'SET' : 'NOT SET',
@@ -52,71 +47,65 @@ serve(async (req) => {
 
     const { method, url } = req;
     const urlParams = new URL(url);
-    const path = urlParams.searchParams.get('path') || 'dashboard';
-    const autoQr = urlParams.searchParams.get('autoQr');
+    const path = urlParams.searchParams.get('path') || '/dashboard';
+    const autoQr = urlParams.searchParams.get('autoQr'); // Nouveau paramètre pour auto-QR
     
-    // Build the complete WAHA URL - toujours pointer vers /dashboard
-    const targetUrl = `${wahaUrl}/dashboard`;
-    
-    console.log(`📱 Mirroring ${method} request to: ${targetUrl}`);
+    // Build the complete WAHA URL
+    const base = wahaUrl.replace(/\/+$/, '');
+    const targetPath = `/${path.replace(/^\/+/, '')}`;
+    const fullWahaUrl = `${base}${targetPath}`;
+
+    console.log(`Mirroring ${method} request to: ${fullWahaUrl}`);
     if (autoQr) {
-      console.log(`🎯 Auto QR mode pour session: ${autoQr}`);
+      console.log(`🎯 Auto QR mode activé pour session: ${autoQr}`);
     }
 
-    // Force Basic Auth pour auto-connexion
+    // Force Basic Auth for auto-login (priorité sur API key pour l'auto-connexion)
+    let authHeaders: Record<string, string> = {};
     const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
-    const requestHeaders = {
-      'Authorization': `Basic ${basicAuth}`,
+    authHeaders['Authorization'] = `Basic ${basicAuth}`;
+    console.log('🔐 Authentification automatique avec Basic Auth activée');
+
+    // Prepare request headers
+    const requestHeaders: Record<string, string> = {
+      ...authHeaders,
       'User-Agent': req.headers.get('User-Agent') || 'WAHA-Dashboard-Mirror',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+      'Accept': req.headers.get('Accept') || 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': req.headers.get('Accept-Language') || 'en-US,en;q=0.5',
       'Accept-Encoding': 'gzip, deflate, br',
       'Connection': 'keep-alive',
       'Upgrade-Insecure-Requests': '1',
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache'
     };
 
-    console.log('🔐 Using Basic Auth for auto-login');
+    // Add Content-Type for POST/PUT requests
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+      requestHeaders['Content-Type'] = req.headers.get('Content-Type') || 'application/json';
+    }
 
     // Get request body for POST/PUT requests
     let body: BodyInit | null = null;
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
       body = await req.arrayBuffer();
-      requestHeaders['Content-Type'] = req.headers.get('Content-Type') || 'application/json';
     }
 
-    console.log('Making authenticated request to WAHA dashboard...');
+    console.log('Making request to WAHA with headers:', {
+      ...requestHeaders,
+      'Authorization': requestHeaders.Authorization ? '[REDACTED]' : 'None',
+      'X-Api-Key': requestHeaders['X-Api-Key'] ? '[REDACTED]' : 'None'
+    });
 
     // Make the request to WAHA
-    const wahaResponse = await fetch(targetUrl, {
+    const wahaResponse = await fetch(fullWahaUrl, {
       method,
       headers: requestHeaders,
       body,
     });
 
-    console.log(`✅ WAHA response status: ${wahaResponse.status}`);
-
-    if (!wahaResponse.ok) {
-      console.error(`❌ WAHA request failed: ${wahaResponse.status} ${wahaResponse.statusText}`);
-      const errorText = await wahaResponse.text();
-      console.error('Error details:', errorText);
-      
-      return new Response(JSON.stringify({ 
-        error: 'WAHA request failed', 
-        status: wahaResponse.status,
-        details: errorText 
-      }), {
-        status: wahaResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    console.log(`WAHA response status: ${wahaResponse.status}`);
 
     // Get response content
     const responseBody = await wahaResponse.arrayBuffer();
     const contentType = wahaResponse.headers.get('content-type') || '';
-
-    console.log('📄 Content-Type:', contentType);
 
     // Prepare response headers
     const responseHeaders = new Headers(corsHeaders);
@@ -128,129 +117,209 @@ serve(async (req) => {
       }
     }
 
-    // Process HTML content
+    // Enhanced HTML rewriting for better proxy functionality
     if (contentType.includes('text/html')) {
       let htmlContent = new TextDecoder().decode(responseBody);
       
-      console.log('🔄 Processing HTML content...');
-      
-      // Build proxy URLs
+      // Build proxy base URL
       const proxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-mirror?path=`;
       const apiProxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-proxy`;
       
-      // Basic URL rewriting for resources
-      htmlContent = htmlContent
-        .replace(/href="\/([^"]*)">/g, `href="${proxyBase}$1">`)
-        .replace(/src="\/([^"]*)">/g, `src="${wahaUrl}/$1">`)
-        .replace(/action="\/([^"]*)">/g, `action="${proxyBase}$1">`)
-        .replace(/url\(["']?\/([^"')]*?)["']?\)/g, `url("${wahaUrl}/$1")`)
-        .replace(/"\/api\//g, `"${apiProxyBase}?endpoint=api/`)
-        .replace(/'\/api\//g, `'${apiProxyBase}?endpoint=api/`);
-
-      // Si mode autoQr, injecter du CSS pour masquer le contenu et JavaScript pour auto-navigation
+      // Si mode autoQr, masquer tout le contenu sauf la session spécifique
       if (autoQr) {
-        console.log(`🎯 Activating Auto QR mode for session: ${autoQr}`);
-        
         htmlContent = htmlContent.replace(
-          /<\/head>/i,
-          `
+          /<body[^>]*>/i,
+          `<body style="margin: 0; padding: 20px; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
           <style>
-            /* Masquer le contenu non essentiel en mode Auto QR */
-            .sidebar:not(.session-sidebar),
-            .header:not(.session-header),
-            .footer,
-            .navigation:not(.session-nav),
-            .dashboard-stats,
-            .charts-container,
-            .user-management {
+            /* Masquer tout le contenu du dashboard par défaut */
+            .container, .sidebar, .header, .footer, .navigation,
+            .main-content > *, .dashboard-grid, .stats-cards, .charts,
+            h1:not(.session-title), h2:not(.session-title), nav, 
+            .navbar, .menu, .breadcrumb, table:not(.session-table) {
               display: none !important;
             }
             
-            /* Mettre en évidence la session cible */
-            [data-session="${autoQr}"],
-            .session-${autoQr},
-            .session-row:has([data-session-name="${autoQr}"]) {
-              background: #fef3c7 !important;
-              border: 2px solid #f59e0b !important;
-              border-radius: 8px !important;
-              padding: 16px !important;
-              margin: 8px 0 !important;
+            /* Interface minimale pour la session */
+            body {
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
             }
-          </style>
-          
-          <script>
-            console.log('🎯 Auto QR Mode activé pour session: ${autoQr}');
             
-            // Attendre que la page soit chargée
-            window.addEventListener('DOMContentLoaded', function() {
-              setTimeout(function() {
-                console.log('🔍 Recherche de la session ${autoQr}...');
-                
-                // Chercher la session spécifique
-                const sessionElements = [
-                  ...document.querySelectorAll('[data-session="${autoQr}"]'),
-                  ...document.querySelectorAll('.session-${autoQr}'),
-                  ...document.querySelectorAll('tr:has(td:contains("${autoQr}"))'),
-                  ...document.querySelectorAll('div:has(span:contains("${autoQr}"))')
-                ];
-                
-                if (sessionElements.length > 0) {
-                  const sessionElement = sessionElements[0];
-                  console.log('✅ Session trouvée, recherche du bouton login/start...');
-                  
-                  // Chercher le bouton login/start dans cette session
-                  const buttons = [
-                    ...sessionElement.querySelectorAll('button'),
-                    ...sessionElement.querySelectorAll('a'),
-                    ...sessionElement.querySelectorAll('[onclick]')
-                  ];
-                  
-                  const loginButton = buttons.find(btn => {
-                    const text = (btn.textContent || '').toLowerCase();
-                    const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
-                    return text.includes('login') || text.includes('start') || 
-                           text.includes('connect') || onclick.includes('login') ||
-                           onclick.includes('start') || onclick.includes('qr');
-                  });
-                  
-                  if (loginButton) {
-                    console.log('🎯 Bouton trouvé, clic automatique...');
-                    loginButton.click();
-                  } else {
-                    console.log('⚠️ Bouton login/start non trouvé pour la session');
-                  }
-                } else {
-                  console.log('⚠️ Session ${autoQr} non trouvée dans le dashboard');
-                }
-              }, 2000);
-            });
-          </script>
-          </head>`
+            .session-container {
+              background: white;
+              border-radius: 12px;
+              padding: 32px;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+              text-align: center;
+              max-width: 450px;
+              width: 100%;
+            }
+            
+            .session-title {
+              margin: 0 0 24px 0;
+              color: #1f2937;
+              font-size: 24px;
+              font-weight: 600;
+            }
+            
+            .qr-container {
+              margin: 24px 0;
+            }
+            
+            .qr-container img {
+              width: 280px;
+              height: 280px;
+              border: 2px solid #e5e7eb;
+              border-radius: 8px;
+            }
+            
+            .status-info {
+              margin-top: 20px;
+              padding: 12px;
+              background: #f0fdf4;
+              border: 1px solid #bbf7d0;
+              border-radius: 6px;
+              color: #166534;
+              font-size: 14px;
+            }
+            
+            .loading {
+              margin: 20px 0;
+              color: #6b7280;
+              font-size: 16px;
+            }
+          </style>`
         );
-      } else {
-        // Mode normal - juste ajouter le proxy JavaScript
-        htmlContent = htmlContent.replace(
-          /<\/head>/i,
-          `
+      }
+      
+      // Enhanced URL rewriting patterns
+      htmlContent = htmlContent
+        // Basic HTML attributes
+        .replace(/href="\/([^"]*)">/g, `href="${proxyBase}$1">`)
+        .replace(/src="\/([^"]*)">/g, `src="${proxyBase}$1">`)
+        .replace(/action="\/([^"]*)">/g, `action="${proxyBase}$1">`)
+        // CSS url() patterns
+        .replace(/url\(["']?\/([^"')]*?)["']?\)/g, `url("${proxyBase}$1")`)
+        // JavaScript patterns for fetch and XMLHttpRequest
+        .replace(/fetch\s*\(\s*["']\/([^"']*?)["']/g, `fetch("${apiProxyBase}?endpoint=$1"`)
+        .replace(/\$\.ajax\s*\(\s*{[^}]*url\s*:\s*["']\/([^"']*?)["']/g, (match, url) => 
+          match.replace(`"/${url}"`, `"${apiProxyBase}?endpoint=${url}"`))
+        .replace(/axios\.(get|post|put|delete)\s*\(\s*["']\/([^"']*?)["']/g, (match, method, url) =>
+          match.replace(`"/${url}"`, `"${apiProxyBase}?endpoint=${url}"`))
+        // WebSocket connections
+        .replace(/new\s+WebSocket\s*\(\s*["']wss?:\/\/[^"']*\/([^"']*?)["']/g, (match, path) =>
+          match.replace(/wss?:\/\/[^"']*\//, `wss://${urlParams.host}/functions/v1/waha-ws-proxy?path=`))
+        // Form handling
+        .replace(/<form([^>]*)\s+action\s*=\s*["']\/([^"']*?)["']/g, `<form$1 action="${proxyBase}$2"`)
+        // Base href injection
+        .replace(/<head[^>]*>/i, `$&\n<base href="${proxyBase}">`)
+        // Add JavaScript pour gestion automatique et interface spécialisée
+        .replace(/<\/head>/i, `
           <script>
-            // Override fetch pour utiliser le proxy
+            // Override fetch to use proxy
             const originalFetch = window.fetch;
             window.fetch = function(url, options = {}) {
-              if (typeof url === 'string' && url.startsWith('/api/')) {
+              if (typeof url === 'string' && url.startsWith('/')) {
                 url = '${apiProxyBase}?endpoint=' + url.substring(1);
                 options.headers = {
                   ...options.headers,
-                  'Authorization': 'Bearer ' + (localStorage.getItem('supabase.auth.token') || ''),
+                  'Authorization': 'Bearer ' + (window.supabaseAccessToken || ''),
+                  'Content-Type': 'application/json'
                 };
               }
               return originalFetch(url, options);
             };
-          </script>
-          </head>`
-        );
-      }
+            
+            // Override XMLHttpRequest
+            const OriginalXHR = window.XMLHttpRequest;
+            window.XMLHttpRequest = class extends OriginalXHR {
+              open(method, url, ...args) {
+                if (typeof url === 'string' && url.startsWith('/')) {
+                  url = '${apiProxyBase}?endpoint=' + url.substring(1);
+                }
+                return super.open(method, url, ...args);
+              }
+            };
 
-      console.log('✅ HTML content processed successfully');
+            ${autoQr ? `
+            // Mode Auto QR pour session spécifique
+            window.addEventListener('DOMContentLoaded', function() {
+              console.log('🎯 Mode Auto QR activé pour session: ${autoQr}');
+              
+              // Remplacer immédiatement le contenu de la page par l'interface QR
+              document.body.innerHTML = \`
+                <div class="session-container">
+                  <h2 class="session-title">Session ${autoQr}</h2>
+                  <div class="loading">🔄 Connexion automatique en cours...</div>
+                  <div id="qr-result"></div>
+                </div>
+              \`;
+              
+              // Fonction pour récupérer le QR via proxy
+              async function fetchQRCode() {
+                const qrResult = document.getElementById('qr-result');
+                
+                try {
+                  qrResult.innerHTML = '<div class="loading">📱 Génération du QR code...</div>';
+                  
+                  // Essayer de démarrer la session d'abord
+                  console.log('▶️ Démarrage de la session ${autoQr}...');
+                  const startResponse = await fetch('${apiProxyBase}?endpoint=api/sessions/${autoQr}/start', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': 'Bearer ' + (window.supabaseAccessToken || ''),
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  if (startResponse.ok) {
+                    console.log('✅ Session démarrée, récupération du QR...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                  }
+                  
+                  // Récupérer le QR code
+                  const qrResponse = await fetch('${apiProxyBase}?endpoint=api/sessions/${autoQr}/auth/qr', {
+                    headers: {
+                      'Authorization': 'Bearer ' + (window.supabaseAccessToken || ''),
+                      'Accept': 'application/json'
+                    }
+                  });
+                  
+                  if (qrResponse.ok) {
+                    const qrData = await qrResponse.json();
+                    console.log('📱 QR code récupéré avec succès');
+                    
+                    qrResult.innerHTML = \`
+                      <div class="qr-container">
+                        <img src="\${qrData.qr || qrData.qrCode}" alt="QR Code WhatsApp" />
+                      </div>
+                      <div class="status-info">
+                        ✅ Session prête - Ouvrez WhatsApp > Appareils connectés > Connecter un appareil
+                      </div>
+                    \`;
+                  } else {
+                    throw new Error('Impossible de récupérer le QR code');
+                  }
+                  
+                } catch (error) {
+                  console.error('❌ Erreur QR:', error);
+                  qrResult.innerHTML = \`
+                    <div style="color: #dc2626; padding: 16px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;">
+                      ❌ Erreur: \${error.message}<br>
+                      <small>Vérifiez que l'API key WAHA a les permissions complètes</small>
+                    </div>
+                  \`;
+                }
+              }
+              
+              // Lancer la récupération du QR après un délai
+              setTimeout(fetchQRCode, 1500);
+            });
+            ` : ''}
+          </script>
+        </head>`);
 
       return new Response(htmlContent, {
         status: wahaResponse.status,
