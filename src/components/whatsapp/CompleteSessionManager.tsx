@@ -15,6 +15,7 @@ import WAHAQRTester from '@/components/whatsapp/WAHAQRTester';
 import WAHATroubleshootingGuide from '@/components/whatsapp/WAHATroubleshootingGuide';
 import WAHAPermissionsDiagnostic from '@/components/whatsapp/WAHAPermissionsDiagnostic';
 import WAHAApiKeySolution from '@/components/whatsapp/WAHAApiKeySolution';
+import WhatsAppQRDialog from '@/components/whatsapp/WhatsAppQRDialog';
 import { 
   Play, 
   Square, 
@@ -80,6 +81,7 @@ const CompleteSessionManager: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSessionDetails, setShowSessionDetails] = useState(false);
+  const [showQRDialog, setShowQRDialog] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string>('');
   const [sessionSteps, setSessionSteps] = useState<SessionStep[]>([]);
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
@@ -447,6 +449,11 @@ const CompleteSessionManager: React.FC = () => {
     }
   };
 
+  const handleScanQR = (sessionName: string) => {
+    setSelectedSession(sessionName);
+    setShowQRDialog(true);
+  };
+
   const toggleSessionExpansion = (sessionName: string) => {
     setExpandedSession(expandedSession === sessionName ? null : sessionName);
   };
@@ -756,17 +763,17 @@ const CompleteSessionManager: React.FC = () => {
                               🚀 Démarrer Maintenant
                             </Button>
                           ) : session.status === 'SCAN_QR_CODE' ? (
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleConnectWhatsApp(session.name);
-                              }}
-                              size="sm"
-                              className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
-                            >
-                              <QrCode className="h-4 w-4" />
-                              Scanner QR
-                            </Button>
+                             <Button
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleScanQR(session.name);
+                               }}
+                               size="sm"
+                               className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                             >
+                               <QrCode className="h-4 w-4" />
+                               Scanner QR
+                             </Button>
                           ) : session.status === 'WORKING' ? (
                             <Button
                               onClick={(e) => {
@@ -872,15 +879,15 @@ const CompleteSessionManager: React.FC = () => {
                                 Redémarrer
                               </Button>
 
-                              {/* Scanner QR Code - Action synchronisée */}
-                              <Button
-                                onClick={() => handleConnectWhatsApp(session.name)}
-                                variant="outline"
-                                className="gap-2 border-orange-200 text-orange-600 hover:bg-orange-50"
-                              >
-                                <QrCode className="h-4 w-4" />
-                                Scanner QR Code
-                              </Button>
+                               {/* Scanner QR Code - Nouvelle implémentation */}
+                               <Button
+                                 onClick={() => handleScanQR(session.name)}
+                                 variant="outline"
+                                 className="gap-2 border-orange-200 text-orange-600 hover:bg-orange-50"
+                               >
+                                 <QrCode className="h-4 w-4" />
+                                 Scanner QR Code
+                               </Button>
 
                               {/* Détails */}
                               <Button
@@ -1257,6 +1264,18 @@ const CompleteSessionManager: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Nouveau Dialog pour Scanner QR */}
+      <WhatsAppQRDialog
+        open={showQRDialog}
+        onOpenChange={setShowQRDialog}
+        sessionName={selectedSession}
+        onQRScanned={() => {
+          setShowQRDialog(false);
+          refreshData();
+          toast.success('WhatsApp connecté avec succès!');
+        }}
+      />
     </div>
   );
 };

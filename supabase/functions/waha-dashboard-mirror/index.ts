@@ -48,6 +48,7 @@ serve(async (req) => {
     const { method, url } = req;
     const urlParams = new URL(url);
     const path = urlParams.searchParams.get('path') || '/dashboard';
+    const autoQr = urlParams.searchParams.get('autoQr'); // Nouveau paramètre pour auto-QR
     
     // Build the complete WAHA URL
     const base = wahaUrl.replace(/\/+$/, '');
@@ -55,6 +56,9 @@ serve(async (req) => {
     const fullWahaUrl = `${base}${targetPath}`;
 
     console.log(`Mirroring ${method} request to: ${fullWahaUrl}`);
+    if (autoQr) {
+      console.log(`🎯 Auto QR mode activé pour session: ${autoQr}`);
+    }
 
     // Prepare authentication headers
     let authHeaders: Record<string, string> = {};
@@ -170,6 +174,55 @@ serve(async (req) => {
                 return super.open(method, url, ...args);
               }
             };
+
+            // Auto QR functionality
+            ${autoQr ? `
+            window.addEventListener('load', function() {
+              console.log('🎯 Mode Auto QR activé pour session: ${autoQr}');
+              
+              // Fonction pour démarrer automatiquement la session et récupérer le QR
+              async function autoStartSession() {
+                try {
+                  console.log('🔄 Tentative de démarrage automatique de la session ${autoQr}...');
+                  
+                  // Attendre que la page soit complètement chargée
+                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  
+                  // Essayer de naviguer automatiquement vers la session
+                  const sessionLinks = document.querySelectorAll('a[href*="${autoQr}"], .session-${autoQr}, [data-session="${autoQr}"]');
+                  if (sessionLinks.length > 0) {
+                    console.log('📱 Session trouvée, navigation automatique...');
+                    sessionLinks[0].click();
+                    
+                    // Attendre le chargement de la page de session
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Essayer de trouver le bouton de démarrage/QR
+                    const startButton = document.querySelector('button[id*="start"], button[class*="start"], .btn-start');
+                    const qrButton = document.querySelector('button[id*="qr"], button[class*="qr"], .btn-qr');
+                    
+                    if (startButton) {
+                      console.log('▶️ Démarrage automatique de la session...');
+                      startButton.click();
+                      await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                    
+                    if (qrButton) {
+                      console.log('📱 Récupération automatique du QR...');
+                      qrButton.click();
+                    }
+                  } else {
+                    console.log('⚠️ Session ${autoQr} non trouvée dans le dashboard');
+                  }
+                } catch (error) {
+                  console.error('❌ Erreur auto QR:', error);
+                }
+              }
+              
+              // Lancer l'auto-démarrage après un délai
+              setTimeout(autoStartSession, 1000);
+            });
+            ` : ''}
           </script>
         </head>`);
 

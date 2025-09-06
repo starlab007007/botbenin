@@ -1,0 +1,289 @@
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { QrCode, Monitor, RefreshCw, ExternalLink, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+
+interface WhatsAppQRDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sessionName: string;
+  onQRScanned?: () => void;
+}
+
+const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
+  open,
+  onOpenChange,
+  sessionName,
+  onQRScanned
+}) => {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [qrCode, setQrCode] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [sessionStarted, setSessionStarted] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // URL pour le dashboard intégré avec paramètre autoQr
+  const dashboardUrl = `/functions/v1/waha-dashboard-mirror?path=dashboard&autoQr=${encodeURIComponent(sessionName)}`;
+  
+  // URL pour ouvrir le dashboard externe
+  const externalDashboardUrl = `https://waha.bot.bj/dashboard`;
+
+  // Fonction pour récupérer le QR code directement
+  const fetchDirectQR = async () => {
+    if (!sessionName) return;
+    
+    setLoading(true);
+    try {
+      console.log('🔄 Démarrage de la session et récupération du QR...');
+      
+      // Démarrer la session d'abord
+      if (!sessionStarted) {
+        console.log('▶️ Démarrage de la session:', sessionName);
+        const startResponse = await supabase.functions.invoke('waha-session-manager', {
+          body: { action: 'start', sessionName }
+        });
+        
+        if (startResponse.data?.success) {
+          setSessionStarted(true);
+          console.log('✅ Session démarrée avec succès');
+        } else {
+          console.warn('⚠️ Démarrage de session non optimal:', startResponse.data?.error);
+        }
+        
+        // Attendre un peu après le démarrage
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
+      // Récupérer le QR code
+      console.log('📱 Récupération du QR code...');
+      const qrResponse = await supabase.functions.invoke('waha-session-manager', {
+        body: { action: 'qr', sessionName }
+      });
+
+      if (qrResponse.data?.success && qrResponse.data?.qrCode) {
+        console.log('✅ QR code récupéré avec succès');
+        setQrCode(qrResponse.data.qrCode);
+        toast.success('QR Code généré avec succès!');
+      } else {
+        throw new Error(qrResponse.data?.error || 'Pas de QR code dans la réponse');
+      }
+    } catch (error) {
+      console.error('❌ Erreur récupération QR:', error);
+      toast.error(`Erreur: ${error.message}`);
+      
+      // Retry logic
+      if (retryCount < 3) {
+        console.log(`🔄 Nouvelle tentative (${retryCount + 1}/3) dans 5 secondes...`);
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          fetchDirectQR();
+        }, 5000);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-fetch QR when dialog opens
+  useEffect(() => {
+    if (open && sessionName) {
+      setRetryCount(0);
+      setSessionStarted(false);
+      setQrCode('');
+      
+      // Fetch QR after a short delay to ensure UI is ready
+      setTimeout(() => {
+        fetchDirectQR();
+      }, 1000);
+    }
+  }, [open, sessionName]);
+
+  const handleDashboardLoad = () => {
+    setDashboardLoading(false);
+    console.log('📱 Dashboard intégré chargé');
+  };
+
+  const handleRetryQR = () => {
+    setRetryCount(0);
+    fetchDirectQR();
+  };
+
+  const openExternalDashboard = () => {
+    window.open(externalDashboardUrl, '_blank', 'width=1200,height=800');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3">
+            <QrCode className="h-6 w-6 text-primary" />
+            Scanner QR Code WhatsApp - {sessionName}
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="dashboard" className="gap-2">
+              <Monitor className="h-4 w-4" />
+              Dashboard Intégré
+            </TabsTrigger>
+            <TabsTrigger value="direct" className="gap-2">
+              <QrCode className="h-4 w-4" />
+              QR Direct
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Monitor className="h-5 w-5" />
+                    Dashboard WAHA Intégré
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openExternalDashboard}
+                    className="gap-2"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Ouvrir External
+                  </Button>
+                </div>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Le dashboard WAHA sera affiché ci-dessous. Cliquez sur "Login" puis naviguez vers la session "{sessionName}" pour scanner le QR code.
+                  </AlertDescription>
+                </Alert>
+              </CardHeader>
+              <CardContent>
+                <div className="relative border rounded-lg overflow-hidden" style={{ height: '500px' }}>
+                  {dashboardLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
+                      <div className="flex flex-col items-center gap-3">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                        <p className="text-sm text-muted-foreground">Chargement du dashboard WAHA...</p>
+                      </div>
+                    </div>
+                  )}
+                  <iframe
+                    src={dashboardUrl}
+                    className="w-full h-full border-0"
+                    onLoad={handleDashboardLoad}
+                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation"
+                    title="WAHA Dashboard"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="direct" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  QR Code Direct - {sessionName}
+                  {sessionStarted && (
+                    <Badge variant="secondary" className="gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Session Active
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Alert className="flex-1 mr-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Scannez ce QR code avec votre téléphone WhatsApp pour connecter la session.
+                    </AlertDescription>
+                  </Alert>
+                  <Button
+                    variant="outline"
+                    onClick={handleRetryQR}
+                    disabled={loading}
+                    className="gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    Actualiser QR
+                  </Button>
+                </div>
+
+                <div className="flex justify-center">
+                  <div className="relative">
+                    {loading ? (
+                      <div className="w-64 h-64 border-2 border-dashed border-muted-foreground/30 rounded-lg flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="text-sm text-muted-foreground">
+                            Génération du QR...
+                            {retryCount > 0 && ` (Tentative ${retryCount + 1}/4)`}
+                          </p>
+                        </div>
+                      </div>
+                    ) : qrCode ? (
+                      <div className="p-4 bg-white rounded-lg border-2 border-primary/20">
+                        <img 
+                          src={qrCode} 
+                          alt="QR Code WhatsApp" 
+                          className="w-64 h-64 object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-64 h-64 border-2 border-dashed border-destructive/30 rounded-lg flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-3 text-center">
+                          <AlertCircle className="h-8 w-8 text-destructive" />
+                          <p className="text-sm text-destructive">
+                            QR Code non disponible
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleRetryQR}
+                            className="gap-2"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Réessayer
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {qrCode && (
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <AlertDescription>
+                      QR Code généré! Ouvrez WhatsApp sur votre téléphone, allez dans Appareils connectés {">"} Connecter un appareil, et scannez ce code.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default WhatsAppQRDialog;
