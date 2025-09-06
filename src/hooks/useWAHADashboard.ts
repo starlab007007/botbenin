@@ -49,7 +49,18 @@ export const useWAHADashboard = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        
+        // Gestion d'erreurs spécifiques basée sur la nouvelle réponse du proxy
+        if (errorData.wahaStatus === 401) {
+          const authMethods = errorData.availableMethods?.join(', ') || 'Unknown';
+          throw new Error(`Authentification WAHA échouée (${authMethods}). Vérifiez la clé API.`);
+        } else if (errorData.wahaStatus === 404) {
+          throw new Error(`Endpoint WAHA non trouvé: ${path}`);
+        } else if (errorData.wahaStatus === 500) {
+          throw new Error(`Erreur serveur WAHA: ${errorData.error || 'Erreur interne'}`);
+        }
+        
+        throw new Error(errorData.error || `HTTP ${response.status}: ${errorData.details || 'Erreur inconnue'}`);
       }
 
       return await response.json();
@@ -82,8 +93,17 @@ export const useWAHADashboard = () => {
       console.log(`Loaded ${formattedSessions.length} sessions`);
     } catch (error) {
       console.error('Error loading sessions:', error);
-      setError(error instanceof Error ? error.message : 'Erreur de chargement');
-      toast.error('Erreur lors du chargement des sessions');
+      const errorMessage = error instanceof Error ? error.message : 'Erreur de chargement';
+      setError(errorMessage);
+      
+      // Toast plus informatif selon le type d'erreur
+      if (errorMessage.includes('Authentification WAHA échouée')) {
+        toast.error('Erreur d\'authentification WAHA - Vérifiez la configuration');
+      } else if (errorMessage.includes('Endpoint WAHA non trouvé')) {
+        toast.error('Service WAHA indisponible');
+      } else {
+        toast.error('Erreur lors du chargement des sessions');
+      }
     } finally {
       setLoading(false);
     }
