@@ -511,11 +511,15 @@ const CompleteSessionManager: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredSessions.map((session, index) => (
-                  <div 
-                    key={session.name} 
-                    className="bg-background/40 rounded-xl border border-border/60 hover:border-primary/30 transition-all duration-300 overflow-hidden"
-                  >
+                  {filteredSessions.map((session, index) => (
+                    <div 
+                      key={session.name} 
+                      className={`bg-background/40 rounded-xl border transition-all duration-300 overflow-hidden ${
+                        createdSession === session.name 
+                          ? 'border-green-400/50 shadow-lg shadow-green-400/20 bg-green-50/20' 
+                          : 'border-border/60 hover:border-primary/30'
+                      }`}
+                    >
                     {/* En-tête de session cliquable */}
                     <div 
                       className="p-4 cursor-pointer hover:bg-muted/20 transition-colors"
@@ -583,7 +587,7 @@ const CompleteSessionManager: React.FC = () => {
 
                         {/* Action rapide et chevron */}
                         <div className="flex items-center gap-3">
-                          {/* Action rapide principale */}
+                         {/* Action rapide principale */}
                           {session.status === 'STOPPED' ? (
                             <Button
                               onClick={(e) => {
@@ -591,10 +595,10 @@ const CompleteSessionManager: React.FC = () => {
                                 handleStartSession(session.name);
                               }}
                               size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                              className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-lg animate-pulse"
                             >
                               <Play className="h-4 w-4" />
-                              Démarrer
+                              🚀 Démarrer Maintenant
                             </Button>
                           ) : session.status === 'SCAN_QR_CODE' ? (
                             <Button
@@ -687,10 +691,12 @@ const CompleteSessionManager: React.FC = () => {
                               {/* Démarrer/Arrêter */}
                               <Button
                                 onClick={() => session.status === 'STOPPED' ? handleStartSession(session.name) : handleStopSession(session.name)}
-                                variant="outline"
+                                variant={session.status === 'STOPPED' ? 'default' : 'outline'}
                                 className={`gap-2 ${
                                   session.status === 'WORKING'
                                     ? 'border-red-200 text-red-600 hover:bg-red-50'
+                                    : session.status === 'STOPPED'
+                                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-md'
                                     : 'border-green-200 text-green-600 hover:bg-green-50'
                                 }`}
                               >
@@ -698,7 +704,7 @@ const CompleteSessionManager: React.FC = () => {
                                   <Square className="h-4 w-4" /> : 
                                   <Play className="h-4 w-4" />
                                 }
-                                {session.status === 'WORKING' ? 'Arrêter' : 'Démarrer'}
+                                {session.status === 'WORKING' ? 'Arrêter' : '🚀 Démarrer avec WAHA'}
                               </Button>
 
                               {/* Redémarrer */}
