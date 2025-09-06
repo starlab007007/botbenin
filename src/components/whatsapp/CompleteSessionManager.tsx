@@ -95,36 +95,78 @@ const CompleteSessionManager: React.FC = () => {
     loading 
   } = useWAHADashboard();
 
-  // Sauvegarder et récupérer les sessions de l'utilisateur depuis localStorage
-  const saveUserSession = (sessionName: string) => {
+  // Sauvegarder une session dans la base de données
+  const saveUserSession = async (sessionName: string) => {
     if (!user?.id) return;
     
-    const storageKey = `whatsapp_sessions_${user.id}`;
-    const existingSessions = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    
-    if (!existingSessions.includes(sessionName)) {
-      existingSessions.push(sessionName);
-      localStorage.setItem(storageKey, JSON.stringify(existingSessions));
-      setUserSessions(existingSessions);
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_accounts')
+        .upsert({
+          user_id: user.id,
+          session_name: sessionName,
+          status: 'disconnected'
+        }, {
+          onConflict: 'user_id,session_name'
+        });
+
+      if (error) {
+        console.error('Erreur lors de la sauvegarde de la session:', error);
+        toast.error('Erreur lors de la sauvegarde de la session');
+        return;
+      }
+
+      // Recharger les sessions utilisateur
+      await loadUserSessions();
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de la sauvegarde');
     }
   };
 
-  const loadUserSessions = () => {
+  // Charger les sessions de l'utilisateur depuis la base de données
+  const loadUserSessions = async () => {
     if (!user?.id) return;
     
-    const storageKey = `whatsapp_sessions_${user.id}`;
-    const existingSessions = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    setUserSessions(existingSessions);
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_accounts')
+        .select('session_name')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Erreur lors du chargement des sessions:', error);
+        return;
+      }
+
+      const sessionNames = data?.map(account => account.session_name) || [];
+      setUserSessions(sessionNames);
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
   };
 
-  const removeUserSession = (sessionName: string) => {
+  // Supprimer une session de la base de données
+  const removeUserSession = async (sessionName: string) => {
     if (!user?.id) return;
     
-    const storageKey = `whatsapp_sessions_${user.id}`;
-    const existingSessions = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    const updatedSessions = existingSessions.filter((name: string) => name !== sessionName);
-    localStorage.setItem(storageKey, JSON.stringify(updatedSessions));
-    setUserSessions(updatedSessions);
+    try {
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('session_name', sessionName);
+
+      if (error) {
+        console.error('Erreur lors de la suppression:', error);
+        return;
+      }
+
+      // Recharger les sessions
+      await loadUserSessions();
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
   };
 
   // Filtrer les sessions pour afficher seulement celles de l'utilisateur connecté
@@ -144,12 +186,19 @@ const CompleteSessionManager: React.FC = () => {
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
 
-  // Charger les sessions utilisateur au démarrage
+  // Charger les sessions utilisateur au démarrage et à chaque fois que l'utilisateur change
   useEffect(() => {
     if (user?.id) {
       loadUserSessions();
     }
   }, [user?.id]);
+
+  // Aussi charger quand les sessions WAHA changent pour s'assurer qu'on voit les nouvelles
+  useEffect(() => {
+    if (user?.id && sessions.length > 0) {
+      loadUserSessions();
+    }
+  }, [sessions, user?.id]);
 
   // Détection automatique des nouvelles sessions créées
   useEffect(() => {
@@ -176,8 +225,8 @@ const CompleteSessionManager: React.FC = () => {
     try {
       await createSession(newSessionName);
       
-      // Sauvegarder la session pour cet utilisateur
-      saveUserSession(newSessionName);
+      // Sauvegarder la session pour cet utilisateur dans la base de données
+      await saveUserSession(newSessionName);
       
       setCreatedSession(newSessionName);
       setNewSessionName('');
@@ -232,8 +281,8 @@ const CompleteSessionManager: React.FC = () => {
     try {
       await deleteSession(sessionName);
       
-      // Supprimer de la liste des sessions utilisateur
-      removeUserSession(sessionName);
+      // Supprimer de la base de données des sessions utilisateur
+      await removeUserSession(sessionName);
       
       toast.success(`Session "${sessionName}" supprimée`);
       refreshData();
