@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import WAHACompleteDiagnostic from '@/components/whatsapp/WAHACompleteDiagnostic';
 import WAHAQRTester from '@/components/whatsapp/WAHAQRTester';
 import WAHATroubleshootingGuide from '@/components/whatsapp/WAHATroubleshootingGuide';
+import WAHAPermissionsDiagnostic from '@/components/whatsapp/WAHAPermissionsDiagnostic';
 import { 
   Play, 
   Square, 
@@ -517,6 +518,11 @@ const CompleteSessionManager: React.FC = () => {
         {/* Guide de Résolution */}
         <div className="mb-6">
           <WAHATroubleshootingGuide />
+        </div>
+        
+        {/* Diagnostic des Permissions WAHA - SOLUTION AU PROBLÈME */}
+        <div className="mb-6">
+          <WAHAPermissionsDiagnostic />
         </div>
         
         {/* Diagnostic Complet - Solution Définitive */}
