@@ -246,25 +246,31 @@ serve(async (req) => {
       case 'qr': {
         console.log('Fetching QR...');
         
-        // Essayer plusieurs endpoints QR avec différentes variantes
-        const qrEndpoints = [
-          `/api/sessions/${sessionName}/auth/qr?format=base64`,
-          `/api/sessions/${sessionName}/auth/qr`,
-          `/api/sessions/${sessionName}/qr?format=base64`,
-          `/api/sessions/${sessionName}/qr`,
-          `/api/v2/sessions/${sessionName}/auth/qr?format=base64`,
-          `/api/v2/sessions/${sessionName}/auth/qr`,
-          `/api/v2/sessions/${sessionName}/qr?format=base64`,
-          `/api/v2/sessions/${sessionName}/qr`
+        // Essayer plusieurs endpoints QR (docs: POST /api/{session}/auth/qr)
+        const qrEndpoints: { path: string; method: 'POST' | 'GET' }[] = [
+          // Recommandé par la doc (priorité)
+          { path: `/api/${sessionName}/auth/qr`, method: 'POST' },
+          { path: `/api/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+          { path: `/api/v2/${sessionName}/auth/qr`, method: 'POST' },
+          { path: `/api/v2/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+          // Anciennes variantes en fallback (GET)
+          { path: `/api/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+          { path: `/api/sessions/${sessionName}/auth/qr`, method: 'GET' },
+          { path: `/api/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
+          { path: `/api/sessions/${sessionName}/qr`, method: 'GET' },
+          { path: `/api/v2/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+          { path: `/api/v2/sessions/${sessionName}/auth/qr`, method: 'GET' },
+          { path: `/api/v2/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
+          { path: `/api/v2/sessions/${sessionName}/qr`, method: 'GET' },
         ];
         
         let qrSuccess = false;
-        let lastError = null;
+        let lastError: string | null = null;
         
         for (const endpoint of qrEndpoints) {
           try {
-            console.log(`Trying QR endpoint: ${endpoint}`);
-            const res = await wahaFetch(endpoint, { method: 'GET' });
+            console.log(`Trying QR endpoint: ${endpoint.path} (${endpoint.method})`);
+            const res = await wahaFetch(endpoint.path, { method: endpoint.method });
             const ct = res.headers.get('content-type') || '';
             
             if (res.ok) {
@@ -302,12 +308,12 @@ serve(async (req) => {
               }
             } else {
               const txt = await res.text();
-              lastError = `${endpoint}: ${res.status} ${txt}`;
-              console.warn(`QR endpoint ${endpoint} failed: ${res.status} ${txt}`);
+              lastError = `${endpoint.path}: ${res.status} ${txt}`;
+              console.warn(`QR endpoint ${endpoint.path} failed: ${res.status} ${txt}`);
             }
-          } catch (e) {
-            lastError = `${endpoint}: ${e.message}`;
-            console.warn(`QR endpoint ${endpoint} error:`, e);
+          } catch (e: any) {
+            lastError = `${endpoint.path}: ${e.message}`;
+            console.warn(`QR endpoint ${endpoint.path} error:`, e);
           }
         }
         

@@ -205,21 +205,27 @@ export const useWAHADashboard = () => {
       }
 
       // 2) Fallback via proxy avec plusieurs endpoints pris en charge
-      const tryPaths = [
-        `/api/sessions/${sessionName}/auth/qr?format=base64`,
-        `/api/sessions/${sessionName}/auth/qr`,
-        `/api/sessions/${sessionName}/qr?format=base64`,
-        `/api/sessions/${sessionName}/qr`,
-        `/api/v2/sessions/${sessionName}/auth/qr?format=base64`,
-        `/api/v2/sessions/${sessionName}/auth/qr`,
-        `/api/v2/sessions/${sessionName}/qr?format=base64`,
-        `/api/v2/sessions/${sessionName}/qr`,
+      const tryPaths: { path: string; method: 'POST' | 'GET' }[] = [
+        // Doc officielle: POST /api/{session}/auth/qr
+        { path: `/api/${sessionName}/auth/qr`, method: 'POST' },
+        { path: `/api/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+        { path: `/api/v2/${sessionName}/auth/qr`, method: 'POST' },
+        { path: `/api/v2/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+        // Fallbacks anciens
+        { path: `/api/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+        { path: `/api/sessions/${sessionName}/auth/qr`, method: 'GET' },
+        { path: `/api/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
+        { path: `/api/sessions/${sessionName}/qr`, method: 'GET' },
+        { path: `/api/v2/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+        { path: `/api/v2/sessions/${sessionName}/auth/qr`, method: 'GET' },
+        { path: `/api/v2/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
+        { path: `/api/v2/sessions/${sessionName}/qr`, method: 'GET' },
       ];
 
       let lastErr: any = null;
-      for (const path of tryPaths) {
+      for (const cfg of tryPaths) {
         try {
-          const data = await makeWAHARequest(path);
+          const data = await makeWAHARequest(cfg.path, { method: cfg.method });
           if (!data) continue;
           const qrCandidate = data.qr || data.base64 || data.image || data.qrcode;
           if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
@@ -230,7 +236,7 @@ export const useWAHADashboard = () => {
           }
         } catch (e) {
           lastErr = e;
-          console.warn('QR attempt failed for', path, e);
+          console.warn('QR attempt failed for', cfg.path, e);
           continue;
         }
       }

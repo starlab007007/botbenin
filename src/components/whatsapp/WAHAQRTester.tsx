@@ -29,29 +29,32 @@ const WAHAQRTester: React.FC = () => {
         throw new Error('Not authenticated');
       }
 
-      // Test multiple endpoints
-      const endpoints = [
-        `/api/sessions/${sessionName}/auth/qr?format=base64`,
-        `/api/sessions/${sessionName}/auth/qr`,
-        `/api/sessions/${sessionName}/qr?format=base64`,
-        `/api/sessions/${sessionName}/qr`,
-        `/api/v2/sessions/${sessionName}/auth/qr?format=base64`,
-        `/api/v2/sessions/${sessionName}/auth/qr`
+      // Test multiple endpoints (docs recommend POST /api/{session}/auth/qr)
+      const endpoints: { path: string; method: 'POST' | 'GET' }[] = [
+        { path: `/api/${sessionName}/auth/qr`, method: 'POST' },
+        { path: `/api/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+        { path: `/api/v2/${sessionName}/auth/qr`, method: 'POST' },
+        { path: `/api/v2/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+        // Legacy fallbacks
+        { path: `/api/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+        { path: `/api/sessions/${sessionName}/auth/qr`, method: 'GET' },
+        { path: `/api/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
+        { path: `/api/sessions/${sessionName}/qr`, method: 'GET' },
+        { path: `/api/v2/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+        { path: `/api/v2/sessions/${sessionName}/auth/qr`, method: 'GET' }
       ];
 
-      for (const endpoint of endpoints) {
+      for (const ep of endpoints) {
         try {
-          addLog(`📡 Testing endpoint: ${endpoint}`);
+          addLog(`📡 Testing endpoint: ${ep.path} (${ep.method})`);
           
-          const url = new URL(`/functions/v1/waha-dashboard-proxy`, 'https://mvynepqulhflxtyymtzs.supabase.co');
-          url.searchParams.set('path', endpoint);
-
-          const response = await fetch(url.toString(), {
-            method: 'GET',
+          const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/waha-dashboard-proxy`, {
+            method: 'POST',
             headers: {
               'Authorization': `Bearer ${session.access_token}`,
               'Content-Type': 'application/json',
             },
+            body: JSON.stringify({ path: ep.path, method: ep.method })
           });
 
           addLog(`📊 Response status: ${response.status} ${response.statusText}`);
@@ -60,12 +63,13 @@ const WAHAQRTester: React.FC = () => {
             const data = await response.json();
             addLog(`📋 Response keys: ${Object.keys(data).join(', ')}`);
             
-            const qrCandidate = data.qr || data.base64 || data.image || data.qrcode;
+            const qrCandidate = data.qr || data.base64 || data.image || data.qrcode || data.data;
             if (qrCandidate) {
-              addLog(`✅ QR found! Length: ${qrCandidate.length}`);
-              const normalizedQr = qrCandidate.startsWith('data:image') 
-                ? qrCandidate 
-                : `data:image/png;base64,${qrCandidate}`;
+              addLog(`✅ QR found! Length: ${String(qrCandidate).length}`);
+              const candidateStr = String(qrCandidate);
+              const normalizedQr = candidateStr.startsWith('data:image') 
+                ? candidateStr 
+                : `data:image/png;base64,${candidateStr}`;
               setQrCode(normalizedQr);
               toast.success('QR Code récupéré avec succès!');
               break;
@@ -76,8 +80,8 @@ const WAHAQRTester: React.FC = () => {
             const errorText = await response.text();
             addLog(`❌ Error: ${errorText}`);
           }
-        } catch (e) {
-          addLog(`❌ Endpoint ${endpoint} failed: ${e.message}`);
+        } catch (e: any) {
+          addLog(`❌ Endpoint ${ep.path} failed: ${e.message}`);
         }
       }
 
