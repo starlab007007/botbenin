@@ -152,7 +152,15 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
                   <strong>Dashboard WAHA intégré!</strong> Interface complète via proxy miroir - plus de problèmes CSP/X-Frame-Options.
                 </AlertDescription>
               </Alert>
-              <WAHADashboardIframe />
+              <WAHADashboardIframe 
+                sessionName={sessionName}
+                autoExtractQR={true}
+                onQRCodeExtracted={(qrCode) => {
+                  setQrCode(qrCode);
+                  toast.success('QR Code extrait automatiquement!');
+                  onQRScanned?.();
+                }}
+              />
             </div>
           </TabsContent>
 

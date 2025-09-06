@@ -2,18 +2,154 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Monitor, ExternalLink, AlertCircle, Loader2, RefreshCw, Shield } from 'lucide-react';
+import { Monitor, ExternalLink, AlertCircle, Loader2, RefreshCw, Shield, QrCode, Download, Copy } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
-const WAHADashboardIframe: React.FC = () => {
+interface WAHADashboardIframeProps {
+  sessionName?: string;
+  onQRCodeExtracted?: (qrCode: string) => void;
+  autoExtractQR?: boolean;
+}
+
+const WAHADashboardIframe: React.FC<WAHADashboardIframeProps> = ({ 
+  sessionName, 
+  onQRCodeExtracted, 
+  autoExtractQR = false 
+}) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cspBlocked, setCspBlocked] = useState(false);
+  const [extractedQR, setExtractedQR] = useState<string | null>(null);
+  const [qrExtractionStatus, setQRExtractionStatus] = useState<'idle' | 'extracting' | 'success' | 'error'>('idle');
 
   // URL du dashboard WAHA via la fonction mirror Supabase (Méthode 1)
   const dashboardUrl = 'https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-dashboard-mirror?path=/dashboard';
   const credentials = { username: 'admin', password: 'Starlab@007' };
+
+  // Fonction pour extraire le QR code depuis l'iframe
+  const extractQRCode = async () => {
+    if (!sessionName) {
+      setError('Nom de session requis pour extraire le QR code');
+      return;
+    }
+
+    setQRExtractionStatus('extracting');
+    setError(null);
+
+    try {
+      console.log(`🔍 Extraction du QR code pour la session: ${sessionName}`);
+      
+      // Méthode 1: Essayer de communiquer avec l'iframe
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        iframeRef.current.contentWindow.postMessage({
+          type: 'extract-qr',
+          sessionName: sessionName
+        }, '*');
+
+        // Attendre une réponse pendant 5 secondes
+        const messageHandler = (event: MessageEvent) => {
+          if (event.data.type === 'qr-extracted') {
+            if (event.data.qrCode) {
+              setExtractedQR(event.data.qrCode);
+              setQRExtractionStatus('success');
+              onQRCodeExtracted?.(event.data.qrCode);
+              console.log('✅ QR code extrait avec succès depuis l\'iframe');
+            } else {
+              setQRExtractionStatus('error');
+              setError('QR code non trouvé dans l\'iframe');
+            }
+            window.removeEventListener('message', messageHandler);
+          }
+        };
+
+        window.addEventListener('message', messageHandler);
+        
+        // Timeout après 5 secondes
+        setTimeout(() => {
+          window.removeEventListener('message', messageHandler);
+          if (qrExtractionStatus === 'extracting') {
+            // Fallback: utiliser l'API proxy directement
+            extractQRViaProxy();
+          }
+        }, 5000);
+      } else {
+        // Pas d'iframe accessible, utiliser l'API proxy
+        extractQRViaProxy();
+      }
+    } catch (error) {
+      console.error('❌ Erreur extraction QR:', error);
+      setQRExtractionStatus('error');
+      setError(`Erreur extraction QR: ${error.message}`);
+    }
+  };
+
+  // Méthode de fallback: extraire via proxy API
+  const extractQRViaProxy = async () => {
+    try {
+      console.log('🔄 Extraction QR via proxy API...');
+      
+      // Utiliser fetch direct vers le proxy
+      const response = await fetch(`https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-dashboard-proxy?path=/api/sessions/${sessionName}/auth/qr`, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const qrCode = data.qr || data.qrCode || data.base64 || data.image;
+        
+        if (qrCode) {
+          setExtractedQR(qrCode);
+          setQRExtractionStatus('success');
+          onQRCodeExtracted?.(qrCode);
+          console.log('✅ QR code extrait via proxy API');
+        } else {
+          throw new Error('QR code non trouvé dans la réponse API');
+        }
+      } else {
+        throw new Error(`API proxy error: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Erreur proxy API:', error);
+      setQRExtractionStatus('error');
+      setError(`Impossible d'extraire le QR: ${error.message}`);
+    }
+  };
+
+  // Auto-extraction si demandée
+  useEffect(() => {
+    if (autoExtractQR && sessionName && !isLoading && !error) {
+      const timer = setTimeout(() => {
+        extractQRCode();
+      }, 3000); // Attendre que l'iframe soit prêt
+      
+      return () => clearTimeout(timer);
+    }
+  }, [autoExtractQR, sessionName, isLoading, error]);
+
+  // Écouter les messages de l'iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Sécurité: vérifier l'origine
+      if (event.origin !== 'https://mvynepqulhflxtyymtzs.functions.supabase.co') {
+        return;
+      }
+
+      if (event.data.type === 'qr-found') {
+        setExtractedQR(event.data.qrCode);
+        setQRExtractionStatus('success');
+        onQRCodeExtracted?.(event.data.qrCode);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onQRCodeExtracted]);
 
   const handleIframeLoad = () => {
     console.log('Dashboard WAHA chargé avec succès');
@@ -61,8 +197,41 @@ const WAHADashboardIframe: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setCspBlocked(false);
+    setExtractedQR(null);
+    setQRExtractionStatus('idle');
     if (iframeRef.current) {
       iframeRef.current.src = dashboardUrl + '?nocache=' + Date.now();
+    }
+  };
+
+  // Fonction pour copier le QR code dans le presse-papiers
+  const copyQRCode = async () => {
+    if (!extractedQR) return;
+    
+    try {
+      await navigator.clipboard.writeText(extractedQR);
+      toast.success('QR code copié dans le presse-papiers');
+    } catch (error) {
+      console.error('Erreur copie QR:', error);
+      toast.error('Erreur lors de la copie');
+    }
+  };
+
+  // Fonction pour télécharger le QR code comme image
+  const downloadQRCode = () => {
+    if (!extractedQR || !sessionName) return;
+    
+    try {
+      const link = document.createElement('a');
+      link.href = extractedQR;
+      link.download = `whatsapp-qr-${sessionName}-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success('QR code téléchargé');
+    } catch (error) {
+      console.error('Erreur téléchargement QR:', error);
+      toast.error('Erreur lors du téléchargement');
     }
   };
 
@@ -203,6 +372,101 @@ const WAHADashboardIframe: React.FC = () => {
             }}
           />
         </div>
+        
+        {/* Section d'extraction QR Code */}
+        {sessionName && (
+          <div className="border-t bg-muted/30">
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <QrCode className="h-4 w-4 text-primary" />
+                  <span className="font-medium text-sm">Extraction QR Code - {sessionName}</span>
+                  {qrExtractionStatus === 'success' && (
+                    <Badge variant="secondary" className="text-xs">
+                      Extrait
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={extractQRCode}
+                    disabled={qrExtractionStatus === 'extracting'}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {qrExtractionStatus === 'extracting' ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <QrCode className="h-4 w-4 mr-2" />
+                    )}
+                    {qrExtractionStatus === 'extracting' ? 'Extraction...' : 'Extraire QR'}
+                  </Button>
+                  {extractedQR && (
+                    <>
+                      <Button
+                        onClick={copyQRCode}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copier
+                      </Button>
+                      <Button
+                        onClick={downloadQRCode}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Télécharger
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Affichage du QR code extrait */}
+              {extractedQR && (
+                <div className="flex justify-center">
+                  <div className="bg-white p-4 rounded-lg border-2 border-primary/20 shadow-lg">
+                    <img 
+                      src={extractedQR} 
+                      alt={`QR Code WhatsApp - ${sessionName}`}
+                      className="w-48 h-48 object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Messages de statut */}
+              {qrExtractionStatus === 'extracting' && (
+                <Alert>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertDescription>
+                    Extraction du QR code en cours... Cela peut prendre quelques secondes.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {qrExtractionStatus === 'error' && error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {qrExtractionStatus === 'success' && extractedQR && (
+                <Alert>
+                  <QrCode className="h-4 w-4" />
+                  <AlertDescription>
+                    ✅ QR code extrait avec succès! Scannez-le avec WhatsApp pour connecter la session.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </div>
+        )}
         
         {/* Informations de connexion */}
         <div className="p-3 bg-muted/50 border-t">
