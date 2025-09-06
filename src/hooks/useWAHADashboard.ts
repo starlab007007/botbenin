@@ -137,8 +137,11 @@ export const useWAHADashboard = () => {
       console.log('Starting WAHA session:', sessionName);
       setLoading(true);
       
+      const { data: sess } = await supabase.auth.getSession();
+      const accessToken = sess.session?.access_token;
       const { data, error } = await supabase.functions.invoke('waha-session-manager', {
-        body: { action: 'start', sessionName }
+        body: { action: 'start', sessionName },
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
       });
       
       if (error) {
@@ -214,8 +217,11 @@ export const useWAHADashboard = () => {
 
       // 1) Essayer via l’edge function dédiée (meilleure compatibilité WAHA)
       try {
+        const { data: sess } = await supabase.auth.getSession();
+        const accessToken = sess.session?.access_token;
         const { data, error } = await supabase.functions.invoke('waha-session-manager', {
-          body: { action: 'qr', sessionName }
+          body: { action: 'qr', sessionName },
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         });
         if (error) throw error;
         const qrCandidate = data?.qrCode || data?.data?.qr || data?.data?.base64 || data?.qr || data?.base64;
