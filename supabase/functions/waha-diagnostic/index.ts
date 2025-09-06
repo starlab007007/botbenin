@@ -30,11 +30,13 @@ serve(async (req) => {
       });
     }
 
-    const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
+    const wahaUrl = 'https://waha.bot.bj';
+    const wahaUsername = 'admin';
+    const wahaPassword = 'Starlab@007';
+    const wahaApiKey = 'sha512:cc9608f716617586590ff0c5f954183155c9fae3fd88abca75656f50e94d66219a176225f5010da4b4021e153d7d';
+    
     console.log('🔧 Using WAHA URL:', wahaUrl);
-    const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME') || 'admin';
-    const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
-    const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+    console.log('🔧 Using API Key (first 20 chars):', wahaApiKey.substring(0, 20) + '...');
 
     console.log('🔍 WAHA Diagnostic - Starting comprehensive test...');
     
