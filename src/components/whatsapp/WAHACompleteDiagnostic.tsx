@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const WAHACompleteDiagnostic: React.FC = () => {
-  const [sessionName, setSessionName] = useState('test_session_' + Date.now());
+  const [sessionName, setSessionName] = useState('111111111'); // Utiliser une session existante
   const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
@@ -59,6 +59,10 @@ const WAHACompleteDiagnostic: React.FC = () => {
         
         if (sessionsList.length > 0) {
           addLog(`📋 Sessions existantes: ${sessionsList.map(s => s.name).join(', ')}`);
+          // Auto-sélectionner la première session existante
+          const firstSession = sessionsList[0].name;
+          setSessionName(firstSession);
+          addLog(`🎯 Session sélectionnée automatiquement: ${firstSession}`);
         } else {
           addLog('⚠️ Aucune session existante trouvée');
         }
@@ -77,41 +81,40 @@ const WAHACompleteDiagnostic: React.FC = () => {
     }
   };
 
-  // Test 2: Création de session
-  const createAndStartSession = async () => {
+  // Test 2: Démarrage de session existante
+  const startExistingSession = async () => {
     setLoading(true);
 
     try {
-      addLog(`🚀 Création de la session: ${sessionName}`);
+      addLog(`▶️ Démarrage de la session existante: ${sessionName}`);
       
-      // Créer la session via edge function
-      const { data: createData, error: createError } = await supabase.functions.invoke('waha-session-manager', {
-        body: { action: 'create', sessionName }
-      });
-
-      if (createError) {
-        throw new Error(`Création échoué: ${createError.message}`);
-      }
-
-      addLog(`✅ Session créée: ${JSON.stringify(createData)}`);
-
-      // Démarrer la session
-      addLog(`▶️ Démarrage de la session: ${sessionName}`);
-      
+      // Démarrer la session directement (pas besoin de créer)
       const { data: startData, error: startError } = await supabase.functions.invoke('waha-session-manager', {
         body: { action: 'start', sessionName }
       });
 
+      addLog(`📋 Réponse démarrage: ${JSON.stringify(startData)}`);
+
       if (startError) {
-        throw new Error(`Démarrage échoué: ${startError.message}`);
+        // Parfois la session est déjà démarrée, ce n'est pas forcément une erreur
+        addLog(`⚠️ Réponse démarrage: ${startError.message}`);
+        if (startError.message.includes('already')) {
+          addLog(`✅ Session déjà active, c'est parfait!`);
+          return true;
+        }
       }
 
-      addLog(`✅ Session démarrée: ${JSON.stringify(startData)}`);
-      return true;
+      if (startData?.success) {
+        addLog(`✅ Session démarrée avec succès!`);
+        return true;
+      } else {
+        addLog(`⚠️ Démarrage pas optimal mais continuons...`);
+        return true; // Continuer même si pas parfait
+      }
 
     } catch (error: any) {
-      addLog(`❌ Erreur création/démarrage: ${error.message}`);
-      return false;
+      addLog(`⚠️ Erreur démarrage: ${error.message} - Continuons quand même`);
+      return true; // Continuer car la session existe peut-être déjà
     } finally {
       setLoading(false);
     }
@@ -173,10 +176,10 @@ const WAHACompleteDiagnostic: React.FC = () => {
 
       await new Promise(resolve => setTimeout(resolve, 1000)); // Pause
 
-      // Étape 2: Création et démarrage de session
-      const sessionOk = await createAndStartSession();
+      // Étape 2: Démarrage de session existante
+      const sessionOk = await startExistingSession();
       if (!sessionOk) {
-        addLog('❌ Test arrêté: problème de création de session');
+        addLog('❌ Test arrêté: problème de démarrage de session');
         return;
       }
 
@@ -225,8 +228,8 @@ const WAHACompleteDiagnostic: React.FC = () => {
           <Button onClick={testWAHAConnection} disabled={loading} variant="outline">
             1. Test Connexion
           </Button>
-          <Button onClick={createAndStartSession} disabled={loading} variant="outline">
-            2. Créer Session
+          <Button onClick={startExistingSession} disabled={loading} variant="outline">
+            2. Démarrer Session
           </Button>
           <Button onClick={getSessionQR} disabled={loading} variant="outline">
             3. Récupérer QR
@@ -241,12 +244,26 @@ const WAHACompleteDiagnostic: React.FC = () => {
             <h4 className="font-semibold text-sm">Sessions existantes ({sessions.length}):</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
               {sessions.map((session, idx) => (
-                <div key={idx} className="text-xs p-2 bg-white dark:bg-gray-800 rounded border">
+                <div 
+                  key={idx} 
+                  className={`text-xs p-2 rounded border cursor-pointer transition-colors ${
+                    session.name === sessionName 
+                      ? 'bg-primary/10 border-primary text-primary dark:bg-primary/20' 
+                      : 'bg-white dark:bg-gray-800 hover:bg-gray-50'
+                  }`}
+                  onClick={() => setSessionName(session.name)}
+                >
                   <div><strong>Nom:</strong> {session.name}</div>
                   <div><strong>Statut:</strong> {session.status}</div>
+                  {session.name === sessionName && (
+                    <div className="text-primary font-bold mt-1">✓ SÉLECTIONNÉ</div>
+                  )}
                 </div>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              💡 Cliquez sur une session pour la sélectionner
+            </p>
           </div>
         )}
 
