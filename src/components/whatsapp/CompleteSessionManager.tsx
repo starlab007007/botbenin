@@ -79,7 +79,7 @@ const CompleteSessionManager: React.FC = () => {
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
   const [connectionProgress, setConnectionProgress] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [createdSession, setCreatedSession] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [userSessions, setUserSessions] = useState<string[]>([]);
@@ -234,16 +234,16 @@ const CompleteSessionManager: React.FC = () => {
     return hybridSessions;
   };
 
-  // Auto-refresh des sessions et détection de nouvelles sessions
-  useEffect(() => {
-    if (!autoRefresh) return;
-    
-    const interval = setInterval(() => {
-      refreshData();
-    }, 5000); // Refresh toutes les 5 secondes pour une détection plus rapide
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, refreshData]);
+  // Auto-refresh désactivé par défaut
+  // useEffect(() => {
+  //   if (!autoRefresh) return;
+  //   
+  //   const interval = setInterval(() => {
+  //     refreshData();
+  //   }, 5000);
+  //
+  //   return () => clearInterval(interval);
+  // }, [autoRefresh, refreshData]);
 
   // Charger les sessions utilisateur au démarrage et à chaque fois que l'utilisateur change
   useEffect(() => {
@@ -422,11 +422,11 @@ const CompleteSessionManager: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setAutoRefresh(!autoRefresh)}
-                className={`gap-2 ${autoRefresh ? 'text-primary border-primary' : ''}`}
+                onClick={() => refreshData()}
+                className="gap-2"
               >
-                <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
-                Auto-refresh
+                <RefreshCw className="h-4 w-4" />
+                Actualiser
               </Button>
               
               <Button
