@@ -21,16 +21,14 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get user authentication (Authorization header or token query param)
+    // Get user authentication
     const authHeader = req.headers.get('Authorization');
-    const urlForAuth = new URL(req.url);
-    const tokenParam = urlForAuth.searchParams.get('token');
-    const accessToken = authHeader?.replace('Bearer ', '') || tokenParam || '';
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader?.replace('Bearer ', '') || ''
+    );
 
     if (authError || !user) {
-      console.log('❌ Authentication failed for mirror:', authError?.message || 'no user');
+      console.log('❌ Authentication failed');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

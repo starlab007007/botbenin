@@ -117,12 +117,10 @@ serve(async (req) => {
     // Core request wrapper
     const wahaFetch = async (endpoint: string, init: RequestInit = {}) => {
       const url = `${wahaBaseUrl}${endpoint}`;
-      console.log('🚀 Attempting WAHA request:', url);
+      console.log('Attempting WAHA request:', url);
 
       // Determine best available API key (plain preferred)
       const plainKey = wahaApiKeyPlain?.length ? wahaApiKeyPlain : (wahaApiKey && !wahaApiKey.startsWith('sha512:') ? wahaApiKey : undefined);
-      console.log('🔑 API Key available:', !!plainKey, plainKey ? `(${plainKey.substring(0, 8)}...)` : 'NONE');
-      
       const apiKeyHeaderNames = ['X-Api-Key', 'X-API-Key', 'x-api-key'];
 
       // 1) Primary method: combine Dashboard auth (Basic or Cookie) WITH Api-Key if present
@@ -162,60 +160,27 @@ serve(async (req) => {
         }
       }
 
-      // 2) Fallback: Api-Key only (no dashboard auth) - PRIORITÉ à X-API-Key selon WAHA docs
+      // 2) Fallback: Api-Key only (no dashboard auth)
       if (plainKey) {
-        // Ordre prioritaire selon la documentation WAHA
-        const priorityHeaders = ['X-API-Key', 'X-Api-Key', 'x-api-key'];
-        
-        for (const hk of priorityHeaders) {
+        for (const hk of apiKeyHeaderNames) {
           try {
-            const headers = { 
-              'Content-Type': 'application/json', 
-              'Accept': 'application/json', 
-              ...(init.headers || {}), 
-              [hk]: plainKey 
-            } as Record<string, string>;
-            
-            console.log(`🔑 Trying API key with header: ${hk}`);
+            const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), [hk]: plainKey } as Record<string, string>;
             const res = await fetch(url, { ...init, headers });
-            console.log(`✅ API key variant (${hk}) ->`, res.status, res.statusText);
-            
-            if (res.ok) {
-              console.log(`🎉 Success with ${hk} header!`);
-              return res;
-            }
-            
-            // Si ce n'est pas 401, on retourne quand même la réponse pour analyse
-            if (res.status !== 401) {
-              console.log(`⚠️ Non-401 response with ${hk}:`, res.status);
-              return res;
-            }
+            console.log(`API key variant (${hk}) ->`, res.status, res.statusText);
+            if (res.ok || res.status !== 401) return res;
           } catch (e) {
-            console.log(`❌ API key variant (${hk}) error:`, e);
+            console.log(`API key variant (${hk}) error:`, e);
           }
         }
-        
-        // Essayer en Bearer token aussi
+        // Some deployments accept Bearer token format
         try {
-          const headers = { 
-            'Content-Type': 'application/json', 
-            'Accept': 'application/json', 
-            ...(init.headers || {}), 
-            'Authorization': `Bearer ${plainKey}` 
-          };
-          console.log('🔑 Trying Bearer token format');
+          const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), 'Authorization': `Bearer ${plainKey}` };
           const res = await fetch(url, { ...init, headers });
-          console.log('✅ API key variant (Bearer) ->', res.status, res.statusText);
-          if (res.ok) {
-            console.log('🎉 Success with Bearer token!');
-            return res;
-          }
-          if (res.status !== 401) return res;
+          console.log('API key variant (Bearer) ->', res.status, res.statusText);
+          if (res.ok || res.status !== 401) return res;
         } catch (e) {
-          console.log('❌ API key variant (Bearer) error:', e);
+          console.log('API key variant (Bearer) error:', e);
         }
-      } else {
-        console.log('⚠️ No API key available - this may cause 401 errors');
       }
 
       // 3) Last attempt without auth
@@ -264,50 +229,16 @@ serve(async (req) => {
 
       case 'start': {
         console.log('Starting session...');
-        
-        // Essayer les différents endpoints de start selon la doc WAHA
-        const startEndpoints = [
-          `/api/sessions/${sessionName}/start`,  // Standard
-          `/api/v2/sessions/${sessionName}/start`, // V2
-          `/api/${sessionName}/start`,  // Court
-          `/api/v2/${sessionName}/start`  // V2 court
-        ];
-        
-        let startSuccess = false;
-        let lastError: string | null = null;
-        
-        for (const endpoint of startEndpoints) {
-          try {
-            console.log(`Trying start endpoint: ${endpoint}`);
-            const res = await wahaFetch(endpoint, { method: 'POST' });
-            
-            if (res.ok) {
-              const data = await res.json();
-              console.log('✅ Session started successfully:', data);
-              await supabase.from('whatsapp_accounts').update({ 
-                status: 'connecting', 
-                last_activity: new Date().toISOString() 
-              }).eq('user_id', user.id).eq('session_name', sessionName);
-              wahaResponse = { success: true, data };
-              startSuccess = true;
-              break;
-            } else {
-              const txt = await res.text();
-              lastError = `${endpoint}: ${res.status} ${txt}`;
-              console.warn(`❌ Start endpoint ${endpoint} failed: ${res.status} ${txt}`);
-            }
-          } catch (e: any) {
-            lastError = `${endpoint}: ${e.message}`;
-            console.warn(`❌ Start endpoint ${endpoint} error:`, e);
-          }
-        }
-        
-        if (!startSuccess) {
-          console.error('❌ All start endpoints failed. Last error:', lastError);
-          wahaResponse = { 
-            success: false, 
-            error: `Impossible de démarrer la session "${sessionName}". Vérifiez que la session existe et que l'API WAHA est correctement configurée. Détail: ${lastError}` 
-          };
+        const res = await wahaFetch(`/api/sessions/${sessionName}/start`, { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          await supabase.from('whatsapp_accounts').update({ status: 'connecting', last_activity: new Date().toISOString() })
+            .eq('user_id', user.id).eq('session_name', sessionName);
+          wahaResponse = { success: true, data };
+        } else {
+          const txt = await res.text();
+          console.error('WAHA start failed:', res.status, txt);
+          wahaResponse = { success: false, error: `WAHA start failed: ${txt}` };
         }
         break;
       }

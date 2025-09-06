@@ -135,44 +135,19 @@ export const useWAHADashboard = () => {
   const startSession = useCallback(async (sessionName: string) => {
     try {
       console.log('Starting WAHA session:', sessionName);
-      setLoading(true);
       
-      const { data: sess } = await supabase.auth.getSession();
-      const accessToken = sess.session?.access_token;
-      const { data, error } = await supabase.functions.invoke('waha-session-manager', {
-        body: { action: 'start', sessionName },
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      await makeWAHARequest(`/api/sessions/${sessionName}/start`, {
+        method: 'POST'
       });
-      
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Erreur de communication avec le service');
-      }
-      
-      if (!data?.success) {
-        console.error('WAHA start failed:', data?.error);
-        throw new Error(data?.error || 'Erreur lors du démarrage de la session');
-      }
 
-      toast.success(`Session "${sessionName}" démarrée avec succès`);
+      toast.success('Session démarrée');
       await loadSessions(); // Recharger la liste
     } catch (error) {
       console.error('Error starting session:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      
-      // Messages d'erreur plus spécifiques
-      if (errorMessage.includes('Vérifiez que la session existe')) {
-        toast.error(`Session "${sessionName}" introuvable. Créez-la d'abord.`);
-      } else if (errorMessage.includes('API WAHA')) {
-        toast.error('Problème de configuration API WAHA - Contactez l\'administrateur');
-      } else {
-        toast.error(`Erreur lors du démarrage de "${sessionName}": ${errorMessage}`);
-      }
+      toast.error('Erreur lors du démarrage de la session');
       throw error;
-    } finally {
-      setLoading(false);
     }
-  }, [loadSessions]);
+  }, [makeWAHARequest, loadSessions]);
 
   // Arrêter une session
   const stopSession = useCallback(async (sessionName: string) => {
@@ -217,11 +192,8 @@ export const useWAHADashboard = () => {
 
       // 1) Essayer via l’edge function dédiée (meilleure compatibilité WAHA)
       try {
-        const { data: sess } = await supabase.auth.getSession();
-        const accessToken = sess.session?.access_token;
         const { data, error } = await supabase.functions.invoke('waha-session-manager', {
-          body: { action: 'qr', sessionName },
-          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+          body: { action: 'qr', sessionName }
         });
         if (error) throw error;
         const qrCandidate = data?.qrCode || data?.data?.qr || data?.data?.base64 || data?.qr || data?.base64;
