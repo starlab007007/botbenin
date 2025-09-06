@@ -320,7 +320,7 @@ const CompleteSessionManager: React.FC = () => {
           </Card>
         </div>
 
-        {/* Interface de gestion des sessions */}
+        {/* Interface de gestion des sessions - Style WAHA Dashboard */}
         <Card className="border-0 shadow-xl bg-card/60 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
@@ -330,21 +330,29 @@ const CompleteSessionManager: React.FC = () => {
                 </div>
                 <div>
                   <CardTitle className="text-xl">Sessions WhatsApp</CardTitle>
-                  <p className="text-sm text-muted-foreground">Gérez vos connexions WhatsApp Business</p>
+                  <p className="text-sm text-muted-foreground">Interface WAHA Dashboard - Gestion complète</p>
                 </div>
               </div>
               
               <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-lg"
+                >
+                  <Play className="h-4 w-4" />
+                  Start New
+                </Button>
+                
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Rechercher une session..."
+                    placeholder="Search by Name, Phone"
                     className="pl-9 w-64 bg-background/60"
                   />
                 </div>
                 <Button variant="outline" size="sm" className="gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filtrer
+                  Columns
+                  <ChevronDown className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -370,143 +378,349 @@ const CompleteSessionManager: React.FC = () => {
                   Commencez par créer votre première session WhatsApp pour connecter votre compte business.
                 </p>
                 <Button onClick={() => setShowCreateModal(true)} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Créer une session
+                  <Play className="h-4 w-4" />
+                  Start New
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3 p-6">
-                {sessions.map((session, index) => (
-                  <div 
-                    key={session.name} 
-                    className="group bg-background/40 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-background/60 transition-all duration-300 overflow-hidden"
-                  >
-                    <div className="p-6">
-                      <div className="flex items-center justify-between">
-                        {/* Informations de session */}
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className={`p-3 rounded-xl ${
-                            session.status === 'WORKING' ? 'bg-green-500/10 border border-green-500/20' :
-                            session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border border-orange-500/20' :
-                            session.status === 'STOPPED' ? 'bg-slate-500/10 border border-slate-500/20' :
-                            'bg-red-500/10 border border-red-500/20'
-                          }`}>
-                            {session.status === 'WORKING' ? 
-                              <Wifi className="h-6 w-6 text-green-600" /> :
-                              session.status === 'SCAN_QR_CODE' ? 
-                              <QrCode className="h-6 w-6 text-orange-600" /> :
-                              <WifiOff className="h-6 w-6 text-slate-600" />
-                            }
-                          </div>
-                          
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="text-lg font-semibold">{session.name}</h3>
-                              <Badge 
-                                variant="outline" 
-                                className={`text-xs ${
-                                  session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
-                                  session.status === 'FAILED' ? 'bg-red-500/10 border-red-500/30 text-red-600' :
-                                  session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
-                                  session.status === 'STOPPED' ? 'bg-slate-500/10 border-slate-500/30 text-slate-600' :
-                                  'bg-slate-500/10 border-slate-500/30 text-slate-600'
-                                }`}
-                              >
-                                {session.status === 'WORKING' ? '● Connecté' :
-                                 session.status === 'SCAN_QR_CODE' ? '● QR Code requis' :
-                                 session.status === 'STOPPED' ? '● Arrêté' :
-                                 '● Déconnecté'}
-                              </Badge>
-                            </div>
-                            
-                            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                              {session.config?.metadata?.phone_number ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                                  </div>
-                                  <span className="font-medium text-foreground">
-                                    {session.config.metadata.phone_number}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground">Numéro non configuré</span>
-                              )}
-                              
-                              <div className="flex items-center gap-2">
-                                <Monitor className="h-4 w-4" />
-                                <span>WAHA Server</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Boutons d'action */}
-                        <div className="flex items-center gap-2 ml-4">
-                          {session.status === 'STOPPED' ? (
-                            <Button
-                              onClick={() => handleStartSession(session.name)}
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white gap-2"
-                            >
-                              <Play className="h-4 w-4" />
-                              Démarrer
-                            </Button>
-                          ) : session.status === 'SCAN_QR_CODE' ? (
-                            <Button
-                              onClick={() => handleConnectWhatsApp(session.name)}
-                              size="sm"
-                              className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
-                            >
-                              <QrCode className="h-4 w-4" />
-                              Scanner QR
-                            </Button>
-                          ) : session.status === 'WORKING' ? (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                onClick={() => handleViewDetails(session.name)}
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                              >
-                                <BarChart3 className="h-4 w-4" />
-                                Voir
-                              </Button>
-                              <Button
-                                onClick={() => handleStopSession(session.name)}
-                                variant="outline"
-                                size="sm"
-                                className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                              >
-                                <Square className="h-4 w-4" />
-                                Arrêter
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              onClick={() => handleRestartSession(session.name)}
-                              variant="outline"
-                              size="sm"
-                              className="gap-2"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                              Relancer
-                            </Button>
-                          )}
-
-                          <Button
-                            onClick={() => handleDeleteSession(session.name)}
-                            variant="outline"
-                            size="sm"
-                            className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+              <div className="bg-background/40 rounded-lg border border-border/60">
+                {/* En-têtes de colonnes */}
+                <div className="grid grid-cols-12 gap-4 p-4 border-b border-border/60 bg-muted/20">
+                  <div className="col-span-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Name</span>
+                      <div className="flex flex-col">
+                        <ChevronDown className="h-3 w-3 rotate-180" />
+                        <ChevronDown className="h-3 w-3" />
                       </div>
                     </div>
                   </div>
-                ))}
+                  <div className="col-span-2">
+                    <span className="font-medium">Metadata</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="font-medium">Account</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="font-medium">Status</span>
+                  </div>
+                  <div className="col-span-1">
+                    <span className="font-medium">Server</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="font-medium text-center">Actions</span>
+                  </div>
+                </div>
+
+                {/* Filtres */}
+                <div className="grid grid-cols-12 gap-4 p-4 border-b border-border/40 bg-muted/10">
+                  <div className="col-span-3">
+                    <Input
+                      placeholder="Session"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-muted-foreground text-sm h-8 flex items-center">--</div>
+                  </div>
+                  <div className="col-span-2">
+                    <select className="w-full h-8 text-sm rounded-md border border-input bg-background px-2">
+                      <option>Account (Phone Number)</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <select className="w-full h-8 text-sm rounded-md border border-input bg-background px-2">
+                      <option>Any</option>
+                      <option>WORKING</option>
+                      <option>STOPPED</option>
+                      <option>SCAN_QR_CODE</option>
+                      <option>FAILED</option>
+                    </select>
+                  </div>
+                  <div className="col-span-1">
+                    <select className="w-full h-8 text-sm rounded-md border border-input bg-background px-2">
+                      <option>Any</option>
+                      <option>WAHA</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2"></div>
+                </div>
+
+                {/* Liste des sessions */}
+                <div className="divide-y divide-border/40">
+                  {sessions.map((session, index) => (
+                    <div key={session.name} className="grid grid-cols-12 gap-4 p-4 hover:bg-muted/10 transition-colors">
+                      {/* Checkbox + Name */}
+                      <div className="col-span-3 flex items-center gap-3">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-border focus:ring-primary"
+                        />
+                        <div>
+                          <div className="font-medium">{session.name}</div>
+                        </div>
+                      </div>
+
+                      {/* Metadata */}
+                      <div className="col-span-2 flex items-center">
+                        <div className="text-muted-foreground text-sm">--</div>
+                      </div>
+
+                      {/* Account avec info utilisateur */}
+                      <div className="col-span-2 flex items-center">
+                        {session.config?.metadata?.phone_number ? (
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                              <Users className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium">
+                                {session.config.metadata.account || 'UTILISATEUR'}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {session.config.metadata.phone_number}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-muted-foreground text-sm">Account (Phone Number)</div>
+                        )}
+                      </div>
+
+                      {/* Status avec boutons circulaires */}
+                      <div className="col-span-2 flex items-center gap-2">
+                        {/* Boutons de statut circulaires */}
+                        <div className="flex gap-1">
+                          {/* Bouton Logout/Disconnect */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDisconnectSession(session.name)}
+                            className="h-7 w-7 rounded-full p-0 border-border/40 hover:bg-muted/20"
+                            title="Logout"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" />
+                          </Button>
+
+                          {/* Bouton QR Code */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleConnectWhatsApp(session.name)}
+                            className={`h-7 w-7 rounded-full p-0 ${
+                              session.status === 'SCAN_QR_CODE' 
+                                ? 'bg-orange-500/20 border-orange-500/30 text-orange-500 hover:bg-orange-500/30' 
+                                : 'border-border/40 hover:bg-muted/20'
+                            }`}
+                            title="QR Code"
+                          >
+                            <QrCode className="h-3 w-3" />
+                          </Button>
+
+                          {/* Bouton WhatsApp */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={`h-7 w-7 rounded-full p-0 ${
+                              session.status === 'WORKING'
+                                ? 'bg-green-500/20 border-green-500/30 text-green-500 hover:bg-green-500/30'
+                                : 'border-border/40 hover:bg-muted/20'
+                            }`}
+                            title="WhatsApp"
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                          </Button>
+
+                          {/* Bouton Modules */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 w-7 rounded-full p-0 border-border/40 hover:bg-muted/20"
+                            title="Modules"
+                          >
+                            <Grid3X3 className="h-3 w-3" />
+                          </Button>
+                        </div>
+
+                        {/* Badge de statut */}
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs font-medium px-2 py-1 ml-2 ${
+                            session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-500' :
+                            session.status === 'FAILED' ? 'bg-red-500/10 border-red-500/30 text-red-500' :
+                            session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-500' :
+                            session.status === 'STOPPED' ? 'bg-slate-500/10 border-slate-500/30 text-slate-500' :
+                            'bg-slate-500/10 border-slate-500/30 text-slate-500'
+                          }`}
+                        >
+                          {session.status}
+                        </Badge>
+                      </div>
+
+                      {/* Server */}
+                      <div className="col-span-1 flex items-center">
+                        <Badge className="bg-blue-500/10 border-blue-500/30 text-blue-500 text-xs">
+                          WAHA
+                        </Badge>
+                      </div>
+
+                      {/* Actions - Boutons circulaires à droite */}
+                      <div className="col-span-2 flex items-center justify-center gap-1">
+                        {/* Settings */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetails(session.name)}
+                          className="h-8 w-8 rounded-full p-0 border-border/40 hover:bg-muted/20"
+                          title="Settings"
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+
+                        {/* Dashboard/Analytics */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 rounded-full p-0 bg-blue-500/10 border-blue-500/30 text-blue-500 hover:bg-blue-500/20"
+                          title="Dashboard"
+                        >
+                          <BarChart3 className="h-4 w-4" />
+                        </Button>
+
+                        {/* Start/Play */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => session.status === 'STOPPED' ? handleStartSession(session.name) : handleStopSession(session.name)}
+                          className={`h-8 w-8 rounded-full p-0 ${
+                            session.status === 'WORKING'
+                              ? 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
+                              : 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20'
+                          }`}
+                          title={session.status === 'WORKING' ? 'Stop' : 'Start'}
+                        >
+                          {session.status === 'WORKING' ? 
+                            <Square className="h-4 w-4" /> : 
+                            <Play className="h-4 w-4" />
+                          }
+                        </Button>
+
+                        {/* Restart */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRestartSession(session.name)}
+                          className="h-8 w-8 rounded-full p-0 bg-orange-500/10 border-orange-500/30 text-orange-500 hover:bg-orange-500/20"
+                          title="Restart"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+
+                        {/* Stop (carré) */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStopSession(session.name)}
+                          className="h-8 w-8 rounded-full p-0 bg-slate-500/10 border-slate-500/30 text-slate-500 hover:bg-slate-500/20"
+                          title="Stop Session"
+                        >
+                          <Square className="h-4 w-4" />
+                        </Button>
+
+                        {/* Transfer/Export */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 rounded-full p-0 border-border/40 hover:bg-muted/20"
+                          title="Transfer"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+
+                        {/* Copy */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 rounded-full p-0 border-border/40 hover:bg-muted/20"
+                          title="Copy"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+
+                        {/* Delete */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteSession(session.name)}
+                          className="h-8 w-8 rounded-full p-0 bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer avec pagination et stats */}
+                <div className="p-4 border-t border-border/40 bg-muted/5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className={`h-2 w-2 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
+                        Auto-refresh: {autoRefresh ? 'Activé' : 'Désactivé'}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAutoRefresh(!autoRefresh)}
+                          className="h-6 px-2 text-xs"
+                        >
+                          {autoRefresh ? 'Désactiver' : 'Activer'}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-muted-foreground">
+                        Total: {sessions.length} sessions
+                      </span>
+                      
+                      {/* Pagination */}
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                          ‹‹
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                          ‹
+                        </Button>
+                        <span className="text-sm px-2">1</span>
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                          ›
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                          ››
+                        </Button>
+                        
+                        <select className="h-8 text-sm rounded border border-input bg-background px-2 ml-2">
+                          <option>10</option>
+                          <option>25</option>
+                          <option>50</option>
+                        </select>
+                      </div>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={refreshData}
+                        disabled={loading}
+                        className="h-8 px-3 text-xs gap-2"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+                        Actualiser
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>
