@@ -265,12 +265,31 @@ serve(async (req) => {
           try {
             console.log(`Trying QR endpoint: ${endpoint}`);
             const res = await wahaFetch(endpoint, { method: 'GET' });
+            const ct = res.headers.get('content-type') || '';
             
             if (res.ok) {
-              const data = await res.json();
-              console.log(`✅ QR success via ${endpoint}:`, { hasQr: !!(data.qr || data.base64), keys: Object.keys(data) });
+              let qrCode: string | undefined;
+              let data: any = {};
+
+              if (ct.includes('application/json')) {
+                data = await res.json();
+                qrCode = data.qr || data.base64 || data.image || data.qrcode;
+              } else if (ct.includes('image/png')) {
+                const buf = await res.arrayBuffer();
+                const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+                qrCode = `data:image/png;base64,${b64}`;
+                data = { base64: b64 };
+              } else {
+                const txt = await res.text();
+                // Might already be a data URL or raw base64
+                if (txt.startsWith('data:image')) qrCode = txt.trim();
+                else if (/^[A-Za-z0-9+/=\n\r]+$/.test(txt.trim()) && txt.trim().length > 100) {
+                  qrCode = `data:image/png;base64,${txt.trim().replace(/\s+/g,'')}`;
+                } else {
+                  data = { data: txt };
+                }
+              }
               
-              const qrCode = data.qr || data.base64 || data.image || data.qrcode;
               if (qrCode) {
                 await supabase.from('whatsapp_accounts').update({ 
                   qr_code: qrCode, 
