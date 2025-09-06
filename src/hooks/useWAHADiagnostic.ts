@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 
 export interface DiagnosticResult {
   test: string;
@@ -35,6 +35,7 @@ export const useWAHADiagnostic = () => {
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const runDiagnostic = useCallback(async () => {
     setLoading(true);
@@ -71,11 +72,23 @@ export const useWAHADiagnostic = () => {
       // Show summary toast
       const { summary } = diagnosticData;
       if (summary.successful_tests === 0) {
-        toast.error('🔴 Tous les tests d\'authentification ont échoué');
+        toast({
+          title: "Diagnostic WAHA",
+          description: "🔴 Tous les tests d'authentification ont échoué",
+          variant: "destructive"
+        });
       } else if (summary.failed_tests > 0) {
-        toast.warning(`🟡 ${summary.successful_tests}/${summary.total_tests} tests réussis`);
+        toast({
+          title: "Diagnostic WAHA",
+          description: `🟡 ${summary.successful_tests}/${summary.total_tests} tests réussis`,
+          variant: "default"
+        });
       } else {
-        toast.success('🟢 Tous les tests d\'authentification ont réussi');
+        toast({
+          title: "Diagnostic WAHA",
+          description: "🟢 Tous les tests d'authentification ont réussi",
+          variant: "default"
+        });
       }
       
       console.log('🔍 Diagnostic terminé:', diagnosticData);
@@ -84,7 +97,11 @@ export const useWAHADiagnostic = () => {
       console.error('Error running diagnostic:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur de diagnostic';
       setError(errorMessage);
-      toast.error('Erreur lors du diagnostic WAHA');
+      toast({
+        title: "Erreur",
+        description: "Erreur lors du diagnostic WAHA",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }

@@ -245,16 +245,56 @@ serve(async (req) => {
 
       case 'qr': {
         console.log('Fetching QR...');
-        const res = await wahaFetch(`/api/sessions/${sessionName}/auth/qr`, { method: 'GET' });
-        if (res.ok) {
-          const data = await res.json();
-          await supabase.from('whatsapp_accounts').update({ qr_code: data.qr || data.base64, last_activity: new Date().toISOString() })
-            .eq('user_id', user.id).eq('session_name', sessionName);
-          wahaResponse = { success: true, data, qrCode: data.qr || data.base64 };
-        } else {
-          const txt = await res.text();
-          console.error('QR fetch failed:', res.status, txt);
-          wahaResponse = { success: false, error: `QR fetch failed: ${txt}` };
+        
+        // Essayer plusieurs endpoints QR avec différentes variantes
+        const qrEndpoints = [
+          `/api/sessions/${sessionName}/auth/qr?format=base64`,
+          `/api/sessions/${sessionName}/auth/qr`,
+          `/api/sessions/${sessionName}/qr?format=base64`,
+          `/api/sessions/${sessionName}/qr`,
+          `/api/v2/sessions/${sessionName}/auth/qr?format=base64`,
+          `/api/v2/sessions/${sessionName}/auth/qr`,
+          `/api/v2/sessions/${sessionName}/qr?format=base64`,
+          `/api/v2/sessions/${sessionName}/qr`
+        ];
+        
+        let qrSuccess = false;
+        let lastError = null;
+        
+        for (const endpoint of qrEndpoints) {
+          try {
+            console.log(`Trying QR endpoint: ${endpoint}`);
+            const res = await wahaFetch(endpoint, { method: 'GET' });
+            
+            if (res.ok) {
+              const data = await res.json();
+              console.log(`✅ QR success via ${endpoint}:`, { hasQr: !!(data.qr || data.base64), keys: Object.keys(data) });
+              
+              const qrCode = data.qr || data.base64 || data.image || data.qrcode;
+              if (qrCode) {
+                await supabase.from('whatsapp_accounts').update({ 
+                  qr_code: qrCode, 
+                  last_activity: new Date().toISOString() 
+                }).eq('user_id', user.id).eq('session_name', sessionName);
+                
+                wahaResponse = { success: true, data, qrCode };
+                qrSuccess = true;
+                break;
+              }
+            } else {
+              const txt = await res.text();
+              lastError = `${endpoint}: ${res.status} ${txt}`;
+              console.warn(`QR endpoint ${endpoint} failed: ${res.status} ${txt}`);
+            }
+          } catch (e) {
+            lastError = `${endpoint}: ${e.message}`;
+            console.warn(`QR endpoint ${endpoint} error:`, e);
+          }
+        }
+        
+        if (!qrSuccess) {
+          console.error('❌ All QR endpoints failed. Last error:', lastError);
+          wahaResponse = { success: false, error: `QR fetch failed: ${lastError || 'All endpoints failed'}` };
         }
         break;
       }

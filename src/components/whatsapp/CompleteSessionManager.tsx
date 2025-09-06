@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { useWAHADashboard, WAHASession } from '@/hooks/useWAHADashboard';
+import { useWAHADiagnostic } from '@/hooks/useWAHADiagnostic';
 
 interface SessionStep {
   id: string;
@@ -94,8 +95,15 @@ const CompleteSessionManager: React.FC = () => {
     getQRCode,
     sendTestMessage,
     refreshData,
-    loading 
+    loading,
+    error 
   } = useWAHADashboard();
+
+  const { 
+    runDiagnostic, 
+    loading: diagnosticLoading, 
+    report: diagnosticReport 
+  } = useWAHADiagnostic();
 
   // Sauvegarder une session dans la base de données
   const saveUserSession = async (sessionName: string) => {
@@ -456,6 +464,21 @@ const CompleteSessionManager: React.FC = () => {
               >
                 <RefreshCw className="h-4 w-4" />
                 Actualiser
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => runDiagnostic()}
+                disabled={diagnosticLoading}
+                className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+              >
+                {diagnosticLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Activity className="h-4 w-4" />
+                )}
+                Diagnostic WAHA
               </Button>
               
               <Button

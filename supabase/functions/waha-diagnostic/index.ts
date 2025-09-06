@@ -30,10 +30,10 @@ serve(async (req) => {
       });
     }
 
-    const wahaUrl = 'https://waha.bot.bj';
-    const wahaUsername = 'admin';
-    const wahaPassword = 'Starlab@007';
-    const wahaApiKey = '278194d40f794430851ff923e9924a3a';
+    const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
+    const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME') || 'admin';
+    const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
+    const wahaApiKey = Deno.env.get('WAHA_API_KEY');
     
     console.log('🔧 Using WAHA URL:', wahaUrl);
     console.log('🔧 Using API Key (first 8 chars):', wahaApiKey.substring(0, 8) + '...');
