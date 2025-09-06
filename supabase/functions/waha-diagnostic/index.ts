@@ -51,9 +51,9 @@ serve(async (req) => {
       
       diagnosticResults.push({
         test: 'server_availability',
-        success: pingResponse.ok,
+        success: true, // Consider any HTTP response as reachable (even 404)
         status: pingResponse.status,
-        details: `Server response: ${pingResponse.status} ${pingResponse.statusText}`
+        details: `Server reachable. Response: ${pingResponse.status} ${pingResponse.statusText}`
       });
     } catch (error) {
       diagnosticResults.push({
@@ -192,7 +192,8 @@ serve(async (req) => {
         const testResponse = await fetch(`${wahaUrl}${endpoint}`, {
           method: 'GET',
           headers: {
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            ...(wahaApiKey ? { 'X-Api-Key': wahaApiKey } : { 'Authorization': `Basic ${btoa(`${wahaUsername}:${wahaPassword}`)}` })
           }
         });
 
