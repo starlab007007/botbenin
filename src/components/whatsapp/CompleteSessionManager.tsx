@@ -32,7 +32,9 @@ import {
   Copy,
   Zap,
   Users,
-  Globe
+  Globe,
+  Grid3X3,
+  ArrowRightLeft
 } from 'lucide-react';
 import { useWAHADashboard } from '@/hooks/useWAHADashboard';
 
@@ -66,6 +68,7 @@ const CompleteSessionManager: React.FC = () => {
   const [connectionProgress, setConnectionProgress] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [createdSession, setCreatedSession] = useState<string | null>(null);
 
   const { 
     sessions, 
@@ -188,10 +191,140 @@ const CompleteSessionManager: React.FC = () => {
       await createSession(newSessionName);
       setNewSessionName('');
       setShowCreateModal(false);
+      setCreatedSession(newSessionName);
       toast.success('Session créée avec succès');
     } catch (error) {
       toast.error('Erreur lors de la création de la session');
     }
+  };
+
+  // Component pour les actions immédiates de session
+  const SessionImmediateActions: React.FC<{ sessionName: string; onClose: () => void }> = ({ sessionName, onClose }) => {
+    const session = sessions.find(s => s.name === sessionName);
+    
+    const actionButtons = [
+      {
+        icon: Settings,
+        label: 'Paramètres',
+        color: 'from-gray-600 to-gray-700',
+        action: () => handleViewDetails(sessionName)
+      },
+      {
+        icon: Grid3X3,
+        label: 'Modules',
+        color: 'from-blue-600 to-blue-700',
+        action: () => toast.info('Modules à venir')
+      },
+      {
+        icon: Play,
+        label: 'Démarrer',
+        color: 'from-green-600 to-green-700',
+        action: () => handleStartSession(sessionName)
+      },
+      {
+        icon: RotateCcw,
+        label: 'Redémarrer',
+        color: 'from-orange-600 to-orange-700',
+        action: () => handleRestartSession(sessionName)
+      },
+      {
+        icon: Square,
+        label: 'Arrêter',
+        color: 'from-red-600 to-red-700',
+        action: () => handleDisconnectSession(sessionName)
+      },
+      {
+        icon: ArrowRightLeft,
+        label: 'Transférer',
+        color: 'from-purple-600 to-purple-700',
+        action: () => toast.info('Transfert à venir')
+      },
+      {
+        icon: Trash2,
+        label: 'Supprimer',
+        color: 'from-red-600 to-red-800',
+        action: () => handleDeleteSession(sessionName)
+      }
+    ];
+
+    return (
+      <Card className="border-2 border-primary/20 shadow-lg">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`h-3 w-3 rounded-full ${getStatusColor(session?.status || '')}`} />
+              <CardTitle className="text-xl">{sessionName}</CardTitle>
+              <Badge variant="outline" className="flex items-center gap-1">
+                {getStatusIcon(session?.status || '')}
+                {session?.status || 'Inconnue'}
+              </Badge>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="text-center text-sm text-muted-foreground">
+              Actions immédiates pour votre session
+            </div>
+            
+            <div className="flex justify-center items-center gap-2 flex-wrap">
+              {actionButtons.map((action, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={action.action}
+                  className={`
+                    relative overflow-hidden h-16 w-16 rounded-full border-2 
+                    bg-gradient-to-br ${action.color} text-white border-white/20
+                    hover:scale-105 transition-all duration-200 shadow-lg
+                    hover:shadow-xl group
+                  `}
+                  title={action.label}
+                >
+                  <action.icon className="h-6 w-6" />
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 
+                                text-xs font-medium opacity-0 group-hover:opacity-100 
+                                transition-opacity duration-200 whitespace-nowrap
+                                bg-gray-800 text-white px-2 py-1 rounded">
+                    {action.label}
+                  </div>
+                </Button>
+              ))}
+            </div>
+
+            {session?.status === 'SCAN_QR_CODE' && (
+              <div className="text-center">
+                <Button
+                  onClick={() => handleConnectWhatsApp(sessionName)}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <QrCode className="h-4 w-4 mr-2" />
+                  Connecter WhatsApp
+                </Button>
+              </div>
+            )}
+
+            {session?.status === 'WORKING' && (
+              <Alert>
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription>
+                  Session active et connectée à WhatsApp
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   const handleStartSession = async (sessionName: string) => {
@@ -376,6 +509,24 @@ const CompleteSessionManager: React.FC = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Affichage de la session créée avec actions immédiates */}
+        {createdSession && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-green-400 mb-2">
+                ✅ Session créée avec succès !
+              </h2>
+              <p className="text-gray-400">
+                Votre session "{createdSession}" est maintenant disponible avec les actions immédiates
+              </p>
+            </div>
+            <SessionImmediateActions 
+              sessionName={createdSession} 
+              onClose={() => setCreatedSession(null)} 
+            />
+          </div>
+        )}
 
         {/* Liste des sessions - Style WAHA */}
         <Card className="bg-gray-800 border-gray-700">
