@@ -127,29 +127,10 @@ const CompleteSessionManager: React.FC = () => {
     setUserSessions(updatedSessions);
   };
 
-  // Adopter une session existante
-  const adoptSession = (sessionName: string) => {
-    if (!user?.id) return;
-    
-    saveUserSession(sessionName);
-    toast.success(`Session "${sessionName}" adoptée avec succès`);
-  };
-
-  // Obtenir toutes les sessions avec indication si elles sont adoptées
-  const getAllSessionsWithAdoptionStatus = () => {
-    return sessions.map(session => ({
-      ...session,
-      isAdopted: userSessions.includes(session.name),
-      isOwnedByUser: userSessions.includes(session.name)
-    }));
-  };
-
-  // Filtrer les sessions pour afficher soit toutes soit seulement celles adoptées
-  const getDisplaySessions = () => {
-    const allSessions = getAllSessionsWithAdoptionStatus();
-    
-    // Afficher toutes les sessions disponibles sur WAHA
-    return allSessions;
+  // Filtrer les sessions pour afficher seulement celles de l'utilisateur connecté
+  const getUserFilteredSessions = () => {
+    if (!user?.id || !userSessions.length) return [];
+    return sessions.filter(session => userSessions.includes(session.name));
   };
 
   // Auto-refresh des sessions et détection de nouvelles sessions
@@ -301,9 +282,9 @@ const CompleteSessionManager: React.FC = () => {
   };
 
   // Obtenir les sessions filtrées de l'utilisateur
-  const displaySessions = getDisplaySessions();
+  const userFilteredSessions = getUserFilteredSessions();
 
-  const filteredSessions = displaySessions.filter(session =>
+  const filteredSessions = userFilteredSessions.filter(session =>
     session.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     session.config?.metadata?.phone_number?.includes(searchTerm)
   );
@@ -361,7 +342,7 @@ const CompleteSessionManager: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Sessions Actives</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {displaySessions.filter(s => s.status === 'WORKING').length}
+                    {userFilteredSessions.filter(s => s.status === 'WORKING').length}
                   </p>
                 </div>
               </div>
@@ -377,7 +358,7 @@ const CompleteSessionManager: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">En Attente QR</p>
                   <p className="text-2xl font-bold text-orange-600">
-                    {displaySessions.filter(s => s.status === 'SCAN_QR_CODE').length}
+                    {userFilteredSessions.filter(s => s.status === 'SCAN_QR_CODE').length}
                   </p>
                 </div>
               </div>
@@ -393,7 +374,7 @@ const CompleteSessionManager: React.FC = () => {
                 <div>
                   <p className="text-sm text-muted-foreground">Arrêtées</p>
                   <p className="text-2xl font-bold text-slate-600">
-                    {displaySessions.filter(s => s.status === 'STOPPED').length}
+                    {userFilteredSessions.filter(s => s.status === 'STOPPED').length}
                   </p>
                 </div>
               </div>
@@ -408,7 +389,7 @@ const CompleteSessionManager: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-2xl font-bold text-blue-600">{displaySessions.length}</p>
+                  <p className="text-2xl font-bold text-blue-600">{userFilteredSessions.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -463,7 +444,7 @@ const CompleteSessionManager: React.FC = () => {
                   <span className="text-muted-foreground">Chargement des sessions...</span>
                 </div>
               </div>
-            ) : displaySessions.length === 0 ? (
+            ) : userFilteredSessions.length === 0 ? (
               <div className="text-center py-12">
                 <div className="mb-4">
                   <div className="mx-auto w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center">
@@ -512,37 +493,24 @@ const CompleteSessionManager: React.FC = () => {
                           
                           {/* Informations de session */}
                           <div>
-                             <div className="flex items-center gap-3 mb-1">
-                               <h3 className="text-lg font-semibold">{session.name}</h3>
-                               <Badge 
-                                 variant="outline" 
-                                 className={`text-xs ${
-                                   session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
-                                   session.status === 'FAILED' ? 'bg-red-500/10 border-red-500/30 text-red-600' :
-                                   session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
-                                   session.status === 'STOPPED' ? 'bg-slate-500/10 border-slate-500/30 text-slate-600' :
-                                   'bg-slate-500/10 border-slate-500/30 text-slate-600'
-                                 }`}
-                               >
-                                 {session.status === 'WORKING' ? 'Connecté' :
-                                  session.status === 'SCAN_QR_CODE' ? 'QR Code requis' :
-                                  session.status === 'STOPPED' ? 'Arrêté' :
-                                  'Déconnecté'}
-                               </Badge>
-                               
-                               {/* Indicateur d'adoption */}
-                               {session.isAdopted ? (
-                                 <Badge variant="secondary" className="text-xs bg-primary/10 border-primary/30 text-primary">
-                                   <Users className="h-3 w-3 mr-1" />
-                                   Ma Session
-                                 </Badge>
-                               ) : (
-                                 <Badge variant="outline" className="text-xs bg-amber-500/10 border-amber-500/30 text-amber-600">
-                                   <Globe className="h-3 w-3 mr-1" />
-                                   Disponible
-                                 </Badge>
-                               )}
-                             </div>
+                            <div className="flex items-center gap-3 mb-1">
+                              <h3 className="text-lg font-semibold">{session.name}</h3>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
+                                  session.status === 'FAILED' ? 'bg-red-500/10 border-red-500/30 text-red-600' :
+                                  session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
+                                  session.status === 'STOPPED' ? 'bg-slate-500/10 border-slate-500/30 text-slate-600' :
+                                  'bg-slate-500/10 border-slate-500/30 text-slate-600'
+                                }`}
+                              >
+                                {session.status === 'WORKING' ? 'Connecté' :
+                                 session.status === 'SCAN_QR_CODE' ? 'QR Code requis' :
+                                 session.status === 'STOPPED' ? 'Arrêté' :
+                                 'Déconnecté'}
+                              </Badge>
+                            </div>
                             
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                               {session.config?.metadata?.phone_number ? (
@@ -564,88 +532,68 @@ const CompleteSessionManager: React.FC = () => {
                           </div>
                         </div>
 
-                         {/* Action rapide et chevron */}
-                         <div className="flex items-center gap-3">
-                           {/* Bouton d'adoption pour les sessions non adoptées */}
-                           {!session.isAdopted && (
-                             <Button
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 adoptSession(session.name);
-                               }}
-                               size="sm"
-                               variant="outline"
-                               className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
-                             >
-                               <Users className="h-4 w-4" />
-                               Adopter
-                             </Button>
-                           )}
-                           
-                           {/* Action rapide principale - seulement pour les sessions adoptées */}
-                           {session.isAdopted && (
-                             <>
-                               {session.status === 'STOPPED' ? (
-                                 <Button
-                                   onClick={(e) => {
-                                     e.stopPropagation();
-                                     handleStartSession(session.name);
-                                   }}
-                                   size="sm"
-                                   className="bg-green-600 hover:bg-green-700 text-white gap-2"
-                                 >
-                                   <Play className="h-4 w-4" />
-                                   Démarrer
-                                 </Button>
-                               ) : session.status === 'SCAN_QR_CODE' ? (
-                                 <Button
-                                   onClick={(e) => {
-                                     e.stopPropagation();
-                                     handleConnectWhatsApp(session.name);
-                                   }}
-                                   size="sm"
-                                   className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
-                                 >
-                                   <QrCode className="h-4 w-4" />
-                                   Scanner QR
-                                 </Button>
-                               ) : session.status === 'WORKING' ? (
-                                 <Button
-                                   onClick={(e) => {
-                                     e.stopPropagation();
-                                     handleStopSession(session.name);
-                                   }}
-                                   size="sm"
-                                   variant="outline"
-                                   className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                                 >
-                                   <Square className="h-4 w-4" />
-                                   Arrêter
-                                 </Button>
-                               ) : (
-                                 <Button
-                                   onClick={(e) => {
-                                     e.stopPropagation();
-                                     handleStartSession(session.name);
-                                   }}
-                                   size="sm"
-                                   variant="outline"
-                                   className="gap-2"
-                                 >
-                                   <Play className="h-4 w-4" />
-                                   Démarrer
-                                 </Button>
-                               )}
-                             </>
-                           )}
+                        {/* Action rapide et chevron */}
+                        <div className="flex items-center gap-3">
+                          {/* Action rapide principale */}
+                          {session.status === 'STOPPED' ? (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartSession(session.name);
+                              }}
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                            >
+                              <Play className="h-4 w-4" />
+                              Démarrer
+                            </Button>
+                          ) : session.status === 'SCAN_QR_CODE' ? (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleConnectWhatsApp(session.name);
+                              }}
+                              size="sm"
+                              className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                            >
+                              <QrCode className="h-4 w-4" />
+                              Scanner QR
+                            </Button>
+                          ) : session.status === 'WORKING' ? (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStopSession(session.name);
+                              }}
+                              size="sm"
+                              variant="outline"
+                              className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                            >
+                              <Square className="h-4 w-4" />
+                              Arrêter
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRestartSession(session.name);
+                              }}
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              Relancer
+                            </Button>
+                          )}
 
-                           {/* Chevron pour expansion */}
-                           <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
-                             expandedSession === session.name ? 'rotate-180' : ''
-                           }`} />
-                         </div>
-                       </div>
-                     </div>
+                          {/* Chevron pour expansion */}
+                          <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
+                            expandedSession === session.name ? 'rotate-180' : ''
+                          }`} />
+                        </div>
+                      </div>
+                    </div>
 
                     {/* Panel d'actions détaillées (expandable) */}
                     {expandedSession === session.name && (
