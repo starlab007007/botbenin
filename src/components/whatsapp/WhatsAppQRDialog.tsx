@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { QrCode, Monitor, RefreshCw, ExternalLink, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import WAHADashboardIframe from './WAHADashboardIframe';
 
 interface WhatsAppQRDialogProps {
   open: boolean;
@@ -213,50 +214,9 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Monitor className="h-5 w-5" />
-                    Dashboard WAHA Intégré
-                  </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={openExternalDashboard}
-                    className="gap-2"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Ouvrir External
-                  </Button>
-                </div>
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Le dashboard WAHA sera affiché ci-dessous. Cliquez sur "Login" puis naviguez vers la session "{sessionName}" pour scanner le QR code.
-                  </AlertDescription>
-                </Alert>
-              </CardHeader>
-              <CardContent>
-                <div className="relative border rounded-lg overflow-hidden" style={{ height: '500px' }}>
-                  {dashboardLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="h-8 w-8 animate-spin" />
-                        <p className="text-sm text-muted-foreground">Chargement du dashboard WAHA...</p>
-                      </div>
-                    </div>
-                  )}
-                  <iframe
-                    src={dashboardUrl}
-                    className="w-full h-full border-0"
-                    onLoad={handleDashboardLoad}
-                    sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation"
-                    title="WAHA Dashboard"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="h-[500px]">
+              <WAHADashboardIframe />
+            </div>
           </TabsContent>
 
           <TabsContent value="direct" className="space-y-4">
