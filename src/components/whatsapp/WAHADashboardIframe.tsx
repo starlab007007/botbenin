@@ -6,35 +6,10 @@ import { Monitor } from 'lucide-react';
 const WAHADashboardIframe: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const dashboardUrl = 'https://waha.bot.bj/dashboard/';
-  const username = 'admin';
-  const password = 'Starlab@007';
+  // Use the Supabase edge function proxy instead of direct URL
+  const dashboardUrl = 'https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/waha-dashboard-mirror';
 
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    const handleIframeLoad = () => {
-      try {
-        // Tentative de connexion automatique via postMessage
-        const loginData = {
-          type: 'auto-login',
-          username,
-          password
-        };
-        
-        iframe.contentWindow?.postMessage(loginData, 'https://waha.bot.bj');
-      } catch (error) {
-        console.warn('Auto-login via postMessage non disponible:', error);
-      }
-    };
-
-    iframe.addEventListener('load', handleIframeLoad);
-    
-    return () => {
-      iframe.removeEventListener('load', handleIframeLoad);
-    };
-  }, []);
+  // The edge function handles authentication automatically
 
   return (
     <>
@@ -83,7 +58,7 @@ const WAHADashboardIframe: React.FC = () => {
             <div className="text-center space-y-3">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-sm font-medium">Connexion automatique au dashboard WAHA...</p>
-              <p className="text-xs text-muted-foreground">Utilisateur: {username}</p>
+              <p className="text-xs text-muted-foreground">Via proxy sécurisé</p>
             </div>
           </div>
         </div>
@@ -92,8 +67,8 @@ const WAHADashboardIframe: React.FC = () => {
         <div className="p-4 bg-muted/50 border-t">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <div className="flex items-center gap-4">
-              <span>🌐 URL: {dashboardUrl}</span>
-              <span>👤 Utilisateur: {username}</span>
+              <span>🌐 Proxy sécurisé via Supabase</span>
+              <span>🔑 Authentification automatique</span>
             </div>
             <span>🔒 Connexion sécurisée</span>
           </div>
