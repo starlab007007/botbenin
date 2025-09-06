@@ -367,10 +367,20 @@ const CompleteSessionManager: React.FC = () => {
     try {
       setSelectedSession(sessionName);
       setShowQRModal(true);
+      
+      // Déclencher automatiquement le login sur WAHA Dashboard (équivalent au bouton login)
+      await startSession(sessionName);
+      
+      // Récupérer le QR code directement de WAHA Dashboard
       const qr = await getQRCode(sessionName);
       setQrCodeData(qr.qr);
-      toast.success('QR Code généré pour la connexion WhatsApp');
+      
+      toast.success('Session démarrée et QR Code généré pour WhatsApp');
+      
+      // Actualiser les données pour synchroniser l'état
+      refreshData();
     } catch (error) {
+      console.error('Erreur lors de la connexion WhatsApp:', error);
       toast.error('Erreur lors de la génération du QR code');
     }
   };
@@ -779,14 +789,14 @@ const CompleteSessionManager: React.FC = () => {
                                 Redémarrer
                               </Button>
 
-                              {/* QR Code */}
+                              {/* Scanner QR Code - Action synchronisée */}
                               <Button
                                 onClick={() => handleConnectWhatsApp(session.name)}
                                 variant="outline"
                                 className="gap-2 border-orange-200 text-orange-600 hover:bg-orange-50"
                               >
                                 <QrCode className="h-4 w-4" />
-                                QR Code
+                                Scanner QR Code
                               </Button>
 
                               {/* Détails */}
@@ -983,6 +993,14 @@ const CompleteSessionManager: React.FC = () => {
             </DialogTitle>
           </DialogHeader>
           
+          {/* Description de synchronisation WAHA */}
+          <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-200/30 mb-4">
+            <p className="text-sm text-blue-700 flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              Session synchronisée avec WAHA Dashboard - Login automatique activé
+            </p>
+          </div>
+          
           <div className="space-y-6 py-2">
             {qrCodeData ? (
               <>
@@ -1069,7 +1087,7 @@ const CompleteSessionManager: React.FC = () => {
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    QR Code connecté avec WAHA Dashboard
+                    QR Code synchronisé avec WAHA Dashboard - Session active
                   </p>
                 </div>
               </>
