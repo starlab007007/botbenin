@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AuthGuard } from '@/components/bot-management/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompleteSessionManager from '@/components/whatsapp/CompleteSessionManager';
+import WAHADashboardIframe from '@/components/whatsapp/WAHADashboardIframe';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -18,7 +20,24 @@ const WhatsAppConnectPage: React.FC = () => {
           </div>
         </div>
 
-        <CompleteSessionManager />
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="dashboard" className="gap-2">
+              📊 Dashboard WAHA Intégré
+            </TabsTrigger>
+            <TabsTrigger value="sessions" className="gap-2">
+              ⚙️ Gestionnaire de Sessions
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard" className="space-y-6">
+            <WAHADashboardIframe />
+          </TabsContent>
+
+          <TabsContent value="sessions" className="space-y-6">
+            <CompleteSessionManager />
+          </TabsContent>
+        </Tabs>
       </div>
     </AuthGuard>
   );
