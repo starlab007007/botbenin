@@ -131,7 +131,7 @@ const CompleteSessionManager: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('whatsapp_accounts')
-        .select('session_name')
+        .select('session_name, status')
         .eq('user_id', user.id);
 
       if (error) {
@@ -141,6 +141,11 @@ const CompleteSessionManager: React.FC = () => {
 
       const sessionNames = data?.map(account => account.session_name) || [];
       setUserSessions(sessionNames);
+      
+      // Synchroniser avec les sessions WAHA pour forcer l'affichage
+      if (sessionNames.length > 0) {
+        setTimeout(() => refreshData(), 500);
+      }
     } catch (error) {
       console.error('Erreur:', error);
     }
@@ -171,8 +176,15 @@ const CompleteSessionManager: React.FC = () => {
 
   // Filtrer les sessions pour afficher seulement celles de l'utilisateur connecté
   const getUserFilteredSessions = () => {
-    if (!user?.id || !userSessions.length) return [];
-    return sessions.filter(session => userSessions.includes(session.name));
+    if (!user?.id) return [];
+    
+    // Afficher toutes les sessions qui correspondent aux sessions de l'utilisateur OU
+    // les sessions qui viennent d'être créées (createdSession)
+    return sessions.filter(session => {
+      const isUserSession = userSessions.includes(session.name);
+      const isJustCreated = createdSession === session.name;
+      return isUserSession || isJustCreated;
+    });
   };
 
   // Auto-refresh des sessions et détection de nouvelles sessions
@@ -205,8 +217,9 @@ const CompleteSessionManager: React.FC = () => {
     if (createdSession && sessions.length > 0) {
       const foundSession = sessions.find(s => s.name === createdSession);
       if (foundSession) {
-        toast.success(`Session "${createdSession}" détectée et affichée automatiquement`);
-        setCreatedSession(null);
+        toast.success(`🎉 Session "${createdSession}" détectée et affichée! Prête à démarrer.`);
+        // Ne pas réinitialiser immédiatement pour laisser le temps de voir la session
+        setTimeout(() => setCreatedSession(null), 10000); // 10 secondes
       }
     }
   }, [sessions, createdSession]);
@@ -223,23 +236,29 @@ const CompleteSessionManager: React.FC = () => {
     }
 
     try {
+      // Créer la session sur WAHA
       await createSession(newSessionName);
       
-      // Sauvegarder la session pour cet utilisateur dans la base de données
+      // Sauvegarder immédiatement dans la base de données
       await saveUserSession(newSessionName);
       
+      // Marquer comme session créée pour affichage immédiat
       setCreatedSession(newSessionName);
       setNewSessionName('');
       setShowCreateModal(false);
       
-      // Rafraîchir immédiatement plusieurs fois pour s'assurer que la session apparaît
-      const refreshAttempts = [500, 1500, 3000];
+      // Plusieurs tentatives de refresh pour s'assurer que la session apparaît
+      const refreshAttempts = [0, 500, 1500, 3000, 5000];
       refreshAttempts.forEach(delay => {
-        setTimeout(() => refreshData(), delay);
+        setTimeout(() => {
+          refreshData();
+          loadUserSessions(); // Recharger aussi les sessions utilisateur
+        }, delay);
       });
       
-      toast.success(`Session "${newSessionName}" créée - Affichage automatique en cours...`);
+      toast.success(`✅ Session "${newSessionName}" créée et prête à démarrer!`);
     } catch (error) {
+      console.error('Erreur création session:', error);
       toast.error('Erreur lors de la création de la session');
     }
   };
@@ -504,9 +523,9 @@ const CompleteSessionManager: React.FC = () => {
                 <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                   Commencez par créer votre première session WhatsApp pour connecter votre compte business.
                 </p>
-                <Button onClick={() => setShowCreateModal(true)} className="gap-2">
-                  <Play className="h-4 w-4" />
-                  Start New
+                <Button onClick={() => setShowCreateModal(true)} size="lg" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3">
+                  <Play className="h-5 w-5" />
+                  🚀 Start New
                 </Button>
               </div>
             ) : (
