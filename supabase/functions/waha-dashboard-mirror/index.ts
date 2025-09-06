@@ -119,22 +119,59 @@ serve(async (req) => {
       }
     }
 
-    // If it's HTML, we might need to rewrite URLs to make them work through our proxy
+    // Enhanced HTML rewriting for better proxy functionality
     if (contentType.includes('text/html')) {
       let htmlContent = new TextDecoder().decode(responseBody);
       
-      // Rewrite relative URLs to go through our proxy
+      // Build proxy base URL
       const proxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-mirror?path=`;
+      const apiProxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-proxy`;
       
-      // Rewrite common URL patterns
+      // Enhanced URL rewriting patterns
       htmlContent = htmlContent
+        // Basic HTML attributes
         .replace(/href="\/([^"]*)">/g, `href="${proxyBase}$1">`)
         .replace(/src="\/([^"]*)">/g, `src="${proxyBase}$1">`)
         .replace(/action="\/([^"]*)">/g, `action="${proxyBase}$1">`)
-        .replace(/url\(\/([^)]*)\)/g, `url(${proxyBase}$1)`)
-        // Handle JavaScript fetch/XMLHttpRequest calls
-        .replace(/fetch\("\/([^"]*)"/g, `fetch("${proxyBase}$1"`)
-        .replace(/XMLHttpRequest.*open\([^,]*,\s*"\/([^"]*)"/g, `XMLHttpRequest.open($1, "${proxyBase}$1"`);
+        // CSS url() patterns
+        .replace(/url\(["']?\/([^"')]*?)["']?\)/g, `url("${proxyBase}$1")`)
+        // JavaScript patterns for fetch and XMLHttpRequest
+        .replace(/fetch\s*\(\s*["']\/([^"']*?)["']/g, `fetch("${apiProxyBase}?endpoint=$1"`)
+        .replace(/\$\.ajax\s*\(\s*{[^}]*url\s*:\s*["']\/([^"']*?)["']/g, (match, url) => 
+          match.replace(`"/${url}"`, `"${apiProxyBase}?endpoint=${url}"`))
+        .replace(/axios\.(get|post|put|delete)\s*\(\s*["']\/([^"']*?)["']/g, (match, method, url) =>
+          match.replace(`"/${url}"`, `"${apiProxyBase}?endpoint=${url}"`))
+        // WebSocket connections
+        .replace(/new\s+WebSocket\s*\(\s*["']wss?:\/\/[^"']*\/([^"']*?)["']/g, (match, path) =>
+          match.replace(/wss?:\/\/[^"']*\//, `wss://${urlParams.host}/functions/v1/waha-ws-proxy?path=`))
+        // Form handling
+        .replace(/<form([^>]*)\s+action\s*=\s*["']\/([^"']*?)["']/g, `<form$1 action="${proxyBase}$2"`)
+        // Base href injection
+        .replace(/<head[^>]*>/i, `$&\n<base href="${proxyBase}">`)
+        // Add JavaScript to handle dynamic requests
+        .replace(/<\/head>/i, `
+          <script>
+            // Override fetch to use proxy
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+              if (typeof url === 'string' && url.startsWith('/')) {
+                url = '${apiProxyBase}?endpoint=' + url.substring(1);
+              }
+              return originalFetch(url, options);
+            };
+            
+            // Override XMLHttpRequest
+            const OriginalXHR = window.XMLHttpRequest;
+            window.XMLHttpRequest = class extends OriginalXHR {
+              open(method, url, ...args) {
+                if (typeof url === 'string' && url.startsWith('/')) {
+                  url = '${apiProxyBase}?endpoint=' + url.substring(1);
+                }
+                return super.open(method, url, ...args);
+              }
+            };
+          </script>
+        </head>`);
 
       return new Response(htmlContent, {
         status: wahaResponse.status,

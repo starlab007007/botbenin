@@ -22,6 +22,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useWAHADashboard } from '@/hooks/useWAHADashboard';
+import EnhancedWAHAInterface from './EnhancedWAHAInterface';
 import { toast } from 'sonner';
 
 interface SessionData {
@@ -40,6 +41,7 @@ interface QRCodeData {
 }
 
 const WAHANativeDashboard: React.FC = () => {
+  const [interfaceMode, setInterfaceMode] = useState<'enhanced' | 'classic'>('enhanced');
   const [searchTerm, setSearchTerm] = useState('');
   const [newSessionName, setNewSessionName] = useState('');
   const [qrCodeData, setQRCodeData] = useState<QRCodeData | null>(null);
@@ -211,6 +213,10 @@ const WAHANativeDashboard: React.FC = () => {
     session.account.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (interfaceMode === 'enhanced') {
+    return <EnhancedWAHAInterface />;
+  }
+
   return (
     <div className="bg-slate-900 text-white min-h-screen p-6">
       {/* Header */}
@@ -226,6 +232,14 @@ const WAHANativeDashboard: React.FC = () => {
           <Badge variant="outline" className="border-orange-500 text-orange-400">
             {filteredSessions.filter(s => s.status === 'SCAN_QR_CODE').length} En attente
           </Badge>
+          <Button 
+            onClick={() => setInterfaceMode(prev => prev === 'enhanced' ? 'classic' : 'enhanced')} 
+            variant="outline" 
+            size="sm"
+            className="border-blue-600 text-blue-400 hover:bg-blue-700"
+          >
+            {interfaceMode === 'enhanced' as string ? 'Mode Classique' : 'Mode Avancé'}
+          </Button>
           <Button 
             onClick={handleRefresh} 
             variant="outline" 
