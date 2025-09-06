@@ -60,17 +60,11 @@ serve(async (req) => {
       console.log(`🎯 Auto QR mode activé pour session: ${autoQr}`);
     }
 
-    // Prepare authentication headers
+    // Force Basic Auth for auto-login (priorité sur API key pour l'auto-connexion)
     let authHeaders: Record<string, string> = {};
-    
-    // Try API Key first if available
-    if (wahaApiKey) {
-      authHeaders['X-Api-Key'] = wahaApiKey;
-    } else {
-      // Fallback to Basic Auth
-      const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
-      authHeaders['Authorization'] = `Basic ${basicAuth}`;
-    }
+    const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
+    authHeaders['Authorization'] = `Basic ${basicAuth}`;
+    console.log('🔐 Authentification automatique avec Basic Auth activée');
 
     // Prepare request headers
     const requestHeaders: Record<string, string> = {
@@ -131,6 +125,75 @@ serve(async (req) => {
       const proxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-mirror?path=`;
       const apiProxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-proxy`;
       
+      // Si mode autoQr, masquer tout le contenu sauf la session spécifique
+      if (autoQr) {
+        htmlContent = htmlContent.replace(
+          /<body[^>]*>/i,
+          `<body style="margin: 0; padding: 20px; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+          <style>
+            /* Masquer tout le contenu du dashboard par défaut */
+            .container, .sidebar, .header, .footer, .navigation,
+            .main-content > *, .dashboard-grid, .stats-cards, .charts,
+            h1:not(.session-title), h2:not(.session-title), nav, 
+            .navbar, .menu, .breadcrumb, table:not(.session-table) {
+              display: none !important;
+            }
+            
+            /* Interface minimale pour la session */
+            body {
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            
+            .session-container {
+              background: white;
+              border-radius: 12px;
+              padding: 32px;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+              text-align: center;
+              max-width: 450px;
+              width: 100%;
+            }
+            
+            .session-title {
+              margin: 0 0 24px 0;
+              color: #1f2937;
+              font-size: 24px;
+              font-weight: 600;
+            }
+            
+            .qr-container {
+              margin: 24px 0;
+            }
+            
+            .qr-container img {
+              width: 280px;
+              height: 280px;
+              border: 2px solid #e5e7eb;
+              border-radius: 8px;
+            }
+            
+            .status-info {
+              margin-top: 20px;
+              padding: 12px;
+              background: #f0fdf4;
+              border: 1px solid #bbf7d0;
+              border-radius: 6px;
+              color: #166534;
+              font-size: 14px;
+            }
+            
+            .loading {
+              margin: 20px 0;
+              color: #6b7280;
+              font-size: 16px;
+            }
+          </style>`
+        );
+      }
+      
       // Enhanced URL rewriting patterns
       htmlContent = htmlContent
         // Basic HTML attributes
@@ -152,14 +215,19 @@ serve(async (req) => {
         .replace(/<form([^>]*)\s+action\s*=\s*["']\/([^"']*?)["']/g, `<form$1 action="${proxyBase}$2"`)
         // Base href injection
         .replace(/<head[^>]*>/i, `$&\n<base href="${proxyBase}">`)
-        // Add JavaScript to handle dynamic requests
+        // Add JavaScript pour gestion automatique et interface spécialisée
         .replace(/<\/head>/i, `
           <script>
             // Override fetch to use proxy
             const originalFetch = window.fetch;
-            window.fetch = function(url, options) {
+            window.fetch = function(url, options = {}) {
               if (typeof url === 'string' && url.startsWith('/')) {
                 url = '${apiProxyBase}?endpoint=' + url.substring(1);
+                options.headers = {
+                  ...options.headers,
+                  'Authorization': 'Bearer ' + (window.supabaseAccessToken || ''),
+                  'Content-Type': 'application/json'
+                };
               }
               return originalFetch(url, options);
             };
@@ -175,52 +243,79 @@ serve(async (req) => {
               }
             };
 
-            // Auto QR functionality
             ${autoQr ? `
-            window.addEventListener('load', function() {
+            // Mode Auto QR pour session spécifique
+            window.addEventListener('DOMContentLoaded', function() {
               console.log('🎯 Mode Auto QR activé pour session: ${autoQr}');
               
-              // Fonction pour démarrer automatiquement la session et récupérer le QR
-              async function autoStartSession() {
+              // Remplacer immédiatement le contenu de la page par l'interface QR
+              document.body.innerHTML = \`
+                <div class="session-container">
+                  <h2 class="session-title">Session ${autoQr}</h2>
+                  <div class="loading">🔄 Connexion automatique en cours...</div>
+                  <div id="qr-result"></div>
+                </div>
+              \`;
+              
+              // Fonction pour récupérer le QR via proxy
+              async function fetchQRCode() {
+                const qrResult = document.getElementById('qr-result');
+                
                 try {
-                  console.log('🔄 Tentative de démarrage automatique de la session ${autoQr}...');
+                  qrResult.innerHTML = '<div class="loading">📱 Génération du QR code...</div>';
                   
-                  // Attendre que la page soit complètement chargée
-                  await new Promise(resolve => setTimeout(resolve, 2000));
+                  // Essayer de démarrer la session d'abord
+                  console.log('▶️ Démarrage de la session ${autoQr}...');
+                  const startResponse = await fetch('${apiProxyBase}?endpoint=api/sessions/${autoQr}/start', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': 'Bearer ' + (window.supabaseAccessToken || ''),
+                      'Content-Type': 'application/json'
+                    }
+                  });
                   
-                  // Essayer de naviguer automatiquement vers la session
-                  const sessionLinks = document.querySelectorAll('a[href*="${autoQr}"], .session-${autoQr}, [data-session="${autoQr}"]');
-                  if (sessionLinks.length > 0) {
-                    console.log('📱 Session trouvée, navigation automatique...');
-                    sessionLinks[0].click();
-                    
-                    // Attendre le chargement de la page de session
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                    
-                    // Essayer de trouver le bouton de démarrage/QR
-                    const startButton = document.querySelector('button[id*="start"], button[class*="start"], .btn-start');
-                    const qrButton = document.querySelector('button[id*="qr"], button[class*="qr"], .btn-qr');
-                    
-                    if (startButton) {
-                      console.log('▶️ Démarrage automatique de la session...');
-                      startButton.click();
-                      await new Promise(resolve => setTimeout(resolve, 2000));
-                    }
-                    
-                    if (qrButton) {
-                      console.log('📱 Récupération automatique du QR...');
-                      qrButton.click();
-                    }
-                  } else {
-                    console.log('⚠️ Session ${autoQr} non trouvée dans le dashboard');
+                  if (startResponse.ok) {
+                    console.log('✅ Session démarrée, récupération du QR...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                   }
+                  
+                  // Récupérer le QR code
+                  const qrResponse = await fetch('${apiProxyBase}?endpoint=api/sessions/${autoQr}/auth/qr', {
+                    headers: {
+                      'Authorization': 'Bearer ' + (window.supabaseAccessToken || ''),
+                      'Accept': 'application/json'
+                    }
+                  });
+                  
+                  if (qrResponse.ok) {
+                    const qrData = await qrResponse.json();
+                    console.log('📱 QR code récupéré avec succès');
+                    
+                    qrResult.innerHTML = \`
+                      <div class="qr-container">
+                        <img src="\${qrData.qr || qrData.qrCode}" alt="QR Code WhatsApp" />
+                      </div>
+                      <div class="status-info">
+                        ✅ Session prête - Ouvrez WhatsApp > Appareils connectés > Connecter un appareil
+                      </div>
+                    \`;
+                  } else {
+                    throw new Error('Impossible de récupérer le QR code');
+                  }
+                  
                 } catch (error) {
-                  console.error('❌ Erreur auto QR:', error);
+                  console.error('❌ Erreur QR:', error);
+                  qrResult.innerHTML = \`
+                    <div style="color: #dc2626; padding: 16px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;">
+                      ❌ Erreur: \${error.message}<br>
+                      <small>Vérifiez que l'API key WAHA a les permissions complètes</small>
+                    </div>
+                  \`;
                 }
               }
               
-              // Lancer l'auto-démarrage après un délai
-              setTimeout(autoStartSession, 1000);
+              // Lancer la récupération du QR après un délai
+              setTimeout(fetchQRCode, 1500);
             });
             ` : ''}
           </script>
