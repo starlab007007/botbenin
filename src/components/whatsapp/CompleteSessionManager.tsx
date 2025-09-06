@@ -14,6 +14,7 @@ import WAHACompleteDiagnostic from '@/components/whatsapp/WAHACompleteDiagnostic
 import WAHAQRTester from '@/components/whatsapp/WAHAQRTester';
 import WAHATroubleshootingGuide from '@/components/whatsapp/WAHATroubleshootingGuide';
 import WAHAPermissionsDiagnostic from '@/components/whatsapp/WAHAPermissionsDiagnostic';
+import WAHAApiKeySolution from '@/components/whatsapp/WAHAApiKeySolution';
 import { 
   Play, 
   Square, 
@@ -515,12 +516,12 @@ const CompleteSessionManager: React.FC = () => {
       </div>
 
       <div className="container mx-auto px-6 py-6">
-        {/* Guide de Résolution */}
+        {/* SOLUTION DÉFINITIVE - API Key Problem Resolver */}
         <div className="mb-6">
-          <WAHATroubleshootingGuide />
+          <WAHAApiKeySolution />
         </div>
         
-        {/* Diagnostic des Permissions WAHA - SOLUTION AU PROBLÈME */}
+        {/* Diagnostic des Permissions WAHA - CONFIRMATION DU PROBLÈME */}
         <div className="mb-6">
           <WAHAPermissionsDiagnostic />
         </div>
