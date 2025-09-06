@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import WAHANativeDashboard from '@/components/whatsapp/WAHANativeDashboard';
+import CompleteSessionManager from '@/components/whatsapp/CompleteSessionManager';
 
 const ComprehensiveWhatsAppManager: React.FC = () => {
   const [user, setUser] = useState<any>(null);
@@ -66,7 +66,7 @@ const ComprehensiveWhatsAppManager: React.FC = () => {
 
   return (
     <div className="max-w-full mx-auto">
-      <WAHANativeDashboard />
+      <CompleteSessionManager />
     </div>
   );
 };
