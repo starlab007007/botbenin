@@ -82,16 +82,27 @@ const CompleteSessionManager: React.FC = () => {
     loading 
   } = useWAHADashboard();
 
-  // Auto-refresh des sessions
+  // Auto-refresh des sessions et détection de nouvelles sessions
   useEffect(() => {
     if (!autoRefresh) return;
     
     const interval = setInterval(() => {
       refreshData();
-    }, 10000); // Refresh toutes les 10 secondes
+    }, 5000); // Refresh toutes les 5 secondes pour une détection plus rapide
 
     return () => clearInterval(interval);
   }, [autoRefresh, refreshData]);
+
+  // Détection automatique des nouvelles sessions créées
+  useEffect(() => {
+    if (createdSession && sessions.length > 0) {
+      const foundSession = sessions.find(s => s.name === createdSession);
+      if (foundSession) {
+        toast.success(`Session "${createdSession}" détectée et affichée automatiquement`);
+        setCreatedSession(null);
+      }
+    }
+  }, [sessions, createdSession]);
 
   // Simuler le processus de connexion avec étapes
   const startConnectionProcess = (sessionName: string) => {
@@ -189,16 +200,17 @@ const CompleteSessionManager: React.FC = () => {
 
     try {
       await createSession(newSessionName);
+      setCreatedSession(newSessionName);
       setNewSessionName('');
       setShowCreateModal(false);
-      setCreatedSession(newSessionName);
       
-      // Rafraîchir immédiatement pour voir la session créée
-      setTimeout(() => {
-        refreshData();
-      }, 1000);
+      // Rafraîchir immédiatement plusieurs fois pour s'assurer que la session apparaît
+      const refreshAttempts = [500, 1500, 3000];
+      refreshAttempts.forEach(delay => {
+        setTimeout(() => refreshData(), delay);
+      });
       
-      toast.success('Session créée avec succès - Affichage immédiat activé');
+      toast.success(`Session "${newSessionName}" créée - Affichage automatique en cours...`);
     } catch (error) {
       toast.error('Erreur lors de la création de la session');
     }
