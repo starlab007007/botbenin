@@ -135,7 +135,7 @@ serve(async (req) => {
     const apiKeyHeaders = {
       'X-Api-Key': wahaApiKey,
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Accept': '*/*'
     };
     
     console.log('Using X-Api-Key authentication method');
@@ -162,6 +162,56 @@ serve(async (req) => {
       
       wahaResponse = await fetch(altUrl, { method: 'GET', headers: retryHeaders });
       console.log(`Fallback to /api/v2/sessions status: ${wahaResponse.status}`);
+    }
+
+    // Fallbacks intelligents pour les endpoints QR (nombreuses variantes WAHA)
+    if (wahaResponse && wahaResponse.status === 404) {
+      try {
+        const qrMatch =
+          pathNormalized.match(/^\/api(?:\/v2)?\/(?:sessions\/)?([^\/]+)\/(?:auth\/)?qr(\?.*)?$/i) ||
+          pathNormalized.match(/^\/api(?:\/v2)?\/([^\/]+)\/auth\/qr(\?.*)?$/i);
+
+        if (qrMatch) {
+          const sessionName = qrMatch[1];
+          console.log(`QR endpoint 404 for ${pathNormalized}. Trying alternative endpoints for session: ${sessionName}`);
+
+          const candidates: { path: string; method: 'GET' | 'POST' }[] = [
+            // Recommandés (nouvelles versions)
+            { path: `/api/${sessionName}/auth/qr`, method: 'POST' },
+            { path: `/api/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+            { path: `/api/v2/${sessionName}/auth/qr`, method: 'POST' },
+            { path: `/api/v2/${sessionName}/auth/qr?format=base64`, method: 'POST' },
+            // Anciens schémas (compatibilité max)
+            { path: `/api/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+            { path: `/api/sessions/${sessionName}/auth/qr`, method: 'GET' },
+            { path: `/api/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
+            { path: `/api/sessions/${sessionName}/qr`, method: 'GET' },
+            { path: `/api/v2/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
+            { path: `/api/v2/sessions/${sessionName}/auth/qr`, method: 'GET' },
+            { path: `/api/v2/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
+            { path: `/api/v2/sessions/${sessionName}/qr`, method: 'GET' },
+          ];
+
+          for (const c of candidates) {
+            const tryUrl = `${base}${c.path}`;
+            const tryHeaders = {
+              'X-Api-Key': wahaApiKey,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            } as Record<string, string>;
+            console.log(`➡️ QR fallback try: ${c.method} ${tryUrl}`);
+            const resp = await fetch(tryUrl, { method: c.method, headers: tryHeaders });
+            console.log(`⬅️ QR fallback status: ${resp.status}`);
+            if (resp.ok) {
+              console.log('✅ QR fallback succeeded');
+              wahaResponse = resp;
+              break;
+            }
+          }
+        }
+      } catch (qrFallbackError) {
+        console.warn('QR fallback handling error:', qrFallbackError);
+      }
     }
 
     console.log(`Final WAHA response status: ${wahaResponse?.status || 'NO_RESPONSE'}`);

@@ -141,6 +141,11 @@ serve(async (req) => {
     if (contentType.includes('text/html')) {
       let htmlContent = new TextDecoder().decode(responseBody);
       
+      // Strip meta CSP/X-Frame tags that can still block embedding
+      htmlContent = htmlContent
+        .replace(/<meta[^>]+http-equiv=["']content-security-policy["'][^>]*>/gi, '')
+        .replace(/<meta[^>]+http-equiv=["']x-frame-options["'][^>]*>/gi, '');
+      
       // Build proxy base URL
       const proxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-mirror?path=`;
       const apiProxyBase = `${urlParams.origin}/functions/v1/waha-dashboard-proxy`;
@@ -148,6 +153,7 @@ serve(async (req) => {
       // Si mode autoQr, masquer tout le contenu sauf la session spécifique
       if (autoQr) {
         htmlContent = htmlContent.replace(
+
           /<body[^>]*>/i,
           `<body style="margin: 0; padding: 20px; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
           <style>
