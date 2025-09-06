@@ -97,60 +97,31 @@ serve(async (req) => {
     let wahaResponse: Response;
     let lastError: any = null;
 
-    // Stratégie 1: API Key si disponible
-    if (wahaApiKey) {
-      try {
-        const apiKeyHeaders = {
-          'X-Api-Key': wahaApiKey,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        };
-        wahaResponse = await tryWAHARequest(apiKeyHeaders, 'API-Key');
-        
-        if (wahaResponse.ok) {
-          console.log('✅ API Key authentication successful');
-        } else {
-          // Essayer Bearer token comme alternative
-          const bearerHeaders = {
-            'Authorization': `Bearer ${wahaApiKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          };
-          wahaResponse = await tryWAHARequest(bearerHeaders, 'Bearer-Token');
-          
-          if (!wahaResponse.ok) {
-            lastError = { method: 'API-Key/Bearer', status: wahaResponse.status };
-            throw new Error(`API Key auth failed: ${wahaResponse.status}`);
-          } else {
-            console.log('✅ Bearer token authentication successful');
-          }
-        }
-      } catch (error) {
-        console.log('⚠️ API Key authentication failed, trying Basic Auth...');
-        wahaResponse = null;
-      }
+    // Utiliser uniquement X-Api-Key pour l'authentification
+    if (!wahaApiKey) {
+      return new Response(JSON.stringify({
+        error: 'API Key required',
+        message: 'WAHA_API_KEY must be configured'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Stratégie 2: Basic Auth si API Key a échoué ou n'est pas disponible
-    if (!wahaResponse || !wahaResponse.ok) {
-      try {
-        const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
-        const basicHeaders = {
-          'Authorization': `Basic ${basicAuth}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        };
-        wahaResponse = await tryWAHARequest(basicHeaders, 'Basic-Auth');
-        
-        if (wahaResponse.ok) {
-          console.log('✅ Basic Auth successful');
-        } else {
-          lastError = { method: 'Basic-Auth', status: wahaResponse.status };
-        }
-      } catch (error) {
-        console.log('⚠️ Basic Auth failed');
-        lastError = { method: 'Basic-Auth', error: error.message };
-      }
+    const apiKeyHeaders = {
+      'X-Api-Key': wahaApiKey,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    
+    console.log('Using X-Api-Key authentication method');
+    wahaResponse = await tryWAHARequest(apiKeyHeaders, 'X-Api-Key');
+    
+    if (wahaResponse.ok) {
+      console.log('✅ X-Api-Key authentication successful');
+    } else {
+      console.log(`❌ X-Api-Key authentication failed: ${wahaResponse.status}`);
+      lastError = { method: 'X-Api-Key', status: wahaResponse.status };
     }
 
     // Fallback automatique vers /api/v2/sessions si 404 sur /api/sessions
@@ -158,23 +129,12 @@ serve(async (req) => {
       const altUrl = `${base}/api/v2/sessions`;
       console.log('Primary path returned 404. Retrying with /api/v2/sessions...');
       
-      // Réessayer avec la même méthode d'auth qui a fonctionné
-      let retryHeaders: Record<string, string>;
-      
-      if (wahaApiKey) {
-        retryHeaders = {
-          'X-Api-Key': wahaApiKey,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        };
-      } else {
-        const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
-        retryHeaders = {
-          'Authorization': `Basic ${basicAuth}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        };
-      }
+      // Utiliser X-Api-Key pour le fallback
+      const retryHeaders = {
+        'X-Api-Key': wahaApiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
       
       wahaResponse = await fetch(altUrl, { method: 'GET', headers: retryHeaders });
       console.log(`Fallback to /api/v2/sessions status: ${wahaResponse.status}`);
@@ -185,14 +145,14 @@ serve(async (req) => {
     // Gestion d'erreur si aucune méthode d'auth n'a fonctionné
     if (!wahaResponse || !wahaResponse.ok) {
       const errorDetails = {
-        error: 'Authentication failed with all methods',
+        error: 'X-Api-Key authentication failed',
         wahaStatus: wahaResponse?.status || 'NO_RESPONSE',
         lastError,
-        availableMethods: wahaApiKey ? ['API-Key', 'Bearer', 'Basic-Auth'] : ['Basic-Auth'],
+        method: 'X-Api-Key',
         timestamp: new Date().toISOString()
       };
       
-      console.error('❌ All authentication methods failed:', errorDetails);
+      console.error('❌ X-Api-Key authentication failed:', errorDetails);
       
       return new Response(JSON.stringify(errorDetails), {
         status: wahaResponse?.status || 500,
