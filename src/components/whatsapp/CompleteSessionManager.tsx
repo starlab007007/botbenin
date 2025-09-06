@@ -367,17 +367,36 @@ const CompleteSessionManager: React.FC = () => {
     try {
       setSelectedSession(sessionName);
       setShowQRModal(true);
-      
-      // Déclencher automatiquement le login sur WAHA Dashboard (équivalent au bouton login)
-      await startSession(sessionName);
-      
-      // Récupérer le QR code directement de WAHA Dashboard
-      const qr = await getQRCode(sessionName);
-      setQrCodeData(qr.qr);
-      
+
+      // 1) Démarrer/assurer le login sur WAHA (équiv. bouton Login)
+      try {
+        await startSession(sessionName);
+      } catch (e) {
+        console.warn('Start session failed or already started, continue to QR:', e);
+      }
+
+      // 2) Récupérer le QR avec quelques tentatives (WAHA peut prendre 1-2s)
+      let qrOk = false;
+      for (let i = 0; i < 4; i++) {
+        try {
+          const qr = await getQRCode(sessionName);
+          if (qr?.qr) {
+            setQrCodeData(qr.qr);
+            qrOk = true;
+            break;
+          }
+        } catch (e) {
+          console.warn(`QR try ${i+1} failed:`, e);
+        }
+        // petite attente avant prochaine tentative
+        await new Promise(res => setTimeout(res, 1200));
+      }
+
+      if (!qrOk) {
+        throw new Error('QR indisponible');
+      }
+
       toast.success('Session démarrée et QR Code généré pour WhatsApp');
-      
-      // Actualiser les données pour synchroniser l'état
       refreshData();
     } catch (error) {
       console.error('Erreur lors de la connexion WhatsApp:', error);

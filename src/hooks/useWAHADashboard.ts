@@ -185,11 +185,26 @@ export const useWAHADashboard = () => {
     }
   }, [makeWAHARequest, loadSessions]);
 
-  // Obtenir le QR code avec fallbacks robustes et parsing flexible
+  // Obtenir le QR code avec priorité à l’edge function waha-session-manager
   const getQRCode = useCallback(async (sessionName: string): Promise<QRCodeData> => {
     try {
       console.log('Getting QR code for session:', sessionName);
 
+      // 1) Essayer via l’edge function dédiée (meilleure compatibilité WAHA)
+      try {
+        const { data, error } = await supabase.functions.invoke('waha-session-manager', {
+          body: { action: 'qr', sessionName }
+        });
+        if (error) throw error;
+        const qrCandidate = data?.qrCode || data?.data?.qr || data?.data?.base64 || data?.qr || data?.base64;
+        if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
+          return { qr: normalizeQr(qrCandidate), url: data?.data?.url || data?.url || `whatsapp://connect/${sessionName}` };
+        }
+      } catch (e) {
+        console.warn('Edge function qr failed, fallback to proxy:', e);
+      }
+
+      // 2) Fallback via proxy avec plusieurs endpoints pris en charge
       const tryPaths = [
         `/api/sessions/${sessionName}/auth/qr?format=base64`,
         `/api/sessions/${sessionName}/auth/qr`,
@@ -205,16 +220,11 @@ export const useWAHADashboard = () => {
       for (const path of tryPaths) {
         try {
           const data = await makeWAHARequest(path);
-          // Proxy can return JSON or { data: string, type: 'text' }
           if (!data) continue;
-
-          // Case 1: JSON with fields
           const qrCandidate = data.qr || data.base64 || data.image || data.qrcode;
           if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
             return { qr: normalizeQr(qrCandidate), url: data.url || `whatsapp://connect/${sessionName}` };
           }
-
-          // Case 2: Text payload wrapped by proxy
           if (typeof data.data === 'string' && data.data.length > 0) {
             return { qr: normalizeQr(data.data), url: `whatsapp://connect/${sessionName}` };
           }
