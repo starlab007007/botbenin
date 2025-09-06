@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 
 export interface WAHASession {
   name: string;
-  status: 'WORKING' | 'FAILED' | 'SCAN_QR_CODE' | 'DISCONNECTED' | 'STARTING';
+  status: 'WORKING' | 'FAILED' | 'SCAN_QR_CODE' | 'DISCONNECTED' | 'STARTING' | 'STOPPED';
   config?: {
     metadata?: {
       phone_number?: string;

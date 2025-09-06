@@ -192,7 +192,13 @@ const CompleteSessionManager: React.FC = () => {
       setNewSessionName('');
       setShowCreateModal(false);
       setCreatedSession(newSessionName);
-      toast.success('Session créée avec succès');
+      
+      // Rafraîchir immédiatement pour voir la session créée
+      setTimeout(() => {
+        refreshData();
+      }, 1000);
+      
+      toast.success('Session créée avec succès - Affichage immédiat activé');
     } catch (error) {
       toast.error('Erreur lors de la création de la session');
     }
@@ -458,6 +464,7 @@ const CompleteSessionManager: React.FC = () => {
       case 'SCAN_QR_CODE': return 'bg-orange-500';
       case 'STARTING': return 'bg-blue-500';
       case 'DISCONNECTED': return 'bg-gray-500';
+      case 'STOPPED': return 'bg-gray-400';
       default: return 'bg-gray-500';
     }
   };
@@ -469,6 +476,7 @@ const CompleteSessionManager: React.FC = () => {
       case 'SCAN_QR_CODE': return <QrCode className="h-4 w-4" />;
       case 'STARTING': return <Clock className="h-4 w-4" />;
       case 'DISCONNECTED': return <PowerOff className="h-4 w-4" />;
+      case 'STOPPED': return <Square className="h-4 w-4" />;
       default: return <Activity className="h-4 w-4" />;
     }
   };
@@ -483,92 +491,81 @@ const CompleteSessionManager: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="space-y-6 p-6">
-        {/* Header avec style WAHA */}
-        <div className="flex items-center justify-between border-b border-gray-700 pb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">WhatsApp Connect Dashboard</h1>
-            <p className="text-gray-400">Sessions WAHA - API WhatsApp Business</p>
-          </div>
-          <div className="flex gap-3">
-            <Button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              variant="outline"
-              size="sm"
-              className="border-gray-600 text-gray-300 hover:bg-gray-700"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-              Auto-refresh {autoRefresh ? 'ON' : 'OFF'}
-            </Button>
-            <Button 
-              onClick={() => setShowCreateModal(true)} 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Nouvelle Session
-            </Button>
-          </div>
-        </div>
-
-        {/* Statistiques rapides - Style moderne sombre */}
+        {/* Header avec statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-400 text-sm">Total Sessions</p>
-                  <p className="text-2xl font-bold text-white">{stats.total}</p>
-                </div>
-                <Smartphone className="w-8 h-8 text-blue-400" />
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-white">{stats.total}</div>
+                <div className="text-gray-400 text-sm">Sessions totales</div>
               </div>
             </CardContent>
           </Card>
-
-          <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-400 text-sm">Actives</p>
-                  <p className="text-2xl font-bold text-green-400">{stats.working}</p>
-                </div>
-                <CheckCircle2 className="w-8 h-8 text-green-400" />
+          
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-400">{stats.working}</div>
+                <div className="text-gray-400 text-sm">Actives</div>
               </div>
             </CardContent>
           </Card>
-
-          <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-400 text-sm">En Attente</p>
-                  <p className="text-2xl font-bold text-orange-400">{stats.pending}</p>
-                </div>
-                <Clock className="w-8 h-8 text-orange-400" />
+          
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-orange-400">{stats.pending}</div>
+                <div className="text-gray-400 text-sm">En attente</div>
               </div>
             </CardContent>
           </Card>
-
-          <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-400 text-sm">Échecs</p>
-                  <p className="text-2xl font-bold text-red-400">{stats.failed}</p>
-                </div>
-                <AlertCircle className="w-8 h-8 text-red-400" />
+          
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-red-400">{stats.failed}</div>
+                <div className="text-gray-400 text-sm">Échouées</div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Affichage de la session créée avec actions immédiates */}
-        {createdSession && (
-          <div className="space-y-4">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-green-400 mb-2">
-                ✅ Session créée avec succès !
-              </h2>
-              <p className="text-gray-400">
-                Votre session "{createdSession}" est maintenant disponible avec les actions immédiates
+        {/* Actions rapides */}
+        <div className="flex flex-wrap gap-4">
+          <Button 
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Nouvelle session
+          </Button>
+          
+          <Button 
+            onClick={refreshData}
+            variant="outline"
+            className="border-gray-600 text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Actualiser
+          </Button>
+          
+          <Button 
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            variant="outline"
+            className={`border-gray-600 text-gray-300 hover:bg-gray-700 flex items-center gap-2 ${autoRefresh ? 'bg-green-600/20 border-green-500' : ''}`}
+          >
+            <Activity className="h-4 w-4" />
+            {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+          </Button>
+        </div>
+
+        {/* Actions immédiates pour la session créée */}
+        {createdSession && sessions.find(s => s.name === createdSession) && (
+          <div>
+            <div className="text-center mb-4">
+              <p className="text-blue-300 text-lg font-semibold">
+                ✨ Session "{createdSession}" créée avec succès ! Actions immédiates disponibles :
               </p>
             </div>
             <SessionImmediateActions 
@@ -622,13 +619,13 @@ const CompleteSessionManager: React.FC = () => {
                               SCAN_QR_CODE
                             </Button>
                           )}
-                          {session.status === 'DISCONNECTED' && (
+                          {(session.status === 'DISCONNECTED' || session.status === 'STOPPED') && (
                             <Button
                               size="sm"
-                              onClick={() => handleConnectWhatsApp(session.name)}
+                              onClick={() => handleStartSession(session.name)}
                               className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full text-sm font-medium"
                             >
-                              CONNECTER
+                              DÉMARRER
                             </Button>
                           )}
                           {session.status === 'WORKING' && (
@@ -637,7 +634,7 @@ const CompleteSessionManager: React.FC = () => {
                               onClick={() => handleDisconnectSession(session.name)}
                               className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-medium"
                             >
-                              WORKING
+                              ARRÊTER
                             </Button>
                           )}
                           {session.status === 'STARTING' && (
@@ -660,61 +657,79 @@ const CompleteSessionManager: React.FC = () => {
                           >
                             <RotateCcw className="h-4 w-4 text-gray-300" />
                           </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleGetQR(session.name)}
-                            className="w-10 h-10 rounded-full border-gray-600 hover:bg-gray-700 p-0"
-                            title="QR Code"
-                          >
-                            <QrCode className="h-4 w-4 text-gray-300" />
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewDetails(session.name)}
-                            className="w-10 h-10 rounded-full border-gray-600 hover:bg-gray-700 p-0"
-                            title="Paramètres"
-                          >
-                            <Settings className="h-4 w-4 text-gray-300" />
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStartSession(session.name)}
-                            className="w-10 h-10 rounded-full border-gray-600 hover:bg-gray-700 p-0"
-                            title="Démarrer"
-                          >
-                            <Play className="h-4 w-4 text-gray-300" />
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDisconnectSession(session.name)}
-                            className="w-10 h-10 rounded-full border-gray-600 hover:bg-gray-700 p-0"
-                            title="Arrêter"
-                          >
-                            <Square className="h-4 w-4 text-gray-300" />
-                          </Button>
-
+                          
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleDeleteSession(session.name)}
-                            className="w-10 h-10 rounded-full border-red-600 hover:bg-red-700 p-0"
+                            className="w-10 h-10 rounded-full border-gray-600 hover:bg-red-700 p-0"
                             title="Supprimer"
                           >
                             <Trash2 className="h-4 w-4 text-red-400" />
                           </Button>
 
-                          {/* Indicateur WAHA */}
-                          <div className="text-xs text-gray-400 font-mono ml-2">WAHA</div>
+                          {/* Badge de statut */}
+                          <Badge variant="outline" className="ml-2 bg-gray-700 border-gray-600 text-gray-200 text-xs">
+                            {session.status}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs bg-blue-500/20 border-blue-500/30 text-blue-300">
+                            WAHA
+                          </Badge>
                         </div>
                       </div>
+
+                      {/* Affichage des actions immédiates pour les sessions stoppées ou nouvellement créées */}
+                      {(session.status === 'STOPPED' || session.status === 'DISCONNECTED' || createdSession === session.name) && (
+                        <div className="mt-4 p-4 bg-gray-700/50 rounded-lg border border-gray-600">
+                          <div className="text-center mb-3">
+                            <Badge className="bg-yellow-500/20 border-yellow-500/30 text-yellow-300 px-3 py-1 text-xs">
+                              Session disponible - Actions immédiates
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-2 justify-center">
+                            <Button
+                              size="sm"
+                              onClick={() => handleStartSession(session.name)}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <Play className="h-4 w-4 mr-1" />
+                              Démarrer
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleRestartSession(session.name)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              <RotateCcw className="h-4 w-4 mr-1" />
+                              Redémarrer
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleDisconnectSession(session.name)}
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                            >
+                              <Square className="h-4 w-4 mr-1" />
+                              Arrêter
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleViewDetails(session.name)}
+                              className="bg-gray-600 hover:bg-gray-700 text-white"
+                            >
+                              <Settings className="h-4 w-4 mr-1" />
+                              Configuration
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleDeleteSession(session.name)}
+                              className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Supprimer
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))
@@ -722,215 +737,194 @@ const CompleteSessionManager: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Modal de création de session */}
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <Plus className="h-5 w-5" />
-              Créer une nouvelle session
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-300">Nom de la session</label>
-              <Input
-                placeholder="ex: session_principale"
-                value={newSessionName}
-                onChange={(e) => setNewSessionName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleCreateSession()}
-                className="bg-gray-700 border-gray-600 text-white"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)} className="border-gray-600 text-gray-300">
-                Annuler
-              </Button>
-              <Button 
-                onClick={handleCreateSession}
-                disabled={!newSessionName.trim() || loading}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                Créer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal QR Code avec processus de connexion */}
-      <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
-        <DialogContent className="max-w-md bg-gray-800 border-gray-700 text-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <QrCode className="h-5 w-5" />
-              Connexion WhatsApp - {selectedSession}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Barre de progression */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm text-gray-300">
-                <span>Progression de connexion</span>
-                <span>{connectionProgress}%</span>
+        {/* Modal création de session */}
+        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+          <DialogContent className="bg-gray-800 border-gray-700 text-white">
+            <DialogHeader>
+              <DialogTitle>Créer une nouvelle session WhatsApp</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Nom de la session
+                </label>
+                <Input
+                  value={newSessionName}
+                  onChange={(e) => setNewSessionName(e.target.value)}
+                  placeholder="Ex: mon-whatsapp-bot"
+                  className="bg-gray-700 border-gray-600 text-white"
+                  onKeyPress={(e) => e.key === 'Enter' && handleCreateSession()}
+                />
               </div>
-              <Progress value={connectionProgress} className="h-2" />
-            </div>
-
-            {/* Étapes du processus */}
-            <div className="space-y-3">
-              {sessionSteps.map((step) => (
-                <div key={step.id} className="flex items-center gap-3">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                    step.status === 'completed' ? 'bg-green-500 text-white' :
-                    step.status === 'active' ? 'bg-blue-500 text-white' :
-                    step.status === 'error' ? 'bg-red-500 text-white' :
-                    'bg-gray-600 text-gray-400'
-                  }`}>
-                    {step.status === 'completed' ? '✓' : step.id}
-                  </div>
-                  <div className="flex-1">
-                    <div className={`font-medium ${step.status === 'active' ? 'text-blue-400' : 'text-gray-300'}`}>
-                      {step.name}
-                    </div>
-                    <div className="text-sm text-gray-500">{step.description}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* QR Code */}
-            {qrCodeData && (
-              <div className="text-center">
-                <div className="bg-white p-4 rounded-lg inline-block">
-                  <img 
-                    src={`data:image/png;base64,${qrCodeData}`} 
-                    alt="QR Code WhatsApp" 
-                    className="w-48 h-48"
-                  />
-                </div>
-                <p className="text-sm text-gray-400 mt-2">
-                  Scannez ce QR code avec WhatsApp
-                </p>
-                {/* Bouton pour simuler le scan en développement */}
+              <div className="flex gap-2">
                 <Button 
-                  onClick={handleQRScanned}
-                  className="mt-4 bg-green-600 hover:bg-green-700"
-                  size="sm"
+                  onClick={handleCreateSession}
+                  className="bg-blue-600 hover:bg-blue-700 flex-1"
+                  disabled={loading}
                 >
-                  Simuler scan (Dev)
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  Créer la session
                 </Button>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowQRModal(false)} className="border-gray-600 text-gray-300">
-                Fermer
-              </Button>
-              {isConnecting && (
-                <Button onClick={() => setIsConnecting(false)} className="bg-red-600 hover:bg-red-700">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowCreateModal(false)}
+                  className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                >
                   Annuler
                 </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal QR Code */}
+        <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
+          <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                Connexion WhatsApp - {selectedSession}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Progress bar */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-300">Progression</span>
+                  <span className="text-blue-400">{connectionProgress}%</span>
+                </div>
+                <Progress value={connectionProgress} className="h-2" />
+              </div>
+
+              {/* Steps */}
+              <div className="space-y-2">
+                {sessionSteps.map((step) => (
+                  <div key={step.id} className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${
+                      step.status === 'completed' ? 'bg-green-500' :
+                      step.status === 'active' ? 'bg-blue-500' :
+                      step.status === 'error' ? 'bg-red-500' : 'bg-gray-500'
+                    }`} />
+                    <span className={`text-sm ${
+                      step.status === 'completed' ? 'text-green-400' :
+                      step.status === 'active' ? 'text-blue-400' :
+                      step.status === 'error' ? 'text-red-400' : 'text-gray-400'
+                    }`}>
+                      {step.name}: {step.description}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* QR Code display */}
+              {qrCodeData && (
+                <div className="text-center space-y-4">
+                  <div className="bg-white p-4 rounded-lg inline-block">
+                    <img src={qrCodeData} alt="QR Code WhatsApp" className="max-w-full h-auto" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-300">
+                      Scannez ce QR code avec votre application WhatsApp
+                    </p>
+                    <Button
+                      onClick={handleQRScanned}
+                      className="bg-green-600 hover:bg-green-700 w-full"
+                    >
+                      J'ai scanné le QR code
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {isConnecting && !qrCodeData && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-400 mb-4" />
+                  <p className="text-gray-300">Préparation de la connexion...</p>
+                </div>
               )}
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
 
-      {/* Modal détails de session */}
-      <Dialog open={showSessionDetails} onOpenChange={setShowSessionDetails}>
-        <DialogContent className="max-w-2xl bg-gray-800 border-gray-700 text-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <Settings className="h-5 w-5" />
-              Détails de la session - {sessionDetails?.name}
-            </DialogTitle>
-          </DialogHeader>
-          {sessionDetails && (
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-gray-700">
-                <TabsTrigger value="overview" className="text-gray-300">Vue d'ensemble</TabsTrigger>
-                <TabsTrigger value="messages" className="text-gray-300">Messages</TabsTrigger>
-                <TabsTrigger value="settings" className="text-gray-300">Paramètres</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="overview" className="space-y-4">
+        {/* Modal détails de session */}
+        <Dialog open={showSessionDetails} onOpenChange={setShowSessionDetails}>
+          <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Détails de la session - {sessionDetails?.name}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {sessionDetails && (
+              <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <Card className="bg-gray-700 border-gray-600">
                     <CardContent className="p-4">
-                      <div className="text-sm text-gray-400">Statut</div>
-                      <div className="text-lg font-semibold text-white">{sessionDetails.status}</div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-white">{sessionDetails.status}</div>
+                        <div className="text-gray-400 text-sm">Statut</div>
+                      </div>
                     </CardContent>
                   </Card>
+                  
                   <Card className="bg-gray-700 border-gray-600">
                     <CardContent className="p-4">
-                      <div className="text-sm text-gray-400">Numéro</div>
-                      <div className="text-lg font-semibold text-white">{sessionDetails.phoneNumber || 'Non connecté'}</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gray-700 border-gray-600">
-                    <CardContent className="p-4">
-                      <div className="text-sm text-gray-400">Messages envoyés</div>
-                      <div className="text-lg font-semibold text-white">{sessionDetails.messagesCount}</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-gray-700 border-gray-600">
-                    <CardContent className="p-4">
-                      <div className="text-sm text-gray-400">Webhook</div>
-                      <div className="text-lg font-semibold text-white">{sessionDetails.webhookStatus}</div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-400">{sessionDetails.messagesCount}</div>
+                        <div className="text-gray-400 text-sm">Messages</div>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
-              </TabsContent>
-              
-              <TabsContent value="messages" className="space-y-4">
+
                 <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input placeholder="Numéro de téléphone" className="bg-gray-700 border-gray-600 text-white" />
-                    <Input placeholder="Message de test" className="bg-gray-700 border-gray-600 text-white" />
-                    <Button className="bg-green-600 hover:bg-green-700">
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Envoyer
-                    </Button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Numéro de téléphone
+                    </label>
+                    <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                      {sessionDetails.phoneNumber || 'Non connecté'}
+                    </div>
                   </div>
-                  <Alert className="bg-gray-700 border-gray-600">
-                    <AlertDescription className="text-gray-300">
-                      Utilisez cette fonction pour tester l'envoi de messages via cette session.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="settings" className="space-y-4">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button className="bg-orange-600 hover:bg-orange-700">
-                      <QrCode className="h-4 w-4 mr-2" />
-                      Regénérer QR Code
-                    </Button>
-                    <Button className="bg-blue-600 hover:bg-blue-700">
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Redémarrer Session
-                    </Button>
-                    <Button className="bg-yellow-600 hover:bg-yellow-700">
-                      <PowerOff className="h-4 w-4 mr-2" />
-                      Déconnecter
-                    </Button>
-                    <Button variant="destructive">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Supprimer Session
-                    </Button>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Dernière activité
+                    </label>
+                    <div className="bg-gray-700 p-3 rounded border border-gray-600">
+                      {sessionDetails.lastActivity || 'Aucune activité'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Webhook
+                    </label>
+                    <div className="bg-gray-700 p-3 rounded border border-gray-600 flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${sessionDetails.webhookStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {sessionDetails.webhookStatus === 'connected' ? 'Connecté' : 'Déconnecté'}
+                    </div>
                   </div>
                 </div>
-              </TabsContent>
-            </Tabs>
-          )}
-        </DialogContent>
-      </Dialog>
+
+                <div className="flex gap-2">
+                  <Button className="bg-blue-600 hover:bg-blue-700 flex-1">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Envoyer un test
+                  </Button>
+                  <Button variant="outline" className="border-gray-600 text-gray-300 hover:bg-gray-700">
+                    <Download className="h-4 w-4 mr-2" />
+                    Exporter logs
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 };
