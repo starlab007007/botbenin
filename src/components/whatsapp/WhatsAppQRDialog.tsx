@@ -7,9 +7,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { QrCode, Monitor, RefreshCw, ExternalLink, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import WAHADashboardIframe from './WAHADashboardIframe';
+import { useWAHADashboard } from '@/hooks/useWAHADashboard';
+import CompleteSessionManager from './CompleteSessionManager';
 
 interface WhatsAppQRDialogProps {
   open: boolean;
@@ -25,137 +25,73 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
   onQRScanned
 }) => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('native');
   const [qrCode, setQrCode] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
-  // URL pour le dashboard intégré avec paramètre autoQr
-  const dashboardUrl = `/functions/v1/waha-dashboard-mirror?path=dashboard&autoQr=${encodeURIComponent(sessionName)}`;
-  
-  // URL pour ouvrir le dashboard externe
+  // Utilisation du hook natif WAHA
+  const { 
+    getQRCode, 
+    startSession, 
+    sessions, 
+    loading: wahaLoading 
+  } = useWAHADashboard();
+
+  // URL pour ouvrir le dashboard externe si besoin
   const externalDashboardUrl = `https://waha.bot.bj/dashboard`;
 
-  // Solution de contournement via dashboard proxy
-  const fetchDirectQR = async () => {
+  // Fonction native pour récupérer le QR code
+  const fetchNativeQR = async () => {
     if (!sessionName) return;
     
     setLoading(true);
     try {
-      console.log('🔄 SOLUTION DE CONTOURNEMENT: Utilisation du dashboard proxy pour le QR...');
-      console.log('🔍 Diagnostic: API key WAHA manque de permissions d\'écriture (401 Unauthorized)');
+      console.log('🔄 Utilisation de l\'interface native WAHA...');
+      console.log('✅ API key WAHA configurée - utilisation de l\'interface native');
       
-      // Étape 1: Essayer via dashboard proxy pour démarrer la session
-      console.log('▶️ Tentative de démarrage via dashboard proxy...');
+      // Étape 1: Démarrer la session
+      console.log('▶️ Démarrage de la session:', sessionName);
       try {
-        const proxyStartUrl = `/functions/v1/waha-dashboard-proxy?endpoint=api/sessions/${sessionName}/start`;
-        const startResponse = await fetch(proxyStartUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (startResponse.ok) {
-          console.log('✅ Session démarrée via proxy');
-          setSessionStarted(true);
-        } else {
-          console.warn('⚠️ Démarrage proxy non optimal:', await startResponse.text());
-        }
-      } catch (proxyError) {
-        console.warn('⚠️ Erreur proxy start:', proxyError);
+        await startSession(sessionName);
+        setSessionStarted(true);
+        console.log('✅ Session démarrée avec succès');
+      } catch (startError) {
+        console.warn('⚠️ Session déjà démarrée ou erreur:', startError);
       }
 
-      // Attendre avant QR
+      // Attendre un peu pour que WAHA génère le QR
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Étape 2: Récupérer QR via proxy
-      console.log('📱 Récupération QR via dashboard proxy...');
+      // Étape 2: Récupérer le QR code avec l'interface native
+      console.log('📱 Récupération du QR code avec l\'interface native...');
+      const qrResult = await getQRCode(sessionName);
       
-      const qrEndpoints = [
-        `api/sessions/${sessionName}/auth/qr`,
-        `api/v2/sessions/${sessionName}/auth/qr`,
-        `api/${sessionName}/auth/qr?format=base64`,
-        `api/v2/${sessionName}/auth/qr?format=base64`
-      ];
-
-      let qrSuccess = false;
-      for (const endpoint of qrEndpoints) {
-        try {
-          console.log(`🎯 Tentative QR endpoint: ${endpoint}`);
-          const qrUrl = `/functions/v1/waha-dashboard-proxy?endpoint=${endpoint}`;
-          const qrResponse = await fetch(qrUrl, {
-            headers: {
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-              'Accept': 'application/json,image/*'
-            }
-          });
-
-          if (qrResponse.ok) {
-            const contentType = qrResponse.headers.get('content-type') || '';
-            
-            if (contentType.includes('image/')) {
-              // QR code as image
-              const blob = await qrResponse.blob();
-              const qrDataUrl = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result as string);
-                reader.readAsDataURL(blob);
-              });
-              setQrCode(qrDataUrl);
-              qrSuccess = true;
-              break;
-            } else {
-              // QR code as JSON
-              const qrData = await qrResponse.json();
-              if (qrData.qr || qrData.qrCode) {
-                setQrCode(qrData.qr || qrData.qrCode);
-                qrSuccess = true;
-                break;
-              }
-            }
-          }
-        } catch (endpointError) {
-          console.warn(`❌ Endpoint ${endpoint} failed:`, endpointError);
-        }
-      }
-
-      if (qrSuccess) {
-        console.log('✅ QR code récupéré via proxy!');
-        toast.success('QR Code généré via dashboard proxy!');
+      if (qrResult?.qr) {
+        setQrCode(qrResult.qr);
+        console.log('✅ QR code récupéré avec l\'interface native!');
+        toast.success('✅ QR Code généré avec succès!');
+        onQRScanned?.();
       } else {
-        // Fallback: Essayer l'ancienne méthode une dernière fois
-        console.log('🔄 Fallback: Tentative avec l\'ancienne méthode...');
-        const qrResponse = await supabase.functions.invoke('waha-session-manager', {
-          body: { action: 'qr', sessionName }
-        });
-
-        if (qrResponse.data?.success && qrResponse.data?.qrCode) {
-          setQrCode(qrResponse.data.qrCode);
-          toast.success('QR Code généré!');
-        } else {
-          throw new Error(`PROBLÈME: API key WAHA manque de permissions d'écriture. Erreur: ${qrResponse.data?.error || 'QR non disponible'}`);
-        }
+        throw new Error('QR code non disponible');
       }
     } catch (error) {
-      console.error('❌ Toutes les méthodes ont échoué:', error);
+      console.error('❌ Erreur récupération QR native:', error);
       
-      // Message d'erreur détaillé pour l'utilisateur
-      toast.error(`❌ Erreur: ${error.message}\n\n🔧 Solution: Mettre à jour l'API key WAHA avec permissions complètes dans Supabase Secrets`);
+      // Message d'erreur pour l'utilisateur
+      toast.error(`❌ Erreur: ${error.message}`);
       
-      // Retry logic avec diagnostic
+      // Retry logic
       if (retryCount < 2) {
-        console.log(`🔄 Nouvelle tentative diagnostic (${retryCount + 1}/3) dans 5 secondes...`);
+        console.log(`🔄 Nouvelle tentative (${retryCount + 1}/3) dans 3 secondes...`);
         setTimeout(() => {
           setRetryCount(prev => prev + 1);
-          fetchDirectQR();
-        }, 5000);
+          fetchNativeQR();
+        }, 3000);
       } else {
-        toast.error('❌ Échec après 3 tentatives. L\'API key WAHA doit être mise à jour avec des permissions complètes.', {
-          duration: 10000
+        toast.error('❌ Échec après 3 tentatives. Utilisez le dashboard complet.', {
+          duration: 8000
         });
       }
     } finally {
@@ -163,28 +99,23 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
     }
   };
 
-  // Auto-fetch QR when dialog opens
+  // Auto-fetch QR when dialog opens and QR tab is active
   useEffect(() => {
-    if (open && sessionName) {
+    if (open && sessionName && activeTab === 'qr') {
       setRetryCount(0);
       setSessionStarted(false);
       setQrCode('');
       
-      // Fetch QR after a short delay to ensure UI is ready
+      // Fetch QR après un délai pour s'assurer que l'UI est prête
       setTimeout(() => {
-        fetchDirectQR();
-      }, 1000);
+        fetchNativeQR();
+      }, 500);
     }
-  }, [open, sessionName]);
-
-  const handleDashboardLoad = () => {
-    setDashboardLoading(false);
-    console.log('📱 Dashboard intégré chargé');
-  };
+  }, [open, sessionName, activeTab]);
 
   const handleRetryQR = () => {
     setRetryCount(0);
-    fetchDirectQR();
+    fetchNativeQR();
   };
 
   const openExternalDashboard = () => {
@@ -193,38 +124,44 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <QrCode className="h-6 w-6 text-primary" />
-            Scanner QR Code WhatsApp - {sessionName}
+            Interface WAHA Native - {sessionName}
           </DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="dashboard" className="gap-2">
+            <TabsTrigger value="native" className="gap-2">
               <Monitor className="h-4 w-4" />
-              Dashboard Intégré
+              Dashboard Natif
             </TabsTrigger>
-            <TabsTrigger value="direct" className="gap-2">
+            <TabsTrigger value="qr" className="gap-2">
               <QrCode className="h-4 w-4" />
-              QR Direct
+              QR Rapide
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard" className="space-y-4">
-            <div className="h-[500px]">
-              <WAHADashboardIframe />
+          <TabsContent value="native" className="space-y-4">
+            <div className="h-[600px] overflow-auto">
+              <Alert className="mb-4">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Interface native WAHA activée!</strong> Gérez vos sessions WhatsApp directement depuis cette interface intégrée.
+                </AlertDescription>
+              </Alert>
+              <CompleteSessionManager />
             </div>
           </TabsContent>
 
-          <TabsContent value="direct" className="space-y-4">
+          <TabsContent value="qr" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <QrCode className="h-5 w-5" />
-                  QR Code Direct - {sessionName}
+                  QR Code Rapide - {sessionName}
                   {sessionStarted && (
                     <Badge variant="secondary" className="gap-1">
                       <CheckCircle2 className="h-3 w-3" />
@@ -241,35 +178,46 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
                       Scannez ce QR code avec votre téléphone WhatsApp pour connecter la session.
                     </AlertDescription>
                   </Alert>
-                  <Button
-                    variant="outline"
-                    onClick={handleRetryQR}
-                    disabled={loading}
-                    className="gap-2"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Actualiser QR
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={handleRetryQR}
+                      disabled={loading || wahaLoading}
+                      className="gap-2"
+                    >
+                      {loading || wahaLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Actualiser QR
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={openExternalDashboard}
+                      className="gap-2"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Dashboard Externe
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex justify-center">
                   <div className="relative">
-                    {loading ? (
+                    {loading || wahaLoading ? (
                       <div className="w-64 h-64 border-2 border-dashed border-muted-foreground/30 rounded-lg flex items-center justify-center">
                         <div className="flex flex-col items-center gap-3">
                           <Loader2 className="h-8 w-8 animate-spin text-primary" />
                           <p className="text-sm text-muted-foreground">
                             Génération du QR...
-                            {retryCount > 0 && ` (Tentative ${retryCount + 1}/4)`}
+                            {retryCount > 0 && ` (Tentative ${retryCount + 1}/3)`}
                           </p>
                         </div>
                       </div>
                     ) : qrCode ? (
-                      <div className="p-4 bg-white rounded-lg border-2 border-primary/20">
+                      <div className="p-4 bg-white rounded-lg border-2 border-primary/20 shadow-lg">
                         <img 
                           src={qrCode} 
                           alt="QR Code WhatsApp" 
@@ -277,37 +225,26 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
                         />
                       </div>
                     ) : (
-                      <div className="w-64 h-64 border-2 border-dashed border-destructive/30 rounded-lg flex items-center justify-center">
+                      <div className="w-64 h-64 border-2 border-dashed border-muted/30 rounded-lg flex items-center justify-center">
                         <div className="flex flex-col items-center gap-3 text-center p-4">
-                          <AlertCircle className="h-8 w-8 text-destructive" />
+                          <AlertCircle className="h-8 w-8 text-muted-foreground" />
                           <div className="space-y-2">
-                            <p className="text-sm text-destructive font-medium">
-                              QR Code non disponible
+                            <p className="text-sm font-medium">
+                              QR Code en attente
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              API key WAHA manque de permissions d'écriture
+                              Cliquez sur "Actualiser QR" pour générer le code
                             </p>
                           </div>
-                          <div className="flex flex-col gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={handleRetryQR}
-                              className="gap-2"
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                              Réessayer avec Proxy
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={openExternalDashboard}
-                              className="gap-2 text-xs"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              Ouvrir Dashboard WAHA
-                            </Button>
-                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleRetryQR}
+                            className="gap-2"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Générer QR
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -318,7 +255,16 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
                   <Alert>
                     <CheckCircle2 className="h-4 w-4" />
                     <AlertDescription>
-                      QR Code généré! Ouvrez WhatsApp sur votre téléphone, allez dans Appareils connectés {">"} Connecter un appareil, et scannez ce code.
+                      <strong>QR Code généré!</strong> Ouvrez WhatsApp sur votre téléphone, allez dans Appareils connectés {">"} Connecter un appareil, et scannez ce code.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {sessionStarted && (
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <AlertDescription>
+                      Session "{sessionName}" active et prête à recevoir des connexions WhatsApp.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -326,6 +272,15 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
             </Card>
           </TabsContent>
         </Tabs>
+
+        <div className="flex justify-end gap-2 pt-4 border-t">
+          <Button variant="ghost" onClick={() => setActiveTab('native')}>
+            Interface Complète
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Fermer
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

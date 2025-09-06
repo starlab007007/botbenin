@@ -292,9 +292,12 @@ export const useWAHADashboard = () => {
       }
 
       // Enregistrer dans nos logs
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { error: logError } = await supabase
         .from('waha_message_logs')
         .insert({
+          user_id: user?.id,
           session_name: sessionName,
           to_number: to,
           message_content: message,
