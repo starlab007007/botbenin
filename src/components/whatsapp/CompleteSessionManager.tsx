@@ -45,6 +45,7 @@ import {
   BarChart3,
   Monitor
 } from 'lucide-react';
+import { FaWhatsapp } from 'react-icons/fa';
 import { useWAHADashboard, WAHASession } from '@/hooks/useWAHADashboard';
 
 interface SessionStep {
@@ -965,45 +966,130 @@ const CompleteSessionManager: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal QR Code */}
+      {/* Modal QR Code - Style WAHA Dashboard */}
       <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="p-2 bg-orange-500/10 rounded-lg">
-                <QrCode className="h-5 w-5 text-orange-600" />
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader className="pb-6">
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <div className="p-3 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl border border-green-200/30">
+                <QrCode className="h-6 w-6 text-green-600" />
               </div>
-              Scanner le QR Code - {selectedSession}
+              <div className="flex flex-col">
+                <span>Scanner le QR Code</span>
+                <Badge variant="outline" className="w-fit mt-1 bg-orange-50 border-orange-200 text-orange-700">
+                  {selectedSession}
+                </Badge>
+              </div>
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          
+          <div className="space-y-6 py-2">
             {qrCodeData ? (
-              <div className="text-center space-y-4">
-                <div className="mx-auto p-4 bg-white rounded-xl inline-block">
-                  <img src={qrCodeData} alt="QR Code" className="w-64 h-64 mx-auto" />
+              <>
+                {/* QR Code Display */}
+                <div className="text-center">
+                  <div className="mx-auto p-6 bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-lg border-2 border-slate-200 inline-block">
+                    <img 
+                      src={qrCodeData} 
+                      alt="QR Code WhatsApp" 
+                      className="w-64 h-64 mx-auto rounded-xl"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    1. Ouvrez WhatsApp sur votre téléphone
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    2. Allez dans Paramètres → Appareils liés
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    3. Scannez ce QR code avec votre téléphone
+
+                {/* Instructions Style WAHA */}
+                <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-200">
+                  <h4 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                    <Smartphone className="h-4 w-4" />
+                    Scan QR Code to authorize this session
+                  </h4>
+                  <div className="space-y-2 text-sm text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Open <strong>WhatsApp</strong> on your phone</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Tap <strong>More Options</strong> ⋯ or <strong>Settings</strong> ⚙️</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Tap <strong>Linked Devices</strong> and <strong>Link a device</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Point your phone to this screen to capture <strong>QR Code</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={() => handleConnectWhatsApp(selectedSession)} 
+                    variant="outline" 
+                    className="flex-1 gap-2 border-slate-300 hover:bg-slate-50"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh QR
+                  </Button>
+                  
+                  <Button
+                    onClick={() => {
+                      // Télécharger le QR code
+                      const link = document.createElement('a');
+                      link.href = qrCodeData;
+                      link.download = `whatsapp-qr-${selectedSession}.png`;
+                      link.click();
+                      toast.success('QR Code téléchargé');
+                    }}
+                    variant="outline"
+                    className="gap-2 border-blue-300 text-blue-600 hover:bg-blue-50"
+                  >
+                    <Download className="h-4 w-4" />
+                    Télécharger
+                  </Button>
+                  
+                  <Button
+                    onClick={() => {
+                      // Partage WhatsApp du QR code
+                      const message = `Scannez ce QR Code pour connecter WhatsApp Business à la session ${selectedSession}`;
+                      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+                      window.open(whatsappUrl, '_blank');
+                      toast.success('Ouverture du partage WhatsApp');
+                    }}
+                    className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <FaWhatsapp className="h-4 w-4" />
+                    Partager
+                  </Button>
+                </div>
+
+                {/* Auto-refresh indicator */}
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    QR Code connecté avec WAHA Dashboard
                   </p>
                 </div>
-                <Button onClick={() => handleConnectWhatsApp(selectedSession)} variant="outline" className="gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  Actualiser QR Code
-                </Button>
-              </div>
+              </>
             ) : (
-              <div className="text-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-                <p className="text-muted-foreground">Génération du QR Code...</p>
+              <div className="text-center py-12">
+                <div className="mx-auto mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-full w-20 h-20 flex items-center justify-center">
+                  <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Génération du QR Code...</h3>
+                <p className="text-muted-foreground">Connexion à WAHA Dashboard pour générer votre QR Code</p>
               </div>
             )}
+          </div>
+
+          {/* Close button */}
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="ghost" onClick={() => setShowQRModal(false)} className="gap-2">
+              <X className="h-4 w-4" />
+              Fermer
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
