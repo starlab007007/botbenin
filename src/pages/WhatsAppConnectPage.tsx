@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import WAHANativeDashboard from '@/components/whatsapp/WAHANativeDashboard';
+import { WAHADiagnosticPanel } from '@/components/whatsapp/WAHADiagnosticPanel';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -29,11 +30,16 @@ const WhatsAppConnectPage: React.FC = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="native" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="diagnostic" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="diagnostic">🔍 Diagnostic</TabsTrigger>
             <TabsTrigger value="native">Dashboard Natif</TabsTrigger>
             <TabsTrigger value="mirror">Dashboard WAHA Complet</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="diagnostic" className="space-y-4">
+            <WAHADiagnosticPanel />
+          </TabsContent>
           
           <TabsContent value="native" className="space-y-4">
             <Card>
