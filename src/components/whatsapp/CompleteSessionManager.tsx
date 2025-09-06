@@ -95,43 +95,17 @@ const CompleteSessionManager: React.FC = () => {
     loading 
   } = useWAHADashboard();
 
-  // Sauvegarder une session dans la base de données
-  const saveUserSession = async (sessionName: string) => {
-    if (!user?.id) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('whatsapp_accounts')
-        .upsert({
-          user_id: user.id,
-          session_name: sessionName,
-          status: 'disconnected'
-        }, {
-          onConflict: 'user_id,session_name'
-        });
+  // État pour les sessions utilisateur depuis la base de données
+  const [databaseSessions, setDatabaseSessions] = useState<any[]>([]);
 
-      if (error) {
-        console.error('Erreur lors de la sauvegarde de la session:', error);
-        toast.error('Erreur lors de la sauvegarde de la session');
-        return;
-      }
-
-      // Recharger les sessions utilisateur
-      await loadUserSessions();
-    } catch (error) {
-      console.error('Erreur:', error);
-      toast.error('Erreur lors de la sauvegarde');
-    }
-  };
-
-  // Charger les sessions de l'utilisateur depuis la base de données
+  // Charger les sessions de l'utilisateur depuis la base de données avec toutes les infos
   const loadUserSessions = async () => {
     if (!user?.id) return;
     
     try {
       const { data, error } = await supabase
         .from('whatsapp_accounts')
-        .select('session_name')
+        .select('*')
         .eq('user_id', user.id);
 
       if (error) {
@@ -139,6 +113,7 @@ const CompleteSessionManager: React.FC = () => {
         return;
       }
 
+      setDatabaseSessions(data || []);
       const sessionNames = data?.map(account => account.session_name) || [];
       setUserSessions(sessionNames);
     } catch (error) {
@@ -151,28 +126,109 @@ const CompleteSessionManager: React.FC = () => {
     if (!user?.id) return;
     
     try {
-      const { error } = await supabase
-        .from('whatsapp_accounts')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('session_name', sessionName);
+      // Utiliser waha-session-manager pour supprimer de WAHA et de la DB
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Non authentifié');
+        return;
+      }
 
-      if (error) {
-        console.error('Erreur lors de la suppression:', error);
+      const response = await supabase.functions.invoke('waha-session-manager', {
+        body: {
+          action: 'delete',
+          sessionName: sessionName
+        }
+      });
+
+      if (response.error) {
+        console.error('Erreur lors de la suppression:', response.error);
+        toast.error('Erreur lors de la suppression de la session');
         return;
       }
 
       // Recharger les sessions
       await loadUserSessions();
+      await refreshData();
     } catch (error) {
       console.error('Erreur:', error);
+      toast.error('Erreur lors de la suppression');
     }
   };
 
-  // Filtrer les sessions pour afficher seulement celles de l'utilisateur connecté
+  // Importer une session WAHA existante qui n'est pas liée à l'utilisateur
+  const importWAHASession = async (sessionName: string) => {
+    if (!user?.id) return;
+    
+    try {
+      const { error } = await supabase
+        .from('whatsapp_accounts')
+        .upsert({
+          user_id: user.id,
+          session_name: sessionName,
+          status: 'disconnected'
+        }, {
+          onConflict: 'user_id,session_name'
+        });
+
+      if (error) {
+        console.error('Erreur lors de l\'importation:', error);
+        toast.error('Erreur lors de l\'importation de la session');
+        return;
+      }
+
+      await loadUserSessions();
+      toast.success(`Session "${sessionName}" importée avec succès`);
+    } catch (error) {
+      console.error('Erreur:', error);
+      toast.error('Erreur lors de l\'importation');
+    }
+  };
+
+  // Fusionner les sessions de la base de données avec celles de WAHA
   const getUserFilteredSessions = () => {
-    if (!user?.id || !userSessions.length) return [];
-    return sessions.filter(session => userSessions.includes(session.name));
+    if (!user?.id) return [];
+    
+    // Créer une map des sessions WAHA pour un accès rapide
+    const wahaSessionsMap = new Map();
+    sessions.forEach(session => {
+      wahaSessionsMap.set(session.name, session);
+    });
+    
+    // Fusionner les sessions de la DB avec les infos WAHA
+    const mergedSessions = databaseSessions.map(dbSession => {
+      const wahaSession = wahaSessionsMap.get(dbSession.session_name);
+      
+      if (wahaSession) {
+        // Session existe dans WAHA, utiliser ses données avec enrichissement DB
+        return {
+          ...wahaSession,
+          databaseInfo: dbSession
+        };
+      } else {
+        // Session n'existe que dans la DB, créer un objet compatible
+        return {
+          name: dbSession.session_name,
+          status: dbSession.status || 'STOPPED',
+          config: {
+            metadata: {
+              phone_number: dbSession.phone_number
+            }
+          },
+          server: 'Database',
+          lastActivity: dbSession.last_activity,
+          databaseInfo: dbSession,
+          isDatabaseOnly: true
+        };
+      }
+    });
+    
+    return mergedSessions;
+  };
+
+  // Obtenir les sessions WAHA non importées
+  const getUnimportedWAHASessions = () => {
+    const userSessionNames = new Set(userSessions);
+    return sessions.filter(session => !userSessionNames.has(session.name));
   };
 
   // Auto-refresh des sessions et détection de nouvelles sessions
@@ -193,12 +249,31 @@ const CompleteSessionManager: React.FC = () => {
     }
   }, [user?.id]);
 
-  // Aussi charger quand les sessions WAHA changent pour s'assurer qu'on voit les nouvelles
+  // Mise à jour en temps réel des sessions WhatsApp
   useEffect(() => {
-    if (user?.id && sessions.length > 0) {
-      loadUserSessions();
-    }
-  }, [sessions, user?.id]);
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('whatsapp_accounts_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'whatsapp_accounts',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Real-time update for whatsapp_accounts:', payload);
+          loadUserSessions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   // Détection automatique des nouvelles sessions créées
   useEffect(() => {
@@ -223,43 +298,99 @@ const CompleteSessionManager: React.FC = () => {
     }
 
     try {
-      await createSession(newSessionName);
-      
-      // Sauvegarder la session pour cet utilisateur dans la base de données
-      await saveUserSession(newSessionName);
-      
+      // Utiliser waha-session-manager pour créer la session et l'enregistrer en DB
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Non authentifié');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('waha-session-manager', {
+        body: {
+          action: 'create',
+          sessionName: newSessionName.trim()
+        }
+      });
+
+      if (response.error) {
+        console.error('Erreur création session:', response.error);
+        toast.error('Erreur lors de la création de la session');
+        return;
+      }
+
       setCreatedSession(newSessionName);
       setNewSessionName('');
       setShowCreateModal(false);
       
-      // Rafraîchir immédiatement plusieurs fois pour s'assurer que la session apparaît
-      const refreshAttempts = [500, 1500, 3000];
-      refreshAttempts.forEach(delay => {
-        setTimeout(() => refreshData(), delay);
-      });
+      // Recharger les données immédiatement
+      await loadUserSessions();
+      await refreshData();
       
-      toast.success(`Session "${newSessionName}" créée - Affichage automatique en cours...`);
+      toast.success(`Session "${newSessionName}" créée et visible immédiatement!`);
     } catch (error) {
+      console.error('Erreur:', error);
       toast.error('Erreur lors de la création de la session');
     }
   };
 
   const handleStartSession = async (sessionName: string) => {
     try {
-      await startSession(sessionName);
+      // Utiliser waha-session-manager pour démarrer et synchroniser le statut
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Non authentifié');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('waha-session-manager', {
+        body: {
+          action: 'start',
+          sessionName: sessionName
+        }
+      });
+
+      if (response.error) {
+        console.error('Erreur démarrage session:', response.error);
+        toast.error(`Erreur lors du démarrage de la session "${sessionName}"`);
+        return;
+      }
+
+      await loadUserSessions();
+      await refreshData();
       toast.success(`Session "${sessionName}" démarrée`);
-      refreshData();
     } catch (error) {
+      console.error('Erreur:', error);
       toast.error(`Erreur lors du démarrage de la session "${sessionName}"`);
     }
   };
 
   const handleStopSession = async (sessionName: string) => {
     try {
-      await stopSession(sessionName);
+      // Utiliser waha-session-manager pour arrêter et synchroniser le statut
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Non authentifié');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('waha-session-manager', {
+        body: {
+          action: 'stop',
+          sessionName: sessionName
+        }
+      });
+
+      if (response.error) {
+        console.error('Erreur arrêt session:', response.error);
+        toast.error(`Erreur lors de l'arrêt de la session "${sessionName}"`);
+        return;
+      }
+
+      await loadUserSessions();
+      await refreshData();
       toast.success(`Session "${sessionName}" arrêtée`);
-      refreshData();
     } catch (error) {
+      console.error('Erreur:', error);
       toast.error(`Erreur lors de l'arrêt de la session "${sessionName}"`);
     }
   };
@@ -305,10 +436,32 @@ const CompleteSessionManager: React.FC = () => {
     try {
       setSelectedSession(sessionName);
       setShowQRModal(true);
-      const qr = await getQRCode(sessionName);
-      setQrCodeData(qr.qr);
+      
+      // Utiliser waha-session-manager pour obtenir le QR code
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Non authentifié');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('waha-session-manager', {
+        body: {
+          action: 'qr',
+          sessionName: sessionName
+        }
+      });
+
+      if (response.error) {
+        console.error('Erreur génération QR:', response.error);
+        toast.error('Erreur lors de la génération du QR code');
+        return;
+      }
+
+      setQrCodeData(response.data?.qrCode || '');
+      await loadUserSessions(); // Mettre à jour le QR code en DB
       toast.success('QR Code généré pour la connexion WhatsApp');
     } catch (error) {
+      console.error('Erreur:', error);
       toast.error('Erreur lors de la génération du QR code');
     }
   };
@@ -494,20 +647,56 @@ const CompleteSessionManager: React.FC = () => {
                 </div>
               </div>
             ) : userFilteredSessions.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="mb-4">
-                  <div className="mx-auto w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center">
-                    <MessageSquare className="h-12 w-12 text-muted-foreground" />
+              <div className="space-y-8">
+                <div className="text-center py-12">
+                  <div className="mb-4">
+                    <div className="mx-auto w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center">
+                      <MessageSquare className="h-12 w-12 text-muted-foreground" />
+                    </div>
                   </div>
+                  <h3 className="text-lg font-semibold mb-2">Aucune session WhatsApp</h3>
+                  <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                    Commencez par créer votre première session WhatsApp pour connecter votre compte business.
+                  </p>
+                  <Button onClick={() => setShowCreateModal(true)} className="gap-2">
+                    <Play className="h-4 w-4" />
+                    Start New
+                  </Button>
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Aucune session WhatsApp</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  Commencez par créer votre première session WhatsApp pour connecter votre compte business.
-                </p>
-                <Button onClick={() => setShowCreateModal(true)} className="gap-2">
-                  <Play className="h-4 w-4" />
-                  Start New
-                </Button>
+
+                {/* Afficher les sessions WAHA non importées */}
+                {getUnimportedWAHASessions().length > 0 && (
+                  <div className="border-t pt-6">
+                    <h4 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                      <Download className="h-4 w-4" />
+                      Sessions WAHA disponibles à importer
+                    </h4>
+                    <div className="space-y-2">
+                      {getUnimportedWAHASessions().map((session) => (
+                        <div key={session.name} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/20 rounded-lg">
+                              <Bot className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <div className="font-medium">{session.name}</div>
+                              <div className="text-sm text-muted-foreground">Statut: {session.status}</div>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => importWAHASession(session.name)}
+                            size="sm"
+                            variant="outline"
+                            className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+                          >
+                            <Download className="h-4 w-4" />
+                            Importer
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -541,25 +730,30 @@ const CompleteSessionManager: React.FC = () => {
                           </div>
                           
                           {/* Informations de session */}
-                          <div>
-                            <div className="flex items-center gap-3 mb-1">
-                              <h3 className="text-lg font-semibold">{session.name}</h3>
-                              <Badge 
-                                variant="outline" 
-                                className={`text-xs ${
-                                  session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
-                                  session.status === 'FAILED' ? 'bg-red-500/10 border-red-500/30 text-red-600' :
-                                  session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
-                                  session.status === 'STOPPED' ? 'bg-slate-500/10 border-slate-500/30 text-slate-600' :
-                                  'bg-slate-500/10 border-slate-500/30 text-slate-600'
-                                }`}
-                              >
-                                {session.status === 'WORKING' ? 'Connecté' :
-                                 session.status === 'SCAN_QR_CODE' ? 'QR Code requis' :
-                                 session.status === 'STOPPED' ? 'Arrêté' :
-                                 'Déconnecté'}
-                              </Badge>
-                            </div>
+                            <div>
+                              <div className="flex items-center gap-3 mb-1">
+                                <h3 className="text-lg font-semibold">{session.name}</h3>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${
+                                    session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
+                                    session.status === 'FAILED' ? 'bg-red-500/10 border-red-500/30 text-red-600' :
+                                    session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
+                                    session.status === 'STOPPED' ? 'bg-slate-500/10 border-slate-500/30 text-slate-600' :
+                                    'bg-slate-500/10 border-slate-500/30 text-slate-600'
+                                  }`}
+                                >
+                                  {session.status === 'WORKING' ? 'Connecté' :
+                                   session.status === 'SCAN_QR_CODE' ? 'QR Code requis' :
+                                   session.status === 'STOPPED' ? 'Arrêté' :
+                                   'Déconnecté'}
+                                </Badge>
+                                {session.isDatabaseOnly && (
+                                  <Badge variant="outline" className="text-xs bg-blue-500/10 border-blue-500/30 text-blue-600">
+                                    Base de données
+                                  </Badge>
+                                )}
+                              </div>
                             
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                               {session.config?.metadata?.phone_number ? (
