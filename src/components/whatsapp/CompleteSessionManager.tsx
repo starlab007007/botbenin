@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import WAHAQRTester from '@/components/whatsapp/WAHAQRTester';
 import { 
   Play, 
   Square, 
@@ -375,40 +376,57 @@ const CompleteSessionManager: React.FC = () => {
     try {
       setSelectedSession(sessionName);
       setShowQRModal(true);
+      setQrCodeData(''); // Reset QR data
 
-      // 1) Démarrer/assurer le login sur WAHA (équiv. bouton Login)
+      console.log('🔄 Starting WhatsApp connection process for:', sessionName);
+
+      // 1) Assurer que la session est démarrée
       try {
+        console.log('📡 Starting session on WAHA...');
         await startSession(sessionName);
+        console.log('✅ Session started successfully');
       } catch (e) {
-        console.warn('Start session failed or already started, continue to QR:', e);
+        console.warn('⚠️ Start session failed or already started:', e);
       }
 
-      // 2) Récupérer le QR avec quelques tentatives (WAHA peut prendre 1-2s)
-      let qrOk = false;
-      for (let i = 0; i < 4; i++) {
+      // 2) Attendre un peu pour que WAHA génère le QR
+      console.log('⏱️ Waiting for WAHA to generate QR code...');
+      await new Promise(res => setTimeout(res, 2000));
+
+      // 3) Récupérer le QR avec plusieurs tentatives
+      let qrObtained = false;
+      for (let attempt = 1; attempt <= 5; attempt++) {
         try {
+          console.log(`🎯 QR retrieval attempt ${attempt}/5`);
           const qr = await getQRCode(sessionName);
+          
           if (qr?.qr) {
+            console.log('✅ QR Code retrieved successfully:', qr.qr.substring(0, 50) + '...');
             setQrCodeData(qr.qr);
-            qrOk = true;
+            qrObtained = true;
+            toast.success('QR Code généré avec succès!');
             break;
+          } else {
+            console.warn('⚠️ No QR data in response:', qr);
           }
         } catch (e) {
-          console.warn(`QR try ${i+1} failed:`, e);
+          console.error(`❌ QR attempt ${attempt} failed:`, e);
         }
-        // petite attente avant prochaine tentative
-        await new Promise(res => setTimeout(res, 1200));
+        
+        if (attempt < 5) {
+          console.log('⏱️ Waiting 2s before next attempt...');
+          await new Promise(res => setTimeout(res, 2000));
+        }
       }
 
-      if (!qrOk) {
-        throw new Error('QR indisponible');
+      if (!qrObtained) {
+        throw new Error('Impossible de récupérer le QR code après 5 tentatives');
       }
 
-      toast.success('Session démarrée et QR Code généré pour WhatsApp');
       refreshData();
     } catch (error) {
-      console.error('Erreur lors de la connexion WhatsApp:', error);
-      toast.error('Erreur lors de la génération du QR code');
+      console.error('❌ WhatsApp connection error:', error);
+      toast.error(`Erreur: ${error.message}`);
     }
   };
 
@@ -494,6 +512,10 @@ const CompleteSessionManager: React.FC = () => {
       </div>
 
       <div className="container mx-auto px-6 py-6">
+        {/* Diagnostic Tester */}
+        <div className="mb-6">
+          <WAHAQRTester />
+        </div>
         {/* Stats rapides */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card className="border-0 shadow-sm bg-gradient-to-r from-green-500/10 to-green-600/10 border-green-200/20">
