@@ -3,11 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { 
   Play, 
@@ -34,7 +33,15 @@ import {
   Users,
   Globe,
   Grid3X3,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Search,
+  Filter,
+  ChevronDown,
+  Bot,
+  Wifi,
+  WifiOff,
+  BarChart3,
+  Monitor
 } from 'lucide-react';
 import { useWAHADashboard } from '@/hooks/useWAHADashboard';
 
@@ -207,447 +214,472 @@ const CompleteSessionManager: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <Tabs defaultValue="sessions" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-slate-800 border-slate-700">
-          <TabsTrigger value="sessions" className="data-[state=active]:bg-slate-700 text-white">
-            Sessions WhatsApp
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="data-[state=active]:bg-slate-700 text-white">
-            Analytics
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="data-[state=active]:bg-slate-700 text-white">
-            Configuration
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="sessions" className="space-y-6">
-          {/* Interface WAHA Dashboard Style - Reproduction exacte */}
-          <div className="bg-slate-900 rounded-lg border border-slate-800">
-            {/* Header avec bouton Start New et Search */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      {/* Header moderne */}
+      <div className="border-b bg-card/50 backdrop-blur-sm">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-xl">
+                  <MessageSquare className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold">WhatsApp Connect</h1>
+                  <p className="text-sm text-muted-foreground">Gérez vos sessions WhatsApp Business en toute simplicité</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
               <Button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium flex items-center gap-2"
+                variant="outline"
+                size="sm"
+                onClick={() => setAutoRefresh(!autoRefresh)}
+                className={`gap-2 ${autoRefresh ? 'text-primary border-primary' : ''}`}
               >
-                <Play className="h-4 w-4" />
-                Start New
+                <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+                Auto-refresh
               </Button>
               
-              <div className="flex items-center gap-4">
+              <Button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg"
+              >
+                <Plus className="h-4 w-4" />
+                Nouvelle Session
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-6 py-6">
+        {/* Stats rapides */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card className="border-0 shadow-sm bg-gradient-to-r from-green-500/10 to-green-600/10 border-green-200/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-500/20 rounded-lg">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Sessions Actives</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {sessions.filter(s => s.status === 'WORKING').length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-0 shadow-sm bg-gradient-to-r from-orange-500/10 to-orange-600/10 border-orange-200/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-500/20 rounded-lg">
+                  <QrCode className="h-5 w-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">En Attente QR</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {sessions.filter(s => s.status === 'SCAN_QR_CODE').length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-0 shadow-sm bg-gradient-to-r from-slate-500/10 to-slate-600/10 border-slate-200/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-500/20 rounded-lg">
+                  <PowerOff className="h-5 w-5 text-slate-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Arrêtées</p>
+                  <p className="text-2xl font-bold text-slate-600">
+                    {sessions.filter(s => s.status === 'STOPPED').length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-500/10 to-blue-600/10 border-blue-200/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <Activity className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total</p>
+                  <p className="text-2xl font-bold text-blue-600">{sessions.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Interface de gestion des sessions */}
+        <Card className="border-0 shadow-xl bg-card/60 backdrop-blur-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Sessions WhatsApp</CardTitle>
+                  <p className="text-sm text-muted-foreground">Gérez vos connexions WhatsApp Business</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
                 <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by Name, Phone"
-                    className="w-64 bg-slate-800 border-slate-700 text-white placeholder:text-slate-400"
+                    placeholder="Rechercher une session..."
+                    className="pl-9 w-64 bg-background/60"
                   />
                 </div>
-                <Button variant="outline" className="border-slate-700 text-slate-300 bg-slate-800 hover:bg-slate-700">
-                  Columns
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filtrer
                 </Button>
               </div>
             </div>
+          </CardHeader>
 
-            {/* Headers du tableau */}
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-800 bg-slate-800/50">
-              <div className="col-span-3">
-                <div className="flex items-center gap-2 text-slate-300 font-medium">
-                  Name
-                  <div className="flex flex-col text-xs">
-                    <span>↑</span>
-                    <span>↓</span>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex items-center justify-center p-12">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-muted-foreground">Chargement des sessions...</span>
+                </div>
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="mb-4">
+                  <div className="mx-auto w-24 h-24 bg-muted/50 rounded-full flex items-center justify-center">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground" />
                   </div>
                 </div>
+                <h3 className="text-lg font-semibold mb-2">Aucune session WhatsApp</h3>
+                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                  Commencez par créer votre première session WhatsApp pour connecter votre compte business.
+                </p>
+                <Button onClick={() => setShowCreateModal(true)} className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Créer une session
+                </Button>
               </div>
-              <div className="col-span-2">
-                <span className="text-slate-300 font-medium">Metadata</span>
-              </div>
-              <div className="col-span-2">
-                <span className="text-slate-300 font-medium">Account</span>
-              </div>
-              <div className="col-span-1">
-                <span className="text-slate-300 font-medium">Status</span>
-              </div>
-              <div className="col-span-1">
-                <span className="text-slate-300 font-medium">Server</span>
-              </div>
-              <div className="col-span-3">
-                <span className="text-slate-300 font-medium text-center">Actions</span>
-              </div>
-            </div>
-
-            {/* Filtres */}
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-slate-800 bg-slate-800/30">
-              <div className="col-span-3">
-                <Input
-                  placeholder="Session"
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 text-sm h-8"
-                />
-              </div>
-              <div className="col-span-2">
-                <div className="text-slate-500 text-sm h-8 flex items-center">--</div>
-              </div>
-              <div className="col-span-2">
-                <select className="w-full bg-slate-800 border border-slate-700 text-white text-sm h-8 rounded px-2">
-                  <option>Account (Phone Number)</option>
-                </select>
-              </div>
-              <div className="col-span-1">
-                <select className="w-full bg-slate-800 border border-slate-700 text-white text-sm h-8 rounded px-2">
-                  <option>Any</option>
-                </select>
-              </div>
-              <div className="col-span-1">
-                <select className="w-full bg-slate-800 border border-slate-700 text-white text-sm h-8 rounded px-2">
-                  <option>Any</option>
-                </select>
-              </div>
-              <div className="col-span-3"></div>
-            </div>
-
-            {/* Sessions List */}
-            <div className="divide-y divide-slate-800">
-              {sessions.length === 0 ? (
-                <div className="p-8 text-center text-slate-400">
-                  Aucune session disponible. Créez votre première session WhatsApp.
-                </div>
-              ) : (
-                sessions.map((session) => (
-                  <div key={session.name} className="grid grid-cols-12 gap-4 p-4 hover:bg-slate-800/30 transition-colors">
-                    {/* Checkbox + Name */}
-                    <div className="col-span-3 flex items-center gap-3">
-                      <input type="checkbox" className="w-4 h-4 text-green-600 bg-slate-800 border-slate-600 rounded focus:ring-green-500" />
-                      <div>
-                        <div className="text-white font-medium">{session.name}</div>
-                      </div>
-                    </div>
-
-                    {/* Metadata */}
-                    <div className="col-span-2 flex items-center">
-                      <div className="text-slate-400 text-sm">--</div>
-                    </div>
-
-                    {/* Account */}
-                    <div className="col-span-2 flex items-center">
-                      {session.config?.metadata?.phone_number ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
-                            <Users className="h-3 w-3 text-white" />
+            ) : (
+              <div className="space-y-3 p-6">
+                {sessions.map((session, index) => (
+                  <div 
+                    key={session.name} 
+                    className="group bg-background/40 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-background/60 transition-all duration-300 overflow-hidden"
+                  >
+                    <div className="p-6">
+                      <div className="flex items-center justify-between">
+                        {/* Informations de session */}
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className={`p-3 rounded-xl ${
+                            session.status === 'WORKING' ? 'bg-green-500/10 border border-green-500/20' :
+                            session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border border-orange-500/20' :
+                            session.status === 'STOPPED' ? 'bg-slate-500/10 border border-slate-500/20' :
+                            'bg-red-500/10 border border-red-500/20'
+                          }`}>
+                            {session.status === 'WORKING' ? 
+                              <Wifi className="h-6 w-6 text-green-600" /> :
+                              session.status === 'SCAN_QR_CODE' ? 
+                              <QrCode className="h-6 w-6 text-orange-600" /> :
+                              <WifiOff className="h-6 w-6 text-slate-600" />
+                            }
                           </div>
-                          <div>
-                            <div className="text-green-400 text-sm font-medium">
-                              {session.config.metadata.account || 'WhatsApp User'}
+                          
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="text-lg font-semibold">{session.name}</h3>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
+                                  session.status === 'FAILED' ? 'bg-red-500/10 border-red-500/30 text-red-600' :
+                                  session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
+                                  session.status === 'STOPPED' ? 'bg-slate-500/10 border-slate-500/30 text-slate-600' :
+                                  'bg-slate-500/10 border-slate-500/30 text-slate-600'
+                                }`}
+                              >
+                                {session.status === 'WORKING' ? '● Connecté' :
+                                 session.status === 'SCAN_QR_CODE' ? '● QR Code requis' :
+                                 session.status === 'STOPPED' ? '● Arrêté' :
+                                 '● Déconnecté'}
+                              </Badge>
                             </div>
-                            <div className="text-slate-400 text-xs">
-                              {session.config.metadata.phone_number}
+                            
+                            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                              {session.config?.metadata?.phone_number ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                  </div>
+                                  <span className="font-medium text-foreground">
+                                    {session.config.metadata.phone_number}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">Numéro non configuré</span>
+                              )}
+                              
+                              <div className="flex items-center gap-2">
+                                <Monitor className="h-4 w-4" />
+                                <span>WAHA Server</span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        <div className="text-slate-500 text-sm">Account (Phone Number)</div>
-                      )}
-                    </div>
 
-                    {/* Status avec les 4 boutons circulaires de statut */}
-                    <div className="col-span-1 flex items-center gap-2">
-                      <div className="flex gap-1">
-                        {/* Bouton Logout/Disconnect */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDisconnectSession(session.name)}
-                          className="h-7 w-7 rounded-full bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600 p-0"
-                          title="Logout"
-                        >
-                          <ArrowRightLeft className="h-3 w-3" />
-                        </Button>
+                        {/* Boutons d'action */}
+                        <div className="flex items-center gap-2 ml-4">
+                          {session.status === 'STOPPED' ? (
+                            <Button
+                              onClick={() => handleStartSession(session.name)}
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                            >
+                              <Play className="h-4 w-4" />
+                              Démarrer
+                            </Button>
+                          ) : session.status === 'SCAN_QR_CODE' ? (
+                            <Button
+                              onClick={() => handleConnectWhatsApp(session.name)}
+                              size="sm"
+                              className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                            >
+                              <QrCode className="h-4 w-4" />
+                              Scanner QR
+                            </Button>
+                          ) : session.status === 'WORKING' ? (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                onClick={() => handleViewDetails(session.name)}
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                              >
+                                <BarChart3 className="h-4 w-4" />
+                                Voir
+                              </Button>
+                              <Button
+                                onClick={() => handleStopSession(session.name)}
+                                variant="outline"
+                                size="sm"
+                                className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                              >
+                                <Square className="h-4 w-4" />
+                                Arrêter
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              onClick={() => handleRestartSession(session.name)}
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              Relancer
+                            </Button>
+                          )}
 
-                        {/* Bouton QR Code/Camera */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleConnectWhatsApp(session.name)}
-                          className={`h-7 w-7 rounded-full p-0 ${
-                            session.status === 'SCAN_QR_CODE' 
-                              ? 'bg-orange-500/20 border-orange-500/30 text-orange-400 hover:bg-orange-500/30' 
-                              : 'bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600'
-                          }`}
-                          title="QR Code"
-                        >
-                          <QrCode className="h-3 w-3" />
-                        </Button>
-
-                        {/* Bouton WhatsApp */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 w-7 rounded-full bg-green-600/20 border-green-600/30 text-green-400 hover:bg-green-600/30 p-0"
-                          title="WhatsApp"
-                        >
-                          <MessageSquare className="h-3 w-3" />
-                        </Button>
-
-                        {/* Bouton Modules/Code */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 w-7 rounded-full bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600 p-0"
-                          title="Modules"
-                        >
-                          <Grid3X3 className="h-3 w-3" />
-                        </Button>
+                          <Button
+                            onClick={() => handleDeleteSession(session.name)}
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-
-                      {/* Badge de statut */}
-                      <Badge 
-                        variant="outline" 
-                        className={`text-xs font-medium px-2 py-1 ${
-                          session.status === 'WORKING' ? 'bg-green-500/20 border-green-500/30 text-green-400' :
-                          session.status === 'FAILED' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
-                          session.status === 'SCAN_QR_CODE' ? 'bg-orange-500/20 border-orange-500/30 text-orange-400' :
-                          session.status === 'STOPPED' ? 'bg-slate-500/20 border-slate-500/30 text-slate-400' :
-                          'bg-slate-500/20 border-slate-500/30 text-slate-400'
-                        }`}
-                      >
-                        {session.status}
-                      </Badge>
-                    </div>
-
-                    {/* Server */}
-                    <div className="col-span-1 flex items-center">
-                      <Badge className="bg-blue-500/20 border-blue-500/30 text-blue-400 text-xs">
-                        WAHA
-                      </Badge>
-                    </div>
-
-                    {/* Actions - Boutons circulaires à droite */}
-                    <div className="col-span-3 flex items-center justify-center gap-1">
-                      {/* Settings */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewDetails(session.name)}
-                        className="h-8 w-8 rounded-full bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600 p-0"
-                        title="Paramètres"
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-
-                      {/* Dashboard/Stats */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 rounded-full bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30 p-0"
-                        title="Dashboard"
-                      >
-                        <Activity className="h-4 w-4" />
-                      </Button>
-
-                      {/* Start/Play */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStartSession(session.name)}
-                        disabled={session.status === 'WORKING'}
-                        className="h-8 w-8 rounded-full bg-green-500/20 border-green-500/30 text-green-400 hover:bg-green-500/30 p-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Démarrer"
-                      >
-                        <Play className="h-4 w-4" />
-                      </Button>
-
-                      {/* Restart */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRestartSession(session.name)}
-                        className="h-8 w-8 rounded-full bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30 p-0"
-                        title="Redémarrer"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                      </Button>
-
-                      {/* Stop */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStopSession(session.name)}
-                        disabled={session.status === 'STOPPED'}
-                        className="h-8 w-8 rounded-full bg-slate-500/20 border-slate-500/30 text-slate-400 hover:bg-slate-500/30 p-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Arrêter"
-                      >
-                        <Square className="h-4 w-4" />
-                      </Button>
-
-                      {/* Transfer */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 rounded-full bg-orange-500/20 border-orange-500/30 text-orange-400 hover:bg-orange-500/30 p-0"
-                        title="Transférer"
-                      >
-                        <ArrowRightLeft className="h-4 w-4" />
-                      </Button>
-
-                      {/* Delete */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteSession(session.name)}
-                        className="h-8 w-8 rounded-full bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30 p-0"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-            {/* Footer avec statistiques */}
-            <div className="p-4 border-t border-slate-800 bg-slate-800/30">
-              <div className="flex items-center justify-between text-sm text-slate-400">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${autoRefresh ? 'bg-green-400' : 'bg-slate-400'}`} />
-                    <span>Auto-refresh: {autoRefresh ? 'Activé' : 'Désactivé'}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setAutoRefresh(!autoRefresh)}
-                      className="h-6 px-2 text-xs hover:bg-slate-700"
-                    >
-                      {autoRefresh ? 'Désactiver' : 'Activer'}
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span>Total: {sessions.length} sessions</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={refreshData}
-                    disabled={loading}
-                    className="h-6 px-2 text-xs hover:bg-slate-700"
-                  >
-                    <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-                    Actualiser
-                  </Button>
+        {/* Actions rapides */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => setShowCreateModal(true)}>
+            <CardContent className="p-6 text-center">
+              <div className="mb-4">
+                <div className="mx-auto w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <Plus className="h-6 w-6 text-primary" />
                 </div>
               </div>
+              <h3 className="font-semibold mb-2">Nouvelle Session</h3>
+              <p className="text-sm text-muted-foreground">Créer une nouvelle connexion WhatsApp</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-6 text-center">
+              <div className="mb-4">
+                <div className="mx-auto w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                  <Settings className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+              <h3 className="font-semibold mb-2">Configuration</h3>
+              <p className="text-sm text-muted-foreground">Gérer les paramètres avancés</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-6 text-center">
+              <div className="mb-4">
+                <div className="mx-auto w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
+                  <Activity className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+              <h3 className="font-semibold mb-2">Analytics</h3>
+              <p className="text-sm text-muted-foreground">Voir les statistiques d'usage</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Modales */}
+      {/* Modal de création de session */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Plus className="h-5 w-5 text-primary" />
+              </div>
+              Créer une nouvelle session
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nom de la session</label>
+              <Input
+                value={newSessionName}
+                onChange={(e) => setNewSessionName(e.target.value)}
+                placeholder="ex: session-principale"
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Utilisez un nom unique et descriptif pour votre session
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleCreateSession} disabled={!newSessionName.trim()}>
+                Créer
+              </Button>
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="analytics" className="space-y-6">
-          <Card className="border-slate-700 bg-slate-900/50">
-            <CardHeader>
-              <CardTitle className="text-white">Analytics des Sessions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-400">Fonctionnalité en développement...</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-6">
-          <Card className="border-slate-700 bg-slate-900/50">
-            <CardHeader>
-              <CardTitle className="text-white">Configuration WAHA</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-slate-400">Paramètres de connexion WAHA...</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal QR Code */}
       <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
-        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <QrCode className="h-5 w-5 text-blue-400" />
-              Connexion WhatsApp - {selectedSession}
+            <DialogTitle className="flex items-center gap-2">
+              <div className="p-2 bg-orange-500/10 rounded-lg">
+                <QrCode className="h-5 w-5 text-orange-600" />
+              </div>
+              Scanner le QR Code - {selectedSession}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             {qrCodeData ? (
-              <div className="text-center">
-                <div className="bg-white p-4 rounded-lg inline-block mb-4">
-                  <img src={qrCodeData} alt="QR Code WhatsApp" className="w-48 h-48 mx-auto" />
+              <div className="text-center space-y-4">
+                <div className="mx-auto p-4 bg-white rounded-xl inline-block">
+                  <img src={qrCodeData} alt="QR Code" className="w-64 h-64 mx-auto" />
                 </div>
-                <p className="text-slate-300 text-sm">
-                  Scannez ce QR code avec WhatsApp pour vous connecter
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    1. Ouvrez WhatsApp sur votre téléphone
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    2. Allez dans Paramètres → Appareils liés
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    3. Scannez ce QR code avec votre téléphone
+                  </p>
+                </div>
+                <Button onClick={() => handleConnectWhatsApp(selectedSession)} variant="outline" className="gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Actualiser QR Code
+                </Button>
               </div>
             ) : (
               <div className="text-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-400 mb-4" />
-                <p className="text-slate-400">Génération du QR code...</p>
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">Génération du QR Code...</p>
               </div>
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modal Création Session */}
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Plus className="h-5 w-5 text-green-400" />
-              Nouvelle Session WhatsApp
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Input
-                placeholder="Nom de la session"
-                value={newSessionName}
-                onChange={(e) => setNewSessionName(e.target.value)}
-                className="bg-slate-800 border-slate-600 text-white"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleCreateSession}
-                disabled={!newSessionName.trim()}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Créer
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowCreateModal(false)}
-                className="border-slate-600 text-slate-300"
-              >
-                Annuler
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Détails Session */}
+      {/* Modal détails de session */}
       <Dialog open={showSessionDetails} onOpenChange={setShowSessionDetails}>
-        <DialogContent className="sm:max-w-2xl bg-slate-900 border-slate-700">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Settings className="h-5 w-5 text-blue-400" />
-              Détails Session - {selectedSession}
+            <DialogTitle className="flex items-center gap-2">
+              <div className="p-2 bg-blue-500/10 rounded-lg">
+                <Activity className="h-5 w-5 text-blue-600" />
+              </div>
+              Détails de la session - {sessionDetails?.name}
             </DialogTitle>
           </DialogHeader>
           {sessionDetails && (
-            <div className="space-y-4">
+            <div className="space-y-6 py-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-slate-400">Statut</label>
-                  <p className="text-white">{sessionDetails.status}</p>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Statut</label>
+                  <Badge 
+                    className={`${
+                      sessionDetails.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
+                      sessionDetails.status === 'SCAN_QR_CODE' ? 'bg-orange-500/10 border-orange-500/30 text-orange-600' :
+                      'bg-slate-500/10 border-slate-500/30 text-slate-600'
+                    }`}
+                  >
+                    {sessionDetails.status}
+                  </Badge>
                 </div>
-                <div>
-                  <label className="text-sm text-slate-400">Téléphone</label>
-                  <p className="text-white">{sessionDetails.phoneNumber || 'Non connecté'}</p>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-muted-foreground">Numéro de téléphone</label>
+                  <p className="text-sm font-mono">
+                    {sessionDetails.phoneNumber || 'Non configuré'}
+                  </p>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="space-y-2">
+                  <div className="text-2xl font-bold text-blue-600">WAHA</div>
+                  <p className="text-sm text-muted-foreground">Type de serveur</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-2xl font-bold text-green-600">API</div>
+                  <p className="text-sm text-muted-foreground">Mode d'accès</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-2xl font-bold text-primary">Active</div>
+                  <p className="text-sm text-muted-foreground">Session</p>
                 </div>
               </div>
             </div>
