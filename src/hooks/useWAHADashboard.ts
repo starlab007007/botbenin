@@ -29,17 +29,13 @@ export const useWAHADashboard = () => {
   // Faire un appel via notre proxy edge function
   const makeWAHARequest = useCallback(async (path: string, options: any = {}) => {
     try {
-      console.log('[WAHA] Starting request to:', path);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        console.error('[WAHA] No session found');
         throw new Error('Non authentifié');
       }
-      console.log('[WAHA] Session found, access token:', session.access_token ? 'Present' : 'Missing');
 
       const url = new URL(`/functions/v1/waha-dashboard-proxy`, 'https://mvynepqulhflxtyymtzs.supabase.co');
       url.searchParams.set('path', path);
-      console.log('[WAHA] Request URL:', url.toString());
 
       const response = await fetch(url.toString(), {
         method: options.method || 'GET',
@@ -51,14 +47,8 @@ export const useWAHADashboard = () => {
         body: options.body ? JSON.stringify(options.body) : null,
       });
 
-      console.log('[WAHA] Response status:', response.status, response.statusText);
-
       if (!response.ok) {
-        const errorData = await response.json().catch((e) => {
-          console.error('[WAHA] Failed to parse error response as JSON:', e);
-          return { error: `HTTP ${response.status}: ${response.statusText}` };
-        });
-        console.error('[WAHA] Error response data:', errorData);
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         
         // Gestion d'erreurs spécifiques basée sur la nouvelle réponse du proxy
         if (errorData.wahaStatus === 401) {
@@ -73,29 +63,23 @@ export const useWAHADashboard = () => {
         throw new Error(errorData.error || `HTTP ${response.status}: ${errorData.details || 'Erreur inconnue'}`);
       }
 
-      const responseData = await response.json();
-      console.log('[WAHA] Success response data:', responseData);
-      return responseData;
+      return await response.json();
     } catch (error) {
-      console.error('[WAHA] Request error:', error);
+      console.error('WAHA request error:', error);
       throw error;
     }
   }, []);
 
   // Charger les sessions
   const loadSessions = useCallback(async () => {
-    console.log('[WAHA] Starting loadSessions...');
     setLoading(true);
     setError(null);
     
     try {
-      console.log('[WAHA] Calling makeWAHARequest for /api/sessions...');
+      console.log('Loading WAHA sessions...');
       const data = await makeWAHARequest('/api/sessions');
-      console.log('[WAHA] Received data:', data);
       
       const sessionsData = Array.isArray(data) ? data : [];
-      console.log('[WAHA] Sessions data is array:', Array.isArray(data), 'Length:', sessionsData.length);
-      
       const formattedSessions: WAHASession[] = sessionsData.map((session: any) => ({
         name: session.name,
         status: session.status || 'DISCONNECTED',
@@ -106,9 +90,9 @@ export const useWAHADashboard = () => {
       }));
 
       setSessions(formattedSessions);
-      console.log('[WAHA] Successfully loaded', formattedSessions.length, 'sessions');
+      console.log(`Loaded ${formattedSessions.length} sessions`);
     } catch (error) {
-      console.error('[WAHA] Error in loadSessions:', error);
+      console.error('Error loading sessions:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur de chargement';
       setError(errorMessage);
       
@@ -122,7 +106,6 @@ export const useWAHADashboard = () => {
       }
     } finally {
       setLoading(false);
-      console.log('[WAHA] loadSessions completed');
     }
   }, [makeWAHARequest]);
 

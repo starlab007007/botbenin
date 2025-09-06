@@ -13,37 +13,29 @@ interface SessionsResponse {
 }
 
 serve(async (req) => {
-  console.log('[WAHA-PROXY] Incoming request:', req.method, req.url);
-  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Initialize Supabase client - Use ANON key for user auth validation
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    console.log('[WAHA-PROXY] Supabase client initialized');
 
     // Get user
     const authHeader = req.headers.get('Authorization');
-    console.log('[WAHA-PROXY] Auth header present:', !!authHeader);
-    
     const { data: { user }, error: authError } = await supabase.auth.getUser(
       authHeader?.replace('Bearer ', '') || ''
     );
 
     if (authError || !user) {
-      console.error('[WAHA-PROXY] Auth error:', authError);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    console.log('[WAHA-PROXY] User authenticated:', user.id);
 
     // Configuration WAHA
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
@@ -51,7 +43,7 @@ serve(async (req) => {
     const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
 
-    console.log('[WAHA-PROXY] Configuration:', {
+    console.log('WAHA Dashboard Proxy - Configuration:', {
       wahaUrl: wahaUrl ? 'SET' : 'NOT SET',
       wahaUsername: wahaUsername ? 'SET' : 'NOT SET', 
       wahaPassword: wahaPassword ? 'SET' : 'NOT SET',
@@ -61,19 +53,13 @@ serve(async (req) => {
     const { method: incomingMethod, url } = req;
     let urlPath = new URL(url).searchParams.get('path') || '/api/sessions';
     let finalMethod = incomingMethod;
-    
-    console.log('[WAHA-PROXY] Request details:', {
-      incomingMethod,
-      urlPath,
-      finalMethod
-    });
 
     // Récupérer un éventuel corps JSON et permettre la surcharge du path/method
     let bodyData: any = null;
     if (incomingMethod === 'POST' || incomingMethod === 'PUT' || incomingMethod === 'PATCH') {
       try {
         const parsed = await req.json();
-        console.log('[WAHA-PROXY] Incoming JSON:', JSON.stringify(parsed, null, 2));
+        console.log('Incoming JSON:', JSON.stringify(parsed, null, 2));
         if (parsed && typeof parsed === 'object' && (parsed.path || parsed.method || parsed.body)) {
           urlPath = parsed.path || urlPath;
           finalMethod = parsed.method || incomingMethod;
@@ -82,7 +68,7 @@ serve(async (req) => {
           bodyData = parsed;
         }
       } catch (e) {
-        console.log('[WAHA-PROXY] No JSON body or failed to parse:', e);
+        console.log('No JSON body or failed to parse:', e);
       }
     }
 
@@ -91,7 +77,7 @@ serve(async (req) => {
     const pathNormalized = `/${(urlPath || '').replace(/^\/+/, '')}`;
     const fullWahaUrl = `${base}${pathNormalized}`;
 
-    console.log(`[WAHA-PROXY] Proxying ${finalMethod} request to: ${fullWahaUrl}`);
+    console.log(`Proxying ${finalMethod} request to: ${fullWahaUrl}`);
 
     // Fonction helper pour essayer plusieurs méthodes d'authentification
     const tryWAHARequest = async (headers: Record<string, string>, authMethod: string) => {
@@ -113,7 +99,6 @@ serve(async (req) => {
 
     // Utiliser uniquement X-Api-Key pour l'authentification
     if (!wahaApiKey) {
-      console.error('[WAHA-PROXY] No API key configured');
       return new Response(JSON.stringify({
         error: 'API Key required',
         message: 'WAHA_API_KEY must be configured'
@@ -129,13 +114,13 @@ serve(async (req) => {
       'Accept': 'application/json'
     };
     
-    console.log('[WAHA-PROXY] Using X-Api-Key authentication method');
+    console.log('Using X-Api-Key authentication method');
     wahaResponse = await tryWAHARequest(apiKeyHeaders, 'X-Api-Key');
     
     if (wahaResponse.ok) {
-      console.log('[WAHA-PROXY] ✅ X-Api-Key authentication successful');
+      console.log('✅ X-Api-Key authentication successful');
     } else {
-      console.log(`[WAHA-PROXY] ❌ X-Api-Key authentication failed: ${wahaResponse.status}`);
+      console.log(`❌ X-Api-Key authentication failed: ${wahaResponse.status}`);
       lastError = { method: 'X-Api-Key', status: wahaResponse.status };
     }
 
@@ -231,13 +216,12 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[WAHA-PROXY] Dashboard Proxy error:', error);
+    console.error('WAHA Dashboard Proxy error:', error);
     return new Response(
       JSON.stringify({ 
         error: 'Proxy error', 
         details: error.message,
-        timestamp: new Date().toISOString(),
-        stack: error.stack
+        timestamp: new Date().toISOString()
       }),
       {
         status: 500,
