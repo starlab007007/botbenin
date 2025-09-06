@@ -33,10 +33,10 @@ serve(async (req) => {
     const wahaUrl = 'https://waha.bot.bj';
     const wahaUsername = 'admin';
     const wahaPassword = 'Starlab@007';
-    const wahaApiKey = 'sha512:cc9608f716617586590ff0c5f954183155c9fae3fd88abca75656f50e94d66219a176225f5010da4b4021e153d7d';
+    const wahaApiKey = '278194d40f794430851ff923e9924a3a';
     
     console.log('🔧 Using WAHA URL:', wahaUrl);
-    console.log('🔧 Using API Key (first 20 chars):', wahaApiKey.substring(0, 20) + '...');
+    console.log('🔧 Using API Key (first 8 chars):', wahaApiKey.substring(0, 8) + '...');
 
     console.log('🔍 WAHA Diagnostic - Starting comprehensive test...');
     
