@@ -185,23 +185,64 @@ export const useWAHADashboard = () => {
     }
   }, [makeWAHARequest, loadSessions]);
 
-  // Obtenir le QR code
+  // Obtenir le QR code avec fallbacks robustes et parsing flexible
   const getQRCode = useCallback(async (sessionName: string): Promise<QRCodeData> => {
     try {
       console.log('Getting QR code for session:', sessionName);
-      
-      const data = await makeWAHARequest(`/api/sessions/${sessionName}/auth/qr`);
-      
-      return {
-        qr: data.qr || data.base64 || '',
-        url: data.url || `whatsapp://connect/${sessionName}`
-      };
+
+      const tryPaths = [
+        `/api/sessions/${sessionName}/auth/qr?format=base64`,
+        `/api/sessions/${sessionName}/auth/qr`,
+        `/api/sessions/${sessionName}/qr?format=base64`,
+        `/api/sessions/${sessionName}/qr`,
+        `/api/v2/sessions/${sessionName}/auth/qr?format=base64`,
+        `/api/v2/sessions/${sessionName}/auth/qr`,
+        `/api/v2/sessions/${sessionName}/qr?format=base64`,
+        `/api/v2/sessions/${sessionName}/qr`,
+      ];
+
+      let lastErr: any = null;
+      for (const path of tryPaths) {
+        try {
+          const data = await makeWAHARequest(path);
+          // Proxy can return JSON or { data: string, type: 'text' }
+          if (!data) continue;
+
+          // Case 1: JSON with fields
+          const qrCandidate = data.qr || data.base64 || data.image || data.qrcode;
+          if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
+            return { qr: normalizeQr(qrCandidate), url: data.url || `whatsapp://connect/${sessionName}` };
+          }
+
+          // Case 2: Text payload wrapped by proxy
+          if (typeof data.data === 'string' && data.data.length > 0) {
+            return { qr: normalizeQr(data.data), url: `whatsapp://connect/${sessionName}` };
+          }
+        } catch (e) {
+          lastErr = e;
+          console.warn('QR attempt failed for', path, e);
+          continue;
+        }
+      }
+
+      throw lastErr || new Error('QR non disponible pour cette session');
     } catch (error) {
       console.error('Error getting QR code:', error);
       toast.error('Erreur lors de la récupération du QR code');
       throw error;
     }
   }, [makeWAHARequest]);
+
+  // Normalise une valeur QR en Data URL image/png
+  function normalizeQr(value: string): string {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('data:image')) return trimmed; // déjà data URL
+    // Si la chaîne ressemble à du base64 sans header, on préfixe
+    const base64Like = /^[A-Za-z0-9+/=\n\r]+$/.test(trimmed) && trimmed.length > 100;
+    if (base64Like) return `data:image/png;base64,${trimmed.replace(/\s+/g,'')}`;
+    // Sinon, certains WAHA renvoient un QR en texte (svg/url). On tente direct.
+    return trimmed;
+  }
 
   // Envoyer un message de test via notre nouvelle edge function spécialisée
   const sendTestMessage = useCallback(async (sessionName: string, to: string, message: string) => {

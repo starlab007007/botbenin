@@ -1097,7 +1097,15 @@ const CompleteSessionManager: React.FC = () => {
                   <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Génération du QR Code...</h3>
-                <p className="text-muted-foreground">Connexion à WAHA Dashboard pour générer votre QR Code</p>
+                <p className="text-muted-foreground mb-4">Connexion à WAHA Dashboard pour générer votre QR Code</p>
+                <Button
+                  onClick={() => handleConnectWhatsApp(selectedSession)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Réessayer
+                </Button>
               </div>
             )}
           </div>
