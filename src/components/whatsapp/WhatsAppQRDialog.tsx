@@ -172,8 +172,7 @@ const WhatsAppQRDialog: React.FC<WhatsAppQRDialogProps> = ({
         try {
           const { data } = await supabase.auth.getSession();
           const token = data.session?.access_token || '';
-          const SUPABASE_URL = 'https://mvynepqulhflxtyymtzs.supabase.co';
-          const url = `${SUPABASE_URL}/functions/v1/waha-dashboard-mirror?path=dashboard&autoQr=${encodeURIComponent(sessionName)}&token=${encodeURIComponent(token)}`;
+          const url = `/functions/v1/waha-dashboard-mirror?path=dashboard&autoQr=${encodeURIComponent(sessionName)}&token=${encodeURIComponent(token)}`;
           setDashboardUrl(url);
         } catch (e) {
           console.warn('⚠️ Impossible de récupérer le token Supabase pour le dashboard mirror:', e);
