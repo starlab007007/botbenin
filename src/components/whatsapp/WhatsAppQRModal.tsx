@@ -39,8 +39,8 @@ const WhatsAppQRModal: React.FC<WhatsAppQRModalProps> = ({
   const [loginClicked, setLoginClicked] = useState(false);
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
-  // URL du proxy WAHA  
-  const proxyUrl = `https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/waha-proxy?path=/dashboard`;
+  // URL du proxy WAHA
+  const proxyUrl = `https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-proxy?path=/dashboard`;
 
   // Réinitialiser l'état quand la modale s'ouvre/ferme
   useEffect(() => {
@@ -93,6 +93,18 @@ const WhatsAppQRModal: React.FC<WhatsAppQRModalProps> = ({
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [autoLoginAttempted, onQRScanned]);
+
+  // Sécurité UX: timeout si l'iframe ne peut pas être affichée (CSP/XFO)
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      if (!wahaReady && isLoading) {
+        setIsLoading(false);
+        setError("Impossible d'afficher le dashboard WAHA ici (CSP iframe). Utilisez 'Dashboard Externe'.");
+      }
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [open, wahaReady, isLoading]);
 
   // Fonction pour déclencher l'auto-login
   const triggerAutoLogin = () => {

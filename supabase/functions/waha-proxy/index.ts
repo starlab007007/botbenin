@@ -69,7 +69,7 @@ serve(async (req) => {
     }
     
     // Ajouter des en-têtes pour permettre l'iframe
-    responseHeaders.set('Content-Security-Policy', "frame-ancestors 'self' https://bot.bj https://*.bot.bj https://*.supabase.co; default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;")
+    responseHeaders.set('Content-Security-Policy', "frame-ancestors 'self' https://bot.bj https://*.bot.bj https://*.supabase.co https://*.lovable.app https://*.lovable.dev https://localhost:5173; default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;")
     responseHeaders.set('X-Frame-Options', 'ALLOWALL')
     
     // Ajouter les en-têtes CORS
