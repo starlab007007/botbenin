@@ -216,21 +216,130 @@ async function startWAHASession(
   }
 
   try {
-    const response = await fetch(`${wahaUrl}/api/sessions/${sessionName}/start`, {
+    console.log(`🚀 Attempting to start session: ${sessionName}`);
+    
+    // Première tentative: démarrer la session
+    const startResponse = await fetch(`${wahaUrl}/api/sessions/${sessionName}/start`, {
       method: 'POST',
       headers,
       body: JSON.stringify({})
     });
 
-    if (response.ok || response.status === 201) {
+    if (startResponse.ok || startResponse.status === 201) {
+      console.log(`✅ Session started successfully: ${sessionName}`);
       return { success: true };
-    } else {
-      const errorText = await response.text();
-      return { success: false, error: `Start failed: ${response.status} - ${errorText}` };
     }
+
+    // Si 404 "Session not found", tenter de créer la session explicitement
+    if (startResponse.status === 404) {
+      const errorText = await startResponse.text();
+      console.log(`⚠️ Session not found (404), attempting to create: ${sessionName}`);
+      
+      if (errorText.toLowerCase().includes('session not found') || errorText.toLowerCase().includes('not found')) {
+        // Tenter la création explicite de la session
+        const createResult = await createWAHASession(sessionName, wahaUrl, wahaApiKey, wahaUsername, wahaPassword);
+        
+        if (createResult.success) {
+          console.log(`✅ Session created, retrying start: ${sessionName}`);
+          
+          // Attendre un peu avant de re-tenter le start
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Re-tenter le démarrage
+          const retryStartResponse = await fetch(`${wahaUrl}/api/sessions/${sessionName}/start`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({})
+          });
+
+          if (retryStartResponse.ok || retryStartResponse.status === 201) {
+            console.log(`✅ Session started after creation: ${sessionName}`);
+            return { success: true };
+          } else {
+            const retryErrorText = await retryStartResponse.text();
+            console.error(`❌ Start failed after creation: ${retryStartResponse.status} - ${retryErrorText}`);
+            return { success: false, error: `Start failed after creation: ${retryStartResponse.status} - ${retryErrorText}` };
+          }
+        } else {
+          console.error(`❌ Session creation failed: ${createResult.error}`);
+          return { success: false, error: `Session creation failed: ${createResult.error}` };
+        }
+      }
+    }
+
+    // Autre erreur ou 404 sans "session not found"
+    const errorText = await startResponse.text();
+    console.error(`❌ Start failed: ${startResponse.status} - ${errorText}`);
+    return { success: false, error: `Start failed: ${startResponse.status} - ${errorText}` };
+
   } catch (error: any) {
+    console.error(`❌ Network error during start: ${error.message}`);
     return { success: false, error: `Network error: ${error.message}` };
   }
+}
+
+async function createWAHASession(
+  sessionName: string,
+  wahaUrl: string,
+  wahaApiKey: string | undefined,
+  wahaUsername: string,
+  wahaPassword: string | undefined
+): Promise<{ success: boolean; error?: string }> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': '*/*'
+  };
+
+  if (wahaApiKey) {
+    headers['X-Api-Key'] = wahaApiKey;
+  } else if (wahaPassword) {
+    headers['Authorization'] = `Basic ${btoa(`${wahaUsername}:${wahaPassword}`)}`;
+  }
+
+  // Tentatives de création avec différents endpoints et formats
+  const createEndpoints = [
+    {
+      url: `/api/v2/sessions`,
+      body: { name: sessionName, config: { driver: "whatsapp-web" } }
+    },
+    {
+      url: `/api/sessions`,
+      body: { name: sessionName, config: { driver: "whatsapp-web" } }
+    },
+    {
+      url: `/api/v2/sessions`,
+      body: { name: sessionName, driver: "whatsapp-web" }
+    },
+    {
+      url: `/api/sessions`,
+      body: { name: sessionName, driver: "whatsapp-web" }
+    }
+  ];
+
+  for (const endpoint of createEndpoints) {
+    try {
+      console.log(`🔧 Trying session creation endpoint: ${endpoint.url}`);
+      
+      const response = await fetch(`${wahaUrl}${endpoint.url}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(endpoint.body)
+      });
+
+      if (response.ok || response.status === 201) {
+        console.log(`✅ Session created successfully with endpoint: ${endpoint.url}`);
+        return { success: true };
+      } else {
+        const errorText = await response.text();
+        console.log(`❌ Creation endpoint ${endpoint.url} failed: ${response.status} - ${errorText}`);
+      }
+    } catch (error: any) {
+      console.log(`❌ Creation endpoint ${endpoint.url} error: ${error.message}`);
+      continue;
+    }
+  }
+
+  return { success: false, error: 'All session creation endpoints failed - check WAHA permissions and API configuration' };
 }
 
 async function getQRCode(
