@@ -40,7 +40,7 @@ const WhatsAppQRModal: React.FC<WhatsAppQRModalProps> = ({
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
   // URL du proxy WAHA
-  const proxyUrl = `https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-proxy?path=/dashboard`;
+  const proxyUrl = `https://mvynepqulhflxtyymtzs.functions.supabase.co/waha-proxy/dashboard`;
 
   // Réinitialiser l'état quand la modale s'ouvre/ferme
   useEffect(() => {
@@ -170,7 +170,8 @@ const WhatsAppQRModal: React.FC<WhatsAppQRModalProps> = ({
     setAutoLoginAttempted(false);
     
     if (iframeRef.current) {
-      iframeRef.current.src = proxyUrl + '&nocache=' + Date.now();
+      const sep = proxyUrl.includes('?') ? '&' : '?';
+      iframeRef.current.src = `${proxyUrl}${sep}nocache=${Date.now()}`;
     }
   };
 

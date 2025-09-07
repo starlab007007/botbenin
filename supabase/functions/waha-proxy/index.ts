@@ -14,7 +14,22 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url)
-    const pathParam = url.searchParams.get('path') || '/dashboard'
+    const functionPrefix = '/waha-proxy'
+
+    // Déterminer le chemin demandé: ?path=... OU segments après /waha-proxy
+    let requestedPath = url.searchParams.get('path') || ''
+    if (!requestedPath) {
+      const pathname = url.pathname || ''
+      const idx = pathname.indexOf(functionPrefix)
+      requestedPath = idx >= 0 ? pathname.slice(idx + functionPrefix.length) : ''
+    }
+    if (!requestedPath || requestedPath === '/') requestedPath = '/dashboard'
+    if (!requestedPath.startsWith('/')) requestedPath = `/${requestedPath}`
+
+    // Conserver les autres query params (sans "path")
+    const fwdParams = new URLSearchParams(url.searchParams)
+    fwdParams.delete('path')
+    const qs = fwdParams.toString()
     
     // Récupérer les identifiants WAHA depuis les secrets
     const wahaUsername = Deno.env.get('WAHA_USERNAME') || 'admin'
@@ -22,7 +37,7 @@ serve(async (req) => {
     
     // Construire l'URL WAHA
     const wahaBaseUrl = 'https://waha.bot.bj'
-    const targetUrl = `${wahaBaseUrl}${pathParam}`
+    const targetUrl = `${wahaBaseUrl}${requestedPath}${qs ? `?${qs}` : ''}`
     
     console.log(`🎯 Proxy request to: ${targetUrl}`)
     
@@ -78,7 +93,7 @@ serve(async (req) => {
     })
     
     // Si c'est du HTML (dashboard), injecter le script d'automatisation
-    if (contentType.includes('text/html') && pathParam.includes('dashboard')) {
+    if (contentType.includes('text/html') && requestedPath.includes('dashboard')) {
       const htmlContent = new TextDecoder().decode(responseBody)
       
       // Script d'automatisation pour cliquer sur login et extraire QR
