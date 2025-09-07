@@ -16,6 +16,7 @@ import WAHATroubleshootingGuide from '@/components/whatsapp/WAHATroubleshootingG
 import WAHAPermissionsDiagnostic from '@/components/whatsapp/WAHAPermissionsDiagnostic';
 import WAHAApiKeySolution from '@/components/whatsapp/WAHAApiKeySolution';
 import WhatsAppQRDialog from '@/components/whatsapp/WhatsAppQRDialog';
+import WhatsAppQRModal from '@/components/whatsapp/WhatsAppQRModal';
 import { 
   Play, 
   Square, 
@@ -82,6 +83,7 @@ const CompleteSessionManager: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSessionDetails, setShowSessionDetails] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
+  const [showNewQRModal, setShowNewQRModal] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string>('');
   const [sessionSteps, setSessionSteps] = useState<SessionStep[]>([]);
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
@@ -454,6 +456,11 @@ const CompleteSessionManager: React.FC = () => {
     setShowQRDialog(true);
   };
 
+  const handleScanQRNew = (sessionName: string) => {
+    setSelectedSession(sessionName);
+    setShowNewQRModal(true);
+  };
+
   const toggleSessionExpansion = (sessionName: string) => {
     setExpandedSession(expandedSession === sessionName ? null : sessionName);
   };
@@ -766,7 +773,7 @@ const CompleteSessionManager: React.FC = () => {
                              <Button
                                onClick={(e) => {
                                  e.stopPropagation();
-                                 handleScanQR(session.name);
+                                 handleScanQRNew(session.name);
                                }}
                                size="sm"
                                className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
@@ -1265,13 +1272,25 @@ const CompleteSessionManager: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Nouveau Dialog pour Scanner QR */}
+      {/* Ancien Dialog pour Scanner QR */}
       <WhatsAppQRDialog
         open={showQRDialog}
         onOpenChange={setShowQRDialog}
         sessionName={selectedSession}
         onQRScanned={() => {
           setShowQRDialog(false);
+          refreshData();
+          toast.success('WhatsApp connecté avec succès!');
+        }}
+      />
+
+      {/* Nouvelle Modale QR avec Proxy WAHA */}
+      <WhatsAppQRModal
+        open={showNewQRModal}
+        onOpenChange={setShowNewQRModal}
+        sessionName={selectedSession}
+        onQRScanned={() => {
+          setShowNewQRModal(false);
           refreshData();
           toast.success('WhatsApp connecté avec succès!');
         }}

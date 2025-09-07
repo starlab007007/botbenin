@@ -84,3 +84,6 @@ verify_jwt = false
 
 [functions.waha-auto-auth]
 verify_jwt = true
+
+[functions.waha-proxy]
+verify_jwt = false
