@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import DirectQRDisplay from '@/components/whatsapp/DirectQRDisplay';
+import BotWebhookLinker from './BotWebhookLinker';
 import { 
   Play, 
   Square, 
@@ -26,7 +27,8 @@ import {
   Loader2,
   Search,
   ChevronDown,
-  BarChart3
+  BarChart3,
+  Link2
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { useWAHADashboard, WAHASession } from '@/hooks/useWAHADashboard';
@@ -41,6 +43,8 @@ const SimpleSessionManager: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [userSessions, setUserSessions] = useState<string[]>([]);
   const [userSessionsFromDB, setUserSessionsFromDB] = useState<any[]>([]);
+  const [showBotLinker, setShowBotLinker] = useState(false);
+  const [selectedSessionForBot, setSelectedSessionForBot] = useState('');
 
   const { 
     sessions, 
@@ -508,6 +512,18 @@ const SimpleSessionManager: React.FC = () => {
                             </Button>
 
                             <Button
+                              onClick={() => {
+                                setSelectedSessionForBot(session.name);
+                                setShowBotLinker(true);
+                              }}
+                              variant="outline"
+                              className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+                            >
+                              <Link2 className="h-4 w-4" />
+                              Lier Bot
+                            </Button>
+
+                            <Button
                               onClick={() => handleDeleteSession(session.name)}
                               variant="outline"
                               className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
@@ -575,6 +591,16 @@ const SimpleSessionManager: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <BotWebhookLinker
+        open={showBotLinker}
+        onOpenChange={setShowBotLinker}
+        sessionName={selectedSessionForBot}
+        onWebhookAdded={() => {
+          toast.success('Bot lié avec succès!');
+          setShowBotLinker(false);
+        }}
+      />
 
       {/* Modal QR Code */}
       <DirectQRDisplay
