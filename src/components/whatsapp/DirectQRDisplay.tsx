@@ -28,30 +28,50 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
     setError('');
     
     try {
+      console.log('Récupération du QR code pour la session:', sessionName);
+      
       // Appel direct à l'API WAHA avec l'API key exactement comme dans la capture
       const response = await fetch(`https://waha.bot.bj/api/${sessionName}/auth/qr?format=image`, {
         method: 'GET',
         headers: {
           'Accept': 'image/png',
-          'Content-Type': 'application/json',
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         }
       });
 
+      console.log('Réponse API status:', response.status);
+      console.log('Réponse headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Erreur API response:', errorText);
         throw new Error(`Erreur API: ${response.status} - ${response.statusText}`);
+      }
+
+      // Vérifier le type de contenu
+      const contentType = response.headers.get('Content-Type');
+      console.log('Content-Type:', contentType);
+      
+      if (!contentType || !contentType.startsWith('image/')) {
+        const textResponse = await response.text();
+        console.error('Réponse non-image:', textResponse);
+        throw new Error('La réponse n\'est pas une image');
       }
 
       // Convertir la réponse en blob puis en URL d'objet
       const blob = await response.blob();
+      console.log('Blob créé, taille:', blob.size, 'type:', blob.type);
+      
       const imageUrl = URL.createObjectURL(blob);
+      console.log('URL d\'objet créée:', imageUrl);
+      
       setQrImageUrl(imageUrl);
       
       toast.success('QR Code généré avec succès!');
     } catch (error: any) {
       console.error('Erreur lors de la récupération du QR code:', error);
       setError(error.message || 'Erreur lors de la récupération du QR code');
-      toast.error('Erreur lors de la génération du QR code');
+      toast.error('Erreur lors de la génération du QR code: ' + error.message);
     } finally {
       setLoading(false);
     }
