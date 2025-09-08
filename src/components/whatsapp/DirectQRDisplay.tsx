@@ -28,12 +28,13 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
     setError('');
     
     try {
-      // Appel direct à l'API WAHA exactement comme dans la capture
+      // Appel direct à l'API WAHA avec l'API key exactement comme dans la capture
       const response = await fetch(`https://waha.bot.bj/api/${sessionName}/auth/qr?format=image`, {
         method: 'GET',
         headers: {
           'Accept': 'image/png',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         }
       });
 
