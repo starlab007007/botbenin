@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useWhatsAppAccounts } from '@/hooks/useWhatsAppAccounts';
 import { useAuth } from '@/contexts/AuthContext';
 import AutoWAHAAuth from './AutoWAHAAuth';
+import BotWebhookLinker from './BotWebhookLinker';
 import { 
   MessageCircle,
   Smartphone,
@@ -15,7 +16,8 @@ import {
   CheckCircle,
   AlertTriangle,
   Shield,
-  Bot
+  Bot,
+  Link2
 } from 'lucide-react';
 
 const SimplifiedWhatsAppManager: React.FC = () => {
@@ -25,6 +27,8 @@ const SimplifiedWhatsAppManager: React.FC = () => {
   const [qrRefreshing, setQrRefreshing] = useState(false);
   const [showAuth, setShowAuth] = useState(true);
   const [authCompleted, setAuthCompleted] = useState(false);
+  const [showBotLinker, setShowBotLinker] = useState(false);
+  const [selectedSessionForBot, setSelectedSessionForBot] = useState('');
 
   const { toast } = useToast();
   const { user } = useAuth();
@@ -215,11 +219,14 @@ const SimplifiedWhatsAppManager: React.FC = () => {
                   <Badge className="bg-green-500">Connecté</Badge>
                   <Button 
                     size="sm"
-                    onClick={() => handleLinkBot(session.id)}
+                    onClick={() => {
+                      setSelectedSessionForBot(session.session_name);
+                      setShowBotLinker(true);
+                    }}
                     className="bg-blue-500 hover:bg-blue-600"
                   >
-                    <Bot className="w-3 h-3 mr-1" />
-                    Activer Bot
+                    <Link2 className="w-3 h-3 mr-1" />
+                    Lier Bot
                   </Button>
                 </div>
               </div>
@@ -251,18 +258,32 @@ const SimplifiedWhatsAppManager: React.FC = () => {
                     <p className="text-sm text-muted-foreground">En attente de connexion</p>
                   </div>
                 </div>
-                <Button 
-                  size="sm"
-                  onClick={() => {
-                    setSelectedSessionName(session.session_name);
-                    setShowQRModal(true);
-                    refreshQRCode(session.session_name);
-                  }}
-                  className="bg-blue-500 hover:bg-blue-600"
-                >
-                  <QrCode className="w-3 h-3 mr-1" />
-                  Scanner QR
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm"
+                    onClick={() => {
+                      setSelectedSessionName(session.session_name);
+                      setShowQRModal(true);
+                      refreshQRCode(session.session_name);
+                    }}
+                    className="bg-blue-500 hover:bg-blue-600"
+                  >
+                    <QrCode className="w-3 h-3 mr-1" />
+                    Scanner QR
+                  </Button>
+                  <Button 
+                    size="sm"
+                    onClick={() => {
+                      setSelectedSessionForBot(session.session_name);
+                      setShowBotLinker(true);
+                    }}
+                    variant="outline"
+                    className="border-green-200 text-green-600 hover:bg-green-50"
+                  >
+                    <Link2 className="w-3 h-3 mr-1" />
+                    Lier Bot
+                  </Button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -336,6 +357,19 @@ const SimplifiedWhatsAppManager: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <BotWebhookLinker
+        open={showBotLinker}
+        onOpenChange={setShowBotLinker}
+        sessionName={selectedSessionForBot}
+        onWebhookAdded={() => {
+          toast({
+            title: "Bot lié avec succès",
+            description: "Le webhook du bot a été ajouté à la session WhatsApp",
+          });
+          setShowBotLinker(false);
+        }}
+      />
     </div>
   );
 };

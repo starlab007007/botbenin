@@ -61,7 +61,7 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
       console.log('Ajout du webhook pour le bot:', selectedBot.name, 'URL:', webhookUrl);
 
       // Ajouter le webhook à la session WAHA via l'API
-      const response = await fetch(`https://waha.bot.bj/api/${sessionName}/webhooks`, {
+      const response = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}/webhooks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,21 +72,48 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
           events: [
             'message',
             'message.reaction',
-            'message.status'
+            'message.status',
+            'session.status'
           ],
           hmac: false,
           retries: 3
         })
       });
 
+      // Si la première tentative échoue, essayer l'autre endpoint
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Erreur API webhook:', errorText);
-        throw new Error(`Erreur lors de l'ajout du webhook: ${response.status}`);
-      }
+        console.log('Tentative avec endpoint alternatif...');
+        const altResponse = await fetch(`https://waha.bot.bj/api/${sessionName}/webhooks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Api-Key': '278194d40f794430851ff923e9924a3a'
+          },
+          body: JSON.stringify({
+            url: webhookUrl,
+            events: [
+              'message',
+              'message.reaction', 
+              'message.status',
+              'session.status'
+            ],
+            hmac: false,
+            retries: 3
+          })
+        });
 
-      const webhookResult = await response.json();
-      console.log('Webhook ajouté avec succès:', webhookResult);
+        if (!altResponse.ok) {
+          const errorText = await altResponse.text();
+          console.error('Erreur API webhook (alternatif):', errorText);
+          throw new Error(`Erreur lors de l'ajout du webhook: ${altResponse.status}`);
+        }
+
+        const webhookResult = await altResponse.json();
+        console.log('Webhook ajouté avec succès (endpoint alternatif):', webhookResult);
+      } else {
+        const webhookResult = await response.json();
+        console.log('Webhook ajouté avec succès:', webhookResult);
+      }
 
       toast.success(`Bot "${selectedBot.name}" lié avec succès à la session WhatsApp!`);
       
