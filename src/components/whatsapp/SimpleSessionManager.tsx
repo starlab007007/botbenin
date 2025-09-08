@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import WhatsAppQRModal from '@/components/whatsapp/WhatsAppQRModal';
+import DirectQRDisplay from '@/components/whatsapp/DirectQRDisplay';
 import { 
   Play, 
   Square, 
@@ -577,15 +577,10 @@ const SimpleSessionManager: React.FC = () => {
       </Dialog>
 
       {/* Modal QR Code */}
-      <WhatsAppQRModal
+      <DirectQRDisplay
         open={showQRModal}
         onOpenChange={setShowQRModal}
         sessionName={selectedSession}
-        onQRScanned={() => {
-          setShowQRModal(false);
-          refreshData();
-          toast.success('WhatsApp connecté avec succès!');
-        }}
       />
     </div>
   );
