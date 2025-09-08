@@ -60,60 +60,61 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
 
       console.log('Ajout du webhook pour le bot:', selectedBot.name, 'URL:', webhookUrl);
 
-      // Ajouter le webhook à la session WAHA via l'API
-      const response = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}/webhooks`, {
-        method: 'POST',
+      // Étape 1: Récupérer la configuration actuelle de la session
+      const sessionResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
+        }
+      });
+
+      if (!sessionResponse.ok) {
+        throw new Error(`Impossible de récupérer la configuration de la session: ${sessionResponse.status}`);
+      }
+
+      const sessionConfig = await sessionResponse.json();
+      console.log('Configuration actuelle de la session:', sessionConfig);
+
+      // Étape 2: Préparer la nouvelle configuration avec le webhook
+      const webhookConfig = {
+        url: webhookUrl,
+        events: [
+          'message',
+          'message.reaction',
+          'message.status',
+          'session.status'
+        ],
+        hmac: false,
+        retries: 3
+      };
+
+      // Ajouter le webhook à la configuration existante
+      const updatedConfig = {
+        ...sessionConfig,
+        webhooks: sessionConfig.webhooks ? [...sessionConfig.webhooks, webhookConfig] : [webhookConfig]
+      };
+
+      console.log('Configuration mise à jour:', updatedConfig);
+
+      // Étape 3: Mettre à jour la session avec la nouvelle configuration (méthode WAHA standard)
+      const updateResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         },
-        body: JSON.stringify({
-          url: webhookUrl,
-          events: [
-            'message',
-            'message.reaction',
-            'message.status',
-            'session.status'
-          ],
-          hmac: false,
-          retries: 3
-        })
+        body: JSON.stringify(updatedConfig)
       });
 
-      // Si la première tentative échoue, essayer l'autre endpoint
-      if (!response.ok) {
-        console.log('Tentative avec endpoint alternatif...');
-        const altResponse = await fetch(`https://waha.bot.bj/api/${sessionName}/webhooks`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Api-Key': '278194d40f794430851ff923e9924a3a'
-          },
-          body: JSON.stringify({
-            url: webhookUrl,
-            events: [
-              'message',
-              'message.reaction', 
-              'message.status',
-              'session.status'
-            ],
-            hmac: false,
-            retries: 3
-          })
-        });
-
-        if (!altResponse.ok) {
-          const errorText = await altResponse.text();
-          console.error('Erreur API webhook (alternatif):', errorText);
-          throw new Error(`Erreur lors de l'ajout du webhook: ${altResponse.status}`);
-        }
-
-        const webhookResult = await altResponse.json();
-        console.log('Webhook ajouté avec succès (endpoint alternatif):', webhookResult);
-      } else {
-        const webhookResult = await response.json();
-        console.log('Webhook ajouté avec succès:', webhookResult);
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        console.error('Erreur lors de la mise à jour de la session:', errorText);
+        throw new Error(`Erreur lors de la mise à jour: ${updateResponse.status} - ${errorText}`);
       }
+
+      const updateResult = await updateResponse.json();
+      console.log('Session mise à jour avec succès:', updateResult);
 
       toast.success(`Bot "${selectedBot.name}" lié avec succès à la session WhatsApp!`);
       
