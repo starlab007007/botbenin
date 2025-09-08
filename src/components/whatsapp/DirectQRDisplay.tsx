@@ -18,6 +18,7 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
   sessionName
 }) => {
   const [qrImageUrl, setQrImageUrl] = useState<string>('');
+  const [qrImageData, setQrImageData] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
@@ -58,14 +59,23 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
         throw new Error('La réponse n\'est pas une image');
       }
 
-      // Convertir la réponse en blob puis en URL d'objet
+      // Essayer plusieurs méthodes d'affichage
       const blob = await response.blob();
       console.log('Blob créé, taille:', blob.size, 'type:', blob.type);
       
+      // Méthode 1: URL d'objet (original)
       const imageUrl = URL.createObjectURL(blob);
       console.log('URL d\'objet créée:', imageUrl);
-      
       setQrImageUrl(imageUrl);
+      
+      // Méthode 2: Convertir en base64 data URL
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = reader.result as string;
+        console.log('Base64 data créé:', base64Data.substring(0, 50) + '...');
+        setQrImageData(base64Data);
+      };
+      reader.readAsDataURL(blob);
       
       toast.success('QR Code généré avec succès!');
     } catch (error: any) {
@@ -175,18 +185,52 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
                   </div>
                 )}
 
-                {!loading && !error && qrImageUrl && (
+                {!loading && !error && (qrImageUrl || qrImageData) && (
                   <div className="space-y-4">
                     <div className="flex justify-center">
-                      <img
-                        src={qrImageUrl}
-                        alt={`QR Code pour ${sessionName}`}
-                        className="max-w-full h-auto border border-border rounded-lg"
-                        style={{ maxHeight: '300px' }}
-                      />
+                      {/* Essayer d'abord avec les données base64 */}
+                      {qrImageData ? (
+                        <img
+                          src={qrImageData}
+                          alt={`QR Code pour ${sessionName}`}
+                          className="max-w-full h-auto border border-border rounded-lg"
+                          style={{ maxHeight: '300px' }}
+                          onError={(e) => {
+                            console.error('Erreur affichage base64:', e);
+                          }}
+                        />
+                      ) : (
+                        /* Fallback sur l'URL d'objet */
+                        <img
+                          src={qrImageUrl}
+                          alt={`QR Code pour ${sessionName}`}
+                          className="max-w-full h-auto border border-border rounded-lg"
+                          style={{ maxHeight: '300px' }}
+                          onError={(e) => {
+                            console.error('Erreur affichage blob URL:', e);
+                          }}
+                        />
+                      )}
+                      
+                      {/* Fallback: Affichage direct de l'URL WAHA */}
+                      {!qrImageData && !qrImageUrl && (
+                        <div className="text-center p-4 border border-dashed border-border rounded-lg">
+                          <p className="mb-2">Affichage direct depuis l'API:</p>
+                          <img
+                            src={`https://waha.bot.bj/api/${sessionName}/auth/qr?format=image&_t=${Date.now()}`}
+                            alt={`QR Code pour ${sessionName}`}
+                            className="max-w-full h-auto border border-border rounded-lg"
+                            style={{ maxHeight: '300px' }}
+                            crossOrigin="anonymous"
+                            onError={(e) => {
+                              console.error('Erreur affichage direct:', e);
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground text-center">
                       Scannez ce QR code avec WhatsApp pour connecter la session
                     </div>
                   </div>
