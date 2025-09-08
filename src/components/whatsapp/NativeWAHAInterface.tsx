@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import BotWebhookLinker from './BotWebhookLinker';
 import { 
   QrCode,
   Play,
@@ -35,7 +36,8 @@ import {
   Globe,
   Shield,
   Database,
-  BarChart3
+  BarChart3,
+  Link2
 } from 'lucide-react';
 
 interface SessionData {
@@ -80,6 +82,8 @@ export const SessionsTab: React.FC<{
 }) => {
   const [newSessionName, setNewSessionName] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showBotLinker, setShowBotLinker] = useState(false);
+  const [selectedSessionForBot, setSelectedSessionForBot] = useState('');
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -192,6 +196,19 @@ export const SessionsTab: React.FC<{
                 <Button 
                   size="sm" 
                   variant="outline"
+                  onClick={() => {
+                    setSelectedSessionForBot(session.name);
+                    setShowBotLinker(true);
+                  }}
+                  className="text-blue-500 hover:text-blue-700"
+                >
+                  <Link2 className="w-3 h-3 mr-1" />
+                  Lier Bot
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant="outline"
                   onClick={() => onDeleteSession(session.name)}
                   className="text-red-500 hover:text-red-700"
                 >
@@ -212,6 +229,16 @@ export const SessionsTab: React.FC<{
           </Card>
         ))}
       </div>
+      
+      <BotWebhookLinker
+        open={showBotLinker}
+        onOpenChange={setShowBotLinker}
+        sessionName={selectedSessionForBot}
+        onWebhookAdded={() => {
+          toast.success('Bot lié avec succès!');
+          setShowBotLinker(false);
+        }}
+      />
     </div>
   );
 };
