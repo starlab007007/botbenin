@@ -30,6 +30,7 @@ serve(async (req) => {
       'https://mvynepqulhflxtyymtzs.lovableproject.com',
       'https://preview--path-finding-ai-coach.lovable.app',
       'https://e22c52ab-372c-49c8-ab35-fb1b4b55f0b1.sandbox.lovable.dev',
+      'https://id-preview--e22c52ab-372c-49c8-ab35-fb1b4b55f0b1.lovable.app',
       'http://localhost:3000', 
       'http://127.0.0.1:3000',
       'https://localhost:3000',
