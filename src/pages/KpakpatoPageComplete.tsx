@@ -28,6 +28,18 @@ export const KpakpatoPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Ensure ElevenLabs ConvAI script is available (fallback if blocked or not yet loaded)
+  useEffect(() => {
+    const isDefined = !!customElements.get('elevenlabs-convai');
+    const hasScript = !!document.querySelector('script[src*="convai-widget-embed"]');
+    if (!isDefined && !hasScript) {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed';
+      s.async = true;
+      document.head.appendChild(s);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background overflow-hidden">
       {/* Background effects */}
@@ -89,19 +101,7 @@ export const KpakpatoPage: React.FC = () => {
               />
             </div>
 
-            {/* Click-through helper (fallback) */}
-            <button
-              type="button"
-              aria-label="Démarrer la conversation"
-              className="absolute inset-0 z-30 bg-transparent focus:outline-none"
-              onClick={() => {
-                const el = document.querySelector('elevenlabs-convai') as HTMLElement | null;
-                el?.click();
-              }}
-            >
-              <span className="sr-only">Démarrer la conversation</span>
-            </button>
-            
+            {/* Removed overlay to allow direct clicks into ElevenLabs widget */}
             {/* Loading overlay */}
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full z-10 pointer-events-none">
