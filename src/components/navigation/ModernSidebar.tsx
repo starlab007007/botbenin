@@ -40,11 +40,11 @@ const mainMenuItems = [
     description: 'Vue d\'ensemble'
   },
   { 
-    title: 'Chat IA', 
+    title: 'Kpakpato', 
     path: '/chat', 
     icon: MessageCircle, 
     color: 'from-green-500 to-green-600',
-    description: 'Assistant intelligent'
+    description: 'Messages vocaux interactifs'
   },
   { 
     title: 'Dashboard', 

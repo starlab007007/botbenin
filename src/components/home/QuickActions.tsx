@@ -14,8 +14,8 @@ import {
 
 const quickActions = [
   {
-    title: 'Chat IA',
-    description: 'Discutez avec notre assistant intelligent',
+    title: 'Kpakpato',
+    description: 'Messages vocaux interactifs',
     icon: MessageCircle,
     path: '/chat',
     color: 'from-green-500 to-green-600',

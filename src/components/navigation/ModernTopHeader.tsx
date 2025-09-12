@@ -68,7 +68,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 
   const quickActions = [
     { name: 'Accueil', path: '/home', icon: Home },
-    { name: 'Chat IA', path: '/chat', icon: Command },
+    { name: 'Kpakpato', path: '/chat', icon: Command },
     { name: 'Dashboard', path: '/dashboard', icon: Palette },
     { name: 'Bots', path: '/bots', icon: Settings },
     { name: 'Prospects', path: '/prospects', icon: Users },

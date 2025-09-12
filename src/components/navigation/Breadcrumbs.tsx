@@ -5,7 +5,7 @@ import { ChevronRight, Home } from 'lucide-react';
 
 const pathNames: { [key: string]: string } = {
   'home': 'Accueil',
-  'chat': 'Chat IA',
+  'chat': 'Kpakpato',
   'dashboard': 'Dashboard',
   'bots': 'Gestion des Bots',
   'automations': 'Automatisations',
