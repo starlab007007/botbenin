@@ -66,20 +66,21 @@ export const KpakpatoPage: React.FC = () => {
           {/* ElevenLabs ConvAI Widget - Positioned and Clickable */}
           <div className="relative w-60 h-60">
             {/* Background rings for visual effect */}
-            <div className="absolute inset-0 w-60 h-60 rounded-full border-2 border-purple-300/40 animate-pulse" />
-            <div className="absolute inset-4 w-52 h-52 rounded-full border-2 border-blue-300/40 animate-pulse" style={{ animationDelay: '0.5s' }} />
-            <div className="absolute inset-8 w-44 h-44 rounded-full border-2 border-cyan-300/40 animate-pulse" style={{ animationDelay: '1s' }} />
+            <div className="absolute inset-0 w-60 h-60 rounded-full border-2 border-purple-300/40 animate-pulse pointer-events-none" />
+            <div className="absolute inset-4 w-52 h-52 rounded-full border-2 border-blue-300/40 animate-pulse pointer-events-none" style={{ animationDelay: '0.5s' }} />
+            <div className="absolute inset-8 w-44 h-44 rounded-full border-2 border-cyan-300/40 animate-pulse pointer-events-none" style={{ animationDelay: '1s' }} />
             
             {/* Glowing center */}
-            <div className="absolute inset-16 w-28 h-28 rounded-full bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-cyan-500/20 animate-pulse flex items-center justify-center">
+            <div className="absolute inset-16 w-28 h-28 rounded-full bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-cyan-500/20 animate-pulse flex items-center justify-center pointer-events-none">
               <Mic className="w-8 h-8 text-primary animate-pulse" />
             </div>
             
             {/* ElevenLabs ConvAI Widget - Positioned on top and clickable */}
-            <div className="absolute inset-0 w-60 h-60 rounded-full">
+            <div className="absolute inset-0 w-60 h-60 rounded-full z-20 pointer-events-auto overflow-hidden">
               <elevenlabs-convai 
                 agent-id="agent_5201k4wn52v7e8btj48v1636ys1e"
                 style={{
+                  display: 'block',
                   width: '240px',
                   height: '240px',
                   border: 'none',
@@ -87,10 +88,23 @@ export const KpakpatoPage: React.FC = () => {
                 }}
               />
             </div>
+
+            {/* Click-through helper (fallback) */}
+            <button
+              type="button"
+              aria-label="Démarrer la conversation"
+              className="absolute inset-0 z-30 bg-transparent focus:outline-none"
+              onClick={() => {
+                const el = document.querySelector('elevenlabs-convai') as HTMLElement | null;
+                el?.click();
+              }}
+            >
+              <span className="sr-only">Démarrer la conversation</span>
+            </button>
             
             {/* Loading overlay */}
             {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full z-10">
+              <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full z-10 pointer-events-none">
                 <div className="text-center space-y-3">
                   <div className="w-8 h-8 rounded-full border-3 border-purple-200 border-t-purple-500 animate-spin mx-auto" />
                   <p className="text-xs text-muted-foreground">Initialisation de Jarvis...</p>
