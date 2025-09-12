@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Mic } from 'lucide-react';
+import { Mic, MicOff, Volume2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 declare global {
@@ -16,13 +17,15 @@ declare global {
 
 export const KpakpatoPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const [isListening, setIsListening] = useState(false);
+  const [isConversationActive, setIsConversationActive] = useState(false);
+  const [showStartButton, setShowStartButton] = useState(false);
 
   useEffect(() => {
     // ElevenLabs script is already loaded in index.html
     // Add a small delay to ensure the widget is ready
     const timer = setTimeout(() => {
       setIsLoading(false);
+      setShowStartButton(true);
     }, 2000);
 
     return () => clearTimeout(timer);
@@ -39,6 +42,17 @@ export const KpakpatoPage: React.FC = () => {
       document.head.appendChild(s);
     }
   }, []);
+
+  const handleStartConversation = () => {
+    setIsConversationActive(true);
+    setShowStartButton(false);
+    
+    // Trigger the ElevenLabs widget
+    const widget = document.querySelector('elevenlabs-convai') as any;
+    if (widget) {
+      widget.click();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background overflow-hidden">
@@ -75,20 +89,38 @@ export const KpakpatoPage: React.FC = () => {
 
         {/* Main Voice Interface */}
         <div className="flex flex-col items-center justify-center space-y-8">
-          {/* ElevenLabs ConvAI Widget - Positioned and Clickable */}
+          {/* Visual Ring Interface */}
           <div className="relative w-60 h-60">
             {/* Background rings for visual effect */}
-            <div className="absolute inset-0 w-60 h-60 rounded-full border-2 border-purple-300/40 animate-pulse pointer-events-none" />
-            <div className="absolute inset-4 w-52 h-52 rounded-full border-2 border-blue-300/40 animate-pulse pointer-events-none" style={{ animationDelay: '0.5s' }} />
-            <div className="absolute inset-8 w-44 h-44 rounded-full border-2 border-cyan-300/40 animate-pulse pointer-events-none" style={{ animationDelay: '1s' }} />
+            <div className={cn(
+              "absolute inset-0 w-60 h-60 rounded-full border-2 animate-pulse pointer-events-none transition-colors duration-500",
+              isConversationActive ? "border-green-400/60" : "border-purple-300/40"
+            )} />
+            <div className={cn(
+              "absolute inset-4 w-52 h-52 rounded-full border-2 animate-pulse pointer-events-none transition-colors duration-500",
+              isConversationActive ? "border-blue-400/60" : "border-blue-300/40"
+            )} style={{ animationDelay: '0.5s' }} />
+            <div className={cn(
+              "absolute inset-8 w-44 h-44 rounded-full border-2 animate-pulse pointer-events-none transition-colors duration-500",
+              isConversationActive ? "border-cyan-400/60" : "border-cyan-300/40"
+            )} style={{ animationDelay: '1s' }} />
             
             {/* Glowing center */}
-            <div className="absolute inset-16 w-28 h-28 rounded-full bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-cyan-500/20 animate-pulse flex items-center justify-center pointer-events-none">
-              <Mic className="w-8 h-8 text-primary animate-pulse" />
+            <div className={cn(
+              "absolute inset-16 w-28 h-28 rounded-full animate-pulse flex items-center justify-center pointer-events-none transition-all duration-500",
+              isConversationActive ? 
+                "bg-gradient-to-r from-green-500/30 via-blue-500/30 to-cyan-500/30" :
+                "bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-cyan-500/20"
+            )}>
+              {isConversationActive ? (
+                <Volume2 className="w-8 h-8 text-green-400 animate-pulse" />
+              ) : (
+                <Mic className="w-8 h-8 text-primary animate-pulse" />
+              )}
             </div>
             
-            {/* ElevenLabs ConvAI Widget - Positioned on top and clickable */}
-            <div className="absolute inset-0 w-60 h-60 rounded-full z-20 pointer-events-auto overflow-hidden">
+            {/* Hidden ElevenLabs ConvAI Widget */}
+            <div className="absolute inset-0 w-60 h-60 rounded-full opacity-0 pointer-events-none overflow-hidden">
               <elevenlabs-convai 
                 agent-id="agent_5201k4wn52v7e8btj48v1636ys1e"
                 style={{
@@ -100,8 +132,7 @@ export const KpakpatoPage: React.FC = () => {
                 }}
               />
             </div>
-
-            {/* Removed overlay to allow direct clicks into ElevenLabs widget */}
+            
             {/* Loading overlay */}
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full z-10 pointer-events-none">
@@ -113,15 +144,60 @@ export const KpakpatoPage: React.FC = () => {
             )}
           </div>
 
-          {/* Call to Action */}
-          <div className="text-center space-y-4">
-            <h3 className="text-2xl font-bold text-foreground">
-              Démarrer une conversation
-            </h3>
-            <p className="text-muted-foreground max-w-md">
-              Cliquez sur le bouton ci-dessus pour commencer à parler avec Jarvis
-            </p>
-          </div>
+          {/* Start Conversation Button */}
+          {showStartButton && !isConversationActive && (
+            <div className="text-center space-y-6 animate-fade-in">
+              <Button
+                onClick={handleStartConversation}
+                size="lg"
+                className="px-8 py-4 text-lg font-semibold bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+              >
+                <Mic className="w-5 h-5 mr-2" />
+                Démarrer la conversation
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Cliquez pour commencer à parler avec Jarvis
+              </p>
+            </div>
+          )}
+
+          {/* Active Conversation Status */}
+          {isConversationActive && (
+            <div className="text-center space-y-4 animate-fade-in">
+              <div className="flex items-center justify-center space-x-3">
+                <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-lg font-medium text-foreground">Conversation active</span>
+                <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse" />
+              </div>
+              <p className="text-muted-foreground">
+                Jarvis vous écoute - Parlez maintenant
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsConversationActive(false);
+                  setShowStartButton(true);
+                }}
+                className="text-sm"
+              >
+                <MicOff className="w-4 h-4 mr-2" />
+                Arrêter la conversation
+              </Button>
+            </div>
+          )}
+
+          {/* Call to Action (when not started) */}
+          {!showStartButton && !isConversationActive && !isLoading && (
+            <div className="text-center space-y-4">
+              <h3 className="text-2xl font-bold text-foreground">
+                Jarvis est prêt
+              </h3>
+              <p className="text-muted-foreground max-w-md">
+                Votre assistant vocal intelligent est maintenant disponible
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
