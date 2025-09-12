@@ -63,85 +63,59 @@ export const KpakpatoPage: React.FC = () => {
 
         {/* Main Voice Interface */}
         <div className="flex flex-col items-center justify-center space-y-8">
-          {/* Central Voice Activation */}
+          {/* Simple Voice Button */}
           <div className="relative">
-            {/* Animated background circle */}
-            <div className="absolute inset-0 w-80 h-80 rounded-full bg-gradient-conic from-blue-500/20 via-purple-500/20 via-cyan-500/20 to-blue-500/20 animate-spin-slow" />
+            {/* ElevenLabs ConvAI Widget - Visible and functional */}
+            <div className="absolute inset-0 w-60 h-60 rounded-full overflow-hidden">
+              <elevenlabs-convai 
+                agent-id="agent_5201k4wn52v7e8btj48v1636ys1e"
+                style={{
+                  width: '240px',
+                  height: '240px',
+                  border: 'none',
+                  borderRadius: '50%',
+                  opacity: '0.01'
+                }}
+              />
+            </div>
             
-            {/* Voice interface container */}
-            <div className="relative w-80 h-80 rounded-full bg-gradient-to-br from-card/90 to-card/50 backdrop-blur-xl border border-white/10 shadow-2xl flex items-center justify-center">
-              {/* ElevenLabs ConvAI Widget */}
-              <div className="w-72 h-72 rounded-full overflow-hidden">
-                <elevenlabs-convai 
-                  agent-id="agent_5201k4wn52v7e8btj48v1636ys1e"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    borderRadius: '50%',
-                    background: 'transparent'
-                  }}
-                />
+            {/* Custom Voice Button Overlay */}
+            <div className="relative group cursor-pointer pointer-events-none">
+              {/* Outer ring */}
+              <div className="w-60 h-60 rounded-full bg-gradient-to-br from-purple-200/40 to-blue-200/40 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                {/* Middle ring */}
+                <div className="w-44 h-44 rounded-full bg-gradient-to-br from-purple-300/50 to-blue-300/50 flex items-center justify-center group-hover:animate-pulse">
+                  {/* Inner circle */}
+                  <div className="w-32 h-32 rounded-full bg-white flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-shadow duration-300">
+                    {/* Icon */}
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center animate-pulse">
+                      <Mic className="w-6 h-6 text-white" />
+                    </div>
+                  </div>
+                </div>
               </div>
               
               {/* Loading overlay */}
               {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-card/80 backdrop-blur-sm rounded-full">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin mx-auto" />
-                    <p className="text-sm text-muted-foreground">Initialisation de Jarvis...</p>
+                <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-full">
+                  <div className="text-center space-y-3">
+                    <div className="w-8 h-8 rounded-full border-3 border-purple-200 border-t-purple-500 animate-spin mx-auto" />
+                    <p className="text-xs text-muted-foreground">Initialisation...</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Status and Instructions */}
-          <Card className="p-8 bg-card/50 backdrop-blur-md border-white/10 shadow-xl max-w-2xl w-full">
-            <div className="text-center space-y-6">
-              <div className="space-y-3">
-                <h3 className="text-2xl font-bold text-primary">
-                  Parlez à Jarvis
-                </h3>
-                <p className="text-muted-foreground">
-                  Votre assistant vocal IA est prêt. Cliquez sur le bouton microphone ci-dessus pour commencer une conversation naturelle.
-                </p>
-              </div>
-              
-              {/* Quick tips */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-white/10">
-                <div className="text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto">
-                    <Mic className="w-6 h-6 text-blue-500" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-semibold text-foreground">Activez le micro</p>
-                    <p className="text-muted-foreground text-xs">Cliquez pour parler</p>
-                  </div>
-                </div>
-                
-                <div className="text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 animate-pulse" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-semibold text-foreground">Parlez naturellement</p>
-                    <p className="text-muted-foreground text-xs">Expression libre</p>
-                  </div>
-                </div>
-                
-                <div className="text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto">
-                    <Phone className="w-6 h-6 text-cyan-500" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-semibold text-foreground">Écoutez Jarvis</p>
-                    <p className="text-muted-foreground text-xs">Réponse vocale</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
+          {/* Call to Action */}
+          <div className="text-center space-y-4">
+            <h3 className="text-2xl font-bold text-foreground">
+              Démarrer une conversation
+            </h3>
+            <p className="text-muted-foreground max-w-md">
+              Cliquez sur le bouton ci-dessus pour commencer à parler avec Jarvis
+            </p>
+          </div>
         </div>
 
         {/* Footer */}
