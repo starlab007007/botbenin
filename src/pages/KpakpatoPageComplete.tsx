@@ -3,6 +3,7 @@ import { Mic, MicOff, Volume2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useWebhookNotification } from '@/hooks/useWebhookNotification';
 
 declare global {
   namespace JSX {
@@ -19,6 +20,7 @@ export const KpakpatoPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isConversationActive, setIsConversationActive] = useState(false);
   const [showStartButton, setShowStartButton] = useState(false);
+  const { sendWebhook, isLoading: webhookLoading } = useWebhookNotification();
 
   useEffect(() => {
     // ElevenLabs script is already loaded in index.html
@@ -43,15 +45,58 @@ export const KpakpatoPage: React.FC = () => {
     }
   }, []);
 
-  const handleStartConversation = () => {
+  const handleStartConversation = async () => {
     setIsConversationActive(true);
     setShowStartButton(false);
     
-    // Trigger the ElevenLabs widget
-    const widget = document.querySelector('elevenlabs-convai') as any;
-    if (widget) {
-      widget.click();
+    try {
+      // Send webhook notification that conversation started
+      const webhookSuccess = await sendWebhook({
+        action: 'conversation_started',
+        agentId: 'agent_5201k4wn52v7e8btj48v1636ys1e',
+        timestamp: new Date().toISOString(),
+        userId: 'user_' + Date.now(),
+        data: {
+          sessionId: 'session_' + Date.now(),
+          platform: 'web',
+          userAgent: navigator.userAgent,
+          page: window.location.href
+        }
+      });
+
+      console.log('🔄 Webhook notification:', webhookSuccess ? '✅ Sent' : '❌ Failed');
+    } catch (error) {
+      console.error('❌ Webhook error:', error);
     }
+
+    // Wait a moment then trigger the ElevenLabs widget
+    setTimeout(() => {
+      const widget = document.querySelector('elevenlabs-convai') as any;
+      if (widget) {
+        // Make widget visible and clickable
+        const widgetContainer = widget.parentElement;
+        if (widgetContainer) {
+          widgetContainer.style.opacity = '1';
+          widgetContainer.style.pointerEvents = 'auto';
+          widgetContainer.style.zIndex = '50';
+        }
+        
+        // Trigger the widget
+        widget.click();
+        console.log('🎤 ElevenLabs widget triggered');
+        
+        // Send confirmation webhook
+        sendWebhook({
+          action: 'widget_activated',
+          agentId: 'agent_5201k4wn52v7e8btj48v1636ys1e',
+          timestamp: new Date().toISOString(),
+          userId: 'user_' + Date.now(),
+          data: { status: 'widget_clicked' }
+        });
+      } else {
+        console.error('❌ ElevenLabs widget not found');
+      }
+    }, 500);
   };
 
   return (
@@ -119,8 +164,13 @@ export const KpakpatoPage: React.FC = () => {
               )}
             </div>
             
-            {/* Hidden ElevenLabs ConvAI Widget */}
-            <div className="absolute inset-0 w-60 h-60 rounded-full opacity-0 pointer-events-none overflow-hidden">
+            {/* ElevenLabs ConvAI Widget - Hidden initially, visible when conversation starts */}
+            <div className={cn(
+              "absolute inset-0 w-60 h-60 rounded-full overflow-hidden transition-all duration-500",
+              isConversationActive 
+                ? "opacity-100 pointer-events-auto z-50" 
+                : "opacity-0 pointer-events-none z-0"
+            )}>
               <elevenlabs-convai 
                 agent-id="agent_5201k4wn52v7e8btj48v1636ys1e"
                 style={{
@@ -151,9 +201,10 @@ export const KpakpatoPage: React.FC = () => {
                 onClick={handleStartConversation}
                 size="lg"
                 className="px-8 py-4 text-lg font-semibold bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                disabled={webhookLoading}
               >
                 <Mic className="w-5 h-5 mr-2" />
-                Démarrer la conversation
+                {webhookLoading ? 'Connexion...' : 'Démarrer la conversation'}
               </Button>
               <p className="text-sm text-muted-foreground">
                 Cliquez pour commencer à parler avec Jarvis
@@ -175,11 +226,21 @@ export const KpakpatoPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
+                onClick={async () => {
+                  // Send webhook for conversation end
+                  await sendWebhook({
+                    action: 'conversation_ended',
+                    agentId: 'agent_5201k4wn52v7e8btj48v1636ys1e',
+                    timestamp: new Date().toISOString(),
+                    userId: 'user_' + Date.now(),
+                    data: { reason: 'user_stop' }
+                  });
+                  
                   setIsConversationActive(false);
                   setShowStartButton(true);
                 }}
                 className="text-sm"
+                disabled={webhookLoading}
               >
                 <MicOff className="w-4 h-4 mr-2" />
                 Arrêter la conversation
