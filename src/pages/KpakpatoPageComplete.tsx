@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mic, Phone } from 'lucide-react';
+import { Mic } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
@@ -74,25 +74,17 @@ export const KpakpatoPage: React.FC = () => {
                   height: '240px',
                   border: 'none',
                   borderRadius: '50%',
-                  opacity: '0.01'
+                  opacity: '1'
                 }}
               />
             </div>
             
             {/* Custom Voice Button Overlay */}
-            <div className="relative group cursor-pointer pointer-events-none">
+            <div className="relative group pointer-events-none">
               {/* Outer ring */}
-              <div className="w-60 h-60 rounded-full bg-gradient-to-br from-purple-200/40 to-blue-200/40 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                {/* Middle ring */}
-                <div className="w-44 h-44 rounded-full bg-gradient-to-br from-purple-300/50 to-blue-300/50 flex items-center justify-center group-hover:animate-pulse">
-                  {/* Inner circle */}
-                  <div className="w-32 h-32 rounded-full bg-white flex items-center justify-center shadow-xl group-hover:shadow-2xl transition-shadow duration-300">
-                    {/* Icon */}
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center animate-pulse">
-                      <Mic className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                </div>
+              <div className="w-60 h-60 rounded-full border-2 border-purple-300/40 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
+                {/* Middle ring only, transparent center so widget is visible/clickable */}
+                <div className="w-44 h-44 rounded-full border-2 border-blue-300/40 group-hover:animate-pulse" />
               </div>
               
               {/* Loading overlay */}
