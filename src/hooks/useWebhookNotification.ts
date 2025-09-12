@@ -22,8 +22,8 @@ export const useWebhookNotification = (): UseWebhookNotificationReturn => {
     setIsLoading(true);
     
     try {
-      // Primary webhook URL (n8n or custom endpoint)
-      const webhookUrl = process.env.VITE_WEBHOOK_URL || 'https://hook.eu2.make.com/your-webhook-endpoint';
+      // Primary webhook URL - n8n endpoint for AI conversation workflow
+      const webhookUrl = 'https://hook.eu2.make.com/jarvis-conversation-webhook';
       
       const response = await fetch(webhookUrl, {
         method: 'POST',

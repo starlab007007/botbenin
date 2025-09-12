@@ -33,17 +33,50 @@ export const KpakpatoPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Ensure ElevenLabs ConvAI script is available (fallback if blocked or not yet loaded)
+  // Ensure ElevenLabs ConvAI script is available and add conversation listeners
   useEffect(() => {
     const isDefined = !!customElements.get('elevenlabs-convai');
     const hasScript = !!document.querySelector('script[src*="convai-widget-embed"]');
+    
     if (!isDefined && !hasScript) {
       const s = document.createElement('script');
       s.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed';
       s.async = true;
+      s.onload = () => {
+        console.log('✅ ElevenLabs ConvAI script loaded successfully');
+        setupConvAIListeners();
+      };
       document.head.appendChild(s);
+    } else {
+      setupConvAIListeners();
     }
   }, []);
+
+  // Setup ConvAI event listeners for n8n integration
+  const setupConvAIListeners = () => {
+    // Listen for ConvAI events to send to n8n
+    window.addEventListener('message', (event) => {
+      if (event.origin.includes('elevenlabs.io')) {
+        console.log('📡 ConvAI Event:', event.data);
+        
+        // Send conversation events to n8n
+        if (event.data?.type) {
+          sendWebhook({
+            action: `convai_${event.data.type}`,
+            agentId: 'agent_5201k4wn52v7e8btj48v1636ys1e',
+            timestamp: new Date().toISOString(),
+            userId: 'user_' + Date.now(),
+            data: {
+              eventType: event.data.type,
+              eventData: event.data,
+              sessionId: 'session_' + Date.now(),
+              conversationActive: isConversationActive
+            }
+          }).catch(error => console.error('❌ Webhook failed:', error));
+        }
+      }
+    });
+  };
 
   const handleStartConversation = async () => {
     setIsConversationActive(true);
@@ -81,6 +114,33 @@ export const KpakpatoPage: React.FC = () => {
           widgetContainer.style.zIndex = '50';
         }
         
+        // Force widget activation
+        widget.style.display = 'block';
+        widget.style.visibility = 'visible';
+        
+        // Add event listener for widget interactions
+        widget.addEventListener('conversationStarted', () => {
+          console.log('🎤 ConvAI conversation started');
+          sendWebhook({
+            action: 'convai_conversation_started',
+            agentId: 'agent_5201k4wn52v7e8btj48v1636ys1e',
+            timestamp: new Date().toISOString(),
+            userId: 'user_' + Date.now(),
+            data: { status: 'conversation_active', source: 'widget' }
+          });
+        });
+
+        widget.addEventListener('conversationEnded', () => {
+          console.log('🔴 ConvAI conversation ended');
+          sendWebhook({
+            action: 'convai_conversation_ended',
+            agentId: 'agent_5201k4wn52v7e8btj48v1636ys1e',
+            timestamp: new Date().toISOString(),
+            userId: 'user_' + Date.now(),
+            data: { status: 'conversation_ended', source: 'widget' }
+          });
+        });
+        
         // Trigger the widget
         widget.click();
         console.log('🎤 ElevenLabs widget triggered');
@@ -91,10 +151,23 @@ export const KpakpatoPage: React.FC = () => {
           agentId: 'agent_5201k4wn52v7e8btj48v1636ys1e',
           timestamp: new Date().toISOString(),
           userId: 'user_' + Date.now(),
-          data: { status: 'widget_clicked' }
+          data: { 
+            status: 'widget_clicked',
+            userAgent: navigator.userAgent,
+            timestamp: Date.now(),
+            sessionActive: true
+          }
         });
       } else {
         console.error('❌ ElevenLabs widget not found');
+        // Retry after a short delay
+        setTimeout(() => {
+          const retryWidget = document.querySelector('elevenlabs-convai');
+          if (retryWidget) {
+            console.log('🔄 Retrying widget activation');
+            (retryWidget as any).click();
+          }
+        }, 1000);
       }
     }, 500);
   };

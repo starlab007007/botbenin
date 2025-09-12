@@ -87,3 +87,12 @@ verify_jwt = true
 
 [functions.waha-proxy]
 verify_jwt = false
+
+[functions.n8n-conversation-handler]
+verify_jwt = false
+
+[functions.text-to-voice]
+verify_jwt = false
+
+[functions.voice-to-text]
+verify_jwt = false
