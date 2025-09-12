@@ -63,40 +63,40 @@ export const KpakpatoPage: React.FC = () => {
 
         {/* Main Voice Interface */}
         <div className="flex flex-col items-center justify-center space-y-8">
-          {/* Simple Voice Button */}
-          <div className="relative">
-            {/* ElevenLabs ConvAI Widget - Visible and functional */}
-            <div className="absolute inset-0 w-60 h-60 rounded-full overflow-hidden">
+          {/* ElevenLabs ConvAI Widget - Positioned and Clickable */}
+          <div className="relative w-60 h-60">
+            {/* Background rings for visual effect */}
+            <div className="absolute inset-0 w-60 h-60 rounded-full border-2 border-purple-300/40 animate-pulse" />
+            <div className="absolute inset-4 w-52 h-52 rounded-full border-2 border-blue-300/40 animate-pulse" style={{ animationDelay: '0.5s' }} />
+            <div className="absolute inset-8 w-44 h-44 rounded-full border-2 border-cyan-300/40 animate-pulse" style={{ animationDelay: '1s' }} />
+            
+            {/* Glowing center */}
+            <div className="absolute inset-16 w-28 h-28 rounded-full bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-cyan-500/20 animate-pulse flex items-center justify-center">
+              <Mic className="w-8 h-8 text-primary animate-pulse" />
+            </div>
+            
+            {/* ElevenLabs ConvAI Widget - Positioned on top and clickable */}
+            <div className="absolute inset-0 w-60 h-60 rounded-full">
               <elevenlabs-convai 
                 agent-id="agent_5201k4wn52v7e8btj48v1636ys1e"
                 style={{
                   width: '240px',
                   height: '240px',
                   border: 'none',
-                  borderRadius: '50%',
-                  opacity: '1'
+                  borderRadius: '50%'
                 }}
               />
             </div>
             
-            {/* Custom Voice Button Overlay */}
-            <div className="relative group pointer-events-none">
-              {/* Outer ring */}
-              <div className="w-60 h-60 rounded-full border-2 border-purple-300/40 flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                {/* Middle ring only, transparent center so widget is visible/clickable */}
-                <div className="w-44 h-44 rounded-full border-2 border-blue-300/40 group-hover:animate-pulse" />
-              </div>
-              
-              {/* Loading overlay */}
-              {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-full">
-                  <div className="text-center space-y-3">
-                    <div className="w-8 h-8 rounded-full border-3 border-purple-200 border-t-purple-500 animate-spin mx-auto" />
-                    <p className="text-xs text-muted-foreground">Initialisation...</p>
-                  </div>
+            {/* Loading overlay */}
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-full z-10">
+                <div className="text-center space-y-3">
+                  <div className="w-8 h-8 rounded-full border-3 border-purple-200 border-t-purple-500 animate-spin mx-auto" />
+                  <p className="text-xs text-muted-foreground">Initialisation de Jarvis...</p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Call to Action */}
