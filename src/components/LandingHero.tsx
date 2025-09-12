@@ -2,6 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import jarvisCore from '@/assets/jarvis-ai-core.png';
 
 interface LandingHeroProps {
   onStartChat: () => void;
@@ -11,18 +12,61 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
   return (
     <div>
       {/* Hero Section */}
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="max-w-4xl mx-auto text-center space-y-8 animate-fade-in">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        
+        {/* Background Effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-primary/5"></div>
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-accent/10 rounded-full blur-2xl animate-pulse delay-1000"></div>
+        
+        <div className="max-w-6xl mx-auto text-center space-y-12 animate-fade-in relative z-10">
           {/* Hero Text */}
           <div className="space-y-6">
-            <h1 className="text-5xl md:text-7xl font-playfair font-bold text-gray-900 leading-tight">
-              Discover Your Purpose &<br />
-              <span className="text-soft-peach-600">Build Your Dream Career</span>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent leading-tight">
+              Rencontrez Jarvis
+              <br />
+              <span className="text-2xl md:text-3xl lg:text-4xl font-normal">Votre Assistant IA Personnel</span>
             </h1>
             
-            <p className="text-xl md:text-2xl text-gray-700 max-w-2xl mx-auto leading-relaxed">
-              AI-powered coaching to help you find clarity and take action.
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Intelligence artificielle conversationnelle avancée pour répondre à tous vos besoins
             </p>
+          </div>
+
+          {/* Jarvis Core Image with Dynamic Effects */}
+          <div className="relative flex items-center justify-center my-16">
+            {/* Outer glow rings */}
+            <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping scale-150 opacity-30"></div>
+            <div className="absolute inset-0 rounded-full bg-primary/30 animate-pulse scale-125 opacity-40 delay-500"></div>
+            <div className="absolute inset-0 rounded-full bg-accent/20 animate-ping scale-110 opacity-50 delay-1000"></div>
+            
+            {/* Main Jarvis Image Container */}
+            <div className="relative w-80 h-80 md:w-96 md:h-96 lg:w-[28rem] lg:h-[28rem]">
+              {/* Rotating rings */}
+              <div className="absolute inset-4 border-2 border-primary/30 rounded-full animate-spin"></div>
+              <div className="absolute inset-8 border border-accent/40 rounded-full animate-spin animate-reverse delay-200" style={{animationDirection: 'reverse'}}></div>
+              <div className="absolute inset-12 border border-primary/20 rounded-full animate-spin delay-500"></div>
+              
+              {/* Core Image */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <img 
+                  src={jarvisCore} 
+                  alt="Jarvis AI Core" 
+                  className="w-full h-full object-contain filter drop-shadow-2xl hover:scale-105 transition-transform duration-700 animate-pulse"
+                />
+              </div>
+              
+              {/* Floating particles */}
+              <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-primary rounded-full animate-bounce delay-300"></div>
+              <div className="absolute top-3/4 right-1/4 w-1.5 h-1.5 bg-accent rounded-full animate-bounce delay-700"></div>
+              <div className="absolute bottom-1/4 left-3/4 w-2.5 h-2.5 bg-primary/60 rounded-full animate-bounce delay-1200"></div>
+              
+              {/* Status indicator */}
+              <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-muted-foreground font-medium">Jarvis en ligne</span>
+              </div>
+            </div>
           </div>
 
           {/* Feature Cards */}
@@ -62,9 +106,10 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
           <div className="mt-12">
             <Button 
               onClick={onStartChat}
-              className="bg-soft-peach-500 hover:bg-soft-peach-600 text-white px-8 py-4 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+              className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground px-8 py-4 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 relative overflow-hidden group"
             >
-              Start Your Career Journey
+              <span className="relative z-10">Commencer avec Jarvis</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </Button>
           </div>
 
