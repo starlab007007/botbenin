@@ -7,6 +7,7 @@ import WhatsAppConnectGuide from '@/components/whatsapp/WhatsAppConnectGuide';
 import SimpleSessionManager from '@/components/whatsapp/SimpleSessionManager';
 import BotWebhookLinker from '@/components/whatsapp/BotWebhookLinker';
 import WebhookConfigModal from '@/components/whatsapp/WebhookConfigModal';
+import WhatsAppWidgetConfig from '@/components/whatsapp/WhatsAppWidgetConfig';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -14,6 +15,7 @@ const WhatsAppConnectPage: React.FC = () => {
   const [showSessionManager, setShowSessionManager] = useState(false);
   const [showWebhookConfig, setShowWebhookConfig] = useState(false);
   const [showBotLinker, setShowBotLinker] = useState(false);
+  const [showWidgetConfig, setShowWidgetConfig] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
 
   // Check if user has completed various setup steps
@@ -30,8 +32,7 @@ const WhatsAppConnectPage: React.FC = () => {
   };
 
   const handleWidgetSetup = () => {
-    // Handle widget setup
-    console.log('Widget setup clicked');
+    setShowWidgetConfig(true);
   };
 
   const handleManageAgents = () => {
@@ -73,6 +74,12 @@ const WhatsAppConnectPage: React.FC = () => {
           open={showBotLinker}
           onOpenChange={setShowBotLinker}
           sessionName={selectedAccountId}
+        />
+
+        {/* Widget Configuration Modal */}
+        <WhatsAppWidgetConfig 
+          open={showWidgetConfig}
+          onOpenChange={setShowWidgetConfig}
         />
       </div>
     </AuthGuard>
