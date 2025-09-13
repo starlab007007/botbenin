@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import DirectQRDisplay from '@/components/whatsapp/DirectQRDisplay';
 import BotWebhookLinker from './BotWebhookLinker';
+import WebhookConfigModal from './WebhookConfigModal';
 import { 
   Play, 
   Square, 
@@ -28,7 +29,8 @@ import {
   Search,
   ChevronDown,
   BarChart3,
-  Link2
+  Link2,
+  Webhook
 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { useWAHADashboard, WAHASession } from '@/hooks/useWAHADashboard';
@@ -45,6 +47,8 @@ const SimpleSessionManager: React.FC = () => {
   const [userSessionsFromDB, setUserSessionsFromDB] = useState<any[]>([]);
   const [showBotLinker, setShowBotLinker] = useState(false);
   const [selectedSessionForBot, setSelectedSessionForBot] = useState('');
+  const [showWebhookConfig, setShowWebhookConfig] = useState(false);
+  const [selectedSessionForWebhook, setSelectedSessionForWebhook] = useState('');
 
   const { 
     sessions, 
@@ -524,6 +528,18 @@ const SimpleSessionManager: React.FC = () => {
                             </Button>
 
                             <Button
+                              onClick={() => {
+                                setSelectedSessionForWebhook(session.name);
+                                setShowWebhookConfig(true);
+                              }}
+                              variant="outline"
+                              className="gap-2 border-purple-200 text-purple-600 hover:bg-purple-50"
+                            >
+                              <Webhook className="h-4 w-4" />
+                              Webhook
+                            </Button>
+
+                            <Button
                               onClick={() => handleDeleteSession(session.name)}
                               variant="outline"
                               className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
@@ -600,6 +616,12 @@ const SimpleSessionManager: React.FC = () => {
           toast.success('Bot lié avec succès!');
           setShowBotLinker(false);
         }}
+      />
+
+      <WebhookConfigModal
+        open={showWebhookConfig}
+        onOpenChange={setShowWebhookConfig}
+        sessionName={selectedSessionForWebhook}
       />
 
       {/* Modal QR Code */}
