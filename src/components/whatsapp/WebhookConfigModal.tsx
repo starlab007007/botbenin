@@ -13,8 +13,6 @@ import { useWAHADashboard } from '@/hooks/useWAHADashboard';
 interface WebhookConfig {
   url: string;
   events: string[];
-  hmac: boolean;
-  retries: number;
 }
 
 interface WebhookConfigModalProps {
@@ -24,12 +22,21 @@ interface WebhookConfigModalProps {
 }
 
 const AVAILABLE_EVENTS = [
+  { id: 'session.status', label: 'Session Status', description: 'Changements de statut de session' },
   { id: 'message', label: 'Messages', description: 'Tous les messages reçus/envoyés' },
   { id: 'message.reaction', label: 'Réactions', description: 'Réactions aux messages' },
-  { id: 'message.status', label: 'Statuts', description: 'Statuts de livraison des messages' },
-  { id: 'session.status', label: 'Session', description: 'Changements de statut de session' },
-  { id: 'call', label: 'Appels', description: 'Appels WhatsApp' },
-  { id: 'presence', label: 'Présence', description: 'Statut en ligne/hors ligne' }
+  { id: 'message.any', label: 'Tous messages', description: 'Tous types de messages' },
+  { id: 'message.ack', label: 'Accusés réception', description: 'Messages d\'accusé de réception' },
+  { id: 'message.waiting', label: 'Messages en attente', description: 'Messages en attente d\'envoi' },
+  { id: 'message.revoked', label: 'Messages révoqués', description: 'Messages supprimés' },
+  { id: 'message.edited', label: 'Messages modifiés', description: 'Messages édités' },
+  { id: 'state.change', label: 'Changements d\'état', description: 'Changements d\'état WhatsApp' },
+  { id: 'group.join', label: 'Rejoindre groupe', description: 'Quelqu\'un rejoint un groupe' },
+  { id: 'group.leave', label: 'Quitter groupe', description: 'Quelqu\'un quitte un groupe' },
+  { id: 'presence.update', label: 'Mise à jour présence', description: 'Statut en ligne/hors ligne' },
+  { id: 'call.received', label: 'Appel reçu', description: 'Appels WhatsApp reçus' },
+  { id: 'call.accepted', label: 'Appel accepté', description: 'Appels WhatsApp acceptés' },
+  { id: 'call.rejected', label: 'Appel rejeté', description: 'Appels WhatsApp rejetés' }
 ];
 
 const PRESET_WEBHOOKS = [
@@ -58,9 +65,7 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [currentWebhook, setCurrentWebhook] = useState<WebhookConfig>({
     url: '',
-    events: ['message', 'session.status'],
-    hmac: false,
-    retries: 3
+    events: ['message', 'session.status']
   });
   const [loading, setLoading] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
@@ -177,9 +182,7 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
       // Réinitialiser le formulaire
       setCurrentWebhook({
         url: '',
-        events: ['message', 'session.status'],
-        hmac: false,
-        retries: 3
+        events: ['message', 'session.status']
       });
 
       // Recharger la configuration
@@ -315,7 +318,7 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
                               ))}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Tentatives: {webhook.retries} | HMAC: {webhook.hmac ? 'Activé' : 'Désactivé'}
+                              URL: {webhook.url}
                             </div>
                           </div>
                           <Button
@@ -417,38 +420,6 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="retries">Nombre de tentatives</Label>
-                  <Input
-                    id="retries"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={currentWebhook.retries}
-                    onChange={(e) => setCurrentWebhook({ 
-                      ...currentWebhook, 
-                      retries: parseInt(e.target.value) || 3 
-                    })}
-                    className="mt-1"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2 pt-6">
-                  <Checkbox
-                    id="hmac"
-                    checked={currentWebhook.hmac}
-                    onCheckedChange={(checked) => setCurrentWebhook({ 
-                      ...currentWebhook, 
-                      hmac: !!checked 
-                    })}
-                  />
-                  <Label htmlFor="hmac" className="text-sm">
-                    Activer HMAC
-                  </Label>
                 </div>
               </div>
             </CardContent>
