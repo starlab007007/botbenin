@@ -18,12 +18,13 @@ import {
 
 interface WhatsAppConnectGuideProps {
   onConnectNumber: () => void;
-  onWebhookSetup: () => void;
+  onWebhookSetup: (sessionName?: string) => void;
   onWidgetSetup: () => void;
   onManageAgents: () => void;
   hasConnectedSessions: boolean;
   hasWebhookConfigured: boolean;
   hasWidgetConfigured: boolean;
+  connectedSessions: any[];
 }
 
 const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
@@ -33,7 +34,8 @@ const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
   onManageAgents,
   hasConnectedSessions,
   hasWebhookConfigured,
-  hasWidgetConfigured
+  hasWidgetConfigured,
+  connectedSessions
 }) => {
   const [activeStep, setActiveStep] = useState<number>(1);
 
@@ -60,19 +62,19 @@ const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
       id: 3,
       title: "Intégration Webhook",
       subtitle: "Connecter les formulaires",
-      description: "Connectez vos formulaires de capture de leads pour déclencher automatiquement les conversations WhatsApp",
+      description: "Connectez vos formulaires de capture de leads à une session WhatsApp pour déclencher automatiquement les conversations",
       icon: Webhook,
-      status: hasWebhookConfigured ? "completed" : "pending",
-      action: onWebhookSetup
+      status: hasConnectedSessions ? (hasWebhookConfigured ? "completed" : "pending") : "disabled",
+      action: hasConnectedSessions ? onWebhookSetup : null
     },
     {
       id: 4,
       title: "Widget Site Web",
       subtitle: "Ajouter le chat",
-      description: "Créez un widget WhatsApp flottant pour votre site web qui redirige les visiteurs directement vers votre agent",
+      description: "Créez un widget WhatsApp flottant pour votre site web qui redirige les visiteurs vers vos agents",
       icon: Code,
-      status: hasWidgetConfigured ? "completed" : "pending",
-      action: onWidgetSetup
+      status: hasConnectedSessions ? (hasWidgetConfigured ? "completed" : "pending") : "disabled",
+      action: hasConnectedSessions ? onWidgetSetup : null
     },
     {
       id: 5,
@@ -88,6 +90,7 @@ const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
   const getStepStatus = (step: any) => {
     if (step.status === "completed") return "completed";
     if (step.status === "pending") return "pending";
+    if (step.status === "disabled") return "disabled";
     return "available";
   };
 
@@ -121,25 +124,28 @@ const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
         {steps.slice(0, 4).map((step) => {
           const Icon = step.icon;
           const status = getStepStatus(step);
+          const isDisabled = status === 'disabled';
           
           return (
             <Card 
               key={step.id}
-              className={`cursor-pointer transition-all hover:shadow-md ${
+              className={`transition-all hover:shadow-md ${
                 activeStep === step.id ? 'ring-2 ring-green-500 border-green-200' : ''
-              }`}
-              onClick={() => setActiveStep(step.id)}
+              } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              onClick={() => !isDisabled && setActiveStep(step.id)}
             >
               <CardContent className="p-4 text-center space-y-3">
                 <div className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center ${
                   status === 'completed' ? 'bg-green-100' : 
-                  status === 'pending' ? 'bg-blue-100' : 'bg-gray-100'
+                  status === 'pending' ? 'bg-blue-100' : 
+                  status === 'disabled' ? 'bg-gray-100' : 'bg-gray-100'
                 }`}>
                   {status === 'completed' ? (
                     <CheckCircle className="w-6 h-6 text-green-600" />
                   ) : (
                     <Icon className={`w-6 h-6 ${
-                      status === 'pending' ? 'text-blue-600' : 'text-gray-600'
+                      status === 'pending' ? 'text-blue-600' : 
+                      status === 'disabled' ? 'text-gray-400' : 'text-gray-600'
                     }`} />
                   )}
                 </div>
@@ -151,10 +157,12 @@ const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
                 
                 <Badge variant={
                   status === 'completed' ? 'default' : 
-                  status === 'pending' ? 'secondary' : 'outline'
+                  status === 'pending' ? 'secondary' : 
+                  status === 'disabled' ? 'outline' : 'outline'
                 } className="text-xs">
                   {status === 'completed' ? '✓ Terminé' : 
-                   status === 'pending' ? 'En attente' : 'Disponible'}
+                   status === 'pending' ? 'En attente' : 
+                   status === 'disabled' ? 'Requis session' : 'Disponible'}
                 </Badge>
               </CardContent>
             </Card>
@@ -178,23 +186,27 @@ const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
                 const Icon = step.icon;
                 const status = getStepStatus(step);
                 const isActive = activeStep === step.id;
+                const isDisabled = status === 'disabled';
                 
                 return (
                   <div 
                     key={step.id}
                     className={`flex items-center space-x-4 p-4 rounded-lg border transition-all ${
-                      isActive ? 'bg-green-50 border-green-200' : 'hover:bg-gray-50'
+                      isActive ? 'bg-green-50 border-green-200' : 
+                      isDisabled ? 'bg-gray-50 border-gray-200 opacity-60' : 'hover:bg-gray-50'
                     }`}
                   >
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                       status === 'completed' ? 'bg-green-100' : 
-                      status === 'pending' ? 'bg-blue-100' : 'bg-gray-100'
+                      status === 'pending' ? 'bg-blue-100' : 
+                      status === 'disabled' ? 'bg-gray-100' : 'bg-gray-100'
                     }`}>
                       {status === 'completed' ? (
                         <CheckCircle className="w-5 h-5 text-green-600" />
                       ) : (
                         <span className={`text-sm font-bold ${
-                          status === 'pending' ? 'text-blue-600' : 'text-gray-600'
+                          status === 'pending' ? 'text-blue-600' : 
+                          status === 'disabled' ? 'text-gray-400' : 'text-gray-600'
                         }`}>
                           {step.id}
                         </span>
@@ -207,18 +219,36 @@ const WhatsAppConnectGuide: React.FC<WhatsAppConnectGuideProps> = ({
                         {status === 'completed' && (
                           <Badge variant="default" className="text-xs">✓</Badge>
                         )}
+                        {status === 'disabled' && (
+                          <Badge variant="outline" className="text-xs">Connexion requise</Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground">{step.description}</p>
+                      {step.id === 3 && hasConnectedSessions && connectedSessions?.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-blue-600">
+                            Sessions disponibles : {connectedSessions.map(s => s.session_name).join(', ')}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     
-                    {step.action && (
+                    {step.action && !isDisabled && (
                       <Button
-                        onClick={step.action}
+                        onClick={() => {
+                          if (step.id === 3 && connectedSessions?.length > 0) {
+                            // Pour le webhook, passer la première session disponible
+                            step.action(connectedSessions[0].session_name);
+                          } else {
+                            step.action();
+                          }
+                        }}
                         variant={status === 'completed' ? 'outline' : 'default'}
                         size="sm"
                         className={status === 'completed' ? '' : 'bg-green-600 hover:bg-green-700'}
+                        disabled={isDisabled}
                       >
-                        {status === 'completed' ? 'Gérer' : 'Configurer'}
+                        {status === 'completed' ? 'Gérer' : isDisabled ? 'Connecter d\'abord' : 'Configurer'}
                       </Button>
                     )}
                   </div>

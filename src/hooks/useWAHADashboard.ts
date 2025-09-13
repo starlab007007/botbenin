@@ -317,6 +317,34 @@ export const useWAHADashboard = () => {
     }
   }, []);
 
+  // Obtenir la configuration d'une session
+  const getSessionConfig = useCallback(async (sessionName: string) => {
+    try {
+      console.log('Getting session config for:', sessionName);
+      const result = await makeWAHARequest(`/api/sessions/${sessionName}`);
+      return result;
+    } catch (error) {
+      console.error('Error getting session config:', error);
+      throw error;
+    }
+  }, [makeWAHARequest]);
+
+  // Mettre à jour la configuration d'une session
+  const updateSessionConfig = useCallback(async (sessionName: string, config: any) => {
+    try {
+      console.log('Updating session config for:', sessionName, config);
+      const result = await makeWAHARequest(`/api/sessions/${sessionName}`, {
+        method: 'PUT',
+        body: config
+      });
+      toast.success('Configuration mise à jour');
+      return result;
+    } catch (error) {
+      console.error('Error updating session config:', error);
+      throw error;
+    }
+  }, [makeWAHARequest]);
+
   // Actualiser les données
   const refreshData = useCallback(async () => {
     await loadSessions();
@@ -337,7 +365,10 @@ export const useWAHADashboard = () => {
     deleteSession,
     getQRCode,
     sendTestMessage,
+    getSessionConfig,
+    updateSessionConfig,
     refreshData,
+    refreshSessions: loadSessions,
     loadSessions
   };
 };

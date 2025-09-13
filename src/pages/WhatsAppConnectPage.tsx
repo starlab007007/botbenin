@@ -27,7 +27,16 @@ const WhatsAppConnectPage: React.FC = () => {
     setShowSessionManager(true);
   };
 
-  const handleWebhookSetup = () => {
+  const handleWebhookSetup = (sessionName?: string) => {
+    if (sessionName) {
+      setSelectedAccountId(sessionName);
+    } else if (accounts && accounts.length > 0) {
+      // Prendre la première session connectée disponible
+      const connectedSession = accounts.find(account => account.status === 'WORKING');
+      if (connectedSession) {
+        setSelectedAccountId(connectedSession.session_name);
+      }
+    }
     setShowWebhookConfig(true);
   };
 
@@ -38,6 +47,9 @@ const WhatsAppConnectPage: React.FC = () => {
   const handleManageAgents = () => {
     setShowBotLinker(true);
   };
+
+  // Obtenir les sessions connectées pour les passer au guide
+  const connectedSessions = accounts?.filter(account => account.status === 'WORKING') || [];
 
   return (
     <AuthGuard isAuthenticated={isAuthenticated}>
@@ -50,6 +62,7 @@ const WhatsAppConnectPage: React.FC = () => {
           hasConnectedSessions={hasConnectedSessions}
           hasWebhookConfigured={hasWebhookConfigured}
           hasWidgetConfigured={hasWidgetConfigured}
+          connectedSessions={connectedSessions}
         />
 
         {/* Session Manager Modal */}
