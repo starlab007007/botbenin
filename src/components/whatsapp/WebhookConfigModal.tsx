@@ -72,18 +72,24 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
     
     setConfigLoading(true);
     try {
+      // Utiliser l'authentification Basic + API Key comme spécifié par WAHA
+      const basicAuth = btoa('admin:Starlab2007'); // Encoder en base64
+      
       const sessionConfig = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
         method: 'GET',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`,
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         }
       });
 
       if (sessionConfig.ok) {
         const config = await sessionConfig.json();
-        if (config.webhooks && Array.isArray(config.webhooks)) {
-          setWebhooks(config.webhooks);
+        // La structure WAHA contient les webhooks dans config.webhooks
+        if (config.config && config.config.webhooks && Array.isArray(config.config.webhooks)) {
+          setWebhooks(config.config.webhooks);
         }
       }
     } catch (error) {
@@ -107,11 +113,16 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
 
     setLoading(true);
     try {
-      // Récupérer la configuration actuelle
+      // Authentification Basic + API Key comme requis par WAHA
+      const basicAuth = btoa('admin:Starlab2007');
+      
+      // Récupérer la configuration actuelle complète
       const sessionResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
         method: 'GET',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`,
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         }
       });
@@ -121,29 +132,46 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
       }
 
       const sessionConfig = await sessionResponse.json();
-      const existingWebhooks = sessionConfig.webhooks || [];
+      console.log('Configuration actuelle récupérée:', sessionConfig);
+      
+      // Récupérer les webhooks existants depuis la structure config.webhooks
+      const existingWebhooks = (sessionConfig.config && sessionConfig.config.webhooks) ? sessionConfig.config.webhooks : [];
       
       // Ajouter le nouveau webhook
       const newWebhooks = [...existingWebhooks, currentWebhook];
 
-      // Mettre à jour la session
+      // Préparer la nouvelle configuration complète selon le format WAHA
+      const updatedConfig = {
+        name: sessionName,
+        config: {
+          ...sessionConfig.config,
+          webhooks: newWebhooks
+        }
+      };
+
+      console.log('Configuration mise à jour à envoyer:', updatedConfig);
+
+      // Mettre à jour la session avec PUT comme requis par l'API WAHA
       const updateResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
         method: 'PUT',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`,
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         },
-        body: JSON.stringify({
-          ...sessionConfig,
-          webhooks: newWebhooks
-        })
+        body: JSON.stringify(updatedConfig)
       });
 
       if (!updateResponse.ok) {
         const errorText = await updateResponse.text();
+        console.error('Erreur de mise à jour:', errorText);
         throw new Error(`Erreur lors de la mise à jour: ${updateResponse.status} - ${errorText}`);
       }
 
+      const result = await updateResponse.json();
+      console.log('Webhook ajouté avec succès:', result);
+      
       toast.success('Webhook ajouté avec succès!');
       
       // Réinitialiser le formulaire
@@ -169,10 +197,14 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
   const removeWebhook = async (index: number) => {
     setLoading(true);
     try {
+      const basicAuth = btoa('admin:Starlab2007');
+      
       const sessionResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
         method: 'GET',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`,
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         }
       });
@@ -185,16 +217,24 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
       const newWebhooks = [...webhooks];
       newWebhooks.splice(index, 1);
 
+      // Préparer la configuration complète selon le format WAHA
+      const updatedConfig = {
+        name: sessionName,
+        config: {
+          ...sessionConfig.config,
+          webhooks: newWebhooks
+        }
+      };
+
       const updateResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
         method: 'PUT',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`,
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         },
-        body: JSON.stringify({
-          ...sessionConfig,
-          webhooks: newWebhooks
-        })
+        body: JSON.stringify(updatedConfig)
       });
 
       if (!updateResponse.ok) {

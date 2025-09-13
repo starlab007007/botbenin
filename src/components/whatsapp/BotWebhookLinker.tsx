@@ -60,11 +60,16 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
 
       console.log('Ajout du webhook pour le bot:', selectedBot.name, 'URL:', webhookUrl);
 
+      // Authentification Basic + API Key comme requis par WAHA
+      const basicAuth = btoa('admin:Starlab2007');
+
       // Étape 1: Récupérer la configuration actuelle de la session
       const sessionResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
         method: 'GET',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`,
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         }
       });
@@ -89,10 +94,16 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
         retries: 3
       };
 
-      // Ajouter le webhook à la configuration existante
+      // Récupérer les webhooks existants depuis la structure config.webhooks
+      const existingWebhooks = (sessionConfig.config && sessionConfig.config.webhooks) ? sessionConfig.config.webhooks : [];
+      
+      // Préparer la configuration complète selon le format WAHA
       const updatedConfig = {
-        ...sessionConfig,
-        webhooks: sessionConfig.webhooks ? [...sessionConfig.webhooks, webhookConfig] : [webhookConfig]
+        name: sessionName,
+        config: {
+          ...sessionConfig.config,
+          webhooks: [...existingWebhooks, webhookConfig]
+        }
       };
 
       console.log('Configuration mise à jour:', updatedConfig);
@@ -101,7 +112,9 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
       const updateResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
         method: 'PUT',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': `Basic ${basicAuth}`,
           'X-Api-Key': '278194d40f794430851ff923e9924a3a'
         },
         body: JSON.stringify(updatedConfig)
