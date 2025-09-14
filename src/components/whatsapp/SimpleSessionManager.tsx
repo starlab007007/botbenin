@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import DirectQRDisplay from '@/components/whatsapp/DirectQRDisplay';
+import QRConnectionFlow from '@/components/whatsapp/QRConnectionFlow';
 import BotWebhookLinker from './BotWebhookLinker';
 import WebhookConfigModal from './WebhookConfigModal';
 import { 
@@ -624,8 +624,8 @@ const SimpleSessionManager: React.FC = () => {
         sessionName={selectedSessionForWebhook}
       />
 
-      {/* Modal QR Code */}
-      <DirectQRDisplay
+      {/* Modal QR Code avec avertissement */}
+      <QRConnectionFlow
         open={showQRModal}
         onOpenChange={setShowQRModal}
         sessionName={selectedSession}
