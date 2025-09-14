@@ -15,7 +15,7 @@ import {
   Target,
   CheckCircle2
 } from 'lucide-react';
-import whatsappLogo from '@/assets/whatsapp-ia-logo.png';
+import whatsappLogo from '@/assets/whatsapp-logo.png';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
