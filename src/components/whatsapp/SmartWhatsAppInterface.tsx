@@ -224,19 +224,6 @@ function openWhatsAppChat_${selectedBot.id}() {
                       Connectez d'abord votre numéro WhatsApp pour débloquer toutes les fonctionnalités d'automatisation
                     </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                    {[
-                      { icon: Webhook, title: 'Webhooks', desc: 'Déclencher des conversations' },
-                      { icon: Code, title: 'Widget Web', desc: 'Bouton sur votre site' },
-                      { icon: Bot, title: 'Agents IA', desc: 'Gérer vos bots' }
-                    ].map(({ icon: Icon, title, desc }) => (
-                      <div key={title} className="text-center p-4 bg-gray-50 rounded-lg opacity-60">
-                        <Icon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <h4 className="font-medium text-sm mb-1">{title}</h4>
-                        <p className="text-xs text-muted-foreground">{desc}</p>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -348,10 +335,6 @@ function openWhatsAppChat_${selectedBot.id}() {
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <Button onClick={testWidget} variant="outline" size="sm">
-                      <Eye className="w-4 h-4 mr-2" />
-                      Tester
-                    </Button>
                     <Button onClick={copyWidgetCode} size="sm" disabled={!selectedBot}>
                       <Copy className="w-4 h-4 mr-2" />
                       Copier le Code

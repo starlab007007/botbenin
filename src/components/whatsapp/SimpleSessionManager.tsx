@@ -517,18 +517,6 @@ const SimpleSessionManager: React.FC = () => {
 
                             <Button
                               onClick={() => {
-                                setSelectedSessionForBot(session.name);
-                                setShowBotLinker(true);
-                              }}
-                              variant="outline"
-                              className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
-                            >
-                              <Link2 className="h-4 w-4" />
-                              Lier Bot
-                            </Button>
-
-                            <Button
-                              onClick={() => {
                                 setSelectedSessionForWebhook(session.name);
                                 setShowWebhookConfig(true);
                               }}
@@ -550,23 +538,6 @@ const SimpleSessionManager: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Test de messages (si connecté) */}
-                        {session.status === 'WORKING' && (
-                          <>
-                            <Separator />
-                            <div className="space-y-4">
-                              <h4 className="text-sm font-semibold">Test de messages</h4>
-                              <Button
-                                onClick={() => handleSendTestMessage(session.name)}
-                                variant="outline"
-                                className="gap-2 border-green-200 text-green-600 hover:bg-green-50"
-                              >
-                                <MessageSquare className="h-4 w-4" />
-                                Envoyer un message de test
-                              </Button>
-                            </div>
-                          </>
-                        )}
                       </div>
                     </div>
                   )}
