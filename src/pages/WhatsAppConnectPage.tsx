@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import SmartWhatsAppInterface from '@/components/whatsapp/SmartWhatsAppInterface';
+import { AuthModal } from '@/components/AuthModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ import {
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   if (!isAuthenticated) {
     return (
@@ -183,12 +185,18 @@ const WhatsAppConnectPage: React.FC = () => {
             <Button 
               size="lg" 
               className="bg-white text-green-600 hover:bg-gray-100 font-semibold px-8 py-3 text-lg"
-              onClick={() => window.location.href = '/auth'}
+              onClick={() => setIsAuthModalOpen(true)}
             >
               Se connecter / S'inscrire
             </Button>
           </div>
         </div>
+
+        {/* Auth Modal */}
+        <AuthModal 
+          isOpen={isAuthModalOpen} 
+          onClose={() => setIsAuthModalOpen(false)} 
+        />
       </div>
     );
   }
