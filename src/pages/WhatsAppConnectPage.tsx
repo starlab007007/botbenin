@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
-  MessageCircle, 
   Bot, 
   Users, 
   TrendingUp, 
@@ -16,6 +15,7 @@ import {
   Target,
   CheckCircle2
 } from 'lucide-react';
+import whatsappLogo from '@/assets/whatsapp-logo.png';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -29,7 +29,7 @@ const WhatsAppConnectPage: React.FC = () => {
           <div className="text-center mb-12">
             <div className="flex items-center justify-center mb-6">
               <div className="bg-green-500 rounded-2xl p-4 mr-4">
-                <MessageCircle className="w-12 h-12 text-white" />
+                <img src={whatsappLogo} alt="WhatsApp" className="w-12 h-12" />
               </div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 WhatsApp IA
