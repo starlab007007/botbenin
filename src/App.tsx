@@ -28,6 +28,9 @@ const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(mo
 const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.SupportPage })));
 const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ default: module.AccountPage })));
 
+// Authentication
+const AuthPage = lazy(() => import("./pages/AuthPage"));
+
 // Administration
 const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.UsersManagementPage })));
 
@@ -105,6 +108,7 @@ const App = () => (
                   </Route>
                   
                   {/* Routes publiques sans layout */}
+                  <Route path="/auth" element={<AuthPage />} />
                   <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
                   <Route path="/bot-test/:botId" element={<BotTestPage />} />
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
