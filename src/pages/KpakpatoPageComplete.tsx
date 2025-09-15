@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useWebhookNotification } from '@/hooks/useWebhookNotification';
+import { useConversation } from '@11labs/react';
 
 declare global {
   namespace JSX {
@@ -21,68 +22,63 @@ export const KpakpatoPage: React.FC = () => {
   const [isConversationActive, setIsConversationActive] = useState(false);
   const [showStartButton, setShowStartButton] = useState(false);
   const { sendWebhook, isLoading: webhookLoading } = useWebhookNotification();
+  
+  const conversation = useConversation({
+    onConnect: () => {
+      console.log('🎤 ConvAI connected');
+      setIsConversationActive(true);
+      sendWebhook({
+        action: 'convai_connected',
+        agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
+        timestamp: new Date().toISOString(),
+        userId: 'user_' + Date.now(),
+        data: { status: 'connected', source: 'react_sdk' }
+      });
+    },
+    onDisconnect: () => {
+      console.log('🔴 ConvAI disconnected');
+      setIsConversationActive(false);
+      setShowStartButton(true);
+      sendWebhook({
+        action: 'convai_disconnected',
+        agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
+        timestamp: new Date().toISOString(),
+        userId: 'user_' + Date.now(),
+        data: { status: 'disconnected', source: 'react_sdk' }
+      });
+    },
+    onMessage: (message) => {
+      console.log('📨 ConvAI message:', message);
+    },
+    onError: (error) => {
+      console.error('❌ ConvAI error:', error);
+    }
+  });
 
   useEffect(() => {
-    // ElevenLabs script is already loaded in index.html
-    // Add a small delay to ensure the widget is ready
+    // Initialize and show start button after a delay
     const timer = setTimeout(() => {
       setIsLoading(false);
       setShowStartButton(true);
-    }, 2000);
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, []);
 
-  // Ensure ElevenLabs ConvAI script is available and add conversation listeners
-  useEffect(() => {
-    const isDefined = !!customElements.get('elevenlabs-convai');
-    const hasScript = !!document.querySelector('script[src*="convai-widget-embed"]');
-    
-    if (!isDefined && !hasScript) {
-      const s = document.createElement('script');
-      s.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed';
-      s.async = true;
-      s.onload = () => {
-        console.log('✅ ElevenLabs ConvAI script loaded successfully');
-        setupConvAIListeners();
-      };
-      document.head.appendChild(s);
-    } else {
-      setupConvAIListeners();
-    }
-  }, []);
-
-  // Setup ConvAI event listeners for n8n integration
-  const setupConvAIListeners = () => {
-    // Listen for ConvAI events to send to n8n
-    window.addEventListener('message', (event) => {
-      if (event.origin.includes('elevenlabs.io')) {
-        console.log('📡 ConvAI Event:', event.data);
-        
-        // Send conversation events to n8n
-        if (event.data?.type) {
-          sendWebhook({
-            action: `convai_${event.data.type}`,
-            agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
-            timestamp: new Date().toISOString(),
-            userId: 'user_' + Date.now(),
-            data: {
-              eventType: event.data.type,
-              eventData: event.data,
-              sessionId: 'session_' + Date.now(),
-              conversationActive: isConversationActive
-            }
-          }).catch(error => console.error('❌ Webhook failed:', error));
-        }
-      }
-    });
-  };
-
   const handleStartConversation = async () => {
-    setIsConversationActive(true);
     setShowStartButton(false);
     
     try {
+      // Request microphone permission first
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Start conversation using React SDK
+      const conversationId = await conversation.startSession({
+        agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p'
+      });
+      
+      console.log('🎤 Conversation started with ID:', conversationId);
+      
       // Send webhook notification that conversation started
       const webhookSuccess = await sendWebhook({
         action: 'conversation_started',
@@ -90,6 +86,7 @@ export const KpakpatoPage: React.FC = () => {
         timestamp: new Date().toISOString(),
         userId: 'user_' + Date.now(),
         data: {
+          conversationId,
           sessionId: 'session_' + Date.now(),
           platform: 'web',
           userAgent: navigator.userAgent,
@@ -99,77 +96,9 @@ export const KpakpatoPage: React.FC = () => {
 
       console.log('🔄 Webhook notification:', webhookSuccess ? '✅ Sent' : '❌ Failed');
     } catch (error) {
-      console.error('❌ Webhook error:', error);
+      console.error('❌ Conversation start error:', error);
+      setShowStartButton(true);
     }
-
-    // Wait a moment then trigger the ElevenLabs widget
-    setTimeout(() => {
-      const widget = document.querySelector('elevenlabs-convai') as any;
-      if (widget) {
-        // Make widget visible and clickable
-        const widgetContainer = widget.parentElement;
-        if (widgetContainer) {
-          widgetContainer.style.opacity = '1';
-          widgetContainer.style.pointerEvents = 'auto';
-          widgetContainer.style.zIndex = '50';
-        }
-        
-        // Force widget activation
-        widget.style.display = 'block';
-        widget.style.visibility = 'visible';
-        
-        // Add event listener for widget interactions
-        widget.addEventListener('conversationStarted', () => {
-          console.log('🎤 ConvAI conversation started');
-          sendWebhook({
-            action: 'convai_conversation_started',
-            agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
-            timestamp: new Date().toISOString(),
-            userId: 'user_' + Date.now(),
-            data: { status: 'conversation_active', source: 'widget' }
-          });
-        });
-
-        widget.addEventListener('conversationEnded', () => {
-          console.log('🔴 ConvAI conversation ended');
-          sendWebhook({
-            action: 'convai_conversation_ended',
-            agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
-            timestamp: new Date().toISOString(),
-            userId: 'user_' + Date.now(),
-            data: { status: 'conversation_ended', source: 'widget' }
-          });
-        });
-        
-        // Trigger the widget
-        widget.click();
-        console.log('🎤 ElevenLabs widget triggered');
-        
-        // Send confirmation webhook
-        sendWebhook({
-          action: 'widget_activated',
-          agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
-          timestamp: new Date().toISOString(),
-          userId: 'user_' + Date.now(),
-          data: { 
-            status: 'widget_clicked',
-            userAgent: navigator.userAgent,
-            timestamp: Date.now(),
-            sessionActive: true
-          }
-        });
-      } else {
-        console.error('❌ ElevenLabs widget not found');
-        // Retry after a short delay
-        setTimeout(() => {
-          const retryWidget = document.querySelector('elevenlabs-convai');
-          if (retryWidget) {
-            console.log('🔄 Retrying widget activation');
-            (retryWidget as any).click();
-          }
-        }, 1000);
-      }
-    }, 500);
   };
 
   return (
@@ -237,23 +166,16 @@ export const KpakpatoPage: React.FC = () => {
               )}
             </div>
             
-            {/* ElevenLabs ConvAI Widget - Hidden initially, visible when conversation starts */}
+            {/* Conversation Status Indicator */}
             <div className={cn(
-              "absolute inset-0 w-60 h-60 rounded-full overflow-hidden transition-all duration-500",
+              "absolute inset-0 w-60 h-60 rounded-full overflow-hidden transition-all duration-500 flex items-center justify-center",
               isConversationActive 
                 ? "opacity-100 pointer-events-auto z-50" 
                 : "opacity-0 pointer-events-none z-0"
             )}>
-              <elevenlabs-convai 
-                agent-id="agent_6201k518xhz2eemtsrbf38fmjq7p"
-                style={{
-                  display: 'block',
-                  width: '240px',
-                  height: '240px',
-                  border: 'none',
-                  borderRadius: '50%'
-                }}
-              />
+              <div className="w-32 h-32 rounded-full bg-gradient-to-r from-green-500/30 via-blue-500/30 to-cyan-500/30 animate-pulse flex items-center justify-center">
+                <Volume2 className="w-10 h-10 text-green-400 animate-pulse" />
+              </div>
             </div>
             
             {/* Loading overlay */}
@@ -300,17 +222,21 @@ export const KpakpatoPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  // Send webhook for conversation end
-                  await sendWebhook({
-                    action: 'conversation_ended',
-                    agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
-                    timestamp: new Date().toISOString(),
-                    userId: 'user_' + Date.now(),
-                    data: { reason: 'user_stop' }
-                  });
-                  
-                  setIsConversationActive(false);
-                  setShowStartButton(true);
+                  try {
+                    // End conversation using React SDK
+                    await conversation.endSession();
+                    
+                    // Send webhook for conversation end
+                    await sendWebhook({
+                      action: 'conversation_ended',
+                      agentId: 'agent_6201k518xhz2eemtsrbf38fmjq7p',
+                      timestamp: new Date().toISOString(),
+                      userId: 'user_' + Date.now(),
+                      data: { reason: 'user_stop' }
+                    });
+                  } catch (error) {
+                    console.error('❌ Error ending conversation:', error);
+                  }
                 }}
                 className="text-sm"
                 disabled={webhookLoading}
