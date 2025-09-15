@@ -363,28 +363,31 @@ function openWhatsAppChat_${selectedBot.id}() {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Gestionnaire de Session en page complète */}
       {showSessionManager && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold">Gestionnaire de Session WhatsApp</h2>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setShowSessionManager(false);
-                    loadData();
-                    onSessionUpdate?.();
-                  }}
-                >
-                  Fermer
-                </Button>
+        <div className="fixed inset-0 bg-background z-50 overflow-y-auto">
+          <div className="container mx-auto p-6 max-w-7xl">
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowSessionManager(false);
+                      loadData();
+                      onSessionUpdate?.();
+                    }}
+                  >
+                    ← Retour
+                  </Button>
+                  <div>
+                    <h1 className="text-2xl font-bold">Gestionnaire de Session WhatsApp</h1>
+                    <p className="text-muted-foreground">Gérez vos sessions WhatsApp et configurez vos automatisations</p>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="p-6">
-              <SimpleSessionManager />
-            </div>
+            <SimpleSessionManager />
           </div>
         </div>
       )}
