@@ -67,6 +67,13 @@ const SmartWhatsAppInterface: React.FC<SmartWhatsAppInterfaceProps> = ({
     }
   }, [hasConnectedSessions]);
 
+  // Afficher automatiquement le gestionnaire de session si aucune session n'est connectée
+  useEffect(() => {
+    if (!hasConnectedSessions && accounts !== undefined) {
+      setShowSessionManager(true);
+    }
+  }, [hasConnectedSessions, accounts]);
+
   useEffect(() => {
     generateWidgetCode();
   }, [widgetConfig, selectedBot]);
