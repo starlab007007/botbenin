@@ -34,6 +34,8 @@ serve(async (req) => {
       'http://localhost:3000', 
       'http://127.0.0.1:3000',
       'https://localhost:3000',
+      // Production domain
+      'https://bot.bj',
       // Autoriser aussi les appels depuis waha-dashboard-mirror
       'https://mvynepqulhflxtyymtzs.functions.supabase.co'
     ];
