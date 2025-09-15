@@ -1,5 +1,5 @@
 import React from 'react';
-import ConvaiWidget from '@/components/ConvaiWidget';
+import KpakpatoFloatingButton from '@/components/KpakpatoFloatingButton';
 
 export const KpakpatoPage: React.FC = () => {
   return (
@@ -36,13 +36,41 @@ export const KpakpatoPage: React.FC = () => {
           </div>
         </header>
 
-        {/* Main Widget Container */}
-        <div className="rounded-2xl shadow-sm border bg-card/70 backdrop-blur-sm p-6">
-          <ConvaiWidget />
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            <strong>Astuce :</strong> accordez l'accès au micro quand votre navigateur le
-            demande. Le flux audio démarre après votre clic.
-          </p>
+        {/* Instructions principales */}
+        <div className="rounded-2xl shadow-sm border bg-card/70 backdrop-blur-sm p-8 text-center">
+          <div className="space-y-6">
+            <div className="text-lg text-muted-foreground">
+              <p className="mb-4">
+                Utilisez le <strong className="text-primary">bouton flottant</strong> en bas à droite 
+                pour démarrer une conversation vocale avec Kpakpato.
+              </p>
+              <div className="flex items-center justify-center space-x-2 text-sm bg-muted/50 rounded-lg p-3">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span>Cliquez, autorisez le micro, et commencez à parler !</span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 text-sm text-muted-foreground">
+              <div className="flex flex-col items-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <span className="text-blue-600 font-bold">1</span>
+                </div>
+                <p>Cliquez sur le bouton flottant</p>
+              </div>
+              <div className="flex flex-col items-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <span className="text-purple-600 font-bold">2</span>
+                </div>
+                <p>Autorisez l'accès au micro</p>
+              </div>
+              <div className="flex flex-col items-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center">
+                  <span className="text-cyan-600 font-bold">3</span>
+                </div>
+                <p>Commencez la conversation</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -56,6 +84,9 @@ export const KpakpatoPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Bouton flottant Kpakpato */}
+      <KpakpatoFloatingButton />
 
       {/* Enhanced CSS Animations */}
       <style dangerouslySetInnerHTML={{
