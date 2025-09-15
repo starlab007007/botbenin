@@ -166,7 +166,7 @@ const SimpleSessionManager: React.FC = () => {
     session.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Gestionnaires d'événements
+  // Gestionnaires d'événements avec fermeture automatique des modales
   const handleCreateSession = async () => {
     if (!newSessionName.trim()) {
       toast.error('Veuillez entrer un nom de session');
@@ -239,8 +239,7 @@ const SimpleSessionManager: React.FC = () => {
 
   const handleSendTestMessage = async (sessionName: string) => {
     try {
-      // Utilisation de valeurs par défaut pour le test
-      const testNumber = "+237600000000"; // Numéro de test par défaut
+      const testNumber = "+237600000000";
       const testMessage = "Message de test depuis Bot.bj ✨";
       
       await sendTestMessage(sessionName, testNumber, testMessage);
@@ -279,79 +278,81 @@ const SimpleSessionManager: React.FC = () => {
   }, [refreshData]);
 
   return (
-    <div className="space-y-6">
-      {/* En-tête avec statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+    <div className="space-y-4 md:space-y-6">
+      {/* En-tête avec statistiques - Responsive */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 md:px-6 pt-3 md:pt-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Total Sessions</CardTitle>
+            <BarChart3 className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+          <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+            <div className="text-lg md:text-2xl font-bold">{stats.total}</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sessions Actives</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 md:px-6 pt-3 md:pt-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Sessions Actives</CardTitle>
+            <CheckCircle2 className="h-3 w-3 md:h-4 md:w-4 text-green-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+          <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+            <div className="text-lg md:text-2xl font-bold text-green-600">{stats.active}</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Attente QR</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 md:px-6 pt-3 md:pt-6">
+            <CardTitle className="text-xs md:text-sm font-medium">En Attente QR</CardTitle>
+            <Clock className="h-3 w-3 md:h-4 md:w-4 text-orange-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
+          <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+            <div className="text-lg md:text-2xl font-bold text-orange-600">{stats.pending}</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sessions Arrêtées</CardTitle>
-            <AlertCircle className="h-4 w-4 text-gray-600" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 md:px-6 pt-3 md:pt-6">
+            <CardTitle className="text-xs md:text-sm font-medium">Sessions Arrêtées</CardTitle>
+            <AlertCircle className="h-3 w-3 md:h-4 md:w-4 text-gray-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-600">{stats.stopped}</div>
+          <CardContent className="px-3 md:px-6 pb-3 md:pb-6">
+            <div className="text-lg md:text-2xl font-bold text-gray-600">{stats.stopped}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Actions principales */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start">
-        <div className="flex gap-2">
+      {/* Actions principales - Responsive */}
+      <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-between items-stretch sm:items-center">
+        <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
           <Button 
             onClick={() => setShowCreateModal(true)}
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto text-sm md:text-base"
           >
             <Plus className="h-4 w-4" />
-            Créer une session
+            <span className="hidden sm:inline">Créer une session</span>
+            <span className="sm:hidden">Créer</span>
           </Button>
           
           <Button 
             variant="outline" 
             onClick={refreshData}
             disabled={loading}
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto text-sm md:text-base"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Actualiser
+            <span className="hidden sm:inline">Actualiser</span>
+            <span className="sm:hidden">Maj</span>
           </Button>
         </div>
 
-        <div className="relative w-full sm:w-auto">
+        <div className="relative w-full sm:w-auto sm:min-w-[200px] md:min-w-[240px]">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
-            placeholder="Rechercher une session..."
+            placeholder="Rechercher..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full sm:w-64"
+            className="pl-10 w-full text-sm md:text-base"
           />
         </div>
       </div>
@@ -359,8 +360,8 @@ const SimpleSessionManager: React.FC = () => {
       {/* Liste des sessions */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FaWhatsapp className="h-5 w-5 text-green-600" />
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <FaWhatsapp className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
             Sessions WhatsApp ({filteredSessions.length})
           </CardTitle>
         </CardHeader>
@@ -368,13 +369,13 @@ const SimpleSessionManager: React.FC = () => {
           {loading && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2">Chargement des sessions...</span>
+              <span className="ml-2 text-sm md:text-base">Chargement des sessions...</span>
             </div>
           )}
 
           {!loading && filteredSessions.length === 0 && (
             <div className="text-center py-8">
-              <div className="text-muted-foreground">
+              <div className="text-muted-foreground text-sm md:text-base">
                 {searchTerm ? `Aucune session trouvée pour "${searchTerm}"` : 'Aucune session disponible'}
               </div>
               {!searchTerm && (
@@ -391,23 +392,23 @@ const SimpleSessionManager: React.FC = () => {
           )}
 
           {!loading && filteredSessions.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {filteredSessions.map((session) => (
                 <div 
                   key={session.name}
-                  className="border border-border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                  className="border border-border rounded-lg overflow-hidden hover:shadow-md transition-all duration-200 animate-fade-in"
                 >
                   <div 
-                    className="p-4 cursor-pointer hover:bg-muted/50"
+                    className="p-3 md:p-4 cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => setExpandedSession(expandedSession === session.name ? null : session.name)}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-3">
-                          <FaWhatsapp className="h-6 w-6 text-green-600" />
-                          <div>
-                            <h3 className="font-semibold text-lg">{session.name}</h3>
-                            <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center space-x-3 md:space-x-4 flex-1 min-w-0">
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <FaWhatsapp className="h-5 w-5 md:h-6 md:w-6 text-green-600 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-sm md:text-lg truncate">{session.name}</h3>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <Badge 
                                 className={`text-xs ${
                                   session.status === 'WORKING' ? 'bg-green-500/10 border-green-500/30 text-green-600' :
@@ -419,7 +420,7 @@ const SimpleSessionManager: React.FC = () => {
                                 {session.status}
                               </Badge>
                               {session.config?.metadata?.phone_number && (
-                                <span className="text-sm text-muted-foreground">
+                                <span className="text-xs md:text-sm text-muted-foreground truncate max-w-[120px] md:max-w-none">
                                   {session.config.metadata.phone_number}
                                 </span>
                               )}
@@ -428,7 +429,7 @@ const SimpleSessionManager: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                         {/* Actions rapides */}
                         {session.status === 'WORKING' ? (
                           <Button
@@ -438,10 +439,10 @@ const SimpleSessionManager: React.FC = () => {
                             }}
                             size="sm"
                             variant="outline"
-                            className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                            className="gap-1 md:gap-2 border-red-200 text-red-600 hover:bg-red-50 text-xs md:text-sm"
                           >
-                            <Square className="h-4 w-4" />
-                            Arrêter
+                            <Square className="h-3 w-3 md:h-4 md:w-4" />
+                            <span className="hidden md:inline">Arrêter</span>
                           </Button>
                         ) : session.status === 'SCAN_QR_CODE' ? (
                           <Button
@@ -451,10 +452,10 @@ const SimpleSessionManager: React.FC = () => {
                             }}
                             size="sm"
                             variant="outline"
-                            className="gap-2 border-orange-200 text-orange-600 hover:bg-orange-50"
+                            className="gap-1 md:gap-2 border-orange-200 text-orange-600 hover:bg-orange-50 text-xs md:text-sm"
                           >
-                            <QrCode className="h-4 w-4" />
-                            Scanner QR
+                            <QrCode className="h-3 w-3 md:h-4 md:w-4" />
+                            <span className="hidden md:inline">Scanner QR</span>
                           </Button>
                         ) : (
                           <Button
@@ -463,32 +464,33 @@ const SimpleSessionManager: React.FC = () => {
                               handleStartSession(session.name);
                             }}
                             size="sm"
-                            className="gap-2"
+                            className="gap-1 md:gap-2 text-xs md:text-sm"
                           >
-                            <Play className="h-4 w-4" />
-                            Démarrer
+                            <Play className="h-3 w-3 md:h-4 md:w-4" />
+                            <span className="hidden md:inline">Démarrer</span>
                           </Button>
                         )}
 
-                        <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
+                        <ChevronDown className={`h-4 w-4 md:h-5 md:w-5 text-muted-foreground transition-transform duration-200 ${
                           expandedSession === session.name ? 'rotate-180' : ''
                         }`} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Panel d'actions détaillées */}
+                  {/* Panel d'actions détaillées - Responsive */}
                   {expandedSession === session.name && (
-                    <div className="border-t border-border/40 bg-muted/5">
-                      <div className="p-6 space-y-4">
+                    <div className="border-t border-border/40 bg-muted/5 animate-accordion-down">
+                      <div className="p-3 md:p-6 space-y-3 md:space-y-4">
                         {/* Actions de session */}
-                        <div className="space-y-4">
+                        <div className="space-y-3 md:space-y-4">
                           <h4 className="text-sm font-semibold">Actions disponibles</h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
                             <Button
                               onClick={() => session.status === 'STOPPED' ? handleStartSession(session.name) : handleStopSession(session.name)}
                               variant={session.status === 'STOPPED' ? 'default' : 'outline'}
-                              className="gap-2"
+                              className="gap-2 text-sm"
+                              size="sm"
                             >
                               {session.status === 'WORKING' ? 
                                 <Square className="h-4 w-4" /> : 
@@ -498,21 +500,52 @@ const SimpleSessionManager: React.FC = () => {
                             </Button>
 
                             <Button
+                              onClick={() => handleScanQR(session.name)}
+                              variant="outline"
+                              className="gap-2 text-sm"
+                              size="sm"
+                            >
+                              <QrCode className="h-4 w-4" />
+                              Scanner QR
+                            </Button>
+
+                            <Button
                               onClick={() => handleRestartSession(session.name)}
                               variant="outline"
-                              className="gap-2"
+                              className="gap-2 text-sm"
+                              size="sm"
                             >
                               <RotateCcw className="h-4 w-4" />
                               Redémarrer
                             </Button>
 
                             <Button
-                              onClick={() => handleScanQR(session.name)}
+                              onClick={() => handleDeleteSession(session.name)}
                               variant="outline"
-                              className="gap-2 border-orange-200 text-orange-600 hover:bg-orange-50"
+                              className="gap-2 border-red-200 text-red-600 hover:bg-red-50 text-sm"
+                              size="sm"
                             >
-                              <QrCode className="h-4 w-4" />
-                              Scanner QR
+                              <Trash2 className="h-4 w-4" />
+                              Supprimer
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Configuration et intégrations */}
+                        <div className="space-y-3 md:space-y-4">
+                          <h4 className="text-sm font-semibold">Configuration & Intégrations</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
+                            <Button
+                              onClick={() => {
+                                setSelectedSessionForBot(session.name);
+                                setShowBotLinker(true);
+                              }}
+                              variant="outline"
+                              className="gap-2 w-full text-sm"
+                              size="sm"
+                            >
+                              <Link2 className="h-4 w-4" />
+                              Lier à un Bot
                             </Button>
 
                             <Button
@@ -521,23 +554,24 @@ const SimpleSessionManager: React.FC = () => {
                                 setShowWebhookConfig(true);
                               }}
                               variant="outline"
-                              className="gap-2 border-purple-200 text-purple-600 hover:bg-purple-50"
+                              className="gap-2 w-full text-sm"
+                              size="sm"
                             >
                               <Webhook className="h-4 w-4" />
-                              Webhook
+                              Config Webhook
                             </Button>
 
                             <Button
-                              onClick={() => handleDeleteSession(session.name)}
+                              onClick={() => handleSendTestMessage(session.name)}
                               variant="outline"
-                              className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                              className="gap-2 w-full text-sm sm:col-span-2"
+                              size="sm"
                             >
-                              <Trash2 className="h-4 w-4" />
-                              Supprimer
+                              <MessageSquare className="h-4 w-4" />
+                              Envoyer un message test
                             </Button>
                           </div>
                         </div>
-
                       </div>
                     </div>
                   )}
@@ -548,58 +582,78 @@ const SimpleSessionManager: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Modal de création de session */}
+      {/* Modales */}
+      
+      {/* Modal de création de session - Responsive */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-md mx-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Créer une nouvelle session WhatsApp
-            </DialogTitle>
+            <DialogTitle className="text-base md:text-lg">Créer une nouvelle session</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
+          
+          <div className="space-y-4">
+            <div>
               <label className="text-sm font-medium">Nom de la session</label>
               <Input
-                placeholder="Ex: session_principale"
                 value={newSessionName}
                 onChange={(e) => setNewSessionName(e.target.value)}
+                placeholder="Ex: MonWhatsApp"
+                className="mt-2"
                 onKeyPress={(e) => e.key === 'Enter' && handleCreateSession()}
               />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-                Annuler
-              </Button>
-              <Button onClick={handleCreateSession} disabled={!newSessionName.trim()}>
+            
+            <div className="flex flex-col sm:flex-row gap-2 pt-4">
+              <Button onClick={handleCreateSession} className="flex-1">
                 Créer la session
+              </Button>
+              <Button variant="outline" onClick={() => setShowCreateModal(false)} className="flex-1">
+                Annuler
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <BotWebhookLinker
-        open={showBotLinker}
-        onOpenChange={setShowBotLinker}
-        sessionName={selectedSessionForBot}
-        onWebhookAdded={() => {
-          toast.success('Bot lié avec succès!');
-          setShowBotLinker(false);
-        }}
-      />
-
-      <WebhookConfigModal
-        open={showWebhookConfig}
-        onOpenChange={setShowWebhookConfig}
-        sessionName={selectedSessionForWebhook}
-      />
-
-      {/* Modal QR Code avec avertissement */}
+      {/* Modal QR - Responsive avec fermeture automatique */}
       <QRConnectionFlow
         open={showQRModal}
-        onOpenChange={setShowQRModal}
+        onOpenChange={(open) => {
+          setShowQRModal(open);
+          if (!open) {
+            // Fermeture automatique après scan réussi
+            setTimeout(() => refreshData(), 2000);
+          }
+        }}
         sessionName={selectedSession}
+      />
+
+      {/* Modal Bot Linker - Responsive avec fermeture automatique */}
+      {showBotLinker && (
+        <BotWebhookLinker
+          open={showBotLinker}
+          onOpenChange={(open) => {
+            setShowBotLinker(open);
+            if (!open) {
+              // Fermeture automatique après configuration
+              setTimeout(() => refreshData(), 1000);
+            }
+          }}
+          sessionName={selectedSessionForBot}
+        />
+      )}
+
+      {/* Modal Webhook Config - Responsive avec fermeture automatique */}
+      <WebhookConfigModal
+        open={showWebhookConfig}
+        onOpenChange={(open) => {
+          setShowWebhookConfig(open);
+          if (!open) {
+            // Fermeture automatique après configuration
+            setTimeout(() => refreshData(), 1000);
+          }
+        }}
+        sessionName={selectedSessionForWebhook}
       />
     </div>
   );

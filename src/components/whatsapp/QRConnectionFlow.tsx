@@ -23,7 +23,8 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
   const [qrImageData, setQrImageData] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const [timeRemaining, setTimeRemaining] = useState(90); // 1:30 en secondes
+  const [timeRemaining, setTimeRemaining] = useState(90);
+  const [sessionConnected, setSessionConnected] = useState(false);
 
   const fetchQRCode = async () => {
     if (!sessionName) return;
@@ -48,34 +49,99 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
       const contentType = response.headers.get('Content-Type');
       if (!contentType || !contentType.startsWith('image/')) {
         const textResponse = await response.text();
-        throw new Error('La réponse n\'est pas une image');
+        throw new Error(`Réponse inattendue: ${textResponse}`);
       }
 
       const blob = await response.blob();
-      const imageUrl = URL.createObjectURL(blob);
-      setQrImageUrl(imageUrl);
+      const url = URL.createObjectURL(blob);
+      setQrImageUrl(url);
       
+      // Convertir en base64 pour l'affichage
       const reader = new FileReader();
-      reader.onload = () => {
-        const base64Data = reader.result as string;
-        setQrImageData(base64Data);
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setQrImageData(reader.result);
+        }
       };
       reader.readAsDataURL(blob);
       
-      toast.success('QR Code généré avec succès!');
-    } catch (error: any) {
+      setLoading(false);
+      setTimeRemaining(90);
+      
+    } catch (error) {
       console.error('Erreur lors de la récupération du QR code:', error);
-      setError(error.message || 'Erreur lors de la récupération du QR code');
-      toast.error('Erreur lors de la génération du QR code: ' + error.message);
-    } finally {
+      setError(error instanceof Error ? error.message : 'Erreur inconnue');
       setLoading(false);
     }
   };
 
-  const handleAccept = () => {
-    setCurrentStep('qr');
-    fetchQRCode();
+  const checkSessionStatus = async () => {
+    if (!sessionName) return;
+    
+    try {
+      const response = await fetch(`https://waha.bot.bj/api/${sessionName}/status`, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
+        }
+      });
+
+      if (response.ok) {
+        const status = await response.json();
+        if (status.status === 'WORKING') {
+          setSessionConnected(true);
+          toast.success('WhatsApp connecté avec succès!');
+          // Fermeture automatique après succès
+          setTimeout(() => {
+            onOpenChange(false);
+          }, 3000);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification du statut:', error);
+    }
   };
+
+  const resetState = () => {
+    setCurrentStep('warning');
+    setQrImageUrl('');
+    setQrImageData('');
+    setError('');
+    setTimeRemaining(90);
+    setSessionConnected(false);
+  };
+
+  // Timer pour le QR code
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (currentStep === 'qr' && timeRemaining > 0 && !sessionConnected) {
+      timer = setTimeout(() => {
+        setTimeRemaining(prev => prev - 1);
+      }, 1000);
+    } else if (timeRemaining === 0) {
+      setError('Le QR code a expiré. Veuillez en générer un nouveau.');
+    }
+
+    return () => clearTimeout(timer);
+  }, [currentStep, timeRemaining, sessionConnected]);
+
+  // Vérification périodique du statut de la session
+  useEffect(() => {
+    let statusChecker: NodeJS.Timeout;
+    
+    if (currentStep === 'qr' && !sessionConnected) {
+      statusChecker = setInterval(checkSessionStatus, 3000);
+    }
+
+    return () => clearInterval(statusChecker);
+  }, [currentStep, sessionConnected, sessionName]);
+
+  // Reset à l'ouverture
+  useEffect(() => {
+    if (open) {
+      resetState();
+    }
+  }, [open]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -83,297 +149,179 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Timer pour le QR code
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (currentStep === 'qr' && timeRemaining > 0) {
-      interval = setInterval(() => {
-        setTimeRemaining(prev => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [currentStep, timeRemaining]);
-
-  // Reset quand le modal s'ouvre
-  useEffect(() => {
-    if (open) {
-      setCurrentStep('warning');
-      setTimeRemaining(90);
-      setQrImageUrl('');
-      setQrImageData('');
-      setError('');
-    }
-  }, [open]);
-
-  // Nettoyer l'URL d'objet
-  useEffect(() => {
-    return () => {
-      if (qrImageUrl) {
-        URL.revokeObjectURL(qrImageUrl);
-      }
-    };
-  }, [qrImageUrl]);
+  const handleProceedToQR = () => {
+    setCurrentStep('qr');
+    fetchQRCode();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        {currentStep === 'warning' ? (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FaWhatsapp className="h-5 w-5 text-green-600" />
-                  <span>Connecter Agent WhatsApp</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onOpenChange(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-6">
-              {/* Icône d'avertissement */}
-              <div className="flex justify-center">
-                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
-                  <AlertTriangle className="w-8 h-8 text-orange-600" />
-                </div>
-              </div>
-
-              {/* Titre */}
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-2">Important : À Lire Avant Connexion</h3>
-                <p className="text-muted-foreground">
-                  Vous êtes sur le point de connecter <strong>{sessionName}</strong> à un numéro WhatsApp.
-                </p>
-              </div>
-
-              {/* Avertissements */}
-              <Card className="bg-orange-50 border-orange-200">
-                <CardContent className="pt-4">
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <div className="w-1 h-1 bg-orange-600 rounded-full mt-2 flex-shrink-0"></div>
-                      <div className="text-sm">
-                        <strong className="text-orange-800">Contrôle IA Complet :</strong> 
-                        <span className="text-orange-700"> Une fois connecté, l'agent IA répondra automatiquement à TOUS les messages reçus sur ce numéro WhatsApp.</span>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1 h-1 bg-orange-600 rounded-full mt-2 flex-shrink-0"></div>
-                      <div className="text-sm">
-                        <strong className="text-orange-800">Actif 24/7 :</strong>
-                        <span className="text-orange-700"> L'agent sera actif jusqu'à ce que vous désactiviez manuellement la campagne ou vous déconnectiez.</span>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-1 h-1 bg-orange-600 rounded-full mt-2 flex-shrink-0"></div>
-                      <div className="text-sm">
-                        <strong className="text-orange-800">Utiliser un Numéro Dédié :</strong>
-                        <span className="text-orange-700"> Nous recommandons d'utiliser un compte WhatsApp Business ou un numéro dédié à cet usage.</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Information de contrôle */}
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="pt-4">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <h4 className="font-medium text-blue-800 mb-1">Vous gardez toujours le contrôle de votre agent</h4>
-                      <p className="text-sm text-blue-700">
-                        Vous pouvez mettre en pause, modifier ou déconnecter complètement votre agent à tout moment depuis le tableau de bord.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Boutons d'action */}
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="flex-1"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleAccept}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                >
-                  Je Comprends, Continuer
-                </Button>
-              </div>
+      <DialogContent className="w-[95vw] max-w-2xl mx-auto max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between text-base md:text-lg">
+            <div className="flex items-center gap-2">
+              <FaWhatsapp className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
+              Connexion WhatsApp - {sessionName}
             </div>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FaWhatsapp className="h-5 w-5 text-green-600" />
-                  <span>Connecter Agent WhatsApp</span>
+            {!sessionConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 md:space-y-6">
+          {/* Étape d'avertissement */}
+          {currentStep === 'warning' && !sessionConnected && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row items-start gap-3 md:gap-4">
+                  <AlertTriangle className="h-6 w-6 md:h-8 md:w-8 text-orange-600 flex-shrink-0 mt-1" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-orange-800 text-sm md:text-base mb-2">
+                      Important à lire avant de continuer
+                    </h3>
+                    <div className="text-orange-700 text-xs md:text-sm space-y-2">
+                      <p>• Assurez-vous que WhatsApp n'est pas ouvert sur un autre appareil</p>
+                      <p>• Gardez votre téléphone à proximité pour scanner le QR code</p>
+                      <p>• La connexion peut prendre quelques secondes après le scan</p>
+                      <p>• Ne fermez pas cette fenêtre pendant la connexion</p>
+                    </div>
+                  </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onOpenChange(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              {/* Titre de connexion */}
-              <div className="text-center">
-                <h3 className="text-lg font-semibold mb-2">Connexion {sessionName}</h3>
-                <p className="text-sm text-muted-foreground">
-                  Scannez le code QR avec votre WhatsApp pour terminer la connexion
-                </p>
-              </div>
-
-              {/* Icône WhatsApp et titre */}
-              <div className="text-center space-y-2">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                  <FaWhatsapp className="w-8 h-8 text-blue-600" />
+                
+                <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                  <Button 
+                    onClick={handleProceedToQR}
+                    className="flex-1 gap-2"
+                  >
+                    <QrCode className="h-4 w-4" />
+                    J'ai compris, générer le QR code
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => onOpenChange(false)}
+                    className="flex-1"
+                  >
+                    Annuler
+                  </Button>
                 </div>
-                <h4 className="font-semibold">Connexion WhatsApp</h4>
-                <p className="text-sm text-muted-foreground">
-                  Connectez votre compte WhatsApp Business à {sessionName}
-                </p>
-              </div>
+              </CardContent>
+            </Card>
+          )}
 
-              {/* Instruction de scan */}
-              <div className="text-center">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
-                  <QrCode className="w-4 h-4" />
-                  Scanner le code QR pour se connecter
-                </div>
-              </div>
-
+          {/* Étape QR Code */}
+          {currentStep === 'qr' && !sessionConnected && (
+            <div className="space-y-4 md:space-y-6">
               {/* Timer et statut */}
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-4 h-4 text-green-600" />
-                  <span>Temps restant : {formatTime(timeRemaining)}</span>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    Temps restant: <span className="font-mono font-semibold">{formatTime(timeRemaining)}</span>
+                  </span>
                 </div>
-                <Badge variant="secondary" className="bg-green-100 text-green-700">
-                  Actif
-                </Badge>
+                
+                {!loading && !error && (
+                  <Badge variant="secondary" className="text-xs">
+                    En attente du scan...
+                  </Badge>
+                )}
               </div>
 
-              {/* Zone QR Code */}
+              {/* QR Code Display */}
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center space-y-4">
-                    {loading && (
-                      <div className="flex flex-col items-center gap-3 py-8">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">
-                          Génération du QR code en cours...
+                <CardContent className="p-4 md:p-8">
+                  {loading && (
+                    <div className="flex flex-col items-center justify-center py-8 md:py-12">
+                      <Loader2 className="h-8 w-8 md:h-12 md:w-12 animate-spin text-primary mb-4" />
+                      <p className="text-sm md:text-base text-muted-foreground">Génération du QR code...</p>
+                    </div>
+                  )}
+
+                  {error && (
+                    <div className="text-center py-8 md:py-12">
+                      <AlertTriangle className="h-8 w-8 md:h-12 md:w-12 text-red-500 mx-auto mb-4" />
+                      <p className="text-red-600 text-sm md:text-base mb-4">{error}</p>
+                      <Button onClick={fetchQRCode} variant="outline" size="sm">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Réessayer
+                      </Button>
+                    </div>
+                  )}
+
+                  {qrImageData && !loading && !error && (
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="bg-white p-4 rounded-lg shadow-inner">
+                        <img 
+                          src={qrImageData} 
+                          alt="QR Code WhatsApp" 
+                          className="w-48 h-48 md:w-64 md:h-64"
+                        />
+                      </div>
+                      
+                      <div className="text-center space-y-2">
+                        <p className="text-sm md:text-base font-medium">
+                          Scannez ce QR code avec WhatsApp
+                        </p>
+                        <p className="text-xs md:text-sm text-muted-foreground max-w-md">
+                          Ouvrez WhatsApp sur votre téléphone → Menu (⋮) → Appareils liés → Lier un appareil
                         </p>
                       </div>
-                    )}
-
-                    {error && (
-                      <div className="flex flex-col items-center gap-3 py-8">
-                        <div className="text-red-500 text-sm font-medium">
-                          {error}
-                        </div>
-                        <Button
-                          onClick={fetchQRCode}
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                          Réessayer
-                        </Button>
-                      </div>
-                    )}
-
-                    {!loading && !error && (qrImageUrl || qrImageData) && (
-                      <div className="space-y-4">
-                        <div className="flex justify-center p-4 bg-blue-50 rounded-lg border-2 border-dashed border-blue-200">
-                          {qrImageData ? (
-                            <img
-                              src={qrImageData}
-                              alt={`QR Code pour ${sessionName}`}
-                              className="max-w-full h-auto"
-                              style={{ maxHeight: '200px' }}
-                            />
-                          ) : (
-                            <img
-                              src={qrImageUrl}
-                              alt={`QR Code pour ${sessionName}`}
-                              className="max-w-full h-auto"
-                              style={{ maxHeight: '200px' }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Instructions étape par étape */}
-              <Card>
-                <CardContent className="pt-4">
-                  <h4 className="font-medium mb-3 text-center">Étapes pour se connecter :</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-start gap-2">
-                      <span className="font-semibold text-blue-600">1.</span>
-                      <span>Ouvrez WhatsApp Business sur votre téléphone</span>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <span className="font-semibold text-blue-600">2.</span>
-                      <span>Appuyez sur Menu (⋮) → Appareils liés</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="font-semibold text-blue-600">3.</span>
-                      <span>Appuyez sur "Lier un appareil"</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="font-semibold text-blue-600">4.</span>
-                      <span>Scannez ce code QR</span>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 
               {/* Actions */}
-              <div className="flex gap-2 justify-center">
-                <Button
-                  onClick={fetchQRCode}
-                  variant="outline"
-                  size="sm"
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button 
+                  onClick={fetchQRCode} 
+                  variant="outline" 
                   disabled={loading}
-                  className="gap-2"
+                  className="flex-1 gap-2"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                  Actualiser QR
+                  Nouveau QR code
                 </Button>
                 
-                <Button
-                  onClick={() => onOpenChange(false)}
+                <Button 
+                  onClick={() => onOpenChange(false)} 
                   variant="outline"
-                  size="sm"
+                  className="flex-1"
                 >
-                  Annuler
+                  Fermer
                 </Button>
               </div>
             </div>
-          </>
-        )}
+          )}
+
+          {/* État de connexion réussie */}
+          {sessionConnected && (
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+                  <CheckCircle className="h-12 w-12 md:h-16 md:w-16 text-green-600 flex-shrink-0 animate-scale-in" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-green-800 text-base md:text-lg mb-2">
+                      Connexion réussie ! 🎉
+                    </h3>
+                    <p className="text-green-700 text-sm md:text-base">
+                      Votre session WhatsApp <span className="font-mono font-semibold">{sessionName}</span> est maintenant active.
+                      Cette fenêtre va se fermer automatiquement...
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
