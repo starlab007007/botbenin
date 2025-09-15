@@ -31,8 +31,8 @@ export const KpakpatoFloatingButton: React.FC = () => {
         // Démarrer la conversation
         setIsLoading(true);
         
-        // Vérifier d'abord le support audio
-        const audioSupport = checkAudioSupport();
+        // Vérifier d'abord le support audio (maintenant async)
+        const audioSupport = await checkAudioSupport();
         if (!audioSupport.supported) {
           throw new Error(audioSupport.error || 'Navigateur non compatible');
         }
