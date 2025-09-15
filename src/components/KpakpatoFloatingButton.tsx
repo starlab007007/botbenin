@@ -3,6 +3,7 @@ import { Mic, MicOff, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
+  checkAudioSupport,
   ensureConvaiScript,
   mountWidget,
   startConversation,
@@ -29,6 +30,13 @@ export const KpakpatoFloatingButton: React.FC = () => {
       if (!isActive) {
         // Démarrer la conversation
         setIsLoading(true);
+        
+        // Vérifier d'abord le support audio
+        const audioSupport = checkAudioSupport();
+        if (!audioSupport.supported) {
+          throw new Error(audioSupport.error || 'Navigateur non compatible');
+        }
+        
         toast.info('Initialisation de Kpakpato…', { 
           duration: 2000,
           position: 'bottom-center' 
@@ -86,14 +94,24 @@ export const KpakpatoFloatingButton: React.FC = () => {
       console.error('Erreur KpakpatoButton:', error);
       setError(error.message || 'Erreur inconnue');
       
-      if (error.message?.includes('micro')) {
+      if (error.message?.includes('micro') || error.message?.includes('Micro')) {
         toast.error('🎤 Micro non accessible. Autorise le micro dans ton navigateur.', {
           duration: 4000,
           position: 'bottom-center'
         });
+      } else if (error.message?.includes('AudioWorklet') || error.message?.includes('AudioContext')) {
+        toast.error('🔊 Navigateur non compatible. Utilise Chrome 66+, Firefox 76+ ou Safari 14.1+', {
+          duration: 5000,
+          position: 'bottom-center'
+        });
+      } else if (error.message?.includes('sécurisé') || error.message?.includes('HTTPS')) {
+        toast.error('🔒 Connexion sécurisée requise (HTTPS) pour la fonction vocale', {
+          duration: 4000,
+          position: 'bottom-center'
+        });
       } else {
-        toast.error('Impossible de démarrer Kpakpato. Réessaie dans un moment.', {
-          duration: 3000,
+        toast.error(`❌ Erreur: ${error.message}`, {
+          duration: 4000,
           position: 'bottom-center'
         });
       }
