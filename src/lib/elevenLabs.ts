@@ -55,14 +55,9 @@ const testAudioWorkletSupport = async (): Promise<{ supported: boolean; error?: 
 export const checkAudioSupport = async (): Promise<{ supported: boolean; error?: string }> => {
   console.log('🔍 Vérification du support audio...');
   
-  // Vérifier AudioContext
+  // Vérifier AudioContext (plus permissif)
   if (!window.AudioContext && !(window as any).webkitAudioContext) {
     return { supported: false, error: 'AudioContext non supporté par ce navigateur' };
-  }
-
-  // Vérifier AudioWorklet (requis pour ElevenLabs)
-  if (!window.AudioWorklet) {
-    return { supported: false, error: 'AudioWorklet non supporté. Utilise Chrome 66+, Firefox 76+ ou Safari 14.1+' };
   }
 
   // Vérifier getUserMedia
@@ -75,13 +70,23 @@ export const checkAudioSupport = async (): Promise<{ supported: boolean; error?:
     return { supported: false, error: 'Contexte sécurisé requis (HTTPS) pour les fonctionnalités audio avancées' };
   }
 
-  // Test avancé des AudioWorklets
-  const workletTest = await testAudioWorkletSupport();
-  if (!workletTest.supported) {
-    return workletTest;
+  // Test AudioContext basique
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    await audioContext.close();
+    console.log('✅ AudioContext fonctionnel');
+  } catch (error) {
+    return { supported: false, error: 'AudioContext défaillant' };
   }
 
-  console.log('✅ Support audio complet confirmé');
+  // AudioWorklet est optionnel - le widget ElevenLabs peut fonctionner sans
+  if (window.AudioWorklet) {
+    console.log('✅ AudioWorklet disponible');
+  } else {
+    console.log('⚠️ AudioWorklet non disponible, mais continuons quand même');
+  }
+
+  console.log('✅ Support audio confirmé');
   return { supported: true };
 };
 
