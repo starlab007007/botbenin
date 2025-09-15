@@ -23,7 +23,8 @@ export const KpakpatoPage: React.FC = () => {
   const { sendWebhook, isLoading: webhookLoading } = useWebhookNotification();
 
   useEffect(() => {
-    // ElevenLabs script loading
+    // Le script ElevenLabs est déjà chargé dans index.html
+    // Attendre un moment pour que le widget soit prêt
     const timer = setTimeout(() => {
       setIsLoading(false);
       setShowStartButton(true);
@@ -32,28 +33,9 @@ export const KpakpatoPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Ensure ElevenLabs ConvAI script is available
+  // Setup ConvAI event listeners pour les webhooks
   useEffect(() => {
-    const isDefined = !!customElements.get('elevenlabs-convai');
-    const hasScript = !!document.querySelector('script[src*="convai-widget-embed"]');
-    
-    if (!isDefined && !hasScript) {
-      const s = document.createElement('script');
-      s.src = 'https://unpkg.com/@elevenlabs/convai-widget-embed';
-      s.async = true;
-      s.onload = () => {
-        console.log('✅ ElevenLabs ConvAI script loaded successfully');
-        setupConvAIListeners();
-      };
-      document.head.appendChild(s);
-    } else {
-      setupConvAIListeners();
-    }
-  }, []);
-
-  // Setup ConvAI event listeners for webhook integration
-  const setupConvAIListeners = () => {
-    window.addEventListener('message', (event) => {
+    const handleMessage = (event: MessageEvent) => {
       if (event.origin.includes('elevenlabs.io')) {
         console.log('📡 ConvAI Event:', event.data);
         
@@ -72,8 +54,11 @@ export const KpakpatoPage: React.FC = () => {
           }).catch(error => console.error('❌ Webhook failed:', error));
         }
       }
-    });
-  };
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isConversationActive, sendWebhook]);
 
   const handleStartConversation = async () => {
     setIsConversationActive(true);
@@ -99,25 +84,27 @@ export const KpakpatoPage: React.FC = () => {
       console.error('❌ Webhook error:', error);
     }
 
-    // Wait a moment then trigger the ElevenLabs widget
+    // Attendre un moment puis activer le widget ElevenLabs
     setTimeout(() => {
       const widget = document.querySelector('elevenlabs-convai') as any;
       if (widget) {
-        // Make widget visible and clickable
-        const widgetContainer = widget.parentElement;
-        if (widgetContainer) {
-          widgetContainer.style.opacity = '1';
-          widgetContainer.style.pointerEvents = 'auto';
-          widgetContainer.style.zIndex = '50';
-        }
+        console.log('🎤 ElevenLabs widget trouvé et activé');
         
-        // Force widget activation
+        // Rendre le widget visible et cliquable
         widget.style.display = 'block';
         widget.style.visibility = 'visible';
+        widget.style.opacity = '1';
         
-        console.log('🎤 ElevenLabs widget activated');
+        // Le widget se déclenchera automatiquement au clic utilisateur
       } else {
-        console.error('❌ ElevenLabs widget not found');
+        console.error('❌ ElevenLabs widget non trouvé');
+        // Réessayer après un délai
+        setTimeout(() => {
+          const retryWidget = document.querySelector('elevenlabs-convai');
+          if (retryWidget) {
+            console.log('🔄 Widget trouvé lors de la nouvelle tentative');
+          }
+        }, 1000);
       }
     }, 500);
   };
