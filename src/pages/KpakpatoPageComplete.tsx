@@ -1,5 +1,5 @@
 import React from 'react';
-import KpakpatoFloatingButton from '@/components/KpakpatoFloatingButton';
+import KpakpatoVoiceWidget from '@/components/KpakpatoVoiceWidget';
 
 export const KpakpatoPage: React.FC = () => {
   return (
@@ -85,8 +85,13 @@ export const KpakpatoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Bouton flottant Kpakpato */}
-      <KpakpatoFloatingButton />
+      {/* Widget vocal Kpakpato */}
+      <KpakpatoVoiceWidget />
+      
+      {/* Widget central pour desktop */}
+      <div className="hidden md:flex justify-center mt-8">
+        <KpakpatoVoiceWidget position="center" />
+      </div>
 
       {/* Enhanced CSS Animations */}
       <style dangerouslySetInnerHTML={{
