@@ -1,10 +1,20 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Loader2, Send, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 const AGENT_ID = 'agent_6201k518xhz2eemtsrbf38fmjq7p';
+
+interface Message {
+  id: string;
+  type: 'user' | 'agent';
+  content: string;
+  timestamp: Date;
+}
 
 interface KpakpatoConversationProps {
   isActive: boolean;
@@ -21,11 +31,15 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
   const [hasPermissions, setHasPermissions] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [textInput, setTextInput] = useState('');
+  const [showChatWindow, setShowChatWindow] = useState(false);
   
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Demander les permissions microphone au premier clic
   const requestMicrophonePermission = useCallback(async () => {
@@ -85,6 +99,51 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       setIsSpeaking(false);
     }
   }, []);
+
+  // Ajouter un message à la conversation
+  const addMessage = useCallback((type: 'user' | 'agent', content: string) => {
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      type,
+      content,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, newMessage]);
+    
+    // Auto-scroll vers le bas
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }, []);
+
+  // Envoyer un message texte
+  const sendTextMessage = useCallback((text: string) => {
+    if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    try {
+      const message = {
+        type: "text",
+        text: text.trim()
+      };
+      
+      console.log('📤 Envoi message texte:', message);
+      wsRef.current.send(JSON.stringify(message));
+      
+      // Ajouter le message à l'interface
+      addMessage('user', text.trim());
+      setTextInput('');
+      
+      toast.success('Message envoyé', {
+        duration: 1000,
+        position: 'bottom-center'
+      });
+    } catch (error) {
+      console.error('❌ Erreur envoi message texte:', error);
+      toast.error('Erreur envoi message');
+    }
+  }, [addMessage]);
 
   const startConversation = useCallback(async () => {
     try {
@@ -249,11 +308,15 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         });
         
         setIsConnected(true);
+        setShowChatWindow(true);
         
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
         });
+        
+        // Message de bienvenue
+        addMessage('agent', 'Salut ! Je suis Kpakpato, votre assistant IA. Vous pouvez me parler ou m\'écrire !');
         
         // Démarrer l'enregistrement après connexion
         setTimeout(() => {
@@ -287,8 +350,14 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
             }
           } else if (message.type === 'user_transcript') {
             console.log('📝 Transcription:', message.text);
+            if (message.text?.trim()) {
+              addMessage('user', message.text.trim());
+            }
           } else if (message.type === 'agent_response_event') {
             console.log('🤖 Réponse agent:', message.text);
+            if (message.text?.trim()) {
+              addMessage('agent', message.text.trim());
+            }
           } else if (message.type === 'interruption') {
             console.log('⏸️ Interruption');
             setIsSpeaking(false);
@@ -360,6 +429,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         
         setIsConnected(false);
         setIsSpeaking(false);
+        setShowChatWindow(false);
         
         if (event.code !== 1000) {
           toast.error(`Connexion fermée: ${closeReason}`, {
@@ -529,6 +599,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
     
     setIsConnected(false);
     setIsSpeaking(false);
+    setShowChatWindow(false);
   }, []);
 
   const handleToggleConversation = useCallback(async () => {
@@ -561,61 +632,142 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
   }, [stopConversation]);
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999]">
-      <Button
-        onClick={handleToggleConversation}
-        disabled={isLoading}
-        className={`
-          rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 
-          focus:outline-none focus:ring-4 focus:ring-offset-2 min-w-[60px] min-h-[60px]
-          ${isConnected 
-            ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground focus:ring-destructive/50' 
-            : 'bg-primary hover:bg-primary/90 text-primary-foreground focus:ring-primary/50'
-          }
-          ${isSpeaking ? 'animate-pulse' : ''}
-        `}
-        size="lg"
-        aria-pressed={isConnected}
-        aria-label={isConnected ? 'Arrêter Kpakpato' : 'Parler avec Kpakpato'}
-      >
-        <div className="flex items-center gap-3 px-2 py-1">
-          {isLoading ? (
-            <Loader2 className="w-6 h-6 animate-spin" />
-          ) : isConnected ? (
-            <PhoneOff className="w-6 h-6" />
-          ) : (
-            <Phone className="w-6 h-6" />
-          )}
-          
-          <span className="font-semibold text-sm sm:text-base hidden sm:inline">
-            {isLoading 
-              ? 'Connexion…' 
-              : isConnected 
-                ? 'Raccrocher' 
-                : 'Appeler Kpakpato'
-            }
-          </span>
-          
-          {/* Indicateur visuel sur mobile */}
-          <div className="sm:hidden">
-            <div className={`w-3 h-3 rounded-full ${
-              isConnected 
-                ? isSpeaking 
-                  ? 'bg-yellow-400 animate-pulse' 
-                  : 'bg-red-400 animate-pulse'
-                : 'bg-green-400'
-            }`} />
-          </div>
-        </div>
-      </Button>
-
-      {/* Indicateur de statut vocal */}
-      {isConnected && (
-        <div className="absolute -top-2 -left-2 bg-background border-2 border-primary rounded-full p-1">
-          <Mic className={`w-4 h-4 ${isSpeaking ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
+    <>
+      {/* Fenêtre de chat */}
+      {showChatWindow && (
+        <div className="fixed bottom-6 right-6 w-96 h-[500px] z-[9998]">
+          <Card className="w-full h-full shadow-2xl border-2 border-primary/20">
+            <CardHeader className="pb-3 bg-primary/5">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                  Conversation avec Kpakpato
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Mic className={`w-4 h-4 ${isSpeaking ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
+                  <Button
+                    onClick={handleToggleConversation}
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <PhoneOff className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="p-0 flex flex-col h-[calc(100%-80px)]">
+              {/* Zone des messages */}
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-3">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                          message.type === 'user'
+                            ? 'bg-primary text-primary-foreground ml-4'
+                            : 'bg-muted text-foreground mr-4'
+                        }`}
+                      >
+                        <p className="break-words">{message.content}</p>
+                        <span className="text-xs opacity-70 mt-1 block">
+                          {message.timestamp.toLocaleTimeString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              </ScrollArea>
+              
+              {/* Zone de saisie */}
+              <div className="p-4 border-t bg-background/50">
+                <div className="flex gap-2">
+                  <Input
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendTextMessage(textInput);
+                      }
+                    }}
+                    placeholder="Écrivez votre message..."
+                    className="flex-1 text-sm"
+                    disabled={!isConnected}
+                  />
+                  <Button
+                    onClick={() => sendTextMessage(textInput)}
+                    disabled={!textInput.trim() || !isConnected}
+                    size="sm"
+                    className="px-3"
+                  >
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  {isSpeaking ? '🎤 Kpakpato parle...' : '💬 Vous pouvez parler ou écrire'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
-    </div>
+
+      {/* Bouton flottant principal */}
+      <div className={`fixed bottom-6 right-6 z-[9999] ${showChatWindow ? 'opacity-0 pointer-events-none' : ''}`}>
+        <Button
+          onClick={handleToggleConversation}
+          disabled={isLoading}
+          className={`
+            rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 
+            focus:outline-none focus:ring-4 focus:ring-offset-2 min-w-[60px] min-h-[60px]
+            ${isConnected 
+              ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground focus:ring-destructive/50' 
+              : 'bg-primary hover:bg-primary/90 text-primary-foreground focus:ring-primary/50'
+            }
+            ${isSpeaking ? 'animate-pulse' : ''}
+          `}
+          size="lg"
+          aria-pressed={isConnected}
+          aria-label={isConnected ? 'Arrêter Kpakpato' : 'Parler avec Kpakpato'}
+        >
+          <div className="flex items-center gap-3 px-2 py-1">
+            {isLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin" />
+            ) : isConnected ? (
+              <PhoneOff className="w-6 h-6" />
+            ) : (
+              <Phone className="w-6 h-6" />
+            )}
+            
+            <span className="font-semibold text-sm sm:text-base hidden sm:inline">
+              {isLoading 
+                ? 'Connexion…' 
+                : isConnected 
+                  ? 'Raccrocher' 
+                  : 'Appeler Kpakpato'
+              }
+            </span>
+            
+            {/* Indicateur visuel sur mobile */}
+            <div className="sm:hidden">
+              <div className={`w-3 h-3 rounded-full ${
+                isConnected 
+                  ? isSpeaking 
+                    ? 'bg-yellow-400 animate-pulse' 
+                    : 'bg-red-400 animate-pulse'
+                  : 'bg-green-400'
+              }`} />
+            </div>
+          </div>
+        </Button>
+      </div>
+    </>
   );
 };
 
