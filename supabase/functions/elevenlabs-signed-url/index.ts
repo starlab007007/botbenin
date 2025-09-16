@@ -67,12 +67,19 @@ serve(async (req) => {
       throw new Error('No signed URL received from ElevenLabs API')
     }
 
+    const responseData = {
+      signedUrl: data.signed_url,
+      success: true,
+      agentId: agentId
+    }
+    
+    console.log('📤 Sending response:', JSON.stringify(responseData).substring(0, 100) + '...')
+    
+    // Petit délai pour éviter l'EarlyDrop
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
     return new Response(
-      JSON.stringify({ 
-        signedUrl: data.signed_url,
-        success: true,
-        agentId: agentId
-      }),
+      JSON.stringify(responseData),
       { 
         headers: { 
           ...corsHeaders, 

@@ -231,29 +231,12 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         
         setIsConnected(true);
         
-        // OBLIGATOIRE: Envoyer l'initialisation de conversation selon la doc ElevenLabs
-        try {
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            console.log('📤 Envoi de l\'initialisation de conversation...');
-            const initMessage = {
-              type: "conversation_initiation_client_data"
-            };
-            console.log('📤 Message init:', initMessage);
-            wsRef.current.send(JSON.stringify(initMessage));
-            console.log('✅ Initialisation envoyée avec succès');
-          } else {
-            console.error('❌ WebSocket pas ouvert pour initialisation');
-          }
-        } catch (error) {
-          console.error('❌ Erreur envoi initialisation:', error);
-        }
-        
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
         });
         
-        // Démarrer l'enregistrement après initialisation avec délai
+        // Démarrer l'enregistrement immédiatement après ouverture
         setTimeout(() => {
           try {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
@@ -275,7 +258,57 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           } catch (error) {
             console.error('❌ Erreur démarrage enregistrement:', error);
           }
-        }, 1000); // Délai plus long pour stabilité
+        }, 500);
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          console.log('📨 === MESSAGE REÇU DU SERVEUR ===');
+          const message = JSON.parse(event.data);
+          console.log('📊 Type de message:', message.type || 'unknown');
+          console.log('📊 Contenu message:', message);
+          
+          // Gérer les différents types de messages selon la doc ElevenLabs
+          switch (message.type) {
+            case 'conversation_initiation_metadata':
+              console.log('🎬 Métadonnées de conversation reçues');
+              break;
+              
+            case 'audio':
+              console.log('🔊 Audio reçu du bot, lecture...');
+              if (message.audio_event?.audio_base_64) {
+                setIsSpeaking(true);
+                playAudioResponse(message.audio_event.audio_base_64);
+              }
+              break;
+              
+            case 'user_transcript':
+              console.log('📝 Transcription utilisateur:', message.user_transcript?.text);
+              break;
+              
+            case 'agent_response':
+              console.log('🤖 Réponse de l\'agent:', message.agent_response?.text);
+              break;
+              
+            case 'interruption':
+              console.log('⏸️ Interruption détectée');
+              setIsSpeaking(false);
+              break;
+              
+            case 'ping':
+              console.log('🏓 Ping reçu, envoi pong...');
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'pong' }));
+              }
+              break;
+              
+            default:
+              console.log('❓ Message non géré:', message.type);
+              break;
+          }
+        } catch (error) {
+          console.error('❌ Erreur parsing message WebSocket:', error);
+        }
       };
 
       wsRef.current.onerror = (error) => {
