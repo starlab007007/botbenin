@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { useConversation } from '@11labs/react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Mic, MicOff, Phone, PhoneOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -19,35 +18,13 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasPermissions, setHasPermissions] = useState(false);
-
-  const conversation = useConversation({
-    onConnect: () => {
-      console.log('✅ Conversation connectée');
-      toast.success('🎤 Kpakpato est connecté !', {
-        duration: 2000,
-        position: 'bottom-center'
-      });
-    },
-    onDisconnect: () => {
-      console.log('📞 Conversation déconnectée');
-      toast.info('Conversation terminée', {
-        duration: 1500,
-        position: 'bottom-center'
-      });
-    },
-    onError: (error) => {
-      console.error('❌ Erreur conversation:', error);
-      const errorMessage = String(error);
-      onError(errorMessage);
-      toast.error('❌ Erreur de conversation', {
-        duration: 3000,
-        position: 'bottom-center'
-      });
-    },
-    onMessage: (message) => {
-      console.log('💬 Message reçu:', message);
-    },
-  });
+  const [isConnected, setIsConnected] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
 
   // Demander les permissions microphone au premier clic
   const requestMicrophonePermission = useCallback(async () => {
@@ -80,52 +57,144 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
     }
   }, [onError]);
 
-  const handleToggleConversation = useCallback(async () => {
-    if (isLoading) return;
-
+  const playAudioResponse = useCallback(async (audioBase64: string) => {
     try {
-      setIsLoading(true);
+      if (!audioContextRef.current) return;
+      
+      const audioData = atob(audioBase64);
+      const arrayBuffer = new ArrayBuffer(audioData.length);
+      const view = new Uint8Array(arrayBuffer);
+      
+      for (let i = 0; i < audioData.length; i++) {
+        view[i] = audioData.charCodeAt(i);
+      }
+      
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      
+      source.onended = () => {
+        setIsSpeaking(false);
+      };
+      
+      source.start();
+    } catch (error) {
+      console.error('❌ Erreur lecture audio:', error);
+      setIsSpeaking(false);
+    }
+  }, []);
 
-      if (!isActive) {
-        // Démarrer la conversation
-        console.log('🚀 Démarrage de la conversation...');
-
-        // Vérifier/demander les permissions d'abord
-        if (!hasPermissions) {
-          const granted = await requestMicrophonePermission();
-          if (!granted) {
-            return;
-          }
+  const startConversation = useCallback(async () => {
+    try {
+      console.log('🚀 Démarrage de la conversation...');
+      
+      // Vérifier/demander les permissions d'abord
+      if (!hasPermissions) {
+        const granted = await requestMicrophonePermission();
+        if (!granted) {
+          return;
         }
+      }
 
-        toast.info('Initialisation de Kpakpato…', {
+      toast.info('Initialisation de Kpakpato…', {
+        duration: 2000,
+        position: 'bottom-center'
+      });
+
+      // Créer AudioContext
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Obtenir le stream audio
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000
+        } 
+      });
+      audioStreamRef.current = stream;
+
+      // Configurer MediaRecorder
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+
+      // Établir connexion WebSocket
+      const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+      wsRef.current = new WebSocket(wsUrl);
+
+      wsRef.current.onopen = () => {
+        console.log('✅ WebSocket connecté');
+        setIsConnected(true);
+        toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
         });
+        
+        // Démarrer l'enregistrement
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+          mediaRecorderRef.current.start(100); // Envoi toutes les 100ms
+        }
+      };
 
-        // Démarrer la session avec l'agent public
-        await conversation.startSession({
-          signedUrl: `https://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`,
-        });
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('💬 Message reçu:', data);
+          
+          if (data.type === 'audio') {
+            // Traiter l'audio reçu
+            setIsSpeaking(true);
+            playAudioResponse(data.audio);
+          } else if (data.type === 'message') {
+            console.log('📝 Transcription:', data.text);
+          }
+        } catch (error) {
+          console.error('❌ Erreur parsing message:', error);
+        }
+      };
 
-        onToggle();
-      } else {
-        // Arrêter la conversation
-        console.log('🛑 Arrêt de la conversation...');
-        await conversation.endSession();
-        onToggle();
-      }
-    } catch (error: any) {
-      console.error('❌ Erreur toggle conversation:', error);
-      const errorMessage = error?.message || 'Erreur inconnue';
-      onError(errorMessage);
+      wsRef.current.onerror = (error) => {
+        console.error('❌ Erreur WebSocket:', error);
+        onError('Erreur de connexion WebSocket');
+      };
 
-      if (errorMessage.includes('Agent not found') || errorMessage.includes('404')) {
-        toast.error('❌ Agent Kpakpato non trouvé. Vérifie la configuration.', {
-          duration: 4000,
+      wsRef.current.onclose = () => {
+        console.log('📞 WebSocket fermé');
+        setIsConnected(false);
+        setIsSpeaking(false);
+        toast.info('Conversation terminée', {
+          duration: 1500,
           position: 'bottom-center'
         });
-      } else if (errorMessage.includes('permission') || errorMessage.includes('microphone')) {
+      };
+
+      // Configurer l'envoi d'audio
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
+            // Convertir en base64 et envoyer
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = (reader.result as string).split(',')[1];
+              wsRef.current?.send(JSON.stringify({
+                type: 'audio',
+                audio: base64
+              }));
+            };
+            reader.readAsDataURL(event.data);
+          }
+        };
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erreur démarrage:', error);
+      const errorMessage = error?.message || 'Erreur inconnue';
+      onError(errorMessage);
+      
+      if (errorMessage.includes('Permission')) {
         toast.error('🎤 Problème d\'accès au microphone', {
           duration: 4000,
           position: 'bottom-center'
@@ -136,22 +205,67 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           position: 'bottom-center'
         });
       }
+    }
+  }, [hasPermissions, requestMicrophonePermission, onError, playAudioResponse]);
+
+  const stopConversation = useCallback(() => {
+    console.log('🛑 Arrêt de la conversation...');
+    
+    // Arrêter l'enregistrement
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    // Fermer le stream audio
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(track => track.stop());
+      audioStreamRef.current = null;
+    }
+    
+    // Fermer AudioContext
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    
+    // Fermer WebSocket
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    
+    setIsConnected(false);
+    setIsSpeaking(false);
+  }, []);
+
+  const handleToggleConversation = useCallback(async () => {
+    if (isLoading) return;
+
+    try {
+      setIsLoading(true);
+
+      if (!isActive) {
+        await startConversation();
+        onToggle();
+      } else {
+        stopConversation();
+        onToggle();
+      }
+    } catch (error: any) {
+      console.error('❌ Erreur toggle conversation:', error);
+      const errorMessage = error?.message || 'Erreur inconnue';
+      onError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [isActive, hasPermissions, conversation, onToggle, onError, requestMicrophonePermission]);
+  }, [isActive, isLoading, startConversation, stopConversation, onToggle, onError]);
 
   // Nettoyage automatique
   useEffect(() => {
     return () => {
-      if (conversation.status === 'connected') {
-        conversation.endSession().catch(console.warn);
-      }
+      stopConversation();
     };
-  }, [conversation]);
-
-  const isConnected = conversation.status === 'connected';
-  const isSpeaking = conversation.isSpeaking;
+  }, [stopConversation]);
 
   return (
     <div className="fixed bottom-6 right-6 z-[9999]">
