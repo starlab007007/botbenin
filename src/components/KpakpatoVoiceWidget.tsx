@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, AlertCircle } from "lucide-react";
+import { RotateCcw, AlertCircle, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 // Déclaration TypeScript pour le widget custom element
@@ -21,6 +21,7 @@ declare global {
         'start-call-text'?: string;
         'end-call-text'?: string;
         'dynamic-variables'?: string;
+        'auto-open'?: boolean;
         style?: React.CSSProperties;
         ref?: React.RefObject<HTMLElement>;
       };
@@ -31,16 +32,64 @@ declare global {
 interface KpakpatoVoiceWidgetProps {
   className?: string;
   position?: 'bottom-right' | 'bottom-left' | 'center';
+  agentId?: string;
+  serverLocation?: string;
+  variant?: string;
+  actionText?: string;
+  startCallText?: string;
+  endCallText?: string;
+  dynamicVariables?: object;
+  autoOpen?: boolean;
+  onUnsupported?: () => void;
 }
+
+// Vérification du support AudioWorklet
+const isAudioWorkletSupported = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  
+  try {
+    // Vérifier le support d'AudioContext et AudioWorklet
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return false;
+    
+    // Vérifier que AudioWorklet est disponible
+    const audioContext = new AudioContextClass();
+    const hasAudioWorklet = audioContext.audioWorklet !== undefined;
+    
+    // Nettoyer le contexte audio de test
+    audioContext.close();
+    
+    return hasAudioWorklet;
+  } catch (error) {
+    console.warn('AudioWorklet support check failed:', error);
+    return false;
+  }
+};
+
+// Vérifier si on est en HTTPS ou localhost
+const isSecureContext = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return window.isSecureContext || window.location.hostname === 'localhost';
+};
 
 export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({ 
   className = "", 
-  position = 'bottom-right' 
+  position = 'bottom-right',
+  agentId = "agent_6201k518xhz2eemtsrbf38fmjq7p",
+  serverLocation = "us",
+  variant = "expanded",
+  actionText = "Parler avec Kpakpato",
+  startCallText = "Démarrer",
+  endCallText = "Terminer",
+  dynamicVariables,
+  autoOpen = false,
+  onUnsupported
 }) => {
   const [isReady, setIsReady] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [hasError, setHasError] = useState<string | null>(null);
   const [isCallActive, setIsCallActive] = useState(false);
+  const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const widgetRef = useRef<HTMLElement>(null);
 
   // Gestion SSR - ne rien faire côté serveur
@@ -50,16 +99,52 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
     setIsClient(true);
   }, []);
 
-  // Variables dynamiques depuis localStorage
-  const getDynamicVariables = () => {
+  // Vérifier le support du navigateur
+  useEffect(() => {
+    if (!isClient) return;
+
+    console.log('🔍 Vérification du support AudioWorklet...');
+    
+    const audioWorkletSupported = isAudioWorkletSupported();
+    const secureContext = isSecureContext();
+    
+    console.log('AudioWorklet supporté:', audioWorkletSupported);
+    console.log('Contexte sécurisé (HTTPS):', secureContext);
+    
+    if (!audioWorkletSupported || !secureContext) {
+      setIsSupported(false);
+      const reason = !secureContext 
+        ? 'HTTPS requis pour la conversation vocale'
+        : 'AudioWorklet non supporté par ce navigateur';
+      
+      console.warn('❌ Widget vocal non supporté:', reason);
+      setHasError(`Votre navigateur ne supporte pas la conversation vocale (${reason})`);
+      
+      if (onUnsupported) {
+        onUnsupported();
+      }
+      
+      return;
+    }
+    
+    setIsSupported(true);
+    console.log('✅ Support navigateur confirmé');
+  }, [isClient, onUnsupported]);
+
+  // Variables dynamiques
+  const getDynamicVariables = useCallback(() => {
     if (typeof window === 'undefined') return '{}';
+    
+    if (dynamicVariables) {
+      return JSON.stringify(dynamicVariables);
+    }
     
     const userName = localStorage.getItem("name") || "Visiteur";
     return JSON.stringify({
       user_name: userName,
       origin: "bot.bj"
     });
-  };
+  }, [dynamicVariables]);
 
   // Vérifier les permissions microphone
   const checkMicrophonePermissions = async () => {
@@ -79,7 +164,7 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
 
   // Charger le script ElevenLabs une seule fois
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || !isSupported) return;
 
     // Vérifier si déjà chargé
     if (window.__elevenlabs_convai_loaded) {
@@ -112,7 +197,7 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
     } else {
       setScriptLoaded(true);
     }
-  }, [isClient]);
+  }, [isClient, isSupported]);
 
   // Vérifier que le custom element est disponible
   useEffect(() => {
@@ -166,16 +251,31 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
     };
   }, [isReady]);
 
-  // Reset du widget
-  const resetWidget = () => {
+  // Helpers pour contrôler le widget
+  const openKpakpatoWidget = useCallback(() => {
     if (widgetRef.current) {
-      console.log('🔄 Reset du widget Kpakpato');
+      console.log('🔊 Ouverture du widget Kpakpato');
+      widgetRef.current.dispatchEvent(new CustomEvent('elevenlabs-convai:open'));
+    }
+  }, []);
+
+  const closeKpakpatoWidget = useCallback(() => {
+    if (widgetRef.current) {
+      console.log('🔇 Fermeture du widget Kpakpato');
+      widgetRef.current.dispatchEvent(new CustomEvent('elevenlabs-convai:close'));
+      setIsCallActive(false);
+    }
+  }, []);
+
+  const resetKpakpatoSession = useCallback(() => {
+    if (widgetRef.current) {
+      console.log('🔄 Reset de la session Kpakpato');
       widgetRef.current.dispatchEvent(new CustomEvent('elevenlabs-convai:reset'));
       setIsCallActive(false);
       setHasError(null);
-      toast.info('🔄 Widget réinitialisé');
+      toast.info('🔄 Session réinitialisée');
     }
-  };
+  }, []);
 
   // Vérifier permissions avant d'utiliser le widget
   const handleWidgetClick = async () => {
@@ -204,6 +304,31 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
     return null;
   }
 
+  // Navigateur non supporté
+  if (isSupported === false) {
+    return (
+      <div className={`${getPositionStyles()} ${className}`}>
+        <div className="bg-warning/10 border border-warning/20 rounded-lg p-4 max-w-sm shadow-lg">
+          <div className="flex items-center space-x-2 text-warning">
+            <MicOff className="h-4 w-4" />
+            <span className="text-sm font-medium">Widget vocal indisponible</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Votre navigateur ne supporte pas la conversation vocale (HTTPS et navigateur récent requis)
+          </p>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => window.open('https://elevenlabs.io/app/talk-to?agent_id=' + agentId, '_blank')} 
+            className="mt-2 w-full"
+          >
+            Ouvrir dans ElevenLabs
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // État de chargement
   if (!isReady) {
     return (
@@ -219,15 +344,24 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
   if (hasError) {
     return (
       <div className={`${getPositionStyles()} ${className}`}>
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-w-sm">
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-w-sm shadow-lg">
           <div className="flex items-center space-x-2 text-destructive">
             <AlertCircle className="h-4 w-4" />
             <span className="text-sm font-medium">Erreur Kpakpato</span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">{hasError}</p>
-          <Button size="sm" variant="outline" onClick={resetWidget} className="mt-2">
-            Réessayer
-          </Button>
+          <div className="flex gap-2 mt-2">
+            <Button size="sm" variant="outline" onClick={resetKpakpatoSession}>
+              Réessayer
+            </Button>
+            <Button 
+              size="sm" 
+              variant="secondary" 
+              onClick={() => window.open('https://elevenlabs.io/app/talk-to?agent_id=' + agentId, '_blank')}
+            >
+              Ouvrir ElevenLabs
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -236,30 +370,42 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
   return (
     <div className={`${getPositionStyles()} ${className}`}>
       <div className="space-y-2">
-        {/* Bouton de reset (visible pendant un appel) */}
+        {/* Boutons de contrôle (visibles pendant un appel) */}
         {isCallActive && (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={resetWidget}
-            className="flex items-center space-x-1 shadow-lg"
-          >
-            <RotateCcw className="h-3 w-3" />
-            <span className="text-xs">Reset</span>
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={resetKpakpatoSession}
+              className="flex items-center space-x-1 shadow-lg"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span className="text-xs">Reset</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={closeKpakpatoWidget}
+              className="flex items-center space-x-1 shadow-lg"
+            >
+              <MicOff className="h-3 w-3" />
+              <span className="text-xs">Stop</span>
+            </Button>
+          </div>
         )}
         
         {/* Widget ElevenLabs avec configuration complète */}
         <div onClick={handleWidgetClick}>
           <elevenlabs-convai
             ref={widgetRef}
-            agent-id="agent_6201k518xhz2eemtsrbf38fmjq7p"
-            server-location="us"
-            variant="expanded"
-            action-text="Parler avec Kpakpato"
-            start-call-text="Démarrer"
-            end-call-text="Terminer"
+            agent-id={agentId}
+            server-location={serverLocation}
+            variant={variant}
+            action-text={actionText}
+            start-call-text={startCallText}
+            end-call-text={endCallText}
             dynamic-variables={getDynamicVariables()}
+            auto-open={autoOpen}
             style={{
               display: "block",
               maxWidth: position === 'center' ? '520px' : '300px',
@@ -271,6 +417,12 @@ export const KpakpatoVoiceWidget: React.FC<KpakpatoVoiceWidgetProps> = ({
       </div>
     </div>
   );
+};
+
+// Export des helpers pour utilisation externe
+export const KpakpatoHelpers = {
+  isAudioWorkletSupported,
+  isSecureContext,
 };
 
 export default KpakpatoVoiceWidget;
