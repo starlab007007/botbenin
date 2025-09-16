@@ -192,10 +192,29 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       // Configurer MediaRecorder avec paramètres optimisés
       try {
         console.log('📼 Configuration MediaRecorder...');
-        mediaRecorderRef.current = new MediaRecorder(stream, {
-          mimeType: 'audio/webm;codecs=opus',
-          audioBitsPerSecond: 48000
-        });
+        
+        // Essayer différents formats audio compatibles
+        let mimeType = 'audio/webm;codecs=opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'audio/webm';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/mp4';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+              mimeType = ''; // Utiliser le format par défaut
+            }
+          }
+        }
+        
+        const mediaRecorderOptions: MediaRecorderOptions = {
+          audioBitsPerSecond: 16000
+        };
+        
+        if (mimeType) {
+          mediaRecorderOptions.mimeType = mimeType;
+        }
+        
+        mediaRecorderRef.current = new MediaRecorder(stream, mediaRecorderOptions);
+        
         console.log('✅ MediaRecorder:', {
           state: mediaRecorderRef.current.state,
           mimeType: mediaRecorderRef.current.mimeType
@@ -210,7 +229,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       console.log('🔗 URL WebSocket:', signedUrl.substring(0, 100) + '...');
       
       // Créer WebSocket avec gestion d'erreur détaillée
-      wsRef.current = new WebSocket(signedUrl, ['convai']);
+      wsRef.current = new WebSocket(signedUrl);
       
       // Log de l'état initial
       console.log('📡 WebSocket créé:', {
@@ -231,26 +250,12 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         
         setIsConnected(true);
         
-        // CRITIQUE: Envoyer l'initialisation de conversation IMMÉDIATEMENT
-        try {
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            console.log('📤 Envoi OBLIGATOIRE de l\'initialisation...');
-            const initMessage = {
-              type: "conversation_initiation_client_data"
-            };
-            wsRef.current.send(JSON.stringify(initMessage));
-            console.log('✅ Message d\'initialisation envoyé:', initMessage);
-          }
-        } catch (error) {
-          console.error('❌ ERREUR CRITIQUE initialisation:', error);
-        }
-        
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
         });
         
-        // Démarrer l'enregistrement après initialisation
+        // Démarrer l'enregistrement après connexion
         setTimeout(() => {
           try {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
@@ -392,9 +397,10 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
               try {
                 const base64 = (reader.result as string).split(',')[1];
                 
-                // FORMAT CORRECT selon la documentation officielle
+                // FORMAT CORRECT selon ElevenLabs ConvAI
                 const message = {
-                  user_audio_chunk: base64
+                  type: "audio",
+                  data: base64
                 };
                 
                 console.log('📤 Envoi chunk:', {
