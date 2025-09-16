@@ -103,7 +103,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
     try {
       console.log('🔑 Génération URL signée...');
       const { data, error } = await supabase.functions.invoke('elevenlabs-signed-url', {
-        body: { agent_id: AGENT_ID }
+        body: { agentId: AGENT_ID }
       });
 
       if (error) throw error;
