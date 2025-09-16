@@ -1,8 +1,19 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Mic, MicOff, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import KpakpatoConversation from './KpakpatoConversation';
+import {
+  checkAudioSupport,
+  ensureConvaiScript,
+  mountWidget,
+  startConversation,
+  stopConversation,
+  getWidget,
+  removeWidget
+} from '@/lib/elevenLabs';
+
+// Agent ID par défaut ou depuis les variables d'environnement
+const AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID || 'agent_6201k518xhz2eemtsrbf38fmjq7p';
 
 export const KpakpatoFloatingButton: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -15,52 +26,127 @@ export const KpakpatoFloatingButton: React.FC = () => {
   const handleToggle = useCallback(async () => {
     setError(null);
     
-    if (!isActive) {
-      setIsLoading(true);
-      toast.info('Initialisation de Kpakpato…', { 
-        duration: 2000,
-        position: 'bottom-center' 
-      });
-    }
-    
-    // Le composant KpakpatoConversation gère la logique
-    setIsActive(!isActive);
-    
-    if (isActive) {
-      toast.info('Conversation terminée', {
-        duration: 1500,
-        position: 'bottom-center'
-      });
+    try {
+      if (!isActive) {
+        // Démarrer la conversation
+        setIsLoading(true);
+        
+        // Vérifier d'abord le support audio
+        const audioSupport = checkAudioSupport();
+        if (!audioSupport.supported) {
+          throw new Error(audioSupport.error || 'Navigateur non compatible');
+        }
+        
+        toast.info('Initialisation de Kpakpato…', { 
+          duration: 2000,
+          position: 'bottom-center' 
+        });
+
+        // Charger le script et monter le widget
+        await ensureConvaiScript();
+        const element = await mountWidget(AGENT_ID);
+
+        // Écouter les événements du widget si disponibles
+        const handleWidgetEvent = (eventType: string) => {
+          switch (eventType) {
+            case 'opened':
+            case 'started':
+              setIsActive(true);
+              break;
+            case 'closed':
+            case 'stopped':
+            case 'ended':
+              setIsActive(false);
+              break;
+            case 'error':
+              setError('Erreur du widget');
+              toast.error('Erreur lors de l\'utilisation du widget');
+              break;
+          }
+        };
+
+        // Tentative d'écoute des événements
+        ['opened', 'closed', 'started', 'stopped', 'ended', 'error'].forEach(eventType => {
+          element.addEventListener?.(eventType, () => handleWidgetEvent(eventType));
+        });
+
+        // Démarrer la conversation
+        await startConversation(element);
+        setIsActive(true);
+        
+        toast.success('🎤 Kpakpato est à l\'écoute !', {
+          duration: 2000,
+          position: 'bottom-center'
+        });
+      } else {
+        // Arrêter la conversation
+        const element = getWidget();
+        if (element) {
+          await stopConversation(element);
+        }
+        setIsActive(false);
+        toast.info('Conversation terminée', {
+          duration: 1500,
+          position: 'bottom-center'
+        });
+      }
+    } catch (error: any) {
+      console.error('Erreur KpakpatoButton:', error);
+      setError(error.message || 'Erreur inconnue');
+      
+      if (error.message?.includes('micro') || error.message?.includes('Micro')) {
+        toast.error('🎤 Micro non accessible. Autorise le micro dans ton navigateur.', {
+          duration: 4000,
+          position: 'bottom-center'
+        });
+      } else if (error.message?.includes('AudioWorklet') || error.message?.includes('AudioContext')) {
+        toast.error('🔊 Navigateur non compatible. Utilise Chrome 66+, Firefox 76+ ou Safari 14.1+', {
+          duration: 5000,
+          position: 'bottom-center'
+        });
+      } else if (error.message?.includes('sécurisé') || error.message?.includes('HTTPS')) {
+        toast.error('🔒 Connexion sécurisée requise (HTTPS) pour la fonction vocale', {
+          duration: 4000,
+          position: 'bottom-center'
+        });
+      } else {
+        toast.error(`❌ Erreur: ${error.message}`, {
+          duration: 4000,
+          position: 'bottom-center'
+        });
+      }
+    } finally {
+      setIsLoading(false);
     }
   }, [isActive]);
 
   /**
-   * Callback quand le status change depuis KpakpatoConversation
-   */
-  const handleStatusChange = useCallback((active: boolean) => {
-    setIsActive(active);
-    setIsLoading(false);
-  }, []);
-
-  /**
-   * Callback pour les erreurs depuis KpakpatoConversation
-   */
-  const handleError = useCallback((errorMessage: string) => {
-    setError(errorMessage);
-    setIsLoading(false);
-    setIsActive(false);
-  }, []);
-
-  /**
-   * Fonction pour fermer complètement la conversation
+   * Fonction pour fermer complètement le widget
    */
   const handleClose = useCallback(async () => {
+    const element = getWidget();
+    if (element) {
+      await stopConversation(element);
+    }
+    removeWidget();
     setIsActive(false);
     toast.info('Kpakpato fermé', {
       duration: 1500,
       position: 'bottom-center'
     });
   }, []);
+
+  /**
+   * Nettoyage au démontage du composant
+   */
+  useEffect(() => {
+    return () => {
+      const element = getWidget();
+      if (element && isActive) {
+        stopConversation(element).catch(console.warn);
+      }
+    };
+  }, [isActive]);
 
   /**
    * Libellé dynamique du bouton
@@ -90,13 +176,6 @@ export const KpakpatoFloatingButton: React.FC = () => {
 
   return (
     <>
-      {/* Composant de gestion de la conversation */}
-      <KpakpatoConversation
-        isActive={isActive}
-        onStatusChange={handleStatusChange}
-        onError={handleError}
-      />
-
       {/* Bouton principal flottant */}
       <Button
         onClick={handleToggle}
