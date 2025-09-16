@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-const AGENT_ID = 'agent_6201k518xhz2eemtsrbf38fmjq7p';
+const AGENT_ID = 'agent_6201k518xhz2eemtsrbf38fmjq7p'; // Agent Kpakpato officiel
 
 interface Message {
   id: string;
@@ -116,19 +116,20 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
     }, 100);
   }, []);
 
-  // Envoyer un message texte
+  // Envoyer un message texte (via contextual update pour ne pas interrompre)
   const sendTextMessage = useCallback((text: string) => {
     if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
 
     try {
+      // Utiliser contextual_update pour envoyer du texte sans interrompre
       const message = {
-        type: "text",
+        type: "contextual_update",
         text: text.trim()
       };
       
-      console.log('📤 Envoi message texte:', message);
+      console.log('📤 Envoi contextual update:', message);
       wsRef.current.send(JSON.stringify(message));
       
       // Ajouter le message à l'interface
@@ -310,6 +311,20 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         setIsConnected(true);
         setShowChatWindow(true);
         
+        // Envoyer l'initialisation de conversation IMMÉDIATEMENT après connexion
+        try {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            console.log('📤 Envoi OBLIGATOIRE de l\'initialisation...');
+            const initMessage = {
+              type: "conversation_initiation_client_data"
+            };
+            wsRef.current.send(JSON.stringify(initMessage));
+            console.log('✅ Message d\'initialisation envoyé:', initMessage);
+          }
+        } catch (error) {
+          console.error('❌ ERREUR CRITIQUE initialisation:', error);
+        }
+        
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
@@ -318,18 +333,18 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         // Message de bienvenue
         addMessage('agent', 'Salut ! Je suis Kpakpato, votre assistant IA. Vous pouvez me parler ou m\'écrire !');
         
-        // Démarrer l'enregistrement après connexion
+        // Démarrer l'enregistrement après initialisation
         setTimeout(() => {
           try {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
               console.log('🎤 Démarrage de l\'enregistrement...');
-              mediaRecorderRef.current.start(100);
+              mediaRecorderRef.current.start(100); // Plus petit chunk pour réactivité
               console.log('✅ Enregistrement démarré');
             }
           } catch (error) {
             console.error('❌ Erreur démarrage enregistrement:', error);
           }
-        }, 200);
+        }, 500); // Délai plus long pour s'assurer que l'init est processée
       };
 
       wsRef.current.onmessage = (event) => {
@@ -342,29 +357,38 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           // Gérer tous les types de messages ElevenLabs
           if (message.type === 'conversation_initiation_metadata') {
             console.log('🎬 Métadonnées conversation OK');
-          } else if (message.type === 'audio_event') {
+          } else if (message.type === 'audio') {
             console.log('🔊 Audio reçu du bot');
-            if (message.audio_base_64) {
+            if (message.audio_event?.audio_base_64) {
               setIsSpeaking(true);
-              playAudioResponse(message.audio_base_64);
+              playAudioResponse(message.audio_event.audio_base_64);
             }
           } else if (message.type === 'user_transcript') {
-            console.log('📝 Transcription:', message.text);
-            if (message.text?.trim()) {
-              addMessage('user', message.text.trim());
+            console.log('📝 Transcription:', message.user_transcription_event?.user_transcript);
+            if (message.user_transcription_event?.user_transcript?.trim()) {
+              addMessage('user', message.user_transcription_event.user_transcript.trim());
             }
-          } else if (message.type === 'agent_response_event') {
-            console.log('🤖 Réponse agent:', message.text);
-            if (message.text?.trim()) {
-              addMessage('agent', message.text.trim());
+          } else if (message.type === 'agent_response') {
+            console.log('🤖 Réponse agent:', message.agent_response_event?.agent_response);
+            if (message.agent_response_event?.agent_response?.trim()) {
+              addMessage('agent', message.agent_response_event.agent_response.trim());
+            }
+          } else if (message.type === 'agent_response_correction') {
+            console.log('🔧 Correction agent:', message.agent_response_correction_event?.corrected_agent_response);
+            if (message.agent_response_correction_event?.corrected_agent_response?.trim()) {
+              addMessage('agent', message.agent_response_correction_event.corrected_agent_response.trim());
             }
           } else if (message.type === 'interruption') {
-            console.log('⏸️ Interruption');
+            console.log('⏸️ Interruption:', message.interruption_event?.reason);
             setIsSpeaking(false);
           } else if (message.type === 'ping') {
             console.log('🏓 Ping -> Pong');
             if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: 'pong' }));
+              const pongMessage = {
+                type: 'pong',
+                event_id: message.ping_event?.event_id
+              };
+              wsRef.current.send(JSON.stringify(pongMessage));
             }
           } else {
             console.log('❓ Type inconnu:', message.type, message);
@@ -467,10 +491,9 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
               try {
                 const base64 = (reader.result as string).split(',')[1];
                 
-                // FORMAT CORRECT selon ElevenLabs ConvAI
+                // FORMAT CORRECT selon ElevenLabs ConvAI API officielle
                 const message = {
-                  type: "audio",
-                  data: base64
+                  user_audio_chunk: base64
                 };
                 
                 console.log('📤 Envoi chunk:', {
