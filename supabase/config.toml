@@ -102,3 +102,6 @@ verify_jwt = false
 
 [functions.elevenlabs-diagnostic]
 verify_jwt = false
+
+[functions.elevenlabs-check-permissions]
+verify_jwt = false
