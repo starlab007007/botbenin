@@ -123,13 +123,13 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
     }
 
     try {
-      // Utiliser contextual_update pour envoyer du texte sans interrompre
+      // Utiliser user_message pour envoyer du texte 
       const message = {
-        type: "contextual_update",
-        text: text.trim()
+        type: "user_message",
+        user_message: text.trim()
       };
       
-      console.log('📤 Envoi contextual update:', message);
+      console.log('📤 Envoi user_message:', message);
       wsRef.current.send(JSON.stringify(message));
       
       // Ajouter le message à l'interface
@@ -311,19 +311,9 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         setIsConnected(true);
         setShowChatWindow(true);
         
-        // Envoyer l'initialisation de conversation IMMÉDIATEMENT après connexion
-        try {
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            console.log('📤 Envoi OBLIGATOIRE de l\'initialisation...');
-            const initMessage = {
-              type: "conversation_initiation_client_data"
-            };
-            wsRef.current.send(JSON.stringify(initMessage));
-            console.log('✅ Message d\'initialisation envoyé:', initMessage);
-          }
-        } catch (error) {
-          console.error('❌ ERREUR CRITIQUE initialisation:', error);
-        }
+        // PAS d'initialisation manuelle - le signed URL contient tout le nécessaire
+        // L'agent démarrera automatiquement après la connexion WebSocket
+        console.log('✅ Connexion établie, en attente de l\'initialisation du serveur...');
         
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
@@ -333,18 +323,18 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         // Message de bienvenue
         addMessage('agent', 'Salut ! Je suis Kpakpato, votre assistant IA. Vous pouvez me parler ou m\'écrire !');
         
-        // Démarrer l'enregistrement après initialisation
+        // Démarrer l'enregistrement immédiatement après connexion
         setTimeout(() => {
           try {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
               console.log('🎤 Démarrage de l\'enregistrement...');
-              mediaRecorderRef.current.start(100); // Plus petit chunk pour réactivité
+              mediaRecorderRef.current.start(200); // Chunks de 200ms pour de meilleures performances
               console.log('✅ Enregistrement démarré');
             }
           } catch (error) {
             console.error('❌ Erreur démarrage enregistrement:', error);
           }
-        }, 500); // Délai plus long pour s'assurer que l'init est processée
+        }, 100); // Délai minimal
       };
 
       wsRef.current.onmessage = (event) => {
@@ -493,6 +483,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
                 
                 // FORMAT CORRECT selon ElevenLabs ConvAI API officielle
                 const message = {
+                  type: "user_audio_chunk",
                   user_audio_chunk: base64
                 };
                 
