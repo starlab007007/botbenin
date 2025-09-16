@@ -11,8 +11,16 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json()
-    console.log('📥 Body reçu:', JSON.stringify(body))
+    let body;
+    try {
+      body = await req.json()
+      console.log('📥 Body reçu:', JSON.stringify(body))
+    } catch (jsonError) {
+      console.error('❌ JSON parsing error:', jsonError.message)
+      const text = await req.text()
+      console.log('📄 Raw body received:', text)
+      throw new Error('Invalid JSON in request body')
+    }
     const { agentId } = body
     
     console.log('🔑 Generating signed URL for agent:', agentId)

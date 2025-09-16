@@ -103,23 +103,40 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
     try {
       console.log('🔑 Génération URL signée...', { AGENT_ID });
       console.log('📤 Envoi requête avec body:', { agentId: AGENT_ID });
+      
+      // Test d'abord si AGENT_ID est défini
+      if (!AGENT_ID) {
+        throw new Error('AGENT_ID is not defined');
+      }
+      
       const { data, error } = await supabase.functions.invoke('elevenlabs-signed-url', {
-        body: { agentId: AGENT_ID }
+        body: JSON.stringify({ agentId: AGENT_ID }),
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
 
-      if (error) throw error;
+      console.log('📥 Response data:', data);
+      console.log('❌ Response error:', error);
+
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
       
-      if (!data?.signed_url) {
+      if (!data?.signedUrl) {
+        console.error('No signed URL in response:', data);
         throw new Error('URL signée non reçue');
       }
 
       console.log('✅ URL signée générée');
-      return data.signed_url;
+      return data.signedUrl;
     } catch (error) {
       console.error('❌ Erreur génération URL signée:', error);
+      onError(`Impossible de générer l'URL de connexion: ${error.message}`);
       throw new Error('Impossible de générer l\'URL de connexion');
     }
-  }, []);
+  }, [onError]);
 
   // Fonction principale pour démarrer la conversation
   const startConversation = useCallback(async () => {
