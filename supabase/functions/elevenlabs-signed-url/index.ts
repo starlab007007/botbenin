@@ -11,9 +11,12 @@ serve(async (req) => {
   }
 
   try {
-    const { agentId } = await req.json()
+    const body = await req.json()
+    console.log('📥 Body reçu:', JSON.stringify(body))
+    const { agentId } = body
     
     console.log('🔑 Generating signed URL for agent:', agentId)
+    console.log('🔍 Type of agentId:', typeof agentId)
 
     if (!agentId) {
       throw new Error('Agent ID is required')
