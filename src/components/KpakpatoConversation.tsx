@@ -121,9 +121,9 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         mimeType: 'audio/webm;codecs=opus'
       });
 
-      // Établir connexion WebSocket
-      const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
-      wsRef.current = new WebSocket(wsUrl);
+      // Établir connexion WebSocket avec les bons paramètres
+      const wsUrl = `wss://api.us.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}&source=react_sdk&version=0.5.0`;
+      wsRef.current = new WebSocket(wsUrl, ['convai']);
 
       wsRef.current.onopen = () => {
         console.log('✅ WebSocket connecté');
