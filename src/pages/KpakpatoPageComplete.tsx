@@ -1,7 +1,19 @@
-import React from 'react';
-import { KpakpatoVoiceButton } from '@/components/KpakpatoVoiceButton';
+import React, { useState } from 'react';
+import { KpakpatoConversation } from '@/components/KpakpatoConversation';
 
 export const KpakpatoPage: React.FC = () => {
+  const [isConversationActive, setIsConversationActive] = useState(false);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+
+  const handleToggleConversation = () => {
+    setIsConversationActive(!isConversationActive);
+  };
+
+  const handleConversationError = (error: string) => {
+    setConversationError(error);
+    console.error('Erreur Kpakpato:', error);
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background">
       {/* Background effects */}
@@ -85,22 +97,19 @@ export const KpakpatoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Boutons vocaux Kpakpato */}
-      <KpakpatoVoiceButton
-        variant="floating"
-        userName="Utilisateur"
-        origin="bot.bj"
+      {/* Conversation Kpakpato intégrée */}
+      <KpakpatoConversation
+        isActive={isConversationActive}
+        onToggle={handleToggleConversation}
+        onError={handleConversationError}
       />
-      
-      {/* Bouton central pour desktop */}
-      <div className="hidden md:flex justify-center mt-8">
-        <KpakpatoVoiceButton
-          variant="inline"
-          userName="Utilisateur"
-          origin="bot.bj"
-          className="text-lg px-8 py-4"
-        />
-      </div>
+
+      {/* Affichage des erreurs */}
+      {conversationError && (
+        <div className="fixed bottom-4 left-4 max-w-sm p-4 bg-destructive text-destructive-foreground rounded-lg shadow-lg z-40">
+          <p className="text-sm">{conversationError}</p>
+        </div>
+      )}
 
       {/* Enhanced CSS Animations */}
       <style dangerouslySetInnerHTML={{
