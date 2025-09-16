@@ -174,31 +174,90 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       wsRef.current.onopen = () => {
         console.log('✅ WebSocket connecté');
         setIsConnected(true);
+        
+        // OBLIGATOIRE: Envoyer l'initialisation de conversation selon la doc ElevenLabs
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          console.log('📤 Envoi de l\'initialisation de conversation...');
+          wsRef.current.send(JSON.stringify({
+            type: "conversation_initiation_client_data"
+          }));
+        }
+        
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
         });
         
-        // Démarrer l'enregistrement
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
-          mediaRecorderRef.current.start(100); // Envoi toutes les 100ms
-        }
+        // Démarrer l'enregistrement après initialisation
+        setTimeout(() => {
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+            console.log('🎤 Démarrage de l\'enregistrement...');
+            mediaRecorderRef.current.start(100); // Envoi toutes les 100ms
+          }
+        }, 500);
       };
 
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('💬 Message reçu:', data);
+          console.log('💬 Message WebSocket reçu:', data);
           
-          if (data.type === 'audio') {
-            // Traiter l'audio reçu
-            setIsSpeaking(true);
-            playAudioResponse(data.audio);
-          } else if (data.type === 'message') {
-            console.log('📝 Transcription:', data.text);
+          // Gestion des ping/pong (OBLIGATOIRE selon la doc)
+          if (data.type === "ping") {
+            console.log('🏓 Ping reçu, envoi du pong...');
+            const pongDelay = data.ping_event?.ping_ms || 0;
+            setTimeout(() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                  type: "pong",
+                  event_id: data.ping_event.event_id
+                }));
+                console.log('🏓 Pong envoyé');
+              }
+            }, pongDelay);
+            return;
           }
+          
+          // Gestion des transcriptions utilisateur
+          if (data.type === "user_transcript") {
+            console.log('🗣️ Transcription utilisateur:', data.user_transcription_event?.user_transcript);
+            return;
+          }
+          
+          // Gestion des réponses de l'agent (texte)
+          if (data.type === "agent_response") {
+            console.log('🤖 Réponse agent:', data.agent_response_event?.agent_response);
+            return;
+          }
+          
+          // Gestion des corrections de réponse
+          if (data.type === "agent_response_correction") {
+            console.log('🔄 Correction agent:', data.agent_response_correction_event?.corrected_agent_response);
+            return;
+          }
+          
+          // Gestion de l'audio (FORMAT CORRECT selon la doc)
+          if (data.type === "audio") {
+            console.log('🔊 Audio reçu, event_id:', data.audio_event?.event_id);
+            setIsSpeaking(true);
+            
+            if (data.audio_event?.audio_base_64) {
+              playAudioResponse(data.audio_event.audio_base_64);
+            }
+            return;
+          }
+          
+          // Gestion des interruptions
+          if (data.type === "interruption") {
+            console.log('⛔ Interruption:', data.interruption_event?.reason);
+            setIsSpeaking(false);
+            return;
+          }
+          
+          console.log('❓ Type de message non géré:', data.type);
+          
         } catch (error) {
-          console.error('❌ Erreur parsing message:', error);
+          console.error('❌ Erreur parsing message WebSocket:', error);
         }
       };
 
@@ -217,22 +276,32 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         });
       };
 
-      // Configurer l'envoi d'audio
+      // Configurer l'envoi d'audio (FORMAT CORRECT selon la doc ElevenLabs)
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.ondataavailable = (event) => {
           if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-            // Convertir en base64 et envoyer
+            console.log('🎤 Envoi chunk audio, taille:', event.data.size, 'bytes');
+            
+            // Convertir en base64 selon le format ElevenLabs
             const reader = new FileReader();
             reader.onload = () => {
               const base64 = (reader.result as string).split(',')[1];
-              wsRef.current?.send(JSON.stringify({
-                type: 'audio',
-                audio: base64
-              }));
+              
+              // FORMAT CORRECT selon la documentation officielle
+              const message = {
+                user_audio_chunk: base64
+              };
+              
+              wsRef.current?.send(JSON.stringify(message));
+              console.log('📤 Chunk audio envoyé');
             };
             reader.readAsDataURL(event.data);
+          } else {
+            console.log('⚠️ Chunk audio ignoré - WebSocket pas prêt ou chunk vide');
           }
         };
+        
+        console.log('✅ MediaRecorder configuré avec callbacks');
       }
 
     } catch (error: any) {
