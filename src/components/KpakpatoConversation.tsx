@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Mic, MicOff, Phone, PhoneOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const AGENT_ID = 'agent_6201k518xhz2eemtsrbf38fmjq7p';
 
@@ -103,19 +104,15 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       });
 
       // Générer signed URL avec la clé API ElevenLabs
-      const response = await fetch('/api/elevenlabs/signed-url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ agentId: AGENT_ID })
+      const { data, error } = await supabase.functions.invoke('elevenlabs-signed-url', {
+        body: { agentId: AGENT_ID }
       });
 
-      if (!response.ok) {
-        throw new Error('Impossible de générer le lien signé. Vérifiez votre clé API ElevenLabs.');
+      if (error || !data?.signedUrl) {
+        throw new Error(error?.message || 'Impossible de générer le lien signé. Vérifiez votre clé API ElevenLabs.');
       }
 
-      const { signedUrl } = await response.json();
+      const { signedUrl } = data;
 
       // Créer AudioContext
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
