@@ -101,7 +101,8 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
   // Obtenir l'URL signée depuis notre edge function
   const getSignedUrl = useCallback(async (): Promise<string> => {
     try {
-      console.log('🔑 Génération URL signée...');
+      console.log('🔑 Génération URL signée...', { AGENT_ID });
+      console.log('📤 Envoi requête avec body:', { agentId: AGENT_ID });
       const { data, error } = await supabase.functions.invoke('elevenlabs-signed-url', {
         body: { agentId: AGENT_ID }
       });
