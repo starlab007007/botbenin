@@ -104,36 +104,71 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       });
 
       // Générer signed URL avec la clé API ElevenLabs
+      console.log('🔑 Génération du signed URL...');
       const { data, error } = await supabase.functions.invoke('elevenlabs-signed-url', {
         body: { agentId: AGENT_ID }
       });
 
-      if (error || !data?.signedUrl) {
-        throw new Error(error?.message || 'Impossible de générer le lien signé. Vérifiez votre clé API ElevenLabs.');
+      console.log('📡 Réponse de la fonction:', { data, error });
+
+      if (error) {
+        console.error('❌ Erreur de la fonction:', error);
+        throw new Error(`Erreur fonction: ${error.message}`);
+      }
+
+      if (!data?.signedUrl) {
+        console.error('❌ Pas de signedUrl dans la réponse:', data);
+        throw new Error('Impossible de générer le lien signé. Vérifiez votre clé API ElevenLabs.');
       }
 
       const { signedUrl } = data;
+      console.log('✅ Signed URL généré:', signedUrl?.substring(0, 100) + '...');
 
-      // Créer AudioContext
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Créer AudioContext avec gestion des erreurs
+      try {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
+          sampleRate: 24000
+        });
+        
+        // Reprendre le contexte audio si suspendu
+        if (audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume();
+        }
+        
+        console.log('✅ AudioContext créé:', audioContextRef.current.state);
+      } catch (error) {
+        console.error('❌ Erreur AudioContext:', error);
+        throw new Error('Impossible d\'initialiser l\'audio. Vérifiez vos paramètres navigateur.');
+      }
       
-      // Obtenir le stream audio
+      // Obtenir le stream audio avec paramètres optimisés
+      console.log('🎤 Demande d\'accès au microphone...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 16000
+          sampleRate: 24000,
+          channelCount: 1
         } 
       });
       audioStreamRef.current = stream;
+      console.log('✅ Stream audio obtenu');
 
-      // Configurer MediaRecorder
-      mediaRecorderRef.current = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
+      // Configurer MediaRecorder avec paramètres optimisés
+      try {
+        mediaRecorderRef.current = new MediaRecorder(stream, {
+          mimeType: 'audio/webm;codecs=opus',
+          audioBitsPerSecond: 48000
+        });
+        console.log('✅ MediaRecorder configuré');
+      } catch (error) {
+        console.error('❌ Erreur MediaRecorder:', error);
+        throw new Error('Format audio non supporté par votre navigateur.');
+      }
 
       // Établir connexion WebSocket avec l'URL signée
+      console.log('🌐 Connexion WebSocket...');
       wsRef.current = new WebSocket(signedUrl, ['convai']);
 
       wsRef.current.onopen = () => {

@@ -99,3 +99,6 @@ verify_jwt = false
 
 [functions.elevenlabs-signed-url]
 verify_jwt = false
+
+[functions.elevenlabs-diagnostic]
+verify_jwt = false
