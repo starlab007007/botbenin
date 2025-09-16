@@ -17,7 +17,6 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
   onError
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
   const conversation = useConversation({
     onConnect: () => {
@@ -98,7 +97,9 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           });
           // Arrêter immédiatement le stream de test
           stream.getTracks().forEach(track => track.stop());
+          console.log('✅ Permission micro accordée');
         } catch (error: any) {
+          console.error('❌ Erreur micro:', error);
           if (error.name === 'NotAllowedError') {
             throw new Error('Accès au micro refusé. Autorise le micro dans ton navigateur.');
           } else if (error.name === 'NotFoundError') {
@@ -113,29 +114,25 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         position: 'bottom-center' 
       });
 
-      // Générer l'URL signée si nécessaire
-      if (!signedUrl) {
-        const url = await generateSignedUrl();
-        setSignedUrl(url);
-      }
-
-      // Démarrer la conversation avec l'agent public
-      // Pour les agents publics, utiliser directement l'agentId
+      // Générer l'URL signée pour la connexion
+      const url = await generateSignedUrl();
+      console.log('🔗 Connexion avec URL:', url);
+      
+      // Démarrer la conversation avec l'URL signée
       const id = await conversation.startSession({
-        agentId: AGENT_ID,
-        // Fallback pour URL signée si nécessaire
-        ...(signedUrl ? { signedUrl } : {})
-      } as any);
+        signedUrl: url
+      });
       
       setConversationId(id);
       console.log('✅ Conversation démarrée avec ID:', id);
       
     } catch (error: any) {
       console.error('❌ Erreur démarrage:', error);
-      onError(error.message || 'Impossible de démarrer la conversation');
+      const errorMessage = error?.message || error?.toString() || 'Impossible de démarrer la conversation';
+      onError(errorMessage);
       throw error;
     }
-  }, [conversation, onError, signedUrl, generateSignedUrl]);
+  }, [conversation, onError, generateSignedUrl]);
 
   const endConversation = useCallback(async () => {
     try {
