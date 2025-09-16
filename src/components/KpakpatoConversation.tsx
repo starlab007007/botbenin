@@ -88,12 +88,20 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
 
   const startConversation = useCallback(async () => {
     try {
-      console.log('🚀 Démarrage de la conversation...');
+      console.log('🚀 === DÉBUT CONVERSATION KPAKPATO ===');
+      console.log('🔍 État initial:', { 
+        isActive, 
+        hasPermissions, 
+        isConnected,
+        wsState: wsRef.current?.readyState 
+      });
       
       // Vérifier/demander les permissions d'abord
       if (!hasPermissions) {
+        console.log('🎤 Demande des permissions microphone...');
         const granted = await requestMicrophonePermission();
         if (!granted) {
+          console.log('❌ Permissions refusées');
           return;
         }
       }
@@ -103,46 +111,66 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         position: 'bottom-center'
       });
 
+      // Nettoyer les connexions précédentes
+      if (wsRef.current) {
+        console.log('🧹 Nettoyage connexion précédente...');
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+
       // Générer signed URL avec la clé API ElevenLabs
       console.log('🔑 Génération du signed URL...');
       const { data, error } = await supabase.functions.invoke('elevenlabs-signed-url', {
         body: { agentId: AGENT_ID }
       });
 
-      console.log('📡 Réponse de la fonction:', { data, error });
+      console.log('📡 Réponse signed URL:', { 
+        success: !!data?.signedUrl, 
+        hasError: !!error,
+        errorMsg: error?.message 
+      });
 
       if (error) {
-        console.error('❌ Erreur de la fonction:', error);
+        console.error('❌ Erreur signed URL:', error);
         throw new Error(`Erreur fonction: ${error.message}`);
       }
 
       if (!data?.signedUrl) {
-        console.error('❌ Pas de signedUrl dans la réponse:', data);
+        console.error('❌ Pas de signedUrl:', data);
         throw new Error('Impossible de générer le lien signé. Vérifiez votre clé API ElevenLabs.');
       }
 
       const { signedUrl } = data;
-      console.log('✅ Signed URL généré:', signedUrl?.substring(0, 100) + '...');
+      console.log('✅ Signed URL généré:', {
+        length: signedUrl.length,
+        preview: signedUrl.substring(0, 80) + '...',
+        hasAgent: signedUrl.includes(AGENT_ID)
+      });
 
       // Créer AudioContext avec gestion des erreurs
       try {
+        console.log('🔊 Création AudioContext...');
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
           sampleRate: 24000
         });
         
         // Reprendre le contexte audio si suspendu
         if (audioContextRef.current.state === 'suspended') {
+          console.log('▶️ Reprise AudioContext suspendu...');
           await audioContextRef.current.resume();
         }
         
-        console.log('✅ AudioContext créé:', audioContextRef.current.state);
+        console.log('✅ AudioContext:', {
+          state: audioContextRef.current.state,
+          sampleRate: audioContextRef.current.sampleRate
+        });
       } catch (error) {
         console.error('❌ Erreur AudioContext:', error);
         throw new Error('Impossible d\'initialiser l\'audio. Vérifiez vos paramètres navigateur.');
       }
       
       // Obtenir le stream audio avec paramètres optimisés
-      console.log('🎤 Demande d\'accès au microphone...');
+      console.log('🎤 Demande stream audio...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
@@ -153,34 +181,71 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         } 
       });
       audioStreamRef.current = stream;
-      console.log('✅ Stream audio obtenu');
+      
+      const tracks = stream.getAudioTracks();
+      console.log('✅ Stream audio:', {
+        active: stream.active,
+        trackCount: tracks.length,
+        trackSettings: tracks[0]?.getSettings()
+      });
 
       // Configurer MediaRecorder avec paramètres optimisés
       try {
+        console.log('📼 Configuration MediaRecorder...');
         mediaRecorderRef.current = new MediaRecorder(stream, {
           mimeType: 'audio/webm;codecs=opus',
           audioBitsPerSecond: 48000
         });
-        console.log('✅ MediaRecorder configuré');
+        console.log('✅ MediaRecorder:', {
+          state: mediaRecorderRef.current.state,
+          mimeType: mediaRecorderRef.current.mimeType
+        });
       } catch (error) {
         console.error('❌ Erreur MediaRecorder:', error);
         throw new Error('Format audio non supporté par votre navigateur.');
       }
 
       // Établir connexion WebSocket avec l'URL signée
-      console.log('🌐 Connexion WebSocket...');
+      console.log('🌐 === CONNEXION WEBSOCKET ===');
+      console.log('🔗 URL WebSocket:', signedUrl.substring(0, 100) + '...');
+      
+      // Créer WebSocket avec gestion d'erreur détaillée
       wsRef.current = new WebSocket(signedUrl, ['convai']);
+      
+      // Log de l'état initial
+      console.log('📡 WebSocket créé:', {
+        readyState: wsRef.current.readyState,
+        protocol: wsRef.current.protocol,
+        url: wsRef.current.url?.substring(0, 100) + '...'
+      });
 
+      // === GESTIONNAIRES WEBSOCKET AVEC DIAGNOSTICS DÉTAILLÉS ===
+      
       wsRef.current.onopen = () => {
-        console.log('✅ WebSocket connecté');
+        console.log('🎉 === WEBSOCKET OUVERT ===');
+        console.log('📊 État WebSocket:', {
+          readyState: wsRef.current?.readyState,
+          protocol: wsRef.current?.protocol,
+          extensions: wsRef.current?.extensions
+        });
+        
         setIsConnected(true);
         
         // OBLIGATOIRE: Envoyer l'initialisation de conversation selon la doc ElevenLabs
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          console.log('📤 Envoi de l\'initialisation de conversation...');
-          wsRef.current.send(JSON.stringify({
-            type: "conversation_initiation_client_data"
-          }));
+        try {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            console.log('📤 Envoi de l\'initialisation de conversation...');
+            const initMessage = {
+              type: "conversation_initiation_client_data"
+            };
+            console.log('📤 Message init:', initMessage);
+            wsRef.current.send(JSON.stringify(initMessage));
+            console.log('✅ Initialisation envoyée avec succès');
+          } else {
+            console.error('❌ WebSocket pas ouvert pour initialisation');
+          }
+        } catch (error) {
+          console.error('❌ Erreur envoi initialisation:', error);
         }
         
         toast.success('🎤 Kpakpato est connecté !', {
@@ -188,124 +253,176 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           position: 'bottom-center'
         });
         
-        // Démarrer l'enregistrement après initialisation
+        // Démarrer l'enregistrement après initialisation avec délai
         setTimeout(() => {
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
-            console.log('🎤 Démarrage de l\'enregistrement...');
-            mediaRecorderRef.current.start(100); // Envoi toutes les 100ms
-          }
-        }, 500);
-      };
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('💬 Message WebSocket reçu:', data);
-          
-          // Gestion des ping/pong (OBLIGATOIRE selon la doc)
-          if (data.type === "ping") {
-            console.log('🏓 Ping reçu, envoi du pong...');
-            const pongDelay = data.ping_event?.ping_ms || 0;
-            setTimeout(() => {
-              if (wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                  type: "pong",
-                  event_id: data.ping_event.event_id
-                }));
-                console.log('🏓 Pong envoyé');
-              }
-            }, pongDelay);
-            return;
-          }
-          
-          // Gestion des transcriptions utilisateur
-          if (data.type === "user_transcript") {
-            console.log('🗣️ Transcription utilisateur:', data.user_transcription_event?.user_transcript);
-            return;
-          }
-          
-          // Gestion des réponses de l'agent (texte)
-          if (data.type === "agent_response") {
-            console.log('🤖 Réponse agent:', data.agent_response_event?.agent_response);
-            return;
-          }
-          
-          // Gestion des corrections de réponse
-          if (data.type === "agent_response_correction") {
-            console.log('🔄 Correction agent:', data.agent_response_correction_event?.corrected_agent_response);
-            return;
-          }
-          
-          // Gestion de l'audio (FORMAT CORRECT selon la doc)
-          if (data.type === "audio") {
-            console.log('🔊 Audio reçu, event_id:', data.audio_event?.event_id);
-            setIsSpeaking(true);
-            
-            if (data.audio_event?.audio_base_64) {
-              playAudioResponse(data.audio_event.audio_base_64);
+          try {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+              console.log('🎤 Démarrage de l\'enregistrement...');
+              console.log('📊 État MediaRecorder avant start:', {
+                state: mediaRecorderRef.current.state,
+                stream: !!audioStreamRef.current,
+                streamActive: audioStreamRef.current?.active
+              });
+              
+              mediaRecorderRef.current.start(100); // Envoi toutes les 100ms
+              console.log('✅ Enregistrement démarré');
+            } else {
+              console.warn('⚠️ MediaRecorder pas disponible pour start:', {
+                exists: !!mediaRecorderRef.current,
+                state: mediaRecorderRef.current?.state
+              });
             }
-            return;
+          } catch (error) {
+            console.error('❌ Erreur démarrage enregistrement:', error);
           }
-          
-          // Gestion des interruptions
-          if (data.type === "interruption") {
-            console.log('⛔ Interruption:', data.interruption_event?.reason);
-            setIsSpeaking(false);
-            return;
-          }
-          
-          console.log('❓ Type de message non géré:', data.type);
-          
-        } catch (error) {
-          console.error('❌ Erreur parsing message WebSocket:', error);
-        }
+        }, 1000); // Délai plus long pour stabilité
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('❌ Erreur WebSocket:', error);
-        onError('Erreur de connexion WebSocket');
+        console.error('💥 === ERREUR WEBSOCKET ===');
+        console.error('📊 Détails erreur:', {
+          error: error,
+          readyState: wsRef.current?.readyState,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Log des détails de connexion pour debug
+        console.error('🔍 Debug connexion:', {
+          signedUrlLength: signedUrl?.length,
+          agentId: AGENT_ID,
+          hasConvaiProtocol: wsRef.current?.protocol === 'convai'
+        });
+        
+        onError('Erreur de connexion WebSocket - Vérifiez votre connexion internet et les permissions ElevenLabs');
       };
 
-      wsRef.current.onclose = () => {
-        console.log('📞 WebSocket fermé');
+      wsRef.current.onclose = (event) => {
+        console.log('📞 === WEBSOCKET FERMÉ ===');
+        console.log('📊 Détails fermeture:', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Analyser les codes de fermeture
+        let closeReason = 'Connexion fermée';
+        if (event.code === 1000) {
+          closeReason = 'Fermeture normale';
+        } else if (event.code === 1001) {
+          closeReason = 'Endpoint parti (navigateur fermé)';
+        } else if (event.code === 1002) {
+          closeReason = 'Erreur de protocole';
+        } else if (event.code === 1003) {
+          closeReason = 'Données non supportées';
+        } else if (event.code === 1006) {
+          closeReason = 'Connexion fermée anormalement';
+        } else if (event.code === 1011) {
+          closeReason = 'Erreur serveur';
+        } else if (event.code >= 4000) {
+          closeReason = `Erreur ElevenLabs: ${event.reason || 'Code ' + event.code}`;
+        }
+        
+        console.log('🔍 Raison fermeture:', closeReason);
+        
         setIsConnected(false);
         setIsSpeaking(false);
-        toast.info('Conversation terminée', {
-          duration: 1500,
-          position: 'bottom-center'
-        });
+        
+        if (event.code !== 1000) {
+          toast.error(`Connexion fermée: ${closeReason}`, {
+            duration: 4000,
+            position: 'bottom-center'
+          });
+        } else {
+          toast.info('Conversation terminée', {
+            duration: 1500,
+            position: 'bottom-center'
+          });
+        }
       };
 
-      // Configurer l'envoi d'audio (FORMAT CORRECT selon la doc ElevenLabs)
+      // === CONFIGURATION ENVOI AUDIO ===
+      console.log('🎤 Configuration callbacks MediaRecorder...');
+      
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.ondataavailable = (event) => {
-          if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-            console.log('🎤 Envoi chunk audio, taille:', event.data.size, 'bytes');
+          const chunkSize = event.data.size;
+          const wsState = wsRef.current?.readyState;
+          
+          console.log('🎤 Chunk audio reçu:', {
+            size: chunkSize,
+            wsState: wsState,
+            wsOpen: wsState === WebSocket.OPEN
+          });
+          
+          if (chunkSize > 0 && wsState === WebSocket.OPEN) {
+            console.log('📤 Traitement chunk audio...');
             
             // Convertir en base64 selon le format ElevenLabs
             const reader = new FileReader();
             reader.onload = () => {
-              const base64 = (reader.result as string).split(',')[1];
-              
-              // FORMAT CORRECT selon la documentation officielle
-              const message = {
-                user_audio_chunk: base64
-              };
-              
-              wsRef.current?.send(JSON.stringify(message));
-              console.log('📤 Chunk audio envoyé');
+              try {
+                const base64 = (reader.result as string).split(',')[1];
+                
+                // FORMAT CORRECT selon la documentation officielle
+                const message = {
+                  user_audio_chunk: base64
+                };
+                
+                console.log('📤 Envoi chunk:', {
+                  base64Length: base64.length,
+                  messageKeys: Object.keys(message)
+                });
+                
+                wsRef.current?.send(JSON.stringify(message));
+                console.log('✅ Chunk audio envoyé avec succès');
+              } catch (error) {
+                console.error('❌ Erreur envoi chunk:', error);
+              }
             };
+            
+            reader.onerror = (error) => {
+              console.error('❌ Erreur FileReader:', error);
+            };
+            
             reader.readAsDataURL(event.data);
           } else {
-            console.log('⚠️ Chunk audio ignoré - WebSocket pas prêt ou chunk vide');
+            console.log('⚠️ Chunk audio ignoré:', {
+              reason: chunkSize === 0 ? 'chunk vide' : 'WebSocket pas ouvert',
+              chunkSize,
+              wsState
+            });
           }
         };
         
-        console.log('✅ MediaRecorder configuré avec callbacks');
+        mediaRecorderRef.current.onstart = () => {
+          console.log('▶️ MediaRecorder démarré');
+        };
+        
+        mediaRecorderRef.current.onstop = () => {
+          console.log('⏹️ MediaRecorder arrêté');
+        };
+        
+        mediaRecorderRef.current.onerror = (event) => {
+          console.error('❌ Erreur MediaRecorder:', event);
+        };
+        
+        console.log('✅ Callbacks MediaRecorder configurés');
+      } else {
+        console.error('❌ MediaRecorder non disponible pour configuration callbacks');
       }
+      
+      console.log('🎯 === CONFIGURATION TERMINÉE ===');
 
     } catch (error: any) {
-      console.error('❌ Erreur démarrage:', error);
+      console.error('💥 === ERREUR GÉNÉRALE ===');
+      console.error('📊 Détails erreur:', {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack?.substring(0, 200),
+        timestamp: new Date().toISOString()
+      });
+      
       const errorMessage = error?.message || 'Erreur inconnue';
       onError(errorMessage);
       
@@ -314,11 +431,38 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           duration: 4000,
           position: 'bottom-center'
         });
+      } else if (errorMessage.includes('WebSocket') || errorMessage.includes('connexion')) {
+        toast.error('🌐 Problème de connexion réseau', {
+          duration: 4000,
+          position: 'bottom-center'
+        });
+      } else if (errorMessage.includes('API')) {
+        toast.error('🔑 Problème avec l\'API ElevenLabs', {
+          duration: 4000,
+          position: 'bottom-center'
+        });
       } else {
         toast.error(`❌ Erreur: ${errorMessage}`, {
           duration: 4000,
           position: 'bottom-center'
         });
+      }
+      
+      // Nettoyer en cas d'erreur
+      try {
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+        if (audioStreamRef.current) {
+          audioStreamRef.current.getTracks().forEach(track => track.stop());
+          audioStreamRef.current = null;
+        }
+      } catch (cleanupError) {
+        console.error('❌ Erreur nettoyage:', cleanupError);
       }
     }
   }, [hasPermissions, requestMicrophonePermission, onError, playAudioResponse]);
