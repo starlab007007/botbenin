@@ -1,5 +1,5 @@
 import React from 'react';
-import { KpakpatoVoiceButton } from '@/components/KpakpatoVoiceButton';
+import { KpakpatoVoiceInterface } from '@/components/KpakpatoVoiceInterface';
 
 export const KpakpatoPage: React.FC = () => {
   return (
@@ -85,19 +85,13 @@ export const KpakpatoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Boutons vocaux Kpakpato */}
-      <KpakpatoVoiceButton
-        variant="floating"
-        userName="Utilisateur"
-        origin="bot.bj"
-      />
+      {/* Interface vocale Kpakpato intégrée */}
+      <KpakpatoVoiceInterface variant="floating" />
       
-      {/* Bouton central pour desktop */}
+      {/* Interface centrale pour desktop */}
       <div className="hidden md:flex justify-center mt-8">
-        <KpakpatoVoiceButton
+        <KpakpatoVoiceInterface
           variant="inline"
-          userName="Utilisateur"
-          origin="bot.bj"
           className="text-lg px-8 py-4"
         />
       </div>
