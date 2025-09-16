@@ -102,6 +102,21 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         position: 'bottom-center'
       });
 
+      // Générer signed URL avec la clé API ElevenLabs
+      const response = await fetch('/api/elevenlabs/signed-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ agentId: AGENT_ID })
+      });
+
+      if (!response.ok) {
+        throw new Error('Impossible de générer le lien signé. Vérifiez votre clé API ElevenLabs.');
+      }
+
+      const { signedUrl } = await response.json();
+
       // Créer AudioContext
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       
@@ -121,9 +136,8 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         mimeType: 'audio/webm;codecs=opus'
       });
 
-      // Établir connexion WebSocket avec les bons paramètres
-      const wsUrl = `wss://api.us.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}&source=react_sdk&version=0.5.0`;
-      wsRef.current = new WebSocket(wsUrl, ['convai']);
+      // Établir connexion WebSocket avec l'URL signée
+      wsRef.current = new WebSocket(signedUrl, ['convai']);
 
       wsRef.current.onopen = () => {
         console.log('✅ WebSocket connecté');
