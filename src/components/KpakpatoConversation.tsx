@@ -123,13 +123,12 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
     }
 
     try {
-      // Utiliser user_message pour envoyer du texte 
+      // Format ElevenLabs pour message texte
       const message = {
-        type: "user_message",
         user_message: text.trim()
       };
       
-      console.log('📤 Envoi user_message:', message);
+      console.log('📤 Envoi message texte:', message);
       wsRef.current.send(JSON.stringify(message));
       
       // Ajouter le message à l'interface
@@ -298,94 +297,90 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         url: wsRef.current.url?.substring(0, 100) + '...'
       });
 
-      // === GESTIONNAIRES WEBSOCKET AVEC DIAGNOSTICS DÉTAILLÉS ===
+      // === GESTIONNAIRES WEBSOCKET OPTIMISÉS ===
       
       wsRef.current.onopen = () => {
         console.log('🎉 === WEBSOCKET OUVERT ===');
         console.log('📊 État WebSocket:', {
           readyState: wsRef.current?.readyState,
           protocol: wsRef.current?.protocol,
-          extensions: wsRef.current?.extensions
+          url: wsRef.current?.url?.substring(0, 50) + '...'
         });
         
         setIsConnected(true);
         setShowChatWindow(true);
-        
-        // PAS d'initialisation manuelle - le signed URL contient tout le nécessaire
-        // L'agent démarrera automatiquement après la connexion WebSocket
-        console.log('✅ Connexion établie, en attente de l\'initialisation du serveur...');
         
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
         });
         
-        // Message de bienvenue
-        addMessage('agent', 'Salut ! Je suis Kpakpato, votre assistant IA. Vous pouvez me parler ou m\'écrire !');
-        
-        // Démarrer l'enregistrement immédiatement après connexion
-        setTimeout(() => {
-          try {
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
-              console.log('🎤 Démarrage de l\'enregistrement...');
-              mediaRecorderRef.current.start(200); // Chunks de 200ms pour de meilleures performances
-              console.log('✅ Enregistrement démarré');
-            }
-          } catch (error) {
-            console.error('❌ Erreur démarrage enregistrement:', error);
-          }
-        }, 100); // Délai minimal
+        console.log('✅ En attente du message d\'initialisation du serveur...');
       };
 
       wsRef.current.onmessage = (event) => {
         try {
-          console.log('📨 === MESSAGE REÇU ===');
+          console.log('📨 Message reçu, taille:', event.data.length);
           const message = JSON.parse(event.data);
-          console.log('📊 Type:', message.type);
-          console.log('📊 Contenu:', message);
+          console.log('📊 Type de message:', message.type);
           
-          // Gérer tous les types de messages ElevenLabs
           if (message.type === 'conversation_initiation_metadata') {
-            console.log('🎬 Métadonnées conversation OK');
+            console.log('🎬 Conversation initialisée par le serveur');
+            addMessage('agent', 'Salut ! Je suis Kpakpato, votre assistant IA. Vous pouvez me parler ou m\'écrire !');
+            
+            // MAINTENANT démarrer l'enregistrement audio
+            setTimeout(() => {
+              try {
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+                  console.log('🎤 Démarrage de l\'enregistrement après initialisation...');
+                  mediaRecorderRef.current.start(250); // 250ms chunks
+                  console.log('✅ Enregistrement démarré');
+                }
+              } catch (error) {
+                console.error('❌ Erreur enregistrement:', error);
+              }
+            }, 500);
+            
           } else if (message.type === 'audio') {
-            console.log('🔊 Audio reçu du bot');
+            console.log('🔊 Audio reçu');
             if (message.audio_event?.audio_base_64) {
               setIsSpeaking(true);
               playAudioResponse(message.audio_event.audio_base_64);
             }
           } else if (message.type === 'user_transcript') {
-            console.log('📝 Transcription:', message.user_transcription_event?.user_transcript);
-            if (message.user_transcription_event?.user_transcript?.trim()) {
-              addMessage('user', message.user_transcription_event.user_transcript.trim());
+            const transcript = message.user_transcription_event?.user_transcript?.trim();
+            if (transcript) {
+              console.log('📝 Transcription utilisateur:', transcript);
+              addMessage('user', transcript);
             }
           } else if (message.type === 'agent_response') {
-            console.log('🤖 Réponse agent:', message.agent_response_event?.agent_response);
-            if (message.agent_response_event?.agent_response?.trim()) {
-              addMessage('agent', message.agent_response_event.agent_response.trim());
+            const response = message.agent_response_event?.agent_response?.trim();
+            if (response) {
+              console.log('🤖 Réponse agent:', response);
+              addMessage('agent', response);
             }
           } else if (message.type === 'agent_response_correction') {
-            console.log('🔧 Correction agent:', message.agent_response_correction_event?.corrected_agent_response);
-            if (message.agent_response_correction_event?.corrected_agent_response?.trim()) {
-              addMessage('agent', message.agent_response_correction_event.corrected_agent_response.trim());
+            const correction = message.agent_response_correction_event?.corrected_agent_response?.trim();
+            if (correction) {
+              console.log('🔧 Correction:', correction);
+              addMessage('agent', correction);
             }
           } else if (message.type === 'interruption') {
-            console.log('⏸️ Interruption:', message.interruption_event?.reason);
+            console.log('⏸️ Interruption');
             setIsSpeaking(false);
           } else if (message.type === 'ping') {
-            console.log('🏓 Ping -> Pong');
+            console.log('🏓 Ping reçu');
             if (wsRef.current?.readyState === WebSocket.OPEN) {
-              const pongMessage = {
+              wsRef.current.send(JSON.stringify({
                 type: 'pong',
                 event_id: message.ping_event?.event_id
-              };
-              wsRef.current.send(JSON.stringify(pongMessage));
+              }));
             }
           } else {
-            console.log('❓ Type inconnu:', message.type, message);
+            console.log('❓ Message inconnu:', message.type);
           }
         } catch (error) {
-          console.error('❌ Erreur message:', error);
-          console.log('📄 Raw event data:', event.data);
+          console.error('❌ Erreur parsing message:', error);
         }
       };
 
@@ -408,51 +403,45 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       };
 
       wsRef.current.onclose = (event) => {
-        console.log('📞 === WEBSOCKET FERMÉ ===');
-        console.log('📊 Détails fermeture:', {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean,
-          timestamp: new Date().toISOString()
-        });
+        console.log('📞 WebSocket fermé - Code:', event.code, 'Raison:', event.reason);
         
-        // Analyser les codes de fermeture avec plus de détails
-        let closeReason = 'Connexion fermée';
-        if (event.code === 1000) {
-          closeReason = 'Fermeture normale';
-        } else if (event.code === 1001) {
-          closeReason = 'Endpoint parti (navigateur fermé)';
-        } else if (event.code === 1002) {
-          closeReason = 'Erreur de protocole - Vérifiez le format des messages';
-        } else if (event.code === 1003) {
-          closeReason = 'Données non supportées - Problème format audio';
-        } else if (event.code === 1006) {
-          closeReason = 'Connexion fermée anormalement - Vérifiez votre connexion';
-        } else if (event.code === 1011) {
-          closeReason = 'Erreur serveur ElevenLabs';
-        } else if (event.code >= 4000) {
-          closeReason = `Erreur ElevenLabs spécifique: ${event.reason || 'Code ' + event.code}`;
+        // Diagnostics détaillés des codes d'erreur
+        const errorMessages = {
+          1000: 'Fermeture normale',
+          1001: 'Endpoint parti', 
+          1002: 'Erreur de protocole - Format de message invalide',
+          1003: 'Données non supportées - Problème avec l\'audio',
+          1006: 'Connexion fermée anormalement - Problème réseau',
+          1011: 'Erreur serveur ElevenLabs',
+          4000: 'Erreur d\'authentification ElevenLabs',
+          4001: 'Agent non trouvé ou inactif',
+          4002: 'Quota ElevenLabs dépassé',
+          4003: 'Permissions insuffisantes'
+        };
+        
+        const reason = errorMessages[event.code as keyof typeof errorMessages] || `Code inconnu: ${event.code}`;
+        console.log('🔍 Diagnostic:', reason);
+        
+        if (event.reason) {
+          console.log('🔍 Détail serveur:', event.reason);
         }
-        
-        console.log('🔍 Raison fermeture:', closeReason);
-        console.log('🔍 Contexte fermeture:', {
-          hadSentInit: 'Vérifiez si l\'initialisation a été envoyée',
-          hasPermissions: hasPermissions,
-          isConnectedBefore: isConnected
-        });
         
         setIsConnected(false);
         setIsSpeaking(false);
         setShowChatWindow(false);
         
+        // Arrêter l'enregistrement si actif
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          try {
+            mediaRecorderRef.current.stop();
+          } catch (error) {
+            console.log('Info: MediaRecorder déjà arrêté');
+          }
+        }
+        
         if (event.code !== 1000) {
-          toast.error(`Connexion fermée: ${closeReason}`, {
-            duration: 5000,
-            position: 'bottom-center'
-          });
-        } else {
-          toast.info('Conversation terminée', {
-            duration: 1500,
+          toast.error(`Connexion fermée: ${reason}`, {
+            duration: 4000,
             position: 'bottom-center'
           });
         }
@@ -463,39 +452,16 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.ondataavailable = (event) => {
-          const chunkSize = event.data.size;
-          const wsState = wsRef.current?.readyState;
-          
-          console.log('🎤 Chunk audio reçu:', {
-            size: chunkSize,
-            wsState: wsState,
-            wsOpen: wsState === WebSocket.OPEN
-          });
-          
-          if (chunkSize > 0 && wsState === WebSocket.OPEN) {
-            console.log('📤 Traitement chunk audio...');
-            
-            // Convertir en base64 selon le format ElevenLabs
+          if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
             const reader = new FileReader();
             reader.onload = () => {
               try {
                 const base64 = (reader.result as string).split(',')[1];
-                
-                // FORMAT CORRECT selon ElevenLabs ConvAI API officielle
-                const message = {
-                  type: "user_audio_chunk",
+                wsRef.current?.send(JSON.stringify({
                   user_audio_chunk: base64
-                };
-                
-                console.log('📤 Envoi chunk:', {
-                  base64Length: base64.length,
-                  messageKeys: Object.keys(message)
-                });
-                
-                wsRef.current?.send(JSON.stringify(message));
-                console.log('✅ Chunk audio envoyé avec succès');
+                }));
               } catch (error) {
-                console.error('❌ Erreur envoi chunk:', error);
+                console.error('❌ Erreur envoi audio:', error);
               }
             };
             
@@ -505,11 +471,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
             
             reader.readAsDataURL(event.data);
           } else {
-            console.log('⚠️ Chunk audio ignoré:', {
-              reason: chunkSize === 0 ? 'chunk vide' : 'WebSocket pas ouvert',
-              chunkSize,
-              wsState
-            });
+            console.log('⚠️ Chunk audio ignoré - WebSocket pas ouvert ou chunk vide');
           }
         };
         
