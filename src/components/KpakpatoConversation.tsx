@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 
 const AGENT_ID = 'agent_6201k518xhz2eemtsrbf38fmjq7p'; // Agent Kpakpato officiel
 
@@ -34,6 +33,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [textInput, setTextInput] = useState('');
   const [showChatWindow, setShowChatWindow] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -41,50 +41,44 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
   const audioStreamRef = useRef<MediaStream | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Demander les permissions microphone au premier clic
+  // Demander les permissions microphone
   const requestMicrophonePermission = useCallback(async () => {
     try {
-      console.log('🎙️ Demande des permissions microphone...');
+      console.log('🎙️ Demande permissions microphone...');
       await navigator.mediaDevices.getUserMedia({ audio: true });
       setHasPermissions(true);
-      console.log('✅ Permissions microphone accordées');
+      console.log('✅ Permissions accordées');
       return true;
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Permissions refusées:', error);
-      if (error.name === 'NotAllowedError') {
-        toast.error('🎤 Accès au microphone refusé. Autorise le micro dans ton navigateur.', {
-          duration: 4000,
-          position: 'bottom-center'
-        });
-      } else if (error.name === 'NotFoundError') {
-        toast.error('🎤 Aucun microphone détecté. Vérifie tes périphériques audio.', {
-          duration: 4000,
-          position: 'bottom-center'
-        });
-      } else {
-        toast.error('❌ Erreur d\'accès au microphone', {
-          duration: 3000,
-          position: 'bottom-center'
-        });
-      }
-      onError('Permissions microphone refusées');
+      onError('Permissions microphone requises pour utiliser Kpakpato');
       return false;
     }
   }, [onError]);
 
-  const playAudioResponse = useCallback(async (audioBase64: string) => {
+  // Ajouter un message à la conversation
+  const addMessage = useCallback((type: 'user' | 'agent', content: string) => {
+    const message: Message = {
+      id: Date.now().toString(),
+      type,
+      content,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, message]);
+  }, []);
+
+  // Jouer la réponse audio de l'agent
+  const playAudioResponse = useCallback(async (base64Audio: string) => {
     try {
       if (!audioContextRef.current) return;
       
-      const audioData = atob(audioBase64);
-      const arrayBuffer = new ArrayBuffer(audioData.length);
-      const view = new Uint8Array(arrayBuffer);
-      
-      for (let i = 0; i < audioData.length; i++) {
-        view[i] = audioData.charCodeAt(i);
+      const binaryString = atob(base64Audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
       
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      const audioBuffer = await audioContextRef.current.decodeAudioData(bytes.buffer);
       const source = audioContextRef.current.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContextRef.current.destination);
@@ -93,144 +87,69 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         setIsSpeaking(false);
       };
       
-      source.start();
+      source.start(0);
     } catch (error) {
       console.error('❌ Erreur lecture audio:', error);
       setIsSpeaking(false);
     }
   }, []);
 
-  // Ajouter un message à la conversation
-  const addMessage = useCallback((type: 'user' | 'agent', content: string) => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      type,
-      content,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, newMessage]);
-    
-    // Auto-scroll vers le bas
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }, []);
-
-  // Envoyer un message texte (via contextual update pour ne pas interrompre)
-  const sendTextMessage = useCallback((text: string) => {
+  // Envoyer un message texte
+  const sendTextMessage = useCallback(async (text: string) => {
     if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
     }
 
     try {
-      // Format ElevenLabs pour contextual update (pour le chat texte)
-      const textMessage = {
+      // Format EXACT selon documentation ElevenLabs
+      const contextualUpdate = {
         type: "contextual_update",
         text: text.trim()
       };
       
-      console.log('📤 Envoi message texte:', textMessage);
-      wsRef.current.send(JSON.stringify(textMessage));
+      console.log('📤 Envoi message texte:', contextualUpdate);
+      wsRef.current.send(JSON.stringify(contextualUpdate));
       
-      // Ajouter le message à l'interface
+      // Ajouter à l'interface
       addMessage('user', text.trim());
       setTextInput('');
-      
-      toast.success('Message envoyé', {
-        duration: 1000,
-        position: 'bottom-center'
-      });
     } catch (error) {
-      console.error('❌ Erreur envoi message texte:', error);
-      toast.error('Erreur envoi message');
+      console.error('❌ Erreur envoi texte:', error);
+      onError('Impossible d\'envoyer le message');
     }
-  }, [addMessage]);
+  }, [addMessage, onError]);
 
+  // Fonction principale pour démarrer la conversation
   const startConversation = useCallback(async () => {
+    if (isLoading || isConnected) return;
+    
+    setIsLoading(true);
+    
     try {
-      console.log('🚀 === DÉBUT CONVERSATION KPAKPATO ===');
-      console.log('🔍 État initial:', { 
-        isActive, 
-        hasPermissions, 
-        isConnected,
-        wsState: wsRef.current?.readyState 
-      });
-      
-      // Vérifier/demander les permissions d'abord
+      console.log('🚀 === DÉMARRAGE CONVERSATION KPAKPATO ===');
+
+      // Vérification des permissions
       if (!hasPermissions) {
-        console.log('🎤 Demande des permissions microphone...');
         const granted = await requestMicrophonePermission();
         if (!granted) {
-          console.log('❌ Permissions refusées');
+          setIsLoading(false);
           return;
         }
       }
 
-      toast.info('Initialisation de Kpakpato…', {
-        duration: 2000,
-        position: 'bottom-center'
+      // Créer AudioContext
+      console.log('🔊 Création AudioContext...');
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
+        sampleRate: 24000
       });
-
-      // Nettoyer les connexions précédentes
-      if (wsRef.current) {
-        console.log('🧹 Nettoyage connexion précédente...');
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-
-      // Générer signed URL avec la clé API ElevenLabs
-      console.log('🔑 Génération du signed URL...');
-      const { data, error } = await supabase.functions.invoke('elevenlabs-signed-url', {
-        body: { agentId: AGENT_ID }
-      });
-
-      console.log('📡 Réponse signed URL:', { 
-        success: !!data?.signedUrl, 
-        hasError: !!error,
-        errorMsg: error?.message 
-      });
-
-      if (error) {
-        console.error('❌ Erreur signed URL:', error);
-        throw new Error(`Erreur fonction: ${error.message}`);
-      }
-
-      if (!data?.signedUrl) {
-        console.error('❌ Pas de signedUrl:', data);
-        throw new Error('Impossible de générer le lien signé. Vérifiez votre clé API ElevenLabs.');
-      }
-
-      const { signedUrl } = data;
-      console.log('✅ Signed URL généré:', {
-        length: signedUrl.length,
-        preview: signedUrl.substring(0, 80) + '...',
-        hasAgent: signedUrl.includes(AGENT_ID)
-      });
-
-      // Créer AudioContext avec gestion des erreurs
-      try {
-        console.log('🔊 Création AudioContext...');
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
-          sampleRate: 24000
-        });
-        
-        // Reprendre le contexte audio si suspendu
-        if (audioContextRef.current.state === 'suspended') {
-          console.log('▶️ Reprise AudioContext suspendu...');
-          await audioContextRef.current.resume();
-        }
-        
-        console.log('✅ AudioContext:', {
-          state: audioContextRef.current.state,
-          sampleRate: audioContextRef.current.sampleRate
-        });
-      } catch (error) {
-        console.error('❌ Erreur AudioContext:', error);
-        throw new Error('Impossible d\'initialiser l\'audio. Vérifiez vos paramètres navigateur.');
-      }
       
-      // Obtenir le stream audio avec paramètres optimisés
-      console.log('🎤 Demande stream audio...');
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+      console.log('✅ AudioContext prêt:', audioContextRef.current.state);
+
+      // Obtenir le stream audio
+      console.log('🎤 Configuration stream audio...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
@@ -241,80 +160,41 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         } 
       });
       audioStreamRef.current = stream;
-      
-      const tracks = stream.getAudioTracks();
-      console.log('✅ Stream audio:', {
-        active: stream.active,
-        trackCount: tracks.length,
-        trackSettings: tracks[0]?.getSettings()
-      });
 
-      // Configurer MediaRecorder avec paramètres optimisés
-      try {
-        console.log('📼 Configuration MediaRecorder...');
-        
-        // Essayer différents formats audio compatibles
-        let mimeType = 'audio/webm;codecs=opus';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'audio/webm';
-          if (!MediaRecorder.isTypeSupported(mimeType)) {
-            mimeType = 'audio/mp4';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-              mimeType = ''; // Utiliser le format par défaut
-            }
-          }
-        }
-        
-        const mediaRecorderOptions: MediaRecorderOptions = {
-          audioBitsPerSecond: 16000
-        };
-        
-        if (mimeType) {
-          mediaRecorderOptions.mimeType = mimeType;
-        }
-        
-        mediaRecorderRef.current = new MediaRecorder(stream, mediaRecorderOptions);
-        
-        console.log('✅ MediaRecorder:', {
-          state: mediaRecorderRef.current.state,
-          mimeType: mediaRecorderRef.current.mimeType
-        });
-      } catch (error) {
-        console.error('❌ Erreur MediaRecorder:', error);
-        throw new Error('Format audio non supporté par votre navigateur.');
+      // Configurer MediaRecorder
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/webm';
       }
-
-      // Établir connexion WebSocket avec l'URL signée
-      console.log('🌐 === CONNEXION WEBSOCKET ===');
-      console.log('🔗 URL WebSocket:', signedUrl.substring(0, 100) + '...');
       
-      // Créer WebSocket avec gestion d'erreur détaillée
-      wsRef.current = new WebSocket(signedUrl);
-      
-      // Log de l'état initial
-      console.log('📡 WebSocket créé:', {
-        readyState: wsRef.current.readyState,
-        protocol: wsRef.current.protocol,
-        url: wsRef.current.url?.substring(0, 100) + '...'
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType,
+        audioBitsPerSecond: 16000
       });
+      
+      console.log('✅ MediaRecorder configuré:', mimeType);
 
+      // CONNEXION WEBSOCKET DIRECTE selon documentation officielle
+      console.log('🌐 Connexion WebSocket directe à ElevenLabs...');
+      const wsUrl = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+      console.log('🔗 URL:', wsUrl);
+      
+      wsRef.current = new WebSocket(wsUrl);
+
+      // === GESTIONNAIRES WEBSOCKET ===
+      
       wsRef.current.onopen = () => {
-        console.log('🎉 WebSocket connecté');
+        console.log('🎉 WebSocket connecté à ElevenLabs');
         setIsConnected(true);
         setShowChatWindow(true);
-        
-        // OBLIGATOIRE : Envoyer l'initialisation immédiatement après connexion
-        console.log('📤 Envoi initialisation conversation...');
-        const initMessage = {
-          type: "conversation_initiation_client_data"  
-        };
-        wsRef.current?.send(JSON.stringify(initMessage));
-        console.log('✅ Initialisation envoyée');
         
         toast.success('🎤 Kpakpato est connecté !', {
           duration: 2000,
           position: 'bottom-center'
         });
+        
+        // Pour un agent public, la connexion se fait automatiquement
+        console.log('✅ Agent public prêt - pas d\'initialisation manuelle nécessaire');
       };
 
       wsRef.current.onmessage = (event) => {
@@ -323,28 +203,29 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           console.log('📨 Message reçu:', message.type);
           
           if (message.type === 'conversation_initiation_metadata') {
-            console.log('🎬 Conversation initialisée - DÉMARRAGE AUDIO');
+            console.log('🎬 Conversation initialisée par ElevenLabs');
+            setIsInitialized(true);
             addMessage('agent', 'Salut ! Je suis Kpakpato, votre assistant IA. Vous pouvez me parler ou m\'écrire !');
             
-            // MAINTENANT on peut démarrer l'enregistrement audio
+            // Démarrer l'enregistrement MAINTENANT
             setTimeout(() => {
               if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
-                console.log('🎤 Démarrage enregistrement après initialisation...');
-                mediaRecorderRef.current.start(200); // 200ms chunks
+                console.log('🎤 Démarrage enregistrement...');
+                mediaRecorderRef.current.start(200);
                 console.log('✅ Enregistrement actif');
               }
-            }, 500);
+            }, 100);
             
           } else if (message.type === 'audio') {
             if (message.audio_event?.audio_base_64) {
-              console.log('🔊 Audio reçu du serveur');
+              console.log('🔊 Réception audio agent');
               setIsSpeaking(true);
               playAudioResponse(message.audio_event.audio_base_64);
             }
           } else if (message.type === 'user_transcript') {
             const transcript = message.user_transcription_event?.user_transcript?.trim();
             if (transcript) {
-              console.log('📝 Transcription:', transcript);
+              console.log('📝 Transcription utilisateur:', transcript);
               addMessage('user', transcript);
             }
           } else if (message.type === 'agent_response') {
@@ -360,7 +241,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
               addMessage('agent', correction);
             }
           } else if (message.type === 'interruption') {
-            console.log('⏸️ Interruption');
+            console.log('⏸️ Interruption détectée');
             setIsSpeaking(false);
           } else if (message.type === 'ping') {
             console.log('🏓 Ping reçu, envoi pong...');
@@ -373,7 +254,7 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
               console.log('🏓 Pong envoyé');
             }
           } else {
-            console.log('❓ Message non géré:', message.type);
+            console.log('❓ Message non traité:', message.type);
           }
         } catch (error) {
           console.error('❌ Erreur parsing message:', error);
@@ -381,33 +262,20 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('💥 === ERREUR WEBSOCKET ===');
-        console.error('📊 Détails erreur:', {
-          error: error,
-          readyState: wsRef.current?.readyState,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Log des détails de connexion pour debug
-        console.error('🔍 Debug connexion:', {
-          signedUrlLength: signedUrl?.length,
-          agentId: AGENT_ID,
-          hasConvaiProtocol: wsRef.current?.protocol === 'convai'
-        });
-        
-        onError('Erreur de connexion WebSocket - Vérifiez votre connexion internet et les permissions ElevenLabs');
+        console.error('💥 Erreur WebSocket:', error);
+        onError('Erreur de connexion WebSocket');
       };
 
       wsRef.current.onclose = (event) => {
         console.log('📞 WebSocket fermé - Code:', event.code, 'Raison:', event.reason);
         
-        // Diagnostics détaillés des codes d'erreur
-        const errorMessages = {
+        const errorMessages: { [key: number]: string } = {
           1000: 'Fermeture normale',
           1001: 'Endpoint parti', 
           1002: 'Erreur de protocole - Format de message invalide',
           1003: 'Données non supportées - Problème avec l\'audio',
           1006: 'Connexion fermée anormalement - Problème réseau',
+          1008: 'Violation de politique - Format de message incorrect',
           1011: 'Erreur serveur ElevenLabs',
           4000: 'Erreur d\'authentification ElevenLabs',
           4001: 'Agent non trouvé ou inactif',
@@ -415,18 +283,15 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
           4003: 'Permissions insuffisantes'
         };
         
-        const reason = errorMessages[event.code as keyof typeof errorMessages] || `Code inconnu: ${event.code}`;
+        const reason = errorMessages[event.code] || `Code inconnu: ${event.code}`;
         console.log('🔍 Diagnostic:', reason);
-        
-        if (event.reason) {
-          console.log('🔍 Détail serveur:', event.reason);
-        }
         
         setIsConnected(false);
         setIsSpeaking(false);
         setShowChatWindow(false);
+        setIsInitialized(false);
         
-        // Arrêter l'enregistrement si actif
+        // Arrêter l'enregistrement
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
           try {
             mediaRecorderRef.current.stop();
@@ -443,121 +308,63 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
         }
       };
 
-      // === CONFIGURATION ENVOI AUDIO ===
-      console.log('🎤 Configuration callbacks MediaRecorder...');
+      // === CONFIGURATION CALLBACKS MEDIARECORDER ===
       
       if (mediaRecorderRef.current) {
         mediaRecorderRef.current.ondataavailable = (event) => {
-          if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
+          if (event.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN && isInitialized) {
             const reader = new FileReader();
             reader.onload = () => {
               try {
                 const base64 = (reader.result as string).split(',')[1];
-                // Format OFFICIEL ElevenLabs : pas de "type", juste user_audio_chunk
+                // Format EXACT selon doc ElevenLabs
                 const audioMessage = {
                   user_audio_chunk: base64
                 };
                 wsRef.current?.send(JSON.stringify(audioMessage));
-                console.log('🎤 Audio chunk envoyé:', base64.length, 'caractères');
+                console.log('🎤 Chunk audio envoyé');
               } catch (error) {
                 console.error('❌ Erreur envoi audio:', error);
               }
             };
-            
-            reader.onerror = (error) => {
-              console.error('❌ Erreur FileReader:', error);
-            };
-            
             reader.readAsDataURL(event.data);
-          } else {
-            console.log('⚠️ Chunk audio ignoré - WebSocket pas ouvert ou chunk vide');
           }
         };
         
         mediaRecorderRef.current.onstart = () => {
-          console.log('▶️ MediaRecorder démarré');
+          console.log('▶️ Enregistrement démarré');
         };
         
         mediaRecorderRef.current.onstop = () => {
-          console.log('⏹️ MediaRecorder arrêté');
+          console.log('⏹️ Enregistrement arrêté');
         };
-        
-        mediaRecorderRef.current.onerror = (event) => {
-          console.error('❌ Erreur MediaRecorder:', event);
-        };
-        
-        console.log('✅ Callbacks MediaRecorder configurés');
-      } else {
-        console.error('❌ MediaRecorder non disponible pour configuration callbacks');
       }
       
-      console.log('🎯 === CONFIGURATION TERMINÉE ===');
-
-    } catch (error: any) {
-      console.error('💥 === ERREUR GÉNÉRALE ===');
-      console.error('📊 Détails erreur:', {
-        message: error?.message,
-        name: error?.name,
-        stack: error?.stack?.substring(0, 200),
-        timestamp: new Date().toISOString()
-      });
-      
-      const errorMessage = error?.message || 'Erreur inconnue';
-      onError(errorMessage);
-      
-      if (errorMessage.includes('Permission')) {
-        toast.error('🎤 Problème d\'accès au microphone', {
-          duration: 4000,
-          position: 'bottom-center'
-        });
-      } else if (errorMessage.includes('WebSocket') || errorMessage.includes('connexion')) {
-        toast.error('🌐 Problème de connexion réseau', {
-          duration: 4000,
-          position: 'bottom-center'
-        });
-      } else if (errorMessage.includes('API')) {
-        toast.error('🔑 Problème avec l\'API ElevenLabs', {
-          duration: 4000,
-          position: 'bottom-center'
-        });
-      } else {
-        toast.error(`❌ Erreur: ${errorMessage}`, {
-          duration: 4000,
-          position: 'bottom-center'
-        });
-      }
-      
-      // Nettoyer en cas d'erreur
-      try {
-        if (wsRef.current) {
-          wsRef.current.close();
-          wsRef.current = null;
-        }
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-          mediaRecorderRef.current.stop();
-        }
-        if (audioStreamRef.current) {
-          audioStreamRef.current.getTracks().forEach(track => track.stop());
-          audioStreamRef.current = null;
-        }
-      } catch (cleanupError) {
-        console.error('❌ Erreur nettoyage:', cleanupError);
-      }
+    } catch (error) {
+      console.error('❌ Erreur démarrage conversation:', error);
+      onError(error instanceof Error ? error.message : 'Erreur inconnue');
+    } finally {
+      setIsLoading(false);
     }
-  }, [hasPermissions, requestMicrophonePermission, onError, playAudioResponse]);
+  }, [isLoading, isConnected, hasPermissions, requestMicrophonePermission, addMessage, playAudioResponse, onError, isInitialized]);
 
+  // Arrêter la conversation
   const stopConversation = useCallback(() => {
-    console.log('🛑 Arrêt de la conversation...');
+    console.log('🛑 Arrêt de la conversation');
     
-    // Arrêter l'enregistrement
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
+    // Fermer WebSocket
+    if (wsRef.current) {
+      wsRef.current.close(1000, 'Conversation terminée par l\'utilisateur');
+      wsRef.current = null;
     }
     
-    // Fermer le stream audio
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach(track => track.stop());
-      audioStreamRef.current = null;
+    // Arrêter MediaRecorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (error) {
+        console.log('Info: MediaRecorder déjà arrêté');
+      }
     }
     
     // Fermer AudioContext
@@ -566,75 +373,119 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
       audioContextRef.current = null;
     }
     
-    // Fermer WebSocket
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    // Arrêter le stream audio
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(track => track.stop());
+      audioStreamRef.current = null;
     }
     
     setIsConnected(false);
     setIsSpeaking(false);
     setShowChatWindow(false);
-  }, []);
+    setIsInitialized(false);
+    setMessages([]);
+    
+    onToggle();
+  }, [onToggle]);
 
-  const handleToggleConversation = useCallback(async () => {
-    if (isLoading) return;
-
-    try {
-      setIsLoading(true);
-
-      if (!isActive) {
-        await startConversation();
-        onToggle();
-      } else {
-        stopConversation();
-        onToggle();
-      }
-    } catch (error: any) {
-      console.error('❌ Erreur toggle conversation:', error);
-      const errorMessage = error?.message || 'Erreur inconnue';
-      onError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isActive, isLoading, startConversation, stopConversation, onToggle, onError]);
-
-  // Nettoyage automatique
+  // Auto-scroll vers le bas quand de nouveaux messages arrivent
   useEffect(() => {
-    return () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Toggle de la conversation
+  const handleToggle = useCallback(() => {
+    if (isActive && isConnected) {
       stopConversation();
-    };
-  }, [stopConversation]);
+    } else if (!isActive) {
+      onToggle();
+    }
+  }, [isActive, isConnected, stopConversation, onToggle]);
+
+  // Gérer l'envoi de message texte
+  const handleSendMessage = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    if (textInput.trim() && isConnected) {
+      sendTextMessage(textInput.trim());
+    }
+  }, [textInput, isConnected, sendTextMessage]);
+
+  if (!isActive) {
+    return (
+      <div className="fixed bottom-4 right-4">
+        <Button
+          onClick={handleToggle}
+          size="lg"
+          className="rounded-full w-16 h-16 bg-primary hover:bg-primary/90 shadow-lg"
+        >
+          <MessageCircle className="h-6 w-6" />
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <>
-      {/* Fenêtre de chat */}
-      {showChatWindow && (
-        <div className="fixed bottom-6 right-6 w-96 h-[500px] z-[9998]">
-          <Card className="w-full h-full shadow-2xl border-2 border-primary/20">
-            <CardHeader className="pb-3 bg-primary/5">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <MessageCircle className="w-5 h-5 text-primary" />
-                  Conversation avec Kpakpato
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Mic className={`w-4 h-4 ${isSpeaking ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
-                  <Button
-                    onClick={handleToggleConversation}
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <PhoneOff className="w-4 h-4" />
-                  </Button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md h-[600px] flex flex-col">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-lg font-semibold">🤖 Kpakpato</CardTitle>
+          <Button variant="ghost" size="sm" onClick={handleToggle}>
+            ✕
+          </Button>
+        </CardHeader>
+        
+        <CardContent className="flex-1 flex flex-col space-y-4">
+          {/* Zone de contrôle */}
+          <div className="flex items-center justify-center space-x-4">
+            {!isConnected ? (
+              <Button
+                onClick={startConversation}
+                disabled={isLoading}
+                className="flex items-center space-x-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Connexion...</span>
+                  </>
+                ) : (
+                  <>
+                    <Phone className="h-4 w-4" />
+                    <span>Parler à Kpakpato</span>
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  {isSpeaking ? (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+                      <span className="text-sm">Kpakpato parle...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2 text-blue-600">
+                      <Mic className="h-4 w-4" />
+                      <span className="text-sm">À l'écoute</span>
+                    </div>
+                  )}
                 </div>
+                
+                <Button
+                  onClick={stopConversation}
+                  variant="destructive"
+                  size="sm"
+                >
+                  <PhoneOff className="h-4 w-4" />
+                </Button>
               </div>
-            </CardHeader>
-            
-            <CardContent className="p-0 flex flex-col h-[calc(100%-80px)]">
-              {/* Zone des messages */}
-              <ScrollArea className="flex-1 p-4">
+            )}
+          </div>
+
+          {/* Fenêtre de chat */}
+          {showChatWindow && (
+            <>
+              <ScrollArea className="flex-1 border rounded-lg p-3">
                 <div className="space-y-3">
                   {messages.map((message) => (
                     <div
@@ -642,107 +493,52 @@ export const KpakpatoConversation: React.FC<KpakpatoConversationProps> = ({
                       className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                        className={`max-w-[80%] p-2 rounded-lg ${
                           message.type === 'user'
-                            ? 'bg-primary text-primary-foreground ml-4'
-                            : 'bg-muted text-foreground mr-4'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
                         }`}
                       >
-                        <p className="break-words">{message.content}</p>
-                        <span className="text-xs opacity-70 mt-1 block">
+                        <p className="text-sm">{message.content}</p>
+                        <p className="text-xs opacity-70 mt-1">
                           {message.timestamp.toLocaleTimeString()}
-                        </span>
+                        </p>
                       </div>
                     </div>
                   ))}
                   <div ref={messagesEndRef} />
                 </div>
               </ScrollArea>
-              
-              {/* Zone de saisie */}
-              <div className="p-4 border-t bg-background/50">
-                <div className="flex gap-2">
-                  <Input
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendTextMessage(textInput);
-                      }
-                    }}
-                    placeholder="Écrivez votre message..."
-                    className="flex-1 text-sm"
-                    disabled={!isConnected}
-                  />
-                  <Button
-                    onClick={() => sendTextMessage(textInput)}
-                    disabled={!textInput.trim() || !isConnected}
-                    size="sm"
-                    className="px-3"
-                  >
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  {isSpeaking ? '🎤 Kpakpato parle...' : '💬 Vous pouvez parler ou écrire'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
-      {/* Bouton flottant principal */}
-      <div className={`fixed bottom-6 right-6 z-[9999] ${showChatWindow ? 'opacity-0 pointer-events-none' : ''}`}>
-        <Button
-          onClick={handleToggleConversation}
-          disabled={isLoading}
-          className={`
-            rounded-full shadow-xl transition-all duration-300 transform hover:scale-105 
-            focus:outline-none focus:ring-4 focus:ring-offset-2 min-w-[60px] min-h-[60px]
-            ${isConnected 
-              ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground focus:ring-destructive/50' 
-              : 'bg-primary hover:bg-primary/90 text-primary-foreground focus:ring-primary/50'
-            }
-            ${isSpeaking ? 'animate-pulse' : ''}
-          `}
-          size="lg"
-          aria-pressed={isConnected}
-          aria-label={isConnected ? 'Arrêter Kpakpato' : 'Parler avec Kpakpato'}
-        >
-          <div className="flex items-center gap-3 px-2 py-1">
-            {isLoading ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
-            ) : isConnected ? (
-              <PhoneOff className="w-6 h-6" />
-            ) : (
-              <Phone className="w-6 h-6" />
-            )}
-            
-            <span className="font-semibold text-sm sm:text-base hidden sm:inline">
-              {isLoading 
-                ? 'Connexion…' 
-                : isConnected 
-                  ? 'Raccrocher' 
-                  : 'Appeler Kpakpato'
-              }
-            </span>
-            
-            {/* Indicateur visuel sur mobile */}
-            <div className="sm:hidden">
-              <div className={`w-3 h-3 rounded-full ${
-                isConnected 
-                  ? isSpeaking 
-                    ? 'bg-yellow-400 animate-pulse' 
-                    : 'bg-red-400 animate-pulse'
-                  : 'bg-green-400'
-              }`} />
+              {/* Zone de saisie texte */}
+              <form onSubmit={handleSendMessage} className="flex space-x-2">
+                <Input
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="Tapez votre message..."
+                  disabled={!isConnected}
+                  className="flex-1"
+                />
+                <Button
+                  type="submit"
+                  disabled={!textInput.trim() || !isConnected}
+                  size="sm"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+            </>
+          )}
+          
+          {!hasPermissions && !isConnected && (
+            <div className="text-center text-sm text-muted-foreground">
+              <p>🎙️ Permissions microphone requises</p>
+              <p>Cliquez sur "Parler à Kpakpato" pour commencer</p>
             </div>
-          </div>
-        </Button>
-      </div>
-    </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
