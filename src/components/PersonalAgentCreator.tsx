@@ -197,25 +197,25 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto">
         <DialogHeader>
-          <DialogTitle>Créer mon agent IA personnel</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Créer mon agent IA personnel</DialogTitle>
+          <DialogDescription className="text-sm sm:text-base">
             Créez votre propre agent de conversation en utilisant votre code d'intégration ElevenLabs
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Indicateur d'étapes */}
-          <div className="flex items-center justify-center space-x-4">
+          <div className="flex items-center justify-center space-x-2 sm:space-x-4">
             {[1, 2, 3].map((num) => (
               <div key={num} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium ${
                   step >= num ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                 }`}>
-                  {step > num ? <CheckCircle className="w-4 h-4" /> : num}
+                  {step > num ? <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> : num}
                 </div>
-                {num < 3 && <div className={`w-12 h-0.5 ${step > num ? 'bg-primary' : 'bg-muted'}`} />}
+                {num < 3 && <div className={`w-6 sm:w-12 h-0.5 ${step > num ? 'bg-primary' : 'bg-muted'}`} />}
               </div>
             ))}
           </div>
@@ -223,16 +223,16 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
           {/* Étape 1: Code d'intégration */}
           {step === 1 && (
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm">1</span>
+              <CardHeader className="pb-3 sm:pb-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <span className="w-5 h-5 sm:w-6 sm:h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs sm:text-sm">1</span>
                   Code d'intégration ElevenLabs
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm">
                   Collez votre code d'intégration ElevenLabs pour extraire l'agent-id
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 sm:space-y-4">
                 <div>
                   <Label htmlFor="integration-code">Code d'intégration</Label>
                   <Textarea
@@ -241,7 +241,7 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
 <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>`}
                     value={integrationCode}
                     onChange={(e) => setIntegrationCode(e.target.value)}
-                    className="min-h-[100px] font-mono text-sm"
+                    className="min-h-[80px] sm:min-h-[100px] font-mono text-xs sm:text-sm"
                   />
                 </div>
                 
@@ -255,9 +255,9 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
                   </div>
                 )}
 
-                <div className="text-sm text-muted-foreground">
+                <div className="text-xs sm:text-sm text-muted-foreground">
                   <p><strong>Où trouver votre code ?</strong></p>
-                  <ol className="list-decimal list-inside space-y-1 mt-2">
+                  <ol className="list-decimal list-inside space-y-1 mt-2 text-xs sm:text-sm">
                     <li>Connectez-vous à votre compte ElevenLabs</li>
                     <li>Allez dans la section "ConvAI"</li>
                     <li>Sélectionnez votre agent</li>
@@ -291,7 +291,7 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <Label htmlFor="action-text">Texte du bouton</Label>
                     <Input
@@ -371,7 +371,7 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <h4 className="font-medium mb-2">Informations de l'agent</h4>
                     <div className="space-y-2 text-sm">
@@ -438,24 +438,24 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
           )}
         </div>
 
-        <DialogFooter className="flex justify-between">
+        <DialogFooter className="flex flex-col-reverse sm:flex-row justify-between gap-2 sm:gap-0">
           <div>
             {step > 1 && (
-              <Button variant="outline" onClick={() => setStep(step - 1)}>
+              <Button variant="outline" onClick={() => setStep(step - 1)} size="sm">
                 Précédent
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={onClose} size="sm">
               Annuler
             </Button>
             {step < 3 ? (
-              <Button onClick={handleNextStep}>
+              <Button onClick={handleNextStep} size="sm">
                 Suivant
               </Button>
             ) : (
-              <Button onClick={handleCreateAgent} disabled={isLoading}>
+              <Button onClick={handleCreateAgent} disabled={isLoading} size="sm">
                 {isLoading ? 'Création...' : 'Créer l\'agent'}
               </Button>
             )}

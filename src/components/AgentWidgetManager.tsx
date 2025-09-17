@@ -110,10 +110,10 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5" />
+            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
               Gestionnaire de Widgets d'Agents IA
             </DialogTitle>
           </DialogHeader>
@@ -134,15 +134,15 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
               </Card>
             ) : (
               <>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
                   {agents.map((agent) => (
                     <Card key={agent.id} className={`relative transition-all hover:shadow-lg ${
                       activeAgent?.id === agent.id ? 'ring-2 ring-primary shadow-primary/20' : ''
                     }`}>
-                      <CardHeader className="pb-3">
+                      <CardHeader className="pb-2 sm:pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <CardTitle className="text-lg flex items-center gap-2">
+                            <CardTitle className="text-base sm:text-lg flex items-center gap-2">
                               {agent.name}
                               {activeAgent?.id === agent.id && (
                                 <Badge variant="default" className="text-xs">
@@ -150,7 +150,7 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
                                 </Badge>
                               )}
                             </CardTitle>
-                            <CardDescription className="mt-1">
+                            <CardDescription className="mt-1 text-xs sm:text-sm">
                               <div className="space-y-1">
                                 <div>Agent ID: <code className="text-xs bg-muted px-1 rounded">
                                   {agent.elevenlabs_agent_id.slice(0, 20)}...
@@ -159,7 +159,7 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
                               </div>
                             </CardDescription>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 sm:gap-2">
                             <Badge 
                               variant={agent.is_active ? "default" : "secondary"}
                               className="text-xs"
@@ -168,11 +168,11 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
                             </Badge>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreVertical className="w-4 h-4" />
+                                <Button variant="ghost" size="sm" className="h-6 w-6 sm:h-8 sm:w-8">
+                                  <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="w-56">
                                 <DropdownMenuItem onClick={() => setSelectedAgentForWidget(agent)}>
                                   <Play className="w-4 h-4 mr-2" />
                                   Prévisualiser le widget
@@ -223,7 +223,7 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
                                       Supprimer
                                     </DropdownMenuItem>
                                   </AlertDialogTrigger>
-                                  <AlertDialogContent>
+                                  <AlertDialogContent className="mx-2 sm:mx-auto">
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Supprimer l'agent</AlertDialogTitle>
                                       <AlertDialogDescription>
@@ -231,7 +231,7 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
                                         Cette action supprimera définitivement le widget et toutes ses configurations.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
-                                    <AlertDialogFooter>
+                                    <AlertDialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
                                       <AlertDialogCancel>Annuler</AlertDialogCancel>
                                       <AlertDialogAction 
                                         onClick={() => deleteAgent(agent.id)}
@@ -247,9 +247,9 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 gap-2 text-sm">
+                      <CardContent className="pt-0">
+                        <div className="space-y-3 sm:space-y-4">
+                          <div className="grid grid-cols-1 gap-2 text-xs sm:text-sm">
                             <div>
                               <span className="text-muted-foreground">Créé le:</span>
                               <span className="ml-1">{formatDate(agent.created_at)}</span>
