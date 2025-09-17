@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Settings, Plus, List } from 'lucide-react';
 import { PersonalAgentCreator } from '@/components/PersonalAgentCreator';
 import { PersonalAgentsList } from '@/components/PersonalAgentsList';
+import { AgentWidgetManager } from '@/components/AgentWidgetManager';
 import { usePersonalAgents } from '@/hooks/usePersonalAgents';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +30,7 @@ export const KpakpatoPage: React.FC = () => {
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [showAgentCreator, setShowAgentCreator] = useState(false);
   const [showAgentsList, setShowAgentsList] = useState(false);
+  const [showWidgetManager, setShowWidgetManager] = useState(false);
   const [sharedAgentId, setSharedAgentId] = useState<string | null>(null);
   
   const { isAuthenticated } = useAuth();
@@ -195,6 +197,16 @@ export const KpakpatoPage: React.FC = () => {
                       <List className="w-5 h-5 mr-2" />
                       Gérer mes agents ({agents.length})
                     </Button>
+                    
+                    <Button
+                      onClick={() => setShowWidgetManager(true)}
+                      variant="outline"
+                      className="bg-transparent hover:bg-white/10 border-primary/30"
+                      size="lg"
+                    >
+                      <Settings className="w-5 h-5 mr-2" />
+                      Widgets & Partage
+                    </Button>
                   </div>
                   
                   {activeAgent && (
@@ -303,6 +315,16 @@ export const KpakpatoPage: React.FC = () => {
                     <List className="w-5 h-5 mr-2" />
                     Gérer mes agents ({agents.length})
                   </Button>
+                  
+                  <Button
+                    onClick={() => setShowWidgetManager(true)}
+                    variant="outline"
+                    className="bg-transparent hover:bg-white/10 border-primary/30"
+                    size="lg"
+                  >
+                    <Settings className="w-5 h-5 mr-2" />
+                    Widgets & Partage
+                  </Button>
                 </div>
                 
                 {activeAgent && (
@@ -389,6 +411,11 @@ export const KpakpatoPage: React.FC = () => {
       <PersonalAgentsList
         open={showAgentsList}
         onClose={() => setShowAgentsList(false)}
+      />
+      
+      <AgentWidgetManager
+        open={showWidgetManager}
+        onClose={() => setShowWidgetManager(false)}
       />
 
       {/* Affichage des erreurs */}
