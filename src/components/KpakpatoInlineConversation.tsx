@@ -28,6 +28,8 @@ export const KpakpatoInlineConversation: React.FC<KpakpatoInlineConversationProp
   const [showChatWindow, setShowChatWindow] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
+  const [showMicrophoneAuth, setShowMicrophoneAuth] = useState(false);
+  const [microphoneGranted, setMicrophoneGranted] = useState(false);
 
   // Utiliser le hook officiel ElevenLabs
   const conversation = useConversation({
@@ -71,12 +73,18 @@ export const KpakpatoInlineConversation: React.FC<KpakpatoInlineConversationProp
   const requestMicrophonePermission = useCallback(async () => {
     try {
       console.log('🎙️ Demande permissions microphone...');
+      setIsLoading(true);
       await navigator.mediaDevices.getUserMedia({ audio: true });
       console.log('✅ Permissions accordées');
+      setMicrophoneGranted(true);
+      setShowMicrophoneAuth(false);
+      setIsLoading(false);
       return true;
     } catch (error) {
       console.error('❌ Permissions refusées:', error);
       onError('Permissions microphone requises pour utiliser Kpakpato');
+      setMicrophoneGranted(false);
+      setIsLoading(false);
       return false;
     }
   }, [onError]);
@@ -127,22 +135,21 @@ export const KpakpatoInlineConversation: React.FC<KpakpatoInlineConversationProp
     }
   }, [onError]);
 
+  // Fonction pour initier la demande de permission microphone
+  const initiateConversation = useCallback(() => {
+    setShowMicrophoneAuth(true);
+    setHasError(false);
+  }, []);
+
   // Fonction principale pour démarrer la conversation
   const startConversation = useCallback(async () => {
-    if (isLoading || conversation.status === 'connected') return;
+    if (isLoading || conversation.status === 'connected' || !microphoneGranted) return;
     
     setIsLoading(true);
     setHasError(false);
     
     try {
       console.log('🚀 === DÉMARRAGE CONVERSATION KPAKPATO ===');
-
-      // Vérification des permissions microphone
-      const granted = await requestMicrophonePermission();
-      if (!granted) {
-        setIsLoading(false);
-        return;
-      }
 
       // Obtenir l'URL signée
       const signedUrl = await getSignedUrl();
@@ -168,7 +175,7 @@ export const KpakpatoInlineConversation: React.FC<KpakpatoInlineConversationProp
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, conversation, requestMicrophonePermission, getSignedUrl, onError]);
+  }, [isLoading, conversation, getSignedUrl, onError, microphoneGranted]);
 
   // Arrêter la conversation
   const stopConversation = useCallback(async () => {
@@ -208,13 +215,68 @@ export const KpakpatoInlineConversation: React.FC<KpakpatoInlineConversationProp
         <CardContent className="flex-1 flex flex-col space-y-4">
           {/* Zone de contrôle */}
           <div className="flex items-center justify-center">
-            {conversation.status !== 'connected' ? (
+            {!showMicrophoneAuth && conversation.status !== 'connected' ? (
               <div className="flex flex-col items-center space-y-3">
+                <Button
+                  onClick={initiateConversation}
+                  size="lg"
+                  className="flex items-center space-x-2 px-8 py-4 text-lg"
+                >
+                  <Phone className="h-5 w-5" />
+                  <span>Commencer la conversation</span>
+                </Button>
+                <p className="text-sm text-muted-foreground text-center max-w-sm">
+                  Cliquez pour débuter votre conversation avec Kpakpato
+                </p>
+              </div>
+            ) : showMicrophoneAuth && !microphoneGranted ? (
+              <div className="flex flex-col items-center space-y-3">
+                <div className="text-center mb-4">
+                  <div className="w-16 h-16 mx-auto mb-3 bg-primary/10 rounded-full flex items-center justify-center">
+                    <Mic className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">Autoriser l'accès au microphone</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Kpakpato a besoin d'accéder à votre microphone pour vous entendre
+                  </p>
+                </div>
+                <Button
+                  onClick={requestMicrophonePermission}
+                  disabled={isLoading}
+                  size="lg"
+                  className="flex items-center space-x-2 px-8 py-4"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Autorisation...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="h-5 w-5" />
+                      <span>Autoriser le microphone</span>
+                    </>
+                  )}
+                </Button>
+                {hasError && (
+                  <p className="text-xs text-destructive text-center">
+                    Erreur d'autorisation. Réessayez ou vérifiez vos paramètres.
+                  </p>
+                )}
+              </div>
+            ) : microphoneGranted && conversation.status !== 'connected' ? (
+              <div className="flex flex-col items-center space-y-3">
+                <div className="text-center mb-2">
+                  <div className="w-12 h-12 mx-auto mb-2 bg-green-100 rounded-full flex items-center justify-center">
+                    <Mic className="w-6 h-6 text-green-600" />
+                  </div>
+                  <p className="text-sm text-green-600 font-medium">Microphone autorisé ✓</p>
+                </div>
                 <Button
                   onClick={startConversation}
                   disabled={isLoading}
                   size="lg"
-                  className="flex items-center space-x-2 px-8 py-4 text-lg"
+                  className="flex items-center space-x-2 px-8 py-4"
                 >
                   {isLoading ? (
                     <>
@@ -224,20 +286,17 @@ export const KpakpatoInlineConversation: React.FC<KpakpatoInlineConversationProp
                   ) : (
                     <>
                       <Phone className="h-5 w-5" />
-                      <span>Commencer la conversation</span>
+                      <span>Se connecter à Kpakpato</span>
                     </>
                   )}
                 </Button>
-                <p className="text-sm text-muted-foreground text-center max-w-sm">
-                  Cliquez pour activer le microphone et commencer à parler avec Kpakpato
-                </p>
                 {hasError && (
                   <p className="text-xs text-destructive text-center">
-                    Erreur de connexion. Vérifiez vos permissions microphone et réessayez.
+                    Erreur de connexion. Réessayez.
                   </p>
                 )}
               </div>
-            ) : (
+            ) : conversation.status === 'connected' ? (
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   {conversation.isSpeaking ? (
@@ -262,7 +321,7 @@ export const KpakpatoInlineConversation: React.FC<KpakpatoInlineConversationProp
                   Terminer
                 </Button>
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Fenêtre de chat */}
