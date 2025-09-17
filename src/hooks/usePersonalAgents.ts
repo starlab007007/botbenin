@@ -63,20 +63,22 @@ export const usePersonalAgents = () => {
         return;
       }
 
-      // Récupérer les agents personnels avec leurs statistiques
+      // Récupérer les agents personnels avec leurs statistiques (seulement ceux avec elevenlabs_agent_id)
       const { data, error: fetchError } = await supabase
         .from('complete_bot_analytics')
         .select('bot_id, bot_name, total_messages, total_sessions, avg_session_duration_minutes, messages_24h, active_users_24h, last_message_at, is_active')
         .eq('owner_id', botOwner.id)
+        .not('elevenlabs_agent_id', 'is', null)
         .order('bot_created_at', { ascending: false });
 
       if (fetchError) {
-        // Fallback : récupérer les bots sans statistiques
+        // Fallback : récupérer les bots sans statistiques (seulement ceux avec elevenlabs_agent_id)
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('bots')
           .select('id, name, elevenlabs_agent_id, widget_config, created_at, is_active, description')
           .eq('owner_id', botOwner.id)
           .eq('is_personal_agent', true)
+          .not('elevenlabs_agent_id', 'is', null)
           .order('created_at', { ascending: false });
         
         if (fallbackError) throw fallbackError;
@@ -102,13 +104,14 @@ export const usePersonalAgents = () => {
         return;
       }
 
-      // Récupérer les détails des bots pour obtenir les configs de widget
+      // Récupérer les détails des bots pour obtenir les configs de widget (seulement ceux avec elevenlabs_agent_id)
       const botIds = (data || []).map(bot => bot.bot_id);
       const { data: botsData } = await supabase
         .from('bots')
         .select('id, elevenlabs_agent_id, widget_config, description')
         .in('id', botIds)
-        .eq('is_personal_agent', true);
+        .eq('is_personal_agent', true)
+        .not('elevenlabs_agent_id', 'is', null);
 
       const personalAgents: PersonalAgent[] = (data || []).map(analytics => {
         const botData = botsData?.find(bot => bot.id === analytics.bot_id);
