@@ -117,11 +117,11 @@ export const KpakpatoPage: React.FC = () => {
       <elevenlabs-convai
         agent-id="agent_6201k518xhz2eemtsrbf38fmjq7p"
         variant="expanded"
-        action-text="Parler à l'IA"
-        start-call-text="Commencer la conversation"
-        end-call-text="Terminer"
+        action-text="Démarrer la conversation"
+        start-call-text="Démarrer la conversation"
+        end-call-text="Terminer la conversation"
         listening-text="J'écoute…"
-        speaking-text="L'agent parle"
+        speaking-text="L'agent vous parle"
       />
 
       {/* Affichage des erreurs */}
