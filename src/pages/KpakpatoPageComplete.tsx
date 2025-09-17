@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KpakpatoVoiceWidget } from '@/components/KpakpatoVoiceWidget';
+import '@/types/elevenlabs';
 
 export const KpakpatoPage: React.FC = () => {
   const [isConversationActive, setIsConversationActive] = useState(false);
@@ -97,15 +97,15 @@ export const KpakpatoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Widget vocal ElevenLabs officiel */}
-      <KpakpatoVoiceWidget
-        agentId="agent_6201k518xhz2eemtsrbf38fmjq7p"
+      {/* Widget vocal ElevenLabs officiel - CDN direct */}
+      <elevenlabs-convai
+        agent-id="agent_6201k518xhz2eemtsrbf38fmjq7p"
         variant="expanded"
-        actionText="Parler à l'IA"
-        startCallText="Commencer la conversation"
-        endCallText="Terminer"
-        position="bottom-right"
-        autoOpen={false}
+        action-text="Parler à l'IA"
+        start-call-text="Commencer la conversation"
+        end-call-text="Terminer"
+        listening-text="J'écoute…"
+        speaking-text="L'agent parle"
       />
 
       {/* Affichage des erreurs */}
