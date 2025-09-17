@@ -4,6 +4,7 @@ import { Settings, Plus, List } from 'lucide-react';
 import { PersonalAgentCreator } from '@/components/PersonalAgentCreator';
 import { PersonalAgentsList } from '@/components/PersonalAgentsList';
 import { AgentWidgetManager } from '@/components/AgentWidgetManager';
+import { AuthModal } from '@/components/AuthModal';
 import { usePersonalAgents } from '@/hooks/usePersonalAgents';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,7 @@ export const KpakpatoPage: React.FC = () => {
   const [showAgentCreator, setShowAgentCreator] = useState(false);
   const [showAgentsList, setShowAgentsList] = useState(false);
   const [showWidgetManager, setShowWidgetManager] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [sharedAgentId, setSharedAgentId] = useState<string | null>(null);
   
   const { isAuthenticated } = useAuth();
@@ -296,6 +298,37 @@ export const KpakpatoPage: React.FC = () => {
             <span className="text-xs text-muted-foreground">Interface vocale avancée</span>
           </div>
         </div>
+
+        {/* Bouton pour utilisateurs non authentifiés */}
+        {!isAuthenticated && (
+          <div className="text-center mt-6 sm:mt-8">
+            <Card className="bg-card/50 backdrop-blur-sm border-primary/20">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h3 className="text-lg sm:text-xl font-semibold mb-2">
+                      Créez votre propre agent IA
+                    </h3>
+                    <p className="text-sm sm:text-base text-muted-foreground mb-4">
+                      Personnalisez votre agent conversationnel avec vos propres paramètres et intégrez-le sur votre site web.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => setShowAuthModal(true)}
+                    className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
+                    size="lg"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer un nouvel agent conversation
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Connectez-vous ou créez un compte pour commencer
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Widget ElevenLabs - Utilise l'agent actif, partagé ou par défaut */}
@@ -355,6 +388,12 @@ export const KpakpatoPage: React.FC = () => {
       <AgentWidgetManager
         open={showWidgetManager}
         onClose={() => setShowWidgetManager(false)}
+      />
+
+      {/* Modal d'authentification pour utilisateurs non connectés */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
       />
 
       {/* Affichage des erreurs */}
