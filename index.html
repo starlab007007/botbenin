@@ -27,7 +27,13 @@
     <meta http-equiv="Expires" content="0" />
     
     <!-- Sécurité -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://*.elevenlabs.io https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https://*.elevenlabs.io;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://*.elevenlabs.io https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https://*.elevenlabs.io; worker-src 'self'; media-src 'self' data: blob:;">
+    
+    <!-- Configuration globale ElevenLabs -->
+    <script>
+      // Configuration du chemin du module AudioWorklet
+      window.ELEVEN_CONVAI_WORKLET_PATH = '/raw-audio-processor.js';
+    </script>
     
     <!-- PWA et mobile -->
     <meta name="theme-color" content="#3B82F6" />
