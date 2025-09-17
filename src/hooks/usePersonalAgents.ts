@@ -20,6 +20,14 @@ interface PersonalAgent {
   created_at: string;
   is_active: boolean;
   description?: string;
+  stats?: {
+    total_messages: number;
+    total_sessions: number;
+    avg_session_duration_minutes: number;
+    messages_24h: number;
+    active_users_24h: number;
+    last_activity?: string;
+  };
 }
 
 export const usePersonalAgents = () => {
@@ -55,32 +63,80 @@ export const usePersonalAgents = () => {
         return;
       }
 
-      // Récupérer les agents personnels
+      // Récupérer les agents personnels avec leurs statistiques
       const { data, error: fetchError } = await supabase
-        .from('bots')
-        .select('id, name, elevenlabs_agent_id, widget_config, created_at, is_active, description')
+        .from('complete_bot_analytics')
+        .select('bot_id, bot_name, total_messages, total_sessions, avg_session_duration_minutes, messages_24h, active_users_24h, last_message_at, is_active')
         .eq('owner_id', botOwner.id)
-        .eq('is_personal_agent', true)
-        .order('created_at', { ascending: false });
+        .order('bot_created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        // Fallback : récupérer les bots sans statistiques
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('bots')
+          .select('id, name, elevenlabs_agent_id, widget_config, created_at, is_active, description')
+          .eq('owner_id', botOwner.id)
+          .eq('is_personal_agent', true)
+          .order('created_at', { ascending: false });
+        
+        if (fallbackError) throw fallbackError;
+        
+        const personalAgents: PersonalAgent[] = (fallbackData || []).map(bot => ({
+          id: bot.id,
+          name: bot.name,
+          elevenlabs_agent_id: bot.elevenlabs_agent_id || '',
+          widget_config: (bot.widget_config as any) || {
+            actionText: 'Nouvel appel',
+            startCallText: 'Démarrer la conversation',
+            endCallText: 'Terminer la conversation',
+            listeningText: 'J\'écoute…',
+            speakingText: 'L\'agent vous parle',
+            variant: 'expanded'
+          },
+          created_at: bot.created_at,
+          is_active: bot.is_active,
+          description: bot.description
+        }));
+        
+        setAgents(personalAgents);
+        return;
+      }
 
-      const personalAgents: PersonalAgent[] = (data || []).map(bot => ({
-        id: bot.id,
-        name: bot.name,
-        elevenlabs_agent_id: bot.elevenlabs_agent_id || '',
-        widget_config: (bot.widget_config as any) || {
-          actionText: 'Nouvel appel',
-          startCallText: 'Démarrer la conversation',
-          endCallText: 'Terminer la conversation',
-          listeningText: 'J\'écoute…',
-          speakingText: 'L\'agent vous parle',
-          variant: 'expanded'
-        },
-        created_at: bot.created_at,
-        is_active: bot.is_active,
-        description: bot.description
-      }));
+      // Récupérer les détails des bots pour obtenir les configs de widget
+      const botIds = (data || []).map(bot => bot.bot_id);
+      const { data: botsData } = await supabase
+        .from('bots')
+        .select('id, elevenlabs_agent_id, widget_config, description')
+        .in('id', botIds)
+        .eq('is_personal_agent', true);
+
+      const personalAgents: PersonalAgent[] = (data || []).map(analytics => {
+        const botData = botsData?.find(bot => bot.id === analytics.bot_id);
+        return {
+          id: analytics.bot_id,
+          name: analytics.bot_name || 'Agent IA',
+          elevenlabs_agent_id: botData?.elevenlabs_agent_id || '',
+          widget_config: (botData?.widget_config as any) || {
+            actionText: 'Nouvel appel',
+            startCallText: 'Démarrer la conversation',
+            endCallText: 'Terminer la conversation',
+            listeningText: 'J\'écoute…',
+            speakingText: 'L\'agent vous parle',
+            variant: 'expanded'
+          },
+          created_at: new Date().toISOString(), // Placeholder
+          is_active: analytics.is_active,
+          description: botData?.description,
+          stats: {
+            total_messages: analytics.total_messages || 0,
+            total_sessions: analytics.total_sessions || 0,
+            avg_session_duration_minutes: analytics.avg_session_duration_minutes || 0,
+            messages_24h: analytics.messages_24h || 0,
+            active_users_24h: analytics.active_users_24h || 0,
+            last_activity: analytics.last_message_at
+          }
+        };
+      });
 
       setAgents(personalAgents);
       

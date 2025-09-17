@@ -243,37 +243,38 @@ export const PersonalAgentsList: React.FC<PersonalAgentsListProps> = ({ open, on
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-2">
-                        <div className="flex gap-1 flex-1">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => copyWidgetCode(agent)}
-                            className="flex-1 text-xs"
-                          >
-                            <Copy className="w-3 h-3 mr-1" />
-                            Code
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => createShareUrl(agent)}
-                            disabled={generatingShareUrl === agent.id}
-                            className="flex-1 text-xs"
-                          >
-                            <Link className="w-3 h-3 mr-1" />
-                            Lien
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => shareOnWhatsApp(agent)}
-                            className="flex-1 text-xs"
-                          >
-                            <Share2 className="w-3 h-3 mr-1" />
-                            WA
-                          </Button>
+                      <div className="pt-2 space-y-2">
+                        {/* Statistiques d'utilisation */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-muted/30 p-2 rounded">
+                            <div className="text-muted-foreground">Messages</div>
+                            <div className="font-medium">{agent.stats?.total_messages || 0}</div>
+                          </div>
+                          <div className="bg-muted/30 p-2 rounded">
+                            <div className="text-muted-foreground">Sessions</div>
+                            <div className="font-medium">{agent.stats?.total_sessions || 0}</div>
+                          </div>
+                          <div className="bg-muted/30 p-2 rounded">
+                            <div className="text-muted-foreground">Durée moy.</div>
+                            <div className="font-medium">{agent.stats?.avg_session_duration_minutes ? `${Math.round(agent.stats.avg_session_duration_minutes)}min` : '0min'}</div>
+                          </div>
+                          <div className="bg-muted/30 p-2 rounded">
+                            <div className="text-muted-foreground">Aujourd'hui</div>
+                            <div className="font-medium">{agent.stats?.messages_24h || 0}</div>
+                          </div>
                         </div>
+                        
+                        {agent.stats?.last_activity && (
+                          <div className="text-xs text-muted-foreground">
+                            Dernière activité: {new Date(agent.stats.last_activity).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        )}
                         {activeAgent?.id !== agent.id && (
                           <Button 
                             size="sm"
