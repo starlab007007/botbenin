@@ -25,6 +25,7 @@ interface PersonalAgent {
 export const usePersonalAgents = () => {
   const [agents, setAgents] = useState<PersonalAgent[]>([]);
   const [activeAgent, setActiveAgent] = useState<PersonalAgent | null>(null);
+  const [sharedAgent, setSharedAgent] = useState<PersonalAgent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -94,6 +95,40 @@ export const usePersonalAgents = () => {
       setError(error.message || 'Erreur lors de la récupération des agents');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSharedAgent = async (agentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_personal_agent_by_id', { agent_uuid: agentId });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const agentData = data[0];
+        const sharedAgentFormatted: PersonalAgent = {
+          id: agentData.id,
+          name: agentData.name,
+          elevenlabs_agent_id: agentData.elevenlabs_agent_id || '',
+          widget_config: (agentData.widget_config as any) || {
+            actionText: 'Nouvel appel',
+            startCallText: 'Démarrer la conversation',
+            endCallText: 'Terminer la conversation',
+            listeningText: 'J\'écoute…',
+            speakingText: 'L\'agent vous parle',
+            variant: 'expanded'
+          },
+          created_at: agentData.created_at,
+          is_active: agentData.is_active,
+          description: agentData.description
+        };
+        setSharedAgent(sharedAgentFormatted);
+        return sharedAgentFormatted;
+      }
+      return null;
+    } catch (err) {
+      console.error('Erreur lors du chargement de l\'agent partagé:', err);
+      return null;
     }
   };
 
@@ -183,10 +218,12 @@ export const usePersonalAgents = () => {
   return {
     agents,
     activeAgent,
+    sharedAgent,
     isLoading,
     error,
     hasPersonalAgents,
     fetchAgents,
+    fetchSharedAgent,
     deleteAgent,
     updateAgent,
     selectAgent

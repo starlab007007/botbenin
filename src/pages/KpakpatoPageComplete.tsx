@@ -32,7 +32,7 @@ export const KpakpatoPage: React.FC = () => {
   const [sharedAgentId, setSharedAgentId] = useState<string | null>(null);
   
   const { isAuthenticated } = useAuth();
-  const { activeAgent, agents, hasPersonalAgents, fetchAgents, selectAgent } = usePersonalAgents();
+  const { activeAgent, sharedAgent, agents, hasPersonalAgents, fetchAgents, fetchSharedAgent, selectAgent } = usePersonalAgents();
 
   // Fonction pour traduire les textes du widget ElevenLabs
   const translateWidgetText = () => {
@@ -114,20 +114,23 @@ export const KpakpatoPage: React.FC = () => {
     const agentId = urlParams.get('agent');
     if (agentId) {
       setSharedAgentId(agentId);
-      // Essayer de trouver l'agent partagé et l'activer si l'utilisateur est connecté
-      if (isAuthenticated) {
-        const sharedAgent = agents.find(agent => agent.id === agentId);
-        if (sharedAgent) {
-          selectAgent(sharedAgent);
+      // Récupérer l'agent partagé
+      fetchSharedAgent(agentId).then(agent => {
+        // Si l'utilisateur est connecté et possède cet agent, l'activer
+        if (isAuthenticated && agent) {
+          const ownedAgent = agents.find(a => a.id === agentId);
+          if (ownedAgent) {
+            selectAgent(ownedAgent);
+          }
         }
-      }
+      });
     }
 
     return () => {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, [agents, isAuthenticated, selectAgent]);
+  }, [agents, isAuthenticated, selectAgent, fetchSharedAgent]);
 
   const handleToggleConversation = () => {
     setIsConversationActive(!isConversationActive);
@@ -310,20 +313,31 @@ export const KpakpatoPage: React.FC = () => {
                   </div>
                 )}
                 
-                {sharedAgentId && !isAuthenticated && (
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      Vous utilisez un agent partagé. Connectez-vous pour créer vos propres agents.
-                    </p>
-                  </div>
-                )}
+                  {sharedAgent && !isAuthenticated && (
+                    <div className="text-center p-3 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        <span className="font-medium">Agent partagé:</span> {sharedAgent.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Connectez-vous pour créer vos propres agents.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {sharedAgentId && isAuthenticated && !activeAgent && (
+                    <div className="text-center p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <p className="text-sm text-amber-800 dark:text-amber-200">
+                        Vous utilisez un agent partagé mais vous n'en êtes pas propriétaire.
+                      </p>
+                    </div>
+                  )}
               </div>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* Widget ElevenLabs - Dynamique selon l'agent personnel ou par défaut */}
+      {/* Widget ElevenLabs - Utilise l'agent actif, partagé ou par défaut */}
       {activeAgent ? (
         <elevenlabs-convai
           agent-id={activeAgent.elevenlabs_agent_id}
@@ -333,6 +347,16 @@ export const KpakpatoPage: React.FC = () => {
           end-call-text={activeAgent.widget_config?.endCallText || 'Terminer la conversation'}
           listening-text={activeAgent.widget_config?.listeningText || 'J\'écoute…'}
           speaking-text={activeAgent.widget_config?.speakingText || 'L\'agent vous parle'}
+        />
+      ) : sharedAgent ? (
+        <elevenlabs-convai
+          agent-id={sharedAgent.elevenlabs_agent_id}
+          variant={sharedAgent.widget_config?.variant || 'expanded'}
+          action-text={sharedAgent.widget_config?.actionText || 'Nouvel appel'}
+          start-call-text={sharedAgent.widget_config?.startCallText || 'Démarrer la conversation'}
+          end-call-text={sharedAgent.widget_config?.endCallText || 'Terminer la conversation'}
+          listening-text={sharedAgent.widget_config?.listeningText || 'J\'écoute…'}
+          speaking-text={sharedAgent.widget_config?.speakingText || 'L\'agent vous parle'}
         />
       ) : (
         <elevenlabs-convai

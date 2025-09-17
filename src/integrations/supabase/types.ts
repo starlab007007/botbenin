@@ -5460,6 +5460,18 @@ export type Database = {
           total_users: number
         }[]
       }
+      get_personal_agent_by_id: {
+        Args: { agent_uuid: string }
+        Returns: {
+          created_at: string
+          description: string
+          elevenlabs_agent_id: string
+          id: string
+          is_active: boolean
+          name: string
+          widget_config: Json
+        }[]
+      }
       get_unified_chat_history: {
         Args: {
           p_bot_id: string
