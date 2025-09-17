@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DirectKpakpatoConversation } from '@/components/DirectKpakpatoConversation';
+import { KpakpatoConversation } from '@/components/KpakpatoConversation';
 
 export const KpakpatoPage: React.FC = () => {
   const [isConversationActive, setIsConversationActive] = useState(false);
@@ -97,8 +97,8 @@ export const KpakpatoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Conversation Kpakpato directe (sans URL signée) */}
-      <DirectKpakpatoConversation
+      {/* Conversation Kpakpato intégrée */}
+      <KpakpatoConversation
         isActive={isConversationActive}
         onToggle={handleToggleConversation}
         onError={handleConversationError}
