@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Bot, MoreVertical, Settings, Trash2, Copy, Play, Pause } from 'lucide-react';
+import { Bot, MoreVertical, Settings, Trash2, Copy, Play, Pause, Share2, Link, QrCode } from 'lucide-react';
 import { usePersonalAgents } from '@/hooks/usePersonalAgents';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PersonalAgentsListProps {
   open: boolean;
@@ -17,6 +18,7 @@ interface PersonalAgentsListProps {
 export const PersonalAgentsList: React.FC<PersonalAgentsListProps> = ({ open, onClose }) => {
   const { agents, activeAgent, selectAgent, deleteAgent, updateAgent } = usePersonalAgents();
   const { toast } = useToast();
+  const [generatingShareUrl, setGeneratingShareUrl] = useState<string | null>(null);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -63,6 +65,36 @@ export const PersonalAgentsList: React.FC<PersonalAgentsListProps> = ({ open, on
       title: "Agent sélectionné",
       description: `${agent.name} est maintenant votre agent actif`
     });
+  };
+
+  const createShareUrl = async (agent: any) => {
+    setGeneratingShareUrl(agent.id);
+    try {
+      // Pour les agents personnels, on génère un lien vers la page Kpakpato avec l'agent ID
+      const shareUrl = `${window.location.origin}/chat?agent=${agent.id}`;
+      
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Lien copié !",
+        description: "Le lien de partage de votre agent a été copié dans le presse-papier"
+      });
+    } catch (error) {
+      console.error('Erreur lors de la création du lien:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer le lien de partage",
+        variant: "destructive"
+      });
+    } finally {
+      setGeneratingShareUrl(null);
+    }
+  };
+
+  const shareOnWhatsApp = (agent: any) => {
+    const shareUrl = `${window.location.origin}/chat?agent=${agent.id}`;
+    const message = `Découvrez ${agent.name} - Mon agent IA de conversation personnalisé ! 🤖✨ ${shareUrl}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   return (
@@ -130,7 +162,18 @@ export const PersonalAgentsList: React.FC<PersonalAgentsListProps> = ({ open, on
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => copyWidgetCode(agent)}>
                               <Copy className="w-4 h-4 mr-2" />
-                              Copier le code
+                              Copier le code d'intégration
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => createShareUrl(agent)}
+                              disabled={generatingShareUrl === agent.id}
+                            >
+                              <Link className="w-4 h-4 mr-2" />
+                              Copier le lien de partage
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => shareOnWhatsApp(agent)}>
+                              <Share2 className="w-4 h-4 mr-2" />
+                              Partager sur WhatsApp
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => toggleAgentStatus(agent)}>
                               {agent.is_active ? (
@@ -201,22 +244,43 @@ export const PersonalAgentsList: React.FC<PersonalAgentsListProps> = ({ open, on
                       </div>
 
                       <div className="flex gap-2 pt-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => copyWidgetCode(agent)}
-                          className="flex-1"
-                        >
-                          <Copy className="w-4 h-4 mr-2" />
-                          Copier le code
-                        </Button>
+                        <div className="flex gap-1 flex-1">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => copyWidgetCode(agent)}
+                            className="flex-1 text-xs"
+                          >
+                            <Copy className="w-3 h-3 mr-1" />
+                            Code
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => createShareUrl(agent)}
+                            disabled={generatingShareUrl === agent.id}
+                            className="flex-1 text-xs"
+                          >
+                            <Link className="w-3 h-3 mr-1" />
+                            Lien
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => shareOnWhatsApp(agent)}
+                            className="flex-1 text-xs"
+                          >
+                            <Share2 className="w-3 h-3 mr-1" />
+                            WA
+                          </Button>
+                        </div>
                         {activeAgent?.id !== agent.id && (
                           <Button 
                             size="sm"
                             onClick={() => handleSelectAgent(agent)}
-                            className="flex-1"
+                            className="px-3"
                           >
-                            <Play className="w-4 h-4 mr-2" />
+                            <Play className="w-4 h-4 mr-1" />
                             Utiliser
                           </Button>
                         )}

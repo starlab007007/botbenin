@@ -5,6 +5,7 @@ import { PersonalAgentCreator } from '@/components/PersonalAgentCreator';
 import { PersonalAgentsList } from '@/components/PersonalAgentsList';
 import { usePersonalAgents } from '@/hooks/usePersonalAgents';
 import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // Déclaration TypeScript pour l'élément personnalisé ElevenLabs
 declare global {
@@ -28,9 +29,10 @@ export const KpakpatoPage: React.FC = () => {
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [showAgentCreator, setShowAgentCreator] = useState(false);
   const [showAgentsList, setShowAgentsList] = useState(false);
+  const [sharedAgentId, setSharedAgentId] = useState<string | null>(null);
   
   const { isAuthenticated } = useAuth();
-  const { activeAgent, hasPersonalAgents, fetchAgents } = usePersonalAgents();
+  const { activeAgent, agents, hasPersonalAgents, fetchAgents, selectAgent } = usePersonalAgents();
 
   // Fonction pour traduire les textes du widget ElevenLabs
   const translateWidgetText = () => {
@@ -107,11 +109,25 @@ export const KpakpatoPage: React.FC = () => {
     const observer = new MutationObserver(translateWidgetText);
     observer.observe(document.body, { childList: true, subtree: true });
 
+    // Vérifier s'il y a un agent partagé dans l'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const agentId = urlParams.get('agent');
+    if (agentId) {
+      setSharedAgentId(agentId);
+      // Essayer de trouver l'agent partagé et l'activer si l'utilisateur est connecté
+      if (isAuthenticated) {
+        const sharedAgent = agents.find(agent => agent.id === agentId);
+        if (sharedAgent) {
+          selectAgent(sharedAgent);
+        }
+      }
+    }
+
     return () => {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, []);
+  }, [agents, isAuthenticated, selectAgent]);
 
   const handleToggleConversation = () => {
     setIsConversationActive(!isConversationActive);
@@ -147,38 +163,55 @@ export const KpakpatoPage: React.FC = () => {
             Kpakpato – Agent IA
           </h1>
           
-          {/* Boutons de gestion des agents personnels */}
+          {/* Section de gestion des agents en bas de page */}
           {isAuthenticated && (
-            <div className="flex flex-col sm:flex-row gap-4 mb-6 justify-center animate-fade-in">
-              <Button
-                onClick={() => setShowAgentCreator(true)}
-                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm"
-                size="lg"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                Créer mon agent IA conversation
-              </Button>
-              
-              {hasPersonalAgents && (
-                <Button
-                  onClick={() => setShowAgentsList(true)}
-                  variant="outline"
-                  className="bg-transparent hover:bg-white/10 text-white border-white/30 backdrop-blur-sm"
-                  size="lg"
-                >
-                  <List className="w-5 h-5 mr-2" />
-                  Mes agents ({activeAgent ? '1 actif' : '0 actif'})
-                </Button>
-              )}
-            </div>
-          )}
-          
-          {activeAgent && (
-            <div className="mb-6 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-              <p className="text-white/90 text-sm">
-                <span className="font-medium">Agent actif:</span> {activeAgent.name}
-              </p>
-            </div>
+            <Card className="bg-card/50 backdrop-blur-sm border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-center text-xl">
+                  Gérer mes agents IA personnels
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button
+                      onClick={() => setShowAgentCreator(true)}
+                      className="bg-primary hover:bg-primary/90"
+                      size="lg"
+                    >
+                      <Plus className="w-5 h-5 mr-2" />
+                      Créer un nouvel agent
+                    </Button>
+                    
+                    <Button
+                      onClick={() => setShowAgentsList(true)}
+                      variant="outline"
+                      className="bg-transparent hover:bg-white/10 border-primary/30"
+                      size="lg"
+                    >
+                      <List className="w-5 h-5 mr-2" />
+                      Gérer mes agents ({agents.length})
+                    </Button>
+                  </div>
+                  
+                  {activeAgent && (
+                    <div className="text-center p-3 bg-primary/10 rounded-lg">
+                      <p className="text-sm">
+                        <span className="font-medium">Agent actif:</span> {activeAgent.name}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {sharedAgentId && !isAuthenticated && (
+                    <div className="text-center p-3 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        Vous utilisez un agent partagé. Connectez-vous pour créer vos propres agents.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
           <p className="text-xl text-muted-foreground mb-4">
             Cliquez sur le bouton pour{" "}
@@ -237,6 +270,57 @@ export const KpakpatoPage: React.FC = () => {
             <span className="text-xs text-muted-foreground">Interface vocale avancée</span>
           </div>
         </div>
+
+        {/* Section de gestion des agents en bas de page */}
+        {isAuthenticated && (
+          <Card className="bg-card/50 backdrop-blur-sm border-primary/20 mt-8">
+            <CardHeader>
+              <CardTitle className="text-center text-xl">
+                Gérer mes agents IA personnels
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    onClick={() => setShowAgentCreator(true)}
+                    className="bg-primary hover:bg-primary/90"
+                    size="lg"
+                  >
+                    <Plus className="w-5 h-5 mr-2" />
+                    Créer un nouvel agent
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setShowAgentsList(true)}
+                    variant="outline"
+                    className="bg-transparent hover:bg-white/10 border-primary/30"
+                    size="lg"
+                  >
+                    <List className="w-5 h-5 mr-2" />
+                    Gérer mes agents ({agents.length})
+                  </Button>
+                </div>
+                
+                {activeAgent && (
+                  <div className="text-center p-3 bg-primary/10 rounded-lg">
+                    <p className="text-sm">
+                      <span className="font-medium">Agent actif:</span> {activeAgent.name}
+                    </p>
+                  </div>
+                )}
+                
+                {sharedAgentId && !isAuthenticated && (
+                  <div className="text-center p-3 bg-muted/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      Vous utilisez un agent partagé. Connectez-vous pour créer vos propres agents.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Widget ElevenLabs - Dynamique selon l'agent personnel ou par défaut */}
