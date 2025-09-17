@@ -60,7 +60,8 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
     navigate('/');
   };
 
-  const getUserInitials = (name: string) => {
+  const getUserInitials = (name: string | undefined) => {
+    if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
@@ -154,24 +155,24 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 h-10">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm">
-                      {getUserInitials(user!.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="hidden sm:block text-sm font-medium text-gray-700">
-                    {user!.name}
-                  </span>
-                </Button>
+                 <Button variant="ghost" className="flex items-center space-x-2 h-10">
+                   <Avatar className="h-8 w-8">
+                     <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm">
+                       {getUserInitials(user?.name)}
+                     </AvatarFallback>
+                   </Avatar>
+                   <span className="hidden sm:block text-sm font-medium text-gray-700">
+                     {user?.name || 'Utilisateur'}
+                   </span>
+                 </Button>
               </DropdownMenuTrigger>
               
-              <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-200 shadow-lg">
-                <div className="px-3 py-2 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-900">{user!.name}</p>
-                  <p className="text-xs text-gray-500">{user!.email}</p>
-                  <p className="text-xs text-blue-600 capitalize mt-1">{user!.role}</p>
-                </div>
+               <DropdownMenuContent align="end" className="w-56 bg-white border border-gray-200 shadow-lg">
+                 <div className="px-3 py-2 border-b border-gray-100">
+                   <p className="text-sm font-medium text-gray-900">{user?.name || 'Utilisateur'}</p>
+                   <p className="text-xs text-gray-500">{user?.email || ''}</p>
+                   <p className="text-xs text-blue-600 capitalize mt-1">{user?.role || 'user'}</p>
+                 </div>
                 
                 <DropdownMenuItem asChild>
                   <Link to="/home" className="flex items-center cursor-pointer">
