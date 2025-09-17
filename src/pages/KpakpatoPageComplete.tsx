@@ -1,5 +1,21 @@
 import React, { useState } from 'react';
-import '@/types/elevenlabs';
+
+// Déclaration TypeScript pour l'élément personnalisé ElevenLabs
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'elevenlabs-convai': {
+        'agent-id': string;
+        variant?: string;
+        'action-text'?: string;
+        'start-call-text'?: string;
+        'end-call-text'?: string;
+        'listening-text'?: string;
+        'speaking-text'?: string;
+      } & React.HTMLAttributes<HTMLElement>;
+    }
+  }
+}
 
 export const KpakpatoPage: React.FC = () => {
   const [isConversationActive, setIsConversationActive] = useState(false);
