@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Déclaration TypeScript pour l'élément personnalisé ElevenLabs
 declare global {
@@ -20,6 +20,87 @@ declare global {
 export const KpakpatoPage: React.FC = () => {
   const [isConversationActive, setIsConversationActive] = useState(false);
   const [conversationError, setConversationError] = useState<string | null>(null);
+
+  // Fonction pour traduire les textes du widget ElevenLabs
+  const translateWidgetText = () => {
+    const translateText = () => {
+      // Attendre que le widget soit chargé
+      const widget = document.querySelector('elevenlabs-convai');
+      if (!widget) return;
+
+      // Essayer d'accéder au shadow root
+      try {
+        const iframe = widget.querySelector('iframe');
+        if (iframe && iframe.contentDocument) {
+          const doc = iframe.contentDocument;
+          
+          // Traduire les éléments dans l'iframe
+          const elementsToTranslate = doc.querySelectorAll('*');
+          elementsToTranslate.forEach(el => {
+            if (el.textContent) {
+              if (el.textContent.trim() === 'New call') {
+                el.textContent = 'Nouvel appel';
+              }
+              if (el.textContent.trim() === 'Terms and conditions') {
+                el.textContent = 'Conditions d\'utilisation';
+              }
+              if (el.textContent.trim() === 'Cancel') {
+                el.textContent = 'Annuler';
+              }
+              if (el.textContent.trim() === 'Accept') {
+                el.textContent = 'Accepter';
+              }
+              if (el.textContent.includes('By clicking "Agree,"')) {
+                el.textContent = 'En cliquant sur "Accepter" et à chaque fois que j\'interagis avec cet agent IA, je consens à l\'enregistrement, au stockage et au partage de mes communications avec des fournisseurs de services tiers, comme décrit dans la Politique de confidentialité. Si vous ne souhaitez pas que vos conversations soient enregistrées, veuillez vous abstenir d\'utiliser ce service.';
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.log('Impossible d\'accéder au contenu du widget:', error);
+      }
+
+      // Essayer aussi avec les éléments directs
+      const directElements = document.querySelectorAll('elevenlabs-convai *');
+      directElements.forEach(el => {
+        if (el.textContent) {
+          if (el.textContent.trim() === 'New call') {
+            el.textContent = 'Nouvel appel';
+          }
+          if (el.textContent.trim() === 'Terms and conditions') {
+            el.textContent = 'Conditions d\'utilisation';
+          }
+          if (el.textContent.trim() === 'Cancel') {
+            el.textContent = 'Annuler';
+          }
+          if (el.textContent.trim() === 'Accept') {
+            el.textContent = 'Accepter';
+          }
+        }
+      });
+    };
+
+    translateText();
+    
+    // Réessayer plusieurs fois car le widget peut se charger de manière asynchrone
+    setTimeout(translateText, 1000);
+    setTimeout(translateText, 2000);
+    setTimeout(translateText, 3000);
+  };
+
+  useEffect(() => {
+    // Lancer la traduction après le montage du composant
+    const timer = setTimeout(translateWidgetText, 1000);
+    
+    // Surveiller les changements dans le DOM pour retraduire si nécessaire
+    const observer = new MutationObserver(translateWidgetText);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, []);
 
   const handleToggleConversation = () => {
     setIsConversationActive(!isConversationActive);
@@ -117,7 +198,7 @@ export const KpakpatoPage: React.FC = () => {
       <elevenlabs-convai
         agent-id="agent_6201k518xhz2eemtsrbf38fmjq7p"
         variant="expanded"
-        action-text="Démarrer la conversation"
+        action-text="Nouvel appel"
         start-call-text="Démarrer la conversation"
         end-call-text="Terminer la conversation"
         listening-text="J'écoute…"
@@ -150,6 +231,16 @@ export const KpakpatoPage: React.FC = () => {
           /* Option : forcer le widget à passer au-dessus d'autres overlays */
           elevenlabs-convai {
             --elv-z-index: 30;
+          }
+          
+          /* Styling personnalisé du widget */
+          elevenlabs-convai {
+            border-radius: 12px !important;
+            overflow: hidden !important;
+          }
+          
+          elevenlabs-convai iframe {
+            border-radius: 12px !important;
           }
           
           /* Styling personnalisé du widget */
