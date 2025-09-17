@@ -49,7 +49,7 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
   };
 
   const generateWidgetUrl = (agent: any) => {
-    return `${window.location.origin}/chat?agent=${agent.id}&widget=true`;
+    return `${window.location.origin}/widget?agent=${agent.id}`;
   };
 
   const copyWidgetCode = (agent: any) => {
@@ -298,7 +298,7 @@ export const AgentWidgetManager: React.FC<AgentWidgetManagerProps> = ({ open, on
                               className="text-xs"
                             >
                               <Play className="w-3 h-3 mr-1" />
-                              Tester
+                              Démarrer mon agent IA
                             </Button>
                           </div>
 

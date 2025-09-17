@@ -70,8 +70,8 @@ export const PersonalAgentsList: React.FC<PersonalAgentsListProps> = ({ open, on
   const createShareUrl = async (agent: any) => {
     setGeneratingShareUrl(agent.id);
     try {
-      // Pour les agents personnels, on génère un lien vers la page Kpakpato avec l'agent ID
-      const shareUrl = `${window.location.origin}/chat?agent=${agent.id}`;
+      // Pour les agents personnels, on génère un lien vers la page widget
+      const shareUrl = `${window.location.origin}/widget?agent=${agent.id}`;
       
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -91,7 +91,7 @@ export const PersonalAgentsList: React.FC<PersonalAgentsListProps> = ({ open, on
   };
 
   const shareOnWhatsApp = (agent: any) => {
-    const shareUrl = `${window.location.origin}/chat?agent=${agent.id}`;
+    const shareUrl = `${window.location.origin}/widget?agent=${agent.id}`;
     const message = `Découvrez ${agent.name} - Mon agent IA de conversation personnalisé ! 🤖✨ ${shareUrl}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');

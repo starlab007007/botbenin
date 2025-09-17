@@ -49,7 +49,7 @@ export const AgentWidgetDisplay: React.FC<AgentWidgetDisplayProps> = ({ agent, o
   };
 
   const generateWidgetUrl = () => {
-    return `${window.location.origin}/chat?agent=${agent.id}&widget=true`;
+    return `${window.location.origin}/widget?agent=${agent.id}`;
   };
 
   const copyWidgetCode = () => {
