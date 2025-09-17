@@ -1,4 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Settings, Plus, List } from 'lucide-react';
+import { PersonalAgentCreator } from '@/components/PersonalAgentCreator';
+import { PersonalAgentsList } from '@/components/PersonalAgentsList';
+import { usePersonalAgents } from '@/hooks/usePersonalAgents';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Déclaration TypeScript pour l'élément personnalisé ElevenLabs
 declare global {
@@ -20,6 +26,11 @@ declare global {
 export const KpakpatoPage: React.FC = () => {
   const [isConversationActive, setIsConversationActive] = useState(false);
   const [conversationError, setConversationError] = useState<string | null>(null);
+  const [showAgentCreator, setShowAgentCreator] = useState(false);
+  const [showAgentsList, setShowAgentsList] = useState(false);
+  
+  const { isAuthenticated } = useAuth();
+  const { activeAgent, hasPersonalAgents, fetchAgents } = usePersonalAgents();
 
   // Fonction pour traduire les textes du widget ElevenLabs
   const translateWidgetText = () => {
@@ -135,6 +146,40 @@ export const KpakpatoPage: React.FC = () => {
           <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent mb-4">
             Kpakpato – Agent IA
           </h1>
+          
+          {/* Boutons de gestion des agents personnels */}
+          {isAuthenticated && (
+            <div className="flex flex-col sm:flex-row gap-4 mb-6 justify-center animate-fade-in">
+              <Button
+                onClick={() => setShowAgentCreator(true)}
+                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-sm"
+                size="lg"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Créer mon agent IA conversation
+              </Button>
+              
+              {hasPersonalAgents && (
+                <Button
+                  onClick={() => setShowAgentsList(true)}
+                  variant="outline"
+                  className="bg-transparent hover:bg-white/10 text-white border-white/30 backdrop-blur-sm"
+                  size="lg"
+                >
+                  <List className="w-5 h-5 mr-2" />
+                  Mes agents ({activeAgent ? '1 actif' : '0 actif'})
+                </Button>
+              )}
+            </div>
+          )}
+          
+          {activeAgent && (
+            <div className="mb-6 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+              <p className="text-white/90 text-sm">
+                <span className="font-medium">Agent actif:</span> {activeAgent.name}
+              </p>
+            </div>
+          )}
           <p className="text-xl text-muted-foreground mb-4">
             Cliquez sur le bouton pour{" "}
             <strong>appeler l'agent IA</strong> et discuter en français.
@@ -194,15 +239,48 @@ export const KpakpatoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Widget vocal ElevenLabs officiel - CDN direct */}
-      <elevenlabs-convai
-        agent-id="agent_6201k518xhz2eemtsrbf38fmjq7p"
-        variant="expanded"
-        action-text="Nouvel appel"
-        start-call-text="Démarrer la conversation"
-        end-call-text="Terminer la conversation"
-        listening-text="J'écoute…"
-        speaking-text="L'agent vous parle"
+      {/* Widget ElevenLabs - Dynamique selon l'agent personnel ou par défaut */}
+      {activeAgent ? (
+        <elevenlabs-convai
+          agent-id={activeAgent.elevenlabs_agent_id}
+          variant={activeAgent.widget_config?.variant || 'expanded'}
+          action-text={activeAgent.widget_config?.actionText || 'Nouvel appel'}
+          start-call-text={activeAgent.widget_config?.startCallText || 'Démarrer la conversation'}
+          end-call-text={activeAgent.widget_config?.endCallText || 'Terminer la conversation'}
+          listening-text={activeAgent.widget_config?.listeningText || 'J\'écoute…'}
+          speaking-text={activeAgent.widget_config?.speakingText || 'L\'agent vous parle'}
+        />
+      ) : (
+        <elevenlabs-convai
+          agent-id="agent_6201k518xhz2eemtsrbf38fmjq7p"
+          variant="expanded"
+          action-text="Nouvel appel"
+          start-call-text="Démarrer la conversation"
+          end-call-text="Terminer la conversation"
+          listening-text="J'écoute…"
+          speaking-text="L'agent vous parle"
+        />
+      )}
+
+      <script
+        src="https://unpkg.com/@elevenlabs/convai-widget-embed"
+        async
+        type="text/javascript"
+      />
+
+      {/* Modals de gestion des agents */}
+      <PersonalAgentCreator
+        open={showAgentCreator}
+        onClose={() => setShowAgentCreator(false)}
+        onAgentCreated={() => {
+          fetchAgents();
+          setShowAgentCreator(false);
+        }}
+      />
+      
+      <PersonalAgentsList
+        open={showAgentsList}
+        onClose={() => setShowAgentsList(false)}
       />
 
       {/* Affichage des erreurs */}

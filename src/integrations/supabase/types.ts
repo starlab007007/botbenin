@@ -778,14 +778,17 @@ export type Database = {
           created_at: string
           description: string | null
           display_in_live_chat: boolean | null
+          elevenlabs_agent_id: string | null
           id: string
           is_active: boolean | null
+          is_personal_agent: boolean | null
           name: string
           owner_id: string | null
           public_chat_url: string | null
           share_enabled: boolean | null
           updated_at: string
           webhook_url: string | null
+          widget_config: Json | null
         }
         Insert: {
           api_key?: string | null
@@ -795,14 +798,17 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_in_live_chat?: boolean | null
+          elevenlabs_agent_id?: string | null
           id?: string
           is_active?: boolean | null
+          is_personal_agent?: boolean | null
           name: string
           owner_id?: string | null
           public_chat_url?: string | null
           share_enabled?: boolean | null
           updated_at?: string
           webhook_url?: string | null
+          widget_config?: Json | null
         }
         Update: {
           api_key?: string | null
@@ -812,14 +818,17 @@ export type Database = {
           created_at?: string
           description?: string | null
           display_in_live_chat?: boolean | null
+          elevenlabs_agent_id?: string | null
           id?: string
           is_active?: boolean | null
+          is_personal_agent?: boolean | null
           name?: string
           owner_id?: string | null
           public_chat_url?: string | null
           share_enabled?: boolean | null
           updated_at?: string
           webhook_url?: string | null
+          widget_config?: Json | null
         }
         Relationships: [
           {
