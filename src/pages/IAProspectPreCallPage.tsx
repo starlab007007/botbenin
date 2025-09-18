@@ -20,11 +20,14 @@ export const IAProspectPreCallPage = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateFirst, setShowCreateFirst] = useState(false);
   
-  // Configuration par défaut pour Google Sheets
-  const DEFAULT_SPREADSHEET_ID = "1example";
-  const DEFAULT_SHEET_NAME = "Prospects";
+  // Configuration pour le Google Sheet de l'utilisateur
+  const SPREADSHEET_ID = "14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8";
+  const SHEET_NAME = "Feuille 1";
   
-  const { data: googleSheetsData, isLoading, loadData } = useGoogleSheets(undefined, user?.id);
+  const { data: googleSheetsData, isLoading, loadData } = useGoogleSheets(
+    { spreadsheetId: SPREADSHEET_ID, sheetName: SHEET_NAME }, 
+    user?.id
+  );
   
   // Rafraîchissement automatique à l'ouverture de la page
   useEffect(() => {
@@ -146,8 +149,8 @@ export const IAProspectPreCallPage = () => {
 
         {/* Google Sheets Editor */}
         <GoogleSheetEditor 
-          spreadsheetId={DEFAULT_SPREADSHEET_ID}
-          sheetName={DEFAULT_SHEET_NAME}
+          spreadsheetId={SPREADSHEET_ID}
+          sheetName={SHEET_NAME}
         />
       </div>
 
