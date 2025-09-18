@@ -369,6 +369,31 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       );
     }
 
+    // Rendu spécial pour la colonne RUN/Exécuter
+    if (column.toLowerCase() === 'run') {
+      // Convertir true/false en Oui/Non pour l'affichage
+      const displayValue = value === 'true' ? 'Oui' : value === 'false' ? 'Non' : '';
+      
+      return (
+        <Select
+          value={displayValue}
+          onValueChange={(newValue) => {
+            // Convertir Oui/Non en true/false pour le stockage
+            const storageValue = newValue === 'Oui' ? 'true' : newValue === 'Non' ? 'false' : '';
+            updateCellValue(row.id, column, storageValue);
+          }}
+        >
+          <SelectTrigger className="w-full min-w-[120px]">
+            <SelectValue placeholder="Choisir..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Oui">Oui</SelectItem>
+            <SelectItem value="Non">Non</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
     // Rendu normal pour les autres champs
     return (
       <Input
@@ -548,7 +573,9 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                         <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
                           <div className="flex items-center gap-2">
                             {getFieldIcon(header)}
-                            <span className="truncate">{header}</span>
+                            <span className="truncate">
+                              {header.toLowerCase() === 'run' ? 'Exécuter' : header}
+                            </span>
                           </div>
                         </th>
                       ))}
