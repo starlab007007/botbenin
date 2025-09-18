@@ -21,10 +21,13 @@ export const IAProspectPreCallPage = () => {
   const [showCreateFirst, setShowCreateFirst] = useState(false);
   
   // Configuration par défaut pour Google Sheets
-  const DEFAULT_SPREADSHEET_ID = "1example";
-  const DEFAULT_SHEET_NAME = "Prospects";
+  const DEFAULT_SPREADSHEET_ID = "14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8";
+  const DEFAULT_SHEET_NAME = "Feuille 1";
   
-  const { data: googleSheetsData, isLoading, loadData } = useGoogleSheets(undefined, user?.id);
+  const { data: googleSheetsData, isLoading, loadData } = useGoogleSheets(
+    { spreadsheetId: DEFAULT_SPREADSHEET_ID, sheetName: DEFAULT_SHEET_NAME }, 
+    user?.id
+  );
   
   // Rafraîchissement automatique à l'ouverture de la page
   useEffect(() => {
@@ -38,13 +41,18 @@ export const IAProspectPreCallPage = () => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
     } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length === 0) {
+      // Afficher l'écran "créer premier prospect" seulement si pas encore déclenché
       setShowCreateFirst(true);
     } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
       setShowCreateFirst(false);
     }
   }, [isAuthenticated, googleSheetsData]);
 
-  const handleCreateFirstProspect = () => {
+  const handleCreateFirstProspect = async () => {
+    if (loadData) {
+      console.log('🔄 Forcer actualisation Google Sheets au clic du bouton');
+      await loadData(true); // Force avec notification
+    }
     setShowCreateFirst(false);
   };
   if (!isAuthenticated) {
@@ -73,7 +81,7 @@ export const IAProspectPreCallPage = () => {
     );
   }
 
-  if (showCreateFirst || (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length === 0)) {
+  if (showCreateFirst && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
