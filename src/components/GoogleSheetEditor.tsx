@@ -329,73 +329,114 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         </CardHeader>
       </Card>
 
-      {/* Tableau des données */}
+      {/* Tableau des données - Prospects */}
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <User className="w-5 h-5 text-blue-600" />
+              Prospects ({localData.length})
+            </div>
+            {localData.length > 0 && (
+              <Badge variant="outline" className="text-sm">
+                {headers.length} colonnes
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
         <CardContent className="p-0">
           {localData.length > 0 && headers.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    {headers.map((header) => (
-                      <th key={header} className="px-4 py-3 text-left text-sm font-medium text-gray-900">
-                        <div className="flex items-center gap-2">
-                          {getFieldIcon(header)}
-                          {header}
-                        </div>
+              <div className="max-h-[600px] overflow-y-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
+                        #
                       </th>
-                    ))}
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-900 w-24">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {localData.map((row, rowIndex) => (
-                    <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                      {headers.map((column) => (
-                        <td key={`${row.id}-${column}`} className="px-4 py-3">
-                          {column.toLowerCase().includes('statut') ? (
-                            <div className="flex items-center gap-2">
-                              {renderCell(row, column)}
-                              {getStatusBadge(row[column])}
-                            </div>
-                          ) : (
-                            renderCell(row, column)
-                          )}
-                        </td>
+                      {headers.map((header) => (
+                        <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
+                          <div className="flex items-center gap-2">
+                            {getFieldIcon(header)}
+                            <span className="truncate">{header}</span>
+                          </div>
+                        </th>
                       ))}
-                      <td className="px-4 py-3 text-center">
-                        <Button
-                          onClick={() => deleteRow(row.id)}
-                          disabled={localData.length <= 1}
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-20">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {localData.map((row, rowIndex) => (
+                      <tr 
+                        key={row.id} 
+                        className={`
+                          hover:bg-blue-50/50 transition-all duration-200
+                          ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
+                          border-b border-gray-100
+                        `}
+                      >
+                        <td className="px-3 py-4 text-sm font-medium text-gray-500">
+                          {rowIndex + 1}
+                        </td>
+                        {headers.map((column) => (
+                          <td key={`${row.id}-${column}`} className="px-4 py-4">
+                            {column.toLowerCase().includes('statut') ? (
+                              <div className="space-y-2">
+                                {renderCell(row, column)}
+                                <div className="flex justify-start">
+                                  {getStatusBadge(row[column])}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="min-w-[140px]">
+                                {renderCell(row, column)}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-4 py-4 text-center">
+                          <Button
+                            onClick={() => deleteRow(row.id)}
+                            disabled={localData.length <= 1}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
-            <div className="p-8 text-center text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium mb-2">Aucune donnée trouvée</p>
-              <p className="text-sm">
-                Vérifiez que votre Google Sheet contient des données ou que l'ID est correct.
-              </p>
-              <Button
-                onClick={addNewRow}
-                className="mt-4"
-                variant="outline"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Ajouter une première ligne
-              </Button>
+            <div className="p-12 text-center text-gray-500">
+              <div className="max-w-md mx-auto">
+                <FileText className="w-16 h-16 mx-auto mb-6 text-gray-300" />
+                <h3 className="text-xl font-semibold mb-3 text-gray-700">Aucun prospect trouvé</h3>
+                <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+                  Vérifiez que votre Google Sheet contient des données ou que l'ID et le nom de la feuille sont corrects.
+                  <br />
+                  Les données doivent être au format tableau avec des en-têtes en première ligne.
+                </p>
+                <div className="space-y-3">
+                  <Button
+                    onClick={addNewRow}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    size="lg"
+                  >
+                    <Plus className="w-5 h-5 mr-2" />
+                    Créer le premier prospect
+                  </Button>
+                  <div className="text-xs text-gray-400">
+                    ou actualisez pour recharger les données
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
