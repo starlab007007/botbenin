@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { AuthModal } from '@/components/AuthModal';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   FileText, 
   Search, 
@@ -19,6 +22,17 @@ import {
 } from 'lucide-react';
 
 export const IAProspectPreCallPage = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const handleStartPreparation = () => {
+    if (!user) {
+      setShowAuthModal(true);
+    } else {
+      navigate('/prospect-preparation');
+    }
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -181,10 +195,11 @@ export const IAProspectPreCallPage = () => {
               </p>
               <Button 
                 size="lg" 
+                onClick={handleStartPreparation}
                 className="bg-white text-blue-600 hover:bg-blue-50 text-lg px-8 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
               >
                 <Zap className="w-5 h-5 mr-2" />
-                Commencer une Préparation d'Appel Automatisée
+                Préparation d'Appel de Vente Automatisée
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
               <div className="flex items-center justify-center gap-4 mt-6 text-sm text-blue-100">
@@ -235,6 +250,12 @@ export const IAProspectPreCallPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+      />
     </div>
   );
 };

@@ -48,6 +48,7 @@ const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
+const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
 
 // Pages spéciales
 const SystemTestPage = lazy(() => import("./pages/SystemTestPage").then(module => ({ default: module.SystemTestPage })));
@@ -107,9 +108,10 @@ const App = () => (
                     {/* Tests système */}
                     <Route path="/system-test" element={<SystemTestPage />} />
                     
-                    {/* CRM & Prospects */}
-                    <Route path="/prospects" element={<ProspectsLayout />} />
-                    <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
+                     {/* CRM & Prospects */}
+                     <Route path="/prospects" element={<ProspectsLayout />} />
+                     <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
+                     <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
