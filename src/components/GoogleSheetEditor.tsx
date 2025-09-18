@@ -6,13 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { useGoogleSheets, GoogleSheetProspectWithUser } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
+import { useAuth } from '@/contexts/AuthContext';
+import { ProspectAnalysisModal } from './ProspectAnalysisModal';
 import { 
   RefreshCw, 
   Save, 
   Plus, 
-  Trash2, 
+  BarChart3, 
   User, 
   Building, 
   Globe, 
@@ -21,11 +23,11 @@ import {
   Clock,
   AlertCircle,
   FileText,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Shield
 } from 'lucide-react';
 
-interface GoogleSheetRow {
-  id: string;
+interface GoogleSheetRow extends GoogleSheetProspectWithUser {
   [key: string]: any;
 }
 
@@ -38,10 +40,13 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   spreadsheetId,
   sheetName
 }) => {
+  const { user, isAuthenticated } = useAuth();
   const [localData, setLocalData] = useState<GoogleSheetRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [selectedProspect, setSelectedProspect] = useState<GoogleSheetProspectWithUser | null>(null);
 
   const {
     data: googleSheetsData,
@@ -49,13 +54,13 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     connectionStatus,
     loadData: loadGoogleSheetsData,
     updateConfig: updateGoogleSheetsConfig
-  } = useGoogleSheets();
+  } = useGoogleSheets(undefined, user?.id);
 
   const {
     isWriting,
     lastWriteTime,
     syncToGoogleSheets
-  } = useGoogleSheetsWriter();
+  } = useGoogleSheetsWriter(user?.id);
 
   // Configuration initiale
   useEffect(() => {
@@ -75,14 +80,17 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   useEffect(() => {
     if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
       const processedData = googleSheetsData.map((row, index) => ({
-        id: row.id || `row_${index}`,
-        ...row
+        ...row,
+        id: row.id || `user_${user?.id || 'unknown'}_${Date.now()}_${index}`,
+        user_id: row.user_id || user?.id || 'unknown'
       }));
       
-      // Extraire les headers depuis le premier objet
+      // Extraire les headers depuis le premier objet, exclure les colonnes systèmes
       if (processedData.length > 0) {
         const firstRow = processedData[0];
-        const extractedHeaders = Object.keys(firstRow).filter(key => key !== 'id');
+        const extractedHeaders = Object.keys(firstRow).filter(key => 
+          !['id', 'user_id'].includes(key)
+        );
         setHeaders(extractedHeaders);
       }
       
@@ -90,7 +98,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
     }
-  }, [googleSheetsData]);
+  }, [googleSheetsData, user?.id]);
 
   const loadInitialData = async () => {
     try {
@@ -114,8 +122,14 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   }, []);
 
   const addNewRow = () => {
+    if (!user?.id) {
+      toast.error('Vous devez être connecté pour ajouter des prospects');
+      return;
+    }
+
     const newRow: GoogleSheetRow = {
-      id: `new_${Date.now()}`,
+      id: `user_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      user_id: user.id,
     };
     
     // Initialiser avec des valeurs vides pour tous les headers
@@ -127,14 +141,15 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     setHasUnsavedChanges(true);
   };
 
-  const deleteRow = (rowId: string) => {
-    if (localData.length > 1) {
-      setLocalData(prev => prev.filter(row => row.id !== rowId));
-      setHasUnsavedChanges(true);
-      toast.success('Ligne supprimée');
-    } else {
-      toast.error('Vous devez conserver au moins une ligne');
-    }
+  const openAnalysisModal = (prospect: GoogleSheetProspectWithUser) => {
+    setSelectedProspect(prospect);
+    setAnalysisModalOpen(true);
+  };
+
+  const handleEvaluateProspect = (prospectId: string) => {
+    toast.success(`Évaluation démarrée pour le prospect ${prospectId.substring(0, 12)}...`);
+    setAnalysisModalOpen(false);
+    // TODO: Implémenter la logique d'évaluation
   };
 
   const saveToGoogleSheets = async () => {
@@ -143,20 +158,11 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return;
     }
 
-    // Convertir les données locales au format attendu par l'API
-    const formattedData = localData.map(row => {
-      const { id, ...rowData } = row;
-      return {
-        id: id,
-        contactName: rowData['contact_name'] || rowData['Nom du Contact'] || '',
-        companyName: rowData['company_name'] || rowData['Nom de l\'Entreprise'] || '',
-        companyWebsite: rowData['company_website'] || rowData['Site Web Entreprise'] || '',
-        role: rowData['Rôle'] || rowData['Rôle / Poste'] || '',
-        linkedinUrl: rowData['linkedin_contact_url'] || rowData['Profil LinkedIn'] || '',
-        relevance: rowData['Pertinence du prospect par rapport à notre offre ? (sur 100)'] || rowData['Notes/Pertinence'] || '',
-        status: rowData['Statut'] || 'pending'
-      };
-    });
+    // Send data as-is with user_id
+    const formattedData = localData.map(row => ({
+      ...row,
+      user_id: row.user_id || user?.id || 'unknown'
+    }));
 
     const success = await syncToGoogleSheets(
       { spreadsheetId, sheetName }, 
@@ -242,6 +248,18 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       />
     );
   };
+
+  // Check authentication
+  if (!isAuthenticated || !user) {
+    return (
+      <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+        <CardContent className="p-8 text-center">
+          <Shield className="w-8 h-8 mx-auto mb-4 text-orange-600" />
+          <p className="text-gray-600">Vous devez être connecté pour accéder aux prospects.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoadingSheets) {
     return (
@@ -335,7 +353,11 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           <CardTitle className="text-lg font-semibold text-gray-900 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <User className="w-5 h-5 text-blue-600" />
-              Prospects ({localData.length})
+              Mes Prospects ({localData.length})
+              <Badge variant="outline" className="ml-2">
+                <Shield className="w-3 h-3 mr-1" />
+                Utilisateur: {user.name}
+              </Badge>
             </div>
             {localData.length > 0 && (
               <Badge variant="outline" className="text-sm">
@@ -398,13 +420,12 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                         ))}
                         <td className="px-4 py-4 text-center">
                           <Button
-                            onClick={() => deleteRow(row.id)}
-                            disabled={localData.length <= 1}
+                            onClick={() => openAnalysisModal(row)}
                             variant="outline"
                             size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <BarChart3 className="w-4 h-4" />
                           </Button>
                         </td>
                       </tr>
@@ -467,6 +488,14 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Analysis Modal */}
+      <ProspectAnalysisModal
+        isOpen={analysisModalOpen}
+        onClose={() => setAnalysisModalOpen(false)}
+        prospect={selectedProspect}
+        onEvaluate={handleEvaluateProspect}
+      />
     </div>
   );
 };

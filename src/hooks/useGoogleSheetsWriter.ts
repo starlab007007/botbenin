@@ -2,15 +2,10 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
 
-interface ProspectData {
+interface ProspectDataWithUser {
   id: string;
-  contactName: string;
-  companyName: string;
-  companyWebsite: string;
-  role: string;
-  linkedinUrl: string;
-  relevance: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'failed';
+  user_id: string;
+  [key: string]: any; // Dynamic fields from Google Sheet
 }
 
 interface GoogleSheetsConfig {
@@ -18,14 +13,14 @@ interface GoogleSheetsConfig {
   sheetName: string;
 }
 
-export const useGoogleSheetsWriter = () => {
+export const useGoogleSheetsWriter = (userId?: string) => {
   const [isWriting, setIsWriting] = useState(false);
   const [lastWriteTime, setLastWriteTime] = useState<Date | null>(null);
   const { toast } = useToast();
 
   const writeToGoogleSheets = useCallback(async (
     config: GoogleSheetsConfig,
-    data: ProspectData[],
+    data: ProspectDataWithUser[],
     operation: 'append' | 'overwrite' = 'overwrite'
   ) => {
     if (!config.spreadsheetId) {
@@ -51,12 +46,19 @@ export const useGoogleSheetsWriter = () => {
     try {
       console.log('🔄 Écriture vers Google Sheets:', { config, dataLength: data.length, operation });
 
+      // Ensure all data has user_id
+      const dataWithUserId = data.map(item => ({
+        ...item,
+        user_id: item.user_id || userId || 'unknown'
+      }));
+
       const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
         body: {
           spreadsheetId: config.spreadsheetId,
           sheetName: config.sheetName || 'Feuille 1',
-          data: data,
-          operation: operation
+          data: dataWithUserId,
+          operation: operation,
+          userId: userId
         }
       });
 
@@ -113,14 +115,14 @@ export const useGoogleSheetsWriter = () => {
 
   const appendToGoogleSheets = useCallback(async (
     config: GoogleSheetsConfig,
-    data: ProspectData[]
+    data: ProspectDataWithUser[]
   ) => {
     return writeToGoogleSheets(config, data, 'append');
   }, [writeToGoogleSheets]);
 
   const syncToGoogleSheets = useCallback(async (
     config: GoogleSheetsConfig,
-    data: ProspectData[]
+    data: ProspectDataWithUser[]
   ) => {
     return writeToGoogleSheets(config, data, 'overwrite');
   }, [writeToGoogleSheets]);

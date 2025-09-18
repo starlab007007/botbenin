@@ -151,8 +151,8 @@ serve(async (req) => {
   try {
     console.log('=== Google Sheets Writer Function Started ===');
     
-    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append' } = await req.json();
-    console.log('Request params:', { spreadsheetId, sheetName, operation, dataLength: data?.length });
+    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId } = await req.json();
+    console.log('Request params:', { spreadsheetId, sheetName, operation, dataLength: data?.length, userId: userId?.substring(0, 8) + '...' });
 
     if (!spreadsheetId) {
       return new Response(
@@ -195,21 +195,34 @@ serve(async (req) => {
     }
 
     try {
-      // Prepare data for Google Sheets
-      const headers = ['Nom du Contact', 'Nom de l\'Entreprise', 'Site Web Entreprise', 'Rôle / Poste', 'Profil LinkedIn', 'Statut', 'Notes/Pertinence'];
-      
-      // Convert prospect data to rows
-      const rows = data.map(prospect => [
-        prospect.contactName || '',
-        prospect.companyName || '',
-        prospect.companyWebsite || '',
-        prospect.role || '',
-        prospect.linkedinUrl || '',
-        prospect.status || 'pending',
-        prospect.relevance || ''
-      ]);
+      // Prepare data for Google Sheets - Dynamic columns approach
+      if (data.length === 0) {
+        return new Response(
+          JSON.stringify({
+            error: 'Aucune donnée à écrire',
+            details: 'Le tableau de données est vide'
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
 
-      let range = `${sheetName}!A:G`;
+      // Extract headers from first row (excluding system fields)
+      const firstRow = data[0];
+      const systemFields = ['id', 'user_id'];
+      const headers = Object.keys(firstRow).filter(key => !systemFields.includes(key));
+      
+      // Convert data to rows using dynamic headers
+      const rows = data.map(item => 
+        headers.map(header => String(item[header] || ''))
+      );
+
+      console.log('Dynamic headers:', headers);
+      console.log('Sample row:', rows[0]);
+
+      let range = `${sheetName}!A:${String.fromCharCode(65 + headers.length - 1)}`;
       let valueInputOption = 'USER_ENTERED';
       let values: string[][] = [];
 
@@ -244,7 +257,7 @@ serve(async (req) => {
       } else {
         // Append mode - just add data rows
         values = rows;
-        range = `${sheetName}!A:G`;
+        range = `${sheetName}!A:${String.fromCharCode(65 + headers.length - 1)}`;
       }
 
       // Write data to Google Sheets

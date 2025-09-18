@@ -3,23 +3,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
 
-export interface GoogleSheetProspect {
+export interface GoogleSheetProspectWithUser {
   id: string;
-  name: string;
-  email: string;
-  phone: string;
-  company: string;
-  position: string;
-  location: string;
-  linkedin: string;
-  source: string;
-  notes: string;
-  created_date: string;
-  last_contact: string;
-  status: string;
-  score: number;
-  industry: string;
-  website: string;
+  user_id: string;
+  [key: string]: any; // Dynamic columns from Google Sheet
 }
 
 interface GoogleSheetsConfig {
@@ -27,8 +14,8 @@ interface GoogleSheetsConfig {
   sheetName: string;
 }
 
-export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
-  const [data, setData] = useState<GoogleSheetProspect[]>([]);
+export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: string) => {
+  const [data, setData] = useState<GoogleSheetProspectWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -104,20 +91,24 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
       if (successData) {
         const { result, sheetName: workingSheetName } = successData;
         
-        // Vérifier les deux formats de réponse possibles
-        let processedData = [];
+        // Process and filter data by user_id
+        let processedData: GoogleSheetProspectWithUser[] = [];
         if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
-          processedData = result.data.map(item => ({
-            ...item,
-            source: 'Google Sheets',
-            id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-          }));
+          processedData = result.data
+            .map(item => ({
+              ...item,
+              id: item.id || `user_${userId || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              user_id: item.user_id || userId || 'unknown'
+            }))
+            .filter(item => !userId || item.user_id === userId); // Filter by user_id if provided
         } else if (result?.prospects && Array.isArray(result.prospects) && result.prospects.length > 0) {
-          processedData = result.prospects.map(item => ({
-            ...item,
-            source: 'Google Sheets',
-            id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-          }));
+          processedData = result.prospects
+            .map(item => ({
+              ...item,
+              id: item.id || `user_${userId || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              user_id: item.user_id || userId || 'unknown'
+            }))
+            .filter(item => !userId || item.user_id === userId); // Filter by user_id if provided
         }
 
         if (processedData.length > 0) {
@@ -252,11 +243,14 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
     // Statistiques calculées
     stats: {
       total: data.length,
-      qualified: data.filter(p => p.status === 'qualified').length,
-      new: data.filter(p => p.status === 'new').length,
-      contacted: data.filter(p => p.status === 'contacted').length,
+      qualified: data.filter(p => p.status === 'qualified' || p.Statut === 'Succès').length,
+      new: data.filter(p => p.status === 'new' || p.Statut === 'En attente').length,
+      contacted: data.filter(p => p.status === 'contacted' || p.Statut === 'En cours').length,
       averageScore: data.length > 0 ? 
-        Math.round(data.reduce((sum, p) => sum + p.score, 0) / data.length * 10) / 10 : 0
+        Math.round(data.reduce((sum, p) => {
+          const score = parseInt(p['Pertinence du prospect par rapport à notre offre ? (sur 100)'] || p.score || '0');
+          return sum + score;
+        }, 0) / data.length * 10) / 10 : 0
     }
   };
 };
