@@ -27,7 +27,7 @@ interface ProspectAnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
   prospect: GoogleSheetProspectWithUser | null;
-  onEvaluate: (prospectId: string) => void;
+  onEvaluate: (prospectId: string) => Promise<void>;
   scoreFromSheet?: number | null;
 }
 
@@ -250,6 +250,7 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
           </Button>
           <Button 
             onClick={() => onEvaluate(prospect.id)}
+            disabled={false}
             className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
           >
             <Target className="w-4 h-4 mr-2" />
