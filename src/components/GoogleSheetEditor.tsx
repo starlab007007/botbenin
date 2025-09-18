@@ -110,11 +110,12 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         processedData.filter(row => row.user_id === user.id) : 
         [];
       
-      // Extraire les headers depuis le premier objet (exclure id et user_id)
+      // Extraire les headers depuis le premier objet (exclure id, user_id et colonnes spécifiques)
       if (processedData.length > 0) {
         const firstRow = processedData[0];
+        const excludedColumns = ['id', 'user_id', 'source', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
         const extractedHeaders = Object.keys(firstRow).filter(key => 
-          key !== 'id' && key !== 'user_id' && key !== 'source'
+          !excludedColumns.includes(key)
         );
         setHeaders(extractedHeaders);
       }
