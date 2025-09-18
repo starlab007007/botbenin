@@ -372,23 +372,32 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     // Rendu spécial pour la colonne RUN/Exécuter
     if (column.toLowerCase() === 'run') {
       // Convertir true/false en Oui/Non pour l'affichage
-      const displayValue = value === 'true' ? 'Oui' : value === 'false' ? 'Non' : '';
+      const displayValue = value === 'true' ? 'Oui' : value === 'false' ? 'Non' : 'Non';
+      const defaultValue = value === 'true' ? 'Oui' : 'Non';
       
       return (
         <Select
           value={displayValue}
           onValueChange={(newValue) => {
             // Convertir Oui/Non en true/false pour le stockage
-            const storageValue = newValue === 'Oui' ? 'true' : newValue === 'Non' ? 'false' : '';
+            const storageValue = newValue === 'Oui' ? 'true' : 'false';
             updateCellValue(row.id, column, storageValue);
           }}
         >
           <SelectTrigger className="w-full min-w-[120px]">
-            <SelectValue placeholder="Choisir..." />
+            <SelectValue>
+              <span className={displayValue === 'Oui' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                {displayValue}
+              </span>
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Oui">Oui</SelectItem>
-            <SelectItem value="Non">Non</SelectItem>
+            <SelectItem value="Oui">
+              <span className="text-green-600 font-medium">Oui</span>
+            </SelectItem>
+            <SelectItem value="Non">
+              <span className="text-red-600 font-medium">Non</span>
+            </SelectItem>
           </SelectContent>
         </Select>
       );
