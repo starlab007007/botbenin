@@ -102,13 +102,24 @@ serve(async (req) => {
         console.log('Data rows:', rows.length);
         
         // Créer les enregistrements dynamiques basés sur les entêtes réelles
+        const hasUserIdColumn = headers.some((h: string) => h?.trim()?.toLowerCase() === 'user_id');
+        console.log('Colonne user_id trouvée:', hasUserIdColumn);
+        
         const dynamicRecords = rows
           .filter(row => row.length > 0 && row.some(cell => cell && cell.toString().trim()))
           .map((row, index) => {
-            const record: Record<string, any> = { id: `gs_${Date.now()}_${index}` };
+            const record: Record<string, any> = { 
+              id: `gs_${Date.now()}_${index}`,
+              _isOrphan: !hasUserIdColumn // Marquer comme orphelin si pas de colonne user_id
+            };
             headers.forEach((header: string, colIndex: number) => {
               if (header && header.trim()) {
-                record[header.trim()] = row[colIndex] || '';
+                const headerName = header.trim();
+                record[headerName] = row[colIndex] || '';
+                // Gérer les variations de la colonne user_id
+                if (headerName.toLowerCase() === 'user_id' && !record[headerName]) {
+                  record._isOrphan = true; // Marquer comme orphelin si user_id vide
+                }
               }
             });
             return record;
@@ -116,6 +127,8 @@ serve(async (req) => {
 
         console.log('Dynamic records created:', dynamicRecords.length);
 
+        const orphanCount = dynamicRecords.filter(r => r._isOrphan).length;
+        
         return new Response(
           JSON.stringify({ 
             success: true,
@@ -127,13 +140,17 @@ serve(async (req) => {
             metadata: {
               totalRows: rows.length,
               validRows: dynamicRecords.length,
+              orphanCount: orphanCount,
+              hasUserIdColumn: hasUserIdColumn,
               headers: headers.filter((h: string) => h && h.trim()),
               source: 'Google Sheets API',
               spreadsheetId: spreadsheetId,
               sheetName: currentSheetName,
               lastSync: new Date().toISOString()
             },
-            message: `${dynamicRecords.length} enregistrements importés avec succès depuis la feuille "${currentSheetName}"` 
+            message: hasUserIdColumn 
+              ? `${dynamicRecords.length} enregistrements importés depuis "${currentSheetName}" (${orphanCount} orphelins)`
+              : `${dynamicRecords.length} enregistrements importés depuis "${currentSheetName}" - ATTENTION: aucune colonne user_id trouvée`
           }),
           { 
             status: 200, 
@@ -179,16 +196,28 @@ serve(async (req) => {
 
               const headers = cols.map((c: any) => (c?.label || c?.id || '').toString().trim()).filter((h: string) => !!h);
               const values = rows.map((r: any) => (r?.c || []).map((c: any) => (c?.f ?? c?.v ?? '')));
+              
+              const hasUserIdColumn = headers.some((h: string) => h?.trim()?.toLowerCase() === 'user_id');
+              console.log('GViz - Colonne user_id trouvée:', hasUserIdColumn);
 
               const dynamicRecords = values
                 .filter((row: any[]) => row.some(cell => (cell ?? '').toString().trim() !== ''))
                 .map((row: any[], idx: number) => {
-                  const rec: Record<string, any> = { id: `gs_${Date.now()}_${idx}` };
-                  headers.forEach((h: string, i: number) => { rec[h] = row[i] ?? ''; });
+                  const rec: Record<string, any> = { 
+                    id: `gs_${Date.now()}_${idx}`,
+                    _isOrphan: !hasUserIdColumn
+                  };
+                  headers.forEach((h: string, i: number) => { 
+                    rec[h] = row[i] ?? '';
+                    if (h.toLowerCase() === 'user_id' && !rec[h]) {
+                      rec._isOrphan = true;
+                    }
+                  });
                   return rec;
                 });
 
               if (dynamicRecords.length > 0) {
+                const orphanCount = dynamicRecords.filter(r => r._isOrphan).length;
                 return new Response(
                   JSON.stringify({
                     success: true,
@@ -198,13 +227,17 @@ serve(async (req) => {
                     metadata: {
                       totalRows: values.length,
                       validRows: dynamicRecords.length,
+                      orphanCount: orphanCount,
+                      hasUserIdColumn: hasUserIdColumn,
                       headers,
                       source: 'Google GViz (public)',
                       spreadsheetId,
                       sheetName: currentSheetName,
                       lastSync: new Date().toISOString()
                     },
-                    message: `${dynamicRecords.length} enregistrements importés via le fallback public (GViz)`
+                    message: hasUserIdColumn 
+                      ? `${dynamicRecords.length} enregistrements importés via GViz (${orphanCount} orphelins)`
+                      : `${dynamicRecords.length} enregistrements importés via GViz - ATTENTION: aucune colonne user_id`
                   }),
                   { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 );
@@ -250,15 +283,27 @@ serve(async (req) => {
               if (!rows || rows.length < 2) continue;
               const headers = rows[0].map(h => (h || '').trim()).filter(Boolean);
               const dataRows = rows.slice(1);
+              const hasUserIdColumn = headers.some((h: string) => h?.trim()?.toLowerCase() === 'user_id');
+              console.log('CSV - Colonne user_id trouvée:', hasUserIdColumn);
+              
               const dynamicRecords = dataRows
                 .filter(r => r.some(cell => (cell ?? '').toString().trim() !== ''))
                 .map((r, idx) => {
-                  const rec: Record<string, any> = { id: `gs_${Date.now()}_${idx}` };
-                  headers.forEach((h, i) => { rec[h] = r[i] ?? ''; });
+                  const rec: Record<string, any> = { 
+                    id: `gs_${Date.now()}_${idx}`,
+                    _isOrphan: !hasUserIdColumn 
+                  };
+                  headers.forEach((h, i) => { 
+                    rec[h] = r[i] ?? '';
+                    if (h.toLowerCase() === 'user_id' && !rec[h]) {
+                      rec._isOrphan = true;
+                    }
+                  });
                   return rec;
                 });
 
               if (dynamicRecords.length > 0) {
+                const orphanCount = dynamicRecords.filter(r => r._isOrphan).length;
                 return new Response(
                   JSON.stringify({
                     success: true,
@@ -268,13 +313,17 @@ serve(async (req) => {
                     metadata: {
                       totalRows: dataRows.length,
                       validRows: dynamicRecords.length,
+                      orphanCount: orphanCount,
+                      hasUserIdColumn: hasUserIdColumn,
                       headers,
                       source: 'Google GViz CSV (public)',
                       spreadsheetId,
                       sheetName: currentSheetName,
                       lastSync: new Date().toISOString()
                     },
-                    message: `${dynamicRecords.length} enregistrements importés via le fallback public (CSV)`
+                    message: hasUserIdColumn 
+                      ? `${dynamicRecords.length} enregistrements importés via CSV (${orphanCount} orphelins)`
+                      : `${dynamicRecords.length} enregistrements importés via CSV - ATTENTION: aucune colonne user_id`
                   }),
                   { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 );

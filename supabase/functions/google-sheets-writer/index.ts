@@ -209,14 +209,27 @@ serve(async (req) => {
         );
       }
 
-      // Extract headers from first row (excluding system fields)
+      // Extract headers from first row - TOUJOURS inclure user_id pour la sécurité
       const firstRow = data[0];
-      const systemFields = ['id', 'user_id'];
-      const headers = Object.keys(firstRow).filter(key => !systemFields.includes(key));
+      const systemFields = ['id']; // Garder user_id pour la synchronisation
+      let headers = Object.keys(firstRow).filter(key => !systemFields.includes(key));
       
-      // Convert data to rows using dynamic headers
+      // S'assurer que user_id est toujours en première position si présent
+      if (headers.includes('user_id')) {
+        headers = ['user_id', ...headers.filter(h => h !== 'user_id')];
+      } else if (userId) {
+        // Ajouter user_id si pas présent mais userId fourni
+        headers = ['user_id', ...headers];
+      }
+      
+      // Convert data to rows using dynamic headers - Forcer user_id
       const rows = data.map(item => 
-        headers.map(header => String(item[header] || ''))
+        headers.map(header => {
+          if (header === 'user_id') {
+            return String(item[header] || userId || 'unknown');
+          }
+          return String(item[header] || '');
+        })
       );
 
       console.log('Dynamic headers:', headers);

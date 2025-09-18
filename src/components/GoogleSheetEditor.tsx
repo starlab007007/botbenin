@@ -53,10 +53,13 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
   const {
     data: googleSheetsData,
+    orphanProspects,
+    hasOrphans,
     isLoading: isLoadingSheets,
     connectionStatus,
     loadData: loadGoogleSheetsData,
-    updateConfig: updateGoogleSheetsConfig
+    updateConfig: updateGoogleSheetsConfig,
+    adoptOrphanProspects
   } = useGoogleSheets(undefined, user?.id);
 
   const {
@@ -107,14 +110,31 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           !['id', 'user_id'].includes(key)
         );
         setHeaders(extractedHeaders);
+      } else if (orphanProspects && orphanProspects.length > 0) {
+        // Si pas de prospects possédés mais des orphelins, extraire headers des orphelins
+        const firstOrphan = orphanProspects[0];
+        const extractedHeaders = Object.keys(firstOrphan).filter(key => 
+          !['id', 'user_id', '_isOrphan'].includes(key)
+        );
+        setHeaders(extractedHeaders);
       }
       
       setLocalData(processedData);
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
     } else {
-      // Aucune donnée : charger les headers depuis le Google Sheet
-      loadHeadersFromSheet();
+      // Aucune donnée personnelle mais peut-être des orphelins
+      if (orphanProspects && orphanProspects.length > 0) {
+        const firstOrphan = orphanProspects[0];
+        const extractedHeaders = Object.keys(firstOrphan).filter(key => 
+          !['id', 'user_id', '_isOrphan'].includes(key)
+        );
+        setHeaders(extractedHeaders);
+        setLocalData([]); // Pas de data personnelle
+      } else {
+        // Charger les headers depuis le Google Sheet
+        loadHeadersFromSheet();
+      }
     }
   }, [googleSheetsData, user?.id, isAuthenticated]);
 
@@ -277,6 +297,14 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       setLastSyncTime(new Date());
       toast.success('Données synchronisées vers Google Sheets');
       // Recharger pour avoir la version à jour
+      await loadInitialData();
+    }
+  };
+
+  const handleAdoptOrphans = async () => {
+    const success = await adoptOrphanProspects();
+    if (success) {
+      // Recharger les données après adoption
       await loadInitialData();
     }
   };
@@ -456,6 +484,37 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         </CardHeader>
       </Card>
 
+      {/* Alerte pour prospects orphelins */}
+      {hasOrphans && orphanProspects && (
+        <Card className="border-orange-200 shadow-lg bg-gradient-to-r from-orange-50 to-yellow-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold text-orange-800 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-orange-600" />
+              Prospects sans propriétaire détectés
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-orange-700 mb-4">
+              {orphanProspects.length} prospects trouvés dans votre Google Sheet n'ont pas de propriétaire assigné. 
+              Vous pouvez les adopter pour les ajouter à votre compte.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleAdoptOrphans}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                size="sm"
+              >
+                <Target className="w-4 h-4 mr-2" />
+                Adopter les {orphanProspects.length} prospects
+              </Button>
+              <Badge variant="outline" className="self-center">
+                {orphanProspects.length} prospects disponibles
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tableau des données - Prospects */}
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
         <CardHeader className="pb-3">
@@ -465,7 +524,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
               Mes Prospects ({localData.length})
               <Badge variant="outline" className="ml-2">
                 <Shield className="w-3 h-3 mr-1" />
-                Utilisateur: {user.name}
+                Utilisateur: {user.email || user.name}
               </Badge>
             </div>
             {localData.length > 0 && (
@@ -476,7 +535,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {localData.length > 0 || headers.length > 0 ? (
+            {localData.length > 0 || headers.length > 0 ? (
             <div className="overflow-x-auto">
               <div className="max-h-[600px] overflow-y-auto">
                 <table className="w-full border-collapse">

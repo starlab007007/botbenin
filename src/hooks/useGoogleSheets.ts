@@ -16,6 +16,8 @@ interface GoogleSheetsConfig {
 
 export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: string) => {
   const [data, setData] = useState<GoogleSheetProspectWithUser[]>([]);
+  const [orphanProspects, setOrphanProspects] = useState<any[]>([]);
+  const [hasOrphans, setHasOrphans] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -110,50 +112,66 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
       if (successData) {
         const { result, sheetName: workingSheetName } = successData;
         
-        // Filtrage strict par user_id - Sécurité renforcée
-        let processedData: GoogleSheetProspectWithUser[] = [];
+        // Séparer les prospects avec user_id de ceux sans user_id (orphelins)
+        let ownedProspects: GoogleSheetProspectWithUser[] = [];
+        let orphanProspects: any[] = [];
+        
         if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
-          processedData = result.data
-            // Filtrage strict : seulement les données qui ont déjà le bon user_id
-            .filter(item => item.user_id && item.user_id === userId)
-            .map(item => ({
-              ...item,
-              id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              user_id: userId // Force le user_id correct
-            }));
-        } else if (result?.prospects && Array.isArray(result.prospects) && result.prospects.length > 0) {
-          processedData = result.prospects
-            // Filtrage strict : seulement les données qui ont déjà le bon user_id
-            .filter(item => item.user_id && item.user_id === userId)
-            .map(item => ({
-              ...item,
-              id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              user_id: userId // Force le user_id correct
-            }));
+          result.data.forEach(item => {
+            if (item.user_id === userId) {
+              // Prospects appartenant à l'utilisateur
+              ownedProspects.push({
+                ...item,
+                id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                user_id: userId
+              });
+            } else if (!item.user_id || item.user_id === '' || item._isOrphan) {
+              // Prospects orphelins (sans user_id ou avec user_id vide)
+              orphanProspects.push({
+                ...item,
+                id: item.id || `orphan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+              });
+            }
+          });
+        }
+        
+        // Mettre à jour les états
+        setData(ownedProspects);
+        setOrphanProspects(orphanProspects);
+        setHasOrphans(orphanProspects.length > 0);
+        setLastSync(new Date());
+        setConnectionStatus('connected');
+        
+        // Mettre à jour la config avec le nom de feuille qui fonctionne
+        if (workingSheetName !== config.sheetName) {
+          setConfig(prev => ({ ...prev, sheetName: workingSheetName }));
         }
 
-        if (processedData.length > 0) {
-          setData(processedData);
-          setLastSync(new Date());
-          setConnectionStatus('connected');
-          
-          // Mettre à jour la config avec le nom de feuille qui fonctionne
-          if (workingSheetName !== config.sheetName) {
-            setConfig(prev => ({ ...prev, sheetName: workingSheetName }));
-          }
-
-          if (showNotification) {
+        const totalProspects = ownedProspects.length + orphanProspects.length;
+        
+        if (showNotification) {
+          if (orphanProspects.length > 0) {
+            toast({
+              title: "📋 Données chargées avec prospects orphelins",
+              description: `${ownedProspects.length} vos prospects + ${orphanProspects.length} prospects sans propriétaire trouvés`,
+              duration: 5000,
+            });
+          } else if (ownedProspects.length > 0) {
             toast({
               title: "✅ Synchronisation réussie",
-              description: `${processedData.length} prospects chargés depuis la feuille "${workingSheetName}"`,
+              description: `${ownedProspects.length} prospects chargés depuis "${workingSheetName}"`,
+              duration: 3000,
+            });
+          } else {
+            toast({
+              title: "📝 Sheet configuré",
+              description: `Connecté à "${workingSheetName}" - Aucun prospect trouvé pour cet utilisateur`,
               duration: 3000,
             });
           }
-
-          console.log('✅ Données chargées:', processedData.length, 'prospects');
-        } else {
-          throw new Error('Aucune donnée valide trouvée dans la réponse');
         }
+
+        console.log('✅ Données chargées:', ownedProspects.length, 'prospects possédés,', orphanProspects.length, 'orphelins');
       } else {
         throw lastError || new Error('Aucune feuille valide trouvée dans le Google Sheet');
       }
@@ -228,6 +246,41 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
     setConfig(prev => ({ ...prev, ...newConfig }));
   }, []);
 
+  const adoptOrphanProspects = useCallback(async () => {
+    if (!isUserValid || orphanProspects.length === 0) return false;
+
+    try {
+      // Adopter tous les prospects orphelins en leur assignant le user_id
+      const adoptedProspects = orphanProspects.map(prospect => ({
+        ...prospect,
+        user_id: userId,
+        id: `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      }));
+
+      // Fusionner avec les prospects existants
+      const updatedData = [...data, ...adoptedProspects];
+      setData(updatedData);
+      setOrphanProspects([]);
+      setHasOrphans(false);
+
+      toast({
+        title: "✅ Prospects adoptés",  
+        description: `${adoptedProspects.length} prospects ont été ajoutés à votre compte`,
+        duration: 4000,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Erreur lors de l\'adoption:', error);
+      toast({
+        title: "❌ Erreur d'adoption",
+        description: "Impossible d'adopter les prospects orphelins",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }, [isUserValid, orphanProspects, userId, data, toast]);
+
   const refreshData = useCallback(() => {
     loadData(true);
   }, [loadData]);
@@ -257,6 +310,8 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
 
   return {
     data,
+    orphanProspects,
+    hasOrphans,
     isLoading,
     error,
     lastSync,
@@ -266,9 +321,11 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
     testConnection,
     updateConfig,
     refreshData,
+    adoptOrphanProspects,
     // Statistiques calculées
     stats: {
       total: data.length,
+      orphans: orphanProspects.length,
       qualified: data.filter(p => p.status === 'qualified' || p.Statut === 'Succès').length,
       new: data.filter(p => p.status === 'new' || p.Statut === 'En attente').length,
       contacted: data.filter(p => p.status === 'contacted' || p.Statut === 'En cours').length,
