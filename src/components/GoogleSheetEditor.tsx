@@ -78,37 +78,26 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     }
   }, [spreadsheetId, sheetName]);
 
-  // Synchroniser avec les données Google Sheets avec DOUBLE FILTRAGE de sécurité
+  // Synchroniser avec les données Google Sheets
   useEffect(() => {
-    if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length > 0 && user?.id) {
-      // DOUBLE FILTRAGE: S'assurer que seules les données de l'utilisateur connecté sont affichées
-      const secureFilteredData = googleSheetsData
-        .filter(row => row.user_id === user.id) // Premier filtrage de sécurité
-        .map((row, index) => ({
-          ...row,
-          id: row.id || `user_${user.id}_${Date.now()}_${index}`,
-          user_id: user.id // Force user_id to current user
-        }));
-      
-      console.log(`🔒 Double filtrage de sécurité: ${secureFilteredData.length} prospects validés pour l'utilisateur ${user.id}`);
+    if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
+      const processedData = googleSheetsData.map((row, index) => ({
+        ...row,
+        id: row.id || `user_${user?.id || 'unknown'}_${Date.now()}_${index}`,
+        user_id: row.user_id || user?.id || 'unknown'
+      }));
       
       // Extraire les headers depuis le premier objet, exclure les colonnes systèmes
-      if (secureFilteredData.length > 0) {
-        const firstRow = secureFilteredData[0];
+      if (processedData.length > 0) {
+        const firstRow = processedData[0];
         const extractedHeaders = Object.keys(firstRow).filter(key => 
           !['id', 'user_id'].includes(key)
         );
         setHeaders(extractedHeaders);
       }
       
-      setLocalData(secureFilteredData);
+      setLocalData(processedData);
       setLastSyncTime(new Date());
-      setHasUnsavedChanges(false);
-    } else if (user?.id) {
-      // Si pas de données ou utilisateur non connecté, vider les données locales
-      console.log('🔒 Nettoyage des données: aucune donnée valide ou utilisateur non connecté');
-      setLocalData([]);
-      setHeaders([]);
       setHasUnsavedChanges(false);
     }
   }, [googleSheetsData, user?.id]);
@@ -333,8 +322,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
         <CardContent className="p-8 text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Chargement de vos prospects...</p>
-          <p className="text-sm text-gray-500 mt-2">Synchronisation avec Google Sheets en cours</p>
+          <p className="text-gray-600">Chargement du Google Sheet...</p>
         </CardContent>
       </Card>
     );
