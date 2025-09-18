@@ -107,22 +107,50 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       setLocalData(secureFilteredData);
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
-    } else if (user?.id) {
+      
+      // Si aucune donnée après filtrage, ajouter une ligne vide pour commencer
+      if (secureFilteredData.length === 0) {
+        console.log('📝 Aucune donnée trouvée - ajout d\'une ligne vide');
+        setTimeout(() => addEmptyRowToStart(), 100); // Petit délai pour s'assurer que les headers sont définis
+      }
+  } else if (user?.id) {
       // Si pas de données ou utilisateur non connecté, vider les données locales
       console.log('🔒 Nettoyage des données: aucune donnée valide ou utilisateur non connecté');
       setLocalData([]);
-      setHeaders([]);
+      setHeaders(['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
       setHasUnsavedChanges(false);
+      
+      // Ajouter une ligne vide pour commencer immédiatement
+      setTimeout(() => addEmptyRowToStart(), 100);
     }
   }, [googleSheetsData, user?.id]);
+
+  const addEmptyRowToStart = () => {
+    if (!user?.id) return;
+    
+    const newRow: GoogleSheetRow = {
+      id: `user_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      user_id: user.id,
+    };
+    
+    // Initialiser avec des valeurs vides pour tous les headers
+    headers.forEach(header => {
+      newRow[header] = '';
+    });
+
+    setLocalData([newRow]);
+    setHasUnsavedChanges(true);
+    console.log('📝 Ligne vide ajoutée pour démarrer');
+  };
 
   const loadInitialData = async () => {
     try {
       await loadGoogleSheetsData();
-      toast.success('Données Google Sheet chargées');
+      console.log('✅ Données Google Sheet chargées');
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Erreur lors du chargement du Google Sheet');
+      // En cas d'erreur, créer une ligne vide pour commencer
+      addEmptyRowToStart();
     }
   };
 
@@ -228,12 +256,23 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return;
     }
 
+    // Filtrer les lignes vides (toutes les colonnes vides)
+    const dataToSave = localData.filter(row => {
+      return headers.some(header => row[header] && row[header].toString().trim() !== '');
+    });
+
+    if (dataToSave.length === 0) {
+      toast.error('Aucune donnée à sauvegarder - veuillez remplir au moins une ligne');
+      return;
+    }
+
     // Send data as-is with user_id
-    const formattedData = localData.map(row => ({
+    const formattedData = dataToSave.map(row => ({
       ...row,
       user_id: row.user_id || user?.id || 'unknown'
     }));
 
+    console.log('💾 Sauvegarde de', formattedData.length, 'prospects');
     const success = await syncToGoogleSheets(
       { spreadsheetId, sheetName }, 
       formattedData
@@ -242,7 +281,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     if (success) {
       setHasUnsavedChanges(false);
       setLastSyncTime(new Date());
-      toast.success('Données synchronisées vers Google Sheets');
+      toast.success(`${formattedData.length} prospects sauvegardés dans Google Sheets`);
       // Recharger pour avoir la version à jour
       await loadInitialData();
     }
@@ -547,7 +586,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                           <FileText className="w-16 h-16 mx-auto mb-6 text-gray-300" />
                           <h3 className="text-xl font-semibold mb-3 text-gray-700">Aucun prospect enregistré</h3>
                           <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-                            Commencez par ajouter votre premier prospect avec les informations de base.
+                            Vous êtes prêt à commencer ! Cliquez sur le bouton ci-dessous pour ajouter votre premier prospect.
                           </p>
                           <Button
                             onClick={addNewRow}

@@ -45,6 +45,11 @@ export const IAProspectPreCallPage = () => {
   }, [isAuthenticated, googleSheetsData]);
 
   const handleCreateFirstProspect = () => {
+    console.log('🔄 Création du premier prospect - actualisation forcée');
+    // Forcer l'actualisation des données
+    if (loadData) {
+      loadData(false); // Actualisation silencieuse
+    }
     setShowCreateFirst(false);
   };
   if (!isAuthenticated) {
