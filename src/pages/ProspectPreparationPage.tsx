@@ -60,7 +60,7 @@ export const ProspectPreparationPage = () => {
     }
   ]);
 
-  // Google Sheets integration
+  // Google Sheets integration state
   const [showGoogleSheetsConfig, setShowGoogleSheetsConfig] = useState(false);
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
     spreadsheetId: '',
