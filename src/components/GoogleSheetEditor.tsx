@@ -10,6 +10,7 @@ import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { ProspectAnalysisModal } from '@/components/prospects/ProspectAnalysisModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   RefreshCw, 
   Save, 
@@ -99,20 +100,22 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   useEffect(() => {
     if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
       const processedData = googleSheetsData.map((row, index) => ({
-        id: row.id || `row_${index}`,
-        user_id: row.user_id || user?.id, // Ajouter l'ID utilisateur
-        ...row
+        ...row,
+        id: row.id || `row_${index}_${Date.now()}`,
+        user_id: row.user_id || (user?.id && !row.user_id ? user.id : row.user_id)
       }));
       
-      // Filtrer les données pour l'utilisateur connecté uniquement
+      // Filtrer SEULEMENT les prospects de l'utilisateur connecté
       const userFilteredData = user ? 
         processedData.filter(row => row.user_id === user.id) : 
-        processedData;
+        [];
       
-      // Extraire les headers depuis le premier objet
+      // Extraire les headers depuis le premier objet (exclure id et user_id)
       if (processedData.length > 0) {
         const firstRow = processedData[0];
-        const extractedHeaders = Object.keys(firstRow).filter(key => key !== 'id' && key !== 'user_id');
+        const extractedHeaders = Object.keys(firstRow).filter(key => 
+          key !== 'id' && key !== 'user_id' && key !== 'source'
+        );
         setHeaders(extractedHeaders);
       }
       
@@ -179,21 +182,16 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return;
     }
 
-    // Convertir les données locales au format attendu par l'API
-    const formattedData = localData.map(row => {
-      const { id, user_id, ...rowData } = row;
-      return {
-        id: id,
-        user_id: user_id || user?.id, // S'assurer que l'user_id est présent
-        contactName: rowData['contact_name'] || rowData['Nom du Contact'] || '',
-        companyName: rowData['company_name'] || rowData['Nom de l\'Entreprise'] || '',
-        companyWebsite: rowData['company_website'] || rowData['Site Web Entreprise'] || '',
-        role: rowData['Rôle'] || rowData['Rôle / Poste'] || '',
-        linkedinUrl: rowData['linkedin_contact_url'] || rowData['Profil LinkedIn'] || '',
-        relevance: rowData['Pertinence du prospect par rapport à notre offre ? (sur 100)'] || rowData['Notes/Pertinence'] || '',
-        status: rowData['Statut'] || 'pending'
-      };
-    });
+    if (!user?.id) {
+      toast.error('Vous devez être connecté pour sauvegarder');
+      return;
+    }
+
+    // Convertir les données locales en format simple pour Google Sheets
+    const formattedData = localData.map(row => ({
+      ...row,
+      user_id: user.id // S'assurer que chaque ligne a l'ID utilisateur
+    }));
 
     const success = await syncToGoogleSheets(
       { spreadsheetId, sheetName }, 
