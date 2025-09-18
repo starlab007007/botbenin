@@ -44,7 +44,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 }) => {
   const { user, isAuthenticated } = useAuth();
   const [localData, setLocalData] = useState<GoogleSheetRow[]>([]);
-  const [headers, setHeaders] = useState<string[]>(['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
+  const [headers, setHeaders] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -98,10 +98,20 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         const extractedHeaders = Object.keys(firstRow).filter(key => 
           !['id', 'user_id'].includes(key)
         );
-        setHeaders(extractedHeaders.length > 0 ? extractedHeaders : ['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
+        setHeaders(extractedHeaders.length > 0 ? extractedHeaders : []);
       } else {
-        // Pas de données, garder les headers par défaut
-        setHeaders(['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
+        // Pas de données utilisateur, mais on doit récupérer les headers du Google Sheet
+        if (googleSheetsData && googleSheetsData.length > 0) {
+          // Utiliser les headers du Google Sheet même s'il n'y a pas de données utilisateur
+          const firstRow = googleSheetsData[0];
+          const extractedHeaders = Object.keys(firstRow).filter(key => 
+            !['id', 'user_id'].includes(key)
+          );
+          setHeaders(extractedHeaders.length > 0 ? extractedHeaders : []);
+        } else {
+          // Aucune donnée du tout, utiliser headers vides
+          setHeaders([]);
+        }
       }
       
       setLocalData(secureFilteredData);
@@ -113,11 +123,21 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         console.log('📝 Aucune donnée trouvée - ajout d\'une ligne vide');
         setTimeout(() => addEmptyRowToStart(), 100); // Petit délai pour s'assurer que les headers sont définis
       }
-  } else if (user?.id) {
-      // Si pas de données ou utilisateur non connecté, vider les données locales
-      console.log('🔒 Nettoyage des données: aucune donnée valide ou utilisateur non connecté');
+    } else if (user?.id) {
+      // Si pas de données utilisateur, mais récupérer quand même les headers du Google Sheet
+      console.log('🔒 Nettoyage des données: aucune donnée utilisateur trouvée');
+      if (googleSheetsData && googleSheetsData.length > 0) {
+        // Utiliser les headers du Google Sheet réel
+        const firstRow = googleSheetsData[0];
+        const extractedHeaders = Object.keys(firstRow).filter(key => 
+          !['id', 'user_id'].includes(key)
+        );
+        setHeaders(extractedHeaders.length > 0 ? extractedHeaders : []);
+        console.log('📋 Headers récupérés du Google Sheet:', extractedHeaders);
+      } else {
+        setHeaders([]);
+      }
       setLocalData([]);
-      setHeaders(['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
       setHasUnsavedChanges(false);
       
       // Ajouter une ligne vide pour commencer immédiatement
