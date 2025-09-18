@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
+import { ProspectAnalysisModal } from '@/components/prospects/ProspectAnalysisModal';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   RefreshCw, 
   Save, 
@@ -21,11 +23,29 @@ import {
   Clock,
   AlertCircle,
   FileText,
-  Link as LinkIcon
+  Link as LinkIcon,
+  BarChart3,
+  Eye,
+  Smartphone,
+  Tablet
 } from 'lucide-react';
 
 interface GoogleSheetRow {
   id: string;
+  user_id?: string;
+  [key: string]: any;
+}
+
+interface ProspectData {
+  id: string;
+  user_id?: string;
+  contactName: string;
+  companyName: string;
+  companyWebsite: string;
+  role: string;
+  linkedinUrl: string;
+  relevance: string;
+  status: string;
   [key: string]: any;
 }
 
@@ -42,6 +62,10 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   const [headers, setHeaders] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [selectedProspect, setSelectedProspect] = useState<ProspectData | null>(null);
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  
+  const { user } = useAuth();
 
   const {
     data: googleSheetsData,
@@ -76,21 +100,27 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
       const processedData = googleSheetsData.map((row, index) => ({
         id: row.id || `row_${index}`,
+        user_id: row.user_id || user?.id, // Ajouter l'ID utilisateur
         ...row
       }));
+      
+      // Filtrer les données pour l'utilisateur connecté uniquement
+      const userFilteredData = user ? 
+        processedData.filter(row => row.user_id === user.id) : 
+        processedData;
       
       // Extraire les headers depuis le premier objet
       if (processedData.length > 0) {
         const firstRow = processedData[0];
-        const extractedHeaders = Object.keys(firstRow).filter(key => key !== 'id');
+        const extractedHeaders = Object.keys(firstRow).filter(key => key !== 'id' && key !== 'user_id');
         setHeaders(extractedHeaders);
       }
       
-      setLocalData(processedData);
+      setLocalData(userFilteredData);
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
     }
-  }, [googleSheetsData]);
+  }, [googleSheetsData, user]);
 
   const loadInitialData = async () => {
     try {
@@ -114,8 +144,14 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   }, []);
 
   const addNewRow = () => {
+    if (!user) {
+      toast.error('Vous devez être connecté pour ajouter un prospect');
+      return;
+    }
+    
     const newRow: GoogleSheetRow = {
       id: `new_${Date.now()}`,
+      user_id: user.id, // Ajouter l'ID utilisateur
     };
     
     // Initialiser avec des valeurs vides pour tous les headers
@@ -145,9 +181,10 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
     // Convertir les données locales au format attendu par l'API
     const formattedData = localData.map(row => {
-      const { id, ...rowData } = row;
+      const { id, user_id, ...rowData } = row;
       return {
         id: id,
+        user_id: user_id || user?.id, // S'assurer que l'user_id est présent
         contactName: rowData['contact_name'] || rowData['Nom du Contact'] || '',
         companyName: rowData['company_name'] || rowData['Nom de l\'Entreprise'] || '',
         companyWebsite: rowData['company_website'] || rowData['Site Web Entreprise'] || '',
@@ -241,6 +278,33 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         className="w-full min-w-[150px]"
       />
     );
+  };
+
+  const handleAnalyzeProspect = (prospect: GoogleSheetRow) => {
+    // Conversion du format GoogleSheetRow vers ProspectData
+    const prospectData: ProspectData = {
+      id: prospect.id,
+      user_id: prospect.user_id,
+      contactName: prospect['contact_name'] || prospect['Nom du Contact'] || prospect['contactName'] || 'Prospect sans nom',
+      companyName: prospect['company_name'] || prospect['Nom de l\'Entreprise'] || prospect['companyName'] || '',
+      companyWebsite: prospect['company_website'] || prospect['Site Web Entreprise'] || prospect['companyWebsite'] || '',
+      role: prospect['Rôle'] || prospect['Rôle / Poste'] || prospect['role'] || '',
+      linkedinUrl: prospect['linkedin_contact_url'] || prospect['Profil LinkedIn'] || prospect['linkedinUrl'] || '',
+      relevance: prospect['Pertinence du prospect par rapport à notre offre ? (sur 100)'] || prospect['Notes/Pertinence'] || prospect['relevance'] || '0',
+      status: prospect['Statut'] || prospect['status'] || 'En attente',
+      email: prospect['email'] || prospect['Email'] || '',
+      phone: prospect['phone'] || prospect['Téléphone'] || '',
+      ...prospect // Inclure toutes les autres propriétés
+    };
+    
+    setSelectedProspect(prospectData);
+    setIsAnalysisOpen(true);
+  };
+
+  const handleStartEvaluation = (prospect: ProspectData) => {
+    toast.success(`Évaluation lancée pour ${prospect.contactName || 'le prospect'}`);
+    // Ici vous pouvez ajouter la logique d'évaluation
+    setIsAnalysisOpen(false);
   };
 
   if (isLoadingSheets) {
@@ -346,73 +410,165 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         </CardHeader>
         <CardContent className="p-0">
           {localData.length > 0 && headers.length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="max-h-[600px] overflow-y-auto">
-                <table className="w-full border-collapse">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
-                        #
-                      </th>
-                      {headers.map((header) => (
-                        <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
-                          <div className="flex items-center gap-2">
-                            {getFieldIcon(header)}
-                            <span className="truncate">{header}</span>
-                          </div>
+            <>
+              {/* Vue Desktop - Table complète */}
+              <div className="hidden lg:block overflow-x-auto">
+                <div className="max-h-[600px] overflow-y-auto">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
+                      <tr className="border-b-2 border-gray-200">
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
+                          #
                         </th>
-                      ))}
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-20">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {localData.map((row, rowIndex) => (
-                      <tr 
-                        key={row.id} 
-                        className={`
-                          hover:bg-blue-50/50 transition-all duration-200
-                          ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
-                          border-b border-gray-100
-                        `}
-                      >
-                        <td className="px-3 py-4 text-sm font-medium text-gray-500">
-                          {rowIndex + 1}
-                        </td>
-                        {headers.map((column) => (
-                          <td key={`${row.id}-${column}`} className="px-4 py-4">
-                            {column.toLowerCase().includes('statut') ? (
-                              <div className="space-y-2">
-                                {renderCell(row, column)}
-                                <div className="flex justify-start">
-                                  {getStatusBadge(row[column])}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="min-w-[140px]">
-                                {renderCell(row, column)}
-                              </div>
-                            )}
-                          </td>
+                        {headers.map((header) => (
+                          <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
+                            <div className="flex items-center gap-2">
+                              {getFieldIcon(header)}
+                              <span className="truncate">{header}</span>
+                            </div>
+                          </th>
                         ))}
-                        <td className="px-4 py-4 text-center">
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-32">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {localData.map((row, rowIndex) => (
+                        <tr 
+                          key={row.id} 
+                          className={`
+                            hover:bg-blue-50/50 transition-all duration-200
+                            ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
+                            border-b border-gray-100
+                          `}
+                        >
+                          <td className="px-3 py-4 text-sm font-medium text-gray-500">
+                            {rowIndex + 1}
+                          </td>
+                          {headers.map((column) => (
+                            <td key={`${row.id}-${column}`} className="px-4 py-4">
+                              {column.toLowerCase().includes('statut') ? (
+                                <div className="space-y-2">
+                                  {renderCell(row, column)}
+                                  <div className="flex justify-start">
+                                    {getStatusBadge(row[column])}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="min-w-[140px]">
+                                  {renderCell(row, column)}
+                                </div>
+                              )}
+                            </td>
+                          ))}
+                          <td className="px-4 py-4 text-center">
+                            <div className="flex justify-center gap-1">
+                              <Button
+                                onClick={() => handleAnalyzeProspect(row)}
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <BarChart3 className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                onClick={() => deleteRow(row.id)}
+                                disabled={localData.length <= 1}
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Vue Mobile et Tablette - Cartes */}
+              <div className="lg:hidden space-y-4 p-4">
+                {localData.map((row, rowIndex) => (
+                  <Card key={row.id} className="border border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs">
+                              #{rowIndex + 1}
+                            </Badge>
+                            {getStatusBadge(row[headers.find(h => h.toLowerCase().includes('statut')) || 'status'])}
+                          </div>
+                          <h3 className="font-semibold text-lg truncate">
+                            {row[headers.find(h => h.toLowerCase().includes('nom')) || headers[0]] || `Prospect ${rowIndex + 1}`}
+                          </h3>
+                          <p className="text-sm text-gray-600 truncate">
+                            {row[headers.find(h => h.toLowerCase().includes('entreprise') || h.toLowerCase().includes('company')) || headers[1]]}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 ml-2">
+                          <Button
+                            onClick={() => handleAnalyzeProspect(row)}
+                            variant="outline"
+                            size="sm"
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
                           <Button
                             onClick={() => deleteRow(row.id)}
                             disabled={localData.length <= 1}
                             variant="outline"
                             size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {headers.slice(0, 4).map((column) => (
+                          <div key={`${row.id}-${column}`} className="space-y-1">
+                            <Label className="text-xs text-gray-500 flex items-center gap-1">
+                              {getFieldIcon(column)}
+                              {column}
+                            </Label>
+                            {column.toLowerCase().includes('statut') ? (
+                              renderCell(row, column)
+                            ) : (
+                              <div className="text-sm">
+                                {renderCell(row, column)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {headers.length > 4 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <Button
+                            onClick={() => handleAnalyzeProspect(row)}
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-blue-600 hover:text-blue-700"
+                          >
+                            <BarChart3 className="w-4 h-4 mr-2" />
+                            Analyser ce prospect
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </div>
+            </>
+          
           ) : (
             <div className="p-12 text-center text-gray-500">
               <div className="max-w-md mx-auto">
@@ -467,6 +623,14 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal d'analyse des prospects */}
+      <ProspectAnalysisModal
+        isOpen={isAnalysisOpen}
+        onClose={() => setIsAnalysisOpen(false)}
+        prospect={selectedProspect}
+        onStartEvaluation={handleStartEvaluation}
+      />
     </div>
   );
 };
