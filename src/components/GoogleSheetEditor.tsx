@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useGoogleSheets, GoogleSheetProspectWithUser } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { ProspectAnalysisModal } from './ProspectAnalysisModal';
 import { 
   RefreshCw, 
@@ -71,20 +72,32 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     }
   }, [spreadsheetId, sheetName, updateGoogleSheetsConfig]);
 
-  // Charger les données initiales
+  // Chargement automatique sécurisé à l'ouverture
   useEffect(() => {
-    if (spreadsheetId && sheetName) {
+    if (spreadsheetId && sheetName && user?.id && isAuthenticated) {
       loadInitialData();
     }
-  }, [spreadsheetId, sheetName]);
+  }, [spreadsheetId, sheetName, user?.id, isAuthenticated]);
 
-  // Synchroniser avec les données Google Sheets
+  // Synchroniser avec les données Google Sheets - Filtrage sécurisé
   useEffect(() => {
+    if (!user?.id || !isAuthenticated) {
+      // Sécurité : Nettoyer les données si pas d'utilisateur authentifié
+      setLocalData([]);
+      setHeaders([]);
+      return;
+    }
+
     if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
-      const processedData = googleSheetsData.map((row, index) => ({
+      // Double filtrage sécurisé : vérifier que chaque prospect appartient à l'utilisateur
+      const userProspects = googleSheetsData.filter(row => 
+        row.user_id === user.id
+      );
+
+      const processedData = userProspects.map((row, index) => ({
         ...row,
-        id: row.id || `user_${user?.id || 'unknown'}_${Date.now()}_${index}`,
-        user_id: row.user_id || user?.id || 'unknown'
+        id: row.id || `user_${user.id}_${Date.now()}_${index}`,
+        user_id: user.id // Force le user_id correct
       }));
       
       // Extraire les headers depuis le premier objet, exclure les colonnes systèmes
@@ -99,13 +112,47 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       setLocalData(processedData);
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
+    } else {
+      // Aucune donnée : charger les headers depuis le Google Sheet
+      loadHeadersFromSheet();
     }
-  }, [googleSheetsData, user?.id]);
+  }, [googleSheetsData, user?.id, isAuthenticated]);
+
+  // Charger les headers depuis le Google Sheet si pas de données
+  const loadHeadersFromSheet = async () => {
+    if (!user?.id || !isAuthenticated) return;
+    
+    try {
+      // Appeler la fonction pour récupérer les headers du sheet
+      const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
+        body: {
+          spreadsheetId,
+          sheetName,
+          headersOnly: true
+        }
+      });
+
+      if (!error && result?.headers && Array.isArray(result.headers)) {
+        const filteredHeaders = result.headers.filter(header => 
+          !['id', 'user_id'].includes(header)
+        );
+        setHeaders(filteredHeaders);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des headers:', error);
+    }
+  };
 
   const loadInitialData = async () => {
+    // Sécurité : Vérifier l'authentification avant tout chargement
+    if (!user?.id || !isAuthenticated) {
+      toast.error('Vous devez être connecté pour accéder aux prospects');
+      return;
+    }
+
     try {
       await loadGoogleSheetsData();
-      toast.success('Données Google Sheet chargées');
+      toast.success('Données Google Sheet synchronisées');
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
       toast.error('Erreur lors du chargement du Google Sheet');
@@ -317,12 +364,18 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     );
   }
 
+  // États de chargement améliorés
   if (isLoadingSheets) {
     return (
       <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
         <CardContent className="p-8 text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Chargement du Google Sheet...</p>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Synchronisation en cours...</h3>
+          <p className="text-gray-600">Chargement de vos prospects depuis Google Sheets</p>
+          <Badge variant="outline" className="mt-2">
+            <Clock className="w-3 h-3 mr-1" />
+            Patientez quelques instants
+          </Badge>
         </CardContent>
       </Card>
     );
@@ -423,7 +476,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {localData.length > 0 && headers.length > 0 ? (
+          {localData.length > 0 || headers.length > 0 ? (
             <div className="overflow-x-auto">
               <div className="max-h-[600px] overflow-y-auto">
                 <table className="w-full border-collapse">
@@ -451,106 +504,130 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {localData.map((row, rowIndex) => (
-                      <tr 
-                        key={row.id} 
-                        className={`
-                          hover:bg-blue-50/50 transition-all duration-200
-                          ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
-                          border-b border-gray-100
-                        `}
-                      >
-                        <td className="px-3 py-4 text-sm font-medium text-gray-500">
-                          {rowIndex + 1}
-                        </td>
-                        {headers.map((column) => (
-                          <td key={`${row.id}-${column}`} className="px-4 py-4">
-                            {column.toLowerCase().includes('statut') ? (
-                              <div className="space-y-2">
-                                {renderCell(row, column)}
-                                <div className="flex justify-start">
-                                  {getStatusBadge(row[column])}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="min-w-[140px]">
-                                {renderCell(row, column)}
-                              </div>
-                            )}
-                          </td>
-                        ))}
-                        <td className="px-4 py-4 text-center">
-                          {(() => {
-                            const score = getScoreFromProspect(row);
-                            return (
-                              <div className="flex items-center justify-center">
-                                <div className={`px-3 py-2 rounded-lg text-sm font-bold min-w-[60px] ${
-                                  score !== null 
-                                    ? score >= 80 
-                                      ? 'bg-green-100 text-green-800' 
-                                      : score >= 60 
-                                        ? 'bg-orange-100 text-orange-800' 
-                                        : 'bg-red-100 text-red-800'
-                                    : 'bg-gray-100 text-gray-500'
-                                }`}>
-                                  {score !== null ? `${score}/100` : 'N/A'}
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex gap-2 justify-center">
-                            <Button
-                              onClick={() => openAnalysisModal(row)}
-                              variant="outline"
-                              size="sm"
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              title="Analyser le prospect"
-                            >
-                              <BarChart3 className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              onClick={() => deleteProspect(row.id)}
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              title="Supprimer le prospect"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                   <tbody className="divide-y divide-gray-100">
+                     {localData.length > 0 ? (
+                       localData.map((row, rowIndex) => (
+                         <tr 
+                           key={row.id} 
+                           className={`
+                             hover:bg-blue-50/50 transition-all duration-200
+                             ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
+                             border-b border-gray-100
+                           `}
+                         >
+                           <td className="px-3 py-4 text-sm font-medium text-gray-500">
+                             {rowIndex + 1}
+                           </td>
+                           {headers.map((column) => (
+                             <td key={`${row.id}-${column}`} className="px-4 py-4">
+                               {column.toLowerCase().includes('statut') ? (
+                                 <div className="space-y-2">
+                                   {renderCell(row, column)}
+                                   <div className="flex justify-start">
+                                     {getStatusBadge(row[column])}
+                                   </div>
+                                 </div>
+                               ) : (
+                                 <div className="min-w-[140px]">
+                                   {renderCell(row, column)}
+                                 </div>
+                               )}
+                             </td>
+                           ))}
+                           <td className="px-4 py-4 text-center">
+                             {(() => {
+                               const score = getScoreFromProspect(row);
+                               return (
+                                 <div className="flex items-center justify-center">
+                                   <div className={`px-3 py-2 rounded-lg text-sm font-bold min-w-[60px] ${
+                                     score !== null 
+                                       ? score >= 80 
+                                         ? 'bg-green-100 text-green-800' 
+                                         : score >= 60 
+                                           ? 'bg-orange-100 text-orange-800' 
+                                           : 'bg-red-100 text-red-800'
+                                       : 'bg-gray-100 text-gray-500'
+                                   }`}>
+                                     {score !== null ? `${score}/100` : 'N/A'}
+                                   </div>
+                                 </div>
+                               );
+                             })()}
+                           </td>
+                           <td className="px-4 py-4">
+                             <div className="flex gap-2 justify-center">
+                               <Button
+                                 onClick={() => openAnalysisModal(row)}
+                                 variant="outline"
+                                 size="sm"
+                                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                 title="Analyser le prospect"
+                               >
+                                 <BarChart3 className="w-4 h-4" />
+                               </Button>
+                               <Button
+                                 onClick={() => deleteProspect(row.id)}
+                                 variant="outline"
+                                 size="sm"
+                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                 title="Supprimer le prospect"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </div>
+                           </td>
+                         </tr>
+                       ))
+                     ) : (
+                       headers.length > 0 && (
+                         <tr className="bg-blue-50/30 border-b border-blue-200">
+                           <td className="px-3 py-4 text-sm font-medium text-gray-500">1</td>
+                           {headers.map((column) => (
+                             <td key={`empty-${column}`} className="px-4 py-4">
+                               <div className="min-w-[140px]">
+                                 <Input
+                                   placeholder="Aucune donnée - Cliquez 'Ajouter' pour commencer"
+                                   disabled
+                                   className="bg-gray-50 border-dashed"
+                                 />
+                               </div>
+                             </td>
+                           ))}
+                           <td className="px-4 py-4 text-center">
+                             <Badge variant="outline" className="bg-gray-50">N/A</Badge>
+                           </td>
+                           <td className="px-4 py-4 text-center">
+                             <Badge variant="outline" className="text-blue-600">Aucun prospect</Badge>
+                           </td>
+                         </tr>
+                       )
+                     )}
+                   </tbody>
                 </table>
               </div>
             </div>
           ) : (
             <div className="p-12 text-center text-gray-500">
               <div className="max-w-md mx-auto">
-                <FileText className="w-16 h-16 mx-auto mb-6 text-gray-300" />
-                <h3 className="text-xl font-semibold mb-3 text-gray-700">Aucun prospect trouvé</h3>
-                <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-                  Vérifiez que votre Google Sheet contient des données ou que l'ID et le nom de la feuille sont corrects.
-                  <br />
-                  Les données doivent être au format tableau avec des en-têtes en première ligne.
+                <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                  Aucun prospect trouvé
+                </h3>
+                <p className="text-gray-500 mb-4">
+                  {!isAuthenticated 
+                    ? "Vous devez être connecté pour voir vos prospects."
+                    : "Vous n'avez pas encore de prospects dans votre Google Sheet. Cliquez sur 'Créer mon premier prospect' pour commencer."
+                  }
                 </p>
-                <div className="space-y-3">
+                {isAuthenticated && (
                   <Button
                     onClick={addNewRow}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
-                    size="lg"
                   >
-                    <Plus className="w-5 h-5 mr-2" />
-                    Créer le premier prospect
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer mon premier prospect
                   </Button>
-                  <div className="text-xs text-gray-400">
-                    ou actualisez pour recharger les données
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           )}

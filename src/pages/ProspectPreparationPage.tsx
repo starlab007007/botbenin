@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { GoogleSheetEditor } from '@/components/GoogleSheetEditor';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   ArrowLeft,
   Settings,
@@ -17,6 +18,25 @@ import { useNavigate } from 'react-router-dom';
 
 export const ProspectPreparationPage = () => {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  
+  // Redirection si non authentifié
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm max-w-md mx-auto">
+          <CardContent className="p-8 text-center">
+            <FileText className="w-12 h-12 mx-auto mb-4 text-blue-600" />
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Authentification requise</h2>
+            <p className="text-gray-600 mb-4">Vous devez être connecté pour accéder à vos prospects.</p>
+            <Button onClick={() => navigate('/auth')} className="w-full">
+              Se connecter
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   // Configuration Google Sheets - utilise le sheet fourni par défaut
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState({

@@ -22,13 +22,32 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [config, setConfig] = useState<GoogleSheetsConfig>(
     initialConfig || {
-      spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-      sheetName: 'Class Data'
+      spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8',
+      sheetName: 'Feuille 1'
     }
   );
   const { toast } = useToast();
 
+  // Sécurité : Vérifier la validité de l'utilisateur
+  const isUserValid = userId && userId !== 'unknown' && userId.trim() !== '';
+
   const loadData = useCallback(async (showNotification = true) => {
+    // Sécurité stricte : Ne pas charger de données sans utilisateur valide
+    if (!isUserValid) {
+      setError('Utilisateur non authentifié');
+      setConnectionStatus('error');
+      setData([]);
+      setIsLoading(false);
+      if (showNotification) {
+        toast({
+          title: "❌ Accès refusé",
+          description: "Vous devez être connecté pour accéder à vos prospects",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     if (!config.spreadsheetId) {
       setError('ID Google Sheet manquant');
       setConnectionStatus('error');
@@ -91,24 +110,26 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
       if (successData) {
         const { result, sheetName: workingSheetName } = successData;
         
-        // Process and filter data by user_id
+        // Filtrage strict par user_id - Sécurité renforcée
         let processedData: GoogleSheetProspectWithUser[] = [];
         if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
           processedData = result.data
+            // Filtrage strict : seulement les données qui ont déjà le bon user_id
+            .filter(item => item.user_id && item.user_id === userId)
             .map(item => ({
               ...item,
-              id: item.id || `user_${userId || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              user_id: item.user_id || userId || 'unknown'
-            }))
-            .filter(item => !userId || item.user_id === userId); // Filter by user_id if provided
+              id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              user_id: userId // Force le user_id correct
+            }));
         } else if (result?.prospects && Array.isArray(result.prospects) && result.prospects.length > 0) {
           processedData = result.prospects
+            // Filtrage strict : seulement les données qui ont déjà le bon user_id
+            .filter(item => item.user_id && item.user_id === userId)
             .map(item => ({
               ...item,
-              id: item.id || `user_${userId || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              user_id: item.user_id || userId || 'unknown'
-            }))
-            .filter(item => !userId || item.user_id === userId); // Filter by user_id if provided
+              id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              user_id: userId // Force le user_id correct
+            }));
         }
 
         if (processedData.length > 0) {
@@ -211,12 +232,17 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
     loadData(true);
   }, [loadData]);
 
-  // Chargement automatique au démarrage
+  // Chargement automatique au démarrage avec sécurité
   useEffect(() => {
-    if (config.spreadsheetId && config.sheetName) {
+    if (config.spreadsheetId && config.sheetName && isUserValid) {
       loadData(false);
+    } else if (!isUserValid) {
+      // Nettoyer les données si l'utilisateur n'est pas valide
+      setData([]);
+      setConnectionStatus('idle');
+      setError('Utilisateur non authentifié');
     }
-  }, [loadData, config]);
+  }, [loadData, config, isUserValid]);
 
   // Auto-refresh toutes les 5 minutes si connecté
   useEffect(() => {
