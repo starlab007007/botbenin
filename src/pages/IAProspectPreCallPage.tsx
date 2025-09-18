@@ -38,7 +38,10 @@ export const IAProspectPreCallPage = () => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
     } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length === 0) {
-      setShowCreateFirst(true);
+      // Seul cas où on affiche "créer premier prospect" : données vides ET pas déjà masqué par l'utilisateur
+      if (showCreateFirst !== false) {
+        setShowCreateFirst(true);
+      }
     } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
       setShowCreateFirst(false);
     }
@@ -50,6 +53,7 @@ export const IAProspectPreCallPage = () => {
     if (loadData) {
       loadData(false); // Actualisation silencieuse
     }
+    // Forcer l'affichage du tableau même s'il n'y a pas de données
     setShowCreateFirst(false);
   };
   if (!isAuthenticated) {
@@ -78,7 +82,7 @@ export const IAProspectPreCallPage = () => {
     );
   }
 
-  if (showCreateFirst || (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length === 0)) {
+  if (showCreateFirst) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
