@@ -378,10 +378,35 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return (
         <Select
           value={displayValue}
-          onValueChange={(newValue) => {
+          onValueChange={async (newValue) => {
             // Convertir Oui/Non en true/false pour le stockage
             const storageValue = newValue === 'Oui' ? 'true' : 'false';
             updateCellValue(row.id, column, storageValue);
+            
+            // Sauvegarder automatiquement dans Google Sheets
+            const updatedData = localData.map(r => 
+              r.id === row.id 
+                ? { ...r, [column]: storageValue }
+                : r
+            );
+            
+            const formattedData = updatedData.map(r => ({
+              ...r,
+              user_id: r.user_id || user?.id || 'unknown'
+            }));
+
+            const success = await syncToGoogleSheets(
+              { spreadsheetId, sheetName }, 
+              formattedData
+            );
+
+            if (success) {
+              setHasUnsavedChanges(false);
+              setLastSyncTime(new Date());
+              toast.success(`Valeur "${newValue}" sauvegardée dans Google Sheets`);
+            } else {
+              toast.error('Erreur lors de la sauvegarde automatique');
+            }
           }}
         >
           <SelectTrigger className="w-full min-w-[120px]">
