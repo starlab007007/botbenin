@@ -210,13 +210,21 @@ export const ProspectsPage: React.FC = () => {
       {/* Navigation par onglets améliorée */}
       <Tabs value={activeView} onValueChange={(value) => setActiveView(value as any)} className="space-y-6">
         <div className="border-b border-gray-200 bg-white rounded-lg shadow-sm">
-          <TabsList className="grid w-full grid-cols-2 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-3 h-auto p-1">
             <TabsTrigger value="databases" className="flex items-center space-x-2 py-3">
               <Database className="w-4 h-4" />
               <span className="hidden sm:inline">Bases de Données</span>
               <span className="sm:hidden">Bases</span>
               <Badge variant="secondary" className="ml-2">
                 {stats.totalDatabases}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="prospects" className="flex items-center space-x-2 py-3">
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Prospects</span>
+              <span className="sm:hidden">Contacts</span>
+              <Badge variant="secondary" className="ml-2">
+                {stats.totalProspects}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center space-x-2 py-3">
@@ -231,6 +239,43 @@ export const ProspectsPage: React.FC = () => {
           <ProspectDatabaseManager />
         </TabsContent>
 
+        <TabsContent value="prospects" className="space-y-6">
+          <div className="space-y-4">
+            {/* Barre de recherche intégrée */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Rechercher un prospect..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Button variant="outline" size="sm">
+                      <Filter className="w-4 h-4 mr-2" />
+                      Filtres
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Exporter
+                    </Button>
+                    <Button size="sm" onClick={() => setIsCreateProspectOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <ProspectList searchTerm={searchTerm} />
+          </div>
+        </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
           <Card>
