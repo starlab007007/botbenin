@@ -91,24 +91,35 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
       if (successData) {
         const { result, sheetName: workingSheetName } = successData;
         
-        // Process and filter data by user_id
+        // Process and STRICTLY filter data by user_id - only authenticated user data
         let processedData: GoogleSheetProspectWithUser[] = [];
-        if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
-          processedData = result.data
-            .map(item => ({
-              ...item,
-              id: item.id || `user_${userId || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              user_id: item.user_id || userId || 'unknown'
-            }))
-            .filter(item => !userId || item.user_id === userId); // Filter by user_id if provided
-        } else if (result?.prospects && Array.isArray(result.prospects) && result.prospects.length > 0) {
-          processedData = result.prospects
-            .map(item => ({
-              ...item,
-              id: item.id || `user_${userId || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              user_id: item.user_id || userId || 'unknown'
-            }))
-            .filter(item => !userId || item.user_id === userId); // Filter by user_id if provided
+        
+        // SECURITY: Only process data if we have a valid userId
+        if (!userId) {
+          console.log('❌ Aucun userId fourni - aucune donnée ne sera affichée');
+          processedData = [];
+        } else {
+          if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
+            processedData = result.data
+              // STRICT FILTERING: Only keep items that already have the correct user_id
+              .filter(item => item.user_id === userId)
+              .map(item => ({
+                ...item,
+                id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                user_id: userId // Ensure user_id is always set to current user
+              }));
+          } else if (result?.prospects && Array.isArray(result.prospects) && result.prospects.length > 0) {
+            processedData = result.prospects
+              // STRICT FILTERING: Only keep items that already have the correct user_id
+              .filter(item => item.user_id === userId)
+              .map(item => ({
+                ...item,
+                id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                user_id: userId // Ensure user_id is always set to current user
+              }));
+          }
+          
+          console.log(`🔒 Filtrage strict: ${processedData.length} prospects pour l'utilisateur ${userId}`);
         }
 
         if (processedData.length > 0) {

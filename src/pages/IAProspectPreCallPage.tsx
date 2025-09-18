@@ -24,13 +24,23 @@ export const IAProspectPreCallPage = () => {
   const DEFAULT_SPREADSHEET_ID = "1example";
   const DEFAULT_SHEET_NAME = "Prospects";
   
-  const { data: googleSheetsData, isLoading } = useGoogleSheets(undefined, user?.id);
+  const { data: googleSheetsData, isLoading, loadData } = useGoogleSheets(undefined, user?.id);
+  
+  // Rafraîchissement automatique à l'ouverture de la page
+  useEffect(() => {
+    if (isAuthenticated && user?.id && loadData) {
+      console.log('🔄 Rafraîchissement automatique des données à l\'ouverture');
+      loadData(false); // Chargement silencieux (pas de notification)
+    }
+  }, [isAuthenticated, user?.id, loadData]);
   
   useEffect(() => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
-    } else if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length === 0) {
+    } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length === 0) {
       setShowCreateFirst(true);
+    } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
+      setShowCreateFirst(false);
     }
   }, [isAuthenticated, googleSheetsData]);
 
