@@ -195,44 +195,27 @@ serve(async (req) => {
     }
 
     try {
-      // Prepare data for Google Sheets - Dynamic approach
-      console.log('Processing data:', data);
+      // Prepare data for Google Sheets
+      const headers = ['Nom du Contact', 'Nom de l\'Entreprise', 'Site Web Entreprise', 'Rôle / Poste', 'Profil LinkedIn', 'Statut', 'Notes/Pertinence'];
       
-      if (!data || data.length === 0) {
-        return new Response(
-          JSON.stringify({
-            error: 'Aucune donnée à traiter',
-            details: 'Le tableau de données est vide'
-          }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
+      // Convert prospect data to rows
+      const rows = data.map(prospect => [
+        prospect.contactName || '',
+        prospect.companyName || '',
+        prospect.companyWebsite || '',
+        prospect.role || '',
+        prospect.linkedinUrl || '',
+        prospect.status || 'pending',
+        prospect.relevance || ''
+      ]);
 
-      // Extract dynamic headers from the first data row (exclude id and user_id)
-      const firstRow = data[0];
-      const dynamicHeaders = Object.keys(firstRow).filter(key => 
-        key !== 'id' && key !== 'user_id'
-      );
-      
-      console.log('Dynamic headers extracted:', dynamicHeaders);
-      
-      // Convert data to rows using dynamic headers
-      const rows = data.map(item => 
-        dynamicHeaders.map(header => item[header] || '')
-      );
-
-      const columnCount = dynamicHeaders.length;
-      const columnLetter = String.fromCharCode(65 + columnCount - 1); // A=65, so A+n-1
-      let range = `${sheetName}!A:${columnLetter}`;
+      let range = `${sheetName}!A:G`;
       let valueInputOption = 'USER_ENTERED';
       let values: string[][] = [];
 
       if (operation === 'overwrite') {
         // Clear sheet and write headers + data
-        values = [dynamicHeaders, ...rows];
+        values = [headers, ...rows];
         
         // First clear the sheet
         const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:clear`;
@@ -261,7 +244,7 @@ serve(async (req) => {
       } else {
         // Append mode - just add data rows
         values = rows;
-        range = `${sheetName}!A:${columnLetter}`;
+        range = `${sheetName}!A:G`;
       }
 
       // Write data to Google Sheets

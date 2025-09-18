@@ -5,8 +5,21 @@ import { useToast } from './use-toast';
 
 export interface GoogleSheetProspect {
   id: string;
-  user_id?: string;
-  [key: string]: any; // Dynamic columns from Google Sheet
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  position: string;
+  location: string;
+  linkedin: string;
+  source: string;
+  notes: string;
+  created_date: string;
+  last_contact: string;
+  status: string;
+  score: number;
+  industry: string;
+  website: string;
 }
 
 interface GoogleSheetsConfig {
@@ -94,16 +107,16 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
         // Vérifier les deux formats de réponse possibles
         let processedData = [];
         if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
-          processedData = result.data.map((item, index) => ({
+          processedData = result.data.map(item => ({
             ...item,
-            id: item.id || `gs_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
-            user_id: item.user_id // Préserver l'user_id s'il existe déjà
+            source: 'Google Sheets',
+            id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
           }));
         } else if (result?.prospects && Array.isArray(result.prospects) && result.prospects.length > 0) {
-          processedData = result.prospects.map((item, index) => ({
+          processedData = result.prospects.map(item => ({
             ...item,
-            id: item.id || `gs_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
-            user_id: item.user_id // Préserver l'user_id s'il existe déjà
+            source: 'Google Sheets',
+            id: item.id || `gs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
           }));
         }
 
@@ -239,14 +252,11 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig) => {
     // Statistiques calculées
     stats: {
       total: data.length,
-      qualified: data.filter(p => p.status === 'qualified' || p.Statut === 'qualified').length,
-      new: data.filter(p => p.status === 'new' || p.Statut === 'new' || p.status === 'En attente').length,
-      contacted: data.filter(p => p.status === 'contacted' || p.Statut === 'contacted' || p.status === 'En cours').length,
+      qualified: data.filter(p => p.status === 'qualified').length,
+      new: data.filter(p => p.status === 'new').length,
+      contacted: data.filter(p => p.status === 'contacted').length,
       averageScore: data.length > 0 ? 
-        Math.round(data.reduce((sum, p) => {
-          const score = p.score || p.Score || 0;
-          return sum + (typeof score === 'number' ? score : parseFloat(score) || 0);
-        }, 0) / data.length * 10) / 10 : 0
+        Math.round(data.reduce((sum, p) => sum + p.score, 0) / data.length * 10) / 10 : 0
     }
   };
 };

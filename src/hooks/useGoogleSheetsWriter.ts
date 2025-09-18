@@ -4,8 +4,13 @@ import { useToast } from './use-toast';
 
 interface ProspectData {
   id: string;
-  user_id?: string;
-  [key: string]: any; // Dynamic columns from Google Sheet
+  contactName: string;
+  companyName: string;
+  companyWebsite: string;
+  role: string;
+  linkedinUrl: string;
+  relevance: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'failed';
 }
 
 interface GoogleSheetsConfig {
