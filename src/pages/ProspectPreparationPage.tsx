@@ -6,7 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { useGoogleSheets } from '@/hooks/useGoogleSheets';
+import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { 
   Plus, 
   Trash2, 
@@ -21,7 +24,13 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCw,
+  Upload,
+  Settings,
+  RotateCcw,
+  FileText,
+  Link
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -50,6 +59,29 @@ export const ProspectPreparationPage = () => {
       status: 'pending'
     }
   ]);
+
+  // Google Sheets integration
+  const [showGoogleSheetsConfig, setShowGoogleSheetsConfig] = useState(false);
+  const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
+    spreadsheetId: '',
+    sheetName: 'Feuille 1'
+  });
+
+  const {
+    data: googleSheetsData,
+    isLoading: isLoadingSheets,
+    connectionStatus,
+    lastSync,
+    loadData: loadGoogleSheetsData,
+    updateConfig: updateGoogleSheetsConfig
+  } = useGoogleSheets();
+
+  const {
+    isWriting,
+    lastWriteTime,
+    syncToGoogleSheets,
+    appendToGoogleSheets
+  } = useGoogleSheetsWriter();
 
   const addNewProspect = () => {
     const newProspect: ProspectData = {
@@ -111,6 +143,61 @@ export const ProspectPreparationPage = () => {
 
   const saveProspects = () => {
     toast.success('Prospects sauvegardés avec succès');
+  };
+
+  // Google Sheets functions
+  const handleGoogleSheetsConfigUpdate = (field: string, value: string) => {
+    const newConfig = { ...googleSheetsConfig, [field]: value };
+    setGoogleSheetsConfig(newConfig);
+    updateGoogleSheetsConfig(newConfig);
+  };
+
+  const importFromGoogleSheets = async () => {
+    if (!googleSheetsConfig.spreadsheetId) {
+      toast.error('Veuillez d\'abord configurer l\'ID Google Sheet');
+      return;
+    }
+
+    try {
+      await loadGoogleSheetsData();
+      if (googleSheetsData && googleSheetsData.length > 0) {
+        // Map Google Sheets data to our prospect format
+        const mappedProspects: ProspectData[] = googleSheetsData.map((item, index) => ({
+          id: item.id || `imported_${Date.now()}_${index}`,
+          contactName: item['Nom du Contact'] || item.name || '',
+          companyName: item['Nom de l\'Entreprise'] || item.company || '',
+          companyWebsite: item['Site Web Entreprise'] || item.website || '',
+          role: item['Rôle / Poste'] || item.position || '',
+          linkedinUrl: item['Profil LinkedIn'] || item.linkedin || '',
+          relevance: item['Notes/Pertinence'] || item.notes || '',
+          status: (item['Statut'] || item.status || 'pending') as ProspectData['status']
+        }));
+
+        setProspects(mappedProspects);
+        toast.success(`${mappedProspects.length} prospects importés depuis Google Sheets`);
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Erreur lors de l\'importation depuis Google Sheets');
+    }
+  };
+
+  const syncToGoogleSheetsHandler = async () => {
+    if (!googleSheetsConfig.spreadsheetId) {
+      toast.error('Veuillez d\'abord configurer l\'ID Google Sheet');
+      return;
+    }
+
+    const validProspects = prospects.filter(p => p.contactName || p.companyName);
+    if (validProspects.length === 0) {
+      toast.error('Aucun prospect valide à synchroniser');
+      return;
+    }
+
+    const success = await syncToGoogleSheets(googleSheetsConfig, validProspects);
+    if (success) {
+      toast.success(`${validProspects.length} prospects synchronisés vers Google Sheets`);
+    }
   };
 
   const exportToCSV = () => {
@@ -188,6 +275,15 @@ export const ProspectPreparationPage = () => {
           
           <div className="flex flex-wrap gap-2">
             <Button
+              onClick={() => setShowGoogleSheetsConfig(!showGoogleSheetsConfig)}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="hidden sm:inline">Google Sheets</span>
+            </Button>
+            <Button
               onClick={addNewProspect}
               variant="outline"
               size="sm"
@@ -224,6 +320,102 @@ export const ProspectPreparationPage = () => {
             </Button>
           </div>
         </div>
+
+        {/* Google Sheets Configuration */}
+        {showGoogleSheetsConfig && (
+          <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-purple-50 mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                Configuration Google Sheets
+                <Badge 
+                  variant={connectionStatus === 'connected' ? 'default' : 'secondary'}
+                  className="ml-2"
+                >
+                  {connectionStatus === 'connected' ? 'Connecté' : 
+                   connectionStatus === 'connecting' ? 'Connexion...' : 
+                   connectionStatus === 'error' ? 'Erreur' : 'Non configuré'}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="space-y-2">
+                  <Label htmlFor="spreadsheet-id" className="flex items-center gap-2">
+                    <Link className="w-4 h-4 text-gray-500" />
+                    ID Google Sheet *
+                  </Label>
+                  <Input
+                    id="spreadsheet-id"
+                    value={googleSheetsConfig.spreadsheetId}
+                    onChange={(e) => handleGoogleSheetsConfigUpdate('spreadsheetId', e.target.value)}
+                    placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+                    className="w-full"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Copiez l'ID depuis l'URL de votre Google Sheet
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sheet-name" className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-500" />
+                    Nom de la feuille
+                  </Label>
+                  <Input
+                    id="sheet-name"
+                    value={googleSheetsConfig.sheetName}
+                    onChange={(e) => handleGoogleSheetsConfigUpdate('sheetName', e.target.value)}
+                    placeholder="Feuille 1"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={importFromGoogleSheets}
+                  disabled={isLoadingSheets || !googleSheetsConfig.spreadsheetId}
+                  size="sm"
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                >
+                  {isLoadingSheets ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  Importer depuis Google Sheets
+                </Button>
+                <Button
+                  onClick={syncToGoogleSheetsHandler}
+                  disabled={isWriting || !googleSheetsConfig.spreadsheetId}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  {isWriting ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  Synchroniser vers Google Sheets
+                </Button>
+              </div>
+
+              {(lastSync || lastWriteTime) && (
+                <div className="mt-4 text-xs text-gray-500 flex flex-wrap gap-4">
+                  {lastSync && (
+                    <span>Dernière lecture: {lastSync.toLocaleString()}</span>
+                  )}
+                  {lastWriteTime && (
+                    <span>Dernière écriture: {lastWriteTime.toLocaleString()}</span>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Prospects Cards */}
         <div className="space-y-6">
