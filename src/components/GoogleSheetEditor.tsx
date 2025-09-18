@@ -148,12 +148,42 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     setAnalysisModalOpen(true);
   };
 
-  const deleteProspect = (prospectId: string) => {
-    const confirmed = window.confirm('Êtes-vous sûr de vouloir supprimer ce prospect ?');
+  const deleteProspect = async (prospectId: string) => {
+    const confirmed = window.confirm('Êtes-vous sûr de vouloir supprimer ce prospect ? Cette action est irréversible.');
     if (confirmed) {
-      setLocalData(prev => prev.filter(row => row.id !== prospectId));
-      setHasUnsavedChanges(true);
-      toast.success('Prospect supprimé');
+      try {
+        // Supprimer localement
+        const updatedData = localData.filter(row => row.id !== prospectId);
+        setLocalData(updatedData);
+        
+        // Synchroniser immédiatement avec Google Sheets
+        const formattedData = updatedData.map(row => ({
+          ...row,
+          user_id: row.user_id || user?.id || 'unknown'
+        }));
+
+        const success = await syncToGoogleSheets(
+          { spreadsheetId, sheetName }, 
+          formattedData
+        );
+
+        if (success) {
+          setHasUnsavedChanges(false);
+          setLastSyncTime(new Date());
+          toast.success('Prospect supprimé et synchronisé avec Google Sheets');
+          // Recharger pour avoir la version à jour
+          await loadInitialData();
+        } else {
+          // Si la synchronisation échoue, restaurer les données
+          setLocalData(localData);
+          toast.error('Erreur lors de la synchronisation avec Google Sheets');
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        // Restaurer les données en cas d'erreur
+        setLocalData(localData);
+        toast.error('Erreur lors de la suppression du prospect');
+      }
     }
   };
 
