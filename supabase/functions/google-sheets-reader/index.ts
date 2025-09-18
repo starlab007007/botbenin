@@ -300,111 +300,22 @@ serve(async (req) => {
         );
       }
     } else {
-      // Pas de clé API, retourner des données de démonstration avec avertissement
-      console.log('No API key found, generating demo data...');
+      // Pas de clé API, retourner un tableau vide
+      console.log('No API key found, returning empty data...');
       
-      const demoData = [
-        {
-          id: `demo_${Date.now()}_1`,
-          name: 'Jean Dupont',
-          email: 'jean.dupont@techcorp.fr',
-          phone: '+33 1 23 45 67 89',
-          company: 'TechCorp France',
-          position: 'Directeur Commercial',
-          location: 'Paris, France',
-          linkedin: 'https://linkedin.com/in/jeandupont',
-          source: 'Google Sheets',
-          notes: 'Contact qualifié via LinkedIn',
-          created_date: new Date().toISOString().split('T')[0],
-          last_contact: '',
-          status: 'qualified',
-          score: 8,
-          industry: 'Technology',
-          website: 'https://techcorp.fr'
-        },
-        {
-          id: `demo_${Date.now()}_2`,
-          name: 'Marie Martin',
-          email: 'marie.martin@innovsolutions.com',
-          phone: '+33 2 34 56 78 90',
-          company: 'Innov Solutions',
-          position: 'Chef de Projet',
-          location: 'Lyon, France',
-          linkedin: 'https://linkedin.com/in/mariemartin',
-          source: 'Google Sheets',
-          notes: 'Intéressée par nos solutions IA',
-          created_date: new Date().toISOString().split('T')[0],
-          last_contact: '',
-          status: 'interested',
-          score: 7,
-          industry: 'Consulting',
-          website: 'https://innovsolutions.com'
-        },
-        {
-          id: `demo_${Date.now()}_3`,
-          name: 'Pierre Bernard',
-          email: 'pierre.bernard@digitech.fr',
-          phone: '+33 3 45 67 89 01',
-          company: 'DigiTech',
-          position: 'CEO',
-          location: 'Marseille, France',
-          linkedin: 'https://linkedin.com/in/pierrebernard',
-          source: 'Google Sheets',
-          notes: 'Décideur final pour l\'entreprise',
-          created_date: new Date().toISOString().split('T')[0],
-          last_contact: '',
-          status: 'new',
-          score: 9,
-          industry: 'Digital Services',
-          website: 'https://digitech.fr'
-        }
-      ];
-
-      // Ajouter plus de données demo aléatoirement
-      for (let i = 4; i <= 25; i++) {
-        const companies = ['StartupTech', 'BusinessPro', 'InnovCorp', 'TechSolutions', 'DigitalFlow'];
-        const positions = ['CEO', 'CTO', 'Directeur Commercial', 'Chef de Projet', 'Responsable Marketing'];
-        const cities = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice'];
-        const statuses = ['new', 'contacted', 'interested', 'qualified'];
-        const industries = ['Technology', 'Finance', 'Marketing', 'Consulting', 'Retail'];
-        
-        const company = companies[Math.floor(Math.random() * companies.length)];
-        const firstName = ['Alex', 'Emma', 'Lucas', 'Camille', 'Hugo', 'Léa'][Math.floor(Math.random() * 6)];
-        const lastName = ['Moreau', 'Leroy', 'Roux', 'Fournier', 'Girard', 'Bonnet'][Math.floor(Math.random() * 6)];
-        
-        demoData.push({
-          id: `demo_${Date.now()}_${i}`,
-          name: `${firstName} ${lastName}`,
-          email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${company.toLowerCase()}.com`,
-          phone: `+33 ${Math.floor(Math.random() * 9) + 1} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10} ${Math.floor(Math.random() * 90) + 10}`,
-          company: company,
-          position: positions[Math.floor(Math.random() * positions.length)],
-          location: `${cities[Math.floor(Math.random() * cities.length)]}, France`,
-          linkedin: `https://linkedin.com/in/${firstName.toLowerCase()}${lastName.toLowerCase()}`,
-          source: 'Google Sheets',
-          notes: `Prospect généré automatiquement - ${company}`,
-          created_date: new Date().toISOString().split('T')[0],
-          last_contact: '',
-          status: statuses[Math.floor(Math.random() * statuses.length)],
-          score: Math.floor(Math.random() * 10) + 1,
-          industry: industries[Math.floor(Math.random() * industries.length)],
-          website: `https://${company.toLowerCase()}.com`
-        });
-      }
-
       return new Response(
         JSON.stringify({ 
           success: true,
-          data: demoData,
+          data: [],
           metadata: {
-            totalRows: demoData.length,
-            validRows: demoData.length,
-            headers: ['Nom', 'Email', 'Téléphone', 'Entreprise', 'Poste', 'Localisation'],
-            source: 'Demo Data',
-            isDemo: true,
-            warning: 'Clé API Google Sheets manquante - données de démonstration'
+            totalRows: 0,
+            validRows: 0,
+            headers: ['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut'],
+            source: 'Empty Data',
+            isEmpty: true,
+            info: 'Aucun prospect enregistré - commencez par ajouter votre premier prospect'
           },
-          message: `${demoData.length} prospects de démonstration chargés (configurez votre clé API pour les vraies données)`
+          message: 'Tableau vide - ajoutez vos premiers prospects'
         }),
         { 
           status: 200, 

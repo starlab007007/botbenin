@@ -44,7 +44,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 }) => {
   const { user, isAuthenticated } = useAuth();
   const [localData, setLocalData] = useState<GoogleSheetRow[]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
+  const [headers, setHeaders] = useState<string[]>(['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -98,7 +98,10 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         const extractedHeaders = Object.keys(firstRow).filter(key => 
           !['id', 'user_id'].includes(key)
         );
-        setHeaders(extractedHeaders);
+        setHeaders(extractedHeaders.length > 0 ? extractedHeaders : ['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
+      } else {
+        // Pas de données, garder les headers par défaut
+        setHeaders(['Nom', 'Prénom', 'Entreprise', 'Email', 'Téléphone', 'Statut']);
       }
       
       setLocalData(secureFilteredData);
@@ -435,36 +438,37 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {localData.length > 0 && headers.length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="max-h-[600px] overflow-y-auto">
-                <table className="w-full border-collapse">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
-                        #
-                      </th>
-                      {headers.map((header) => (
-                        <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
-                          <div className="flex items-center gap-2">
-                            {getFieldIcon(header)}
-                            <span className="truncate">{header}</span>
-                          </div>
-                        </th>
-                      ))}
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-purple-700 uppercase w-32">
-                        <div className="flex items-center gap-2 justify-center">
-                          <Target className="w-4 h-4" />
-                          <span>Score</span>
+          {/* Toujours afficher le tableau, même vide */}
+          <div className="overflow-x-auto">
+            <div className="max-h-[600px] overflow-y-auto">
+              <table className="w-full border-collapse">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
+                  <tr className="border-b-2 border-gray-200">
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
+                      #
+                    </th>
+                    {headers.map((header) => (
+                      <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
+                        <div className="flex items-center gap-2">
+                          {getFieldIcon(header)}
+                          <span className="truncate">{header}</span>
                         </div>
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-32">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {localData.map((row, rowIndex) => (
+                    ))}
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-purple-700 uppercase w-32">
+                      <div className="flex items-center gap-2 justify-center">
+                        <Target className="w-4 h-4" />
+                        <span>Score</span>
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-32">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {localData.length > 0 ? (
+                    localData.map((row, rowIndex) => (
                       <tr 
                         key={row.id} 
                         className={`
@@ -535,37 +539,32 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                           </div>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={headers.length + 3} className="px-4 py-12 text-center">
+                        <div className="max-w-md mx-auto">
+                          <FileText className="w-16 h-16 mx-auto mb-6 text-gray-300" />
+                          <h3 className="text-xl font-semibold mb-3 text-gray-700">Aucun prospect enregistré</h3>
+                          <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+                            Commencez par ajouter votre premier prospect avec les informations de base.
+                          </p>
+                          <Button
+                            onClick={addNewRow}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            size="lg"
+                          >
+                            <Plus className="w-5 h-5 mr-2" />
+                            Ajouter mon premier prospect
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          ) : (
-            <div className="p-12 text-center text-gray-500">
-              <div className="max-w-md mx-auto">
-                <FileText className="w-16 h-16 mx-auto mb-6 text-gray-300" />
-                <h3 className="text-xl font-semibold mb-3 text-gray-700">Aucun prospect trouvé</h3>
-                <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-                  Vérifiez que votre Google Sheet contient des données ou que l'ID et le nom de la feuille sont corrects.
-                  <br />
-                  Les données doivent être au format tableau avec des en-têtes en première ligne.
-                </p>
-                <div className="space-y-3">
-                  <Button
-                    onClick={addNewRow}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    size="lg"
-                  >
-                    <Plus className="w-5 h-5 mr-2" />
-                    Créer le premier prospect
-                  </Button>
-                  <div className="text-xs text-gray-400">
-                    ou actualisez pour recharger les données
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
