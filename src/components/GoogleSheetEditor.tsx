@@ -98,79 +98,28 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         const extractedHeaders = Object.keys(firstRow).filter(key => 
           !['id', 'user_id'].includes(key)
         );
-        setHeaders(extractedHeaders.length > 0 ? extractedHeaders : []);
-      } else {
-        // Pas de données utilisateur, mais on doit récupérer les headers du Google Sheet
-        if (googleSheetsData && googleSheetsData.length > 0) {
-          // Utiliser les headers du Google Sheet même s'il n'y a pas de données utilisateur
-          const firstRow = googleSheetsData[0];
-          const extractedHeaders = Object.keys(firstRow).filter(key => 
-            !['id', 'user_id'].includes(key)
-          );
-          setHeaders(extractedHeaders.length > 0 ? extractedHeaders : []);
-        } else {
-          // Aucune donnée du tout, utiliser headers vides
-          setHeaders([]);
-        }
+        setHeaders(extractedHeaders);
       }
       
       setLocalData(secureFilteredData);
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
-      
-      // Si aucune donnée après filtrage, ajouter une ligne vide pour commencer
-      if (secureFilteredData.length === 0) {
-        console.log('📝 Aucune donnée trouvée - ajout d\'une ligne vide');
-        setTimeout(() => addEmptyRowToStart(), 100); // Petit délai pour s'assurer que les headers sont définis
-      }
     } else if (user?.id) {
-      // Si pas de données utilisateur, mais récupérer quand même les headers du Google Sheet
-      console.log('🔒 Nettoyage des données: aucune donnée utilisateur trouvée');
-      if (googleSheetsData && googleSheetsData.length > 0) {
-        // Utiliser les headers du Google Sheet réel
-        const firstRow = googleSheetsData[0];
-        const extractedHeaders = Object.keys(firstRow).filter(key => 
-          !['id', 'user_id'].includes(key)
-        );
-        setHeaders(extractedHeaders.length > 0 ? extractedHeaders : []);
-        console.log('📋 Headers récupérés du Google Sheet:', extractedHeaders);
-      } else {
-        setHeaders([]);
-      }
+      // Si pas de données ou utilisateur non connecté, vider les données locales
+      console.log('🔒 Nettoyage des données: aucune donnée valide ou utilisateur non connecté');
       setLocalData([]);
+      setHeaders([]);
       setHasUnsavedChanges(false);
-      
-      // Ajouter une ligne vide pour commencer immédiatement
-      setTimeout(() => addEmptyRowToStart(), 100);
     }
   }, [googleSheetsData, user?.id]);
-
-  const addEmptyRowToStart = () => {
-    if (!user?.id) return;
-    
-    const newRow: GoogleSheetRow = {
-      id: `user_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      user_id: user.id,
-    };
-    
-    // Initialiser avec des valeurs vides pour tous les headers
-    headers.forEach(header => {
-      newRow[header] = '';
-    });
-
-    setLocalData([newRow]);
-    setHasUnsavedChanges(true);
-    console.log('📝 Ligne vide ajoutée pour démarrer');
-  };
 
   const loadInitialData = async () => {
     try {
       await loadGoogleSheetsData();
-      console.log('✅ Données Google Sheet chargées');
+      toast.success('Données Google Sheet chargées');
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      // En cas d'erreur, créer une ligne vide pour commencer
-      addEmptyRowToStart();
+      toast.error('Erreur lors du chargement du Google Sheet');
     }
   };
 
@@ -276,23 +225,12 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return;
     }
 
-    // Filtrer les lignes vides (toutes les colonnes vides)
-    const dataToSave = localData.filter(row => {
-      return headers.some(header => row[header] && row[header].toString().trim() !== '');
-    });
-
-    if (dataToSave.length === 0) {
-      toast.error('Aucune donnée à sauvegarder - veuillez remplir au moins une ligne');
-      return;
-    }
-
     // Send data as-is with user_id
-    const formattedData = dataToSave.map(row => ({
+    const formattedData = localData.map(row => ({
       ...row,
       user_id: row.user_id || user?.id || 'unknown'
     }));
 
-    console.log('💾 Sauvegarde de', formattedData.length, 'prospects');
     const success = await syncToGoogleSheets(
       { spreadsheetId, sheetName }, 
       formattedData
@@ -301,7 +239,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     if (success) {
       setHasUnsavedChanges(false);
       setLastSyncTime(new Date());
-      toast.success(`${formattedData.length} prospects sauvegardés dans Google Sheets`);
+      toast.success('Données synchronisées vers Google Sheets');
       // Recharger pour avoir la version à jour
       await loadInitialData();
     }
@@ -497,37 +435,36 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Toujours afficher le tableau, même vide */}
-          <div className="overflow-x-auto">
-            <div className="max-h-[600px] overflow-y-auto">
-              <table className="w-full border-collapse">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
-                      #
-                    </th>
-                    {headers.map((header) => (
-                      <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
-                        <div className="flex items-center gap-2">
-                          {getFieldIcon(header)}
-                          <span className="truncate">{header}</span>
+          {localData.length > 0 && headers.length > 0 ? (
+            <div className="overflow-x-auto">
+              <div className="max-h-[600px] overflow-y-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
+                        #
+                      </th>
+                      {headers.map((header) => (
+                        <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
+                          <div className="flex items-center gap-2">
+                            {getFieldIcon(header)}
+                            <span className="truncate">{header}</span>
+                          </div>
+                        </th>
+                      ))}
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-purple-700 uppercase w-32">
+                        <div className="flex items-center gap-2 justify-center">
+                          <Target className="w-4 h-4" />
+                          <span>Score</span>
                         </div>
                       </th>
-                    ))}
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-purple-700 uppercase w-32">
-                      <div className="flex items-center gap-2 justify-center">
-                        <Target className="w-4 h-4" />
-                        <span>Score</span>
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-32">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {localData.length > 0 ? (
-                    localData.map((row, rowIndex) => (
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-32">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {localData.map((row, rowIndex) => (
                       <tr 
                         key={row.id} 
                         className={`
@@ -598,32 +535,37 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                           </div>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={headers.length + 3} className="px-4 py-12 text-center">
-                        <div className="max-w-md mx-auto">
-                          <FileText className="w-16 h-16 mx-auto mb-6 text-gray-300" />
-                          <h3 className="text-xl font-semibold mb-3 text-gray-700">Aucun prospect enregistré</h3>
-                          <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-                            Vous êtes prêt à commencer ! Cliquez sur le bouton ci-dessous pour ajouter votre premier prospect.
-                          </p>
-                          <Button
-                            onClick={addNewRow}
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            size="lg"
-                          >
-                            <Plus className="w-5 h-5 mr-2" />
-                            Ajouter mon premier prospect
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-12 text-center text-gray-500">
+              <div className="max-w-md mx-auto">
+                <FileText className="w-16 h-16 mx-auto mb-6 text-gray-300" />
+                <h3 className="text-xl font-semibold mb-3 text-gray-700">Aucun prospect trouvé</h3>
+                <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+                  Vérifiez que votre Google Sheet contient des données ou que l'ID et le nom de la feuille sont corrects.
+                  <br />
+                  Les données doivent être au format tableau avec des en-têtes en première ligne.
+                </p>
+                <div className="space-y-3">
+                  <Button
+                    onClick={addNewRow}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    size="lg"
+                  >
+                    <Plus className="w-5 h-5 mr-2" />
+                    Créer le premier prospect
+                  </Button>
+                  <div className="text-xs text-gray-400">
+                    ou actualisez pour recharger les données
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

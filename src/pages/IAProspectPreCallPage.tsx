@@ -20,14 +20,11 @@ export const IAProspectPreCallPage = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateFirst, setShowCreateFirst] = useState(false);
   
-  // Configuration pour le Google Sheet de l'utilisateur
-  const SPREADSHEET_ID = "14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8";
-  const SHEET_NAME = "Feuille 1";
+  // Configuration par défaut pour Google Sheets
+  const DEFAULT_SPREADSHEET_ID = "1example";
+  const DEFAULT_SHEET_NAME = "Prospects";
   
-  const { data: googleSheetsData, isLoading, loadData } = useGoogleSheets(
-    { spreadsheetId: SPREADSHEET_ID, sheetName: SHEET_NAME }, 
-    user?.id
-  );
+  const { data: googleSheetsData, isLoading, loadData } = useGoogleSheets(undefined, user?.id);
   
   // Rafraîchissement automatique à l'ouverture de la page
   useEffect(() => {
@@ -41,22 +38,13 @@ export const IAProspectPreCallPage = () => {
     if (!isAuthenticated) {
       setShowAuthModal(true);
     } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length === 0) {
-      // Seul cas où on affiche "créer premier prospect" : données vides ET pas déjà masqué par l'utilisateur
-      if (showCreateFirst !== false) {
-        setShowCreateFirst(true);
-      }
+      setShowCreateFirst(true);
     } else if (isAuthenticated && googleSheetsData !== undefined && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
       setShowCreateFirst(false);
     }
   }, [isAuthenticated, googleSheetsData]);
 
   const handleCreateFirstProspect = () => {
-    console.log('🔄 Création du premier prospect - actualisation forcée');
-    // Forcer l'actualisation des données
-    if (loadData) {
-      loadData(false); // Actualisation silencieuse
-    }
-    // Forcer l'affichage du tableau même s'il n'y a pas de données
     setShowCreateFirst(false);
   };
   if (!isAuthenticated) {
@@ -85,7 +73,7 @@ export const IAProspectPreCallPage = () => {
     );
   }
 
-  if (showCreateFirst) {
+  if (showCreateFirst || (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length === 0)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto">
@@ -149,8 +137,8 @@ export const IAProspectPreCallPage = () => {
 
         {/* Google Sheets Editor */}
         <GoogleSheetEditor 
-          spreadsheetId={SPREADSHEET_ID}
-          sheetName={SHEET_NAME}
+          spreadsheetId={DEFAULT_SPREADSHEET_ID}
+          sheetName={DEFAULT_SHEET_NAME}
         />
       </div>
 
