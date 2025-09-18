@@ -20,7 +20,8 @@ import {
   Building,
   Shield,
   X,
-  Phone
+  Phone,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -90,6 +91,14 @@ const crmItems = [
     icon: Target, 
     color: 'from-pink-500 to-pink-600',
     description: 'Gestion CRM'
+  },
+  { 
+    title: 'IA Prospect Rapport Pre-Call', 
+    path: '/ia-prospect-precall', 
+    icon: FileText, 
+    color: 'from-blue-500 to-purple-600',
+    description: 'Préparation d\'appels B2B',
+    badge: 'New'
   },
 ];
 

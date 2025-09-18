@@ -46,6 +46,9 @@ const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampa
 // WhatsApp Connect
 const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 
+// CRM & Prospects
+const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
+
 // Pages spéciales
 const SystemTestPage = lazy(() => import("./pages/SystemTestPage").then(module => ({ default: module.SystemTestPage })));
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
@@ -104,8 +107,9 @@ const App = () => (
                     {/* Tests système */}
                     <Route path="/system-test" element={<SystemTestPage />} />
                     
-                    {/* Prospects avec layout spécial */}
+                    {/* CRM & Prospects */}
                     <Route path="/prospects" element={<ProspectsLayout />} />
+                    <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
