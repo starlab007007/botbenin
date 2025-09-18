@@ -24,7 +24,8 @@ import {
   AlertCircle,
   FileText,
   Link as LinkIcon,
-  Shield
+  Shield,
+  Trash2
 } from 'lucide-react';
 
 interface GoogleSheetRow extends GoogleSheetProspectWithUser {
@@ -144,6 +145,30 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   const openAnalysisModal = (prospect: GoogleSheetProspectWithUser) => {
     setSelectedProspect(prospect);
     setAnalysisModalOpen(true);
+  };
+
+  const deleteProspect = (prospectId: string) => {
+    const confirmed = window.confirm('Êtes-vous sûr de vouloir supprimer ce prospect ?');
+    if (confirmed) {
+      setLocalData(prev => prev.filter(row => row.id !== prospectId));
+      setHasUnsavedChanges(true);
+      toast.success('Prospect supprimé');
+    }
+  };
+
+  const getScoreFromProspect = (prospect: GoogleSheetProspectWithUser): number | null => {
+    // Chercher dans différentes colonnes possibles pour le score
+    const scoreFields = ['Notes/Pertinence', 'Notes', 'Pertinence', 'Score', 'score', 'notes'];
+    for (const field of scoreFields) {
+      const value = prospect[field];
+      if (value) {
+        const numValue = parseFloat(value.toString());
+        if (!isNaN(numValue)) {
+          return numValue;
+        }
+      }
+    }
+    return null;
   };
 
   const handleEvaluateProspect = (prospectId: string) => {
@@ -418,15 +443,27 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                             )}
                           </td>
                         ))}
-                        <td className="px-4 py-4 text-center">
-                          <Button
-                            onClick={() => openAnalysisModal(row)}
-                            variant="outline"
-                            size="sm"
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          >
-                            <BarChart3 className="w-4 h-4" />
-                          </Button>
+                        <td className="px-4 py-4">
+                          <div className="flex gap-2 justify-center">
+                            <Button
+                              onClick={() => openAnalysisModal(row)}
+                              variant="outline"
+                              size="sm"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              title="Analyser le prospect"
+                            >
+                              <BarChart3 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              onClick={() => deleteProspect(row.id)}
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Supprimer le prospect"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -495,6 +532,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         onClose={() => setAnalysisModalOpen(false)}
         prospect={selectedProspect}
         onEvaluate={handleEvaluateProspect}
+        scoreFromSheet={selectedProspect ? getScoreFromProspect(selectedProspect) : null}
       />
     </div>
   );

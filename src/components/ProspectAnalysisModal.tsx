@@ -28,13 +28,15 @@ interface ProspectAnalysisModalProps {
   onClose: () => void;
   prospect: GoogleSheetProspectWithUser | null;
   onEvaluate: (prospectId: string) => void;
+  scoreFromSheet?: number | null;
 }
 
 export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
   isOpen,
   onClose,
   prospect,
-  onEvaluate
+  onEvaluate,
+  scoreFromSheet
 }) => {
   if (!prospect) return null;
 
@@ -72,7 +74,10 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
   };
 
   const data = extractProspectData();
-  const relevanceScore = parseInt(data.relevance) || 0;
+  // Utiliser le score récupéré depuis Google Sheets en priorité, sinon utiliser l'extraction normale
+  const relevanceScore = scoreFromSheet !== null && scoreFromSheet !== undefined 
+    ? scoreFromSheet 
+    : parseInt(data.relevance) || 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
