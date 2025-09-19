@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { GoogleSheetEditor } from '@/components/GoogleSheetEditor';
 import { ReportLinkManager } from '@/components/ReportLinkManager';
+import { DocumentLinkViewer } from '@/components/DocumentLinkViewer';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   ArrowLeft,
@@ -14,7 +16,8 @@ import {
   FileText,
   Link,
   ExternalLink,
-  FolderOpen
+  FolderOpen,
+  Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,6 +49,7 @@ export const ProspectPreparationPage = () => {
     sheetName: 'Feuille 1'
   });
   const [showConfig, setShowConfig] = useState(false);
+  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
 
   const openGoogleSheet = () => {
     const url = `https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/edit`;
@@ -86,13 +90,13 @@ export const ProspectPreparationPage = () => {
               <span className="hidden sm:inline">Configuration</span>
             </Button>
             <Button
-              onClick={openGoogleSheet}
+              onClick={() => setShowDocumentViewer(true)}
               variant="outline"
               size="sm"
               className="flex items-center gap-2"
             >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Ouvrir Google Sheet</span>
+              <Eye className="w-4 h-4" />
+              <span className="hidden sm:inline">Voir</span>
             </Button>
           </div>
         </div>
@@ -173,6 +177,23 @@ export const ProspectPreparationPage = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Document Viewer Modal */}
+        <Dialog open={showDocumentViewer} onOpenChange={setShowDocumentViewer}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Préparation de l'appel - Google Sheet
+              </DialogTitle>
+            </DialogHeader>
+            <DocumentLinkViewer
+              url={`https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/edit`}
+              title="Préparation de l'appel - Google Sheet"
+              description="Feuille de calcul pour la préparation d'appels avec vos prospects"
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
