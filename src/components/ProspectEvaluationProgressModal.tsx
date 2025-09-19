@@ -5,6 +5,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { DocumentLinkViewer } from './DocumentLinkViewer';
+import { useReportManager } from './ReportLinkManager';
 import { 
   CheckCircle2, 
   Clock, 
@@ -32,6 +34,7 @@ interface ProspectEvaluationProgressModalProps {
   isOpen: boolean;
   onClose: () => void;
   prospectName: string;
+  prospectId?: string;
   onCancel?: () => void;
 }
 
@@ -39,8 +42,10 @@ export const ProspectEvaluationProgressModal: React.FC<ProspectEvaluationProgres
   isOpen,
   onClose,
   prospectName,
+  prospectId,
   onCancel
 }) => {
+  const { addReport } = useReportManager();
   const [steps, setSteps] = useState<EvaluationStep[]>([
     {
       id: 'webhook',
@@ -83,6 +88,7 @@ export const ProspectEvaluationProgressModal: React.FC<ProspectEvaluationProgres
   const [overallProgress, setOverallProgress] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportUrl, setReportUrl] = useState<string | null>(null);
 
   // Simulation du processus d'évaluation
   useEffect(() => {
@@ -110,6 +116,21 @@ export const ProspectEvaluationProgressModal: React.FC<ProspectEvaluationProgres
       
       // Étape 5: Finalisation
       await processStep(4, 1000);
+      
+      // Simuler la génération d'un lien de rapport
+      const simulatedReportUrl = `https://docs.google.com/document/d/1BcDefGhIjKlMnOpQrStUvWxYz/edit?usp=sharing`;
+      setReportUrl(simulatedReportUrl);
+      
+      // Enregistrer automatiquement le rapport
+      if (prospectId) {
+        addReport(
+          simulatedReportUrl,
+          `Rapport d'évaluation - ${prospectName}`,
+          prospectId,
+          `Analyse complète du prospect ${prospectName} générée le ${new Date().toLocaleDateString('fr-FR')}`,
+          'evaluation'
+        );
+      }
       
       setOverallProgress(100);
     } catch (err) {
@@ -230,9 +251,20 @@ export const ProspectEvaluationProgressModal: React.FC<ProspectEvaluationProgres
               )}
               
               {allCompleted && (
-                <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-                  <CheckCircle2 className="w-4 h-4 inline mr-2" />
-                  Évaluation terminée avec succès !
+                <div className="mt-3 space-y-3">
+                  <div className="p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                    <CheckCircle2 className="w-4 h-4 inline mr-2" />
+                    Évaluation terminée avec succès !
+                  </div>
+                  
+                  {reportUrl && (
+                    <DocumentLinkViewer
+                      url={reportUrl}
+                      title={`Rapport d'évaluation - ${prospectName}`}
+                      description="Analyse complète du prospect avec recommandations détaillées"
+                      className="mt-3"
+                    />
+                  )}
                 </div>
               )}
             </CardContent>
