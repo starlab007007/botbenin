@@ -46,10 +46,16 @@ export const ReportLinkManager: React.FC<ReportLinkManagerProps> = ({
       const savedReports = localStorage.getItem('prospect_reports');
       const allReports: ReportLink[] = savedReports ? JSON.parse(savedReports) : [];
       
+      // Convertir les chaînes createdAt en objets Date
+      const reportsWithDates = allReports.map(report => ({
+        ...report,
+        createdAt: new Date(report.createdAt)
+      }));
+      
       // Filtrer par prospect si spécifié
       const filteredReports = prospectId 
-        ? allReports.filter(report => report.id.includes(prospectId))
-        : allReports;
+        ? reportsWithDates.filter(report => report.id.includes(prospectId))
+        : reportsWithDates;
       
       setReports(filteredReports);
     } catch (error) {
@@ -65,8 +71,14 @@ export const ReportLinkManager: React.FC<ReportLinkManagerProps> = ({
       const savedReports = localStorage.getItem('prospect_reports');
       const allReports: ReportLink[] = savedReports ? JSON.parse(savedReports) : [];
       
+      // Convertir les chaînes createdAt en objets Date pour les rapports existants
+      const reportsWithDates = allReports.map(report => ({
+        ...report,
+        createdAt: new Date(report.createdAt)
+      }));
+      
       // Fusionner avec les rapports existants
-      const mergedReports = [...allReports];
+      const mergedReports = [...reportsWithDates];
       updatedReports.forEach(newReport => {
         const existingIndex = mergedReports.findIndex(r => r.id === newReport.id);
         if (existingIndex >= 0) {
@@ -215,6 +227,12 @@ export const useReportManager = () => {
       const savedReports = localStorage.getItem('prospect_reports');
       const allReports: ReportLink[] = savedReports ? JSON.parse(savedReports) : [];
       
+      // Convertir les chaînes createdAt en objets Date pour les rapports existants
+      const reportsWithDates = allReports.map(report => ({
+        ...report,
+        createdAt: new Date(report.createdAt)
+      }));
+      
       const newReport: ReportLink = {
         id: `${prospectId || 'global'}_${Date.now()}`,
         url,
@@ -224,8 +242,8 @@ export const useReportManager = () => {
         type
       };
       
-      allReports.push(newReport);
-      localStorage.setItem('prospect_reports', JSON.stringify(allReports));
+      reportsWithDates.push(newReport);
+      localStorage.setItem('prospect_reports', JSON.stringify(reportsWithDates));
       
       toast.success('Rapport enregistré avec succès');
       return newReport;
