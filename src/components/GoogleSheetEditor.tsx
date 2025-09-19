@@ -283,6 +283,40 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     return null;
   };
 
+  // Fonction pour mettre à jour la colonne Run dans Google Sheets
+  const updateRunInSheet = async (prospectId: string, value: string): Promise<boolean> => {
+    const updatedData = localData.map(row => 
+      row.id === prospectId 
+        ? { ...row, Run: value }
+        : row
+    );
+    
+    setLocalData(updatedData);
+    
+    const formattedData = updatedData.map(row => ({
+      ...row,
+      user_id: row.user_id || user?.id || 'unknown'
+    }));
+
+    const success = await syncToGoogleSheets(
+      { spreadsheetId, sheetName }, 
+      formattedData
+    );
+
+    if (success) {
+      setHasUnsavedChanges(false);
+      setLastSyncTime(new Date());
+      const displayValue = value === 'true' ? 'Oui' : 'Non';
+      toast.success(`Statut "Exécuter" mis à jour: ${displayValue}`);
+      return true;
+    } else {
+      // Restaurer les données en cas d'échec
+      setLocalData(localData);
+      toast.error('Erreur lors de la mise à jour du statut');
+      return false;
+    }
+  };
+
   const handleEvaluateProspect = async (prospectId: string) => {
     const prospect = localData.find(p => p.id === prospectId);
     if (!prospect) {
@@ -290,7 +324,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return;
     }
 
-    const success = await triggerEvaluation(prospect);
+    const success = await triggerEvaluation(prospect, updateRunInSheet);
     
     if (success) {
       setAnalysisModalOpen(false);

@@ -16,7 +16,7 @@ interface UseProspectEvaluationWebhookReturn {
   webhookConfig: WebhookConfig | null;
   isLoading: boolean;
   setWebhookConfig: (config: WebhookConfig | null) => void;
-  triggerEvaluation: (prospectData: ProspectData) => Promise<boolean>;
+  triggerEvaluation: (prospectData: ProspectData, updateRunInSheet?: (prospectId: string, value: string) => Promise<boolean>) => Promise<boolean>;
   testWebhook: () => Promise<boolean>;
 }
 
@@ -52,7 +52,10 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
     }
   });
 
-  const triggerEvaluation = useCallback(async (prospectData: ProspectData): Promise<boolean> => {
+  const triggerEvaluation = useCallback(async (
+    prospectData: ProspectData, 
+    updateRunInSheet?: (prospectId: string, value: string) => Promise<boolean>
+  ): Promise<boolean> => {
     if (!webhookConfig || !webhookConfig.isActive || !webhookConfig.url) {
       toast({
         title: "Webhook non configuré",
@@ -62,18 +65,21 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
       return false;
     }
 
-    // Vérifier que le champ "Run" est en "true"
-    const runValue = prospectData.Run || prospectData.run || '';
-    if (runValue !== 'TRUE' && runValue !== 'true' && runValue !== true) {
-      toast({
-        title: "Évaluation non autorisée",
-        description: "Le champ 'Run' doit être défini sur 'Oui' pour déclencher l'évaluation",
-        variant: "destructive",
-      });
-      return false;
-    }
-
     setIsLoading(true);
+
+    // Automatiquement mettre la colonne Run à "TRUE" avant de déclencher l'évaluation
+    if (updateRunInSheet) {
+      const updateSuccess = await updateRunInSheet(prospectData.id, 'true');
+      if (!updateSuccess) {
+        toast({
+          title: "Erreur de mise à jour",
+          description: "Impossible de mettre à jour le statut dans Google Sheets",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+    }
 
     try {
       const payload = {
@@ -83,14 +89,14 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
         source: 'prospect_preparation_interface',
         metadata: {
           user_triggered: true,
-          run_status: runValue
+          run_status: 'true'
         }
       };
 
       console.log('🚀 Déclenchement webhook:', {
         url: webhookConfig.url,
         prospectId: prospectData.id,
-        runStatus: runValue
+        runStatus: 'true'
       });
 
       const response = await fetch(webhookConfig.url, {
@@ -121,6 +127,21 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
         title: "Évaluation déclenchée",
         description: `Prospect ${prospectData.id} envoyé pour évaluation`,
       });
+
+      // Après succès, programmer la remise à FALSE après un délai (simulation de fin d'évaluation)
+      if (updateRunInSheet) {
+        setTimeout(async () => {
+          try {
+            await updateRunInSheet(prospectData.id, 'false');
+            toast({
+              title: "Évaluation terminée",
+              description: `Le statut du prospect ${prospectData.id} a été remis à jour`,
+            });
+          } catch (error) {
+            console.error('Erreur lors de la remise à FALSE:', error);
+          }
+        }, 30000); // 30 secondes pour simuler le délai d'évaluation
+      }
 
       return true;
     } catch (error) {
