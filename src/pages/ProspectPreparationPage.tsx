@@ -6,13 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { GoogleSheetEditor } from '@/components/GoogleSheetEditor';
+import { ReportLinkManager } from '@/components/ReportLinkManager';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   ArrowLeft,
   Settings,
   FileText,
   Link,
-  ExternalLink
+  ExternalLink,
+  FolderOpen
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -136,6 +138,19 @@ export const ProspectPreparationPage = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Section Rapports d'évaluation */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <FolderOpen className="w-5 h-5 text-purple-600" />
+              Rapports d'Évaluation Sauvegardés
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ReportLinkManager />
+          </CardContent>
+        </Card>
 
         {/* Google Sheet Editor - Interface principale */}
         <GoogleSheetEditor

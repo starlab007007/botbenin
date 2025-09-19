@@ -52,11 +52,11 @@ export const DocumentLinkViewer: React.FC<DocumentLinkViewerProps> = ({
     return publicUrl;
   };
 
-  // Générer l'URL d'aperçu (embedded)
-  const getPreviewUrl = () => {
+  // Générer l'URL d'aperçu (embedded) - Version sans CSP
+  const getEmbedUrl = () => {
     const publicUrl = makePublicUrl(url);
     if (publicUrl.includes('docs.google.com/document')) {
-      return publicUrl.replace('/edit?usp=sharing', '/preview');
+      return publicUrl.replace('/edit?usp=sharing', '/preview?embedded=true');
     }
     return publicUrl;
   };
@@ -208,40 +208,85 @@ export const DocumentLinkViewer: React.FC<DocumentLinkViewerProps> = ({
         </CardContent>
       </Card>
 
-      {/* Modal d'aperçu */}
+      {/* Modal d'aperçu - Sans iframe pour éviter CSP */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-5xl max-h-[90vh]">
+        <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Aperçu - {title}
+              Accès au document - {title}
             </DialogTitle>
           </DialogHeader>
-          <div className="h-[70vh]">
-            <iframe
-              src={getPreviewUrl()}
-              className="w-full h-full border rounded"
-              title={`Aperçu de ${title}`}
-            />
+          <div className="space-y-4 py-4">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-3 mb-3">
+                <Globe className="w-5 h-5 text-blue-600" />
+                <span className="text-blue-800 font-medium">Document accessible publiquement</span>
+              </div>
+              <p className="text-blue-700 text-sm mb-4">
+                Ce document est configuré pour être accessible à tous sans demande d'autorisation.
+              </p>
+              
+              {/* Lien direct cliquable */}
+              <div className="bg-white p-3 rounded border border-blue-200 mb-4">
+                <div className="flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4 text-gray-500" />
+                  <a 
+                    href={makePublicUrl(url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 text-sm break-all flex-1 underline"
+                  >
+                    {makePublicUrl(url)}
+                  </a>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleCopyLink}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Actions rapides */}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={handleView}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Ouvrir le document
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => handleDownload('pdf')}
+                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Télécharger PDF
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => handleDownload('docx')}
+                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Télécharger Word
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-between items-center pt-2">
-            <div className="text-sm text-gray-500">
-              Aperçu intégré du document Google Docs
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowPreview(false)}
-              >
-                Fermer
-              </Button>
-              <Button
-                onClick={handleView}
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Ouvrir dans un nouvel onglet
-              </Button>
-            </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreview(false)}
+            >
+              Fermer
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
