@@ -11,8 +11,6 @@ import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { ProspectAnalysisModal } from './ProspectAnalysisModal';
-import { WebhookConfigModal } from './WebhookConfigModal';
-import { useProspectEvaluationWebhook } from '@/hooks/useProspectEvaluationWebhook';
 import { 
   RefreshCw, 
   Save, 
@@ -29,9 +27,7 @@ import {
   Link as LinkIcon,
   Shield,
   Trash2,
-  Target,
-  Settings,
-  Zap
+  Target
 } from 'lucide-react';
 
 interface GoogleSheetRow extends GoogleSheetProspectWithUser {
@@ -54,16 +50,6 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
   const [selectedProspect, setSelectedProspect] = useState<GoogleSheetProspectWithUser | null>(null);
-  const [webhookConfigModalOpen, setWebhookConfigModalOpen] = useState(false);
-
-  // Hook pour gérer le webhook d'évaluation
-  const {
-    webhookConfig,
-    isLoading: isWebhookLoading,
-    setWebhookConfig,
-    triggerEvaluation,
-    testWebhook
-  } = useProspectEvaluationWebhook();
 
   const {
     data: googleSheetsData,
@@ -283,18 +269,10 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     return null;
   };
 
-  const handleEvaluateProspect = async (prospectId: string) => {
-    const prospect = localData.find(p => p.id === prospectId);
-    if (!prospect) {
-      toast.error('Prospect non trouvé');
-      return;
-    }
-
-    const success = await triggerEvaluation(prospect);
-    
-    if (success) {
-      setAnalysisModalOpen(false);
-    }
+  const handleEvaluateProspect = (prospectId: string) => {
+    toast.success(`Évaluation démarrée pour le prospect ${prospectId.substring(0, 12)}...`);
+    setAnalysisModalOpen(false);
+    // TODO: Implémenter la logique d'évaluation
   };
 
   const saveToGoogleSheets = async () => {
@@ -524,20 +502,6 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
               >
                 <RefreshCw className={`w-4 h-4 ${isLoadingSheets ? 'animate-spin' : ''}`} />
                 Actualiser
-              </Button>
-              
-              <Button
-                onClick={() => setWebhookConfigModalOpen(true)}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-                title="Configurer le webhook d'évaluation"
-              >
-                <Settings className="w-4 h-4" />
-                Webhook
-                {webhookConfig?.isActive && (
-                  <Zap className="w-3 h-3 text-green-600" />
-                )}
               </Button>
               
               <Button
@@ -823,17 +787,6 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         prospect={selectedProspect}
         onEvaluate={handleEvaluateProspect}
         scoreFromSheet={selectedProspect ? getScoreFromProspect(selectedProspect) : null}
-        />
-      
-      {/* Modal de configuration du webhook */}
-      <WebhookConfigModal
-        isOpen={webhookConfigModalOpen}
-        onClose={() => setWebhookConfigModalOpen(false)}
-        webhookConfig={webhookConfig}
-        onSave={setWebhookConfig}
-        onDelete={() => setWebhookConfig(null)}
-        onTest={testWebhook}
-        isLoading={isWebhookLoading}
       />
     </div>
   );
