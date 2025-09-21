@@ -7,12 +7,14 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { GoogleSheetEditor } from '@/components/GoogleSheetEditor';
 import { ReportLinkManager } from '@/components/ReportLinkManager';
 import { DocumentLinkViewer } from '@/components/DocumentLinkViewer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { 
   ArrowLeft,
   Settings,
@@ -25,7 +27,10 @@ import {
   ChevronRight,
   User,
   MoreHorizontal,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle,
+  UserPlus,
+  Download
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -50,15 +55,29 @@ export const ProspectPreparationPage = () => {
   const { user, isAuthenticated } = useAuth();
   const isMobile = useIsMobile();
   
-  // Configuration Google Sheets - utilise le sheet fourni par défaut
+  // Configuration Google Sheets - utilise le sheet fourni par l'utilisateur
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
-    spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8', // Google Sheet fourni
+    spreadsheetId: '1VhaabEcweuzInHAxzsHTMbnIbSr1c2WmVPaU-OBmyI4', // Google Sheet de l'utilisateur
     sheetName: 'Feuille 1'
   });
   const [showConfig, setShowConfig] = useState(false);
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [prospectGroups, setProspectGroups] = useState<ProspectGroup[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
+  
+  // Utilisation du hook Google Sheets
+  const {
+    data: googleSheetsProspects,
+    orphanProspects,
+    hasOrphans,
+    isLoading: isLoadingGoogleSheets,
+    error: googleSheetsError,
+    lastSync,
+    connectionStatus,
+    refreshData: refreshGoogleSheets,
+    adoptOrphanProspects,
+    stats
+  } = useGoogleSheets(googleSheetsConfig, user?.id);
   
   // Redirection si non authentifié - APRÈS les hooks
   if (!isAuthenticated) {
@@ -236,28 +255,217 @@ export const ProspectPreparationPage = () => {
           </Card>
         )}
 
+        {/* Alerte prospects orphelins */}
+        {hasOrphans && (
+          <Alert className="mb-6 border-orange-200 bg-orange-50">
+            <AlertTriangle className="w-4 h-4 text-orange-600" />
+            <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <strong className="text-orange-800">Prospects sans propriétaire trouvés!</strong>
+                <p className="text-sm text-orange-700 mt-1">
+                  {orphanProspects.length} prospect{orphanProspects.length > 1 ? 's' : ''} dans votre Google Sheet n'ont pas de propriétaire assigné.
+                </p>
+              </div>
+              <Button 
+                onClick={adoptOrphanProspects}
+                size={isMobile ? "sm" : "default"}
+                className="shrink-0"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Adopter tous
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Erreur de synchronisation Google Sheets */}
+        {googleSheetsError && (
+          <Alert className="mb-6 border-red-200 bg-red-50" variant="destructive">
+            <AlertTriangle className="w-4 h-4" />
+            <AlertDescription>
+              <strong>Erreur de synchronisation Google Sheets:</strong>
+              <p className="text-sm mt-1">{googleSheetsError}</p>
+              {googleSheetsError.includes('permission') && (
+                <div className="mt-3 p-3 bg-red-100 rounded text-xs">
+                  <p><strong>Solutions possibles:</strong></p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Vérifiez que votre Google Sheet est public (partagé avec "Toute personne avec le lien")</li>
+                    <li>Ou rendez-le public en lecture seule</li>
+                    <li>Vérifiez que l'ID du sheet est correct dans la configuration</li>
+                  </ul>
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Section Mes Prospects */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-6">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <User className="w-5 h-5 text-purple-600" />
-              Mes Prospects ({prospectGroups.length})
-            </CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <User className="w-5 h-5 text-purple-600" />
+                Mes Prospects Google Sheets ({googleSheetsProspects.length})
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {lastSync && (
+                  <span className="text-xs text-gray-500">
+                    Synchro: {lastSync.toLocaleTimeString('fr-FR')}
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size={isMobile ? "sm" : "default"}
+                  onClick={refreshGoogleSheets}
+                  disabled={isLoadingGoogleSheets}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingGoogleSheets ? 'animate-spin' : ''}`} />
+                  Actualiser
+                </Button>
+              </div>
+            </div>
+            {stats.total > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Badge variant="secondary" className="text-xs">
+                  Total: {stats.total}
+                </Badge>
+                {stats.qualified > 0 && (
+                  <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                    Qualifiés: {stats.qualified}
+                  </Badge>
+                )}
+                {stats.orphans > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    Orphelins: {stats.orphans}
+                  </Badge>
+                )}
+                {stats.averageScore > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    Score moyen: {stats.averageScore}/100
+                  </Badge>
+                )}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="p-3 sm:p-6">
-            {isLoadingReports ? (
+            {isLoadingGoogleSheets ? (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="w-6 h-6 animate-spin text-gray-500" />
-                <span className="ml-2 text-gray-500">Chargement des rapports...</span>
+                <span className="ml-2 text-gray-500">Chargement des prospects Google Sheets...</span>
               </div>
-            ) : prospectGroups.length === 0 ? (
+            ) : googleSheetsProspects.length === 0 && !googleSheetsError ? (
               <div className="text-center py-8 text-gray-500">
                 <FolderOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="text-sm sm:text-base">Aucun prospect trouvé</p>
-                <p className="text-xs sm:text-sm mt-1 opacity-75">Les rapports d'évaluation apparaîtront ici une fois créés</p>
+                <p className="text-sm sm:text-base">Aucun prospect trouvé dans votre Google Sheet</p>
+                <p className="text-xs sm:text-sm mt-1 opacity-75">
+                  Assurez-vous que vos prospects ont un user_id qui correspond à votre compte
+                </p>
+                {hasOrphans && (
+                  <p className="text-xs sm:text-sm mt-2 text-orange-600">
+                    {orphanProspects.length} prospect{orphanProspects.length > 1 ? 's' : ''} sans propriétaire disponible{orphanProspects.length > 1 ? 's' : ''} à adopter
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-3 sm:space-y-4">
+                {/* Prospects Google Sheets */}
+                {googleSheetsProspects.map((prospect, index) => (
+                  <Card key={prospect.id || index} className="border border-gray-200 hover:shadow-md transition-shadow">
+                    <CardContent className="p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <User className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
+                            <h3 className="font-medium text-sm sm:text-base text-gray-900 truncate">
+                              {prospect['Nom du prospect'] || prospect.name || prospect['Nom'] || 'Prospect sans nom'}
+                            </h3>
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              Google Sheets
+                            </Badge>
+                          </div>
+                          
+                          {/* Informations du prospect */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600">
+                            {prospect['Email'] && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Email:</span>
+                                <span className="truncate">{prospect['Email']}</span>
+                              </div>
+                            )}
+                            {prospect['Téléphone'] && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Tél:</span>
+                                <span>{prospect['Téléphone']}</span>
+                              </div>
+                            )}
+                            {prospect['Entreprise'] && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Entreprise:</span>
+                                <span className="truncate">{prospect['Entreprise']}</span>
+                              </div>
+                            )}
+                            {prospect['Statut'] && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Statut:</span>
+                                <Badge 
+                                  variant={prospect['Statut'] === 'Succès' ? 'default' : 'secondary'}
+                                  className="text-xs"
+                                >
+                                  {prospect['Statut']}
+                                </Badge>
+                              </div>
+                            )}
+                            {prospect['Pertinence du prospect par rapport à notre offre ? (sur 100)'] && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Score:</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {prospect['Pertinence du prospect par rapport à notre offre ? (sur 100)']}/100
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Commentaires/Notes */}
+                          {(prospect['Commentaires'] || prospect['Notes']) && (
+                            <div className="mt-2 p-2 bg-gray-50 rounded text-xs sm:text-sm">
+                              <span className="font-medium text-gray-700">Notes:</span>
+                              <p className="text-gray-600 mt-1 line-clamp-2">
+                                {prospect['Commentaires'] || prospect['Notes']}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            variant="outline"
+                            size={isMobile ? "sm" : "default"}
+                            onClick={() => {
+                              // Ouvrir le Google Sheet directement à cette ligne
+                              const sheetUrl = `https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/edit`;
+                              window.open(sheetUrl, '_blank');
+                            }}
+                            className="flex items-center gap-1 sm:gap-2"
+                          >
+                            <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="text-xs sm:text-sm">
+                              {isMobile ? "Ouvrir" : "Voir dans Sheets"}
+                            </span>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {/* Séparateur si on a à la fois des prospects Google Sheets et des groupes de rapports */}
+                {googleSheetsProspects.length > 0 && prospectGroups.length > 0 && (
+                  <Separator className="my-6" />
+                )}
+
+                {/* Prospects avec rapports */}
                 {prospectGroups.map((group) => (
                   <Card key={group.prospectName} className="border border-gray-200 hover:shadow-md transition-shadow">
                     <Collapsible>
