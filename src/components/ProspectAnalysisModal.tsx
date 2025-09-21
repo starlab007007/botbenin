@@ -85,7 +85,15 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
     ? scoreFromSheet 
     : parseInt(data.relevance) || 0;
 
+  // Vérifier le statut du champ "Run"
+  const runValue = prospect['Run'] || prospect['run'] || '';
+  const canEvaluate = runValue === 'TRUE' || runValue === 'true' || runValue === true;
+
   const handleEvaluate = async () => {
+    if (!canEvaluate) {
+      return; // Ne devrait pas arriver grâce à la désactivation du bouton
+    }
+    
     setShowProgressModal(true);
     
     try {
@@ -261,6 +269,16 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
           </Card>
         </div>
 
+        {/* Alerte si Run n'est pas activé */}
+        {!canEvaluate && (
+          <Alert className="border-orange-200 bg-orange-50">
+            <AlertCircle className="w-4 h-4 text-orange-600" />
+            <AlertDescription className="text-orange-800">
+              <strong>Évaluation non disponible :</strong> Le champ "Exécuter" doit être défini sur "Oui" 
+              pour pouvoir déclencher l'évaluation de ce prospect.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>
@@ -268,10 +286,15 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
           </Button>
           <Button 
             onClick={handleEvaluate}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+            disabled={!canEvaluate}
+            className={`${
+              canEvaluate 
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700' 
+                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+            }`}
           >
             <Play className="w-4 h-4 mr-2" />
-            Procéder à l'Évaluation
+            {canEvaluate ? 'Procéder à l\'Évaluation' : 'Évaluation Désactivée'}
           </Button>
         </DialogFooter>
 
@@ -283,7 +306,6 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
             onClose(); // Fermer aussi le modal principal
           }}
           prospectName={data.name}
-          prospectId={prospect.id}
           onCancel={() => setShowProgressModal(false)}
         />
       </DialogContent>
