@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ProspectEvaluationProgressModal } from './ProspectEvaluationProgressModal';
 import { 
   User, 
   Building, 
@@ -16,9 +14,7 @@ import {
   AlertTriangle,
   TrendingUp,
   BarChart3,
-  Target,
-  Play,
-  AlertCircle
+  Target
 } from 'lucide-react';
 
 interface GoogleSheetProspectWithUser {
@@ -42,8 +38,6 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
   onEvaluate,
   scoreFromSheet
 }) => {
-  const [showProgressModal, setShowProgressModal] = useState(false);
-  
   if (!prospect) return null;
 
   const getScoreColor = (score: number) => {
@@ -84,25 +78,6 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
   const relevanceScore = scoreFromSheet !== null && scoreFromSheet !== undefined 
     ? scoreFromSheet 
     : parseInt(data.relevance) || 0;
-
-  // Vérifier le statut du champ "Run"
-  const runValue = prospect['Run'] || prospect['run'] || '';
-  const canEvaluate = runValue === 'TRUE' || runValue === 'true' || runValue === true;
-
-  const handleEvaluate = async () => {
-    if (!canEvaluate) {
-      return; // Ne devrait pas arriver grâce à la désactivation du bouton
-    }
-    
-    setShowProgressModal(true);
-    
-    try {
-      await onEvaluate(prospect.id);
-    } catch (error) {
-      console.error('Erreur lors de l\'évaluation:', error);
-      setShowProgressModal(false);
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -269,45 +244,19 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
           </Card>
         </div>
 
-        {/* Alerte si Run n'est pas activé */}
-        {!canEvaluate && (
-          <Alert className="border-orange-200 bg-orange-50">
-            <AlertCircle className="w-4 h-4 text-orange-600" />
-            <AlertDescription className="text-orange-800">
-              <strong>Évaluation non disponible :</strong> Le champ "Exécuter" doit être défini sur "Oui" 
-              pour pouvoir déclencher l'évaluation de ce prospect.
-            </AlertDescription>
-          </Alert>
-        )}
-
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>
             Fermer
           </Button>
           <Button 
-            onClick={handleEvaluate}
-            disabled={!canEvaluate}
-            className={`${
-              canEvaluate 
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700' 
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-            }`}
+            onClick={() => onEvaluate(prospect.id)}
+            disabled={false}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
           >
-            <Play className="w-4 h-4 mr-2" />
-            {canEvaluate ? 'Procéder à l\'Évaluation' : 'Évaluation Désactivée'}
+            <Target className="w-4 h-4 mr-2" />
+            Procéder à l'Évaluation
           </Button>
         </DialogFooter>
-
-        {/* Modal de progression */}
-        <ProspectEvaluationProgressModal
-          isOpen={showProgressModal}
-          onClose={() => {
-            setShowProgressModal(false);
-            onClose(); // Fermer aussi le modal principal
-          }}
-          prospectName={data.name}
-          onCancel={() => setShowProgressModal(false)}
-        />
       </DialogContent>
     </Dialog>
   );

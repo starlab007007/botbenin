@@ -62,17 +62,6 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
       return false;
     }
 
-    // Vérifier que le champ "Run" est en "true"
-    const runValue = prospectData.Run || prospectData.run || '';
-    if (runValue !== 'TRUE' && runValue !== 'true' && runValue !== true) {
-      toast({
-        title: "Évaluation non autorisée",
-        description: "Le champ 'Run' doit être défini sur 'Oui' pour déclencher l'évaluation",
-        variant: "destructive",
-      });
-      return false;
-    }
-
     setIsLoading(true);
 
     try {
@@ -80,42 +69,20 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
         action: 'prospect_evaluation',
         timestamp: new Date().toISOString(),
         prospect: prospectData,
-        source: 'prospect_preparation_interface',
-        metadata: {
-          user_triggered: true,
-          run_status: runValue
-        }
+        source: 'prospect_preparation_interface'
       };
-
-      console.log('🚀 Déclenchement webhook:', {
-        url: webhookConfig.url,
-        prospectId: prospectData.id,
-        runStatus: runValue
-      });
 
       const response = await fetch(webhookConfig.url, {
         method: 'POST',
-        mode: 'cors',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
         body: JSON.stringify(payload),
       });
 
-      console.log('📡 Réponse webhook:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      });
-
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Erreur inconnue');
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      const responseData = await response.json().catch(() => null);
-      console.log('✅ Webhook réussi:', responseData);
 
       toast({
         title: "Évaluation déclenchée",
@@ -124,13 +91,11 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
 
       return true;
     } catch (error) {
-      console.error('❌ Erreur webhook:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      console.error('Erreur webhook:', error);
       
       toast({
         title: "Erreur d'évaluation",
-        description: `Impossible de déclencher l'évaluation: ${errorMessage}`,
+        description: "Impossible de déclencher l'évaluation. Vérifiez la configuration du webhook.",
         variant: "destructive",
       });
       
@@ -160,26 +125,16 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
         message: 'Test de connexion webhook'
       };
 
-      console.log('🧪 Test webhook:', webhookConfig.url);
-
       const response = await fetch(webhookConfig.url, {
         method: 'POST',
-        mode: 'cors',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
         body: JSON.stringify(payload),
       });
 
-      console.log('📡 Réponse test:', {
-        status: response.status,
-        statusText: response.statusText
-      });
-
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Erreur inconnue');
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       toast({
@@ -189,13 +144,11 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
 
       return true;
     } catch (error) {
-      console.error('❌ Erreur test webhook:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      console.error('Erreur test webhook:', error);
       
       toast({
         title: "Test échoué",
-        description: `Le webhook ne répond pas: ${errorMessage}`,
+        description: "Le webhook ne répond pas correctement",
         variant: "destructive",
       });
       
