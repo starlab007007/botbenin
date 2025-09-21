@@ -144,10 +144,10 @@ export const ReportLinkManager: React.FC<ReportLinkManagerProps> = ({
   if (reports.length === 0 && !isLoading) {
     return (
       <Card className={className}>
-        <CardContent className="p-6 text-center">
-          <FolderOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">Aucun rapport disponible</p>
-          <p className="text-sm text-gray-400 mt-1">
+        <CardContent className="p-4 sm:p-6 text-center">
+          <FolderOpen className="w-8 h-8 sm:w-12 sm:h-12 mx-auto text-gray-400 mb-3" />
+          <p className="text-sm sm:text-base text-gray-500">Aucun rapport disponible</p>
+          <p className="text-xs sm:text-sm text-gray-400 mt-1 px-2">
             Les rapports d'évaluation apparaîtront automatiquement ici
           </p>
         </CardContent>
@@ -157,31 +157,33 @@ export const ReportLinkManager: React.FC<ReportLinkManagerProps> = ({
 
   return (
     <Card className={className}>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5" />
+      <CardHeader className="pb-3 sm:pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <History className="w-4 h-4 sm:w-5 sm:h-5" />
             Rapports et Documents
           </CardTitle>
-          <div className="flex gap-2">
+          <div className="flex gap-2 justify-end">
             <Button
               size="sm"
               variant="outline"
               onClick={loadReports}
               disabled={isLoading}
+              className="text-xs sm:text-sm"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Actualiser
+              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Actualiser</span>
+              <span className="sm:hidden">↻</span>
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 sm:space-y-4">
         {reports.map(report => (
-          <div key={report.id} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Badge className={`text-xs ${getTypeColor(report.type)}`}>
+          <div key={report.id} className="space-y-2 sm:space-y-3 p-3 sm:p-4 bg-gray-50/50 rounded-lg border border-gray-200/50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={`text-xs ${getTypeColor(report.type)} px-2 py-1`}>
                   {getTypeIcon(report.type)}
                   <span className="ml-1">
                     {report.type === 'evaluation' ? 'Évaluation' : 
@@ -191,22 +193,30 @@ export const ReportLinkManager: React.FC<ReportLinkManagerProps> = ({
                 <span className="text-xs text-gray-500">
                   {report.createdAt.toLocaleDateString('fr-FR')}
                 </span>
+                {report.prospectName && (
+                  <Badge variant="secondary" className="text-xs">
+                    {report.prospectName}
+                  </Badge>
+                )}
               </div>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => removeReport(report.id)}
-                className="text-red-600 hover:text-red-800 hover:bg-red-50 h-6 w-6 p-0"
+                className="text-red-600 hover:text-red-800 hover:bg-red-50 h-6 w-6 p-0 shrink-0 self-end sm:self-center"
               >
                 <Trash2 className="w-3 h-3" />
+                <span className="sr-only">Supprimer</span>
               </Button>
             </div>
             
-            <DocumentLinkViewer
-              url={report.url}
-              title={report.title}
-              description={report.description}
-            />
+            <div className="mt-2 sm:mt-3">
+              <DocumentLinkViewer
+                url={report.url}
+                title={report.title}
+                description={report.description}
+              />
+            </div>
           </div>
         ))}
       </CardContent>
