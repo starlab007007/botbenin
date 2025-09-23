@@ -40,7 +40,7 @@ export const ProspectPreparationPage = () => {
   
   // Configuration Google Sheets - utilise le sheet fourni par défaut
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
-    spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8', // Google Sheet fourni
+    spreadsheetId: '1VhaabEcweuzInHAxzsHTMbnIbSr1c2WmVPaU-OBmyI4', // Google Sheet fourni
     sheetName: 'Feuille 1'
   });
   const [showConfig, setShowConfig] = useState(false);

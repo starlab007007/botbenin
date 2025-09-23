@@ -356,7 +356,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           value={value}
           onValueChange={(newValue) => updateCellValue(row.id, column, newValue)}
         >
-          <SelectTrigger className="w-full min-w-[120px]">
+          <SelectTrigger className="w-full min-w-[100px] sm:min-w-[120px] text-xs sm:text-sm">
             <SelectValue placeholder="Choisir..." />
           </SelectTrigger>
           <SelectContent>
@@ -409,7 +409,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
             }
           }}
         >
-          <SelectTrigger className="w-full min-w-[120px]">
+          <SelectTrigger className="w-full min-w-[80px] sm:min-w-[120px] text-xs sm:text-sm">
             <SelectValue>
               <span className={displayValue === 'Oui' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                 {displayValue}
@@ -434,7 +434,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         value={value}
         onChange={(e) => updateCellValue(row.id, column, e.target.value)}
         placeholder="Saisir..."
-        className="w-full min-w-[150px]"
+        className="w-full min-w-[100px] sm:min-w-[150px] text-xs sm:text-sm"
       />
     );
   };
@@ -473,59 +473,66 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       {/* Header avec contrôles */}
       <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
-              Google Sheet - {sheetName}
-              <Badge 
-                variant={connectionStatus === 'connected' ? 'default' : 'secondary'}
-                className="ml-2"
-              >
-                {connectionStatus === 'connected' ? 'Connecté' : 
-                 connectionStatus === 'connecting' ? 'Connexion...' : 
-                 connectionStatus === 'error' ? 'Erreur' : 'Non configuré'}
-              </Badge>
-              {hasUnsavedChanges && (
-                <Badge variant="destructive" className="ml-2">
-                  Modifications non sauvées
+          <div className="flex flex-col space-y-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
+            <CardTitle className="text-base sm:text-lg font-semibold flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                <span className="text-sm sm:text-base">Google Sheet - {sheetName}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge 
+                  variant={connectionStatus === 'connected' ? 'default' : 'secondary'}
+                  className="text-xs"
+                >
+                  {connectionStatus === 'connected' ? 'Connecté' : 
+                   connectionStatus === 'connecting' ? 'Connexion...' : 
+                   connectionStatus === 'error' ? 'Erreur' : 'Non configuré'}
                 </Badge>
-              )}
+                {hasUnsavedChanges && (
+                  <Badge variant="destructive" className="text-xs">
+                    Non sauvé
+                  </Badge>
+                )}
+              </div>
             </CardTitle>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={refreshFromGoogleSheets}
                 disabled={isLoadingSheets}
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-xs sm:text-sm"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoadingSheets ? 'animate-spin' : ''}`} />
-                Actualiser
+                <span className="hidden sm:inline">Actualiser</span>
+                <span className="sm:hidden">↻</span>
               </Button>
               
               <Button
                 onClick={addNewRow}
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-xs sm:text-sm"
               >
                 <Plus className="w-4 h-4" />
-                Ajouter
+                <span className="hidden sm:inline">Ajouter</span>
+                <span className="sm:hidden">+</span>
               </Button>
               
               <Button
                 onClick={saveToGoogleSheets}
                 disabled={isWriting || !hasUnsavedChanges}
                 size="sm"
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-xs sm:text-sm"
               >
                 {isWriting ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
                   <Save className="w-4 h-4" />
                 )}
-                Sauvegarder
+                <span className="hidden sm:inline">Sauvegarder</span>
+                <span className="sm:hidden">💾</span>
               </Button>
             </div>
           </div>
@@ -596,108 +603,115 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         <CardContent className="p-0">
             {localData.length > 0 || headers.length > 0 ? (
             <div className="overflow-x-auto">
-              <div className="max-h-[600px] overflow-y-auto">
-                <table className="w-full border-collapse">
+              <div className="max-h-[400px] sm:max-h-[500px] lg:max-h-[600px] overflow-y-auto">
+                <table className="w-full border-collapse min-w-[800px]">
                   <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
                     <tr className="border-b-2 border-gray-200">
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase w-12">
+                      <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase w-8 sm:w-12">
                         #
                       </th>
                       {headers.map((header) => (
-                        <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[150px]">
-                          <div className="flex items-center gap-2">
-                            {getFieldIcon(header)}
-                            <span className="truncate">
-                              {header.toLowerCase() === 'run' ? 'Exécuter' : header}
+                        <th key={header} className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-gray-700 uppercase min-w-[120px] sm:min-w-[150px]">
+                          <div className="flex items-center gap-1 sm:gap-2">
+                            <span className="hidden sm:inline">{getFieldIcon(header)}</span>
+                            <span className="truncate text-xs sm:text-xs">
+                              {header.toLowerCase() === 'run' ? 'Exécuter' : 
+                               header.length > 15 ? header.substring(0, 15) + '...' : header}
                             </span>
                           </div>
                         </th>
                       ))}
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-purple-700 uppercase w-32">
-                        <div className="flex items-center gap-2 justify-center">
-                          <Target className="w-4 h-4" />
-                          <span>Score</span>
+                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-purple-700 uppercase w-20 sm:w-32">
+                        <div className="flex items-center gap-1 sm:gap-2 justify-center">
+                          <Target className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Score</span>
+                          <span className="sm:hidden">Note</span>
                         </div>
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-32">
+                      <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase w-20 sm:w-32">
                         Actions
                       </th>
                     </tr>
                   </thead>
                    <tbody className="divide-y divide-gray-100">
-                     {localData.length > 0 ? (
-                       localData.map((row, rowIndex) => (
-                         <tr 
-                           key={row.id} 
-                           className={`
-                             hover:bg-blue-50/50 transition-all duration-200
-                             ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
-                             border-b border-gray-100
-                           `}
-                         >
-                           <td className="px-3 py-4 text-sm font-medium text-gray-500">
-                             {rowIndex + 1}
-                           </td>
-                           {headers.map((column) => (
-                             <td key={`${row.id}-${column}`} className="px-4 py-4">
-                               {column.toLowerCase().includes('statut') ? (
-                                 <div className="space-y-2">
-                                   {renderCell(row, column)}
-                                   <div className="flex justify-start">
-                                     {getStatusBadge(row[column])}
-                                   </div>
-                                 </div>
-                               ) : (
-                                 <div className="min-w-[140px]">
-                                   {renderCell(row, column)}
-                                 </div>
-                               )}
-                             </td>
-                           ))}
-                           <td className="px-4 py-4 text-center">
-                             {(() => {
-                               const score = getScoreFromProspect(row);
-                               return (
-                                 <div className="flex items-center justify-center">
-                                   <div className={`px-3 py-2 rounded-lg text-sm font-bold min-w-[60px] ${
-                                     score !== null 
-                                       ? score >= 80 
-                                         ? 'bg-green-100 text-green-800' 
-                                         : score >= 60 
-                                           ? 'bg-orange-100 text-orange-800' 
-                                           : 'bg-red-100 text-red-800'
-                                       : 'bg-gray-100 text-gray-500'
-                                   }`}>
-                                     {score !== null ? `${score}/100` : 'N/A'}
-                                   </div>
-                                 </div>
-                               );
-                             })()}
-                           </td>
-                           <td className="px-4 py-4">
-                             <div className="flex gap-2 justify-center">
-                               <Button
-                                 onClick={() => openAnalysisModal(row)}
-                                 variant="outline"
-                                 size="sm"
-                                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                 title="Analyser le prospect"
-                               >
-                                 <BarChart3 className="w-4 h-4" />
-                               </Button>
-                               <Button
-                                 onClick={() => deleteProspect(row.id)}
-                                 variant="outline"
-                                 size="sm"
-                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                 title="Supprimer le prospect"
-                               >
-                                 <Trash2 className="w-4 h-4" />
-                               </Button>
-                             </div>
-                           </td>
-                         </tr>
-                       ))
+                      {localData.length > 0 ? (
+                        localData.map((row, rowIndex) => (
+                          <tr 
+                            key={row.id} 
+                            className={`
+                              hover:bg-blue-50/50 transition-all duration-200
+                              ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}
+                              border-b border-gray-100
+                            `}
+                          >
+                            <td className="px-2 sm:px-3 py-2 sm:py-4 text-xs sm:text-sm font-medium text-gray-500">
+                              {rowIndex + 1}
+                            </td>
+                            {headers.map((column) => (
+                              <td key={`${row.id}-${column}`} className="px-2 sm:px-4 py-2 sm:py-4">
+                                {column.toLowerCase().includes('statut') ? (
+                                  <div className="space-y-1 sm:space-y-2">
+                                    {renderCell(row, column)}
+                                    <div className="flex justify-start">
+                                      {getStatusBadge(row[column])}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="min-w-[100px] sm:min-w-[140px]">
+                                    {renderCell(row, column)}
+                                  </div>
+                                )}
+                              </td>
+                            ))}
+                            <td className="px-2 sm:px-4 py-2 sm:py-4 text-center">
+                              {(() => {
+                                const score = getScoreFromProspect(row);
+                                return (
+                                  <div className="flex items-center justify-center">
+                                    <div className={`px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs sm:text-sm font-bold min-w-[50px] sm:min-w-[60px] ${
+                                      score !== null 
+                                        ? score >= 80 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : score >= 60 
+                                            ? 'bg-orange-100 text-orange-800' 
+                                            : 'bg-red-100 text-red-800'
+                                        : 'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {score !== null ? (
+                                        <>
+                                          <span className="sm:hidden">{score}</span>
+                                          <span className="hidden sm:inline">{score}/100</span>
+                                        </>
+                                      ) : 'N/A'}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-4">
+                              <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 justify-center">
+                                <Button
+                                  onClick={() => openAnalysisModal(row)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 sm:p-2"
+                                  title="Analyser le prospect"
+                                >
+                                  <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </Button>
+                                <Button
+                                  onClick={() => deleteProspect(row.id)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 sm:p-2"
+                                  title="Supprimer le prospect"
+                                >
+                                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
                      ) : (
                        headers.length > 0 && (
                          <tr className="bg-blue-50/30 border-b border-blue-200">
