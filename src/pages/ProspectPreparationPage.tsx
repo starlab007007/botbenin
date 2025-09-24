@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { GoogleSheetEditor } from '@/components/GoogleSheetEditor';
 import { GoogleSheetsDiagnostic } from '@/components/GoogleSheetsDiagnostic';
+import { GoogleSheetsColumnDiagnostic } from '@/components/GoogleSheetsColumnDiagnostic';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   ArrowLeft,
@@ -138,9 +139,13 @@ export const ProspectPreparationPage = () => {
           </Card>
         )}
 
-        {/* Google Sheet Editor - Interface principale */}
-        <GoogleSheetsDiagnostic />
+        {/* Diagnostic complet colonnes et synchronisation */}
+        <GoogleSheetsColumnDiagnostic 
+          spreadsheetId={googleSheetsConfig.spreadsheetId}
+          sheetName={googleSheetsConfig.sheetName}
+        />
         
+        {/* Interface principale */}
         <GoogleSheetEditor
           spreadsheetId={googleSheetsConfig.spreadsheetId}
           sheetName={googleSheetsConfig.sheetName}
