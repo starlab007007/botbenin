@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ProspectEvaluationProgressModal } from './ProspectEvaluationProgressModal';
 import { 
   User, 
   Building, 
@@ -14,7 +16,9 @@ import {
   AlertTriangle,
   TrendingUp,
   BarChart3,
-  Target
+  Target,
+  Play,
+  AlertCircle
 } from 'lucide-react';
 
 interface GoogleSheetProspectWithUser {
@@ -27,7 +31,7 @@ interface ProspectAnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
   prospect: GoogleSheetProspectWithUser | null;
-  onEvaluate: (prospectId: string) => void;
+  onEvaluate: (prospectId: string) => Promise<void>;
   scoreFromSheet?: number | null;
 }
 
@@ -38,6 +42,8 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
   onEvaluate,
   scoreFromSheet
 }) => {
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  
   if (!prospect) return null;
 
   const getScoreColor = (score: number) => {
@@ -78,6 +84,17 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
   const relevanceScore = scoreFromSheet !== null && scoreFromSheet !== undefined 
     ? scoreFromSheet 
     : parseInt(data.relevance) || 0;
+
+  const handleEvaluate = async () => {
+    setShowProgressModal(true);
+    
+    try {
+      await onEvaluate(prospect.id);
+    } catch (error) {
+      console.error('Erreur lors de l\'évaluation:', error);
+      setShowProgressModal(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -244,18 +261,31 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
           </Card>
         </div>
 
+
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose}>
             Fermer
           </Button>
           <Button 
-            onClick={() => onEvaluate(prospect.id)}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+            onClick={handleEvaluate}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
           >
-            <Target className="w-4 h-4 mr-2" />
+            <Play className="w-4 h-4 mr-2" />
             Procéder à l'Évaluation
           </Button>
         </DialogFooter>
+
+        {/* Modal de progression */}
+        <ProspectEvaluationProgressModal
+          isOpen={showProgressModal}
+          onClose={() => {
+            setShowProgressModal(false);
+            onClose(); // Fermer aussi le modal principal
+          }}
+          prospectName={data.name}
+          prospectId={prospect.id}
+          onCancel={() => setShowProgressModal(false)}
+        />
       </DialogContent>
     </Dialog>
   );
