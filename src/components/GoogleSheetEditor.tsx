@@ -117,20 +117,24 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         user_id: user.id // Force le user_id correct
       }));
       
-      // Extraire les headers depuis le premier objet, exclure les colonnes systèmes
-      if (processedData.length > 0) {
-        const firstRow = processedData[0];
-        const extractedHeaders = Object.keys(firstRow).filter(key => 
-          !['id', 'user_id'].includes(key)
-        );
-        setHeaders(extractedHeaders);
-      } else if (orphanProspects && orphanProspects.length > 0) {
-        // Si pas de prospects possédés mais des orphelins, extraire headers des orphelins
-        const firstOrphan = orphanProspects[0];
-        const extractedHeaders = Object.keys(firstOrphan).filter(key => 
-          !['id', 'user_id', '_isOrphan'].includes(key)
-        );
-        setHeaders(extractedHeaders);
+        // Extraire les headers depuis le premier objet, inclure user_id et _isOrphan pour la synchronisation
+        if (processedData.length > 0) {
+          const firstRow = processedData[0];
+          const allKeys = Object.keys(firstRow).filter(key => key !== 'id');
+          // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
+          const systemColumns = ['user_id', '_isOrphan'];
+          const otherColumns = allKeys.filter(key => !systemColumns.includes(key));
+          const extractedHeaders = [...systemColumns, ...otherColumns];
+          setHeaders(extractedHeaders);
+        } else if (orphanProspects && orphanProspects.length > 0) {
+          // Si pas de prospects possédés mais des orphelins, extraire headers des orphelins
+          const firstOrphan = orphanProspects[0];
+          const allKeys = Object.keys(firstOrphan).filter(key => key !== 'id');
+          // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
+          const systemColumns = ['user_id', '_isOrphan'];
+          const otherColumns = allKeys.filter(key => !systemColumns.includes(key));
+          const extractedHeaders = [...systemColumns, ...otherColumns];
+          setHeaders(extractedHeaders);
       }
       
       setLocalData(processedData);
@@ -140,9 +144,11 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       // Aucune donnée personnelle mais peut-être des orphelins
       if (orphanProspects && orphanProspects.length > 0) {
         const firstOrphan = orphanProspects[0];
-        const extractedHeaders = Object.keys(firstOrphan).filter(key => 
-          !['id', 'user_id', '_isOrphan'].includes(key)
-        );
+        const allKeys = Object.keys(firstOrphan).filter(key => key !== 'id');
+        // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
+        const systemColumns = ['user_id', '_isOrphan'];
+        const otherColumns = allKeys.filter(key => !systemColumns.includes(key));
+        const extractedHeaders = [...systemColumns, ...otherColumns];
         setHeaders(extractedHeaders);
         setLocalData([]); // Pas de data personnelle
       } else {
@@ -167,9 +173,11 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       });
 
       if (!error && result?.headers && Array.isArray(result.headers)) {
-        const filteredHeaders = result.headers.filter(header => 
-          !['id', 'user_id'].includes(header)
-        );
+        const allHeaders = result.headers.filter(header => header !== 'id');
+        // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
+        const systemColumns = ['user_id', '_isOrphan'];
+        const otherColumns = allHeaders.filter(header => !systemColumns.includes(header));
+        const filteredHeaders = [...systemColumns, ...otherColumns];
         setHeaders(filteredHeaders);
       }
     } catch (error) {
@@ -378,6 +386,8 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
   const getFieldIcon = (fieldName: string) => {
     const name = fieldName.toLowerCase();
+    if (name === 'user_id') return <Shield className="w-4 h-4" />;
+    if (name === '_isorphan') return <AlertCircle className="w-4 h-4" />;
     if (name.includes('nom') || name.includes('contact') || name.includes('name')) return <User className="w-4 h-4" />;
     if (name.includes('entreprise') || name.includes('company') || name.includes('société')) return <Building className="w-4 h-4" />;
     if (name.includes('site') || name.includes('web') || name.includes('url')) return <Globe className="w-4 h-4" />;
@@ -408,6 +418,28 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   const renderCell = (row: GoogleSheetRow, column: string) => {
     const value = row[column] || '';
     const columnLower = column.toLowerCase();
+    
+    // Rendu spécial pour la colonne user_id (lecture seule)
+    if (columnLower === 'user_id') {
+      return (
+        <Input
+          value={value}
+          disabled
+          className="bg-gray-100 text-gray-600 text-xs font-mono"
+          placeholder="ID utilisateur"
+        />
+      );
+    }
+
+    // Rendu spécial pour la colonne _isOrphan (lecture seule)
+    if (columnLower === '_isorphan') {
+      const isOrphan = value === 'true' || value === true;
+      return (
+        <Badge variant={isOrphan ? "destructive" : "default"} className="text-xs">
+          {isOrphan ? 'Orphelin' : 'Assigné'}
+        </Badge>
+      );
+    }
     
     // Rendu spécial pour les colonnes de statut
     if (columnLower.includes('statut') || columnLower.includes('status')) {
