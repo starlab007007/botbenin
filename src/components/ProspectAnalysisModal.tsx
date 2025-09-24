@@ -283,7 +283,6 @@ export const ProspectAnalysisModal: React.FC<ProspectAnalysisModalProps> = ({
             onClose(); // Fermer aussi le modal principal
           }}
           prospectName={data.name}
-          prospectId={prospect.id}
           onCancel={() => setShowProgressModal(false)}
         />
       </DialogContent>
