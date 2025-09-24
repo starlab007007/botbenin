@@ -378,10 +378,13 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
   const getFieldIcon = (fieldName: string) => {
     const name = fieldName.toLowerCase();
-    if (name.includes('nom') || name.includes('contact')) return <User className="w-4 h-4" />;
-    if (name.includes('entreprise') || name.includes('company')) return <Building className="w-4 h-4" />;
-    if (name.includes('site') || name.includes('web')) return <Globe className="w-4 h-4" />;
+    if (name.includes('nom') || name.includes('contact') || name.includes('name')) return <User className="w-4 h-4" />;
+    if (name.includes('entreprise') || name.includes('company') || name.includes('société')) return <Building className="w-4 h-4" />;
+    if (name.includes('site') || name.includes('web') || name.includes('url')) return <Globe className="w-4 h-4" />;
     if (name.includes('linkedin')) return <Linkedin className="w-4 h-4" />;
+    if (name.includes('score') || name.includes('note') || name.includes('pertinence')) return <BarChart3 className="w-4 h-4" />;
+    if (name.includes('statut') || name.includes('status')) return <CheckCircle className="w-4 h-4" />;
+    if (name.includes('run') || name.includes('exécuter')) return <Zap className="w-4 h-4" />;
     return <FileText className="w-4 h-4" />;
   };
 
@@ -404,9 +407,10 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
   const renderCell = (row: GoogleSheetRow, column: string) => {
     const value = row[column] || '';
+    const columnLower = column.toLowerCase();
     
-    // Rendu spécial pour le statut
-    if (column.toLowerCase().includes('statut')) {
+    // Rendu spécial pour les colonnes de statut
+    if (columnLower.includes('statut') || columnLower.includes('status')) {
       return (
         <Select
           value={value}
@@ -418,18 +422,19 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           <SelectContent>
             <SelectItem value="En attente">En attente</SelectItem>
             <SelectItem value="En cours">En cours</SelectItem>
+            <SelectItem value="Terminé">Terminé</SelectItem>
             <SelectItem value="Succès">Succès</SelectItem>
             <SelectItem value="Échec">Échec</SelectItem>
+            <SelectItem value="Annulé">Annulé</SelectItem>
           </SelectContent>
         </Select>
       );
     }
 
     // Rendu spécial pour la colonne RUN/Exécuter
-    if (column.toLowerCase() === 'run') {
+    if (columnLower === 'run' || columnLower.includes('exécuter') || columnLower.includes('execute')) {
       // Convertir true/false en Oui/Non pour l'affichage
-      const displayValue = value === 'true' ? 'Oui' : value === 'false' ? 'Non' : 'Non';
-      const defaultValue = value === 'true' ? 'Oui' : 'Non';
+      const displayValue = value === 'true' || value === true || value === 'Oui' ? 'Oui' : 'Non';
       
       return (
         <Select
@@ -481,6 +486,95 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
             </SelectItem>
           </SelectContent>
         </Select>
+      );
+    }
+
+    // Rendu spécial pour les colonnes de priorité ou score
+    if (columnLower.includes('priorité') || columnLower.includes('priority') || 
+        columnLower.includes('score') || columnLower.includes('note')) {
+      return (
+        <Select
+          value={value}
+          onValueChange={(newValue) => updateCellValue(row.id, column, newValue)}
+        >
+          <SelectTrigger className="w-full min-w-[120px]">
+            <SelectValue placeholder="Choisir..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">1 - Très faible</SelectItem>
+            <SelectItem value="2">2 - Faible</SelectItem>
+            <SelectItem value="3">3 - Moyenne</SelectItem>
+            <SelectItem value="4">4 - Élevée</SelectItem>
+            <SelectItem value="5">5 - Très élevée</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    // Rendu spécial pour les emails
+    if (columnLower.includes('email') || columnLower.includes('mail')) {
+      return (
+        <Input
+          type="email"
+          value={value}
+          onChange={(e) => updateCellValue(row.id, column, e.target.value)}
+          placeholder="email@exemple.com"
+          className="w-full min-w-[200px]"
+        />
+      );
+    }
+
+    // Rendu spécial pour les téléphones
+    if (columnLower.includes('téléphone') || columnLower.includes('telephone') || 
+        columnLower.includes('phone') || columnLower.includes('mobile')) {
+      return (
+        <Input
+          type="tel"
+          value={value}
+          onChange={(e) => updateCellValue(row.id, column, e.target.value)}
+          placeholder="+33 1 23 45 67 89"
+          className="w-full min-w-[150px]"
+        />
+      );
+    }
+
+    // Rendu spécial pour les URLs
+    if (columnLower.includes('url') || columnLower.includes('site') || 
+        columnLower.includes('web') || columnLower.includes('linkedin')) {
+      return (
+        <Input
+          type="url"
+          value={value}
+          onChange={(e) => updateCellValue(row.id, column, e.target.value)}
+          placeholder="https://exemple.com"
+          className="w-full min-w-[200px]"
+        />
+      );
+    }
+
+    // Rendu spécial pour les dates
+    if (columnLower.includes('date') || columnLower.includes('créé') || 
+        columnLower.includes('modifié') || columnLower.includes('updated')) {
+      return (
+        <Input
+          type="date"
+          value={value}
+          onChange={(e) => updateCellValue(row.id, column, e.target.value)}
+          className="w-full min-w-[150px]"
+        />
+      );
+    }
+
+    // Rendu spécial pour les champs texte longs (commentaires, descriptions, etc.)
+    if (columnLower.includes('commentaire') || columnLower.includes('description') || 
+        columnLower.includes('notes') || columnLower.includes('remarque')) {
+      return (
+        <Input
+          value={value}
+          onChange={(e) => updateCellValue(row.id, column, e.target.value)}
+          placeholder="Saisir une description..."
+          className="w-full min-w-[250px]"
+        />
       );
     }
 
