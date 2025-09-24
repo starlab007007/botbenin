@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { GoogleSheetEditor } from '@/components/GoogleSheetEditor';
+import { GoogleSheetsDiagnostic } from '@/components/GoogleSheetsDiagnostic';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   ArrowLeft,
@@ -138,6 +139,8 @@ export const ProspectPreparationPage = () => {
         )}
 
         {/* Google Sheet Editor - Interface principale */}
+        <GoogleSheetsDiagnostic />
+        
         <GoogleSheetEditor
           spreadsheetId={googleSheetsConfig.spreadsheetId}
           sheetName={googleSheetsConfig.sheetName}
