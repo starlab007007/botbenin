@@ -45,7 +45,7 @@ interface ProspectGroup {
   isExpanded: boolean;
 }
 
-export const ProspectPreparationPage = () => {
+const ProspectPreparationPage = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const isMobile = useIsMobile();
@@ -310,3 +310,5 @@ export const ProspectPreparationPage = () => {
     </div>
   );
 };
+
+export default ProspectPreparationPage;

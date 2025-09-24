@@ -48,7 +48,7 @@ const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
-const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
+const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage"));
 
 // Pages spéciales
 const SystemTestPage = lazy(() => import("./pages/SystemTestPage").then(module => ({ default: module.SystemTestPage })));
