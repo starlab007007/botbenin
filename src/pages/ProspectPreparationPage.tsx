@@ -236,134 +236,16 @@ export const ProspectPreparationPage = () => {
           </Card>
         )}
 
-        {/* Section Mes Prospects */}
+        {/* Section Rapports d'évaluation */}
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm mb-6">
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <User className="w-5 h-5 text-purple-600" />
-              Mes Prospects ({prospectGroups.length})
+              <FolderOpen className="w-5 h-5 text-purple-600" />
+              Rapports d'Évaluation Sauvegardés
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 sm:p-6">
-            {isLoadingReports ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="w-6 h-6 animate-spin text-gray-500" />
-                <span className="ml-2 text-gray-500">Chargement des rapports...</span>
-              </div>
-            ) : prospectGroups.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FolderOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="text-sm sm:text-base">Aucun prospect trouvé</p>
-                <p className="text-xs sm:text-sm mt-1 opacity-75">Les rapports d'évaluation apparaîtront ici une fois créés</p>
-              </div>
-            ) : (
-              <div className="space-y-3 sm:space-y-4">
-                {prospectGroups.map((group) => (
-                  <Card key={group.prospectName} className="border border-gray-200 hover:shadow-md transition-shadow">
-                    <Collapsible>
-                      <CollapsibleTrigger
-                        className="w-full p-3 sm:p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                        onClick={() => toggleProspectExpansion(group.prospectName)}
-                      >
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                          <User className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
-                          <div className="min-w-0 flex-1 text-left">
-                            <h3 className="font-medium text-sm sm:text-base text-gray-900 truncate">
-                              {group.prospectName}
-                            </h3>
-                            <p className="text-xs sm:text-sm text-gray-500">
-                              {group.reports.length} rapport{group.reports.length > 1 ? 's' : ''}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant="secondary" className="text-xs px-2 py-1">
-                            {group.reports.length}
-                          </Badge>
-                          {group.isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-gray-400" />
-                          )}
-                        </div>
-                      </CollapsibleTrigger>
-                      
-                      <CollapsibleContent>
-                        <div className="border-t bg-gray-50/50 p-3 sm:p-4">
-                          <div className="grid grid-cols-1 gap-3 sm:gap-4">
-                            {group.reports.map((report) => (
-                              <Card key={report.id} className="bg-white border border-gray-200 hover:shadow-sm transition-all">
-                                <CardContent className="p-3 sm:p-4">
-                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-                                        <h4 className="font-medium text-sm sm:text-base text-gray-900 truncate">
-                                          {report.title}
-                                        </h4>
-                                        <Badge 
-                                          variant={report.type === 'evaluation' ? 'default' : 'secondary'} 
-                                          className="text-xs shrink-0"
-                                        >
-                                          {report.type}
-                                        </Badge>
-                                      </div>
-                                      {report.description && (
-                                        <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">
-                                          {report.description}
-                                        </p>
-                                      )}
-                                      <p className="text-xs text-gray-500">
-                                        Créé le {new Date(report.createdAt).toLocaleDateString('fr-FR', {
-                                          day: '2-digit',
-                                          month: '2-digit',
-                                          year: 'numeric',
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        })}
-                                      </p>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <Button
-                                        variant="outline"
-                                        size={isMobile ? "sm" : "default"}
-                                        onClick={() => window.open(report.url, '_blank')}
-                                        className="flex items-center gap-1 sm:gap-2"
-                                      >
-                                        <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span className="text-xs sm:text-sm">
-                                          {isMobile ? "Voir" : "Visualiser"}
-                                        </span>
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size={isMobile ? "sm" : "default"}
-                                        onClick={() => {
-                                          const link = document.createElement('a');
-                                          link.href = report.url;
-                                          link.download = `${report.title}.pdf`;
-                                          link.click();
-                                        }}
-                                        className="flex items-center gap-1 sm:gap-2"
-                                      >
-                                        <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span className="text-xs sm:text-sm">
-                                          {isMobile ? "DL" : "Télécharger"}
-                                        </span>
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
-                ))}
-              </div>
-            )}
+          <CardContent>
+            <ReportLinkManager />
           </CardContent>
         </Card>
 
