@@ -117,24 +117,38 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         user_id: user.id // Force le user_id correct
       }));
       
-        // Extraire les headers depuis le premier objet, inclure user_id et _isOrphan pour la synchronisation
-        if (processedData.length > 0) {
-          const firstRow = processedData[0];
-          const allKeys = Object.keys(firstRow).filter(key => key !== 'id');
-          // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
-          const systemColumns = ['user_id', '_isOrphan'];
-          const otherColumns = allKeys.filter(key => !systemColumns.includes(key));
-          const extractedHeaders = [...systemColumns, ...otherColumns];
-          setHeaders(extractedHeaders);
-        } else if (orphanProspects && orphanProspects.length > 0) {
-          // Si pas de prospects possédés mais des orphelins, extraire headers des orphelins
-          const firstOrphan = orphanProspects[0];
-          const allKeys = Object.keys(firstOrphan).filter(key => key !== 'id');
-          // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
-          const systemColumns = ['user_id', '_isOrphan'];
-          const otherColumns = allKeys.filter(key => !systemColumns.includes(key));
-          const extractedHeaders = [...systemColumns, ...otherColumns];
-          setHeaders(extractedHeaders);
+      // Utiliser les colonnes exactes pour la synchronisation avec le Google Sheet
+      if (processedData.length > 0) {
+        const exactHeaders = [
+          'user_id',
+          '_isOrphan',
+          'contact_name',
+          'company_name', 
+          'company_website',
+          'Rôle',
+          'linkedin_contact_url',
+          'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+          'Préparation de l\'appel',
+          'Run',
+          'Statut'
+        ];
+        setHeaders(exactHeaders);
+      } else if (orphanProspects && orphanProspects.length > 0) {
+        // Si pas de prospects possédés mais des orphelins, utiliser les colonnes exactes
+        const exactHeaders = [
+          'user_id',
+          '_isOrphan',
+          'contact_name',
+          'company_name', 
+          'company_website',
+          'Rôle',
+          'linkedin_contact_url',
+          'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+          'Préparation de l\'appel',
+          'Run',
+          'Statut'
+        ];
+        setHeaders(exactHeaders);
       }
       
       setLocalData(processedData);
@@ -143,18 +157,24 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     } else {
       // Aucune donnée personnelle mais peut-être des orphelins
       if (orphanProspects && orphanProspects.length > 0) {
-        const firstOrphan = orphanProspects[0];
-        const allKeys = Object.keys(firstOrphan).filter(key => key !== 'id');
-        // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
-        const systemColumns = ['user_id', '_isOrphan'];
-        const otherColumns = allKeys.filter(key => !systemColumns.includes(key));
-        const extractedHeaders = [...systemColumns, ...otherColumns];
-        setHeaders(extractedHeaders);
         setLocalData([]); // Pas de data personnelle
-      } else {
-        // Charger les headers depuis le Google Sheet
-        loadHeadersFromSheet();
       }
+      
+      // Utiliser les colonnes exactes même s'il n'y a pas de données
+      const exactHeaders = [
+        'user_id',
+        '_isOrphan',
+        'contact_name',
+        'company_name', 
+        'company_website',
+        'Rôle',
+        'linkedin_contact_url',
+        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+        'Préparation de l\'appel',
+        'Run',
+        'Statut'
+      ];
+      setHeaders(exactHeaders);
     }
   }, [googleSheetsData, user?.id, isAuthenticated]);
 
@@ -173,12 +193,21 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       });
 
       if (!error && result?.headers && Array.isArray(result.headers)) {
-        const allHeaders = result.headers.filter(header => header !== 'id');
-        // Réorganiser pour avoir user_id et _isOrphan en premier, puis le reste
-        const systemColumns = ['user_id', '_isOrphan'];
-        const otherColumns = allHeaders.filter(header => !systemColumns.includes(header));
-        const filteredHeaders = [...systemColumns, ...otherColumns];
-        setHeaders(filteredHeaders);
+        // Toujours utiliser les colonnes exactes pour garantir la synchronisation
+        const exactHeaders = [
+          'user_id',
+          '_isOrphan',
+          'contact_name',
+          'company_name', 
+          'company_website',
+          'Rôle',
+          'linkedin_contact_url',
+          'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+          'Préparation de l\'appel',
+          'Run',
+          'Statut'
+        ];
+        setHeaders(exactHeaders);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des headers:', error);
@@ -221,12 +250,17 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     const newRow: GoogleSheetRow = {
       id: `user_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       user_id: user.id,
+      _isOrphan: 'false',
+      contact_name: '',
+      company_name: '',
+      company_website: '',
+      'Rôle': '',
+      linkedin_contact_url: '',
+      'Pertinence du prospect par rapport à notre offre ? (sur 100)': '',
+      'Préparation de l\'appel': '',
+      Run: 'false',
+      Statut: 'En attente'
     };
-    
-    // Initialiser avec des valeurs vides pour tous les headers
-    headers.forEach(header => {
-      newRow[header] = '';
-    });
 
     setLocalData(prev => [...prev, newRow]);
     setHasUnsavedChanges(true);
