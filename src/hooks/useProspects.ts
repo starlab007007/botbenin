@@ -92,7 +92,16 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
       }
 
       console.log('Prospects récupérés:', data?.length || 0);
-      setProspects(data || []);
+      // Déduplication côté client pour éviter les doublons
+      const uniqueProspects = data ? data.filter((prospect, index, self) => 
+        index === self.findIndex(p => 
+          p.id === prospect.id || 
+          (p.email === prospect.email && p.company === prospect.company && p.phone === prospect.phone && 
+           p.email && p.company && p.phone) // Déduplication par critères métier
+        )
+      ) : [];
+      console.log('Après déduplication:', uniqueProspects.length);
+      setProspects(uniqueProspects);
       setLastFetch(Date.now());
     } catch (error: any) {
       console.error('Erreur dans fetchProspects:', error);
@@ -135,7 +144,15 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
       }
 
       console.log('Prospect créé:', inserted);
-      setProspects((prev) => [inserted, ...prev]);
+      // Vérifier les doublons avant d'ajouter
+      setProspects((prev) => {
+        const existingIds = new Set(prev.map(p => p.id));
+        if (existingIds.has(inserted.id)) {
+          console.log('Prospect déjà présent, pas de duplication');
+          return prev;
+        }
+        return [inserted, ...prev];
+      });
       
       toast({
         title: "Prospect créé",

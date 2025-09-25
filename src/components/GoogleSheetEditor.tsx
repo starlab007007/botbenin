@@ -252,8 +252,15 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     );
     
     if (success) {
-      // Recharger les données pour voir la nouvelle ligne
-      await loadInitialData();
+      // Ajouter localement seulement si pas déjà présent
+      setLocalData(prev => {
+        const exists = prev.some(row => row.id === newRow.id);
+        if (exists) {
+          console.log('Ligne déjà présente, pas de duplication');
+          return prev;
+        }
+        return [...prev, newRow];
+      });
       toast.success('Nouveau prospect ajouté au Google Sheet');
     } else {
       // En cas d'échec, ajouter localement
@@ -291,8 +298,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           setHasUnsavedChanges(false);
           setLastSyncTime(new Date());
           toast.success('Prospect supprimé et synchronisé avec Google Sheets');
-          // Recharger pour avoir la version à jour
-          await loadInitialData();
+          // Pas de rechargement pour éviter les doublons
         } else {
           // Si la synchronisation échoue, restaurer les données
           setLocalData(localData);
