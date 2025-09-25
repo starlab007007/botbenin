@@ -109,7 +109,7 @@ const handler = async (req: Request): Promise<Response> => {
       
       const emailResult = await client.send({
         from: "BJ Data <bot.bjdata@gmail.com>",
-        to: [to],
+        to: to,
         subject: subject,
         content: message, // Message texte brut
         html: htmlMessage, // Version HTML
@@ -136,7 +136,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`Échec envoi SMTP: ${smtpError.message}`);
     }
 
-    console.log('Email envoyé avec succès:', emailResult);
+    console.log('Email envoyé avec succès:', to);
 
     // Logging de l'activité
     const { error: logError } = await supabase

@@ -43,10 +43,14 @@ serve(async (req) => {
 
     for (const prospect of prospects) {
       try {
-        let result = { prospectId: prospect.id, status: 'pending', method: qualificationType };
+        let result: any = { prospectId: prospect.id, status: 'pending', method: qualificationType };
 
         switch (qualificationType) {
           case 'email':
+            if (!RESEND_API_KEY) {
+              result = { prospectId: prospect.id, status: 'error', method: qualificationType, error: 'RESEND_API_KEY not configured' };
+              break;
+            }
             result = await sendQualificationEmail(prospect, RESEND_API_KEY);
             break;
           case 'sms':
@@ -56,8 +60,12 @@ serve(async (req) => {
             result = await sendQualificationWhatsApp(prospect);
             break;
           default:
-            result.status = 'error';
-            result.error = 'Type de qualification non supporté';
+            result = { 
+              prospectId: prospect.id, 
+              status: 'error', 
+              method: qualificationType, 
+              error: 'Type de qualification non supporté' 
+            };
         }
 
         results.push(result);
@@ -66,7 +74,7 @@ serve(async (req) => {
         results.push({
           prospectId: prospect.id,
           status: 'error',
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
           method: qualificationType
         });
       }
@@ -95,7 +103,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Erreur interne du serveur', 
-        details: error.message 
+        details: error instanceof Error ? error.message : 'Unknown error'
       }),
       { 
         status: 500, 
@@ -159,7 +167,7 @@ async function sendQualificationEmail(prospect: any, apiKey: string) {
       prospectId: prospect.id,
       status: 'error',
       method: 'email',
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }

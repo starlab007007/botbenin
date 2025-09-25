@@ -138,7 +138,7 @@ async function getGoogleAccessToken(): Promise<string> {
     
   } catch (keyError) {
     console.error('Erreur détaillée d\'authentification:', keyError);
-    throw new Error(`Erreur d'authentification Google: ${keyError.message}`);
+    throw new Error(`Erreur d'authentification Google: ${keyError instanceof Error ? keyError.message : 'Unknown error'}`);
   }
 }
 

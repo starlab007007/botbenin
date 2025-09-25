@@ -94,14 +94,14 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Function error:', {
-      message: error.message,
-      stack: error.stack,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
       timestamp: new Date().toISOString()
     })
     
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         success: false,
         timestamp: new Date().toISOString()
       }),

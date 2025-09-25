@@ -34,7 +34,7 @@ serve(async (req) => {
       results.basicAuthAPI = { status: res1.status, ok: res1.ok };
       console.log('Basic Auth API result:', res1.status, res1.ok);
     } catch (e) {
-      results.basicAuthAPI = { error: e.message };
+      results.basicAuthAPI = { error: e instanceof Error ? e.message : 'Unknown error' };
     }
 
     // Test 2: Try without /dashboard prefix
@@ -51,7 +51,7 @@ serve(async (req) => {
       results.basicAuthRoot = { status: res2.status, ok: res2.ok };
       console.log('Basic Auth Root result:', res2.status, res2.ok);
     } catch (e) {
-      results.basicAuthRoot = { error: e.message };
+      results.basicAuthRoot = { error: e instanceof Error ? e.message : 'Unknown error' };
     }
 
     // Test 3: Check if WAHA needs specific API endpoint for auth
@@ -67,7 +67,7 @@ serve(async (req) => {
         console.log(`Endpoint ${endpoint}:`, res.status);
       }
     } catch (e) {
-      results.endpointDiscovery = { error: e.message };
+      results.endpointDiscovery = { error: e instanceof Error ? e.message : 'Unknown error' };
     }
 
     // Test 4: Try creating session without auth (to see error message)
@@ -82,7 +82,7 @@ serve(async (req) => {
       results.noAuthSessionCreate = { status: res4.status, response: text };
       console.log('No auth session create:', res4.status, text);
     } catch (e) {
-      results.noAuthSessionCreate = { error: e.message };
+      results.noAuthSessionCreate = { error: e instanceof Error ? e.message : 'Unknown error' };
     }
 
     // Test 5: Try with different Basic Auth format
@@ -106,7 +106,7 @@ serve(async (req) => {
         console.log(`Auth format ${i}:`, res.status);
       }
     } catch (e) {
-      results.authFormats = { error: e.message };
+      results.authFormats = { error: e instanceof Error ? e.message : 'Unknown error' };
     }
 
     // Test 6: Check WAHA version/health
@@ -124,7 +124,7 @@ serve(async (req) => {
         results.health = { status: res6.status };
       }
     } catch (e) {
-      results.health = { error: e.message };
+      results.health = { error: e instanceof Error ? e.message : 'Unknown error' };
     }
 
     // Test 7: Try API key in header variations
@@ -142,7 +142,7 @@ serve(async (req) => {
         results[`apiKey_${header}`] = { status: res.status };
         console.log(`API Key ${header}:`, res.status);
       } catch (e) {
-        results[`apiKey_${header}`] = { error: e.message };
+        results[`apiKey_${header}`] = { error: e instanceof Error ? e.message : 'Unknown error' };
       }
     }
 
@@ -157,7 +157,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Test comprehensive error:', error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

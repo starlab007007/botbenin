@@ -119,7 +119,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         recommendations: [
           '1. Vérifiez votre clé API ElevenLabs',
           '2. Activez les permissions Conversational AI',

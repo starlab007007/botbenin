@@ -68,7 +68,7 @@ serve(async (req) => {
       diagnostics.push({
         test: 'ElevenLabs API Connectivity',
         status: 'FAIL',
-        details: `Connection error: ${error.message}`
+        details: `Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`
       })
     }
 
@@ -99,7 +99,7 @@ serve(async (req) => {
       diagnostics.push({
         test: 'Agent Signed URL Generation',
         status: 'FAIL',
-        details: `Request error: ${error.message}`
+        details: `Request error: ${error instanceof Error ? error.message : 'Unknown error'}`
       })
     }
 
@@ -123,7 +123,7 @@ serve(async (req) => {
       diagnostics.push({
         test: 'API Permissions',
         status: 'FAIL',
-        details: `Permission check error: ${error.message}`
+        details: `Permission check error: ${error instanceof Error ? error.message : 'Unknown error'}`
       })
     }
 
@@ -153,7 +153,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         diagnostics: []
       }),
       {

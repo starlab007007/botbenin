@@ -60,7 +60,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     } catch (err) {
       console.error('[MTN-MOMO] error', err);
-      return new Response(JSON.stringify({ status: 'error', message: String(err?.message || err) }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      return new Response(JSON.stringify({ status: 'error', message: err instanceof Error ? err.message : String(err) }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
   } catch (e) {
     console.error('[MTN-MOMO] parse error', e);

@@ -122,7 +122,7 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         status: 'error',
         timestamp: new Date().toISOString(),
         instructions: 'Please check the request format and try again'

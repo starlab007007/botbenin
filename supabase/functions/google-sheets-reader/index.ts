@@ -106,7 +106,7 @@ async function getGoogleAccessToken(): Promise<string> {
     return tokenData.access_token;
     
   } catch (keyError) {
-    throw new Error(`Erreur d'authentification: ${keyError.message}`);
+    throw new Error(`Erreur d'authentification: ${keyError instanceof Error ? keyError.message : 'Unknown error'}`);
   }
 }
 
@@ -192,7 +192,7 @@ serve(async (req) => {
                     return record;
                   });
 
-                const orphanCount = dynamicRecords.filter(r => r._isOrphan).length;
+                const orphanCount = dynamicRecords.filter((r: any) => r._isOrphan).length;
                 
                 return new Response(
                   JSON.stringify({ 
@@ -274,7 +274,7 @@ serve(async (req) => {
             });
 
           if (dynamicRecords.length > 0) {
-            const orphanCount = dynamicRecords.filter(r => r._isOrphan).length;
+            const orphanCount = dynamicRecords.filter((r: any) => r._isOrphan).length;
             return new Response(
               JSON.stringify({
                 success: true,
