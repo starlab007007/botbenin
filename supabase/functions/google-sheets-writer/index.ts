@@ -235,16 +235,21 @@ serve(async (req) => {
       console.log('Dynamic headers:', headers);
       console.log('Sample row:', rows[0]);
 
-      let range = `${sheetName}!A:${String.fromCharCode(65 + headers.length - 1)}`;
-      let valueInputOption = 'USER_ENTERED';
+      // Construire le range de manière plus robuste
+      const maxColumn = String.fromCharCode(65 + Math.max(headers.length - 1, 10)); // Au moins jusqu'à K
+      let range = `${sheetName}!A:${maxColumn}`;
       let values: string[][] = [];
 
       if (operation === 'overwrite') {
         // Clear sheet and write headers + data
         values = [headers, ...rows];
         
-        // First clear the sheet
-        const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:clear`;
+        // First clear the sheet - utiliser un range plus simple
+        const clearRange = `${sheetName}!A:Z`; // Range fixe pour éviter les problèmes
+        const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(clearRange)}:clear`;
+        
+        console.log('Clearing sheet with URL:', clearUrl);
+        
         const clearResponse = await fetch(clearUrl, {
           method: 'POST',
           headers: {
@@ -267,23 +272,41 @@ serve(async (req) => {
             }
           );
         }
+        
+        // Pour overwrite, utiliser PUT avec un range spécifique
+        range = `${sheetName}!A1:${maxColumn}${values.length}`;
       } else {
-        // Append mode - just add data rows
+        // Append mode - utiliser l'API append au lieu de POST sur un range
         values = rows;
-        range = `${sheetName}!A:${String.fromCharCode(65 + headers.length - 1)}`;
       }
 
-      // Write data to Google Sheets
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=${valueInputOption}`;
+      let url: string;
+      let method: string;
+      
+      if (operation === 'append') {
+        // Utiliser l'API append qui gère automatiquement les ranges
+        url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+        method = 'POST';
+      } else {
+        // Utiliser PUT pour overwrite
+        url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+        method = 'PUT';
+      }
       
       const requestBody = {
         values: values
       };
 
-      console.log('Writing to Google Sheets:', { url, requestBody });
+      console.log('Writing to Google Sheets:', { 
+        url, 
+        method,
+        operation,
+        rowCount: values.length,
+        sampleRow: values[0]?.slice(0, 3) // Juste les 3 premiers éléments pour debug
+      });
 
       const response = await fetch(url, {
-        method: operation === 'append' ? 'POST' : 'PUT',
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
