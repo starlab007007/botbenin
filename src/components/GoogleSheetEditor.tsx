@@ -114,7 +114,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     }
   }, [spreadsheetId, sheetName, user?.id, isAuthenticated, loadInitialData]);
 
-  // Synchroniser avec les données Google Sheets - Filtrage sécurisé
+  // Synchroniser avec les données Google Sheets - Filtrage sécurisé par user_id
   useEffect(() => {
     if (!user?.id || !isAuthenticated) {
       // Sécurité : Nettoyer les données si pas d'utilisateur authentifié
@@ -124,66 +124,23 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     }
 
     if (googleSheetsData && Array.isArray(googleSheetsData) && googleSheetsData.length > 0) {
-      // Double filtrage sécurisé : vérifier que chaque prospect appartient à l'utilisateur
-      const userProspects = googleSheetsData.filter(row => 
-        row.user_id === user.id
-      );
+      // FILTRAGE STRICT : Seuls les prospects avec le user_id exact sont affichés
+      const userOnlyProspects = googleSheetsData.filter(row => {
+        return row.user_id === user.id && row.user_id !== undefined && row.user_id !== '';
+      });
 
-      const processedData = userProspects.map((row, index) => ({
+      const processedData = userOnlyProspects.map((row, index) => ({
         ...row,
         id: row.id || `user_${user.id}_${Date.now()}_${index}`,
-        user_id: user.id // Force le user_id correct
+        user_id: user.id // Forcer le user_id correct pour la sécurité
       }));
       
-      // Utiliser les colonnes exactes pour la synchronisation avec le Google Sheet
-      if (processedData.length > 0) {
-        const exactHeaders = [
-          'user_id',
-          '_isOrphan',
-          'contact_name',
-          'company_name', 
-          'company_website',
-          'Rôle',
-          'linkedin_contact_url',
-          'Pertinence du prospect par rapport à notre offre ? (sur 100)',
-          'Préparation de l\'appel',
-          'Run',
-          'Statut'
-        ];
-        setHeaders(exactHeaders);
-      } else if (orphanProspects && orphanProspects.length > 0) {
-        // Si pas de prospects possédés mais des orphelins, utiliser les colonnes exactes
-        const exactHeaders = [
-          'user_id',
-          '_isOrphan',
-          'contact_name',
-          'company_name', 
-          'company_website',
-          'Rôle',
-          'linkedin_contact_url',
-          'Pertinence du prospect par rapport à notre offre ? (sur 100)',
-          'Préparation de l\'appel',
-          'Run',
-          'Statut'
-        ];
-        setHeaders(exactHeaders);
-      }
-      
-      setLocalData(processedData);
-      setLastSyncTime(new Date());
-      setHasUnsavedChanges(false);
-    } else {
-      // Aucune donnée personnelle mais peut-être des orphelins
-      if (orphanProspects && orphanProspects.length > 0) {
-        setLocalData([]); // Pas de data personnelle
-      }
-      
-      // Utiliser les colonnes exactes même s'il n'y a pas de données
+      // Headers fixes pour garantir la compatibilité avec le Google Sheet
       const exactHeaders = [
         'user_id',
-        '_isOrphan',
+        '_isOrphan', 
         'contact_name',
-        'company_name', 
+        'company_name',
         'company_website',
         'Rôle',
         'linkedin_contact_url',
@@ -193,6 +150,28 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
         'Statut'
       ];
       setHeaders(exactHeaders);
+      setLocalData(processedData);
+      setLastSyncTime(new Date());
+      setHasUnsavedChanges(false);
+      
+      console.log(`🔒 Données filtrées par user_id: ${processedData.length} prospects pour l'utilisateur ${user.id}`);
+    } else {
+      // Aucune donnée, mais définir quand même les headers pour permettre l'ajout
+      const exactHeaders = [
+        'user_id',
+        '_isOrphan',
+        'contact_name', 
+        'company_name',
+        'company_website',
+        'Rôle',
+        'linkedin_contact_url',
+        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+        'Préparation de l\'appel',
+        'Run',
+        'Statut'
+      ];
+      setHeaders(exactHeaders);
+      setLocalData([]);
     }
   }, [googleSheetsData, user?.id, isAuthenticated]);
 

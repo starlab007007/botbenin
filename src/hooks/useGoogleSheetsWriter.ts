@@ -18,13 +18,13 @@ export const useGoogleSheetsWriter = (userId?: string) => {
   const [lastWriteTime, setLastWriteTime] = useState<Date | null>(null);
   const { toast } = useToast();
 
-  // Configuration par défaut pour tous les utilisateurs
+  // Configuration par défaut pour tous les utilisateurs - SÉCURISÉE
   const defaultSpreadsheetId = '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8';
 
   const writeToGoogleSheets = useCallback(async (
     config: GoogleSheetsConfig,
     data: ProspectDataWithUser[],
-    operation: 'append' | 'overwrite' = 'overwrite'
+    operation: 'append' | 'overwrite' = 'append' // DEFAULT CHANGED TO APPEND
   ) => {
     // Utiliser le spreadsheet par défaut si aucun n'est spécifié
     const finalSpreadsheetId = config.spreadsheetId || defaultSpreadsheetId;
@@ -47,15 +47,36 @@ export const useGoogleSheetsWriter = (userId?: string) => {
       return false;
     }
 
+    // SÉCURITÉ : Filtrer les données pour ne synchroniser que celles de l'utilisateur
+    if (!userId || userId === 'unknown') {
+      toast({
+        title: "❌ Utilisateur non authentifié",
+        description: "Vous devez être connecté pour synchroniser",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    const userOnlyData = data.filter(item => item.user_id === userId);
+    
+    if (userOnlyData.length === 0) {
+      toast({
+        title: "❌ Aucune donnée personnelle",
+        description: "Aucun prospect ne vous appartient",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     setIsWriting(true);
 
     try {
       console.log('🔄 Écriture vers Google Sheets:', { config, dataLength: data.length, operation });
 
-      // Ensure all data has user_id
-      const dataWithUserId = data.map(item => ({
+      // Ensure all data has user_id and belongs to current user ONLY
+      const dataWithUserId = userOnlyData.map(item => ({
         ...item,
-        user_id: item.user_id || userId || 'unknown'
+        user_id: userId // Force correct user_id for security
       }));
 
       const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
@@ -92,7 +113,7 @@ export const useGoogleSheetsWriter = (userId?: string) => {
         setLastWriteTime(new Date());
         toast({
           title: "✅ Synchronisation réussie",
-          description: result.message || `${data.length} prospects synchronisés`,
+          description: result.message || `${userOnlyData.length} prospects synchronisés`,
           duration: 3000,
         });
         console.log('✅ Données écrites avec succès:', result);

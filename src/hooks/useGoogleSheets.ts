@@ -112,26 +112,28 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
       if (successData) {
         const { result, sheetName: workingSheetName } = successData;
         
-        // Séparer les prospects avec user_id de ceux sans user_id (orphelins)
+        // Filtrage strict par user_id - SÉCURITÉ MAXIMALE
         let ownedProspects: GoogleSheetProspectWithUser[] = [];
         let orphanProspects: any[] = [];
         
         if (result?.data && Array.isArray(result.data) && result.data.length > 0) {
           result.data.forEach(item => {
             if (item.user_id === userId) {
-              // Prospects appartenant à l'utilisateur
+              // Prospects appartenant strictement à l'utilisateur connecté
               ownedProspects.push({
                 ...item,
                 id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                user_id: userId
+                user_id: userId // Forcer le user_id correct pour la sécurité
               });
-            } else if (!item.user_id || item.user_id === '' || item._isOrphan) {
-              // Prospects orphelins (sans user_id ou avec user_id vide)
+            } else if (!item.user_id || item.user_id === '' || item.user_id === 'unknown' || item._isOrphan === true || item._isOrphan === 'true') {
+              // Prospects orphelins uniquement (sans propriétaire défini)
               orphanProspects.push({
                 ...item,
-                id: item.id || `orphan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                id: item.id || `orphan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                _isOrphan: true
               });
             }
+            // IMPORTANT: Ignorer complètement les prospects d'autres utilisateurs
           });
         }
         
@@ -192,7 +194,7 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
     } finally {
       setIsLoading(false);
     }
-  }, [config, toast]);
+  }, [config, toast, isUserValid]);
 
   const testConnection = useCallback(async () => {
     setConnectionStatus('connecting');
