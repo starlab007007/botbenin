@@ -83,19 +83,36 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     appendToGoogleSheets
   } = useGoogleSheetsWriter(user?.id);
 
-  // Configuration initiale
+  // Configuration initiale - Remove updateGoogleSheetsConfig from deps to prevent infinite loop
   useEffect(() => {
     if (spreadsheetId && sheetName) {
       updateGoogleSheetsConfig({ spreadsheetId, sheetName });
     }
-  }, [spreadsheetId, sheetName, updateGoogleSheetsConfig]);
+  }, [spreadsheetId, sheetName]);
+
+  // Wrap loadInitialData in useCallback to prevent unnecessary re-renders
+  const loadInitialData = useCallback(async () => {
+    // Sécurité : Vérifier l'authentification avant tout chargement
+    if (!user?.id || !isAuthenticated) {
+      toast.error('Vous devez être connecté pour accéder aux prospects');
+      return;
+    }
+
+    try {
+      await loadGoogleSheetsData();
+      toast.success('Données Google Sheet synchronisées');
+    } catch (error) {
+      console.error('Erreur lors du chargement initial:', error);
+      toast.error('Erreur lors du chargement des données');
+    }
+  }, [user?.id, isAuthenticated, loadGoogleSheetsData]);
 
   // Chargement automatique sécurisé à l'ouverture
   useEffect(() => {
     if (spreadsheetId && sheetName && user?.id && isAuthenticated) {
       loadInitialData();
     }
-  }, [spreadsheetId, sheetName, user?.id, isAuthenticated]);
+  }, [spreadsheetId, sheetName, user?.id, isAuthenticated, loadInitialData]);
 
   // Synchroniser avec les données Google Sheets - Filtrage sécurisé
   useEffect(() => {
@@ -215,21 +232,6 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     }
   };
 
-  const loadInitialData = async () => {
-    // Sécurité : Vérifier l'authentification avant tout chargement
-    if (!user?.id || !isAuthenticated) {
-      toast.error('Vous devez être connecté pour accéder aux prospects');
-      return;
-    }
-
-    try {
-      await loadGoogleSheetsData();
-      toast.success('Données Google Sheet synchronisées');
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
-      toast.error('Erreur lors du chargement du Google Sheet');
-    }
-  };
 
   const updateCellValue = useCallback((rowId: string, column: string, value: string) => {
     setLocalData(prev => 
