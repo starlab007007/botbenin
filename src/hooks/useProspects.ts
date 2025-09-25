@@ -36,14 +36,22 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
   const [lastFetch, setLastFetch] = useState<number>(0);
   const { toast } = useToast();
 
-  // Cache intelligent - évite les requêtes trop fréquentes
-  const shouldRefetch = useCallback(() => {
+  // Contrôle plus strict des re-fetches pour éviter les boucles
+  const shouldRefetch = useCallback((force: boolean = false) => {
+    if (force) return true;
     const now = Date.now();
-    return now - lastFetch > 10000; // 10 secondes pour les prospects
+    return now - lastFetch > 30000; // Augmenté à 30 secondes pour éviter les requêtes excessives
   }, [lastFetch]);
 
   const fetchProspects = useCallback(async (force = false) => {
-    if (!force && !shouldRefetch()) {
+    // Éviter les requêtes multiples concurrentes
+    if (isLoading && !force) {
+      console.log('Requête déjà en cours, ignorée');
+      return;
+    }
+
+    if (!shouldRefetch(force)) {
+      console.log('Refetch non nécessaire');
       return;
     }
 
@@ -52,8 +60,17 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
     
     try {
       const { data: userData, error: authError } = await supabase.auth.getUser();
+      
+      // Gestion améliorée des erreurs d'authentification
       if (authError) {
         console.error('Erreur authentification:', authError);
+        if (authError.message?.includes('refresh_token_not_found')) {
+          // Token expiré, redirection nécessaire vers login
+          console.log('Token expiré, utilisateur déconnecté');
+          setProspects([]);
+          setError(new Error('Session expirée, veuillez vous reconnecter'));
+          return;
+        }
         throw authError;
       }
       
@@ -80,7 +97,7 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
       }
 
       // Filtrer par terme de recherche si spécifié
-      if (searchTerm.trim()) {
+      if (searchTerm?.trim()) {
         query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%`);
       }
 
@@ -92,39 +109,90 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
       }
 
       console.log('Prospects récupérés:', data?.length || 0);
-      // Déduplication côté client pour éviter les doublons
-      const uniqueProspects = data ? data.filter((prospect, index, self) => 
-        index === self.findIndex(p => 
-          p.id === prospect.id || 
-          (p.email === prospect.email && p.company === prospect.company && p.phone === prospect.phone && 
-           p.email && p.company && p.phone) // Déduplication par critères métier
-        )
-      ) : [];
-      console.log('Après déduplication:', uniqueProspects.length);
+      
+      // Déduplication stricte côté client
+      const uniqueProspects = data ? data.filter((prospect, index, self) => {
+        const isDuplicate = self.findIndex(p => {
+          // Déduplication par ID d'abord
+          if (p.id === prospect.id) return true;
+          
+          // Puis par critères métier si tous les champs sont présents
+          if (p.email && p.company && p.phone && 
+              prospect.email && prospect.company && prospect.phone) {
+            return p.email.toLowerCase() === prospect.email.toLowerCase() && 
+                   p.company.toLowerCase() === prospect.company.toLowerCase() && 
+                   p.phone === prospect.phone;
+          }
+          
+          return false;
+        }) === index;
+        
+        return isDuplicate;
+      }) : [];
+      
+      console.log('Après déduplication:', uniqueProspects.length, 'prospects uniques');
       setProspects(uniqueProspects);
       setLastFetch(Date.now());
+      
     } catch (error: any) {
       console.error('Erreur dans fetchProspects:', error);
       setError(error);
-      setProspects([]);
+      if (!error.message?.includes('refresh_token_not_found')) {
+        setProspects([]);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [databaseId, searchTerm, shouldRefetch]);
+  }, [databaseId, searchTerm, isLoading, shouldRefetch]);
 
+  // Éviter la boucle infinie - useEffect ne dépend que des paramètres de recherche
   useEffect(() => {
-    fetchProspects();
-  }, [fetchProspects]);
+    const timeoutId = setTimeout(() => {
+      fetchProspects();
+    }, 100); // Debounce de 100ms
+    
+    return () => clearTimeout(timeoutId);
+  }, [databaseId, searchTerm]); // Retirer fetchProspects des dépendances
 
   const createProspect = useCallback(async (prospectData: Omit<Prospect, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    // Éviter les créations multiples concurrentes
+    if (isLoading) {
+      console.log('Création déjà en cours, ignorée');
+      return null;
+    }
+
     setIsLoading(true);
     setError(null);
+    
     try {
       const { data: userData, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
+      
+      if (authError) {
+        if (authError.message?.includes('refresh_token_not_found')) {
+          setError(new Error('Session expirée, veuillez vous reconnecter'));
+          return null;
+        }
+        throw authError;
+      }
       
       if (!userData?.user) {
         throw new Error("Vous devez être connecté.");
+      }
+
+      // Vérification anti-doublons AVANT insertion
+      const duplicateCheckKey = `${prospectData.email || ''}-${prospectData.company || ''}-${prospectData.phone || ''}`.toLowerCase();
+      const existingDuplicate = prospects.find(p => {
+        const pKey = `${p.email || ''}-${p.company || ''}-${p.phone || ''}`.toLowerCase();
+        return pKey === duplicateCheckKey && pKey !== '--' && pKey.length > 2;
+      });
+
+      if (existingDuplicate) {
+        toast({
+          title: "Prospect déjà existant",
+          description: `Un prospect similaire existe déjà: ${existingDuplicate.first_name} ${existingDuplicate.last_name}`,
+          variant: "destructive"
+        });
+        return null;
       }
 
       console.log('Création prospect:', prospectData);
@@ -140,26 +208,27 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
 
       if (insertError) {
         console.error('Erreur création prospect:', insertError);
+        
+        if (insertError.code === '23505') { // Contrainte d'unicité violée
+          toast({
+            title: "Prospect déjà existant",
+            description: "Un prospect avec ces informations existe déjà dans la base de données.",
+            variant: "destructive"
+          });
+          return null;
+        }
+        
         throw insertError;
       }
 
       console.log('Prospect créé:', inserted);
-      // Déduplication robuste avant ajout - vérifier ID ET critères métier
+      
+      // Mise à jour optimiste avec vérification
       setProspects((prev) => {
-        const existingIds = new Set(prev.map(p => p.id));
-        const existingKeys = new Set(prev.map(p => 
-          `${p.email}-${p.company}-${p.phone}`.toLowerCase()
-        ).filter(key => key !== '--'));
-        
-        const newKey = `${inserted.email || ''}-${inserted.company || ''}-${inserted.phone || ''}`.toLowerCase();
-        
-        if (existingIds.has(inserted.id)) {
-          console.log('Prospect déjà présent par ID, pas de duplication');
-          return prev;
-        }
-        
-        if (newKey !== '--' && existingKeys.has(newKey)) {
-          console.log('Prospect déjà présent par critères métier, pas de duplication');
+        // Vérification finale anti-doublons
+        const alreadyExists = prev.some(p => p.id === inserted.id);
+        if (alreadyExists) {
+          console.log('Prospect déjà présent dans la liste, pas de duplication');
           return prev;
         }
         
@@ -172,15 +241,18 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
       });
       
       return inserted;
+      
     } catch (error: any) {
       console.error('Erreur création prospect:', error);
       setError(error);
       
       let errorMessage = "Impossible de créer le prospect";
-      if (error?.message?.includes('duplicate key')) {
-        errorMessage = "Un prospect avec cette information existe déjà";
+      if (error?.message?.includes('duplicate key') || error?.code === '23505') {
+        errorMessage = "Un prospect avec ces informations existe déjà";
       } else if (error?.code === 'PGRST301') {
         errorMessage = "Problème de permissions. Veuillez vous reconnecter.";
+      } else if (error?.message?.includes('refresh_token_not_found')) {
+        errorMessage = "Session expirée, veuillez vous reconnecter.";
       }
       
       toast({
@@ -193,7 +265,7 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, isLoading, prospects]);
 
   const updateProspect = useCallback(async (id: string, updates: Partial<Prospect>) => {
     const { error, data: updated } = await supabase
@@ -220,14 +292,22 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
   }, [toast]);
 
   const deleteProspect = useCallback(async (id: string) => {
-    // Suppression optimiste pour meilleure UX
+    // Éviter les suppressions multiples concurrentes
+    if (isLoading) {
+      console.log('Suppression déjà en cours, ignorée');
+      return { error: new Error('Opération déjà en cours') };
+    }
+
     const prospectToDelete = prospects.find(p => p.id === id);
     if (!prospectToDelete) {
       console.error('Prospect non trouvé pour suppression');
       return { error: new Error('Prospect non trouvé') };
     }
 
-    // Mettre à jour l'UI immédiatement
+    setIsLoading(true);
+
+    // Mise à jour optimiste immédiate
+    const previousProspects = [...prospects];
     setProspects(prev => prev.filter(prospect => prospect.id !== id));
     
     try {
@@ -238,28 +318,48 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
       
       if (error) {
         console.error('Erreur suppression prospect:', error);
-        // Restaurer le prospect en cas d'erreur
-        setProspects(prev => [...prev, prospectToDelete].sort((a, b) => 
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-        ));
+        
+        // Restaurer l'état précédent en cas d'erreur
+        setProspects(previousProspects);
+        
+        let errorMessage = "Erreur lors de la suppression";
+        if (error.message?.includes('refresh_token_not_found')) {
+          errorMessage = "Session expirée, veuillez vous reconnecter.";
+        }
+        
+        toast({
+          title: "Erreur",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        
         return { error };
       }
       
       toast({
         title: "Prospect supprimé",
-        description: "Le prospect a été supprimé avec succès.",
+        description: `${prospectToDelete.first_name} ${prospectToDelete.last_name} a été supprimé avec succès.`,
       });
       
       return { error: null };
+      
     } catch (error: any) {
       console.error('Exception lors de la suppression:', error);
-      // Restaurer le prospect en cas d'exception
-      setProspects(prev => [...prev, prospectToDelete].sort((a, b) => 
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      ));
+      
+      // Restaurer l'état précédent en cas d'exception
+      setProspects(previousProspects);
+      
+      toast({
+        title: "Erreur",
+        description: "Une erreur technique est survenue lors de la suppression.",
+        variant: "destructive"
+      });
+      
       return { error };
+    } finally {
+      setIsLoading(false);
     }
-  }, [prospects, toast]);
+  }, [prospects, toast, isLoading]);
 
   // Statistiques calculées
   const stats = useMemo(() => {

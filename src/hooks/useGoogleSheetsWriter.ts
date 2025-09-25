@@ -27,6 +27,17 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     data: ProspectDataWithUser[],
     operation: 'append' | 'overwrite' = 'append'
   ) => {
+    // Éviter les écritures multiples concurrentes
+    if (isWriting) {
+      console.log('Écriture déjà en cours, ignorée');
+      toast({
+        title: "⏳ Opération en cours",
+        description: "Une synchronisation est déjà en cours, veuillez patienter",
+        variant: "default",
+      });
+      return false;
+    }
+
     // Utiliser le spreadsheet par défaut si aucun n'est spécifié
     const finalSpreadsheetId = config.spreadsheetId || defaultSpreadsheetId;
     
@@ -69,15 +80,22 @@ export const useGoogleSheetsWriter = (userId?: string) => {
       return false;
     }
 
-    // DÉDUPLICATION avant écriture - éviter les doublons dans Google Sheets
+    // DÉDUPLICATION stricte avant écriture
     const deduplicatedData = userOnlyData.reduce((acc, current) => {
-      const existingIndex = acc.findIndex(item => 
-        item.id === current.id || 
-        (current.contact_name && current.company_name && current.user_id &&
-         item.contact_name === current.contact_name && 
-         item.company_name === current.company_name && 
-         item.user_id === current.user_id)
-      );
+      const existingIndex = acc.findIndex(item => {
+        // D'abord par ID exact
+        if (item.id === current.id) return true;
+        
+        // Puis par critères métier si tous les champs nécessaires sont présents
+        if (current.contact_name && current.company_name && current.user_id &&
+            item.contact_name && item.company_name && item.user_id) {
+          return item.contact_name.toLowerCase() === current.contact_name.toLowerCase() && 
+                 item.company_name.toLowerCase() === current.company_name.toLowerCase() && 
+                 item.user_id === current.user_id;
+        }
+        
+        return false;
+      });
       
       if (existingIndex === -1) {
         acc.push(current);
@@ -90,6 +108,15 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     }, [] as ProspectDataWithUser[]);
 
     console.log(`🔄 Déduplication: ${userOnlyData.length} → ${deduplicatedData.length} prospects`);
+
+    if (deduplicatedData.length === 0) {
+      toast({
+        title: "❌ Aucune donnée unique",
+        description: "Tous les prospects sont déjà présents",
+        variant: "default",
+      });
+      return false;
+    }
 
     setIsWriting(true);
 
