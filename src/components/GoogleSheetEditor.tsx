@@ -79,7 +79,8 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   const {
     isWriting,
     lastWriteTime,
-    syncToGoogleSheets
+    syncToGoogleSheets,
+    appendToGoogleSheets
   } = useGoogleSheetsWriter(user?.id);
 
   // Configuration initiale
@@ -241,7 +242,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     setHasUnsavedChanges(true);
   }, []);
 
-  const addNewRow = () => {
+  const addNewRow = async () => {
     if (!user?.id) {
       toast.error('Vous devez être connecté pour ajouter des prospects');
       return;
@@ -262,8 +263,23 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       Statut: 'En attente'
     };
 
-    setLocalData(prev => [...prev, newRow]);
-    setHasUnsavedChanges(true);
+    // Ajouter directement au Google Sheet sans écraser les données existantes
+    console.log('🔄 Ajout immédiat d\'une nouvelle ligne au Google Sheet...', { newRow });
+    const success = await appendToGoogleSheets(
+      { spreadsheetId, sheetName }, 
+      [newRow]
+    );
+    
+    if (success) {
+      // Recharger les données pour voir la nouvelle ligne
+      await loadInitialData();
+      toast.success('Nouveau prospect ajouté au Google Sheet');
+    } else {
+      // En cas d'échec, ajouter localement
+      setLocalData(prev => [...prev, newRow]);
+      setHasUnsavedChanges(true);
+      toast.error('Erreur lors de l\'ajout. Ajouté localement - sauvegardez manuellement');
+    }
   };
 
   const openAnalysisModal = (prospect: GoogleSheetProspectWithUser) => {
@@ -379,13 +395,14 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return;
     }
 
-    // Send data as-is with user_id
+    // Sauvegarder en ajoutant les nouvelles données sans supprimer l'existant
     const formattedData = localData.map(row => ({
       ...row,
       user_id: row.user_id || user?.id || 'unknown'
     }));
 
-    const success = await syncToGoogleSheets(
+    console.log('🔄 Sauvegarde vers Google Sheets (ajout sans suppression)...', { formattedData });
+    const success = await appendToGoogleSheets(
       { spreadsheetId, sheetName }, 
       formattedData
     );
@@ -393,7 +410,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     if (success) {
       setHasUnsavedChanges(false);
       setLastSyncTime(new Date());
-      toast.success('Données synchronisées vers Google Sheets');
+      toast.success('Données ajoutées au Google Sheet (existantes conservées)');
       // Recharger pour avoir la version à jour
       await loadInitialData();
     }
