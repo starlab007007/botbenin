@@ -133,7 +133,7 @@ serve(async (req) => {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
-                    'X-API-Key': wahaApiKey,
+                    ...(wahaApiKey ? { 'X-API-Key': wahaApiKey } : {}),
                   },
                   body: JSON.stringify({
                     session: sessionName,

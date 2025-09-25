@@ -50,7 +50,7 @@ serve(async (req) => {
     } catch (err) {
       authTests.push({
         method: 'no_auth',
-        error: err.message,
+        error: err instanceof Error ? err.message : 'Unknown error',
         success: false
       });
     }
@@ -58,7 +58,7 @@ serve(async (req) => {
     // Test 2: API Key variants
     if (wahaApiKey || wahaApiKeyPlain) {
       const keyToUse = (wahaApiKeyPlain && wahaApiKeyPlain.length > 0) ? wahaApiKeyPlain : (wahaApiKey as string);
-      const apiKeyVariants = [
+      const apiKeyVariants: Array<Record<string, string>> = [
         { 'X-Api-Key': keyToUse },
         { 'X-API-Key': keyToUse },
         { 'X-API-KEY': keyToUse },
@@ -70,7 +70,7 @@ serve(async (req) => {
       for (let i = 0; i < apiKeyVariants.length; i++) {
         try {
           const res = await fetch(`${wahaBaseUrl}/api/sessions`, {
-            headers: apiKeyVariants[i]
+            headers: new Headers(apiKeyVariants[i])
           });
           authTests.push({
             method: `api_key_variant_${i + 1}`,
@@ -83,7 +83,7 @@ serve(async (req) => {
           authTests.push({
             method: `api_key_variant_${i + 1}`,
             headers: Object.keys(apiKeyVariants[i]),
-            error: err.message,
+            error: err instanceof Error ? err.message : 'Unknown error',
             success: false
           });
         }
@@ -106,7 +106,7 @@ serve(async (req) => {
       } catch (err) {
         authTests.push({
           method: 'basic_auth',
-          error: err.message,
+          error: err instanceof Error ? err.message : 'Unknown error',
           success: false
         });
       }
@@ -124,7 +124,7 @@ serve(async (req) => {
     } catch (err) {
       authTests.push({
         method: 'dashboard_access',
-        error: err.message,
+        error: err instanceof Error ? err.message : 'Unknown error',
         success: false
       });
     }
@@ -146,7 +146,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || 'Unknown error' 
+        error: error instanceof Error ? error.message : 'Unknown error' 
       }),
       {
         status: 200,

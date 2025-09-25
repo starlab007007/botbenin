@@ -364,7 +364,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Mirror proxy error', 
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
       }),
       {

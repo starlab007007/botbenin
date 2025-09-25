@@ -297,7 +297,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Proxy error', 
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
       }),
       {

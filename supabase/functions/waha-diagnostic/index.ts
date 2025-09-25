@@ -36,7 +36,11 @@ serve(async (req) => {
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
     
     console.log('🔧 Using WAHA URL:', wahaUrl);
-    console.log('🔧 Using API Key (first 8 chars):', wahaApiKey.substring(0, 8) + '...');
+    if (wahaApiKey) {
+      console.log('🔧 Using API Key (first 8 chars):', wahaApiKey.substring(0, 8) + '...');
+    } else {
+      console.log('🔧 No API Key configured');
+    }
 
     console.log('🔍 WAHA Diagnostic - Starting comprehensive test...');
     
@@ -59,7 +63,7 @@ serve(async (req) => {
       diagnosticResults.push({
         test: 'server_availability',
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         details: 'Failed to connect to WAHA server'
       });
     }
@@ -88,7 +92,7 @@ serve(async (req) => {
       diagnosticResults.push({
         test: 'dashboard_auth',
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
 
@@ -114,7 +118,7 @@ serve(async (req) => {
         diagnosticResults.push({
           test: 'api_key_auth',
           success: false,
-          error: error.message
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     } else {
@@ -146,7 +150,7 @@ serve(async (req) => {
         diagnosticResults.push({
           test: 'bearer_auth',
           success: false,
-          error: error.message
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     }
@@ -175,7 +179,7 @@ serve(async (req) => {
       diagnosticResults.push({
         test: 'basic_auth_api',
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
 
@@ -207,7 +211,7 @@ serve(async (req) => {
         diagnosticResults.push({
           test: `endpoint_${endpoint.replace(/\//g, '_')}`,
           success: false,
-          error: error.message
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     }
@@ -228,7 +232,7 @@ serve(async (req) => {
       diagnosticResults.push({
         test: 'documentation_available',
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
 
@@ -237,7 +241,7 @@ serve(async (req) => {
       total_tests: diagnosticResults.length,
       successful_tests: diagnosticResults.filter(r => r.success).length,
       failed_tests: diagnosticResults.filter(r => !r.success).length,
-      recommendations: []
+      recommendations: [] as string[]
     };
 
     // Generate recommendations
@@ -287,7 +291,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Diagnostic failed', 
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
       }),
       {

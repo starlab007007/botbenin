@@ -231,8 +231,8 @@ serve(async (req) => {
       
       // Injecter le script avant la fermeture du body
       const modifiedHtml = htmlContent.replace('</body>', `${automationScript}</body>`)
-      responseBody = new TextEncoder().encode(modifiedHtml)
-      responseHeaders.set('Content-Length', responseBody.byteLength.toString())
+      responseBody = new TextEncoder().encode(modifiedHtml).buffer
+      responseHeaders.set('Content-Length', (responseBody as ArrayBuffer).byteLength.toString())
     }
     
     return new Response(responseBody, {
@@ -247,7 +247,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Proxy error', 
-        message: error.message,
+        message: error instanceof Error ? error.message : 'Unknown error',
         details: 'Impossible de se connecter au serveur WAHA'
       }), 
       { 
