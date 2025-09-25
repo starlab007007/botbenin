@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { ProspectAnalysisModal } from './ProspectAnalysisModal';
 import { WebhookConfigModal } from './WebhookConfigModal';
+import { GoogleSheetsQueueStatus } from './GoogleSheetsQueueStatus';
 import { useProspectEvaluationWebhook } from '@/hooks/useProspectEvaluationWebhook';
 import { 
   RefreshCw, 
@@ -252,19 +253,30 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     );
     
     if (success) {
-      // Ajouter localement seulement si pas déjà présent
+      // Ajouter localement seulement si pas déjà présent (déduplication robuste)
       setLocalData(prev => {
-        const exists = prev.some(row => row.id === newRow.id);
-        if (exists) {
-          console.log('Ligne déjà présente, pas de duplication');
+        const existsById = prev.some(row => row.id === newRow.id);
+        const existsByKey = prev.some(row => 
+          row.contact_name === newRow.contact_name && 
+          row.company_name === newRow.company_name && 
+          row.user_id === newRow.user_id &&
+          (row.contact_name || row.company_name) // Au moins un champ rempli
+        );
+        
+        if (existsById || existsByKey) {
+          console.log('Ligne déjà présente (ID ou critères), pas de duplication');
           return prev;
         }
         return [...prev, newRow];
       });
       toast.success('Nouveau prospect ajouté au Google Sheet');
     } else {
-      // En cas d'échec, ajouter localement
-      setLocalData(prev => [...prev, newRow]);
+      // En cas d'échec, ajouter localement avec vérification
+      setLocalData(prev => {
+        const exists = prev.some(row => row.id === newRow.id);
+        if (exists) return prev;
+        return [...prev, newRow];
+      });
       setHasUnsavedChanges(true);
       toast.error('Erreur lors de l\'ajout. Ajouté localement - sauvegardez manuellement');
     }
@@ -279,16 +291,18 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     const confirmed = window.confirm('Êtes-vous sûr de vouloir supprimer ce prospect ? Cette action est irréversible.');
     if (confirmed) {
       try {
-        // Supprimer localement
+        // Suppression optimiste locale immédiate
+        const originalData = [...localData];
         const updatedData = localData.filter(row => row.id !== prospectId);
         setLocalData(updatedData);
         
-        // Synchroniser immédiatement avec Google Sheets
+        // Préparer les données pour synchronisation
         const formattedData = updatedData.map(row => ({
           ...row,
           user_id: row.user_id || user?.id || 'unknown'
         }));
 
+        // Synchroniser avec Google Sheets via la queue (évite les conflits)
         const success = await syncToGoogleSheets(
           { spreadsheetId, sheetName }, 
           formattedData
@@ -298,16 +312,19 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
           setHasUnsavedChanges(false);
           setLastSyncTime(new Date());
           toast.success('Prospect supprimé et synchronisé avec Google Sheets');
-          // Pas de rechargement pour éviter les doublons
         } else {
-          // Si la synchronisation échoue, restaurer les données
-          setLocalData(localData);
-          toast.error('Erreur lors de la synchronisation avec Google Sheets');
+          // Restaurer les données en cas d'échec de synchronisation
+          setLocalData(originalData);
+          toast.error('Erreur lors de la synchronisation avec Google Sheets - suppression annulée');
         }
       } catch (error) {
         console.error('Erreur lors de la suppression:', error);
         // Restaurer les données en cas d'erreur
-        setLocalData(localData);
+        const originalData = localData.filter(row => row.id !== prospectId);
+        if (originalData.length !== localData.length - 1) {
+          // Recharger depuis les données originales si la restauration échoue
+          await loadInitialData();
+        }
         toast.error('Erreur lors de la suppression du prospect');
       }
     }
@@ -398,8 +415,8 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       setHasUnsavedChanges(false);
       setLastSyncTime(new Date());
       toast.success('Données ajoutées au Google Sheet (existantes conservées)');
-      // Recharger pour avoir la version à jour
-      await loadInitialData();
+      // PAS de rechargement automatique pour éviter les doublons
+      // L'utilisateur peut utiliser le bouton refresh si nécessaire
     }
   };
 
@@ -710,6 +727,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                   Modifications non sauvées
                 </Badge>
               )}
+              <GoogleSheetsQueueStatus />
             </CardTitle>
             
             <div className="flex gap-2">

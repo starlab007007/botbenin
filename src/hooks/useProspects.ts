@@ -144,13 +144,25 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
       }
 
       console.log('Prospect créé:', inserted);
-      // Vérifier les doublons avant d'ajouter
+      // Déduplication robuste avant ajout - vérifier ID ET critères métier
       setProspects((prev) => {
         const existingIds = new Set(prev.map(p => p.id));
+        const existingKeys = new Set(prev.map(p => 
+          `${p.email}-${p.company}-${p.phone}`.toLowerCase()
+        ).filter(key => key !== '--'));
+        
+        const newKey = `${inserted.email || ''}-${inserted.company || ''}-${inserted.phone || ''}`.toLowerCase();
+        
         if (existingIds.has(inserted.id)) {
-          console.log('Prospect déjà présent, pas de duplication');
+          console.log('Prospect déjà présent par ID, pas de duplication');
           return prev;
         }
+        
+        if (newKey !== '--' && existingKeys.has(newKey)) {
+          console.log('Prospect déjà présent par critères métier, pas de duplication');
+          return prev;
+        }
+        
         return [inserted, ...prev];
       });
       
@@ -208,24 +220,46 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
   }, [toast]);
 
   const deleteProspect = useCallback(async (id: string) => {
-    const { error } = await supabase
-      .from("prospects")
-      .delete()
-      .eq("id", id);
+    // Suppression optimiste pour meilleure UX
+    const prospectToDelete = prospects.find(p => p.id === id);
+    if (!prospectToDelete) {
+      console.error('Prospect non trouvé pour suppression');
+      return { error: new Error('Prospect non trouvé') };
+    }
+
+    // Mettre à jour l'UI immédiatement
+    setProspects(prev => prev.filter(prospect => prospect.id !== id));
     
-    if (error) {
-      console.error('Erreur suppression prospect:', error);
+    try {
+      const { error } = await supabase
+        .from("prospects")
+        .delete()
+        .eq("id", id);
+      
+      if (error) {
+        console.error('Erreur suppression prospect:', error);
+        // Restaurer le prospect en cas d'erreur
+        setProspects(prev => [...prev, prospectToDelete].sort((a, b) => 
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        ));
+        return { error };
+      }
+      
+      toast({
+        title: "Prospect supprimé",
+        description: "Le prospect a été supprimé avec succès.",
+      });
+      
+      return { error: null };
+    } catch (error: any) {
+      console.error('Exception lors de la suppression:', error);
+      // Restaurer le prospect en cas d'exception
+      setProspects(prev => [...prev, prospectToDelete].sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      ));
       return { error };
     }
-    
-    setProspects(prev => prev.filter(prospect => prospect.id !== id));
-    toast({
-      title: "Prospect supprimé",
-      description: "Le prospect a été supprimé avec succès.",
-    });
-    
-    return { error: null };
-  }, [toast]);
+  }, [prospects, toast]);
 
   // Statistiques calculées
   const stats = useMemo(() => {

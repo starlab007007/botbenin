@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
+import { queueGoogleSheetsOperation } from '@/services/googleSheetsQueue';
 
 interface ProspectDataWithUser {
   id: string;
@@ -24,7 +25,7 @@ export const useGoogleSheetsWriter = (userId?: string) => {
   const writeToGoogleSheets = useCallback(async (
     config: GoogleSheetsConfig,
     data: ProspectDataWithUser[],
-    operation: 'append' | 'overwrite' = 'append' // DEFAULT CHANGED TO APPEND
+    operation: 'append' | 'overwrite' = 'append'
   ) => {
     // Utiliser le spreadsheet par défaut si aucun n'est spécifié
     const finalSpreadsheetId = config.spreadsheetId || defaultSpreadsheetId;
@@ -68,36 +69,60 @@ export const useGoogleSheetsWriter = (userId?: string) => {
       return false;
     }
 
+    // DÉDUPLICATION avant écriture - éviter les doublons dans Google Sheets
+    const deduplicatedData = userOnlyData.reduce((acc, current) => {
+      const existingIndex = acc.findIndex(item => 
+        item.id === current.id || 
+        (current.contact_name && current.company_name && current.user_id &&
+         item.contact_name === current.contact_name && 
+         item.company_name === current.company_name && 
+         item.user_id === current.user_id)
+      );
+      
+      if (existingIndex === -1) {
+        acc.push(current);
+      } else {
+        // Garder la version la plus récente/complète
+        acc[existingIndex] = { ...acc[existingIndex], ...current };
+      }
+      
+      return acc;
+    }, [] as ProspectDataWithUser[]);
+
+    console.log(`🔄 Déduplication: ${userOnlyData.length} → ${deduplicatedData.length} prospects`);
+
     setIsWriting(true);
 
     try {
-      console.log('🔄 Écriture vers Google Sheets:', { config, dataLength: data.length, operation });
-
       // Ensure all data has user_id and belongs to current user ONLY
-      const dataWithUserId = userOnlyData.map(item => ({
+      const dataWithUserId = deduplicatedData.map(item => ({
         ...item,
-        user_id: userId // Force correct user_id for security
+        user_id: userId, // Force correct user_id for security
+        id: item.id || `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       }));
 
-      const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
-        body: {
-          spreadsheetId: finalSpreadsheetId,
-          sheetName: config.sheetName || 'Feuille 1',
-          data: dataWithUserId,
-          operation: operation,
-          userId: userId
-        }
-      });
+      console.log('🔄 Ajout à la queue Google Sheets:', { config, dataLength: deduplicatedData.length, operation });
 
-      if (error) {
-        console.error('❌ Erreur Supabase function:', error);
-        toast({
-          title: "❌ Erreur de synchronisation",
-          description: error.message,
-          variant: "destructive",
+      // Utiliser la queue pour sérialiser les opérations et éviter les conflits
+      const result = await queueGoogleSheetsOperation(async () => {
+        console.log('🔄 Exécution de l\'opération Google Sheets');
+        
+        const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
+          body: {
+            spreadsheetId: finalSpreadsheetId,
+            sheetName: config.sheetName || 'Feuille 1',
+            data: dataWithUserId,
+            operation: operation,
+            userId: userId
+          }
         });
-        return false;
-      }
+
+        if (error) {
+          throw new Error(error.message || 'Erreur Supabase function');
+        }
+
+        return result;
+      });
 
       if (result?.error) {
         console.error('❌ Erreur function result:', result.error);
@@ -113,7 +138,7 @@ export const useGoogleSheetsWriter = (userId?: string) => {
         setLastWriteTime(new Date());
         toast({
           title: "✅ Synchronisation réussie",
-          description: result.message || `${userOnlyData.length} prospects synchronisés`,
+          description: result.message || `${deduplicatedData.length} prospects synchronisés`,
           duration: 3000,
         });
         console.log('✅ Données écrites avec succès:', result);
