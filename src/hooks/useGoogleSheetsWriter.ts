@@ -18,12 +18,18 @@ export const useGoogleSheetsWriter = (userId?: string) => {
   const [lastWriteTime, setLastWriteTime] = useState<Date | null>(null);
   const { toast } = useToast();
 
+  // Configuration par défaut pour tous les utilisateurs
+  const defaultSpreadsheetId = '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8';
+
   const writeToGoogleSheets = useCallback(async (
     config: GoogleSheetsConfig,
     data: ProspectDataWithUser[],
     operation: 'append' | 'overwrite' = 'overwrite'
   ) => {
-    if (!config.spreadsheetId) {
+    // Utiliser le spreadsheet par défaut si aucun n'est spécifié
+    const finalSpreadsheetId = config.spreadsheetId || defaultSpreadsheetId;
+    
+    if (!finalSpreadsheetId) {
       toast({
         title: "❌ Configuration manquante",
         description: "L'ID du Google Sheet est requis",
@@ -54,7 +60,7 @@ export const useGoogleSheetsWriter = (userId?: string) => {
 
       const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
         body: {
-          spreadsheetId: config.spreadsheetId,
+          spreadsheetId: finalSpreadsheetId,
           sheetName: config.sheetName || 'Feuille 1',
           data: dataWithUserId,
           operation: operation,

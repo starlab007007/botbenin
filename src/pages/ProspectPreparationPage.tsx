@@ -42,7 +42,7 @@ export const ProspectPreparationPage = () => {
   
   // Configuration Google Sheets - utilise le sheet fourni par l'utilisateur
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
-    spreadsheetId: '1iW3xloFx6GH9_Ot8RXBhm9c-SxF1O8R5S1C0wPyzNok', // Nouveau Google Sheet fourni
+    spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8', // Nouveau Google Sheet fourni
     sheetName: 'Feuille 1'
   });
   const [showConfig, setShowConfig] = useState(false);
@@ -117,7 +117,7 @@ export const ProspectPreparationPage = () => {
                     id="spreadsheet-id"
                     value={googleSheetsConfig.spreadsheetId}
                     onChange={(e) => setGoogleSheetsConfig(prev => ({ ...prev, spreadsheetId: e.target.value }))}
-                    placeholder="1iW3xloFx6GH9_Ot8RXBhm9c-SxF1O8R5S1C0wPyzNok"
+                    placeholder="14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8"
                     className="w-full font-mono text-sm"
                   />
                 </div>

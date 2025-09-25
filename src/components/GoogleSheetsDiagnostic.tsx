@@ -26,7 +26,7 @@ export const GoogleSheetsDiagnostic: React.FC = () => {
     diagnosticResults.push({
       test: 'Configuration de base',
       status: 'success',
-      message: 'Sheet ID configuré: 1iW3xloFx6GH9_Ot8RXBhm9c-SxF1O8R5S1C0wPyzNok'
+      message: 'Sheet ID configuré: 14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8'
     });
 
     // Test 2: Test de connexion avec sheet public Google
@@ -72,7 +72,7 @@ export const GoogleSheetsDiagnostic: React.FC = () => {
     try {
       const { data: yourSheetResult, error: yourSheetError } = await supabase.functions.invoke('google-sheets-reader', {
         body: {
-          spreadsheetId: '1iW3xloFx6GH9_Ot8RXBhm9c-SxF1O8R5S1C0wPyzNok',
+          spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8',
           sheetName: 'Feuille 1'
         }
       });

@@ -24,7 +24,7 @@ export const useGoogleSheets = (initialConfig?: GoogleSheetsConfig, userId?: str
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [config, setConfig] = useState<GoogleSheetsConfig>(
     initialConfig || {
-      spreadsheetId: '1iW3xloFx6GH9_Ot8RXBhm9c-SxF1O8R5S1C0wPyzNok',
+      spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8',
       sheetName: 'Feuille 1'
     }
   );
