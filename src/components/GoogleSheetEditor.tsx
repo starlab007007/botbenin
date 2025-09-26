@@ -226,8 +226,9 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   }, []);
 
   const addNewRow = async () => {
-    if (!user?.id) {
-      toast.error('Vous devez être connecté pour ajouter des prospects');
+    if (!user?.id || isWriting) {
+      if (isWriting) toast.error('Une opération est en cours, veuillez patienter');
+      else toast.error('Vous devez être connecté pour ajouter des prospects');
       return;
     }
 
@@ -246,40 +247,27 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       Statut: 'En attente'
     };
 
-    // Ajouter directement au Google Sheet sans écraser les données existantes
-    console.log('🔄 Ajout immédiat d\'une nouvelle ligne au Google Sheet...', { newRow });
+    // Mode "Google Sheets master" : ajouter UNIQUEMENT au Google Sheet
+    console.log('🔄 Ajout d\'une nouvelle ligne (Google Sheets master)...', { newRow });
     const success = await appendToGoogleSheets(
       { spreadsheetId, sheetName }, 
       [newRow]
     );
     
     if (success) {
-      // Ajouter localement seulement si pas déjà présent (déduplication robuste)
-      setLocalData(prev => {
-        const existsById = prev.some(row => row.id === newRow.id);
-        const existsByKey = prev.some(row => 
-          row.contact_name === newRow.contact_name && 
-          row.company_name === newRow.company_name && 
-          row.user_id === newRow.user_id &&
-          (row.contact_name || row.company_name) // Au moins un champ rempli
-        );
-        
-        if (existsById || existsByKey) {
-          console.log('Ligne déjà présente (ID ou critères), pas de duplication');
-          return prev;
-        }
-        return [...prev, newRow];
-      });
-      toast.success('Nouveau prospect ajouté au Google Sheet');
-    } else {
-      // En cas d'échec, ajouter localement avec vérification
+      // Ajouter localement SEULEMENT si pas déjà présent
       setLocalData(prev => {
         const exists = prev.some(row => row.id === newRow.id);
-        if (exists) return prev;
+        if (exists) {
+          console.log('🔒 Ligne déjà présente, pas de duplication');
+          return prev;
+        }
+        console.log('✅ Ajout local de la nouvelle ligne');
         return [...prev, newRow];
       });
-      setHasUnsavedChanges(true);
-      toast.error('Erreur lors de l\'ajout. Ajouté localement - sauvegardez manuellement');
+      toast.success('Nouveau prospect ajouté');
+    } else {
+      toast.error('Erreur lors de l\'ajout au Google Sheet');
     }
   };
 
@@ -289,48 +277,43 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   };
 
   const deleteProspect = async (prospectId: string) => {
+    if (isWriting) {
+      toast.error('Une opération est en cours, veuillez patienter');
+      return;
+    }
+
     const confirmed = window.confirm('Êtes-vous sûr de vouloir supprimer ce prospect ? Cette action est irréversible.');
-    if (confirmed) {
-      try {
-        // Trouver le prospect à supprimer AVANT la suppression locale
-        const prospectToDelete = localData.find(row => row.id === prospectId);
-        if (!prospectToDelete) {
-          toast.error('Prospect non trouvé');
-          return;
-        }
+    if (!confirmed) return;
 
-        // Suppression optimiste locale immédiate
-        const originalData = [...localData];
-        const updatedData = localData.filter(row => row.id !== prospectId);
-        setLocalData(updatedData);
-        
-        // Suppression spécifique dans Google Sheets basée sur les critères métier
-        // (nom + entreprise) au lieu de réécrire toutes les données
-        const success = await deleteFromGoogleSheets(
-          { spreadsheetId, sheetName }, 
-          {
-            contact_name: prospectToDelete.contact_name,
-            company_name: prospectToDelete.company_name,
-            user_id: prospectToDelete.user_id || user?.id || 'unknown'
-          }
-        );
+    const prospectToDelete = localData.find(row => row.id === prospectId);
+    if (!prospectToDelete) {
+      toast.error('Prospect non trouvé');
+      return;
+    }
 
-        if (success) {
-          setHasUnsavedChanges(false);
-          setLastSyncTime(new Date());
-          toast.success(`Prospect "${prospectToDelete.contact_name}" supprimé de Google Sheets`);
-        } else {
-          // Restaurer les données en cas d'échec de synchronisation
-          setLocalData(originalData);
-          toast.error('Erreur lors de la suppression - action annulée');
-        }
-      } catch (error) {
-        console.error('Erreur lors de la suppression:', error);
-        // Restaurer les données en cas d'erreur
-        const originalData = [...localData];
-        setLocalData(originalData.filter(row => row.id !== prospectId) === originalData ? originalData : [...localData]);
-        toast.error('Erreur lors de la suppression du prospect');
+    // Mode "Google Sheets master" : supprimer du Google Sheet puis synchroniser local
+    console.log('🗑️ Suppression du Google Sheet (master)', { 
+      contact_name: prospectToDelete.contact_name,
+      company_name: prospectToDelete.company_name
+    });
+    
+    const success = await deleteFromGoogleSheets(
+      { spreadsheetId, sheetName }, 
+      {
+        contact_name: prospectToDelete.contact_name,
+        company_name: prospectToDelete.company_name,
+        user_id: prospectToDelete.user_id || user?.id || 'unknown'
       }
+    );
+
+    if (success) {
+      // Suppression locale SEULEMENT après succès du Google Sheet
+      setLocalData(prev => prev.filter(row => row.id !== prospectId));
+      setHasUnsavedChanges(false);
+      setLastSyncTime(new Date());
+      toast.success(`Prospect "${prospectToDelete.contact_name || 'sans nom'}" supprimé`);
+    } else {
+      toast.error('Erreur lors de la suppression');
     }
   };
 
@@ -398,19 +381,20 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   };
 
   const saveToGoogleSheets = async () => {
-    if (!hasUnsavedChanges) {
-      toast.info('Aucune modification à sauvegarder');
+    if (!hasUnsavedChanges || isWriting) {
+      if (isWriting) toast.info('Une opération est en cours');
+      else toast.info('Aucune modification à sauvegarder');
       return;
     }
 
-    // Sauvegarder en ajoutant les nouvelles données sans supprimer l'existant
+    // Mode "synchronisation complète" : écraser le Google Sheet avec l'état local actuel
     const formattedData = localData.map(row => ({
       ...row,
       user_id: row.user_id || user?.id || 'unknown'
     }));
 
-    console.log('🔄 Sauvegarde vers Google Sheets (ajout sans suppression)...', { formattedData });
-    const success = await appendToGoogleSheets(
+    console.log('🔄 Synchronisation complète vers Google Sheets...', { count: formattedData.length });
+    const success = await syncToGoogleSheets(
       { spreadsheetId, sheetName }, 
       formattedData
     );
@@ -418,9 +402,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
     if (success) {
       setHasUnsavedChanges(false);
       setLastSyncTime(new Date());
-      toast.success('Données ajoutées au Google Sheet (existantes conservées)');
-      // PAS de rechargement automatique pour éviter les doublons
-      // L'utilisateur peut utiliser le bouton refresh si nécessaire
+      toast.success('Données synchronisées avec Google Sheets');
     }
   };
 
