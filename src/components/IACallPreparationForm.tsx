@@ -12,6 +12,8 @@ import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { useProspectEvaluationWebhook } from '@/hooks/useProspectEvaluationWebhook';
 import { ProspectViewer } from './ProspectViewer';
+import { WebhookConfigurationPanel } from './WebhookConfigurationPanel';
+import { EvaluationResultsViewer } from './EvaluationResultsViewer';
 import { 
   User, 
   Building, 
@@ -28,7 +30,9 @@ import {
   ArrowRight,
   Settings,
   Users,
-  Eye
+  Eye,
+  FileText,
+  Cog
 } from 'lucide-react';
 
 type Step = 'add' | 'activate' | 'evaluate' | 'view';
@@ -57,6 +61,8 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
   const [companyName, setCompanyName] = useState('');
   const [selectedProspect, setSelectedProspect] = useState<RecentProspect | null>(null);
   const [recentAdditions, setRecentAdditions] = useState<RecentProspect[]>([]);
+  const [showWebhookConfig, setShowWebhookConfig] = useState(false);
+  const [showEvaluationResults, setShowEvaluationResults] = useState(false);
 
   const {
     isAdding,
@@ -77,6 +83,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
   const {
     webhookConfig,
     isLoading: isWebhookLoading,
+    evaluationResults,
     triggerEvaluation
   } = useProspectEvaluationWebhook();
 
@@ -205,6 +212,11 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
       setSelectedProspect(prev => prev ? { ...prev, isEvaluated: true } : null);
       
       toast.success('Évaluation IA lancée avec succès !');
+      
+      // Afficher les résultats si disponibles
+      if (evaluationResults.length > 0) {
+        setShowEvaluationResults(true);
+      }
       
       // Retour au début après 3 secondes
       setTimeout(() => {
@@ -351,16 +363,39 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 )}
               </Button>
               
-              {/* Bouton voir mes prospects */}
-              <Button
-                type="button"
-                onClick={() => setCurrentStep('view')}
-                variant="outline"
-                className="w-full h-12 text-base border-2 border-blue-200 hover:bg-blue-50"
-              >
-                <Users className="w-5 h-5 mr-2" />
-                Voir mes prospects
-              </Button>
+              {/* Actions complémentaires */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Button
+                  type="button"
+                  onClick={() => setCurrentStep('view')}
+                  variant="outline"
+                  className="h-12 text-base border-2 border-blue-200 hover:bg-blue-50"
+                >
+                  <Users className="w-5 h-5 mr-2" />
+                  Mes prospects
+                </Button>
+                
+                <Button
+                  type="button"
+                  onClick={() => setShowWebhookConfig(true)}
+                  variant="outline"
+                  className="h-12 text-base border-2 border-purple-200 hover:bg-purple-50"
+                >
+                  <Cog className="w-5 h-5 mr-2" />
+                  Configuration
+                </Button>
+                
+                <Button
+                  type="button"
+                  onClick={() => setShowEvaluationResults(true)}
+                  disabled={evaluationResults.length === 0}
+                  variant="outline"
+                  className="h-12 text-base border-2 border-green-200 hover:bg-green-50 disabled:opacity-50"
+                >
+                  <FileText className="w-5 h-5 mr-2" />
+                  Résultats ({evaluationResults.length})
+                </Button>
+              </div>
             </form>
           )}
 
@@ -455,12 +490,34 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                       Évaluation terminée
                     </>
                   ) : (
-                    <>
-                      <Rocket className="w-5 h-5 mr-2" />
-                      Lancer l'Évaluation
-                    </>
-                  )}
-                </Button>
+                  <>
+                    <Rocket className="w-5 h-5 mr-2" />
+                    Lancer l'Évaluation
+                  </>
+                )}
+              </Button>
+
+              {/* Configuration webhook si non configuré */}
+              {!webhookConfig?.url && (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-yellow-800 mb-2">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="font-medium">Configuration requise</span>
+                  </div>
+                  <p className="text-sm text-yellow-700 mb-3">
+                    Configurez l'URL webhook pour activer l'évaluation IA
+                  </p>
+                  <Button
+                    onClick={() => setShowWebhookConfig(true)}
+                    size="sm"
+                    variant="outline"
+                    className="border-yellow-300 hover:bg-yellow-100"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Configurer maintenant
+                  </Button>
+                </div>
+              )}
 
                 <div className="flex gap-3">
                   <Button
@@ -556,6 +613,19 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           </CardContent>
         </Card>
       )}
+
+      {/* Configuration Webhook */}
+      <WebhookConfigurationPanel
+        isOpen={showWebhookConfig}
+        onClose={() => setShowWebhookConfig(false)}
+      />
+
+      {/* Résultats d'évaluation */}
+      <EvaluationResultsViewer
+        results={evaluationResults}
+        isOpen={showEvaluationResults}
+        onClose={() => setShowEvaluationResults(false)}
+      />
 
       {/* Instructions */}
       <Card className="border-0 shadow-sm bg-amber-50/50">

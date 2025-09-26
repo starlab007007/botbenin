@@ -390,7 +390,12 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       return;
     }
 
-    const success = await triggerEvaluation(prospect, updateRunInSheet);
+    const success = await triggerEvaluation({
+      id: prospect.id,
+      contact_name: prospect.contact_name || '',
+      company_name: prospect.company_name || '',
+      ...prospect
+    }, updateRunInSheet);
     
     if (success) {
       setAnalysisModalOpen(false);
