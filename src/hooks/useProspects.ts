@@ -179,17 +179,40 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
         throw new Error("Vous devez être connecté.");
       }
 
-      // Vérification anti-doublons AVANT insertion
-      const duplicateCheckKey = `${prospectData.email || ''}-${prospectData.company || ''}-${prospectData.phone || ''}`.toLowerCase();
-      const existingDuplicate = prospects.find(p => {
-        const pKey = `${p.email || ''}-${p.company || ''}-${p.phone || ''}`.toLowerCase();
-        return pKey === duplicateCheckKey && pKey !== '--' && pKey.length > 2;
+      // Vérification anti-doublons AVANT insertion - Critères plus stricts
+      const duplicateCheckCriteria = {
+        email: prospectData.email?.toLowerCase().trim(),
+        company: prospectData.company?.toLowerCase().trim(),
+        phone: prospectData.phone?.trim(),
+        name: `${prospectData.first_name?.toLowerCase().trim()} ${prospectData.last_name?.toLowerCase().trim()}`
+      };
+      
+      const existingDuplicate = prospects.find(p => {        
+        // Vérification par email + entreprise (critères forts)
+        if (duplicateCheckCriteria.email && duplicateCheckCriteria.company && p.email && p.company) {
+          if (p.email.toLowerCase().trim() === duplicateCheckCriteria.email && 
+              p.company.toLowerCase().trim() === duplicateCheckCriteria.company) {
+            return true;
+          }
+        }
+        
+        // Vérification par nom complet + entreprise
+        if (duplicateCheckCriteria.name && duplicateCheckCriteria.company && p.first_name && p.last_name && p.company) {
+          const existingName = `${p.first_name.toLowerCase().trim()} ${p.last_name.toLowerCase().trim()}`;
+          if (existingName === duplicateCheckCriteria.name && 
+              p.company.toLowerCase().trim() === duplicateCheckCriteria.company) {
+            return true;
+          }
+        }
+        
+        return false;
       });
 
       if (existingDuplicate) {
+        console.log('🔒 Prospect déjà existant détecté:', existingDuplicate);
         toast({
           title: "Prospect déjà existant",
-          description: `Un prospect similaire existe déjà: ${existingDuplicate.first_name} ${existingDuplicate.last_name}`,
+          description: `Un prospect similaire existe déjà: ${existingDuplicate.first_name} ${existingDuplicate.last_name} chez ${existingDuplicate.company}`,
           variant: "destructive"
         });
         return null;
@@ -223,15 +246,32 @@ export function useProspects({ databaseId, searchTerm = '' }: UseProspectsProps 
 
       console.log('Prospect créé:', inserted);
       
-      // Mise à jour optimiste avec vérification
+      // Mise à jour optimiste avec vérification STRICTE
       setProspects((prev) => {
-        // Vérification finale anti-doublons
-        const alreadyExists = prev.some(p => p.id === inserted.id);
-        if (alreadyExists) {
-          console.log('Prospect déjà présent dans la liste, pas de duplication');
+        // Vérification finale anti-doublons par ID
+        const alreadyExistsById = prev.some(p => p.id === inserted.id);
+        if (alreadyExistsById) {
+          console.log('🔒 Prospect déjà présent par ID, pas de duplication');
           return prev;
         }
         
+        // Vérification par critères métier pour éviter les doublons logiques
+        const alreadyExistsByBusiness = prev.some(p => {
+          if (!p.email || !p.company || !p.phone || 
+              !inserted.email || !inserted.company || !inserted.phone) {
+            return false; // Skip si champs manquants
+          }
+          return p.email.toLowerCase() === inserted.email.toLowerCase() && 
+                 p.company.toLowerCase() === inserted.company.toLowerCase() && 
+                 p.phone === inserted.phone;
+        });
+        
+        if (alreadyExistsByBusiness) {
+          console.log('🔒 Prospect déjà présent par critères métier, pas de duplication');
+          return prev;
+        }
+        
+        console.log('✅ Ajout du nouveau prospect à la liste locale');
         return [inserted, ...prev];
       });
       

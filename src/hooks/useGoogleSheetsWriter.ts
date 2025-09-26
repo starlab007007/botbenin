@@ -196,6 +196,8 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     config: GoogleSheetsConfig,
     data: ProspectDataWithUser[]
   ) => {
+    // Cette fonction doit ajouter SEULEMENT les nouvelles données, pas toutes les existantes
+    console.log('📝 Ajout de nouvelles données uniquement:', { count: data.length });
     return writeToGoogleSheets(config, data, 'append');
   }, [writeToGoogleSheets]);
 
@@ -206,11 +208,68 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     return writeToGoogleSheets(config, data, 'overwrite');
   }, [writeToGoogleSheets]);
 
+  // Fonction pour supprimer une ligne spécifique dans Google Sheets par critères métier
+  const deleteFromGoogleSheets = useCallback(async (
+    config: GoogleSheetsConfig, 
+    prospectToDelete: { contact_name?: string; company_name?: string; user_id: string }
+  ) => {
+    const finalSpreadsheetId = config.spreadsheetId;
+    
+    if (!finalSpreadsheetId) {
+      toast({
+        title: "❌ Configuration manquante",
+        description: "L'ID du Google Sheet est requis",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    console.log('🗑️ Suppression spécifique par critères:', prospectToDelete);
+
+    try {
+      setIsWriting(true);
+      
+      const result = await queueGoogleSheetsOperation(async () => {
+        const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
+          body: {
+            spreadsheetId: finalSpreadsheetId,
+            sheetName: config.sheetName || 'Feuille 1',
+            operation: 'delete_specific', // Opération spécifique pour suppression par critères
+            deleteData: prospectToDelete, // Critères de suppression
+            userId: prospectToDelete.user_id
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Erreur Supabase function');
+        }
+
+        return result;
+      });
+
+      if (result?.success) {
+        toast({
+          title: "✅ Suppression réussie",
+          description: "Prospect supprimé de Google Sheets",
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression:', error);
+      return false;
+    } finally {
+      setIsWriting(false);
+    }
+  }, [toast]);
+
   return {
     isWriting,
     lastWriteTime,
     writeToGoogleSheets,
     appendToGoogleSheets,
-    syncToGoogleSheets
+    syncToGoogleSheets,
+    deleteFromGoogleSheets
   };
 };
