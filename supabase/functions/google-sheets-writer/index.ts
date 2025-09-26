@@ -301,14 +301,47 @@ async function handleDeleteById(
   try {
     console.log('Suppression par ID pour le prospect:', prospectId);
 
-    // Lire toutes les données pour trouver la ligne à supprimer
+    // 1. D'abord obtenir les métadonnées de la feuille pour récupérer le bon sheetId
+    const metadataUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const metadataResponse = await fetch(metadataUrl, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!metadataResponse.ok) {
+      const error = await metadataResponse.text();
+      console.error('Erreur métadonnées:', error);
+      return new Response(
+        JSON.stringify({ error: 'Impossible de récupérer les métadonnées', details: error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const metadata = await metadataResponse.json();
+    const sheet = metadata.sheets?.find((s: any) => s.properties.title === sheetName);
+    
+    if (!sheet) {
+      return new Response(
+        JSON.stringify({ error: `Feuille "${sheetName}" non trouvée` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const sheetId = sheet.properties.sheetId;
+    console.log(`SheetId trouvé: ${sheetId} pour la feuille "${sheetName}"`);
+
+    // 2. Lire toutes les données pour trouver la ligne à supprimer
     const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}`;
     const readResponse = await fetch(readUrl, {
       headers: { 'Authorization': `Bearer ${accessToken}` }
     });
 
     if (!readResponse.ok) {
-      throw new Error('Impossible de lire la feuille');
+      const error = await readResponse.text();
+      console.error('Erreur lecture:', error);
+      return new Response(
+        JSON.stringify({ error: 'Impossible de lire la feuille', details: error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const sheetData = await readResponse.json();
@@ -332,7 +365,7 @@ async function handleDeleteById(
       );
     }
 
-    // Trouver la ligne à supprimer
+    // 3. Trouver la ligne à supprimer
     let rowToDelete = -1;
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i] || [];
@@ -340,7 +373,7 @@ async function handleDeleteById(
         // Vérifier la propriété
         if (userId && userIdIndex !== -1 && row[userIdIndex] !== userId) {
           return new Response(
-            JSON.stringify({ error: 'Permission denied' }),
+            JSON.stringify({ error: 'Permission denied: vous ne pouvez pas supprimer ce prospect' }),
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -351,12 +384,14 @@ async function handleDeleteById(
 
     if (rowToDelete === -1) {
       return new Response(
-        JSON.stringify({ error: 'Prospect non trouvé' }),
+        JSON.stringify({ error: 'Prospect non trouvé dans la feuille' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Supprimer la ligne
+    console.log(`Suppression de la ligne ${rowToDelete} (index Google Sheets)`);
+
+    // 4. Supprimer la ligne en utilisant le bon sheetId
     const deleteUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
     const deleteResponse = await fetch(deleteUrl, {
       method: 'POST',
@@ -368,9 +403,9 @@ async function handleDeleteById(
         requests: [{
           deleteDimension: {
             range: {
-              sheetId: 0, // Assuming first sheet
+              sheetId: sheetId, // Utiliser le bon sheetId
               dimension: 'ROWS',
-              startIndex: rowToDelete - 1, // 0-indexed for API
+              startIndex: rowToDelete - 1, // 0-indexed pour l'API
               endIndex: rowToDelete
             }
           }
@@ -380,17 +415,22 @@ async function handleDeleteById(
 
     if (!deleteResponse.ok) {
       const error = await deleteResponse.text();
+      console.error('Erreur suppression:', error);
       return new Response(
         JSON.stringify({ error: 'Suppression échouée', details: error }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    const deleteResult = await deleteResponse.json();
+    console.log('Suppression réussie:', deleteResult);
+
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Prospect supprimé avec succès',
-        prospectId: prospectId
+        prospectId: prospectId,
+        deletedRow: rowToDelete
       }),
       { 
         status: 200, 
@@ -482,22 +522,25 @@ serve(async (req) => {
           suggestion: 'Configurez votre clé de service account Google dans les secrets Supabase'
         }),
         { 
-          status: 400, 
+          status: 401, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
 
-    try {
     // Gestion spéciale pour update_field et delete_by_id
     if (operation === 'update_field') {
+      console.log('Traitement update_field pour:', prospectId);
       return await handleUpdateField(spreadsheetId, sheetName, prospectId, fieldName, fieldValue, accessToken, corsHeaders, userId);
     }
     
     if (operation === 'delete_by_id') {
+      console.log('Traitement delete_by_id pour:', prospectId);
       return await handleDeleteById(spreadsheetId, sheetName, prospectId, accessToken, corsHeaders, userId);
     }
       
+    // Traitement pour les autres opérations (append, overwrite, etc.)
+    try {
       // Prepare data for Google Sheets - Dynamic columns approach
       if (data.length === 0) {
         return new Response(
