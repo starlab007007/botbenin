@@ -22,7 +22,14 @@ export const ProspectPreparationPage = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   
-  // Redirection si non authentifié
+  // Configuration Google Sheets - utilise le sheet fourni par l'utilisateur
+  const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
+    spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8', // Nouveau Google Sheet fourni
+    sheetName: 'Feuille 1'
+  });
+  const [showConfig, setShowConfig] = useState(false);
+
+  // Redirection si non authentifié - APRÈS tous les hooks
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
@@ -39,13 +46,6 @@ export const ProspectPreparationPage = () => {
       </div>
     );
   }
-  
-  // Configuration Google Sheets - utilise le sheet fourni par l'utilisateur
-  const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
-    spreadsheetId: '14EJzlOtGp3aGQciNLgqafi-yjz6Rc83bGXahWE5OIZ8', // Nouveau Google Sheet fourni
-    sheetName: 'Feuille 1'
-  });
-  const [showConfig, setShowConfig] = useState(false);
 
   const openGoogleSheet = () => {
     const url = `https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/edit`;
