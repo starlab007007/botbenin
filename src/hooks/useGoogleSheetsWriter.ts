@@ -196,22 +196,9 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     config: GoogleSheetsConfig,
     data: ProspectDataWithUser[]
   ) => {
-    // Fonction d'ajout pur : ajoute UNIQUEMENT les nouvelles données
-    console.log('📝 Ajout pur de nouvelles données (mode append strict):', { count: data.length });
-    
-    // Vérification supplémentaire pour éviter l'ajout de données vides/invalides
-    const validData = data.filter(item => {
-      const hasRequiredFields = item.user_id && (item.contact_name || item.company_name || item.id);
-      return hasRequiredFields;
-    });
-    
-    if (validData.length === 0) {
-      console.log('🚫 Aucune donnée valide à ajouter');
-      return false;
-    }
-    
-    console.log(`📝 Ajout de ${validData.length} lignes valides sur ${data.length} demandées`);
-    return writeToGoogleSheets(config, validData, 'append');
+    // Cette fonction doit ajouter SEULEMENT les nouvelles données, pas toutes les existantes
+    console.log('📝 Ajout de nouvelles données uniquement:', { count: data.length });
+    return writeToGoogleSheets(config, data, 'append');
   }, [writeToGoogleSheets]);
 
   const syncToGoogleSheets = useCallback(async (
