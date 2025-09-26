@@ -35,6 +35,21 @@ import {
   Zap
 } from 'lucide-react';
 
+// Headers fixes et immuables pour garantir la cohérence avec Google Sheets
+const FIXED_HEADERS = [
+  'user_id',
+  '_isOrphan', 
+  'contact_name',
+  'company_name',
+  'company_website',
+  'Rôle',
+  'linkedin_contact_url',
+  'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+  'Préparation de l\'appel',
+  'Run',
+  'Statut'
+] as const;
+
 interface GoogleSheetRow extends GoogleSheetProspectWithUser {
   [key: string]: any;
 }
@@ -138,20 +153,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       }));
       
       // Headers fixes pour garantir la compatibilité avec le Google Sheet
-      const exactHeaders = [
-        'user_id',
-        '_isOrphan', 
-        'contact_name',
-        'company_name',
-        'company_website',
-        'Rôle',
-        'linkedin_contact_url',
-        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
-        'Préparation de l\'appel',
-        'Run',
-        'Statut'
-      ];
-      setHeaders(exactHeaders);
+      setHeaders([...FIXED_HEADERS]);
       setLocalData(processedData);
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
@@ -159,20 +161,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       console.log(`🔒 Données filtrées par user_id: ${processedData.length} prospects pour l'utilisateur ${user.id}`);
     } else {
       // Aucune donnée, mais définir quand même les headers pour permettre l'ajout
-      const exactHeaders = [
-        'user_id',
-        '_isOrphan',
-        'contact_name', 
-        'company_name',
-        'company_website',
-        'Rôle',
-        'linkedin_contact_url',
-        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
-        'Préparation de l\'appel',
-        'Run',
-        'Statut'
-      ];
-      setHeaders(exactHeaders);
+      setHeaders([...FIXED_HEADERS]);
       setLocalData([]);
     }
   }, [googleSheetsData, user?.id, isAuthenticated]);
@@ -193,20 +182,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
       if (!error && result?.headers && Array.isArray(result.headers)) {
         // Toujours utiliser les colonnes exactes pour garantir la synchronisation
-        const exactHeaders = [
-          'user_id',
-          '_isOrphan',
-          'contact_name',
-          'company_name', 
-          'company_website',
-          'Rôle',
-          'linkedin_contact_url',
-          'Pertinence du prospect par rapport à notre offre ? (sur 100)',
-          'Préparation de l\'appel',
-          'Run',
-          'Statut'
-        ];
-        setHeaders(exactHeaders);
+        setHeaders([...FIXED_HEADERS]);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des headers:', error);
