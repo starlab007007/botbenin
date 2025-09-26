@@ -264,12 +264,79 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     }
   }, [toast]);
 
+  // Fonction pour mettre à jour une colonne spécifique d'un prospect
+  const updateProspectField = useCallback(async (
+    config: GoogleSheetsConfig,
+    prospectId: string,
+    fieldName: string,
+    fieldValue: string
+  ) => {
+    const finalSpreadsheetId = config.spreadsheetId || defaultSpreadsheetId;
+    
+    if (!finalSpreadsheetId || !userId) {
+      toast({
+        title: "❌ Configuration manquante",
+        description: "Configuration Google Sheets ou utilisateur requis",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    console.log('📝 Mise à jour du champ:', { prospectId, fieldName, fieldValue });
+
+    try {
+      setIsWriting(true);
+      
+      const result = await queueGoogleSheetsOperation(async () => {
+        const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
+          body: {
+            spreadsheetId: finalSpreadsheetId,
+            sheetName: config.sheetName || 'Feuille 1',
+            operation: 'update_field',
+            prospectId: prospectId,
+            fieldName: fieldName,
+            fieldValue: fieldValue,
+            userId: userId
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Erreur Supabase function');
+        }
+
+        return result;
+      });
+
+      if (result?.success) {
+        toast({
+          title: "✅ Mise à jour réussie",
+          description: `${fieldName} mis à jour: ${fieldValue}`,
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Erreur lors de la mise à jour:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast({
+        title: "❌ Erreur de mise à jour",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsWriting(false);
+    }
+  }, [toast, userId]);
+
   return {
     isWriting,
     lastWriteTime,
     writeToGoogleSheets,
     appendToGoogleSheets,
     syncToGoogleSheets,
-    deleteFromGoogleSheets
+    deleteFromGoogleSheets,
+    updateProspectField
   };
 };
