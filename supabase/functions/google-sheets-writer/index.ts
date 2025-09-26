@@ -374,18 +374,24 @@ serve(async (req) => {
         );
       }
 
-      // Extract headers from first row - inclure ALL les champs nécessaires
-      const firstRow = data[0];
-      // Ne pas filtrer l'id car il est nécessaire pour identifier les prospects
-      let headers = Object.keys(firstRow);
+      // Définir l'ordre des colonnes fixe pour correspondre au Google Sheet
+      const fixedHeaders = [
+        'user_id',
+        'id', 
+        '_isOrphan',
+        'contact_name',
+        'company_name', 
+        'company_website',
+        'Rôle',
+        'linkedin_contact_url',
+        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+        'Préparation de l\'appel',
+        'Run',
+        'Statut'
+      ];
       
-      // S'assurer que user_id est toujours en première position si présent
-      if (headers.includes('user_id')) {
-        headers = ['user_id', ...headers.filter(h => h !== 'user_id')];
-      } else if (userId) {
-        // Ajouter user_id si pas présent mais userId fourni
-        headers = ['user_id', ...headers];
-      }
+      // Utiliser l'ordre fixe plutôt que l'ordre des clés de l'objet
+      const headers = fixedHeaders;
       
       // Convert data to rows using dynamic headers - Forcer user_id
       const rows = data.map((item: any) => 
