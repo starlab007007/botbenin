@@ -35,21 +35,6 @@ import {
   Zap
 } from 'lucide-react';
 
-// Headers fixes et immuables pour garantir la cohérence avec Google Sheets
-const FIXED_HEADERS = [
-  'user_id',
-  '_isOrphan', 
-  'contact_name',
-  'company_name',
-  'company_website',
-  'Rôle',
-  'linkedin_contact_url',
-  'Pertinence du prospect par rapport à notre offre ? (sur 100)',
-  'Préparation de l\'appel',
-  'Run',
-  'Statut'
-] as const;
-
 interface GoogleSheetRow extends GoogleSheetProspectWithUser {
   [key: string]: any;
 }
@@ -153,7 +138,20 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       }));
       
       // Headers fixes pour garantir la compatibilité avec le Google Sheet
-      setHeaders([...FIXED_HEADERS]);
+      const exactHeaders = [
+        'user_id',
+        '_isOrphan', 
+        'contact_name',
+        'company_name',
+        'company_website',
+        'Rôle',
+        'linkedin_contact_url',
+        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+        'Préparation de l\'appel',
+        'Run',
+        'Statut'
+      ];
+      setHeaders(exactHeaders);
       setLocalData(processedData);
       setLastSyncTime(new Date());
       setHasUnsavedChanges(false);
@@ -161,7 +159,20 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       console.log(`🔒 Données filtrées par user_id: ${processedData.length} prospects pour l'utilisateur ${user.id}`);
     } else {
       // Aucune donnée, mais définir quand même les headers pour permettre l'ajout
-      setHeaders([...FIXED_HEADERS]);
+      const exactHeaders = [
+        'user_id',
+        '_isOrphan',
+        'contact_name', 
+        'company_name',
+        'company_website',
+        'Rôle',
+        'linkedin_contact_url',
+        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+        'Préparation de l\'appel',
+        'Run',
+        'Statut'
+      ];
+      setHeaders(exactHeaders);
       setLocalData([]);
     }
   }, [googleSheetsData, user?.id, isAuthenticated]);
@@ -182,7 +193,20 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
       if (!error && result?.headers && Array.isArray(result.headers)) {
         // Toujours utiliser les colonnes exactes pour garantir la synchronisation
-        setHeaders([...FIXED_HEADERS]);
+        const exactHeaders = [
+          'user_id',
+          '_isOrphan',
+          'contact_name',
+          'company_name', 
+          'company_website',
+          'Rôle',
+          'linkedin_contact_url',
+          'Pertinence du prospect par rapport à notre offre ? (sur 100)',
+          'Préparation de l\'appel',
+          'Run',
+          'Statut'
+        ];
+        setHeaders(exactHeaders);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des headers:', error);
@@ -851,12 +875,6 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                           <span>Score</span>
                         </div>
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-green-700 uppercase w-40">
-                        <div className="flex items-center gap-2 justify-center">
-                          <Save className="w-4 h-4" />
-                          <span>Enregistrer</span>
-                        </div>
-                      </th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-32">
                         Actions
                       </th>
@@ -892,75 +910,48 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                                )}
                              </td>
                            ))}
-                            <td className="px-4 py-4 text-center">
-                              {(() => {
-                                const score = getScoreFromProspect(row);
-                                return (
-                                  <div className="flex items-center justify-center">
-                                    <div className={`px-3 py-2 rounded-lg text-sm font-bold min-w-[60px] ${
-                                      score !== null 
-                                        ? score >= 80 
-                                          ? 'bg-green-100 text-green-800' 
-                                          : score >= 60 
-                                            ? 'bg-orange-100 text-orange-800' 
-                                            : 'bg-red-100 text-red-800'
-                                        : 'bg-gray-100 text-gray-500'
-                                    }`}>
-                                      {score !== null ? `${score}/100` : 'N/A'}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex gap-2 justify-center">
-                                <Button
-                                  onClick={async () => {
-                                    // Enregistrer uniquement cette ligne
-                                    const success = await appendToGoogleSheets(
-                                      { spreadsheetId, sheetName }, 
-                                      [{ ...row, user_id: row.user_id || user?.id || 'unknown' }]
-                                    );
-                                    if (success) {
-                                      toast.success(`Prospect "${row.contact_name || 'ligne ' + (localData.indexOf(row) + 1)}" enregistré`);
-                                    }
-                                  }}
-                                  disabled={isWriting}
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  title="Enregistrer cette ligne dans Google Sheets"
-                                >
-                                  {isWriting ? (
-                                    <RefreshCw className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <Save className="w-4 h-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex gap-2 justify-center">
-                                <Button
-                                  onClick={() => openAnalysisModal(row)}
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                  title="Analyser le prospect"
-                                >
-                                  <BarChart3 className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  onClick={() => deleteProspect(row.id)}
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  title="Supprimer le prospect"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </td>
+                           <td className="px-4 py-4 text-center">
+                             {(() => {
+                               const score = getScoreFromProspect(row);
+                               return (
+                                 <div className="flex items-center justify-center">
+                                   <div className={`px-3 py-2 rounded-lg text-sm font-bold min-w-[60px] ${
+                                     score !== null 
+                                       ? score >= 80 
+                                         ? 'bg-green-100 text-green-800' 
+                                         : score >= 60 
+                                           ? 'bg-orange-100 text-orange-800' 
+                                           : 'bg-red-100 text-red-800'
+                                       : 'bg-gray-100 text-gray-500'
+                                   }`}>
+                                     {score !== null ? `${score}/100` : 'N/A'}
+                                   </div>
+                                 </div>
+                               );
+                             })()}
+                           </td>
+                           <td className="px-4 py-4">
+                             <div className="flex gap-2 justify-center">
+                               <Button
+                                 onClick={() => openAnalysisModal(row)}
+                                 variant="outline"
+                                 size="sm"
+                                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                 title="Analyser le prospect"
+                               >
+                                 <BarChart3 className="w-4 h-4" />
+                               </Button>
+                               <Button
+                                 onClick={() => deleteProspect(row.id)}
+                                 variant="outline"
+                                 size="sm"
+                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                 title="Supprimer le prospect"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </div>
+                           </td>
                          </tr>
                        ))
                      ) : (
@@ -978,15 +969,12 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
                                </div>
                              </td>
                            ))}
-                            <td className="px-4 py-4 text-center">
-                              <Badge variant="outline" className="bg-gray-50">N/A</Badge>
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <Badge variant="outline" className="text-gray-400">-</Badge>
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <Badge variant="outline" className="text-blue-600">Aucun prospect</Badge>
-                            </td>
+                           <td className="px-4 py-4 text-center">
+                             <Badge variant="outline" className="bg-gray-50">N/A</Badge>
+                           </td>
+                           <td className="px-4 py-4 text-center">
+                             <Badge variant="outline" className="text-blue-600">Aucun prospect</Badge>
+                           </td>
                          </tr>
                        )
                      )}

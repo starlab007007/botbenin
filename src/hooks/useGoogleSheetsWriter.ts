@@ -234,9 +234,8 @@ export const useGoogleSheetsWriter = (userId?: string) => {
           body: {
             spreadsheetId: finalSpreadsheetId,
             sheetName: config.sheetName || 'Feuille 1',
-            operation: 'delete_specific',
-            // Correction: envoyer les données dans le format attendu par la fonction edge
-            data: [prospectToDelete], // Envoyer comme tableau comme attendu par la fonction
+            operation: 'delete_specific', // Opération spécifique pour suppression par critères
+            deleteData: prospectToDelete, // Critères de suppression
             userId: prospectToDelete.user_id
           }
         });
@@ -259,11 +258,6 @@ export const useGoogleSheetsWriter = (userId?: string) => {
       return false;
     } catch (error) {
       console.error('❌ Erreur lors de la suppression:', error);
-      toast({
-        title: "❌ Erreur de suppression",
-        description: error instanceof Error ? error.message : "Erreur inconnue",
-        variant: "destructive",
-      });
       return false;
     } finally {
       setIsWriting(false);
