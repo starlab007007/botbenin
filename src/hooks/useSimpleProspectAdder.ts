@@ -39,10 +39,14 @@ export const useSimpleProspectAdder = (userId?: string) => {
     setIsAdding(true);
 
     try {
-      // Créer le prospect avec toutes les colonnes requises
+      // Créer le prospect avec toutes les colonnes requises - ID simplifié
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substr(2, 9);
+      const prospectId = `gs_${timestamp}_${randomId}`;
+      
       const newProspect = {
-        id: `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        user_id: userId,
+        id: prospectId,
+        user_id: userId, // User ID simple pour identification
         _isOrphan: 'FALSE',
         contact_name: prospectData.contact_name.trim(),
         company_name: prospectData.company_name.trim(),

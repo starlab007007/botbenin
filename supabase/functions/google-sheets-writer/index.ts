@@ -194,16 +194,23 @@ async function handleUpdateField(
       );
     }
 
-    // 3. Extraire le numéro de ligne de l'ID virtuel (format: gs_timestamp_rowIndex)
-    const idParts = prospectId.split('_');
-    if (idParts.length < 3) {
+    // 3. Trouver le prospect par correspondance exacte des données
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) { // Commencer à 1 pour ignorer l'en-tête
+      const row = rows[i] || [];
+      const rowId = row[headers.indexOf('id')] || '';
+      if (rowId === prospectId) {
+        rowIndex = i - 1; // Index 0-based dans les données (sans l'en-tête)
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
       return new Response(
-        JSON.stringify({ error: 'Format d\'ID invalide' }),
+        JSON.stringify({ error: 'Prospect non trouvé dans la feuille' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
-    const rowIndex = parseInt(idParts[2]); // Index dans les données (0-based)
     const actualRowNumber = rowIndex + 2; // +1 pour l'en-tête, +1 pour être 1-based
     
     // 4. Vérifier que la ligne existe
@@ -442,6 +449,32 @@ serve(async (req) => {
       let method: string;
       
       if (operation === 'append') {
+        // S'assurer que les en-têtes existent d'abord
+        console.log('Vérification des en-têtes avant append...');
+        const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!1:1`;
+        const readResponse = await fetch(readUrl, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        
+        if (readResponse.ok) {
+          const sheetInfo = await readResponse.json();
+          const existingHeaders = sheetInfo.values?.[0] || [];
+          
+          // Si pas d'en-têtes ou en-têtes incomplets, les créer d'abord
+          if (existingHeaders.length === 0 || !headers.every(h => existingHeaders.includes(h))) {
+            console.log('Création/mise à jour des en-têtes...');
+            const headerUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!1:1?valueInputOption=USER_ENTERED`;
+            await fetch(headerUrl, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ values: [headers] })
+            });
+          }
+        }
+        
         // Utiliser l'API append qui gère automatiquement les ranges
         url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
         method = 'POST';
