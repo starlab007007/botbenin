@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSimpleProspectAdder } from '@/hooks/useSimpleProspectAdder';
+import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { useProspectEvaluationWebhook } from '@/hooks/useProspectEvaluationWebhook';
 import { ProspectViewer } from './ProspectViewer';
@@ -69,6 +70,11 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
   } = useGoogleSheetsWriter(user?.id);
 
   const {
+    data: sheetsData,
+    refreshData: refetchSheets
+  } = useGoogleSheets({ spreadsheetId, sheetName }, user?.id);
+
+  const {
     webhookConfig,
     isLoading: isWebhookLoading,
     triggerEvaluation
@@ -126,31 +132,56 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
   };
 
   const handleActivateProspect = async (prospect: RecentProspect, activate: boolean) => {
-    const success = await updateProspectField(
-      { spreadsheetId, sheetName },
-      prospect.id,
-      'Run',
-      activate ? 'true' : 'false'
-    );
-
-    if (success) {
-      // Mettre à jour le statut local
-      setRecentAdditions(prev => prev.map(p => 
-        p.id === prospect.id 
-          ? { ...p, runStatus: activate }
-          : p
-      ));
-
-      if (selectedProspect?.id === prospect.id) {
-        setSelectedProspect(prev => prev ? { ...prev, runStatus: activate } : null);
+    try {
+      // D'abord récupérer les données à jour pour trouver l'ID correct
+      await refetchSheets();
+      
+      if (!sheetsData || sheetsData.length === 0) {
+        toast.error('Impossible de récupérer les données actuelles de Google Sheets');
+        return;
       }
 
-      if (activate) {
-        setCurrentStep('evaluate');
-        toast.success('Prospect activé ! Vous pouvez maintenant lancer l\'évaluation.');
-      } else {
-        toast.success('Prospect désactivé.');
+      // Trouver le prospect correspondant par nom et entreprise
+      const matchingProspect = sheetsData.find((record: any) => 
+        record.contact_name === prospect.contact_name && 
+        record.company_name === prospect.company_name &&
+        record.user_id === user?.id
+      );
+
+      if (!matchingProspect) {
+        toast.error('Prospect non trouvé dans Google Sheets');
+        return;
       }
+
+      const success = await updateProspectField(
+        { spreadsheetId, sheetName },
+        matchingProspect.id,
+        'Run',
+        activate ? 'TRUE' : 'FALSE'
+      );
+
+      if (success) {
+        // Mettre à jour le statut local
+        setRecentAdditions(prev => prev.map(p => 
+          p.id === prospect.id 
+            ? { ...p, runStatus: activate }
+            : p
+        ));
+
+        if (selectedProspect?.id === prospect.id) {
+          setSelectedProspect(prev => prev ? { ...prev, runStatus: activate } : null);
+        }
+
+        if (activate) {
+          setCurrentStep('evaluate');
+          toast.success('Prospect activé ! Vous pouvez maintenant lancer l\'évaluation.');
+        } else {
+          toast.success('Prospect désactivé.');
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'activation:', error);
+      toast.error('Erreur lors de l\'activation du prospect');
     }
   };
 

@@ -142,6 +142,151 @@ async function getGoogleAccessToken(): Promise<string> {
   }
 }
 
+// Fonction pour gérer la mise à jour d'un champ spécifique
+async function handleUpdateField(
+  spreadsheetId: string, 
+  sheetName: string, 
+  prospectId: string, 
+  fieldName: string, 
+  fieldValue: string, 
+  accessToken: string, 
+  corsHeaders: any,
+  userId?: string
+): Promise<Response> {
+  try {
+    console.log(`Mise à jour du champ ${fieldName} pour le prospect ${prospectId}`);
+    
+    // 1. D'abord lire toutes les données de la feuille
+    const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}`;
+    
+    const readResponse = await fetch(readUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      }
+    });
+
+    if (!readResponse.ok) {
+      const error = await readResponse.text();
+      return new Response(
+        JSON.stringify({ error: 'Impossible de lire la feuille', details: error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const sheetData = await readResponse.json();
+    const rows = sheetData.values || [];
+    
+    if (rows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Feuille vide' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2. Trouver l'en-tête et la ligne du prospect
+    const headers = rows[0] || [];
+    const fieldIndex = headers.indexOf(fieldName);
+    const idIndex = headers.indexOf('id');
+    
+    if (fieldIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: `Colonne ${fieldName} non trouvée` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (idIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: 'Colonne id non trouvée' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 3. Trouver la ligne correspondant au prospect
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] || [];
+      if (row[idIndex] === prospectId) {
+        rowIndex = i;
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: `Prospect ${prospectId} non trouvé` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. Vérifier la propriété (si userId fourni)
+    if (userId) {
+      const userIdIndex = headers.indexOf('user_id');
+      if (userIdIndex !== -1) {
+        const rowUserId = rows[rowIndex][userIdIndex];
+        if (rowUserId && rowUserId !== userId) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied: vous ne pouvez pas modifier ce prospect' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
+    // 5. Mettre à jour la valeur  
+    const cellRange = `${sheetName}!${String.fromCharCode(65 + fieldIndex)}${rowIndex + 1}`;
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
+    
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        values: [[fieldValue]]
+      })
+    });
+
+    if (!updateResponse.ok) {
+      const error = await updateResponse.text();
+      return new Response(
+        JSON.stringify({ error: 'Mise à jour échouée', details: error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const updateResult = await updateResponse.json();
+    console.log('Mise à jour réussie:', updateResult);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `${fieldName} mis à jour à ${fieldValue}`,
+        updatedRange: updateResult.updatedRange,
+        prospectId: prospectId
+      }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour:', error);
+    return new Response(
+      JSON.stringify({
+        error: 'Erreur lors de la mise à jour du champ',
+        details: (error as any)?.message || 'Erreur inconnue'
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -151,7 +296,7 @@ serve(async (req) => {
   try {
     console.log('=== Google Sheets Writer Function Started ===');
     
-    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId } = await req.json();
+    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId, prospectId, fieldName, fieldValue } = await req.json();
     console.log('Request params:', { spreadsheetId, sheetName, operation, dataLength: data?.length, userId: userId?.substring(0, 8) + '...' });
 
     if (!spreadsheetId) {
@@ -164,14 +309,27 @@ serve(async (req) => {
       );
     }
 
-    if (!data || !Array.isArray(data)) {
-      return new Response(
-        JSON.stringify({ error: 'data doit être un tableau' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+    // Validation différente selon l'opération
+    if (operation === 'update_field') {
+      if (!prospectId || !fieldName || fieldValue === undefined) {
+        return new Response(
+          JSON.stringify({ error: 'prospectId, fieldName et fieldValue sont requis pour update_field' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+    } else {
+      if (!data || !Array.isArray(data)) {
+        return new Response(
+          JSON.stringify({ error: 'data doit être un tableau' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
     }
 
     // Obtenir le token d'accès OAuth2 
@@ -195,6 +353,11 @@ serve(async (req) => {
     }
 
     try {
+      // Gestion spéciale pour update_field
+      if (operation === 'update_field') {
+        return await handleUpdateField(spreadsheetId, sheetName, prospectId, fieldName, fieldValue, accessToken, corsHeaders, userId);
+      }
+      
       // Prepare data for Google Sheets - Dynamic columns approach
       if (data.length === 0) {
         return new Response(
@@ -223,7 +386,7 @@ serve(async (req) => {
       }
       
       // Convert data to rows using dynamic headers - Forcer user_id
-      const rows = data.map(item => 
+      const rows = data.map((item: any) => 
         headers.map(header => {
           if (header === 'user_id') {
             return String(item[header] || userId || 'unknown');
