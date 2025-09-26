@@ -208,6 +208,68 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     return writeToGoogleSheets(config, data, 'overwrite');
   }, [writeToGoogleSheets]);
 
+  // Fonction pour supprimer une ligne spécifique dans Google Sheets par critères métier
+  const deleteFromGoogleSheets = useCallback(async (
+    config: GoogleSheetsConfig, 
+    prospectToDelete: { contact_name?: string; company_name?: string; user_id: string }
+  ) => {
+    const finalSpreadsheetId = config.spreadsheetId || defaultSpreadsheetId;
+    
+    if (!finalSpreadsheetId) {
+      toast({
+        title: "❌ Configuration manquante",
+        description: "L'ID du Google Sheet est requis",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    console.log('🗑️ Suppression spécifique par critères:', prospectToDelete);
+
+    try {
+      setIsWriting(true);
+      
+      const result = await queueGoogleSheetsOperation(async () => {
+        const { data: result, error } = await supabase.functions.invoke('google-sheets-writer', {
+          body: {
+            spreadsheetId: finalSpreadsheetId,
+            sheetName: config.sheetName || 'Feuille 1',
+            operation: 'delete_specific', // Opération spécifique pour suppression par critères
+            deleteData: prospectToDelete, // Critères de suppression
+            userId: prospectToDelete.user_id
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Erreur Supabase function');
+        }
+
+        return result;
+      });
+
+      if (result?.success) {
+        toast({
+          title: "✅ Suppression réussie",
+          description: "Prospect supprimé de Google Sheets",
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast({
+        title: "❌ Erreur de suppression",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsWriting(false);
+    }
+  }, [toast]);
+
   // Fonction pour supprimer une ligne spécifique dans Google Sheets par ID
   const deleteProspectById = useCallback(async (
     config: GoogleSheetsConfig, 
@@ -351,6 +413,7 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     writeToGoogleSheets,
     appendToGoogleSheets,
     syncToGoogleSheets,
+    deleteFromGoogleSheets,
     deleteProspectById,
     updateProspectField
   };
