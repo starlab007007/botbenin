@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSimpleProspectAdder } from '@/hooks/useSimpleProspectAdder';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { useProspectEvaluationWebhook } from '@/hooks/useProspectEvaluationWebhook';
+import { ProspectViewer } from './ProspectViewer';
 import { 
   User, 
   Building, 
@@ -24,10 +25,12 @@ import {
   Pause,
   Rocket,
   ArrowRight,
-  Settings
+  Settings,
+  Users,
+  Eye
 } from 'lucide-react';
 
-type Step = 'add' | 'activate' | 'evaluate';
+type Step = 'add' | 'activate' | 'evaluate' | 'view';
 
 interface RecentProspect {
   id: string;
@@ -196,6 +199,17 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
     setCompanyName('');
   };
 
+  // Retourner la vue des prospects si c'est l'étape sélectionnée
+  if (currentStep === 'view') {
+    return (
+      <ProspectViewer 
+        spreadsheetId={spreadsheetId}
+        sheetName={sheetName}
+        onBack={() => setCurrentStep('add')}
+      />
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Indicateur d'étapes */}
@@ -304,6 +318,17 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                     Ajouter le prospect
                   </>
                 )}
+              </Button>
+              
+              {/* Bouton voir mes prospects */}
+              <Button
+                type="button"
+                onClick={() => setCurrentStep('view')}
+                variant="outline"
+                className="w-full h-12 text-base border-2 border-blue-200 hover:bg-blue-50"
+              >
+                <Users className="w-5 h-5 mr-2" />
+                Voir mes prospects
               </Button>
             </form>
           )}
