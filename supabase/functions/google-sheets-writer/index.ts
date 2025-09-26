@@ -446,6 +446,16 @@ serve(async (req) => {
           }
         );
       }
+    } else if (operation === 'delete_by_id') {
+      if (!prospectId) {
+        return new Response(
+          JSON.stringify({ error: 'prospectId est requis pour delete_by_id' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
     } else {
       if (!data || !Array.isArray(data)) {
         return new Response(
