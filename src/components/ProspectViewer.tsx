@@ -43,6 +43,7 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProspect, setSelectedProspect] = useState<GoogleSheetProspectWithUser | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [updatingProspect, setUpdatingProspect] = useState<string | null>(null); // Track which prospect is being updated
 
   const {
     data: prospects,
@@ -74,6 +75,8 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
   }, [searchTerm, prospects]);
 
   const handleToggleRun = async (prospect: GoogleSheetProspectWithUser, activate: boolean) => {
+    setUpdatingProspect(prospect.id); // Mark this specific prospect as updating
+    
     const success = await updateProspectField(
       { spreadsheetId, sheetName },
       prospect.id,
@@ -91,6 +94,8 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
       
       toast.success(`Prospect ${activate ? 'activé' : 'désactivé'} avec succès`);
     }
+    
+    setUpdatingProspect(null); // Reset updating state
   };
 
   const getRunStatus = (prospect: GoogleSheetProspectWithUser) => {
@@ -263,12 +268,12 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
                     {/* Toggle Run Status */}
                     <Button
                       onClick={() => handleToggleRun(prospect, !getRunStatus(prospect))}
-                      disabled={isWriting}
+                      disabled={updatingProspect === prospect.id}
                       size="sm"
                       variant={getRunStatus(prospect) ? "destructive" : "default"}
                       className={getRunStatus(prospect) ? "" : "bg-green-600 hover:bg-green-700"}
                     >
-                      {isWriting ? (
+                      {updatingProspect === prospect.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : getRunStatus(prospect) ? (
                         <>

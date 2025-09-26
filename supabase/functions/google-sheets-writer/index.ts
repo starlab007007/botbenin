@@ -183,10 +183,9 @@ async function handleUpdateField(
       );
     }
 
-    // 2. Trouver l'en-tête et la ligne du prospect
+    // 2. Trouver l'en-tête et l'index de la colonne à mettre à jour
     const headers = rows[0] || [];
     const fieldIndex = headers.indexOf(fieldName);
-    const idIndex = headers.indexOf('id');
     
     if (fieldIndex === -1) {
       return new Response(
@@ -195,35 +194,31 @@ async function handleUpdateField(
       );
     }
 
-    if (idIndex === -1) {
+    // 3. Extraire le numéro de ligne de l'ID virtuel (format: gs_timestamp_rowIndex)
+    const idParts = prospectId.split('_');
+    if (idParts.length < 3) {
       return new Response(
-        JSON.stringify({ error: 'Colonne id non trouvée' }),
+        JSON.stringify({ error: 'Format d\'ID invalide' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // 3. Trouver la ligne correspondant au prospect
-    let rowIndex = -1;
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i] || [];
-      if (row[idIndex] === prospectId) {
-        rowIndex = i;
-        break;
-      }
-    }
-
-    if (rowIndex === -1) {
+    
+    const rowIndex = parseInt(idParts[2]); // Index dans les données (0-based)
+    const actualRowNumber = rowIndex + 2; // +1 pour l'en-tête, +1 pour être 1-based
+    
+    // 4. Vérifier que la ligne existe
+    if (rowIndex >= rows.length - 1) {
       return new Response(
-        JSON.stringify({ error: `Prospect ${prospectId} non trouvé` }),
+        JSON.stringify({ error: 'Ligne non trouvée' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // 4. Vérifier la propriété (si userId fourni)
+    // 5. Vérifier la propriété (si userId fourni)
     if (userId) {
       const userIdIndex = headers.indexOf('user_id');
       if (userIdIndex !== -1) {
-        const rowUserId = rows[rowIndex][userIdIndex];
+        const prospectRow = rows[rowIndex + 1] || []; // +1 car rowIndex est 0-based dans les données
+        const rowUserId = prospectRow[userIdIndex];
         if (rowUserId && rowUserId !== userId) {
           return new Response(
             JSON.stringify({ error: 'Permission denied: vous ne pouvez pas modifier ce prospect' }),
@@ -233,8 +228,8 @@ async function handleUpdateField(
       }
     }
 
-    // 5. Mettre à jour la valeur  
-    const cellRange = `${sheetName}!${String.fromCharCode(65 + fieldIndex)}${rowIndex + 1}`;
+    // 6. Mettre à jour la valeur  
+    const cellRange = `${sheetName}!${String.fromCharCode(65 + fieldIndex)}${actualRowNumber}`;
     const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(cellRange)}?valueInputOption=USER_ENTERED`;
     
     const updateResponse = await fetch(updateUrl, {
@@ -272,12 +267,12 @@ async function handleUpdateField(
       }
     );
 
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour:', error);
+  } catch (error: any) {
+    console.error('Erreur dans handleUpdateField:', error);
     return new Response(
-      JSON.stringify({
-        error: 'Erreur lors de la mise à jour du champ',
-        details: (error as any)?.message || 'Erreur inconnue'
+      JSON.stringify({ 
+        error: 'Erreur serveur lors de la mise à jour',
+        details: error.message 
       }),
       { 
         status: 500, 
