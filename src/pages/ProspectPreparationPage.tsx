@@ -5,8 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { GoogleSheetEditor } from '@/components/GoogleSheetEditor';
-import { GoogleSheetsDiagnostic } from '@/components/GoogleSheetsDiagnostic';
+import { IACallPreparationForm } from '@/components/IACallPreparationForm';
 import { GoogleSheetsColumnDiagnostic } from '@/components/GoogleSheetsColumnDiagnostic';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -139,33 +138,19 @@ export const ProspectPreparationPage = () => {
           </Card>
         )}
 
-        {/* Diagnostic complet colonnes et synchronisation */}
-        <GoogleSheetsColumnDiagnostic 
-          spreadsheetId={googleSheetsConfig.spreadsheetId}
-          sheetName={googleSheetsConfig.sheetName}
-        />
+        {/* Diagnostic discret */}
+        {showConfig && (
+          <GoogleSheetsColumnDiagnostic 
+            spreadsheetId={googleSheetsConfig.spreadsheetId}
+            sheetName={googleSheetsConfig.sheetName}
+          />
+        )}
         
-        {/* Interface principale */}
-        <GoogleSheetEditor
+        {/* Interface principale simplifiée pour IA */}
+        <IACallPreparationForm
           spreadsheetId={googleSheetsConfig.spreadsheetId}
           sheetName={googleSheetsConfig.sheetName}
         />
-
-        {/* Instructions d'utilisation */}
-        <Card className="border-0 shadow-sm bg-yellow-50/50 mt-6">
-          <CardContent className="p-4">
-            <div className="text-sm text-yellow-800">
-              <h3 className="font-semibold mb-2">💡 Instructions d'utilisation :</h3>
-              <ul className="space-y-1 text-yellow-700">
-                <li>• Modifiez directement les cellules dans le tableau ci-dessus</li>
-                <li>• Cliquez sur "Sauvegarder" pour synchroniser vos modifications vers Google Sheets</li>
-                <li>• Utilisez "Actualiser" pour récupérer les dernières données de Google Sheets</li>
-                <li>• Ajoutez de nouvelles lignes avec le bouton "Ajouter"</li>
-                <li>• Les changements non sauvegardés sont marqués en rouge</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
