@@ -208,23 +208,32 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     return writeToGoogleSheets(config, data, 'overwrite');
   }, [writeToGoogleSheets]);
 
-  // Fonction pour supprimer une ligne spécifique dans Google Sheets par critères métier
-  const deleteFromGoogleSheets = useCallback(async (
+  // Fonction pour supprimer une ligne spécifique dans Google Sheets par ID
+  const deleteProspectById = useCallback(async (
     config: GoogleSheetsConfig, 
-    prospectToDelete: { contact_name?: string; company_name?: string; user_id: string }
+    prospectId: string
   ) => {
-    const finalSpreadsheetId = config.spreadsheetId;
+    const finalSpreadsheetId = config.spreadsheetId || defaultSpreadsheetId;
     
-    if (!finalSpreadsheetId) {
+    if (!finalSpreadsheetId || !userId) {
       toast({
         title: "❌ Configuration manquante",
-        description: "L'ID du Google Sheet est requis",
+        description: "Configuration Google Sheets ou utilisateur requis",
         variant: "destructive",
       });
       return false;
     }
 
-    console.log('🗑️ Suppression spécifique par critères:', prospectToDelete);
+    if (!prospectId) {
+      toast({
+        title: "❌ ID prospect manquant",
+        description: "L'ID du prospect est requis pour la suppression",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    console.log('🗑️ Suppression par ID:', { prospectId, userId });
 
     try {
       setIsWriting(true);
@@ -234,9 +243,9 @@ export const useGoogleSheetsWriter = (userId?: string) => {
           body: {
             spreadsheetId: finalSpreadsheetId,
             sheetName: config.sheetName || 'Feuille 1',
-            operation: 'delete_specific', // Opération spécifique pour suppression par critères
-            deleteData: prospectToDelete, // Critères de suppression
-            userId: prospectToDelete.user_id
+            operation: 'delete_by_id',
+            prospectId: prospectId,
+            userId: userId
           }
         });
 
@@ -258,11 +267,17 @@ export const useGoogleSheetsWriter = (userId?: string) => {
       return false;
     } catch (error) {
       console.error('❌ Erreur lors de la suppression:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast({
+        title: "❌ Erreur de suppression",
+        description: errorMessage,
+        variant: "destructive",
+      });
       return false;
     } finally {
       setIsWriting(false);
     }
-  }, [toast]);
+  }, [toast, userId]);
 
   // Fonction pour mettre à jour une colonne spécifique d'un prospect
   const updateProspectField = useCallback(async (
@@ -336,7 +351,7 @@ export const useGoogleSheetsWriter = (userId?: string) => {
     writeToGoogleSheets,
     appendToGoogleSheets,
     syncToGoogleSheets,
-    deleteFromGoogleSheets,
+    deleteProspectById,
     updateProspectField
   };
 };

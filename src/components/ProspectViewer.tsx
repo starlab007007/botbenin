@@ -24,7 +24,8 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 
 interface ProspectViewerProps {
@@ -44,6 +45,7 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
   const [selectedProspect, setSelectedProspect] = useState<GoogleSheetProspectWithUser | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [updatingProspect, setUpdatingProspect] = useState<string | null>(null); // Track which prospect is being updated
+  const [deletingProspect, setDeletingProspect] = useState<string | null>(null); // Track which prospect is being deleted
 
   const {
     data: prospects,
@@ -54,6 +56,7 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
 
   const {
     updateProspectField,
+    deleteProspectById,
     isWriting
   } = useGoogleSheetsWriter(user?.id);
 
@@ -96,6 +99,40 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
     }
     
     setUpdatingProspect(null); // Reset updating state
+  };
+
+  const handleDeleteProspect = async (prospect: GoogleSheetProspectWithUser) => {
+    if (!prospect.id) {
+      toast.error('Impossible de supprimer: ID manquant');
+      return;
+    }
+
+    // Confirmation de suppression
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le prospect "${prospect.contact_name || 'Sans nom'}" ?`)) {
+      return;
+    }
+
+    setDeletingProspect(prospect.id);
+    
+    const success = await deleteProspectById(
+      { spreadsheetId, sheetName },
+      prospect.id
+    );
+
+    if (success) {
+      // Rafraîchir les données après suppression
+      refreshData();
+      
+      // Fermer la modal si c'est le prospect sélectionné qui a été supprimé
+      if (selectedProspect?.id === prospect.id) {
+        setSelectedProspect(null);
+        setIsDialogOpen(false);
+      }
+      
+      toast.success(`Prospect "${prospect.contact_name || 'Sans nom'}" supprimé avec succès`);
+    }
+    
+    setDeletingProspect(null);
   };
 
   const getRunStatus = (prospect: GoogleSheetProspectWithUser) => {
@@ -288,6 +325,23 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
                       )}
                     </Button>
 
+                    {/* Delete Prospect */}
+                    <Button
+                      onClick={() => handleDeleteProspect(prospect)}
+                      disabled={deletingProspect === prospect.id}
+                      size="sm"
+                      variant="destructive"
+                    >
+                      {deletingProspect === prospect.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Supprimer
+                        </>
+                      )}
+                    </Button>
+
                     {/* View Details */}
                     <Dialog open={isDialogOpen && selectedProspect?.id === prospect.id} onOpenChange={setIsDialogOpen}>
                       <DialogTrigger asChild>
@@ -417,27 +471,45 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
                                   )}
                                 </div>
                               </div>
-                              <Button
-                                onClick={() => handleToggleRun(selectedProspect, !getRunStatus(selectedProspect))}
-                                disabled={isWriting}
-                                size="sm"
-                                variant={getRunStatus(selectedProspect) ? "destructive" : "default"}
-                                className={getRunStatus(selectedProspect) ? "" : "bg-green-600 hover:bg-green-700"}
-                              >
-                                {isWriting ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : getRunStatus(selectedProspect) ? (
-                                  <>
-                                    <Pause className="w-4 h-4 mr-1" />
-                                    Arrêter
-                                  </>
-                                ) : (
-                                  <>
-                                    <Play className="w-4 h-4 mr-1" />
-                                    Démarrer
-                                  </>
-                                )}
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => handleToggleRun(selectedProspect, !getRunStatus(selectedProspect))}
+                                  disabled={updatingProspect === selectedProspect.id}
+                                  size="sm"
+                                  variant={getRunStatus(selectedProspect) ? "destructive" : "default"}
+                                  className={getRunStatus(selectedProspect) ? "" : "bg-green-600 hover:bg-green-700"}
+                                >
+                                  {updatingProspect === selectedProspect.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : getRunStatus(selectedProspect) ? (
+                                    <>
+                                      <Pause className="w-4 h-4 mr-1" />
+                                      Arrêter
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play className="w-4 h-4 mr-1" />
+                                      Démarrer
+                                    </>
+                                  )}
+                                </Button>
+                                
+                                <Button
+                                  onClick={() => handleDeleteProspect(selectedProspect)}
+                                  disabled={deletingProspect === selectedProspect.id}
+                                  size="sm"
+                                  variant="destructive"
+                                >
+                                  {deletingProspect === selectedProspect.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Trash2 className="w-4 h-4 mr-1" />
+                                      Supprimer
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )}

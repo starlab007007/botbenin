@@ -289,6 +289,130 @@ async function handleUpdateField(
   }
 }
 
+// Fonction pour supprimer une ligne par ID
+async function handleDeleteById(
+  spreadsheetId: string,
+  sheetName: string,
+  prospectId: string,
+  accessToken: string,
+  corsHeaders: any,
+  userId?: string
+) {
+  try {
+    console.log('Suppression par ID pour le prospect:', prospectId);
+
+    // Lire toutes les données pour trouver la ligne à supprimer
+    const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}`;
+    const readResponse = await fetch(readUrl, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!readResponse.ok) {
+      throw new Error('Impossible de lire la feuille');
+    }
+
+    const sheetData = await readResponse.json();
+    const rows = sheetData.values || [];
+    
+    if (rows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Feuille vide' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const headers = rows[0];
+    const idIndex = headers.indexOf('id');
+    const userIdIndex = headers.indexOf('user_id');
+
+    if (idIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: 'Colonne id non trouvée' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Trouver la ligne à supprimer
+    let rowToDelete = -1;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] || [];
+      if (row[idIndex] === prospectId) {
+        // Vérifier la propriété
+        if (userId && userIdIndex !== -1 && row[userIdIndex] !== userId) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        rowToDelete = i + 1; // +1 car Google Sheets est 1-indexed
+        break;
+      }
+    }
+
+    if (rowToDelete === -1) {
+      return new Response(
+        JSON.stringify({ error: 'Prospect non trouvé' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Supprimer la ligne
+    const deleteUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
+    const deleteResponse = await fetch(deleteUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: 0, // Assuming first sheet
+              dimension: 'ROWS',
+              startIndex: rowToDelete - 1, // 0-indexed for API
+              endIndex: rowToDelete
+            }
+          }
+        }]
+      })
+    });
+
+    if (!deleteResponse.ok) {
+      const error = await deleteResponse.text();
+      return new Response(
+        JSON.stringify({ error: 'Suppression échouée', details: error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Prospect supprimé avec succès',
+        prospectId: prospectId
+      }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+
+  } catch (error: any) {
+    console.error('Erreur dans handleDeleteById:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Erreur serveur lors de la suppression',
+        details: error.message 
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -355,10 +479,14 @@ serve(async (req) => {
     }
 
     try {
-      // Gestion spéciale pour update_field
-      if (operation === 'update_field') {
-        return await handleUpdateField(spreadsheetId, sheetName, prospectId, fieldName, fieldValue, accessToken, corsHeaders, userId);
-      }
+    // Gestion spéciale pour update_field et delete_by_id
+    if (operation === 'update_field') {
+      return await handleUpdateField(spreadsheetId, sheetName, prospectId, fieldName, fieldValue, accessToken, corsHeaders, userId);
+    }
+    
+    if (operation === 'delete_by_id') {
+      return await handleDeleteById(spreadsheetId, sheetName, prospectId, accessToken, corsHeaders, userId);
+    }
       
       // Prepare data for Google Sheets - Dynamic columns approach
       if (data.length === 0) {
