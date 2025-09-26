@@ -367,10 +367,10 @@ serve(async (req) => {
         );
       }
 
-      // Extract headers from first row - TOUJOURS inclure user_id pour la sécurité
+      // Extract headers from first row - inclure ALL les champs nécessaires
       const firstRow = data[0];
-      const systemFields = ['id']; // Garder user_id pour la synchronisation
-      let headers = Object.keys(firstRow).filter(key => !systemFields.includes(key));
+      // Ne pas filtrer l'id car il est nécessaire pour identifier les prospects
+      let headers = Object.keys(firstRow);
       
       // S'assurer que user_id est toujours en première position si présent
       if (headers.includes('user_id')) {

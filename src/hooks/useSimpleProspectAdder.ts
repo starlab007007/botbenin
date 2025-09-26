@@ -43,7 +43,7 @@ export const useSimpleProspectAdder = (userId?: string) => {
       const newProspect = {
         id: `user_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         user_id: userId,
-        _isOrphan: 'false',
+        _isOrphan: 'FALSE',
         contact_name: prospectData.contact_name.trim(),
         company_name: prospectData.company_name.trim(),
         company_website: '',
