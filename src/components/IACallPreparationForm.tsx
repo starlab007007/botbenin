@@ -32,7 +32,9 @@ import {
   Users,
   Eye,
   FileText,
-  Cog
+  Cog,
+  Sparkles,
+  History
 } from 'lucide-react';
 
 type Step = 'add' | 'activate' | 'evaluate' | 'view';
@@ -44,6 +46,8 @@ interface RecentProspect {
   timestamp: Date;
   runStatus?: boolean;
   isEvaluated?: boolean;
+  linkedin_url?: string;
+  website?: string;
 }
 
 interface IACallPreparationFormProps {
@@ -210,7 +214,13 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
         linkedin_url: selectedProspect.linkedin_url,
         website: selectedProspect.website
       },
-      updateProspectField
+      (prospectId: string, value: string) => 
+        updateProspectField(
+          { spreadsheetId, sheetName },
+          prospectId,
+          'evaluation_status',
+          value
+        )
     );
 
     if (success) {
@@ -485,7 +495,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5 mr-2" />
-                      Lancer l'évaluation IA
+                      {hasBeenEvaluated(selectedProspect.id) ? 'Réévaluer' : 'Lancer l\'évaluation IA'}
                     </>
                   )}
                 </Button>
@@ -494,6 +504,28 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                   <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
                     ⚠️ Le prospect doit être activé avant l'évaluation
                   </p>
+                )}
+
+                {/* Configuration webhook si non configuré */}
+                {!webhookConfig?.url && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-yellow-800 mb-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="font-medium">Configuration requise</span>
+                    </div>
+                    <p className="text-sm text-yellow-700 mb-3">
+                      Configurez l'URL webhook pour activer l'évaluation IA
+                    </p>
+                    <Button
+                      onClick={() => setShowWebhookConfig(true)}
+                      size="sm"
+                      variant="outline"
+                      className="border-yellow-300 hover:bg-yellow-100"
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configurer maintenant
+                    </Button>
+                  </div>
                 )}
 
                 {/* Bouton historique si évaluations existantes */}
@@ -507,37 +539,6 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                     Voir l'historique ({getProspectEvaluationHistory(selectedProspect.id)?.evaluations.length || 0})
                   </Button>
                 )}
-              </div>
-            </div>
-          )}
-                  <>
-                    <Rocket className="w-5 h-5 mr-2" />
-                    Lancer l'Évaluation
-                  </>
-                )}
-              </Button>
-
-              {/* Configuration webhook si non configuré */}
-              {!webhookConfig?.url && (
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-yellow-800 mb-2">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="font-medium">Configuration requise</span>
-                  </div>
-                  <p className="text-sm text-yellow-700 mb-3">
-                    Configurez l'URL webhook pour activer l'évaluation IA
-                  </p>
-                  <Button
-                    onClick={() => setShowWebhookConfig(true)}
-                    size="sm"
-                    variant="outline"
-                    className="border-yellow-300 hover:bg-yellow-100"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Configurer maintenant
-                  </Button>
-                </div>
-              )}
 
                 <div className="flex gap-3">
                   <Button
