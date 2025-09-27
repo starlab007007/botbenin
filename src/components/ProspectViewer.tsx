@@ -28,7 +28,8 @@ import {
   RefreshCw,
   Trash2,
   Sparkles,
-  History
+  History,
+  BarChart3
 } from 'lucide-react';
 
 interface ProspectViewerProps {
@@ -66,6 +67,7 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
   const {
     webhookConfig,
     isLoading: isEvaluating,
+    evaluationResults,
     triggerEvaluation,
     hasBeenEvaluated,
     getProspectEvaluationHistory
@@ -423,181 +425,134 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
                             setIsDialogOpen(true);
                           }}
                         >
-                          <Eye className="w-4 h-4 mr-1" />
-                          Détails
+                          <BarChart3 className="w-4 h-4 mr-1" />
+                          Résultats
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">
                         <DialogHeader>
                           <DialogTitle className="flex items-center gap-2">
-                            <User className="w-5 h-5" />
-                            Détails du prospect
+                            <BarChart3 className="w-5 h-5" />
+                            Résultats d'évaluation
                           </DialogTitle>
                         </DialogHeader>
                         {selectedProspect && (
                           <div className="space-y-6">
-                            {/* Basic Info */}
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* Prospect Info Header */}
+                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                               <div>
-                                <label className="text-sm font-medium text-gray-700">Nom du contact</label>
-                                <p className="text-lg font-semibold">
-                                  {selectedProspect.contact_name || selectedProspect['Nom du contact'] || 'Non défini'}
-                                </p>
+                                <h3 className="font-semibold text-lg">{selectedProspect.contact_name || selectedProspect['Nom du contact'] || 'Non défini'}</h3>
+                                <p className="text-muted-foreground">{selectedProspect.company_name || selectedProspect['Nom de l\'entreprise'] || 'Non définie'}</p>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium text-gray-700">Entreprise</label>
-                                <p className="text-lg font-semibold">
-                                  {selectedProspect.company_name || selectedProspect['Nom de l\'entreprise'] || 'Non définie'}
-                                </p>
-                              </div>
+                              <Button
+                                onClick={() => handleEvaluateProspect(selectedProspect)}
+                                disabled={isEvaluating || !getRunStatus(selectedProspect)}
+                                size="sm"
+                                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                              >
+                                {isEvaluating ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Évaluation...
+                                  </>
+                                ) : hasBeenEvaluated(selectedProspect.id) ? (
+                                  <>
+                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                    Réévaluer
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-4 h-4 mr-2" />
+                                    Évaluer
+                                  </>
+                                )}
+                              </Button>
                             </div>
 
-                            {/* Additional Info */}
-                            <div className="grid grid-cols-2 gap-4">
-                              {selectedProspect['Rôle'] && (
-                                <div>
-                                  <label className="text-sm font-medium text-gray-700">Rôle</label>
-                                  <p>{selectedProspect['Rôle']}</p>
-                                </div>
-                              )}
-                              {selectedProspect.company_website && (
-                                <div>
-                                  <label className="text-sm font-medium text-gray-700">Site web</label>
-                                  <p className="flex items-center gap-1">
-                                    <Globe className="w-4 h-4" />
-                                    <a 
-                                      href={selectedProspect.company_website} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline"
-                                    >
-                                      {selectedProspect.company_website}
-                                    </a>
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* LinkedIn */}
-                            {selectedProspect.linkedin_contact_url && (
-                              <div>
-                                <label className="text-sm font-medium text-gray-700">LinkedIn</label>
-                                <p>
-                                  <a 
-                                    href={selectedProspect.linkedin_contact_url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline"
-                                  >
-                                    {selectedProspect.linkedin_contact_url}
-                                  </a>
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Scoring */}
-                            {selectedProspect['Pertinence du prospect par rapport à notre offre ? (sur 100)'] && (
-                              <div>
-                                <label className="text-sm font-medium text-gray-700">Score de pertinence</label>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                    <div 
-                                      className="bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 h-2 rounded-full"
-                                      style={{ 
-                                        width: `${Math.min(100, Math.max(0, parseInt(selectedProspect['Pertinence du prospect par rapport à notre offre ? (sur 100)'] || '0')))}%` 
-                                      }}
-                                    ></div>
+                            {/* Evaluation Results */}
+                            {evaluationResults.length > 0 && (
+                              <div className="space-y-4">
+                                <h4 className="font-semibold flex items-center gap-2">
+                                  <BarChart3 className="w-4 h-4" />
+                                  Résultats d'évaluation
+                                </h4>
+                                {evaluationResults.map((result, index) => (
+                                  <div key={index} className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                      <div>
+                                        <span className="font-medium text-gray-700">Score:</span>
+                                        <span className="ml-2 font-semibold text-green-600">{result.analysis.relevance_score}/100</span>
+                                      </div>
+                                      <div>
+                                        <span className="font-medium text-gray-700">Évalué le:</span>
+                                        <span className="ml-2">{new Date(result.metadata.generated_at).toLocaleString()}</span>
+                                      </div>
+                                    </div>
+                                    {result.analysis.approach_strategy && (
+                                      <div className="mt-3">
+                                        <span className="font-medium text-gray-700">Recommandations:</span>
+                                        <p className="mt-1 text-sm text-gray-600 whitespace-pre-wrap">{result.analysis.approach_strategy}</p>
+                                      </div>
+                                    )}
                                   </div>
-                                  <span className="text-sm font-medium">
-                                    {selectedProspect['Pertinence du prospect par rapport à notre offre ? (sur 100)']}%
-                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Evaluation History */}
+                            {getProspectEvaluationHistory(selectedProspect.id)?.evaluations?.length > 0 && (
+                              <div className="space-y-3">
+                                <h4 className="font-semibold flex items-center gap-2">
+                                  <History className="w-4 h-4" />
+                                  Historique des évaluations
+                                </h4>
+                                <div className="max-h-60 overflow-y-auto space-y-2">
+                                  {getProspectEvaluationHistory(selectedProspect.id)?.evaluations?.map((evaluation, index) => (
+                                    <div key={index} className="p-3 bg-gray-50 rounded-lg text-sm">
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-medium">Score: {evaluation.analysis.relevance_score}/100</span>
+                                        <span className="text-gray-500">{new Date(evaluation.metadata.generated_at).toLocaleString()}</span>
+                                      </div>
+                                      {evaluation.analysis.approach_strategy && (
+                                        <p className="mt-1 text-gray-600 text-xs">{evaluation.analysis.approach_strategy.substring(0, 100)}...</p>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             )}
 
-                            {/* Call Preparation */}
-                            {selectedProspect['Préparation de l\'appel'] && (
-                              <div>
-                                <label className="text-sm font-medium text-gray-700">Préparation de l'appel</label>
-                                <div className="mt-1 p-3 bg-gray-50 rounded-lg">
-                                  <p className="whitespace-pre-wrap">{selectedProspect['Préparation de l\'appel']}</p>
-                                </div>
+                            {/* No Evaluation Results */}
+                            {evaluationResults.length === 0 && (!getProspectEvaluationHistory(selectedProspect.id)?.evaluations?.length || getProspectEvaluationHistory(selectedProspect.id)?.evaluations?.length === 0) && (
+                              <div className="text-center p-8 bg-gray-50 rounded-lg">
+                                <BarChart3 className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                                <h4 className="text-lg font-medium text-gray-600 mb-2">Aucune évaluation</h4>
+                                <p className="text-gray-500 mb-4">Ce prospect n'a pas encore été évalué.</p>
+                                {getRunStatus(selectedProspect) ? (
+                                  <Button
+                                    onClick={() => handleEvaluateProspect(selectedProspect)}
+                                    disabled={isEvaluating}
+                                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                                  >
+                                    {isEvaluating ? (
+                                      <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Évaluation en cours...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles className="w-4 h-4 mr-2" />
+                                        Lancer l'évaluation
+                                      </>
+                                    )}
+                                  </Button>
+                                ) : (
+                                  <p className="text-sm text-orange-600">
+                                    ⚠️ Activez d'abord ce prospect pour pouvoir l'évaluer
+                                  </p>
+                                )}
                               </div>
                             )}
-
-                            {/* Status */}
-                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                              <div>
-                                <label className="text-sm font-medium text-gray-700">Statut</label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Badge className={getStatusColor(selectedProspect.Statut)}>
-                                    {selectedProspect.Statut || 'En attente'}
-                                  </Badge>
-                                  {getRunStatus(selectedProspect) && (
-                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                      <CheckCircle className="w-3 h-3 mr-1" />
-                                      Actif
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => handleToggleRun(selectedProspect, !getRunStatus(selectedProspect))}
-                                  disabled={updatingProspect === selectedProspect.id}
-                                  size="sm"
-                                  variant={getRunStatus(selectedProspect) ? "destructive" : "default"}
-                                  className={getRunStatus(selectedProspect) ? "" : "bg-green-600 hover:bg-green-700"}
-                                >
-                                  {updatingProspect === selectedProspect.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : getRunStatus(selectedProspect) ? (
-                                    <>
-                                      <Pause className="w-4 h-4 mr-1" />
-                                      Arrêter
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Play className="w-4 h-4 mr-1" />
-                                      Démarrer
-                                    </>
-                                  )}
-                                </Button>
-                                
-                                <Button
-                                  onClick={() => handleDeleteProspect(selectedProspect)}
-                                  disabled={deletingProspect === selectedProspect.id}
-                                  size="sm"
-                                  variant="destructive"
-                                >
-                                  {deletingProspect === selectedProspect.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Trash2 className="w-4 h-4 mr-1" />
-                                      Supprimer
-                                    </>
-                                  )}
-                                </Button>
-                                
-                                <Button
-                                  onClick={() => handleEvaluateProspect(selectedProspect)}
-                                  disabled={evaluatingProspect === selectedProspect.id || !getRunStatus(selectedProspect)}
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-purple-200 hover:bg-purple-50"
-                                >
-                                  {evaluatingProspect === selectedProspect.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Sparkles className="w-4 h-4 mr-1" />
-                                      {hasBeenEvaluated(selectedProspect.id) ? 'Réévaluer' : 'Évaluer'}
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
                           </div>
                         )}
                       </DialogContent>

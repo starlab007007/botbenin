@@ -213,14 +213,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
         company_name: selectedProspect.company_name,
         linkedin_url: selectedProspect.linkedin_url,
         website: selectedProspect.website
-      },
-      (prospectId: string, value: string) => 
-        updateProspectField(
-          { spreadsheetId, sheetName },
-          prospectId,
-          'evaluation_status',
-          value
-        )
+      }
     );
 
     if (success) {
