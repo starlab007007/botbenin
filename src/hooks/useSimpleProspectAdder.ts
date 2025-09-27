@@ -56,7 +56,7 @@ export const useSimpleProspectAdder = (userId?: string) => {
         'Pertinence du prospect par rapport à notre offre ? (sur 100)': '',
         'Préparation de l\'appel': '',
         Run: 'false',
-        Statut: 'En attente'
+        Statut: ''
       };
 
       console.log('🔄 Ajout simple d\'un prospect:', newProspect);

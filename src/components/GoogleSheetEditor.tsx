@@ -243,7 +243,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
       'Pertinence du prospect par rapport à notre offre ? (sur 100)': '',
       'Préparation de l\'appel': '',
       Run: 'false',
-      Statut: 'En attente'
+      Statut: ''
     };
 
     // Ajouter directement au Google Sheet sans écraser les données existantes

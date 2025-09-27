@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleSheets, GoogleSheetProspectWithUser } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
+import { useProspectEvaluationWebhook } from '@/hooks/useProspectEvaluationWebhook';
 import { 
   Users, 
   Search, 
@@ -25,7 +26,9 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
-  Trash2
+  Trash2,
+  Sparkles,
+  History
 } from 'lucide-react';
 
 interface ProspectViewerProps {
@@ -59,6 +62,55 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
     deleteProspectById,
     isWriting
   } = useGoogleSheetsWriter(user?.id);
+
+  const {
+    webhookConfig,
+    isLoading: isEvaluating,
+    triggerEvaluation,
+    hasBeenEvaluated,
+    getProspectEvaluationHistory
+  } = useProspectEvaluationWebhook();
+
+  const [evaluatingProspect, setEvaluatingProspect] = useState<string | null>(null);
+
+  // Fonction pour gérer l'évaluation d'un prospect
+  const handleEvaluateProspect = async (prospect: GoogleSheetProspectWithUser) => {
+    if (!getRunStatus(prospect)) {
+      toast.error('Le prospect doit être activé avant l\'évaluation');
+      return;
+    }
+
+    setEvaluatingProspect(prospect.id);
+    
+    const success = await triggerEvaluation(
+      {
+        id: prospect.id,
+        contact_name: prospect.contact_name || prospect['Nom du contact'] || '',
+        company_name: prospect.company_name || prospect['Nom de l\'entreprise'] || '',
+        email: prospect.email || prospect['Email'] || '',
+        phone: prospect.phone || prospect['Téléphone'] || '',
+        linkedin_url: prospect.linkedin_url || prospect['Profil LinkedIn'] || '',
+        website: prospect.website || prospect['Site web'] || ''
+      },
+      (prospectId: string, value: string) => 
+        updateProspectField(
+          { spreadsheetId, sheetName },
+          prospectId,
+          'Statut',
+          value
+        )
+    );
+
+    if (success) {
+      // Rafraîchir les données pour voir les changements
+      refreshData();
+      toast.success('Évaluation lancée avec succès');
+    } else {
+      toast.error('Erreur lors du lancement de l\'évaluation');
+    }
+    
+    setEvaluatingProspect(null);
+  };
 
   useEffect(() => {
     setFilteredProspects(prospects || []);
@@ -325,6 +377,24 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
                       )}
                     </Button>
 
+                    {/* Evaluate Prospect */}
+                    <Button
+                      onClick={() => handleEvaluateProspect(prospect)}
+                      disabled={evaluatingProspect === prospect.id || !getRunStatus(prospect)}
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-200 hover:bg-purple-50"
+                    >
+                      {evaluatingProspect === prospect.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-1" />
+                          {hasBeenEvaluated(prospect.id) ? 'Réévaluer' : 'Évaluer'}
+                        </>
+                      )}
+                    </Button>
+
                     {/* Delete Prospect */}
                     <Button
                       onClick={() => handleDeleteProspect(prospect)}
@@ -506,6 +576,23 @@ export const ProspectViewer: React.FC<ProspectViewerProps> = ({
                                     <>
                                       <Trash2 className="w-4 h-4 mr-1" />
                                       Supprimer
+                                    </>
+                                  )}
+                                </Button>
+                                
+                                <Button
+                                  onClick={() => handleEvaluateProspect(selectedProspect)}
+                                  disabled={evaluatingProspect === selectedProspect.id || !getRunStatus(selectedProspect)}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-purple-200 hover:bg-purple-50"
+                                >
+                                  {evaluatingProspect === selectedProspect.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Sparkles className="w-4 h-4 mr-1" />
+                                      {hasBeenEvaluated(selectedProspect.id) ? 'Réévaluer' : 'Évaluer'}
                                     </>
                                   )}
                                 </Button>
