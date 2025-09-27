@@ -35,6 +35,14 @@ export interface EvaluationResult {
   documents: EvaluationDocuments;
   metadata: EvaluationMetadata;
   status: 'completed' | 'processing' | 'error';
+  version?: number; // Pour l'historique des évaluations
+}
+
+export interface EvaluationHistory {
+  prospectId: string;
+  evaluations: EvaluationResult[];
+  currentEvaluation?: EvaluationResult;
+  lastEvaluatedAt?: string;
 }
 
 export interface WebhookConfig {

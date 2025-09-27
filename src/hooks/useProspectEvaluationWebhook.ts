@@ -1,17 +1,20 @@
 import React, { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useToast } from '@/hooks/use-toast';
-import { EvaluationResult, ProspectData, WebhookConfig } from '@/types/evaluation';
+import { EvaluationResult, EvaluationHistory, ProspectData, WebhookConfig } from '@/types/evaluation';
 
 interface UseProspectEvaluationWebhookReturn {
   webhookConfig: WebhookConfig | null;
   isLoading: boolean;
   evaluationResults: EvaluationResult[];
+  evaluationHistory: Map<string, EvaluationHistory>;
   setWebhookConfig: (config: WebhookConfig | null) => void;
   triggerEvaluation: (prospectData: ProspectData, updateRunInSheet?: (prospectId: string, value: string) => Promise<boolean>) => Promise<boolean>;
   testWebhook: () => Promise<boolean>;
   addEvaluationResult: (result: EvaluationResult) => void;
   clearResults: () => void;
+  getProspectEvaluationHistory: (prospectId: string) => EvaluationHistory | undefined;
+  hasBeenEvaluated: (prospectId: string) => boolean;
 }
 
 export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookReturn => {
@@ -23,6 +26,7 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
   });
   const [isLoading, setIsLoading] = useState(false);
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
+  const [evaluationHistory, setEvaluationHistory] = useState<Map<string, EvaluationHistory>>(new Map());
 
   const setWebhookConfig = useCallback((config: WebhookConfig | null) => {
     setWebhookConfigState(config);
@@ -34,7 +38,7 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
     }
   }, []);
 
-  // Charger la configuration depuis localStorage au montage
+  // Charger la configuration et l'historique depuis localStorage au montage
   React.useEffect(() => {
     const savedConfig = localStorage.getItem('prospect-evaluation-webhook');
     if (savedConfig) {
@@ -43,6 +47,21 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
         setWebhookConfigState(config);
       } catch (error) {
         console.error('Erreur lors du chargement de la configuration webhook:', error);
+      }
+    }
+
+    // Charger l'historique des évaluations
+    const savedHistory = localStorage.getItem('evaluation-history');
+    if (savedHistory) {
+      try {
+        const historyData = JSON.parse(savedHistory);
+        const historyMap = new Map();
+        Object.entries(historyData).forEach(([key, value]) => {
+          historyMap.set(key, value);
+        });
+        setEvaluationHistory(historyMap);
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'historique:', error);
       }
     }
   }, []);
@@ -120,9 +139,14 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
 
       // Traiter la réponse et créer un résultat d'évaluation
       if (responseData) {
+        // Récupérer l'historique existant pour ce prospect
+        const existingHistory = evaluationHistory.get(prospectData.id);
+        const nextVersion = existingHistory ? (existingHistory.evaluations.length + 1) : 1;
+
         const evaluationResult: EvaluationResult = {
           id: `eval_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           prospect: prospectData,
+          version: nextVersion,
           analysis: {
             relevance_score: responseData.relevance_score || Math.floor(Math.random() * 40) + 60,
             opportunity_level: responseData.opportunity_level || 'medium',
@@ -155,6 +179,22 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
           },
           status: 'completed'
         };
+        
+        // Mettre à jour l'historique
+        const updatedHistory: EvaluationHistory = {
+          prospectId: prospectData.id,
+          evaluations: existingHistory ? [...existingHistory.evaluations, evaluationResult] : [evaluationResult],
+          currentEvaluation: evaluationResult,
+          lastEvaluatedAt: new Date().toISOString()
+        };
+
+        const newHistoryMap = new Map(evaluationHistory);
+        newHistoryMap.set(prospectData.id, updatedHistory);
+        setEvaluationHistory(newHistoryMap);
+
+        // Sauvegarder l'historique dans localStorage
+        const historyObject = Object.fromEntries(newHistoryMap);
+        localStorage.setItem('evaluation-history', JSON.stringify(historyObject));
         
         addEvaluationResult(evaluationResult);
       }
@@ -270,14 +310,26 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
     setEvaluationResults([]);
   };
 
+  const getProspectEvaluationHistory = (prospectId: string): EvaluationHistory | undefined => {
+    return evaluationHistory.get(prospectId);
+  };
+
+  const hasBeenEvaluated = (prospectId: string): boolean => {
+    const history = evaluationHistory.get(prospectId);
+    return history !== undefined && history.evaluations.length > 0;
+  };
+
   return {
     webhookConfig,
     isLoading,
     evaluationResults,
+    evaluationHistory,
     setWebhookConfig,
     triggerEvaluation,
     testWebhook,
     addEvaluationResult,
-    clearResults
+    clearResults,
+    getProspectEvaluationHistory,
+    hasBeenEvaluated
   };
 };

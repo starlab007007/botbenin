@@ -82,9 +82,15 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
 
   const {
     webhookConfig,
-    isLoading: isWebhookLoading,
+    isLoading: isEvaluating,
     evaluationResults,
-    triggerEvaluation
+    evaluationHistory,
+    setWebhookConfig,
+    triggerEvaluation,
+    testWebhook,
+    clearResults,
+    getProspectEvaluationHistory,
+    hasBeenEvaluated
   } = useProspectEvaluationWebhook();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -193,37 +199,29 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
     }
   };
 
-  const handleLaunchEvaluation = async () => {
+  const handleEvaluate = async () => {
     if (!selectedProspect) return;
 
-    const success = await triggerEvaluation({
-      id: selectedProspect.id,
-      contact_name: selectedProspect.contact_name,
-      company_name: selectedProspect.company_name,
-      runStatus: selectedProspect.runStatus
-    });
+    const success = await triggerEvaluation(
+      {
+        id: selectedProspect.id,
+        contact_name: selectedProspect.contact_name,
+        company_name: selectedProspect.company_name,
+        linkedin_url: selectedProspect.linkedin_url,
+        website: selectedProspect.website
+      },
+      updateProspectField
+    );
 
     if (success) {
-      setRecentAdditions(prev => prev.map(p => 
-        p.id === selectedProspect.id 
-          ? { ...p, isEvaluated: true }
-          : p
-      ));
-      
-      setSelectedProspect(prev => prev ? { ...prev, isEvaluated: true } : null);
-      
-      toast.success('Évaluation IA lancée avec succès !');
-      
-      // Afficher les résultats si disponibles
-      if (evaluationResults.length > 0) {
-        setShowEvaluationResults(true);
-      }
-      
-      // Retour au début après 3 secondes
-      setTimeout(() => {
-        setCurrentStep('add');
-        setSelectedProspect(null);
-      }, 3000);
+      toast.success('Évaluation IA réalisée avec succès !');
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    const success = await testWebhook();
+    if (success) {
+      toast.success('Webhook configuré et fonctionnel !');
     }
   };
 
@@ -475,21 +473,43 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 </p>
                 
                 <Button
-                  onClick={handleLaunchEvaluation}
-                  disabled={isWebhookLoading || selectedProspect.isEvaluated || !selectedProspect.runStatus}
+                  onClick={handleEvaluate}
+                  disabled={isEvaluating || !selectedProspect.runStatus}
                   className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                 >
-                  {isWebhookLoading ? (
+                  {isEvaluating ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                       Évaluation en cours...
                     </>
-                  ) : selectedProspect.isEvaluated ? (
-                    <>
-                      <CheckCircle className="w-5 h-5 mr-2" />
-                      Évaluation terminée
-                    </>
                   ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Lancer l'évaluation IA
+                    </>
+                  )}
+                </Button>
+
+                {!selectedProspect.runStatus && (
+                  <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                    ⚠️ Le prospect doit être activé avant l'évaluation
+                  </p>
+                )}
+
+                {/* Bouton historique si évaluations existantes */}
+                {hasBeenEvaluated(selectedProspect.id) && (
+                  <Button
+                    onClick={() => setShowEvaluationResults(true)}
+                    variant="outline"
+                    className="w-full h-10 text-sm"
+                  >
+                    <History className="w-4 h-4 mr-2" />
+                    Voir l'historique ({getProspectEvaluationHistory(selectedProspect.id)?.evaluations.length || 0})
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
                   <>
                     <Rocket className="w-5 h-5 mr-2" />
                     Lancer l'Évaluation
@@ -541,13 +561,13 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           )}
 
           {/* Statut global */}
-          {(isAdding || isWriting || isWebhookLoading) && (
+          {(isAdding || isWriting || isEvaluating) && (
             <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center justify-center text-blue-700">
                 <Clock className="w-4 h-4 mr-2" />
                 {isAdding && 'Synchronisation en cours avec Google Sheets...'}
                 {isWriting && 'Mise à jour du prospect...'}
-                {isWebhookLoading && 'Évaluation IA en cours...'}
+                {isEvaluating && 'Évaluation IA en cours...'}
               </div>
             </div>
           )}
@@ -621,11 +641,13 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
       />
 
       {/* Résultats d'évaluation */}
-      <EvaluationResultsViewer
-        results={evaluationResults}
-        isOpen={showEvaluationResults}
-        onClose={() => setShowEvaluationResults(false)}
-      />
+      {showEvaluationResults && (
+        <EvaluationResultsViewer
+          results={evaluationResults}
+          evaluationHistory={evaluationHistory}
+          onClose={() => setShowEvaluationResults(false)}
+        />
+      )}
 
       {/* Instructions */}
       <Card className="border-0 shadow-sm bg-amber-50/50">
