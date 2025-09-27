@@ -168,21 +168,22 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
       );
 
       if (success) {
-        // Mettre à jour le statut local
+        // Mettre à jour le statut local immédiatement
+        const updatedProspect = { ...prospect, runStatus: activate };
+        
         setRecentAdditions(prev => prev.map(p => 
-          p.id === prospect.id 
-            ? { ...p, runStatus: activate }
-            : p
+          p.id === prospect.id ? updatedProspect : p
         ));
 
-        if (selectedProspect?.id === prospect.id) {
-          setSelectedProspect(prev => prev ? { ...prev, runStatus: activate } : null);
-        }
+        setSelectedProspect(updatedProspect);
 
         if (activate) {
+          // Passer directement à l'étape évaluation
           setCurrentStep('evaluate');
-          toast.success('Prospect activé ! Vous pouvez maintenant lancer l\'évaluation.');
+          toast.success('Prospect activé ! Prêt pour l\'évaluation IA.');
         } else {
+          // Retourner à l'étape activation si désactivé
+          setCurrentStep('activate');
           toast.success('Prospect désactivé.');
         }
       }
@@ -388,9 +389,8 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 <Button
                   type="button"
                   onClick={() => setShowEvaluationResults(true)}
-                  disabled={evaluationResults.length === 0}
                   variant="outline"
-                  className="h-12 text-base border-2 border-green-200 hover:bg-green-50 disabled:opacity-50"
+                  className="h-12 text-base border-2 border-green-200 hover:bg-green-50"
                 >
                   <FileText className="w-5 h-5 mr-2" />
                   Résultats ({evaluationResults.length})

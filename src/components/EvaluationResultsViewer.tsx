@@ -83,7 +83,14 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
           {/* Liste des résultats */}
           <div className="w-1/3 border-r bg-gray-50 overflow-y-auto">
             <div className="p-4 space-y-3">
-              {results.map((result) => (
+              {results.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <h3 className="font-semibold text-gray-600 mb-2">Pas de contenu disponible</h3>
+                  <p className="text-sm text-gray-500">Aucun prospect n'a encore été évalué</p>
+                </div>
+              ) : (
+                results.map((result) => (
                 <Card 
                   key={result.id}
                   className={`cursor-pointer transition-colors hover:shadow-md ${
@@ -121,13 +128,30 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
           {/* Détails du résultat sélectionné */}
           <div className="flex-1 overflow-y-auto">
-            {selectedResult ? (
+            {results.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="text-center">
+                  <AlertCircle className="w-16 h-16 mx-auto mb-6 text-gray-300" />
+                  <h3 className="text-xl font-semibold text-gray-600 mb-3">Pas de contenu disponible</h3>
+                  <p className="text-gray-500 mb-6">Aucun prospect n'a encore été évalué par l'IA</p>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 max-w-md">
+                    <h4 className="font-semibold text-blue-900 mb-2">Pour commencer :</h4>
+                    <ol className="text-sm text-blue-800 space-y-1 text-left">
+                      <li>1. Ajoutez un prospect</li>
+                      <li>2. Activez-le pour l'évaluation</li>
+                      <li>3. Lancez l'analyse IA</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            ) : selectedResult ? (
               <div className="p-6 space-y-6">
                 {/* En-tête du prospect */}
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-lg border">

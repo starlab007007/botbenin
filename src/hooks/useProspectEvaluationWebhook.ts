@@ -35,7 +35,7 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
   }, []);
 
   // Charger la configuration depuis localStorage au montage
-  useState(() => {
+  React.useEffect(() => {
     const savedConfig = localStorage.getItem('prospect-evaluation-webhook');
     if (savedConfig) {
       try {
@@ -45,7 +45,7 @@ export const useProspectEvaluationWebhook = (): UseProspectEvaluationWebhookRetu
         console.error('Erreur lors du chargement de la configuration webhook:', error);
       }
     }
-  });
+  }, []);
 
   const triggerEvaluation = useCallback(async (
     prospectData: ProspectData, 
