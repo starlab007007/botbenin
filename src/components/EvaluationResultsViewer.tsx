@@ -62,7 +62,7 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
 
   // Initialize with first prospect
   useEffect(() => {
-    if (prospects && prospects.length > 0 && !selectedProspect) {
+    if (prospects && Array.isArray(prospects) && prospects.length > 0 && !selectedProspect) {
       setSelectedProspect(prospects[0]);
     }
   }, [prospects, selectedProspect]);
@@ -130,7 +130,7 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                     <p className="text-sm text-gray-500">Ajoutez des prospects pour voir leurs évaluations</p>
                   </div>
                 ) : (
-                  prospects.map((prospect) => {
+                  (prospects || []).map((prospect) => {
                     const score = getScoreFromProspect(prospect);
                     return (
                       <Card 
