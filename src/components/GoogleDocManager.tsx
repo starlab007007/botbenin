@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useGoogleDocsWriter } from '@/hooks/useGoogleDocsWriter';
 import { 
   FileText,
   Edit3,
@@ -54,11 +55,11 @@ const offerTypes = {
 
 export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId }: GoogleDocManagerProps) => {
   const { user } = useAuth();
+  const { writeToGoogleDoc, isWriting: isDocWriting } = useGoogleDocsWriter(user?.id);
   const [googleDocId, setGoogleDocId] = useState(propGoogleDocId || '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg');
   const [docContent, setDocContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [autoSaveInterval, setAutoSaveInterval] = useState<NodeJS.Timeout | null>(null);
@@ -143,8 +144,9 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
     }
 
     if (autoSync && googleDocId && docContent) {
-      const interval = setInterval(() => {
-        saveToGoogleDoc(false); // Save without toast notification
+      const interval = setInterval(async () => {
+        console.log('🔄 Auto-sauvegarde périodique');
+        await writeToGoogleDoc(googleDocId, docContent); // Save without manual toast notification
       }, 30000); // Auto-save every 30 seconds
       setAutoSaveInterval(interval);
     }
@@ -218,9 +220,14 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
         setDocContent(data.generatedContent);
         toast.success('Offre commerciale générée avec Gemini AI');
         
-        // Auto-sync si activé
-        if (autoSync) {
-          setLastSyncTime(new Date());
+        // ✅ AUTO-SAUVEGARDE IMMÉDIATE dans Google Doc
+        if (autoSync && googleDocId) {
+          console.log('🔄 Auto-sauvegarde immédiate de l\'offre générée dans Google Doc');
+          const saveSuccess = await writeToGoogleDoc(googleDocId, data.generatedContent);
+          if (saveSuccess) {
+            setLastSyncTime(new Date());
+            toast.success('📄 Offre synchronisée automatiquement avec Google Doc !', { duration: 4000 });
+          }
         }
       } else {
         throw new Error('Contenu généré non reçu');
@@ -245,33 +252,10 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
       return;
     }
 
-    setIsSaving(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('google-docs-writer', {
-        body: { 
-          docId: googleDocId,
-          content: docContent,
-          userId: user?.id 
-        }
-      });
-
-      if (error) throw error;
-
+    // Utiliser le nouveau hook pour la sauvegarde
+    const success = await writeToGoogleDoc(googleDocId, docContent);
+    if (success) {
       setLastSyncTime(new Date());
-      if (showToast) {
-        if (data?.message?.includes('simulation')) {
-          toast.success('📝 Mode simulation - Configurez GOOGLE_SERVICE_ACCOUNT_KEY pour la synchronisation réelle');
-        } else {
-          toast.success('✅ Document synchronisé avec Google Docs avec succès !');
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde:', error);
-      if (showToast) {
-        toast.error(`Erreur de synchronisation: ${error.message}`);
-      }
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -547,11 +531,11 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                     </Button>
                     <Button
                       onClick={() => saveToGoogleDoc()}
-                      disabled={isSaving || !docContent.trim() || !googleDocId}
+                      disabled={isDocWriting || !docContent.trim() || !googleDocId}
                       size="sm"
                       className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4 font-medium"
                     >
-                      {isSaving ? (
+                      {isDocWriting ? (
                         <>
                           <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 animate-spin" />
                           <span className="hidden sm:inline">Enregistrement...</span>
@@ -605,11 +589,11 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                         <div className="flex items-center gap-2">
                           <Button
                             onClick={() => saveToGoogleDoc()}
-                            disabled={isSaving || !docContent.trim() || !googleDocId}
+                            disabled={isDocWriting || !docContent.trim() || !googleDocId}
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm font-medium"
                           >
-                            {isSaving ? (
+                            {isDocWriting ? (
                               <>
                                 <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
                                 Enregistrement...
