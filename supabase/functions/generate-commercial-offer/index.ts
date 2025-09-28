@@ -172,11 +172,16 @@ serve(async (req) => {
       // Handle quota exceeded specifically
       if (response.status === 429) {
         const retryAfter = errorData.error?.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo')?.retryDelay;
+        const retryAfterSeconds = retryAfter ? parseInt(retryAfter.replace('s', '')) : 3600;
+        const retryAfterHours = Math.ceil(retryAfterSeconds / 3600);
+        
         return new Response(
           JSON.stringify({ 
-            error: 'Quota API Gemini dépassé. Veuillez réessayer plus tard.',
-            details: `Limite de 50 requêtes par jour atteinte. Réessayez dans ${retryAfter || '1 heure'}.`,
-            retryAfter: retryAfter
+            error: 'QUOTA_EXCEEDED',
+            message: 'Quota Gemini API dépassé',
+            details: `La limite de 50 requêtes par jour a été atteinte. Réessayez dans ${retryAfterHours}h.`,
+            retryAfter: retryAfterSeconds,
+            userMessage: `⚠️ Limite quotidienne atteinte\n\nL'API Gemini AI a une limite de 50 générations par jour qui a été dépassée.\n\nVous pourrez générer de nouvelles offres dans ${retryAfterHours} heure${retryAfterHours > 1 ? 's' : ''}.\n\nEn attendant, vous pouvez :\n• Éditer manuellement le contenu existant\n• Sauvegarder vos offres actuelles\n• Revenir plus tard pour de nouvelles générations`
           }),
           {
             status: 429,

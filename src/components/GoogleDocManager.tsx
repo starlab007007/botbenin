@@ -208,7 +208,14 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Gestion spéciale pour le quota dépassé
+        if (data?.error === 'QUOTA_EXCEEDED') {
+          toast.error(data.userMessage || 'Quota Gemini API dépassé. Réessayez plus tard.');
+          return;
+        }
+        throw error;
+      }
 
       if (data?.generatedContent) {
         setDocContent(data.generatedContent);
