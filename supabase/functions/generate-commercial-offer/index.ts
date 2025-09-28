@@ -110,7 +110,21 @@ serve(async (req) => {
       );
     }
 
-    const { config, userId } = await req.json();
+    let config, userId;
+    try {
+      const body = await req.json();
+      config = body.config;
+      userId = body.userId;
+    } catch (error) {
+      console.error('Error parsing request body:', error);
+      return new Response(
+        JSON.stringify({ error: 'Format de requête invalide' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
     
     if (!config || !config.targetAudience || !config.industry) {
       return new Response(
@@ -131,7 +145,7 @@ serve(async (req) => {
 
     const prompt = getOfferPrompt(config);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

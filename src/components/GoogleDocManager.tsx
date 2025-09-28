@@ -59,6 +59,7 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   const [isSaving, setIsSaving] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [autoSaveInterval, setAutoSaveInterval] = useState<NodeJS.Timeout | null>(null);
   
   // Configuration de l'offre
   const [offerConfig, setOfferConfig] = useState<OfferConfig>({
@@ -124,15 +125,32 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
   // Auto-sync avec Google Doc
   useEffect(() => {
-    if (autoSync && docContent && lastSyncTime) {
-      const syncInterval = setInterval(() => {
-        if (Date.now() - lastSyncTime.getTime() > 10000) { // 10 secondes après modification
-          saveToGoogleDoc();
-        }
-      }, 5000);
-      return () => clearInterval(syncInterval);
+    if (autoSaveInterval) {
+      clearInterval(autoSaveInterval);
     }
-  }, [docContent, autoSync, lastSyncTime]);
+
+    if (autoSync && googleDocId && docContent) {
+      const interval = setInterval(() => {
+        saveToGoogleDoc(false); // Save without toast notification
+      }, 30000); // Auto-save every 30 seconds
+      setAutoSaveInterval(interval);
+    }
+
+    return () => {
+      if (autoSaveInterval) {
+        clearInterval(autoSaveInterval);
+      }
+    };
+  }, [autoSync, googleDocId, docContent]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveInterval) {
+        clearInterval(autoSaveInterval);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen && googleDocId) {
@@ -212,11 +230,8 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
     }
   };
 
-  const saveToGoogleDoc = async () => {
-    if (!docContent.trim()) {
-      toast.error('Le contenu ne peut pas être vide');
-      return;
-    }
+  const saveToGoogleDoc = async (showToast = true) => {
+    if (!googleDocId || !docContent) return;
 
     setIsSaving(true);
     try {
@@ -236,13 +251,17 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
       if (response.ok) {
         setLastSyncTime(new Date());
-        toast.success('Document synchronisé avec Google Doc');
+        if (showToast) {
+          toast.success('Document sauvegardé avec succès !');
+        }
       } else {
         throw new Error('Erreur lors de la synchronisation');
       }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      toast.success('Mode démo - Changements sauvegardés localement');
+      if (showToast) {
+        toast.success('Mode démo - Changements sauvegardés localement');
+      }
       setLastSyncTime(new Date());
     } finally {
       setIsSaving(false);
@@ -473,9 +492,9 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                         onChange={(e) => setAutoSync(e.target.checked)}
                         className="rounded"
                       />
-                      <label htmlFor="auto-sync" className="text-gray-600">
-                        Sync auto
-                      </label>
+                       <label htmlFor="auto-sync" className="text-gray-600">
+                         Sync auto (30s)
+                       </label>
                     </div>
                     {lastSyncTime && (
                       <span className="text-xs text-gray-500">
@@ -492,7 +511,7 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                       <Trash2 className="w-4 h-4" />
                     </Button>
                     <Button
-                      onClick={saveToGoogleDoc}
+                      onClick={() => saveToGoogleDoc()}
                       disabled={isSaving || !docContent.trim()}
                       size="sm"
                       className="bg-green-600 hover:bg-green-700"
