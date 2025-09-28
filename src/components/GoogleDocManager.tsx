@@ -368,13 +368,12 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                       onChange={(e) => setGoogleDocId(e.target.value)}
                       placeholder="1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg"
                       className="font-mono text-xs sm:text-sm flex-1"
-                      disabled={true}
                     />
                     <Button
                       onClick={loadDocContent}
                       variant="outline"
                       size="sm"
-                      disabled={isLoading}
+                      disabled={isLoading || !googleDocId.trim()}
                       className="w-full sm:w-auto"
                     >
                       {isLoading ? <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />}
