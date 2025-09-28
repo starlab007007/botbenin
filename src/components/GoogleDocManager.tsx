@@ -32,12 +32,13 @@ interface GoogleDocManagerProps {
 }
 
 type OfferType = 'personnel' | 'entreprise' | 'b2b' | 'b2c' | 'c2c';
+type ToneType = 'professionnel' | 'convivial' | 'technique' | 'commercial' | 'premium';
 
 interface OfferConfig {
   type: OfferType;
   targetAudience: string;
   industry: string;
-  tone: string;
+  tone: ToneType;
   keyFeatures: string[];
 }
 
@@ -72,10 +73,54 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
   // Auto-génération quand le type change
   useEffect(() => {
-    if (offerConfig.type && offerConfig.targetAudience && offerConfig.industry) {
-      generateWithAI();
+    if (offerConfig.type) {
+      // Définir des valeurs par défaut selon le type
+      const defaultConfigs = {
+        personnel: {
+          targetAudience: 'Entrepreneurs et dirigeants PME',
+          industry: 'Conseil et expertise',
+          keyFeatures: ['Expertise personnalisée', 'Accompagnement sur-mesure', 'Disponibilité flexible']
+        },
+        entreprise: {
+          targetAudience: 'PME et grandes entreprises',
+          industry: 'Services aux entreprises',
+          keyFeatures: ['Équipe dédiée', 'Processus structurés', 'Support continu']
+        },
+        b2b: {
+          targetAudience: 'PME du secteur technologique',
+          industry: 'Services numériques',
+          keyFeatures: ['Automatisation IA', 'Intégration systèmes', 'ROI mesurable']
+        },
+        b2c: {
+          targetAudience: 'Particuliers et familles',
+          industry: 'Services aux particuliers',
+          keyFeatures: ['Interface simple', 'Prix abordable', 'Support client']
+        },
+        c2c: {
+          targetAudience: 'Communauté d\'utilisateurs',
+          industry: 'Plateforme d\'échange',
+          keyFeatures: ['Sécurité transactions', 'Interface intuitive', 'Commission transparente']
+        }
+      };
+
+      const defaults = defaultConfigs[offerConfig.type];
+      if (defaults) {
+        setOfferConfig(prev => ({
+          ...prev,
+          targetAudience: defaults.targetAudience,
+          industry: defaults.industry,
+          keyFeatures: defaults.keyFeatures
+        }));
+      }
     }
   }, [offerConfig.type]);
+
+  // Auto-génération après mise à jour des valeurs par défaut
+  useEffect(() => {
+    if (offerConfig.type && offerConfig.targetAudience && offerConfig.industry && offerConfig.keyFeatures.length > 0) {
+      generateWithAI();
+    }
+  }, [offerConfig.targetAudience, offerConfig.industry, offerConfig.keyFeatures]);
 
   // Auto-sync avec Google Doc
   useEffect(() => {
@@ -132,12 +177,12 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
     setIsGenerating(true);
     try {
-      // Appel à l'edge function Supabase
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-commercial-offer`, {
+      // Appel à l'edge function Supabase avec Gemini
+      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/generate-commercial-offer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8`,
         },
         body: JSON.stringify({
           config: offerConfig,
@@ -146,15 +191,22 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
       });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de la génération');
+        const errorData = await response.json();
+        console.error('Erreur de l\'API:', errorData);
+        throw new Error(errorData.error || 'Erreur lors de la génération');
       }
 
       const data = await response.json();
       setDocContent(data.generatedContent);
-      toast.success('Offre commerciale générée avec succès par l\'IA');
+      toast.success('Offre commerciale générée avec Gemini AI');
+      
+      // Auto-sync si activé
+      if (autoSync) {
+        setLastSyncTime(new Date());
+      }
     } catch (error) {
       console.error('Erreur lors de la génération IA:', error);
-      toast.error('Erreur lors de la génération par l\'IA');
+      toast.error(`Erreur Gemini AI: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -340,7 +392,7 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
                     <div className="space-y-2">
                       <Label htmlFor="tone">Ton de communication</Label>
-                      <Select value={offerConfig.tone} onValueChange={(value) => setOfferConfig(prev => ({ ...prev, tone: value }))}>
+                      <Select value={offerConfig.tone} onValueChange={(value: ToneType) => setOfferConfig(prev => ({ ...prev, tone: value }))}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
