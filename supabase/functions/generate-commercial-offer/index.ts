@@ -1,8 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -92,6 +90,111 @@ INSTRUCTIONS SPÉCIFIQUES:
 Le résultat doit être en français, prêt à utiliser, et suivre exactement le format de l'exemple.`;
 };
 
+const generateWithGemini = async (prompt: string, apiKey: string) => {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 2048,
+      }
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    if (response.status === 429) {
+      const retryAfter = errorData.error?.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo')?.retryDelay;
+      const retryAfterSeconds = retryAfter ? parseInt(retryAfter.replace('s', '')) : 3600;
+      const retryAfterHours = Math.ceil(retryAfterSeconds / 3600);
+      
+      throw new Error(JSON.stringify({
+        error: 'QUOTA_EXCEEDED',
+        message: 'Quota Gemini API dépassé',
+        details: `La limite de 50 requêtes par jour a été atteinte. Réessayez dans ${retryAfterHours}h.`,
+        retryAfter: retryAfterSeconds,
+        userMessage: `⚠️ Limite quotidienne atteinte\n\nL'API Gemini AI a une limite de 50 générations par jour qui a été dépassée.\n\nVous pourrez générer de nouvelles offres dans ${retryAfterHours} heure${retryAfterHours > 1 ? 's' : ''}.\n\nEn attendant, vous pouvez :\n• Éditer manuellement le contenu existant\n• Sauvegarder vos offres actuelles\n• Revenir plus tard pour de nouvelles générations`
+      }));
+    }
+    throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    throw new Error('Réponse inattendue de l\'API Gemini');
+  }
+
+  return data.candidates[0].content.parts[0].text;
+};
+
+const generateWithOpenAI = async (prompt: string, apiKey: string) => {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'Tu es un expert en rédaction d\'offres commerciales spécialisé dans l\'IA et l\'automatisation.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2048,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`OpenAI API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    throw new Error('Réponse inattendue de l\'API OpenAI');
+  }
+
+  return data.choices[0].message.content;
+};
+
+const generateWithMistral = async (prompt: string, apiKey: string) => {
+  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'mistral-large-latest',
+      messages: [
+        { role: 'system', content: 'Tu es un expert en rédaction d\'offres commerciales spécialisé dans l\'IA et l\'automatisation.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2048,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Mistral API error: ${response.status} - ${errorData.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    throw new Error('Réponse inattendue de l\'API Mistral');
+  }
+
+  return data.choices[0].message.content;
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -99,22 +202,13 @@ serve(async (req) => {
   }
 
   try {
-    if (!geminiApiKey) {
-      console.error('Gemini API key not found');
-      return new Response(
-        JSON.stringify({ error: 'Clé API Gemini manquante. Veuillez configurer GEMINI_API_KEY dans les secrets.' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    let config, userId;
+    let config, userId, apiProvider, apiKey;
     try {
       const body = await req.json();
       config = body.config;
       userId = body.userId;
+      apiProvider = body.apiProvider || 'gemini';
+      apiKey = body.apiKey;
     } catch (error) {
       console.error('Error parsing request body:', error);
       return new Response(
@@ -136,7 +230,17 @@ serve(async (req) => {
       );
     }
 
-    console.log('Génération d\'offre commerciale avec Gemini pour:', {
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: `Clé API ${apiProvider.toUpperCase()} manquante` }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('Génération d\'offre commerciale avec', apiProvider.toUpperCase(), 'pour:', {
       type: config.type,
       targetAudience: config.targetAudience,
       industry: config.industry,
@@ -144,71 +248,60 @@ serve(async (req) => {
     });
 
     const prompt = getOfferPrompt(config);
+    let generatedContent;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 2048,
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Erreur Gemini API:', errorData);
+    try {
+      switch (apiProvider) {
+        case 'gemini':
+          generatedContent = await generateWithGemini(prompt, apiKey);
+          break;
+        case 'openai':
+          generatedContent = await generateWithOpenAI(prompt, apiKey);
+          break;
+        case 'mistral':
+          generatedContent = await generateWithMistral(prompt, apiKey);
+          break;
+        default:
+          throw new Error(`API provider non supporté: ${apiProvider}`);
+      }
+    } catch (error) {
+      console.error(`Erreur ${apiProvider.toUpperCase()} API:`, error);
       
-      // Handle quota exceeded specifically
-      if (response.status === 429) {
-        const retryAfter = errorData.error?.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo')?.retryDelay;
-        const retryAfterSeconds = retryAfter ? parseInt(retryAfter.replace('s', '')) : 3600;
-        const retryAfterHours = Math.ceil(retryAfterSeconds / 3600);
-        
-        return new Response(
-          JSON.stringify({ 
-            error: 'QUOTA_EXCEEDED',
-            message: 'Quota Gemini API dépassé',
-            details: `La limite de 50 requêtes par jour a été atteinte. Réessayez dans ${retryAfterHours}h.`,
-            retryAfter: retryAfterSeconds,
-            userMessage: `⚠️ Limite quotidienne atteinte\n\nL'API Gemini AI a une limite de 50 générations par jour qui a été dépassée.\n\nVous pourrez générer de nouvelles offres dans ${retryAfterHours} heure${retryAfterHours > 1 ? 's' : ''}.\n\nEn attendant, vous pouvez :\n• Éditer manuellement le contenu existant\n• Sauvegarder vos offres actuelles\n• Revenir plus tard pour de nouvelles générations`
-          }),
-          {
+      // Gestion spéciale pour Gemini quota exceeded
+      if (apiProvider === 'gemini' && (error as Error).message.includes('QUOTA_EXCEEDED')) {
+        try {
+          const errorObj = JSON.parse((error as Error).message);
+          return new Response(JSON.stringify(errorObj), {
             status: 429,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
+          });
+        } catch (parseError) {
+          // Fallback si le parsing échoue
+          return new Response(
+            JSON.stringify({ 
+              error: 'QUOTA_EXCEEDED',
+              message: 'Quota Gemini API dépassé',
+              userMessage: 'Limite quotidienne atteinte. Réessayez plus tard.'
+            }),
+            {
+              status: 429,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            }
+          );
+        }
       }
       
-      throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
+      throw error;
     }
 
-    const data = await response.json();
-    
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      console.error('Structure de réponse Gemini inattendue:', data);
-      throw new Error('Réponse inattendue de l\'API Gemini');
-    }
-
-    const generatedContent = data.candidates[0].content.parts[0].text;
-
-    console.log('Offre commerciale générée avec succès via Gemini');
+    console.log('Offre commerciale générée avec succès via', apiProvider.toUpperCase());
     console.log('Preview:', generatedContent.substring(0, 200) + '...');
 
     return new Response(
       JSON.stringify({ 
         generatedContent,
         config,
+        apiProvider,
         timestamp: new Date().toISOString()
       }),
       {
@@ -220,7 +313,7 @@ serve(async (req) => {
     console.error('Erreur dans generate-commercial-offer:', error);
     return new Response(
       JSON.stringify({ 
-        error: 'Erreur lors de la génération de l\'offre commerciale avec Gemini',
+        error: 'Erreur lors de la génération de l\'offre commerciale',
         details: error?.message || 'Erreur inconnue'
       }),
       {

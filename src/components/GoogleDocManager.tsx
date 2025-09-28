@@ -64,6 +64,15 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
   const [accountInfo, setAccountInfo] = useState<any>(null);
   const [isLoadingAccountInfo, setIsLoadingAccountInfo] = useState(false);
   
+  // Configuration IA
+  const [selectedApi, setSelectedApi] = useState<'gemini' | 'openai' | 'mistral'>('gemini');
+  const [apiKeys, setApiKeys] = useState({
+    gemini: '',
+    openai: '',
+    mistral: ''
+  });
+  const [showApiConfig, setShowApiConfig] = useState(false);
+  
   // Configuration de l'offre
   const [offerConfig, setOfferConfig] = useState<OfferConfig>({
     type: 'b2b',
@@ -199,19 +208,28 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
       return;
     }
 
+    const currentApiKey = apiKeys[selectedApi];
+    if (!currentApiKey.trim()) {
+      toast.error(`Veuillez saisir la clé API ${selectedApi.toUpperCase()}`);
+      setShowApiConfig(true);
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-commercial-offer', {
         body: {
           config: offerConfig,
-          userId: user?.id
+          userId: user?.id,
+          apiProvider: selectedApi,
+          apiKey: currentApiKey
         }
       });
 
       if (error) {
         // Gestion spéciale pour le quota dépassé
         if (data?.error === 'QUOTA_EXCEEDED') {
-          toast.error(data.userMessage || 'Quota Gemini API dépassé. Réessayez plus tard.');
+          toast.error(data.userMessage || `Quota ${selectedApi.toUpperCase()} API dépassé. Réessayez plus tard.`);
           return;
         }
         throw error;
@@ -219,13 +237,13 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
 
       if (data?.generatedContent) {
         setDocContent(data.generatedContent);
-        toast.success('Offre commerciale générée avec Gemini AI');
+        toast.success(`Offre commerciale générée avec ${selectedApi.toUpperCase()} AI`);
       } else {
         throw new Error('Contenu généré non reçu');
       }
     } catch (error) {
       console.error('Erreur lors de la génération IA:', error);
-      toast.error(`Erreur Gemini AI: ${error.message}`);
+      toast.error(`Erreur ${selectedApi.toUpperCase()} AI: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -423,6 +441,78 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                           <p>{accountInfo.error}</p>
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Configuration API IA */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs sm:text-sm font-medium">Configuration API IA</Label>
+                    <Button
+                      onClick={() => setShowApiConfig(!showApiConfig)}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                    >
+                      <Settings className="w-3 h-3 mr-1" />
+                      {showApiConfig ? 'Masquer' : 'Configurer'}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-medium">API:</Label>
+                    <Select value={selectedApi} onValueChange={(value: 'gemini' | 'openai' | 'mistral') => setSelectedApi(value)}>
+                      <SelectTrigger className="w-32 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gemini">Gemini</SelectItem>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="mistral">Mistral AI</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Badge variant={apiKeys[selectedApi] ? "default" : "destructive"} className="text-xs">
+                      {apiKeys[selectedApi] ? "Configuré" : "Non configuré"}
+                    </Badge>
+                  </div>
+
+                  {showApiConfig && (
+                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 space-y-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Clé API {selectedApi.toUpperCase()}</Label>
+                        <Input
+                          type="password"
+                          value={apiKeys[selectedApi]}
+                          onChange={(e) => setApiKeys(prev => ({ ...prev, [selectedApi]: e.target.value }))}
+                          placeholder={`Entrez votre clé API ${selectedApi.toUpperCase()}`}
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                      <div className="text-xs text-yellow-700">
+                        <p className="font-medium mb-1">🔑 Instructions pour {selectedApi.toUpperCase()}:</p>
+                        {selectedApi === 'gemini' && (
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>Allez sur <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-600 underline">Google AI Studio</a></li>
+                            <li>Créez une nouvelle clé API</li>
+                            <li>Copiez et collez la clé ci-dessus</li>
+                          </ul>
+                        )}
+                        {selectedApi === 'openai' && (
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>Allez sur <a href="https://platform.openai.com/api-keys" target="_blank" className="text-blue-600 underline">OpenAI Platform</a></li>
+                            <li>Créez une nouvelle clé API</li>
+                            <li>Copiez et collez la clé ci-dessus</li>
+                          </ul>
+                        )}
+                        {selectedApi === 'mistral' && (
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>Allez sur <a href="https://console.mistral.ai/" target="_blank" className="text-blue-600 underline">Mistral Console</a></li>
+                            <li>Créez une nouvelle clé API</li>
+                            <li>Copiez et collez la clé ci-dessus</li>
+                          </ul>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
