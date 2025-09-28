@@ -77,8 +77,8 @@ const App = () => (
             <UserProvider>
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
-                  {/* Route d'accueil avec redirection vers home */}
-                  <Route path="/" element={<Navigate to="/home" replace />} />
+                  {/* Route d'accueil avec redirection vers prospect-preparation */}
+                  <Route path="/" element={<Navigate to="/prospect-preparation" replace />} />
                   
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>

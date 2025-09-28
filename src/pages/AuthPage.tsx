@@ -26,7 +26,7 @@ const AuthPage: React.FC = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/home');
+      navigate('/prospect-preparation');
     }
   }, [isAuthenticated, navigate]);
 
@@ -42,7 +42,7 @@ const AuthPage: React.FC = () => {
       const success = await login(email, password);
       if (success) {
         toast.success('Connexion réussie');
-        navigate('/home');
+        navigate('/prospect-preparation');
       } else {
         toast.error('Erreur lors de la connexion');
       }
