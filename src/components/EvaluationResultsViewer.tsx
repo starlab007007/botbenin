@@ -104,20 +104,20 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] sm:max-w-7xl max-h-[95vh] overflow-hidden p-0">
+          <DialogHeader className="p-4 sm:p-6">
             <DialogTitle className="flex items-center justify-between">
-              <span>Résultats d'évaluation ({results.length})</span>
+              <span className="text-lg sm:text-xl">Résultats d'évaluation ({prospects?.length || 0})</span>
               <Button onClick={onClose} variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex h-[calc(90vh-120px)]">
+          <div className="flex flex-col lg:flex-row h-[calc(95vh-120px)]">
             {/* Liste des prospects */}
-            <div className="w-1/3 border-r bg-gray-50 overflow-y-auto">
-              <div className="p-4 space-y-3">
+            <div className="w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r bg-gray-50 overflow-y-auto max-h-[300px] lg:max-h-none">
+              <div className="p-3 sm:p-4 space-y-3">
                 {isLoadingSheets ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -140,10 +140,10 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                         }`}
                         onClick={() => setSelectedProspect(prospect)}
                       >
-                        <CardContent className="p-3">
+                        <CardContent className="p-2 sm:p-3">
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-sm truncate">
+                              <h4 className="font-medium text-xs sm:text-sm truncate">
                                 {prospect.contact_name || prospect['Nom du contact'] || 'Contact non défini'}
                               </h4>
                               <p className="text-xs text-gray-600 truncate">
@@ -152,14 +152,14 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                               {prospect['Rôle'] && (
                                 <p className="text-xs text-blue-600 truncate flex items-center gap-1">
                                   <Briefcase className="w-3 h-3" />
-                                  {prospect['Rôle']}
+                                  <span className="hidden sm:inline">{prospect['Rôle']}</span>
                                 </p>
                               )}
                             </div>
                           </div>
                           
                           <div className="flex justify-between items-center mb-2">
-                            <div className="flex gap-2 flex-wrap">
+                            <div className="flex gap-1 sm:gap-2 flex-wrap">
                               {prospect.Run === 'true' && (
                                 <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                                   Actif
@@ -172,7 +172,7 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                               )}
                             </div>
                             {score > 0 && (
-                              <span className={`text-sm font-medium ${getScoreColor(score)}`}>
+                              <span className={`text-xs sm:text-sm font-medium ${getScoreColor(score)}`}>
                                 {score}%
                               </span>
                             )}
@@ -199,14 +199,14 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
             {/* Détails du prospect sélectionné */}
             <div className="flex-1 overflow-y-auto">
               {!prospects || prospects.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="flex items-center justify-center h-full text-gray-500 p-4">
                   <div className="text-center">
-                    <Users className="w-16 h-16 mx-auto mb-6 text-gray-300" />
-                    <h3 className="text-xl font-semibold text-gray-600 mb-3">Aucun prospect disponible</h3>
-                    <p className="text-gray-500 mb-6">Ajoutez des prospects pour voir leurs évaluations</p>
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 max-w-md">
+                    <Users className="w-12 sm:w-16 h-12 sm:h-16 mx-auto mb-4 sm:mb-6 text-gray-300" />
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-600 mb-2 sm:mb-3">Aucun prospect disponible</h3>
+                    <p className="text-sm sm:text-base text-gray-500 mb-4 sm:mb-6">Ajoutez des prospects pour voir leurs évaluations</p>
+                    <div className="bg-blue-50 p-3 sm:p-4 rounded-lg border border-blue-200 max-w-md">
                       <h4 className="font-semibold text-blue-900 mb-2">Pour commencer :</h4>
-                      <ol className="text-sm text-blue-800 space-y-1 text-left">
+                      <ol className="text-xs sm:text-sm text-blue-800 space-y-1 text-left">
                         <li>1. Ajoutez un prospect</li>
                         <li>2. Activez-le pour l'évaluation</li>
                         <li>3. Lancez l'analyse IA</li>
@@ -215,24 +215,24 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                   </div>
                 </div>
               ) : selectedProspect ? (
-                <div className="p-6 space-y-6">
+                <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
                   {/* En-tête du prospect */}
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-lg border">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold mb-1">
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 sm:p-4 lg:p-6 rounded-lg border">
+                    <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-3">
+                      <div className="flex-1">
+                        <h3 className="text-base sm:text-lg font-semibold mb-1">
                           {selectedProspect.contact_name || selectedProspect['Nom du contact'] || 'Contact non défini'}
                         </h3>
-                        <p className="text-gray-600 mb-2">
+                        <p className="text-sm sm:text-base text-gray-600 mb-2">
                           {selectedProspect.company_name || selectedProspect['Nom de l\'entreprise'] || 'Entreprise non définie'}
                         </p>
                         {selectedProspect['Rôle'] && (
                           <div className="flex items-center gap-2 mb-3">
                             <Briefcase className="w-4 h-4 text-blue-600" />
-                            <span className="text-blue-800 font-medium">{selectedProspect['Rôle']}</span>
+                            <span className="text-sm sm:text-base text-blue-800 font-medium">{selectedProspect['Rôle']}</span>
                           </div>
                         )}
-                        <div className="flex gap-3 text-sm">
+                        <div className="flex flex-wrap gap-2 sm:gap-3 text-sm">
                           {selectedProspect.linkedin_contact_url && (
                             <a 
                               href={selectedProspect.linkedin_contact_url} 
@@ -241,7 +241,7 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                               className="flex items-center gap-1 text-blue-600 hover:underline hover:bg-blue-100 px-2 py-1 rounded transition-colors"
                             >
                               <Linkedin className="w-3 h-3" />
-                              LinkedIn
+                              <span className="hidden sm:inline">LinkedIn</span>
                             </a>
                           )}
                           {selectedProspect.company_website && (
@@ -252,15 +252,15 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                               className="flex items-center gap-1 text-green-600 hover:underline hover:bg-green-100 px-2 py-1 rounded transition-colors"
                             >
                               <Globe className="w-3 h-3" />
-                              Site web
+                              <span className="hidden sm:inline">Site web</span>
                             </a>
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-center sm:text-right">
                         {getScoreFromProspect(selectedProspect) > 0 && (
                           <>
-                            <div className={`text-2xl font-bold ${getScoreColor(getScoreFromProspect(selectedProspect))}`}>
+                            <div className={`text-xl sm:text-2xl font-bold ${getScoreColor(getScoreFromProspect(selectedProspect))}`}>
                               {getScoreFromProspect(selectedProspect)}%
                             </div>
                             <Badge 
@@ -270,7 +270,7 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                                         'bg-red-100 text-red-800 border-red-200'}
                             >
                               <Star className="w-3 h-3 mr-1" />
-                              Pertinence
+                              <span className="hidden sm:inline">Pertinence</span>
                             </Badge>
                           </>
                         )}
@@ -281,12 +281,12 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                     {getScoreFromProspect(selectedProspect) > 0 && (
                       <div className="mt-4">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-700">Score de pertinence</span>
-                          <span className="text-sm text-gray-500">{getScoreFromProspect(selectedProspect)}/100</span>
+                          <span className="text-xs sm:text-sm font-medium text-gray-700">Score de pertinence</span>
+                          <span className="text-xs sm:text-sm text-gray-500">{getScoreFromProspect(selectedProspect)}/100</span>
                         </div>
                         <Progress 
                           value={getScoreFromProspect(selectedProspect)} 
-                          className="h-3"
+                          className="h-2 sm:h-3"
                         />
                       </div>
                     )}
@@ -302,15 +302,15 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <Button
-                            onClick={() => setShowDocumentPreview(true)}
-                            variant="outline"
+                            onClick={() => window.open(selectedProspect['Préparation de l\'appel'], '_blank')}
+                            variant="default"
                             size="sm"
-                            className="flex items-center gap-2"
+                            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
                           >
-                            <Eye className="w-4 h-4" />
-                            Voir le Document
+                            <Download className="w-4 h-4" />
+                            Télécharger PDF
                           </Button>
                           <Button
                             onClick={() => window.open(selectedProspect['Préparation de l\'appel'], '_blank')}
@@ -346,47 +346,47 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                   {/* Informations du prospect */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base">
+                      <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                         <User className="w-4 h-4" />
                         Informations du Prospect
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <span className="font-medium text-sm">Nom:</span>
-                          <div className="text-gray-700">
+                          <span className="font-medium text-xs sm:text-sm">Nom:</span>
+                          <div className="text-xs sm:text-sm text-gray-700">
                             {selectedProspect.contact_name || selectedProspect['Nom du contact'] || 'Non défini'}
                           </div>
                         </div>
                         <div>
-                          <span className="font-medium text-sm">Entreprise:</span>
-                          <div className="text-gray-700">
+                          <span className="font-medium text-xs sm:text-sm">Entreprise:</span>
+                          <div className="text-xs sm:text-sm text-gray-700">
                             {selectedProspect.company_name || selectedProspect['Nom de l\'entreprise'] || 'Non définie'}
                           </div>
                         </div>
                         {selectedProspect['Rôle'] && (
                           <div>
-                            <span className="font-medium text-sm">Rôle:</span>
-                            <div className="text-gray-700">{selectedProspect['Rôle']}</div>
+                            <span className="font-medium text-xs sm:text-sm">Rôle:</span>
+                            <div className="text-xs sm:text-sm text-gray-700">{selectedProspect['Rôle']}</div>
                           </div>
                         )}
                         {selectedProspect.email && (
                           <div>
-                            <span className="font-medium text-sm">Email:</span>
-                            <div className="text-gray-700">{selectedProspect.email}</div>
+                            <span className="font-medium text-xs sm:text-sm">Email:</span>
+                            <div className="text-xs sm:text-sm text-gray-700">{selectedProspect.email}</div>
                           </div>
                         )}
                         {selectedProspect.phone && (
                           <div>
-                            <span className="font-medium text-sm">Téléphone:</span>
-                            <div className="text-gray-700">{selectedProspect.phone}</div>
+                            <span className="font-medium text-xs sm:text-sm">Téléphone:</span>
+                            <div className="text-xs sm:text-sm text-gray-700">{selectedProspect.phone}</div>
                           </div>
                         )}
                       </div>
 
                       {/* Liens interactifs */}
-                      <div className="flex gap-3 pt-4 border-t">
+                      <div className="flex flex-wrap gap-2 sm:gap-3 pt-4 border-t">
                         {selectedProspect.linkedin_contact_url && (
                           <Button
                             onClick={() => window.open(selectedProspect.linkedin_contact_url, '_blank')}
@@ -395,7 +395,8 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                             className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
                           >
                             <Linkedin className="w-4 h-4" />
-                            Profil LinkedIn
+                            <span className="hidden sm:inline">Profil LinkedIn</span>
+                            <span className="sm:hidden">LinkedIn</span>
                           </Button>
                         )}
                         {selectedProspect.company_website && (
@@ -406,7 +407,8 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                             className="flex items-center gap-2 text-green-600 border-green-200 hover:bg-green-50"
                           >
                             <Globe className="w-4 h-4" />
-                            Site Web
+                            <span className="hidden sm:inline">Site Web</span>
+                            <span className="sm:hidden">Site</span>
                           </Button>
                         )}
                       </div>
@@ -416,14 +418,14 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                   {/* Statut d'évaluation */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base">
+                      <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                         <TrendingUp className="w-4 h-4" />
                         État de l'Évaluation
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Status d'activation:</span>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="text-xs sm:text-sm font-medium">Status d'activation:</span>
                         <Badge 
                           variant="outline" 
                           className={selectedProspect.Run === 'true' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}
@@ -432,8 +434,8 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                         </Badge>
                       </div>
                       {getScoreFromProspect(selectedProspect) > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Score de pertinence:</span>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="text-xs sm:text-sm font-medium">Score de pertinence:</span>
                           <Badge 
                             variant="outline" 
                             className={getScoreColor(getScoreFromProspect(selectedProspect)) === 'text-green-600' ? 'bg-green-100 text-green-800 border-green-200' : 
@@ -448,10 +450,10 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                   </Card>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="flex items-center justify-center h-full text-gray-500 p-4">
                   <div className="text-center">
-                    <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                    <p>Sélectionnez un prospect pour voir les détails</p>
+                    <Users className="w-12 sm:w-16 h-12 sm:h-16 mx-auto mb-4 text-gray-300" />
+                    <p className="text-sm sm:text-base">Sélectionnez un prospect pour voir les détails</p>
                   </div>
                 </div>
               )}
