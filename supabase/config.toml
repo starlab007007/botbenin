@@ -105,3 +105,12 @@ verify_jwt = false
 
 [functions.elevenlabs-check-permissions]
 verify_jwt = false
+
+[functions.google-docs-reader]
+verify_jwt = false
+
+[functions.google-docs-writer]
+verify_jwt = false
+
+[functions.generate-commercial-offer]
+verify_jwt = false

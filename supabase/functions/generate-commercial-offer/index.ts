@@ -102,7 +102,7 @@ serve(async (req) => {
     if (!geminiApiKey) {
       console.error('Gemini API key not found');
       return new Response(
-        JSON.stringify({ error: 'Configuration Gemini API manquante' }),
+        JSON.stringify({ error: 'Clé API Gemini manquante. Veuillez configurer GEMINI_API_KEY dans les secrets.' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -131,7 +131,7 @@ serve(async (req) => {
 
     const prompt = getOfferPrompt(config);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
