@@ -60,9 +60,7 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
   const [docContent, setDocContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [autoSync, setAutoSync] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  const [autoSaveInterval, setAutoSaveInterval] = useState<NodeJS.Timeout | null>(null);
   const [accountInfo, setAccountInfo] = useState<any>(null);
   const [isLoadingAccountInfo, setIsLoadingAccountInfo] = useState(false);
   
@@ -163,36 +161,6 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
     }
   }, [offerConfig.targetAudience, offerConfig.industry, offerConfig.keyFeatures]);
 
-  // Auto-sync avec Google Doc
-  useEffect(() => {
-    if (autoSaveInterval) {
-      clearInterval(autoSaveInterval);
-    }
-
-    if (autoSync && googleDocId && docContent) {
-      const interval = setInterval(async () => {
-        console.log('🔄 Auto-sauvegarde périodique');
-        await writeToGoogleDoc(googleDocId, docContent); // Save without manual toast notification
-      }, 30000); // Auto-save every 30 seconds
-      setAutoSaveInterval(interval);
-    }
-
-    return () => {
-      if (autoSaveInterval) {
-        clearInterval(autoSaveInterval);
-      }
-    };
-  }, [autoSync, googleDocId, docContent]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (autoSaveInterval) {
-        clearInterval(autoSaveInterval);
-      }
-    };
-  }, []);
-
   useEffect(() => {
     if (isOpen && googleDocId) {
       loadDocContent();
@@ -245,16 +213,6 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
       if (data?.generatedContent) {
         setDocContent(data.generatedContent);
         toast.success('Offre commerciale générée avec Gemini AI');
-        
-        // ✅ AUTO-SAUVEGARDE IMMÉDIATE dans Google Doc
-        if (autoSync && googleDocId) {
-          console.log('🔄 Auto-sauvegarde immédiate de l\'offre générée dans Google Doc');
-          const saveSuccess = await writeToGoogleDoc(googleDocId, data.generatedContent);
-          if (saveSuccess) {
-            setLastSyncTime(new Date());
-            toast.success('📄 Offre synchronisée automatiquement avec Google Doc !', { duration: 4000 });
-          }
-        }
       } else {
         throw new Error('Contenu généré non reçu');
       }
@@ -324,383 +282,331 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="flex items-center justify-between p-3 sm:p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <FileText className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
-              <div>
-                <h2 className="text-sm sm:text-xl font-semibold text-gray-800">
-                  <span className="hidden sm:inline">Gestionnaire d'Offre Commerciale</span>
-                  <span className="sm:hidden">Offres IA</span>
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
-                  Gérez et générez vos offres commerciales avec l'IA
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 sm:gap-2">
-              <Button
-                onClick={openGoogleDoc}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
-              >
-                <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Ouvrir Google Doc</span>
-                <span className="sm:hidden">Doc</span>
-              </Button>
-              <Button onClick={onClose} variant="outline" size="sm" className="px-2 sm:px-3">
-                ✕
-              </Button>
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-0">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            <div>
+              <h2 className="text-base sm:text-xl font-semibold text-gray-800 dark:text-gray-200">
+                Gestionnaire d'Offre Commerciale
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                Enregistrement manuel uniquement
+              </p>
             </div>
           </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              onClick={openGoogleDoc}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 text-xs sm:text-sm flex-1 sm:flex-none"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Ouvrir Google Doc</span>
+            </Button>
+            <Button onClick={onClose} variant="outline" size="sm" className="px-3">
+              ✕
+            </Button>
+          </div>
+        </div>
 
-          <div className="flex-1 overflow-hidden">
-            <div className="grid grid-cols-1 xl:grid-cols-2 h-full">
-              {/* Configuration Panel */}
-              <div className="p-3 sm:p-6 border-r bg-gray-50/50 overflow-y-auto">
-                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+            {/* Configuration Panel */}
+            <div className="p-3 sm:p-4 lg:border-r bg-gray-50/50 dark:bg-gray-800/30 overflow-y-auto max-h-[60vh] lg:max-h-full">
+              <div className="sticky top-0 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-sm pb-2 mb-4">
+                <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
                   <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                   Configuration
                 </h3>
-
-                <div className="space-y-3 sm:space-y-6">
-                  {/* Google Doc ID */}
-                  <div className="space-y-2">
-                    <Label htmlFor="doc-id" className="text-xs sm:text-sm flex items-center gap-2">
-                      ID du Google Doc
-                      {googleDocId === '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg' && (
-                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                          Préparation d'Appel IA
-                        </Badge>
-                      )}
-                    </Label>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Input
-                        id="doc-id"
-                        value={googleDocId}
-                        onChange={(e) => setGoogleDocId(e.target.value)}
-                        placeholder="1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg"
-                        className="font-mono text-xs sm:text-sm flex-1"
-                        disabled={true}
-                      />
-                      <Button
-                        onClick={loadDocContent}
-                        variant="outline"
-                        size="sm"
-                        disabled={isLoading}
-                        className="w-full sm:w-auto"
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />}
-                        <span className="ml-2 sm:hidden">Charger</span>
-                      </Button>
-                    </div>
-                     <p className="text-xs text-gray-500">
-                       📝 Synchronisation active avec le Google Document de préparation d'appel IA
-                     </p>
-                   </div>
-
-                   {/* Instructions de partage Google Docs */}
-                   <div className="space-y-2">
-                     <div className="flex items-center justify-between">
-                       <Label className="text-xs sm:text-sm font-medium">Configuration Google Docs</Label>
-                       <Button
-                         onClick={checkAccountInfo}
-                         variant="outline"
-                         size="sm"
-                         disabled={isLoadingAccountInfo}
-                         className="text-xs"
-                       >
-                         {isLoadingAccountInfo ? (
-                           <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                         ) : (
-                           <Settings className="w-3 h-3 mr-1" />
-                         )}
-                         Vérifier les permissions
-                       </Button>
-                     </div>
-                     
-                     {accountInfo && (
-                       <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                         {accountInfo.success ? (
-                           <div className="space-y-3">
-                             <div>
-                               <h4 className="font-medium text-sm text-blue-800 mb-1">📧 Email du Service Account</h4>
-                               <code className="text-xs bg-white px-2 py-1 rounded border break-all">
-                                 {accountInfo.service_account_email}
-                               </code>
-                             </div>
-                             
-                             <div className="text-xs text-blue-700">
-                               <h4 className="font-medium mb-1">🔧 Instructions de configuration:</h4>
-                               <ol className="list-decimal list-inside space-y-1 text-xs">
-                                 <li>Copiez l'email ci-dessus</li>
-                                 <li>
-                                   <button 
-                                     onClick={() => window.open(`https://docs.google.com/document/d/${googleDocId}/edit`, '_blank')}
-                                     className="text-blue-600 underline"
-                                   >
-                                     Ouvrez le Google Document
-                                   </button>
-                                 </li>
-                                 <li>Cliquez sur "Partager" (en haut à droite)</li>
-                                 <li>Collez l'email et donnez les permissions "Éditeur"</li>
-                                 <li>Cliquez sur "Envoyer"</li>
-                               </ol>
-                             </div>
-                           </div>
-                         ) : (
-                           <div className="text-red-700 text-xs">
-                             <p className="font-medium">❌ Erreur de configuration</p>
-                             <p>{accountInfo.error}</p>
-                           </div>
-                         )}
-                       </div>
-                     )}
-                     
-                     {!accountInfo && (
-                       <p className="text-xs text-gray-600">
-                         ℹ️ Cliquez sur "Vérifier les permissions" pour obtenir les instructions de partage
-                       </p>
-                     )}
-                   </div>
-
-                   <Separator />
-
-                  {/* Type d'offre */}
-                  <div className="space-y-3">
-                    <Label className="text-xs sm:text-sm">Type d'offre commerciale</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-2">
-                      {Object.entries(offerTypes).map(([key, config]) => {
-                        const Icon = config.icon;
-                        return (
-                          <Button
-                            key={key}
-                            onClick={() => setOfferConfig(prev => ({ ...prev, type: key as OfferType }))}
-                            variant={offerConfig.type === key ? "default" : "outline"}
-                            className="justify-start h-auto p-2 sm:p-3 text-xs sm:text-sm"
-                          >
-                            <Icon className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                            <span>{config.label}</span>
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Configuration détaillée */}
-                  <div className="space-y-3 sm:space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="target-audience" className="text-xs sm:text-sm">Audience cible</Label>
-                      <Input
-                        id="target-audience"
-                        value={offerConfig.targetAudience}
-                        onChange={(e) => setOfferConfig(prev => ({ ...prev, targetAudience: e.target.value }))}
-                        placeholder="Ex: PME du secteur technologique"
-                        className="text-xs sm:text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="industry" className="text-xs sm:text-sm">Secteur d'activité</Label>
-                      <Input
-                        id="industry"
-                        value={offerConfig.industry}
-                        onChange={(e) => setOfferConfig(prev => ({ ...prev, industry: e.target.value }))}
-                        placeholder="Ex: Services numériques, E-commerce, etc."
-                        className="text-xs sm:text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="tone" className="text-xs sm:text-sm">Ton de communication</Label>
-                      <Select value={offerConfig.tone} onValueChange={(value: ToneType) => setOfferConfig(prev => ({ ...prev, tone: value }))}>
-                        <SelectTrigger className="text-xs sm:text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="professionnel">Professionnel</SelectItem>
-                          <SelectItem value="convivial">Convivial</SelectItem>
-                          <SelectItem value="technique">Technique</SelectItem>
-                          <SelectItem value="commercial">Commercial</SelectItem>
-                          <SelectItem value="premium">Premium</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Caractéristiques clés */}
-                    <div className="space-y-3">
-                      <Label className="text-xs sm:text-sm">Caractéristiques clés</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={newFeature}
-                          onChange={(e) => setNewFeature(e.target.value)}
-                          placeholder="Ajouter une caractéristique"
-                          onKeyPress={(e) => e.key === 'Enter' && addFeature()}
-                          className="text-xs sm:text-sm flex-1"
-                        />
-                        <Button onClick={addFeature} size="sm" variant="outline">
-                          <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {offerConfig.keyFeatures.map((feature, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="cursor-pointer hover:bg-red-100 text-xs"
-                            onClick={() => removeFeature(feature)}
-                          >
-                            {feature} ✕
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Génération IA */}
-                  <Button
-                    onClick={generateWithAI}
-                    disabled={isGenerating || !offerConfig.targetAudience.trim() || !offerConfig.industry.trim()}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-xs sm:text-sm"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
-                        <span className="hidden sm:inline">Génération en cours...</span>
-                        <span className="sm:hidden">Génération...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                        <span className="hidden sm:inline">Générer avec l'IA</span>
-                        <span className="sm:hidden">Générer IA</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
 
-              {/* Content Editor */}
-              <div className="p-3 sm:p-6 flex flex-col h-full">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 sm:mb-4 gap-2 sm:gap-0">
-                  <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2">
-                    <Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-                    <span className="hidden sm:inline">Contenu de l'offre</span>
-                    <span className="sm:hidden">Contenu</span>
-                  </h3>
-                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-                    {/* Auto-sync toggle */}
-                    <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                      <input
-                        type="checkbox"
-                        id="auto-sync"
-                        checked={autoSync}
-                        onChange={(e) => setAutoSync(e.target.checked)}
-                        className="rounded"
-                      />
-                       <label htmlFor="auto-sync" className="text-gray-600">
-                         <span className="hidden sm:inline">Sync auto (30s)</span>
-                         <span className="sm:hidden">Auto</span>
-                       </label>
-                    </div>
-                    {lastSyncTime && (
-                      <span className="text-xs text-gray-500 hidden lg:inline">
-                        Dernière sauvegarde: {lastSyncTime.toLocaleTimeString()}
-                      </span>
+              <div className="space-y-4">
+                {/* Google Doc ID */}
+                <div className="space-y-2">
+                  <Label htmlFor="doc-id" className="text-xs sm:text-sm flex items-center gap-2">
+                    ID du Google Doc
+                    {googleDocId === '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg' && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        Préparation d'Appel IA
+                      </Badge>
                     )}
+                  </Label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      id="doc-id"
+                      value={googleDocId}
+                      onChange={(e) => setGoogleDocId(e.target.value)}
+                      placeholder="1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg"
+                      className="font-mono text-xs sm:text-sm flex-1"
+                      disabled={true}
+                    />
+                    <Button
+                      onClick={loadDocContent}
+                      variant="outline"
+                      size="sm"
+                      disabled={isLoading}
+                      className="w-full sm:w-auto"
+                    >
+                      {isLoading ? <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />}
+                      <span className="ml-2">Charger</span>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    📝 Enregistrement manuel dans le Google Document
+                  </p>
+                </div>
+
+                {/* Instructions de partage Google Docs */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs sm:text-sm font-medium">Configuration Google Docs</Label>
+                    <Button
+                      onClick={checkAccountInfo}
+                      variant="outline"
+                      size="sm"
+                      disabled={isLoadingAccountInfo}
+                      className="text-xs"
+                    >
+                      {isLoadingAccountInfo ? (
+                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                      ) : (
+                        <Settings className="w-3 h-3 mr-1" />
+                      )}
+                      Vérifier les permissions
+                    </Button>
+                  </div>
+                  
+                  {accountInfo && (
+                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                      {accountInfo.success ? (
+                        <div className="space-y-3">
+                          <div>
+                            <h4 className="font-medium text-sm text-blue-800 mb-1">📧 Email du Service Account</h4>
+                            <code className="text-xs bg-white px-2 py-1 rounded border break-all">
+                              {accountInfo.service_account_email}
+                            </code>
+                          </div>
+                          
+                          <div className="text-xs text-blue-700">
+                            <h4 className="font-medium mb-1">🔧 Instructions de configuration:</h4>
+                            <ol className="list-decimal list-inside space-y-1 text-xs">
+                              <li>Copiez l'email ci-dessus</li>
+                              <li>
+                                <button 
+                                  onClick={() => window.open(`https://docs.google.com/document/d/${googleDocId}/edit`, '_blank')}
+                                  className="text-blue-600 underline"
+                                >
+                                  Ouvrez le Google Document
+                                </button>
+                              </li>
+                              <li>Cliquez sur "Partager" (en haut à droite)</li>
+                              <li>Collez l'email et donnez les permissions "Éditeur"</li>
+                              <li>Cliquez sur "Envoyer"</li>
+                            </ol>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-red-700 text-xs">
+                          <p className="font-medium">❌ Erreur de configuration</p>
+                          <p>{accountInfo.error}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Configuration de l'offre */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm font-medium">Type d'offre</Label>
+                    <Select 
+                      value={offerConfig.type} 
+                      onValueChange={(value: OfferType) => setOfferConfig(prev => ({ ...prev, type: value }))}
+                    >
+                      <SelectTrigger className="text-xs sm:text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(offerTypes).map(([key, config]) => {
+                          const IconComponent = config.icon;
+                          return (
+                            <SelectItem key={key} value={key} className="text-xs sm:text-sm">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${config.color}`} />
+                                <IconComponent className="w-3 h-3 sm:w-4 sm:h-4" />
+                                {config.label}
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm font-medium">Audience cible</Label>
+                    <Input
+                      value={offerConfig.targetAudience}
+                      onChange={(e) => setOfferConfig(prev => ({ ...prev, targetAudience: e.target.value }))}
+                      placeholder="Ex: PME du secteur technologique"
+                      className="text-xs sm:text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm font-medium">Secteur d'activité</Label>
+                    <Input
+                      value={offerConfig.industry}
+                      onChange={(e) => setOfferConfig(prev => ({ ...prev, industry: e.target.value }))}
+                      placeholder="Ex: Services numériques, Conseil, E-commerce"
+                      className="text-xs sm:text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm font-medium">Ton de l'offre</Label>
+                    <Select 
+                      value={offerConfig.tone} 
+                      onValueChange={(value: ToneType) => setOfferConfig(prev => ({ ...prev, tone: value }))}
+                    >
+                      <SelectTrigger className="text-xs sm:text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="professionnel">Professionnel</SelectItem>
+                        <SelectItem value="convivial">Convivial</SelectItem>
+                        <SelectItem value="technique">Technique</SelectItem>
+                        <SelectItem value="commercial">Commercial</SelectItem>
+                        <SelectItem value="premium">Premium</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm font-medium">Caractéristiques clés</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newFeature}
+                        onChange={(e) => setNewFeature(e.target.value)}
+                        placeholder="Ajouter une caractéristique"
+                        onKeyPress={(e) => e.key === 'Enter' && addFeature()}
+                        className="text-xs sm:text-sm flex-1"
+                      />
+                      <Button onClick={addFeature} size="sm" variant="outline">
+                        <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {offerConfig.keyFeatures.map((feature, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="cursor-pointer hover:bg-red-100 text-xs"
+                          onClick={() => removeFeature(feature)}
+                        >
+                          {feature} ✕
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Génération IA */}
+                <Button
+                  onClick={generateWithAI}
+                  disabled={isGenerating || !offerConfig.targetAudience.trim() || !offerConfig.industry.trim()}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-xs sm:text-sm"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
+                      Génération en cours...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                      Générer avec l'IA
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Content Editor */}
+            <div className="p-3 sm:p-4 overflow-y-auto max-h-[60vh] lg:max-h-full bg-white dark:bg-gray-900">
+              <div className="sticky top-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm pb-2 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                    <Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                    Contenu de l'offre
+                  </h3>
+                  <div className="flex items-center gap-2">
                     <Button
                       onClick={deleteContent}
                       variant="outline"
                       size="sm"
-                      className="text-red-600 hover:text-red-700 px-2"
+                      className="text-red-600 hover:text-red-700"
                       disabled={!docContent.trim()}
                     >
-                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                     <Button
                       onClick={() => saveToGoogleDoc()}
                       disabled={isDocWriting || !docContent.trim() || !googleDocId}
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4 font-medium"
+                      className="bg-green-600 hover:bg-green-700 text-white font-medium"
                     >
                       {isDocWriting ? (
                         <>
-                          <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 animate-spin" />
-                          <span className="hidden sm:inline">Enregistrement...</span>
-                          <span className="sm:hidden">...</span>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Enregistrement...
                         </>
                       ) : (
                         <>
-                          <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                          <span className="hidden sm:inline">Enregistrer dans Google Docs</span>
-                          <span className="sm:hidden">Enregistrer</span>
+                          <Save className="w-4 h-4 mr-2" />
+                          Enregistrer
                         </>
                       )}
                     </Button>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex-1 relative">
-                  {isLoading ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
-                      <div className="text-center">
-                        <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-2 text-blue-600" />
-                        <p className="text-gray-600 text-xs sm:text-sm">Chargement du contenu...</p>
-                      </div>
+              <div className="space-y-4">
+                {/* Content Textarea */}
+                {isLoading ? (
+                  <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg p-8">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
+                      <p className="text-gray-600 dark:text-gray-400 text-sm">Chargement du contenu...</p>
                     </div>
-                  ) : (
-                    <div className="h-full flex flex-col">
-                      <Textarea
-                        value={docContent}
-                        onChange={(e) => {
-                          setDocContent(e.target.value);
-                          if (autoSync) {
-                            setLastSyncTime(new Date());
-                          }
-                        }}
-                        placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
-                        className="flex-1 resize-none text-xs sm:text-sm leading-relaxed border-2 focus:border-blue-500"
-                      />
-                      
-                      {/* Bouton d'enregistrement fixé en bas */}
-                      <div className="mt-3 flex justify-between items-center bg-gray-50 p-2 sm:p-3 rounded-lg border">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-600">
-                            {docContent.length} caractères
-                          </span>
-                          {lastSyncTime && (
-                            <span className="text-xs text-green-600">
-                              • Sauvé {lastSyncTime.toLocaleTimeString()}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => saveToGoogleDoc()}
-                            disabled={isDocWriting || !docContent.trim() || !googleDocId}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm font-medium"
-                          >
-                            {isDocWriting ? (
-                              <>
-                                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
-                                Enregistrement...
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                                Enregistrer dans Google Docs
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={docContent}
+                      onChange={(e) => setDocContent(e.target.value)}
+                      placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
+                      className="min-h-[400px] text-sm leading-relaxed border-2 focus:border-blue-500 resize-y"
+                    />
+                    
+                    {/* Status Bar */}
+                    <div className="flex justify-between items-center text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                      <span>{docContent.length} caractères</span>
+                      {lastSyncTime && (
+                        <span className="text-green-600">
+                          Sauvé le {lastSyncTime.toLocaleTimeString()}
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
