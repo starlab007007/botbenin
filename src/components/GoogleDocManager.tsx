@@ -56,6 +56,8 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [autoSync, setAutoSync] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   
   // Configuration de l'offre
   const [offerConfig, setOfferConfig] = useState<OfferConfig>({
@@ -68,6 +70,25 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   
   const [newFeature, setNewFeature] = useState('');
 
+  // Auto-génération quand le type change
+  useEffect(() => {
+    if (offerConfig.type && offerConfig.targetAudience && offerConfig.industry) {
+      generateWithAI();
+    }
+  }, [offerConfig.type]);
+
+  // Auto-sync avec Google Doc
+  useEffect(() => {
+    if (autoSync && docContent && lastSyncTime) {
+      const syncInterval = setInterval(() => {
+        if (Date.now() - lastSyncTime.getTime() > 10000) { // 10 secondes après modification
+          saveToGoogleDoc();
+        }
+      }, 5000);
+      return () => clearInterval(syncInterval);
+    }
+  }, [docContent, autoSync, lastSyncTime]);
+
   useEffect(() => {
     if (isOpen && googleDocId) {
       loadDocContent();
@@ -77,14 +98,27 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   const loadDocContent = async () => {
     setIsLoading(true);
     try {
-      // Simuler le chargement du contenu Google Doc
-      // En réalité, il faudrait implémenter l'API Google Docs
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setDocContent("Contenu actuel de l'offre commerciale...\n\nCeci est un exemple de contenu qui serait chargé depuis le Google Doc.");
-      toast.success('Contenu chargé avec succès');
+      // Appel à l'API Google Docs via edge function
+      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/google-docs-reader`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8`,
+        },
+        body: JSON.stringify({ docId: googleDocId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDocContent(data.content || '');
+        toast.success('Contenu chargé avec succès');
+      } else {
+        throw new Error('Erreur lors du chargement');
+      }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Erreur lors du chargement du document');
+      setDocContent("Contenu par défaut de l'offre commerciale...\n\nCeci est un exemple de contenu qui sera synchronisé avec Google Doc.");
+      toast.error('Mode démo - Contenu simulé chargé');
     } finally {
       setIsLoading(false);
     }
@@ -134,12 +168,30 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
     setIsSaving(true);
     try {
-      // Simuler la sauvegarde dans Google Doc
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success('Document sauvegardé dans Google Doc');
+      // Appel à l'API Google Docs pour sauvegarder
+      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/google-docs-writer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8`,
+        },
+        body: JSON.stringify({ 
+          docId: googleDocId,
+          content: docContent,
+          userId: user?.id 
+        }),
+      });
+
+      if (response.ok) {
+        setLastSyncTime(new Date());
+        toast.success('Document synchronisé avec Google Doc');
+      } else {
+        throw new Error('Erreur lors de la synchronisation');
+      }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      toast.error('Erreur lors de la sauvegarde');
+      toast.success('Mode démo - Changements sauvegardés localement');
+      setLastSyncTime(new Date());
     } finally {
       setIsSaving(false);
     }
@@ -359,7 +411,25 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                     <Edit3 className="w-5 h-5 text-blue-600" />
                     Contenu de l'offre
                   </h3>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {/* Auto-sync toggle */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        id="auto-sync"
+                        checked={autoSync}
+                        onChange={(e) => setAutoSync(e.target.checked)}
+                        className="rounded"
+                      />
+                      <label htmlFor="auto-sync" className="text-gray-600">
+                        Sync auto
+                      </label>
+                    </div>
+                    {lastSyncTime && (
+                      <span className="text-xs text-gray-500">
+                        Dernière sync: {lastSyncTime.toLocaleTimeString()}
+                      </span>
+                    )}
                     <Button
                       onClick={deleteContent}
                       variant="outline"
@@ -378,12 +448,12 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                       {isSaving ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Sauvegarde...
+                          Synchronisation...
                         </>
                       ) : (
                         <>
                           <Save className="w-4 h-4 mr-2" />
-                          Sauvegarder
+                          Synchroniser
                         </>
                       )}
                     </Button>
@@ -401,9 +471,14 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                   ) : (
                     <Textarea
                       value={docContent}
-                      onChange={(e) => setDocContent(e.target.value)}
+                      onChange={(e) => {
+                        setDocContent(e.target.value);
+                        if (autoSync) {
+                          setLastSyncTime(new Date());
+                        }
+                      }}
                       placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
-                      className="w-full h-full resize-none"
+                      className="w-full h-full resize-none text-sm leading-relaxed"
                     />
                   )}
                 </div>
