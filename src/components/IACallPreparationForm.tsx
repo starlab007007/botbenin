@@ -34,7 +34,8 @@ import {
   FileText,
   Cog,
   Sparkles,
-  History
+  History,
+  Linkedin
 } from 'lucide-react';
 
 type Step = 'add' | 'activate' | 'evaluate' | 'view';
@@ -43,6 +44,7 @@ interface RecentProspect {
   id: string;
   contact_name: string;
   company_name: string;
+  linkedin_contact_url?: string;
   timestamp: Date;
   runStatus?: boolean;
   isEvaluated?: boolean;
@@ -63,6 +65,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
   const [currentStep, setCurrentStep] = useState<Step>('add');
   const [contactName, setContactName] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
   const [selectedProspect, setSelectedProspect] = useState<RecentProspect | null>(null);
   const [recentAdditions, setRecentAdditions] = useState<RecentProspect[]>([]);
   const [showWebhookConfig, setShowWebhookConfig] = useState(false);
@@ -101,8 +104,13 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
     e.preventDefault();
     
     // Validation basique
-    if (!contactName.trim() || !companyName.trim()) {
-      toast.error('Veuillez remplir le nom du contact et le nom de l\'entreprise');
+    if (!linkedinUrl.trim() && (!contactName.trim() || !companyName.trim())) {
+      toast.error('Si vous n\'avez pas le LinkedIn, veuillez remplir obligatoirement le nom du contact et le nom de l\'entreprise');
+      return;
+    }
+
+    if (!linkedinUrl.trim() && (!contactName.trim() || !companyName.trim())) {
+      toast.error('Veuillez fournir soit le LinkedIn du contact, soit le nom du contact ET le nom de l\'entreprise');
       return;
     }
 
@@ -122,7 +130,8 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
       spreadsheetId,
       sheetName,
       contact_name: contactName.trim(),
-      company_name: companyName.trim()
+      company_name: companyName.trim(),
+      linkedin_contact_url: linkedinUrl.trim()
     });
 
     if (success) {
@@ -131,6 +140,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
         id: `recent_${Date.now()}`,
         contact_name: contactName.trim(),
         company_name: companyName.trim(),
+        linkedin_contact_url: linkedinUrl.trim(),
         timestamp: new Date(),
         runStatus: false,
         isEvaluated: false
@@ -142,6 +152,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
       // Réinitialiser le formulaire et passer à l'étape suivante
       setContactName('');
       setCompanyName('');
+      setLinkedinUrl('');
       setCurrentStep('activate');
       
       toast.success('Prospect ajouté avec succès ! Passez à l\'activation.');
@@ -242,6 +253,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
     setSelectedProspect(null);
     setContactName('');
     setCompanyName('');
+    setLinkedinUrl('');
   };
 
   // Retourner la vue des prospects si c'est l'étape sélectionnée
@@ -312,11 +324,39 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           {/* Étape 1: Ajouter */}
           {currentStep === 'add' && (
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Texte explicatif */}
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">💡 Pour une évaluation optimale :</p>
+                    <p className="mb-2">• <strong>Avec LinkedIn</strong> : L'IA aura accès au profil complet pour une analyse précise</p>
+                    <p>• <strong>Sans LinkedIn</strong> : Le nom du contact ET le nom de l'entreprise sont obligatoires</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* LinkedIn du contact */}
+              <div className="space-y-2">
+                <Label htmlFor="linkedin-url" className="flex items-center gap-2 text-sm font-medium">
+                  <Linkedin className="w-4 h-4 text-blue-600" />
+                  LinkedIn du contact <span className="text-xs text-green-600 font-medium">(Recommandé)</span>
+                </Label>
+                <Input
+                  id="linkedin-url"
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                  placeholder="Ex: https://www.linkedin.com/in/jean-dupont"
+                  disabled={isAdding}
+                  className="h-12 text-base"
+                />
+              </div>
+
               {/* Nom du contact */}
               <div className="space-y-2">
                 <Label htmlFor="contact-name" className="flex items-center gap-2 text-sm font-medium">
                   <User className="w-4 h-4 text-blue-600" />
-                  Nom du contact
+                  Nom du contact {!linkedinUrl.trim() && <span className="text-red-500">*</span>}
                 </Label>
                 <Input
                   id="contact-name"
@@ -325,7 +365,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                   placeholder="Ex: Jean Dupont"
                   disabled={isAdding}
                   className="h-12 text-base"
-                  required
+                  required={!linkedinUrl.trim()}
                 />
               </div>
 
@@ -333,7 +373,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
               <div className="space-y-2">
                 <Label htmlFor="company-name" className="flex items-center gap-2 text-sm font-medium">
                   <Building className="w-4 h-4 text-purple-600" />
-                  Nom de l'entreprise
+                  Nom de l'entreprise {!linkedinUrl.trim() && <span className="text-red-500">*</span>}
                 </Label>
                 <Input
                   id="company-name"
@@ -342,14 +382,14 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                   placeholder="Ex: Acme Corporation"
                   disabled={isAdding}
                   className="h-12 text-base"
-                  required
+                  required={!linkedinUrl.trim()}
                 />
               </div>
 
               {/* Bouton d'ajout */}
               <Button
                 type="submit"
-                disabled={isAdding || !contactName.trim() || !companyName.trim()}
+                disabled={isAdding || (!linkedinUrl.trim() && (!contactName.trim() || !companyName.trim()))}
                 className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
                 {isAdding ? (

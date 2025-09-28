@@ -7,6 +7,7 @@ interface ProspectData {
   sheetName: string;
   contact_name: string;
   company_name: string;
+  linkedin_contact_url?: string;
 }
 
 export const useSimpleProspectAdder = (userId?: string) => {
@@ -52,7 +53,7 @@ export const useSimpleProspectAdder = (userId?: string) => {
         company_name: prospectData.company_name.trim(),
         company_website: '',
         'Rôle': '',
-        linkedin_contact_url: '',
+        linkedin_contact_url: prospectData.linkedin_contact_url?.trim() || '',
         'Pertinence du prospect par rapport à notre offre ? (sur 100)': '',
         'Préparation de l\'appel': '',
         Run: 'false',
