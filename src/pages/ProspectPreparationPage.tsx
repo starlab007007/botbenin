@@ -57,13 +57,6 @@ export const ProspectPreparationPage = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
           <div className="flex items-center gap-4 mb-4 sm:mb-0">
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/ia-prospect-precall')}
-              className="p-2"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
             <div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Google Sheet - Préparation d'Appel IA

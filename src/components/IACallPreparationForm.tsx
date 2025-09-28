@@ -269,6 +269,46 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Message de progression pendant l'évaluation */}
+      {isEvaluating && (
+        <Card className="border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-orange-600 animate-spin" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-orange-800 mb-2">
+                  🔍 Analyse IA en cours...
+                </h3>
+                <p className="text-orange-700 mb-3">
+                  L'intelligence artificielle analyse actuellement votre prospect. Cette opération peut prendre quelques minutes.
+                </p>
+                <div className="p-3 bg-orange-100 rounded-lg">
+                  <p className="text-sm text-orange-800 font-medium">
+                    ⚠️ Attention : Pour éviter les conflits, assurez-vous d'avoir arrêté les autres prospects en cours d'évaluation avant de lancer une nouvelle analyse.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Avertissement si une évaluation est en cours */}
+      {isEvaluating && currentStep === 'add' && (
+        <Card className="border-2 border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-600" />
+              <p className="text-sm text-yellow-800">
+                <strong>Évaluation en cours :</strong> Veuillez patienter avant d'ajouter un nouveau prospect.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Indicateur d'étapes */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4">
