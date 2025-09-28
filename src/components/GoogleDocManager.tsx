@@ -300,66 +300,70 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
-            <div className="flex items-center gap-3">
-              <FileText className="w-6 h-6 text-blue-600" />
+          <div className="flex items-center justify-between p-3 sm:p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <FileText className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
               <div>
-                <h2 className="text-xl font-semibold text-gray-800">
-                  Gestionnaire d'Offre Commerciale
+                <h2 className="text-sm sm:text-xl font-semibold text-gray-800">
+                  <span className="hidden sm:inline">Gestionnaire d'Offre Commerciale</span>
+                  <span className="sm:hidden">Offres IA</span>
                 </h2>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
                   Gérez et générez vos offres commerciales avec l'IA
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <Button
                 onClick={openGoogleDoc}
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
               >
-                <ExternalLink className="w-4 h-4" />
-                Ouvrir Google Doc
+                <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Ouvrir Google Doc</span>
+                <span className="sm:hidden">Doc</span>
               </Button>
-              <Button onClick={onClose} variant="outline" size="sm">
+              <Button onClick={onClose} variant="outline" size="sm" className="px-2 sm:px-3">
                 ✕
               </Button>
             </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+            <div className="grid grid-cols-1 xl:grid-cols-2 h-full">
               {/* Configuration Panel */}
-              <div className="p-6 border-r bg-gray-50/50 overflow-y-auto">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-purple-600" />
+              <div className="p-3 sm:p-6 border-r bg-gray-50/50 overflow-y-auto">
+                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                   Configuration
                 </h3>
 
-                <div className="space-y-6">
+                <div className="space-y-3 sm:space-y-6">
                   {/* Google Doc ID */}
                   <div className="space-y-2">
-                    <Label htmlFor="doc-id">ID du Google Doc</Label>
-                    <div className="flex gap-2">
+                    <Label htmlFor="doc-id" className="text-xs sm:text-sm">ID du Google Doc</Label>
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <Input
                         id="doc-id"
                         value={googleDocId}
                         onChange={(e) => setGoogleDocId(e.target.value)}
                         placeholder="1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg"
-                        className="font-mono text-sm"
+                        className="font-mono text-xs sm:text-sm flex-1"
                       />
                       <Button
                         onClick={loadDocContent}
                         variant="outline"
                         size="sm"
                         disabled={isLoading}
+                        className="w-full sm:w-auto"
                       >
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        {isLoading ? <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />}
+                        <span className="ml-2 sm:hidden">Charger</span>
                       </Button>
                     </div>
                   </div>
@@ -368,8 +372,8 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
                   {/* Type d'offre */}
                   <div className="space-y-3">
-                    <Label>Type d'offre commerciale</Label>
-                    <div className="grid grid-cols-1 gap-2">
+                    <Label className="text-xs sm:text-sm">Type d'offre commerciale</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-2">
                       {Object.entries(offerTypes).map(([key, config]) => {
                         const Icon = config.icon;
                         return (
@@ -377,10 +381,10 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                             key={key}
                             onClick={() => setOfferConfig(prev => ({ ...prev, type: key as OfferType }))}
                             variant={offerConfig.type === key ? "default" : "outline"}
-                            className="justify-start h-auto p-3"
+                            className="justify-start h-auto p-2 sm:p-3 text-xs sm:text-sm"
                           >
-                            <Icon className="w-4 h-4 mr-2" />
-                            <span className="text-sm">{config.label}</span>
+                            <Icon className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                            <span>{config.label}</span>
                           </Button>
                         );
                       })}
@@ -388,31 +392,33 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                   </div>
 
                   {/* Configuration détaillée */}
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="target-audience">Audience cible</Label>
+                      <Label htmlFor="target-audience" className="text-xs sm:text-sm">Audience cible</Label>
                       <Input
                         id="target-audience"
                         value={offerConfig.targetAudience}
                         onChange={(e) => setOfferConfig(prev => ({ ...prev, targetAudience: e.target.value }))}
                         placeholder="Ex: PME du secteur technologique"
+                        className="text-xs sm:text-sm"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="industry">Secteur d'activité</Label>
+                      <Label htmlFor="industry" className="text-xs sm:text-sm">Secteur d'activité</Label>
                       <Input
                         id="industry"
                         value={offerConfig.industry}
                         onChange={(e) => setOfferConfig(prev => ({ ...prev, industry: e.target.value }))}
                         placeholder="Ex: Services numériques, E-commerce, etc."
+                        className="text-xs sm:text-sm"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="tone">Ton de communication</Label>
+                      <Label htmlFor="tone" className="text-xs sm:text-sm">Ton de communication</Label>
                       <Select value={offerConfig.tone} onValueChange={(value: ToneType) => setOfferConfig(prev => ({ ...prev, tone: value }))}>
-                        <SelectTrigger>
+                        <SelectTrigger className="text-xs sm:text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -427,16 +433,17 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
                     {/* Caractéristiques clés */}
                     <div className="space-y-3">
-                      <Label>Caractéristiques clés</Label>
+                      <Label className="text-xs sm:text-sm">Caractéristiques clés</Label>
                       <div className="flex gap-2">
                         <Input
                           value={newFeature}
                           onChange={(e) => setNewFeature(e.target.value)}
                           placeholder="Ajouter une caractéristique"
                           onKeyPress={(e) => e.key === 'Enter' && addFeature()}
+                          className="text-xs sm:text-sm flex-1"
                         />
                         <Button onClick={addFeature} size="sm" variant="outline">
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
                         </Button>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -444,7 +451,7 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                           <Badge
                             key={index}
                             variant="secondary"
-                            className="cursor-pointer hover:bg-red-100"
+                            className="cursor-pointer hover:bg-red-100 text-xs"
                             onClick={() => removeFeature(feature)}
                           >
                             {feature} ✕
@@ -458,17 +465,19 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                   <Button
                     onClick={generateWithAI}
                     disabled={isGenerating || !offerConfig.targetAudience.trim() || !offerConfig.industry.trim()}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-xs sm:text-sm"
                   >
                     {isGenerating ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Génération en cours...
+                        <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
+                        <span className="hidden sm:inline">Génération en cours...</span>
+                        <span className="sm:hidden">Génération...</span>
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Générer avec l'IA
+                        <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                        <span className="hidden sm:inline">Générer avec l'IA</span>
+                        <span className="sm:hidden">Générer IA</span>
                       </>
                     )}
                   </Button>
@@ -476,15 +485,16 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
               </div>
 
               {/* Content Editor */}
-              <div className="p-6 flex flex-col h-full">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <Edit3 className="w-5 h-5 text-blue-600" />
-                    Contenu de l'offre
+              <div className="p-3 sm:p-6 flex flex-col h-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 sm:mb-4 gap-2 sm:gap-0">
+                  <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                    <Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                    <span className="hidden sm:inline">Contenu de l'offre</span>
+                    <span className="sm:hidden">Contenu</span>
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                     {/* Auto-sync toggle */}
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                       <input
                         type="checkbox"
                         id="auto-sync"
@@ -493,11 +503,12 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                         className="rounded"
                       />
                        <label htmlFor="auto-sync" className="text-gray-600">
-                         Sync auto (30s)
+                         <span className="hidden sm:inline">Sync auto (30s)</span>
+                         <span className="sm:hidden">Auto</span>
                        </label>
                     </div>
                     {lastSyncTime && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 hidden sm:inline">
                         Dernière sync: {lastSyncTime.toLocaleTimeString()}
                       </span>
                     )}
@@ -505,26 +516,27 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                       onClick={deleteContent}
                       variant="outline"
                       size="sm"
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 px-2"
                       disabled={!docContent.trim()}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                     </Button>
                     <Button
                       onClick={() => saveToGoogleDoc()}
                       disabled={isSaving || !docContent.trim()}
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-3"
                     >
                       {isSaving ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Synchronisation...
+                          <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-0 sm:mr-2 animate-spin" />
+                          <span className="hidden sm:inline">Synchronisation...</span>
                         </>
                       ) : (
                         <>
-                          <Save className="w-4 h-4 mr-2" />
-                          Synchroniser
+                          <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-0 sm:mr-2" />
+                          <span className="hidden sm:inline">Synchroniser</span>
+                          <span className="sm:hidden">Sync</span>
                         </>
                       )}
                     </Button>
@@ -535,8 +547,8 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                   {isLoading ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
                       <div className="text-center">
-                        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
-                        <p className="text-gray-600">Chargement du contenu...</p>
+                        <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-2 text-blue-600" />
+                        <p className="text-gray-600 text-xs sm:text-sm">Chargement du contenu...</p>
                       </div>
                     </div>
                   ) : (
@@ -549,7 +561,7 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                         }
                       }}
                       placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
-                      className="w-full h-full resize-none text-sm leading-relaxed"
+                      className="w-full h-full resize-none text-xs sm:text-sm leading-relaxed"
                     />
                   )}
                 </div>
