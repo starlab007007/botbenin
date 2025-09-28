@@ -751,6 +751,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
               <GoogleDocManager 
                 isOpen={true}
                 onClose={() => setShowGoogleDocManager(false)}
+                googleDocId={googleDocId}
               />
             </div>
           </div>

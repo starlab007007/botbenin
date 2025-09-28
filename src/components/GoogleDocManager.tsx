@@ -30,6 +30,7 @@ import {
 interface GoogleDocManagerProps {
   isOpen: boolean;
   onClose: () => void;
+  googleDocId?: string;
 }
 
 type OfferType = 'personnel' | 'entreprise' | 'b2b' | 'b2c' | 'c2c';
@@ -51,9 +52,9 @@ const offerTypes = {
   c2c: { label: 'C2C (Consumer to Consumer)', icon: Users, color: 'bg-pink-500' }
 };
 
-export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => {
+export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId }: GoogleDocManagerProps) => {
   const { user } = useAuth();
-  const [googleDocId, setGoogleDocId] = useState('1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg');
+  const [googleDocId, setGoogleDocId] = useState(propGoogleDocId || '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg');
   const [docContent, setDocContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -72,6 +73,17 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   });
   
   const [newFeature, setNewFeature] = useState('');
+
+  // Effet pour utiliser l'ID de document passé en prop
+  useEffect(() => {
+    if (propGoogleDocId && propGoogleDocId !== googleDocId) {
+      setGoogleDocId(propGoogleDocId);
+      // Charger automatiquement le contenu du nouveau document
+      if (isOpen) {
+        loadDocContent();
+      }
+    }
+  }, [propGoogleDocId, isOpen]);
 
   // Auto-génération quand le type change
   useEffect(() => {
@@ -288,9 +300,15 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   };
 
   const openGoogleDoc = () => {
-    const url = `https://docs.google.com/document/d/${googleDocId}/edit`;
-    window.open(url, '_blank');
+    window.open(`https://docs.google.com/document/d/${googleDocId}/edit`, '_blank');
   };
+
+  // Notification pour confirmer la connexion au bon document
+  useEffect(() => {
+    if (isOpen && googleDocId && googleDocId === '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg') {
+      toast.success('🔗 Connecté au Google Document de préparation d\'appel IA', { duration: 3000 });
+    }
+  }, [isOpen, googleDocId]);
 
   if (!isOpen) return null;
 
@@ -341,7 +359,14 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                 <div className="space-y-3 sm:space-y-6">
                   {/* Google Doc ID */}
                   <div className="space-y-2">
-                    <Label htmlFor="doc-id" className="text-xs sm:text-sm">ID du Google Doc</Label>
+                    <Label htmlFor="doc-id" className="text-xs sm:text-sm flex items-center gap-2">
+                      ID du Google Doc
+                      {googleDocId === '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg' && (
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                          Préparation d'Appel IA
+                        </Badge>
+                      )}
+                    </Label>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <Input
                         id="doc-id"
@@ -349,6 +374,7 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                         onChange={(e) => setGoogleDocId(e.target.value)}
                         placeholder="1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg"
                         className="font-mono text-xs sm:text-sm flex-1"
+                        disabled={true}
                       />
                       <Button
                         onClick={loadDocContent}
@@ -361,6 +387,9 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                         <span className="ml-2 sm:hidden">Charger</span>
                       </Button>
                     </div>
+                    <p className="text-xs text-gray-500">
+                      📝 Synchronisation active avec le Google Document de préparation d'appel IA
+                    </p>
                   </div>
 
                   <Separator />
