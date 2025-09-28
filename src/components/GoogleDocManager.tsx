@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   FileText,
   Edit3,
@@ -161,27 +162,24 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   const loadDocContent = async () => {
     setIsLoading(true);
     try {
-      // Appel à l'API Google Docs via edge function
-      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/google-docs-reader`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8`,
-        },
-        body: JSON.stringify({ docId: googleDocId }),
+      const { data, error } = await supabase.functions.invoke('google-docs-reader', {
+        body: { docId: googleDocId }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setDocContent(data.content || '');
-        toast.success('Contenu chargé avec succès');
+      if (error) throw error;
+
+      if (data?.content) {
+        setDocContent(data.content);
+        toast.success('Contenu chargé depuis Google Docs');
       } else {
-        throw new Error('Erreur lors du chargement');
+        throw new Error('Contenu non reçu');
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      setDocContent("Contenu par défaut de l'offre commerciale...\n\nCeci est un exemple de contenu qui sera synchronisé avec Google Doc.");
-      toast.error('Mode démo - Contenu simulé chargé');
+      const fallbackContent = "OFFRE COMMERCIALE\n\nMÉMO POUR L'ÉQUIPE COMMERCIALE\n\nPROPOSITION DE VALEUR\nUne équipe d'agents IA qui propulse votre entreprise en automatisant les tâches répétitives pour libérer du temps stratégique.\n\nCIBLES IDÉALES\nEntreprises qui :\n• Perdent du temps sur des processus manuels répétitifs\n• Ont des équipes surchargées par l'opérationnel\n• Cherchent à améliorer leur productivité\n• Ont des difficultés de recrutement\n• Veulent rester compétitives mais manquent de temps pour se former à l'IA\n\nMÉTHODE EN 3 ÉTAPES\n1. Audit gratuit : Analyse des processus et identification des opportunités\n2. Développement : Création de workflows intelligents intégrés aux outils existants\n3. Déploiement : Mise en place rapide avec documentation et suivi continu\n\nTARIFS\n• Audit : Gratuit (30 minutes)\n• Premier test : À partir de 50 000 cfa\n• Solution complète : Sur devis\n• Coûts typiques : 200 000 -300 000 cfa initial + 40 000-100 000 cfa/semaine";
+      
+      setDocContent(fallbackContent);
+      toast.error('Mode simulation - Contenu chargé localement');
     } finally {
       setIsLoading(false);
     }
@@ -195,32 +193,25 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
     setIsGenerating(true);
     try {
-      // Appel à l'edge function Supabase avec Gemini
-      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/generate-commercial-offer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8`,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('generate-commercial-offer', {
+        body: {
           config: offerConfig,
           userId: user?.id
-        }),
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Erreur de l\'API:', errorData);
-        throw new Error(errorData.error || 'Erreur lors de la génération');
-      }
+      if (error) throw error;
 
-      const data = await response.json();
-      setDocContent(data.generatedContent);
-      toast.success('Offre commerciale générée avec Gemini AI');
-      
-      // Auto-sync si activé
-      if (autoSync) {
-        setLastSyncTime(new Date());
+      if (data?.generatedContent) {
+        setDocContent(data.generatedContent);
+        toast.success('Offre commerciale générée avec Gemini AI');
+        
+        // Auto-sync si activé
+        if (autoSync) {
+          setLastSyncTime(new Date());
+        }
+      } else {
+        throw new Error('Contenu généré non reçu');
       }
     } catch (error) {
       console.error('Erreur lors de la génération IA:', error);
@@ -244,34 +235,29 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
 
     setIsSaving(true);
     try {
-      // Appel à l'API Google Docs pour sauvegarder
-      const response = await fetch(`https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/google-docs-writer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8`,
-        },
-        body: JSON.stringify({ 
+      const { data, error } = await supabase.functions.invoke('google-docs-writer', {
+        body: { 
           docId: googleDocId,
           content: docContent,
           userId: user?.id 
-        }),
+        }
       });
 
-      if (response.ok) {
-        setLastSyncTime(new Date());
-        if (showToast) {
-          toast.success('✅ Document enregistré dans Google Docs avec succès !');
+      if (error) throw error;
+
+      setLastSyncTime(new Date());
+      if (showToast) {
+        if (data?.message?.includes('simulation')) {
+          toast.success('📝 Mode simulation - Configurez GOOGLE_SERVICE_ACCOUNT_KEY pour la synchronisation réelle');
+        } else {
+          toast.success('✅ Document synchronisé avec Google Docs avec succès !');
         }
-      } else {
-        throw new Error('Erreur lors de l\'enregistrement');
       }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
       if (showToast) {
-        toast.success('📝 Mode démo - Contenu enregistré localement');
+        toast.error(`Erreur de synchronisation: ${error.message}`);
       }
-      setLastSyncTime(new Date());
     } finally {
       setIsSaving(false);
     }
