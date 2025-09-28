@@ -14,6 +14,7 @@ import { useProspectEvaluationWebhook } from '@/hooks/useProspectEvaluationWebho
 import { ProspectViewer } from './ProspectViewer';
 import { WebhookConfigurationPanel } from './WebhookConfigurationPanel';
 import { EvaluationResultsViewer } from './EvaluationResultsViewer';
+import { GoogleDocManager } from './GoogleDocManager';
 import { 
   User, 
   Building, 
@@ -35,7 +36,9 @@ import {
   Cog,
   Sparkles,
   History,
-  Linkedin
+  Linkedin,
+  FileEdit,
+  Save
 } from 'lucide-react';
 
 type Step = 'add' | 'activate' | 'evaluate' | 'view';
@@ -55,11 +58,13 @@ interface RecentProspect {
 interface IACallPreparationFormProps {
   spreadsheetId: string;
   sheetName: string;
+  googleDocId?: string;
 }
 
 export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
   spreadsheetId,
-  sheetName
+  sheetName,
+  googleDocId = "1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg"
 }) => {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('add');
@@ -70,6 +75,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
   const [recentAdditions, setRecentAdditions] = useState<RecentProspect[]>([]);
   const [showWebhookConfig, setShowWebhookConfig] = useState(false);
   const [showEvaluationResults, setShowEvaluationResults] = useState(false);
+  const [showGoogleDocManager, setShowGoogleDocManager] = useState(false);
 
   const {
     isAdding,
@@ -446,7 +452,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
               </Button>
               
               {/* Actions complémentaires */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <Button
                   type="button"
                   onClick={() => setCurrentStep('view')}
@@ -455,6 +461,16 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 >
                   <Users className="w-5 h-5 mr-2" />
                   Mes prospects
+                </Button>
+                
+                <Button
+                  type="button"
+                  onClick={() => setShowGoogleDocManager(true)}
+                  variant="outline"
+                  className="h-12 text-base border-2 border-orange-200 hover:bg-orange-50"
+                >
+                  <FileEdit className="w-5 h-5 mr-2" />
+                  Offre Commerciale
                 </Button>
                 
                 <Button
@@ -714,6 +730,33 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
         onClose={() => setShowWebhookConfig(false)}
       />
 
+      {/* Gestionnaire d'Offres Commerciales */}
+      {showGoogleDocManager && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                Gestionnaire d'Offres Commerciales
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowGoogleDocManager(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </Button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+              <GoogleDocManager 
+                isOpen={true}
+                onClose={() => setShowGoogleDocManager(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Résultats d'évaluation */}
       {showEvaluationResults && (
         <EvaluationResultsViewer
@@ -736,7 +779,8 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 <li>• <strong>Ajouter :</strong> Saisir les informations du prospect</li>
                 <li>• <strong>Activer :</strong> Démarrer/Arrêter le prospect (Run = True/False)</li>
                 <li>• <strong>Évaluer :</strong> Lancer l'analyse IA via webhook</li>
-                <li>• Les données sont synchronisées automatiquement avec Google Sheets</li>
+                <li>• <strong>Offre Commerciale :</strong> Générer et synchroniser avec Google Docs</li>
+                <li>• Les données sont synchronisées automatiquement avec Google Sheets et Google Docs</li>
               </ul>
             </div>
           </div>
