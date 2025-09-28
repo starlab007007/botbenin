@@ -13,8 +13,10 @@ import {
   Settings,
   FileText,
   Link,
-  ExternalLink
+  ExternalLink,
+  BookOpen
 } from 'lucide-react';
+import { GoogleDocManager } from '@/components/GoogleDocManager';
 import { useNavigate } from 'react-router-dom';
 
 export const ProspectPreparationPage = () => {
@@ -27,6 +29,7 @@ export const ProspectPreparationPage = () => {
     sheetName: 'Feuille 1'
   });
   const [showConfig, setShowConfig] = useState(false);
+  const [showGoogleDocManager, setShowGoogleDocManager] = useState(false);
 
   // Redirection si non authentifié - APRÈS tous les hooks
   if (!isAuthenticated) {
@@ -76,6 +79,15 @@ export const ProspectPreparationPage = () => {
             >
               <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Configuration</span>
+            </Button>
+            <Button
+              onClick={() => setShowGoogleDocManager(true)}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:from-purple-100 hover:to-blue-100"
+            >
+              <BookOpen className="w-4 h-4 text-purple-600" />
+              <span className="hidden sm:inline text-purple-600">Offre Commerciale</span>
             </Button>
             <Button
               onClick={openGoogleSheet}
@@ -143,6 +155,12 @@ export const ProspectPreparationPage = () => {
         <IACallPreparationForm
           spreadsheetId={googleSheetsConfig.spreadsheetId}
           sheetName={googleSheetsConfig.sheetName}
+        />
+
+        {/* Google Doc Manager Modal */}
+        <GoogleDocManager
+          isOpen={showGoogleDocManager}
+          onClose={() => setShowGoogleDocManager(false)}
         />
       </div>
     </div>
