@@ -231,7 +231,16 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
   };
 
   const saveToGoogleDoc = async (showToast = true) => {
-    if (!googleDocId || !docContent) return;
+    if (!googleDocId || !docContent) {
+      if (showToast) {
+        if (!googleDocId) {
+          toast.error('Veuillez saisir l\'ID du Google Document');
+        } else {
+          toast.error('Le contenu ne peut pas être vide');
+        }
+      }
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -252,15 +261,15 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
       if (response.ok) {
         setLastSyncTime(new Date());
         if (showToast) {
-          toast.success('Document sauvegardé avec succès !');
+          toast.success('✅ Document enregistré dans Google Docs avec succès !');
         }
       } else {
-        throw new Error('Erreur lors de la synchronisation');
+        throw new Error('Erreur lors de l\'enregistrement');
       }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
       if (showToast) {
-        toast.success('Mode démo - Changements sauvegardés localement');
+        toast.success('📝 Mode démo - Contenu enregistré localement');
       }
       setLastSyncTime(new Date());
     } finally {
@@ -508,8 +517,8 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                        </label>
                     </div>
                     {lastSyncTime && (
-                      <span className="text-xs text-gray-500 hidden sm:inline">
-                        Dernière sync: {lastSyncTime.toLocaleTimeString()}
+                      <span className="text-xs text-gray-500 hidden lg:inline">
+                        Dernière sauvegarde: {lastSyncTime.toLocaleTimeString()}
                       </span>
                     )}
                     <Button
@@ -523,20 +532,21 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                     </Button>
                     <Button
                       onClick={() => saveToGoogleDoc()}
-                      disabled={isSaving || !docContent.trim()}
+                      disabled={isSaving || !docContent.trim() || !googleDocId}
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-3"
+                      className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4 font-medium"
                     >
                       {isSaving ? (
                         <>
-                          <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-0 sm:mr-2 animate-spin" />
-                          <span className="hidden sm:inline">Synchronisation...</span>
+                          <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 animate-spin" />
+                          <span className="hidden sm:inline">Enregistrement...</span>
+                          <span className="sm:hidden">...</span>
                         </>
                       ) : (
                         <>
-                          <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-0 sm:mr-2" />
-                          <span className="hidden sm:inline">Synchroniser</span>
-                          <span className="sm:hidden">Sync</span>
+                          <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                          <span className="hidden sm:inline">Enregistrer dans Google Docs</span>
+                          <span className="sm:hidden">Enregistrer</span>
                         </>
                       )}
                     </Button>
@@ -552,17 +562,53 @@ export const GoogleDocManager = ({ isOpen, onClose }: GoogleDocManagerProps) => 
                       </div>
                     </div>
                   ) : (
-                    <Textarea
-                      value={docContent}
-                      onChange={(e) => {
-                        setDocContent(e.target.value);
-                        if (autoSync) {
-                          setLastSyncTime(new Date());
-                        }
-                      }}
-                      placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
-                      className="w-full h-full resize-none text-xs sm:text-sm leading-relaxed"
-                    />
+                    <div className="h-full flex flex-col">
+                      <Textarea
+                        value={docContent}
+                        onChange={(e) => {
+                          setDocContent(e.target.value);
+                          if (autoSync) {
+                            setLastSyncTime(new Date());
+                          }
+                        }}
+                        placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
+                        className="flex-1 resize-none text-xs sm:text-sm leading-relaxed border-2 focus:border-blue-500"
+                      />
+                      
+                      {/* Bouton d'enregistrement fixé en bas */}
+                      <div className="mt-3 flex justify-between items-center bg-gray-50 p-2 sm:p-3 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600">
+                            {docContent.length} caractères
+                          </span>
+                          {lastSyncTime && (
+                            <span className="text-xs text-green-600">
+                              • Sauvé {lastSyncTime.toLocaleTimeString()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => saveToGoogleDoc()}
+                            disabled={isSaving || !docContent.trim() || !googleDocId}
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm font-medium"
+                          >
+                            {isSaving ? (
+                              <>
+                                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
+                                Enregistrement...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                Enregistrer dans Google Docs
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
