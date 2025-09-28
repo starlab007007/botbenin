@@ -101,6 +101,24 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
     }
   };
 
+  const downloadPDF = (url: string, filename?: string) => {
+    // Convertir l'URL Google Docs en URL de téléchargement PDF
+    let downloadUrl = url;
+    if (url.includes('docs.google.com')) {
+      // Remplacer /edit ou autres par /export?format=pdf
+      downloadUrl = url.replace(/\/edit.*$/, '/export?format=pdf');
+    }
+
+    // Créer un lien temporaire et déclencher le téléchargement
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = filename || 'preparation-appel.pdf';
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <Dialog open={true} onOpenChange={onClose}>
@@ -304,7 +322,10 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                       <CardContent className="space-y-3">
                         <div className="flex flex-col sm:flex-row gap-2">
                           <Button
-                            onClick={() => window.open(selectedProspect['Préparation de l\'appel'], '_blank')}
+                            onClick={() => downloadPDF(
+                              selectedProspect['Préparation de l\'appel'], 
+                              `preparation-appel-${selectedProspect.contact_name || 'prospect'}.pdf`
+                            )}
                             variant="default"
                             size="sm"
                             className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
