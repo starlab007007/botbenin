@@ -281,14 +281,14 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-1 sm:p-2 md:p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full h-full sm:h-[98vh] md:h-[95vh] sm:max-w-7xl overflow-hidden flex flex-col">
+        {/* Header - Fixed */}
+        <div className="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between p-2 sm:p-3 md:p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
           <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-0">
-            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-600" />
             <div>
-              <h2 className="text-base sm:text-xl font-semibold text-gray-800 dark:text-gray-200">
+              <h2 className="text-sm sm:text-base md:text-xl font-semibold text-gray-800 dark:text-gray-200">
                 Gestionnaire d'Offre Commerciale
               </h2>
               <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
@@ -296,27 +296,28 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto">
             <Button
               onClick={openGoogleDoc}
               variant="outline"
               size="sm"
-              className="flex items-center gap-2 text-xs sm:text-sm flex-1 sm:flex-none"
+              className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm flex-1 sm:flex-none px-2 sm:px-4"
             >
-              <ExternalLink className="w-4 h-4" />
-              <span>Ouvrir Google Doc</span>
+              <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Ouvrir Google Doc</span>
+              <span className="sm:hidden">Google Doc</span>
             </Button>
-            <Button onClick={onClose} variant="outline" size="sm" className="px-3">
+            <Button onClick={onClose} variant="outline" size="sm" className="px-2 sm:px-3">
               ✕
             </Button>
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* Main Content - Scrollable */}
         <div className="flex-1 overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
-            {/* Configuration Panel */}
-            <div className="p-3 sm:p-4 lg:border-r bg-gray-50/50 dark:bg-gray-800/30 overflow-y-auto max-h-[60vh] lg:max-h-full">
+          <div className="flex flex-col lg:grid lg:grid-cols-2 h-full">
+            {/* Configuration Panel - Scrollable */}
+            <div className="flex-shrink-0 lg:flex-1 p-2 sm:p-3 md:p-4 lg:border-r bg-gray-50/50 dark:bg-gray-800/30 overflow-y-auto max-h-[40vh] lg:max-h-full">
               <div className="sticky top-0 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-sm pb-2 mb-4">
                 <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
                   <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
@@ -538,72 +539,71 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
               </div>
             </div>
 
-            {/* Content Editor */}
-            <div className="p-3 sm:p-4 overflow-y-auto max-h-[60vh] lg:max-h-full bg-white dark:bg-gray-900">
-              <div className="sticky top-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm pb-2 mb-4">
+            {/* Content Panel - Scrollable */}
+            <div className="flex-1 p-2 sm:p-3 md:p-4 overflow-y-auto max-h-[50vh] lg:max-h-full bg-white dark:bg-gray-900">
+              <div className="sticky top-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm pb-2 mb-4 z-10">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                    <Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                  <h3 className="text-sm sm:text-base md:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                    <Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                     Contenu de l'offre
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {lastSyncTime && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        <span className="hidden sm:inline">Dernière sync: </span>
+                        {lastSyncTime.toLocaleTimeString()}
+                      </Badge>
+                    )}
                     <Button
                       onClick={deleteContent}
                       variant="outline"
                       size="sm"
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 px-2 sm:px-3"
                       disabled={!docContent.trim()}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline ml-1">Effacer</span>
                     </Button>
                     <Button
                       onClick={() => saveToGoogleDoc()}
-                      disabled={isDocWriting || !docContent.trim() || !googleDocId}
+                      variant="default"
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white font-medium"
+                      disabled={isDocWriting || !docContent}
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm px-2 sm:px-4"
                     >
                       {isDocWriting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Enregistrement...
-                        </>
+                        <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin mr-1" />
                       ) : (
-                        <>
-                          <Save className="w-4 h-4 mr-2" />
-                          Enregistrer
-                        </>
+                        <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                       )}
+                      <span className="hidden sm:inline">Enregistrer</span>
+                      <span className="sm:hidden">Save</span>
                     </Button>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                {/* Content Textarea */}
+              <div className="space-y-3 sm:space-y-4">
                 {isLoading ? (
-                  <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg p-8">
+                  <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg p-4 sm:p-8 min-h-[200px]">
                     <div className="text-center">
-                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-600" />
-                      <p className="text-gray-600 dark:text-gray-400 text-sm">Chargement du contenu...</p>
+                      <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-2 text-blue-600" />
+                      <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Chargement du contenu...</p>
                     </div>
                   </div>
+                ) : docContent ? (
+                  <Textarea
+                    value={docContent}
+                    onChange={(e) => setDocContent(e.target.value)}
+                    className="min-h-[250px] sm:min-h-[350px] lg:min-h-[500px] font-mono text-xs sm:text-sm resize-none"
+                    placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
+                  />
                 ) : (
-                  <div className="space-y-3">
-                    <Textarea
-                      value={docContent}
-                      onChange={(e) => setDocContent(e.target.value)}
-                      placeholder="Le contenu de votre offre commerciale apparaîtra ici..."
-                      className="min-h-[400px] text-sm leading-relaxed border-2 focus:border-blue-500 resize-y"
-                    />
-                    
-                    {/* Status Bar */}
-                    <div className="flex justify-between items-center text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                      <span>{docContent.length} caractères</span>
-                      {lastSyncTime && (
-                        <span className="text-green-600">
-                          Sauvé le {lastSyncTime.toLocaleTimeString()}
-                        </span>
-                      )}
+                  <div className="flex items-center justify-center min-h-[250px] sm:min-h-[350px] border-2 border-dashed border-gray-300 rounded-lg">
+                    <div className="text-center p-4">
+                      <FileText className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 text-sm">Aucun contenu chargé</p>
+                      <p className="text-gray-400 text-xs mt-1">Configurez et générez une offre</p>
                     </div>
                   </div>
                 )}

@@ -168,6 +168,23 @@ serve(async (req) => {
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Erreur Gemini API:', errorData);
+      
+      // Handle quota exceeded specifically
+      if (response.status === 429) {
+        const retryAfter = errorData.error?.details?.find((d: any) => d['@type'] === 'type.googleapis.com/google.rpc.RetryInfo')?.retryDelay;
+        return new Response(
+          JSON.stringify({ 
+            error: 'Quota API Gemini dépassé. Veuillez réessayer plus tard.',
+            details: `Limite de 50 requêtes par jour atteinte. Réessayez dans ${retryAfter || '1 heure'}.`,
+            retryAfter: retryAfter
+          }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+      
       throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`);
     }
 

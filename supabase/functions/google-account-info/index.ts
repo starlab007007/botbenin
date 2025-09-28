@@ -33,7 +33,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Format JSON invalide pour GOOGLE_SERVICE_ACCOUNT_KEY',
-          details: parseError.message
+          details: (parseError as Error).message || 'Erreur inconnue'
         }),
         { 
           status: 400, 
