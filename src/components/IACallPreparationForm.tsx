@@ -409,17 +409,17 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 />
               </div>
 
-              {/* Nom de l'entreprise */}
+              {/* Nom de l'entreprise ou site web */}
               <div className="space-y-2">
                 <Label htmlFor="company-name" className="flex items-center gap-2 text-sm font-medium">
                   <Building className="w-4 h-4 text-purple-600" />
-                  Nom de l'entreprise {!linkedinUrl.trim() && <span className="text-red-500">*</span>}
+                  Nom de l'entreprise ou site web {!linkedinUrl.trim() && <span className="text-red-500">*</span>}
                 </Label>
                 <Input
                   id="company-name"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Ex: Acme Corporation"
+                  placeholder="Ex: Acme Corporation ou https://acme-corp.com"
                   disabled={isAdding}
                   className="h-12 text-base"
                   required={!linkedinUrl.trim()}
