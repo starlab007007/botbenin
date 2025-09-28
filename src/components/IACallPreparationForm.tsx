@@ -394,7 +394,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                   className="h-12 text-base border-2 border-green-200 hover:bg-green-50"
                 >
                   <FileText className="w-5 h-5 mr-2" />
-                  Résultats ({evaluationResults.length})
+                  Résultats ({(sheetsData || []).length})
                 </Button>
               </div>
             </form>
@@ -640,6 +640,8 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           results={evaluationResults}
           evaluationHistory={evaluationHistory}
           onClose={() => setShowEvaluationResults(false)}
+          spreadsheetId={spreadsheetId}
+          sheetName={sheetName}
         />
       )}
 

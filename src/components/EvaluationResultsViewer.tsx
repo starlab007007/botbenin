@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { 
   ArrowLeft, 
   FileText, 
@@ -17,28 +18,54 @@ import {
   AlertCircle,
   ExternalLink,
   Download,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Linkedin,
+  Globe,
+  Star,
+  Users,
+  Briefcase,
+  Eye,
+  MessageSquare
 } from 'lucide-react';
 import { EvaluationResult, EvaluationHistory } from '@/types/evaluation';
 import { DocumentPreview } from './DocumentPreview';
 import { EvaluationHistoryViewer } from './EvaluationHistoryViewer';
+import { useGoogleSheets, GoogleSheetProspectWithUser } from '@/hooks/useGoogleSheets';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EvaluationResultsViewerProps {
   results: EvaluationResult[];
   evaluationHistory: Map<string, EvaluationHistory>;
   onClose: () => void;
+  spreadsheetId: string;
+  sheetName: string;
 }
 
 export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = ({
   results,
   evaluationHistory,
-  onClose
+  onClose,
+  spreadsheetId,
+  sheetName
 }) => {
-  const [selectedResult, setSelectedResult] = useState<EvaluationResult | null>(
-    results.length > 0 ? results[0] : null
-  );
+  const { user } = useAuth();
+  const [selectedProspect, setSelectedProspect] = useState<GoogleSheetProspectWithUser | null>(null);
   const [showDocumentPreview, setShowDocumentPreview] = useState(false);
   const [showHistoryViewer, setShowHistoryViewer] = useState<string | null>(null);
+
+  // Fetch Google Sheets data
+  const {
+    data: prospects,
+    isLoading: isLoadingSheets,
+    error: sheetsError
+  } = useGoogleSheets({ spreadsheetId, sheetName }, user?.id);
+
+  // Initialize with first prospect
+  useEffect(() => {
+    if (prospects && prospects.length > 0 && !selectedProspect) {
+      setSelectedProspect(prospects[0]);
+    }
+  }, [prospects, selectedProspect]);
 
   const getOpportunityLevelColor = (level: string) => {
     switch (level) {
@@ -55,6 +82,25 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
     return 'text-red-600';
   };
 
+  const getScoreFromProspect = (prospect: GoogleSheetProspectWithUser): number => {
+    const score = prospect['Pertinence du prospect par rapport à notre offre ? (sur 100)'];
+    return score ? parseInt(score.toString(), 10) : 0;
+  };
+
+  const getStatusColor = (statut?: string) => {
+    switch (statut?.toLowerCase()) {
+      case 'qualifié':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'en cours':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'non qualifié':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'en attente':
+      default:
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <Dialog open={true} onOpenChange={onClose}>
@@ -69,86 +115,95 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
           </DialogHeader>
 
           <div className="flex h-[calc(90vh-120px)]">
-            {/* Liste des résultats */}
+            {/* Liste des prospects */}
             <div className="w-1/3 border-r bg-gray-50 overflow-y-auto">
               <div className="p-4 space-y-3">
-                {results.length === 0 ? (
+                {isLoadingSheets ? (
                   <div className="text-center py-8">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <h3 className="font-semibold text-gray-600 mb-2">Pas de contenu disponible</h3>
-                    <p className="text-sm text-gray-500">Aucun prospect n'a encore été évalué</p>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-sm text-gray-500">Chargement des prospects...</p>
+                  </div>
+                ) : !prospects || prospects.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <h3 className="font-semibold text-gray-600 mb-2">Aucun prospect disponible</h3>
+                    <p className="text-sm text-gray-500">Ajoutez des prospects pour voir leurs évaluations</p>
                   </div>
                 ) : (
-                  results.map((result) => (
-                    <Card 
-                      key={result.id}
-                      className={`cursor-pointer transition-colors hover:shadow-md ${
-                        selectedResult?.id === result.id ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-white'
-                      }`}
-                      onClick={() => setSelectedResult(result)}
-                    >
-                      <CardContent className="p-3">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm truncate">{result.prospect.contact_name}</h4>
-                            <p className="text-xs text-gray-600 truncate">{result.prospect.company_name}</p>
+                  prospects.map((prospect) => {
+                    const score = getScoreFromProspect(prospect);
+                    return (
+                      <Card 
+                        key={prospect.id}
+                        className={`cursor-pointer transition-colors hover:shadow-md ${
+                          selectedProspect?.id === prospect.id ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-white'
+                        }`}
+                        onClick={() => setSelectedProspect(prospect)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm truncate">
+                                {prospect.contact_name || prospect['Nom du contact'] || 'Contact non défini'}
+                              </h4>
+                              <p className="text-xs text-gray-600 truncate">
+                                {prospect.company_name || prospect['Nom de l\'entreprise'] || 'Entreprise non définie'}
+                              </p>
+                              {prospect['Rôle'] && (
+                                <p className="text-xs text-blue-600 truncate flex items-center gap-1">
+                                  <Briefcase className="w-3 h-3" />
+                                  {prospect['Rôle']}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        
-                        <div className="flex justify-between items-center mb-2">
-                          <div className="flex gap-2">
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${getOpportunityLevelColor(result.analysis.opportunity_level)}`}
-                            >
-                              {result.analysis.opportunity_level === 'high' ? 'Élevé' : 
-                               result.analysis.opportunity_level === 'medium' ? 'Moyen' : 'Faible'}
-                            </Badge>
-                            {result.version && (
-                              <Badge variant="secondary" className="text-xs">
-                                v{result.version}
-                              </Badge>
+                          
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="flex gap-2 flex-wrap">
+                              {prospect.Run === 'true' && (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                  Actif
+                                </Badge>
+                              )}
+                              {score > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  Évalué
+                                </Badge>
+                              )}
+                            </div>
+                            {score > 0 && (
+                              <span className={`text-sm font-medium ${getScoreColor(score)}`}>
+                                {score}%
+                              </span>
                             )}
                           </div>
-                          <span className={`text-sm font-medium ${getScoreColor(result.analysis.relevance_score)}`}>
-                            {result.analysis.relevance_score}%
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center">
-                          <div className="text-xs text-gray-500 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(result.metadata.generated_at).toLocaleDateString('fr-FR')}
+                          
+                          <div className="flex justify-between items-center">
+                            <div className="flex gap-1">
+                              {prospect.linkedin_contact_url && (
+                                <Linkedin className="w-3 h-3 text-blue-600" />
+                              )}
+                              {prospect.company_website && (
+                                <Globe className="w-3 h-3 text-green-600" />
+                              )}
+                            </div>
                           </div>
-                          {evaluationHistory.has(result.prospect.id) && (
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowHistoryViewer(result.prospect.id);
-                              }}
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-100"
-                            >
-                              <HistoryIcon className="w-3 h-3" />
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                        </CardContent>
+                      </Card>
+                    );
+                  })
                 )}
               </div>
             </div>
 
-            {/* Détails du résultat sélectionné */}
+            {/* Détails du prospect sélectionné */}
             <div className="flex-1 overflow-y-auto">
-              {results.length === 0 ? (
+              {!prospects || prospects.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <div className="text-center">
-                    <AlertCircle className="w-16 h-16 mx-auto mb-6 text-gray-300" />
-                    <h3 className="text-xl font-semibold text-gray-600 mb-3">Pas de contenu disponible</h3>
-                    <p className="text-gray-500 mb-6">Aucun prospect n'a encore été évalué par l'IA</p>
+                    <Users className="w-16 h-16 mx-auto mb-6 text-gray-300" />
+                    <h3 className="text-xl font-semibold text-gray-600 mb-3">Aucun prospect disponible</h3>
+                    <p className="text-gray-500 mb-6">Ajoutez des prospects pour voir leurs évaluations</p>
                     <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 max-w-md">
                       <h4 className="font-semibold text-blue-900 mb-2">Pour commencer :</h4>
                       <ol className="text-sm text-blue-800 space-y-1 text-left">
@@ -159,61 +214,91 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                     </div>
                   </div>
                 </div>
-              ) : selectedResult ? (
+              ) : selectedProspect ? (
                 <div className="p-6 space-y-6">
                   {/* En-tête du prospect */}
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-lg border">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h3 className="text-lg font-semibold mb-1">{selectedResult.prospect.contact_name}</h3>
-                        <p className="text-gray-600 mb-2">{selectedResult.prospect.company_name}</p>
+                        <h3 className="text-lg font-semibold mb-1">
+                          {selectedProspect.contact_name || selectedProspect['Nom du contact'] || 'Contact non défini'}
+                        </h3>
+                        <p className="text-gray-600 mb-2">
+                          {selectedProspect.company_name || selectedProspect['Nom de l\'entreprise'] || 'Entreprise non définie'}
+                        </p>
+                        {selectedProspect['Rôle'] && (
+                          <div className="flex items-center gap-2 mb-3">
+                            <Briefcase className="w-4 h-4 text-blue-600" />
+                            <span className="text-blue-800 font-medium">{selectedProspect['Rôle']}</span>
+                          </div>
+                        )}
                         <div className="flex gap-3 text-sm">
-                          {selectedResult.prospect.linkedin_url && (
+                          {selectedProspect.linkedin_contact_url && (
                             <a 
-                              href={selectedResult.prospect.linkedin_url} 
+                              href={selectedProspect.linkedin_contact_url} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-blue-600 hover:underline"
+                              className="flex items-center gap-1 text-blue-600 hover:underline hover:bg-blue-100 px-2 py-1 rounded transition-colors"
                             >
-                              <User className="w-3 h-3" />
+                              <Linkedin className="w-3 h-3" />
                               LinkedIn
                             </a>
                           )}
-                          {selectedResult.prospect.website && (
+                          {selectedProspect.company_website && (
                             <a 
-                              href={selectedResult.prospect.website} 
+                              href={selectedProspect.company_website} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-blue-600 hover:underline"
+                              className="flex items-center gap-1 text-green-600 hover:underline hover:bg-green-100 px-2 py-1 rounded transition-colors"
                             >
-                              <Building className="w-3 h-3" />
+                              <Globe className="w-3 h-3" />
                               Site web
                             </a>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-2xl font-bold ${getScoreColor(selectedResult.analysis.relevance_score)}`}>
-                          {selectedResult.analysis.relevance_score}%
-                        </div>
-                        <Badge 
-                          variant="outline" 
-                          className={getOpportunityLevelColor(selectedResult.analysis.opportunity_level)}
-                        >
-                          Niveau {selectedResult.analysis.opportunity_level === 'high' ? 'élevé' : 
-                                  selectedResult.analysis.opportunity_level === 'medium' ? 'moyen' : 'faible'}
-                        </Badge>
+                        {getScoreFromProspect(selectedProspect) > 0 && (
+                          <>
+                            <div className={`text-2xl font-bold ${getScoreColor(getScoreFromProspect(selectedProspect))}`}>
+                              {getScoreFromProspect(selectedProspect)}%
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className={getScoreColor(getScoreFromProspect(selectedProspect)) === 'text-green-600' ? 'bg-green-100 text-green-800 border-green-200' : 
+                                        getScoreColor(getScoreFromProspect(selectedProspect)) === 'text-yellow-600' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 
+                                        'bg-red-100 text-red-800 border-red-200'}
+                            >
+                              <Star className="w-3 h-3 mr-1" />
+                              Pertinence
+                            </Badge>
+                          </>
+                        )}
                       </div>
                     </div>
+                    
+                    {/* Barre de progression de la pertinence */}
+                    {getScoreFromProspect(selectedProspect) > 0 && (
+                      <div className="mt-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-gray-700">Score de pertinence</span>
+                          <span className="text-sm text-gray-500">{getScoreFromProspect(selectedProspect)}/100</span>
+                        </div>
+                        <Progress 
+                          value={getScoreFromProspect(selectedProspect)} 
+                          className="h-3"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Documents générés */}
-                  {selectedResult.documents.google_doc_url && (
+                  {/* Documents de préparation d'appel */}
+                  {selectedProspect['Préparation de l\'appel'] && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-base">
                           <FileText className="w-4 h-4" />
-                          Documents générés
+                          Préparation d'Appel IA
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
@@ -224,11 +309,11 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                             size="sm"
                             className="flex items-center gap-2"
                           >
-                            <FileText className="w-4 h-4" />
-                            Visualiser
+                            <Eye className="w-4 h-4" />
+                            Voir le Document
                           </Button>
                           <Button
-                            onClick={() => window.open(selectedResult.documents.google_doc_url, '_blank')}
+                            onClick={() => window.open(selectedProspect['Préparation de l\'appel'], '_blank')}
                             variant="outline"
                             size="sm"
                             className="flex items-center gap-2"
@@ -241,110 +326,132 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
                     </Card>
                   )}
 
-                  {/* Insights clés */}
+                  {/* Explication de l'évaluation */}
+                  {selectedProspect.explanation && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <MessageSquare className="w-4 h-4" />
+                          Justification de l'Évaluation
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {selectedProspect.explanation}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Informations du prospect */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <User className="w-4 h-4" />
+                        Informations du Prospect
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <span className="font-medium text-sm">Nom:</span>
+                          <div className="text-gray-700">
+                            {selectedProspect.contact_name || selectedProspect['Nom du contact'] || 'Non défini'}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-sm">Entreprise:</span>
+                          <div className="text-gray-700">
+                            {selectedProspect.company_name || selectedProspect['Nom de l\'entreprise'] || 'Non définie'}
+                          </div>
+                        </div>
+                        {selectedProspect['Rôle'] && (
+                          <div>
+                            <span className="font-medium text-sm">Rôle:</span>
+                            <div className="text-gray-700">{selectedProspect['Rôle']}</div>
+                          </div>
+                        )}
+                        {selectedProspect.email && (
+                          <div>
+                            <span className="font-medium text-sm">Email:</span>
+                            <div className="text-gray-700">{selectedProspect.email}</div>
+                          </div>
+                        )}
+                        {selectedProspect.phone && (
+                          <div>
+                            <span className="font-medium text-sm">Téléphone:</span>
+                            <div className="text-gray-700">{selectedProspect.phone}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Liens interactifs */}
+                      <div className="flex gap-3 pt-4 border-t">
+                        {selectedProspect.linkedin_contact_url && (
+                          <Button
+                            onClick={() => window.open(selectedProspect.linkedin_contact_url, '_blank')}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            <Linkedin className="w-4 h-4" />
+                            Profil LinkedIn
+                          </Button>
+                        )}
+                        {selectedProspect.company_website && (
+                          <Button
+                            onClick={() => window.open(selectedProspect.company_website, '_blank')}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 text-green-600 border-green-200 hover:bg-green-50"
+                          >
+                            <Globe className="w-4 h-4" />
+                            Site Web
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Statut d'évaluation */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-base">
                         <TrendingUp className="w-4 h-4" />
-                        Insights clés
+                        État de l'Évaluation
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {selectedResult.analysis.key_insights.map((insight, index) => (
-                          <li key={index} className="flex items-start gap-2">
-                            <ChevronRight className="w-4 h-4 mt-0.5 text-blue-600 flex-shrink-0" />
-                            <span className="text-sm">{insight}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-
-                  {/* Points de discussion */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Points de discussion recommandés</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {selectedResult.analysis.discussion_points.map((point, index) => (
-                          <li key={index} className="flex items-start gap-2">
-                            <ChevronRight className="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
-                            <span className="text-sm">{point}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-
-                  {/* Stratégie d'approche */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Stratégie d'approche</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-gray-700">
-                        {selectedResult.analysis.approach_strategy}
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  {/* Recommandations d'appel */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Recommandations pour l'appel</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {selectedResult.analysis.call_recommendations.map((rec, index) => (
-                          <li key={index} className="flex items-start gap-2">
-                            <ChevronRight className="w-4 h-4 mt-0.5 text-purple-600 flex-shrink-0" />
-                            <span className="text-sm">{rec}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-
-                  {/* Métadonnées */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Informations sur l'analyse</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium">Date de génération:</span>
-                          <div className="text-gray-600">
-                            {new Date(selectedResult.metadata.generated_at).toLocaleDateString('fr-FR')}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="font-medium">Temps de traitement:</span>
-                          <div className="text-gray-600">
-                            {selectedResult.metadata.processing_time}s
-                          </div>
-                        </div>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Status d'activation:</span>
+                        <Badge 
+                          variant="outline" 
+                          className={selectedProspect.Run === 'true' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}
+                        >
+                          {selectedProspect.Run === 'true' ? 'Actif' : 'Inactif'}
+                        </Badge>
                       </div>
-                      <div>
-                        <span className="font-medium">Sources de données:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {selectedResult.metadata.data_sources.map((source, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
-                              {source}
-                            </Badge>
-                          ))}
+                      {getScoreFromProspect(selectedProspect) > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Score de pertinence:</span>
+                          <Badge 
+                            variant="outline" 
+                            className={getScoreColor(getScoreFromProspect(selectedProspect)) === 'text-green-600' ? 'bg-green-100 text-green-800 border-green-200' : 
+                                      getScoreColor(getScoreFromProspect(selectedProspect)) === 'text-yellow-600' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 
+                                      'bg-red-100 text-red-800 border-red-200'}
+                          >
+                            {getScoreFromProspect(selectedProspect)}%
+                          </Badge>
                         </div>
-                      </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <div className="text-center">
-                    <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                    <p>Sélectionnez un résultat pour voir les détails</p>
+                    <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                    <p>Sélectionnez un prospect pour voir les détails</p>
                   </div>
                 </div>
               )}
@@ -352,12 +459,12 @@ export const EvaluationResultsViewer: React.FC<EvaluationResultsViewerProps> = (
           </div>
 
           {/* Modal de prévisualisation du document */}
-          {showDocumentPreview && selectedResult?.documents.google_doc_url && (
+          {showDocumentPreview && selectedProspect?.['Préparation de l\'appel'] && (
             <DocumentPreview
-              documentUrl={selectedResult.documents.google_doc_url}
+              documentUrl={selectedProspect['Préparation de l\'appel']}
               isOpen={showDocumentPreview}
               onClose={() => setShowDocumentPreview(false)}
-              title={`Document d'évaluation - ${selectedResult.prospect.contact_name}`}
+              title={`Document d'évaluation - ${selectedProspect.contact_name || selectedProspect['Nom du contact']}`}
             />
           )}
 
