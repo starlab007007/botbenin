@@ -376,6 +376,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       
       if (extractedContacts.length > 0) {
         setRetryCount(0);
+        setShowResults(true); // Afficher automatiquement les résultats
         toast({
           title: "Recherche B2B - Succès",
           description: `${extractedContacts.length} contacts trouvés via webhook`,
