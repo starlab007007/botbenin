@@ -374,17 +374,19 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       setWebhookResponse(successResponse);
       setSearchHistory(prev => [successResponse, ...prev.slice(0, 4)]);
       
+      // Toujours afficher les résultats, même si aucun contact trouvé
+      setShowResults(true);
+      
       if (extractedContacts.length > 0) {
         setRetryCount(0);
-        setShowResults(true); // Afficher automatiquement les résultats
         toast({
           title: "Recherche B2B - Succès",
           description: `${extractedContacts.length} contacts trouvés via webhook`,
         });
       } else {
         toast({
-          title: "Aucun résultat",
-          description: "La recherche n'a retourné aucun contact",
+          title: "Aucun résultat trouvé",
+          description: "Essayez de modifier vos critères de recherche (localisation, secteurs, mots-clés)",
           variant: "destructive",
         });
       }
@@ -582,7 +584,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
   };
 
   if (showResults) {
-    const displayContacts = webhookResponse?.data || getMockContacts();
+    const displayContacts = webhookResponse?.data || [];
     const selectedContactsData = displayContacts.filter(c => selectedContacts.includes(c.id));
     
     return (
@@ -590,12 +592,17 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={() => setUseSmartSearch(true)} className="text-black hover:bg-gray-200">
+              <Button variant="ghost" onClick={handleBackToSearch} className="text-black hover:bg-gray-200">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Nouvelle recherche
               </Button>
               <h1 className="text-2xl font-bold text-black">Résultats du Ciblage B2B</h1>
-              <Badge variant="secondary" className="bg-gray-800 text-white">{displayContacts.length} contacts trouvés</Badge>
+              <Badge 
+                variant="secondary" 
+                className={displayContacts.length > 0 ? "bg-gray-800 text-white" : "bg-orange-600 text-white"}
+              >
+                {displayContacts.length} contact{displayContacts.length > 1 ? 's' : ''} trouvé{displayContacts.length > 1 ? 's' : ''}
+              </Badge>
               {selectedContacts.length > 0 && (
                 <Badge variant="default" className="bg-blue-600 text-white">
                   {selectedContacts.length} sélectionné(s)
@@ -640,15 +647,46 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                       </p>
                     </div>
                   </div>
-                  {webhookResponse.status !== 'success' && (
-                    <Badge className="bg-yellow-100 text-yellow-800">Données de démonstration</Badge>
+                  {displayContacts.length === 0 && (
+                    <Badge className="bg-orange-100 text-orange-800">
+                      Modifiez vos critères de recherche
+                    </Badge>
                   )}
                 </div>
               </CardContent>
             </Card>
           )}
 
-          <div className="mb-6">
+          {displayContacts.length === 0 && (
+            <Card className="mb-6 bg-orange-50 border-orange-200">
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <AlertCircle className="w-12 h-12 text-orange-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Aucun contact trouvé
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    La recherche n'a retourné aucun résultat. Voici quelques suggestions :
+                  </p>
+                  <ul className="text-left text-sm text-gray-700 space-y-2 max-w-md mx-auto">
+                    <li>✓ Vérifiez que la localisation est correcte</li>
+                    <li>✓ Utilisez des secteurs d'activité plus généraux</li>
+                    <li>✓ Essayez avec moins de mots-clés</li>
+                    <li>✓ Augmentez le rayon de recherche</li>
+                  </ul>
+                  <Button 
+                    onClick={handleBackToSearch}
+                    className="mt-6 bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    Modifier les critères de recherche
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {displayContacts.length > 0 && (
+            <div className="mb-6">
             <Card className="bg-white border-gray-300">
               <CardHeader className="border-b border-gray-200">
                 <CardTitle className="flex items-center text-black">
@@ -666,7 +704,9 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
               </CardContent>
             </Card>
           </div>
+          )}
 
+          {displayContacts.length > 0 && (
           <Card className="bg-white border-gray-300">
             <CardHeader className="border-b border-gray-200 flex flex-row items-center justify-between">
               <CardTitle className="flex items-center text-black">
@@ -756,6 +796,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
               </div>
             </CardContent>
           </Card>
+          )}
 
           <SaveB2BProspectsModal
             isOpen={showSaveModal}
