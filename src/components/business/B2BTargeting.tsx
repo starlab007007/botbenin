@@ -199,6 +199,7 @@ const getMockContacts = (): B2BContact[] => {
 };
 
 import { SmartB2BSearch } from './SmartB2BSearch';
+import { SaveB2BProspectsModal } from './SaveB2BProspectsModal';
 
 export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
   const [useSmartSearch, setUseSmartSearch] = useState(true);
@@ -542,8 +543,41 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     );
   }
 
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+
+  const toggleContactSelection = (contactId: string) => {
+    setSelectedContacts(prev => 
+      prev.includes(contactId) 
+        ? prev.filter(id => id !== contactId)
+        : [...prev, contactId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const displayContacts = webhookResponse?.data || getMockContacts();
+    if (selectedContacts.length === displayContacts.length) {
+      setSelectedContacts([]);
+    } else {
+      setSelectedContacts(displayContacts.map(c => c.id));
+    }
+  };
+
+  const handleSaveToProspects = () => {
+    if (selectedContacts.length === 0) {
+      toast({
+        title: "Aucun contact sélectionné",
+        description: "Veuillez sélectionner au moins un contact",
+        variant: "destructive"
+      });
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
   if (showResults) {
     const displayContacts = webhookResponse?.data || getMockContacts();
+    const selectedContactsData = displayContacts.filter(c => selectedContacts.includes(c.id));
     
     return (
       <div className="min-h-screen bg-gray-100 p-6">
@@ -556,8 +590,22 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
               </Button>
               <h1 className="text-2xl font-bold text-black">Résultats du Ciblage B2B</h1>
               <Badge variant="secondary" className="bg-gray-800 text-white">{displayContacts.length} contacts trouvés</Badge>
+              {selectedContacts.length > 0 && (
+                <Badge variant="default" className="bg-blue-600 text-white">
+                  {selectedContacts.length} sélectionné(s)
+                </Badge>
+              )}
             </div>
             <div className="flex space-x-2">
+              {selectedContacts.length > 0 && (
+                <Button 
+                  onClick={handleSaveToProspects}
+                  className="bg-green-600 text-white hover:bg-green-700"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Enregistrer ({selectedContacts.length})
+                </Button>
+              )}
               <Button variant="outline" onClick={handleExport} className="text-black border-gray-400 hover:bg-gray-200">
                 <Download className="w-4 h-4 mr-2" />
                 Exporter CSV
@@ -614,17 +662,33 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
           </div>
 
           <Card className="bg-white border-gray-300">
-            <CardHeader className="border-b border-gray-200">
+            <CardHeader className="border-b border-gray-200 flex flex-row items-center justify-between">
               <CardTitle className="flex items-center text-black">
                 <Users className="w-5 h-5 mr-2" />
                 Contacts B2B Identifiés
               </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="text-black border-gray-400"
+              >
+                {selectedContacts.length === displayContacts.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-gray-200">
+                      <TableHead className="w-12">
+                        <input
+                          type="checkbox"
+                          checked={selectedContacts.length === displayContacts.length && displayContacts.length > 0}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 cursor-pointer"
+                        />
+                      </TableHead>
                       <TableHead className="text-black font-semibold">Nom</TableHead>
                       <TableHead className="text-black font-semibold">Entreprise</TableHead>
                       <TableHead className="text-black font-semibold">Poste</TableHead>
@@ -638,7 +702,18 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                   </TableHeader>
                   <TableBody>
                     {displayContacts.map((contact) => (
-                      <TableRow key={contact.id} className="border-gray-200 hover:bg-gray-50">
+                      <TableRow 
+                        key={contact.id} 
+                        className={`border-gray-200 hover:bg-gray-50 ${selectedContacts.includes(contact.id) ? 'bg-blue-50' : ''}`}
+                      >
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedContacts.includes(contact.id)}
+                            onChange={() => toggleContactSelection(contact.id)}
+                            className="w-4 h-4 cursor-pointer"
+                          />
+                        </TableCell>
                         <TableCell className="font-medium text-black">{contact.name}</TableCell>
                         <TableCell className="text-black">{contact.companyName}</TableCell>
                         <TableCell className="text-black">{contact.jobTitle}</TableCell>
@@ -675,6 +750,19 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
               </div>
             </CardContent>
           </Card>
+
+          <SaveB2BProspectsModal
+            isOpen={showSaveModal}
+            onClose={() => setShowSaveModal(false)}
+            contacts={selectedContactsData}
+            onSuccess={() => {
+              setSelectedContacts([]);
+              toast({
+                title: "Prospects enregistrés",
+                description: "Les contacts ont été ajoutés à votre base de prospects",
+              });
+            }}
+          />
         </div>
       </div>
     );
