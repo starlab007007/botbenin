@@ -716,30 +716,67 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Header avec contrôles */}
+      {/* Header avec contrôles et guide d'utilisation */}
       <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-purple-50">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
-              Google Sheet - {sheetName}
-              <Badge 
-                variant={connectionStatus === 'connected' ? 'default' : 'secondary'}
-                className="ml-2"
-              >
-                {connectionStatus === 'connected' ? 'Connecté' : 
-                 connectionStatus === 'connecting' ? 'Connexion...' : 
-                 connectionStatus === 'error' ? 'Erreur' : 'Non configuré'}
-              </Badge>
-              {hasUnsavedChanges && (
-                <Badge variant="destructive" className="ml-2">
-                  Modifications non sauvées
+          <div className="space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                Google Sheet - {sheetName}
+                <Badge 
+                  variant={connectionStatus === 'connected' ? 'default' : 'secondary'}
+                  className="ml-2"
+                >
+                  {connectionStatus === 'connected' ? 'Connecté' : 
+                   connectionStatus === 'connecting' ? 'Connexion...' : 
+                   connectionStatus === 'error' ? 'Erreur' : 'Non configuré'}
                 </Badge>
-              )}
-              <GoogleSheetsQueueStatus />
-            </CardTitle>
+                {hasUnsavedChanges && (
+                  <Badge variant="destructive" className="ml-2">
+                    Modifications non sauvées
+                  </Badge>
+                )}
+                <GoogleSheetsQueueStatus />
+              </CardTitle>
+            </div>
+
+            {/* Guide d'utilisation de l'éditeur */}
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-start gap-3">
+                <FileText className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-blue-800">
+                  <h5 className="font-semibold mb-1">📋 Guide d'utilisation de l'éditeur Google Sheets</h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <p>• <strong>Modifier :</strong> Cliquez sur une cellule pour éditer</p>
+                      <p>• <strong>Ajouter :</strong> Bouton "+" pour nouveau prospect</p>
+                    </div>
+                    <div>
+                      <p>• <strong>Synchroniser :</strong> "Actualiser" pour récupérer les données</p>
+                      <p>• <strong>Analyser :</strong> Activez puis cliquez "Évaluer"</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="p-4">
+          <div className="space-y-4">
+            {/* Actions disponibles avec notes explicatives */}
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Actions disponibles
+              </h5>
+              <p className="text-xs text-gray-600">
+                Utilisez ces boutons pour gérer vos prospects et synchroniser avec Google Sheets
+              </p>
+            </div>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={refreshFromGoogleSheets}
                 disabled={isLoadingSheets}
@@ -801,7 +838,7 @@ export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
               )}
             </div>
           )}
-        </CardHeader>
+        </CardContent>
       </Card>
 
       {/* Alerte pour prospects orphelins */}

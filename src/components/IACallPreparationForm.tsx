@@ -370,14 +370,27 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           {/* Étape 1: Ajouter */}
           {currentStep === 'add' && (
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Texte explicatif */}
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="w-5 h-5 text-blue-600 mt-0.5" />
-                  <div className="text-sm text-blue-800">
-                    <p className="font-medium mb-1">💡 Pour une évaluation optimale :</p>
-                    <p className="mb-2">• <strong>Avec LinkedIn</strong> : L'IA aura accès au profil complet pour une analyse précise</p>
-                    <p>• <strong>Sans LinkedIn</strong> : Le nom du contact ET le nom de l'entreprise sont obligatoires</p>
+              {/* Guide explicatif détaillé */}
+              <div className="space-y-4">
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <h4 className="font-semibold mb-2">📋 Guide d'utilisation - Étape 1: Ajouter un prospect</h4>
+                      <div className="space-y-2">
+                        <p className="mb-2">
+                          <strong>💡 Méthode recommandée :</strong> Fournissez le lien LinkedIn du contact pour une analyse IA complète et précise
+                        </p>
+                        <p className="mb-2">
+                          <strong>📝 Méthode alternative :</strong> Si pas de LinkedIn, remplissez obligatoirement le nom du contact ET le nom de l'entreprise ou son site web
+                        </p>
+                        <div className="bg-blue-100 p-3 rounded-md mt-2">
+                          <p className="text-xs font-medium">
+                            ⚡ Astuce : Plus vous fournissez d'informations, plus l'analyse IA sera précise et personnalisée
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -451,54 +464,91 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 )}
               </Button>
               
-              {/* Actions complémentaires */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Button
-                  type="button"
-                  onClick={() => setCurrentStep('view')}
-                  variant="outline"
-                  className="h-12 text-base border-2 border-blue-200 hover:bg-blue-50"
-                >
-                  <Users className="w-5 h-5 mr-2" />
-                  Mes prospects
-                </Button>
-                
-                <Button
-                  type="button"
-                  onClick={() => setShowGoogleDocManager(true)}
-                  variant="outline"
-                  className="h-12 text-base border-2 border-orange-200 hover:bg-orange-50"
-                >
-                  <FileEdit className="w-5 h-5 mr-2" />
-                  Offre Commerciale
-                </Button>
-                
-                <Button
-                  type="button"
-                  onClick={() => setShowWebhookConfig(true)}
-                  variant="outline"
-                  className="h-12 text-base border-2 border-purple-200 hover:bg-purple-50"
-                >
-                  <Cog className="w-5 h-5 mr-2" />
-                  Configuration
-                </Button>
-                
-                <Button
-                  type="button"
-                  onClick={() => setShowEvaluationResults(true)}
-                  variant="outline"
-                  className="h-12 text-base border-2 border-green-200 hover:bg-green-50"
-                >
-                  <FileText className="w-5 h-5 mr-2" />
-                  Résultats ({(sheetsData || []).length})
-                </Button>
-              </div>
+               {/* Actions complémentaires responsive avec notes explicatives */}
+               <div className="space-y-3">
+                 <div className="p-3 bg-gray-50 rounded-lg">
+                   <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                     <Settings className="w-4 h-4" />
+                     Actions disponibles
+                   </h5>
+                   <p className="text-xs text-gray-600 mb-3">
+                     Accédez aux fonctionnalités avancées pour gérer vos prospects et configurer votre analyse IA
+                   </p>
+                 </div>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                   <Button
+                     type="button"
+                     onClick={() => setCurrentStep('view')}
+                     variant="outline"
+                     className="h-12 text-xs sm:text-sm border-2 border-blue-200 hover:bg-blue-50 flex-col space-y-1 w-full"
+                   >
+                     <Users className="w-4 h-4" />
+                     <span className="hidden sm:inline">Mes prospects</span>
+                     <span className="sm:hidden">Prospects</span>
+                   </Button>
+                   
+                   <Button
+                     type="button"
+                     onClick={() => setShowGoogleDocManager(true)}
+                     variant="outline"
+                     className="h-12 text-xs sm:text-sm border-2 border-orange-200 hover:bg-orange-50 flex-col space-y-1 w-full"
+                   >
+                     <FileEdit className="w-4 h-4" />
+                     <span className="hidden sm:inline">Offre Commerciale</span>
+                     <span className="sm:hidden">Offre</span>
+                   </Button>
+                   
+                   <Button
+                     type="button"
+                     onClick={() => setShowWebhookConfig(true)}
+                     variant="outline"
+                     className="h-12 text-xs sm:text-sm border-2 border-purple-200 hover:bg-purple-50 flex-col space-y-1 w-full"
+                   >
+                     <Cog className="w-4 h-4" />
+                     <span className="hidden sm:inline">Configuration</span>
+                     <span className="sm:hidden">Config</span>
+                   </Button>
+                   
+                   <Button
+                     type="button"
+                     onClick={() => setShowEvaluationResults(true)}
+                     variant="outline"
+                     className="h-12 text-xs sm:text-sm border-2 border-green-200 hover:bg-green-50 flex-col space-y-1 w-full"
+                   >
+                     <FileText className="w-4 h-4" />
+                     <span className="hidden sm:inline">Résultats ({(sheetsData || []).length})</span>
+                     <span className="sm:hidden">Résultats</span>
+                   </Button>
+                 </div>
+               </div>
             </form>
           )}
 
           {/* Étape 2: Activer */}
           {currentStep === 'activate' && selectedProspect && (
             <div className="space-y-6">
+              <div className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-yellow-800">
+                    <h4 className="font-semibold mb-2">⚡ Guide - Étape 2: Activation du prospect</h4>
+                    <div className="space-y-2">
+                      <p className="mb-2">
+                        <strong>🎯 Objectif :</strong> Marquer le prospect comme "prêt" pour l'analyse IA
+                      </p>
+                      <p className="mb-2">
+                        <strong>📋 Action requise :</strong> Cliquez sur "Démarrer" pour permettre à l'IA d'analyser ce prospect
+                      </p>
+                      <div className="bg-yellow-100 p-3 rounded-md mt-2">
+                        <p className="text-xs font-medium">
+                          💡 Info : Seuls les prospects activés peuvent être évalués par l'IA. Vous pouvez désactiver un prospect à tout moment.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <h3 className="font-semibold text-blue-900 mb-2">Prospect sélectionné</h3>
                 <div className="text-blue-800">
@@ -512,7 +562,7 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                   Activez le prospect pour permettre à l'IA de commencer l'analyse
                 </p>
                 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={() => handleActivateProspect(selectedProspect, true)}
                     disabled={isWriting || selectedProspect.runStatus}
@@ -523,7 +573,8 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                     ) : (
                       <Play className="w-5 h-5 mr-2" />
                     )}
-                    Démarrer
+                    <span className="hidden sm:inline">Démarrer l'analyse</span>
+                    <span className="sm:hidden">Démarrer</span>
                   </Button>
                   
                   <Button
@@ -537,16 +588,18 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                     ) : (
                       <Pause className="w-5 h-5 mr-2" />
                     )}
-                    Arrêter
+                    <span className="hidden sm:inline">Arrêter l'analyse</span>
+                    <span className="sm:hidden">Arrêter</span>
                   </Button>
                 </div>
 
                 <Button
                   onClick={resetToAddStep}
                   variant="ghost"
-                  className="w-full"
+                  className="w-full h-10"
                 >
-                  Ajouter un autre prospect
+                  <span className="hidden sm:inline">Ajouter un autre prospect</span>
+                  <span className="sm:hidden">Nouveau prospect</span>
                 </Button>
               </div>
             </div>
@@ -555,6 +608,31 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           {/* Étape 3: Évaluer */}
           {currentStep === 'evaluate' && selectedProspect && (
             <div className="space-y-6">
+              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                <div className="flex items-start gap-3">
+                  <Rocket className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-800">
+                    <h4 className="font-semibold mb-2">🚀 Guide - Étape 3: Évaluation IA du prospect</h4>
+                    <div className="space-y-2">
+                      <p className="mb-2">
+                        <strong>🤖 Processus :</strong> L'IA va analyser le LinkedIn, le site web de l'entreprise et toutes les données disponibles
+                      </p>
+                      <p className="mb-2">
+                        <strong>📊 Résultat :</strong> Vous obtiendrez un rapport complet avec score de pertinence et stratégie d'approche
+                      </p>
+                      <p className="mb-2">
+                        <strong>⏱️ Durée :</strong> L'analyse prend généralement 2-5 minutes selon la complexité
+                      </p>
+                      <div className="bg-green-100 p-3 rounded-md mt-2">
+                        <p className="text-xs font-medium">
+                          ⚠️ Important : Évitez de lancer plusieurs évaluations simultanées pour garantir la qualité de l'analyse
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <h3 className="font-semibold text-green-900 mb-2">Prospect activé</h3>
                 <div className="text-green-800">
@@ -574,17 +652,23 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 <Button
                   onClick={handleEvaluate}
                   disabled={isEvaluating || !selectedProspect.runStatus}
-                  className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                  className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-sm sm:text-base"
                 >
                   {isEvaluating ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Évaluation en cours...
+                      <span className="hidden sm:inline">Évaluation en cours...</span>
+                      <span className="sm:hidden">Analyse...</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5 mr-2" />
-                      {hasBeenEvaluated(selectedProspect.id) ? 'Réévaluer' : 'Lancer l\'évaluation IA'}
+                      <span className="hidden sm:inline">
+                        {hasBeenEvaluated(selectedProspect.id) ? 'Réévaluer le prospect' : 'Lancer l\'évaluation IA'}
+                      </span>
+                      <span className="sm:hidden">
+                        {hasBeenEvaluated(selectedProspect.id) ? 'Réévaluer' : 'Analyser'}
+                      </span>
                     </>
                   )}
                 </Button>
