@@ -244,17 +244,18 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log(`Filter ${key} changed to:`, value);
   };
 
-  const buildSearchMessage = () => {
+  const buildSearchMessage = (searchFilters?: B2BFilters) => {
+    const filtersToUse = searchFilters || filters;
     const searchCriteria = [];
     
-    if (filters.companyName) searchCriteria.push(`Entreprise: ${filters.companyName}`);
-    if (filters.industry) searchCriteria.push(`Secteur: ${filters.industry}`);
-    if (filters.jobTitle) searchCriteria.push(`Poste: ${filters.jobTitle}`);
-    if (filters.location) searchCriteria.push(`Localisation: ${filters.location}`);
-    if (filters.companySize) searchCriteria.push(`Taille entreprise: ${filters.companySize}`);
-    if (filters.department) searchCriteria.push(`Département: ${filters.department}`);
-    if (filters.experience) searchCriteria.push(`Expérience: ${filters.experience}`);
-    if (filters.keywords) searchCriteria.push(`Mots-clés: ${filters.keywords}`);
+    if (filtersToUse.companyName) searchCriteria.push(`Entreprise: ${filtersToUse.companyName}`);
+    if (filtersToUse.industry) searchCriteria.push(`Secteur: ${filtersToUse.industry}`);
+    if (filtersToUse.jobTitle) searchCriteria.push(`Poste: ${filtersToUse.jobTitle}`);
+    if (filtersToUse.location) searchCriteria.push(`Localisation: ${filtersToUse.location}`);
+    if (filtersToUse.companySize) searchCriteria.push(`Taille entreprise: ${filtersToUse.companySize}`);
+    if (filtersToUse.department) searchCriteria.push(`Département: ${filtersToUse.department}`);
+    if (filtersToUse.experience) searchCriteria.push(`Expérience: ${filtersToUse.experience}`);
+    if (filtersToUse.keywords) searchCriteria.push(`Mots-clés: ${filtersToUse.keywords}`);
 
     if (searchCriteria.length === 0) {
       return "Je cherche des contacts B2B et des entreprises pour ma prospection. Pouvez-vous m'aider à identifier des prospects pertinents avec leurs coordonnées complètes (nom, adresse, téléphone, secteur) ?";
@@ -263,7 +264,8 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     return `Je recherche des contacts B2B avec les critères suivants: ${searchCriteria.join(', ')}. Pouvez-vous m'aider à identifier des prospects correspondant à ces critères avec leurs informations complètes (nom, adresse, téléphone, site web, secteur) ?`;
   };
 
-  const executeWebhookSearch = async () => {
+  const executeWebhookSearch = async (searchFilters?: B2BFilters) => {
+    const filtersToUse = searchFilters || filters;
     const requestId = `req_${Date.now()}`;
     setIsLoading(true);
     setRetryCount(prev => prev + 1);
@@ -271,7 +273,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     console.log('=== B2B SEARCH VIA CHATBOT START ===');
     console.log('Request ID:', requestId);
     console.log('Retry count:', retryCount);
-    console.log('Search filters:', filters);
+    console.log('Search filters:', filtersToUse);
 
     const loadingResponse: WebhookResponse = {
       status: 'loading',
@@ -281,7 +283,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
     };
     setWebhookResponse(loadingResponse);
 
-    const messageToSend = buildSearchMessage();
+    const messageToSend = buildSearchMessage(filtersToUse);
     console.log('Message to send:', messageToSend);
 
     try {
@@ -301,7 +303,8 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
         session_id: `b2b_search_${Date.now()}`,
         user_id: 'b2b_user',
         source: 'bot_bj_platform',
-        context: 'b2b_targeting'
+        context: 'b2b_targeting',
+        filters: filtersToUse
       };
 
       console.log('Request payload:', JSON.stringify(requestPayload, null, 2));
@@ -469,7 +472,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
   const handleSmartSearch = (smartFilters: any) => {
     // Convertir les filtres intelligents vers le format traditionnel
-    setFilters({
+    const convertedFilters = {
       companyName: smartFilters.companyName || '',
       industry: smartFilters.industry.join(', ') || '',
       companySize: smartFilters.companySize || '',
@@ -478,11 +481,13 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
       experience: smartFilters.seniority || '',
       department: smartFilters.department || '',
       keywords: smartFilters.keywords.join(', ') || ''
-    });
+    };
     
-    // Exécuter la recherche automatiquement
+    setFilters(convertedFilters);
+    
+    // Exécuter la recherche avec les filtres convertis
     setTimeout(() => {
-      executeWebhookSearch();
+      executeWebhookSearch(convertedFilters);
     }, 100);
   };
 
@@ -884,7 +889,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
 
                 <div className="flex flex-col space-y-2">
                   <Button 
-                    onClick={executeWebhookSearch} 
+                    onClick={() => executeWebhookSearch()} 
                     className="w-full bg-gray-800 text-white hover:bg-gray-700" 
                     disabled={isLoading}
                   >
@@ -962,7 +967,7 @@ export const B2BTargeting: React.FC<B2BTargetingProps> = ({ onBack }) => {
                     </Button>
                     {webhookResponse.status !== 'success' && (
                       <Button 
-                        onClick={executeWebhookSearch}
+                        onClick={() => executeWebhookSearch()}
                         variant="outline"
                         className="border-orange-400 text-orange-700 hover:bg-orange-50 px-8 py-3"
                         disabled={isLoading}
