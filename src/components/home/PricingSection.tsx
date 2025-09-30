@@ -120,7 +120,7 @@ export const PricingSection: React.FC = () => {
       `Bonjour, je souhaite souscrire au ${plan.name} (${price}).\n\nFonctionnalités clés:\n- ${plan.features.slice(0, 6).join('\n- ')}\n\nMerci de me recontacter.`
     );
     // Ouvre WhatsApp avec le numéro Bénin dédié
-    window.open(`https://wa.me/2290140299191?text=${text}`, '_blank');
+    window.open(`https://wa.me/22947333289?text=${text}`, '_blank');
   };
 
   return (
