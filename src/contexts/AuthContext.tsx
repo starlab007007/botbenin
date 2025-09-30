@@ -182,22 +182,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
-      // Inscription simple sans métadonnées complexes
+      // Étape 1: Inscription Supabase (sans métadonnées pour éviter les erreurs de trigger)
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: userData.name || userData.email.split('@')[0]
-          }
+          emailRedirectTo: `${window.location.origin}/`
         }
       });
 
       if (error) {
         console.error('Signup error:', error);
         
-        // Gérer les erreurs spécifiques
         let errorMessage = error.message;
         
         if (error.message?.includes('already registered') || error.message?.includes('duplicate')) {
@@ -222,6 +218,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
+        // Étape 2: Créer manuellement le bot_owner (méthode additive)
+        try {
+          // Vérifier si le bot_owner existe déjà
+          const { data: existingOwner } = await supabase
+            .from('bot_owners')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .maybeSingle();
+          
+          // Créer uniquement s'il n'existe pas
+          if (!existingOwner) {
+            await supabase
+              .from('bot_owners')
+              .insert({
+                user_id: data.user.id,
+                subscription_plan: 'free',
+                max_bots: 5
+              });
+          }
+        } catch (ownerError) {
+          console.error('Bot owner creation error (non-blocking):', ownerError);
+          // Ne pas bloquer l'inscription même si la création du bot_owner échoue
+        }
+        
         toast({
           title: "Compte créé avec succès",
           description: "Vérifiez votre email pour confirmer votre compte.",
