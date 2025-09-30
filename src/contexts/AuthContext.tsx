@@ -182,30 +182,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
+      // Inscription simple sans métadonnées complexes
       const { data, error } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: userData.name,
-            phone: userData.phone,
-          },
-          emailRedirectTo: `${window.location.origin}/`
+            full_name: userData.name || userData.email.split('@')[0]
+          }
         }
       });
 
       if (error) {
-        // Gérer les erreurs spécifiques d'inscription
+        console.error('Signup error:', error);
+        
+        // Gérer les erreurs spécifiques
         let errorMessage = error.message;
         
-        if (error.message?.includes('User already registered')) {
+        if (error.message?.includes('already registered') || error.message?.includes('duplicate')) {
           errorMessage = "Un compte existe déjà avec cette adresse email";
-        } else if (error.message?.includes('Password should be at least')) {
+        } else if (error.message?.includes('Password')) {
           errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
         } else if (error.message?.includes('Email not confirmed')) {
           errorMessage = "Veuillez vérifier votre email et cliquer sur le lien de confirmation";
         } else if (error.message?.includes('Invalid email')) {
           errorMessage = "Adresse email invalide";
+        } else if (error.status === 500) {
+          errorMessage = "Erreur serveur. Veuillez réessayer dans quelques instants.";
         }
         
         toast({
@@ -218,23 +222,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
-        // Vérifier si l'email a été confirmé automatiquement
-        const isConfirmed = data.user.email_confirmed_at !== null;
-        
         toast({
           title: "Compte créé avec succès",
-          description: isConfirmed 
-            ? "Votre compte est prêt à utiliser !" 
-            : "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
+          description: "Vérifiez votre email pour confirmer votre compte.",
         });
         setIsLoading(false);
         return true;
       }
-    } catch (error) {
-      console.error('Registration error:', error);
+    } catch (error: any) {
+      console.error('Registration exception:', error);
       toast({
         title: "Erreur d'inscription",
-        description: "Une erreur est survenue lors de la création du compte",
+        description: error?.message || "Une erreur est survenue lors de la création du compte",
         variant: "destructive",
       });
     }
