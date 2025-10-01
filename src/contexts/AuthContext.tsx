@@ -182,21 +182,52 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
-      // Étape 1: Inscription Supabase (sans métadonnées pour éviter les erreurs de trigger)
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`
+      // Vérifier que le client Supabase est configuré
+      console.log('[Auth] Starting registration for:', userData.email);
+      
+      // Étape 1: Inscription Supabase avec retry
+      let data, error;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        const result = await supabase.auth.signUp({
+          email: userData.email,
+          password: userData.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: {
+              full_name: userData.name,
+              phone: userData.phone
+            }
+          }
+        });
+        
+        data = result.data;
+        error = result.error;
+        
+        // Si pas d'erreur d'API key, sortir de la boucle
+        if (!error || !error.message?.includes('API key')) {
+          break;
         }
-      });
+        
+        retryCount++;
+        console.warn(`[Auth] API key error, retry ${retryCount}/${maxRetries}`);
+        
+        // Attendre un peu avant de réessayer
+        if (retryCount <= maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
 
       if (error) {
-        console.error('Signup error:', error);
+        console.error('[Auth] Signup error:', error);
         
         let errorMessage = error.message;
         
-        if (error.message?.includes('already registered') || error.message?.includes('duplicate')) {
+        if (error.message?.includes('API key')) {
+          errorMessage = "Problème de configuration. Veuillez vider le cache de votre navigateur (Ctrl+Shift+R) et réessayer.";
+        } else if (error.message?.includes('already registered') || error.message?.includes('duplicate')) {
           errorMessage = "Un compte existe déjà avec cette adresse email";
         } else if (error.message?.includes('Password')) {
           errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
