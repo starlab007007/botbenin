@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, Mail, Lock, User, Phone, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, KeyRound } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -25,8 +25,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   // Register form state
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPhone, setRegisterPhone] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
 
   // Reset password form state
   const [resetEmail, setResetEmail] = useState('');
@@ -47,12 +47,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (registerPassword !== registerConfirmPassword) {
+      return; // Les mots de passe ne correspondent pas
+    }
+    
     setIsLoading(true);
     
     const success = await register({
       name: registerName,
       email: registerEmail,
-      phone: registerPhone,
+      phone: '',
       password: registerPassword,
     });
     
@@ -60,8 +65,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       onClose();
       setRegisterName('');
       setRegisterEmail('');
-      setRegisterPhone('');
       setRegisterPassword('');
+      setRegisterConfirmPassword('');
     }
     
     setIsLoading(false);
@@ -170,13 +175,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               <div className="space-y-2">
                 <Label htmlFor="register-name">Nom complet</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                   <Input
                     id="register-name"
                     type="text"
                     value={registerName}
                     onChange={(e) => setRegisterName(e.target.value)}
-                    placeholder="Jean Dupont"
+                    placeholder="Votre nom complet"
                     className="pl-10"
                     required
                   />
@@ -186,13 +191,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               <div className="space-y-2">
                 <Label htmlFor="register-email">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                   <Input
                     id="register-email"
                     type="email"
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
-                    placeholder="votre@email.com"
+                    placeholder="votre.email@example.com"
                     className="pl-10"
                     required
                   />
@@ -200,24 +205,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="register-phone">Téléphone (optionnel)</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="register-phone"
-                    type="tel"
-                    value={registerPhone}
-                    onChange={(e) => setRegisterPhone(e.target.value)}
-                    placeholder="+229 XX XX XX XX"
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
                 <Label htmlFor="register-password">Mot de passe</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                   <Input
                     id="register-password"
                     type={showPassword ? "text" : "password"}
@@ -234,18 +224,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                     className="absolute right-3 top-1/2 transform -translate-y-1/2"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4 text-gray-400" />
+                      <EyeOff className="w-5 h-5 text-muted-foreground" />
                     ) : (
-                      <Eye className="w-4 h-4 text-gray-400" />
+                      <Eye className="w-5 h-5 text-muted-foreground" />
                     )}
                   </button>
                 </div>
               </div>
               
+              <div className="space-y-2">
+                <Label htmlFor="register-confirm-password">Confirmer le mot de passe</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
+                  <Input
+                    id="register-confirm-password"
+                    type={showPassword ? "text" : "password"}
+                    value={registerConfirmPassword}
+                    onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-10"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                {registerPassword && registerConfirmPassword && registerPassword !== registerConfirmPassword && (
+                  <p className="text-sm text-destructive">Les mots de passe ne correspondent pas</p>
+                )}
+              </div>
+              
               <Button 
                 type="submit" 
-                className="w-full"
-                disabled={isLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={isLoading || (registerPassword !== registerConfirmPassword)}
               >
                 {isLoading ? "Inscription..." : "S'inscrire"}
               </Button>
