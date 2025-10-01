@@ -14,6 +14,8 @@ interface LogEntry {
   error?: string;
   status?: string;
   path?: string;
+  error_severity?: string;
+  event_message?: string;
 }
 
 export const SystemLogsViewer: React.FC = () => {
