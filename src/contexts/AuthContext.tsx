@@ -42,6 +42,7 @@ interface AuthContextType {
   disableGuestMode: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
   register: (userData: {
     name: string;
     email: string;
@@ -181,6 +182,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginWithPhone = async (phone: string, password: string): Promise<boolean> => {
     // For now, use email login with phone as email
     return login(phone, password);
+  };
+
+  const loginWithGoogle = async (): Promise<boolean> => {
+    setIsLoading(true);
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Erreur de connexion Google",
+          description: error.message,
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      // OAuth redirect - ne pas désactiver loading ici
+      return true;
+    } catch (error) {
+      toast({
+        title: "Erreur de connexion Google",
+        description: "Une erreur est survenue",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return false;
+    }
   };
 
   const register = async (userData: {
@@ -468,6 +507,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       disableGuestMode,
       login,
       loginWithPhone,
+      loginWithGoogle,
       register,
       logout,
       updateProfile,
