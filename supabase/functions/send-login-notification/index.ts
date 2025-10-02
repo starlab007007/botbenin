@@ -33,8 +33,11 @@ const handler = async (req: Request): Promise<Response> => {
       userAgent 
     }: LoginNotificationRequest = await req.json();
 
+    console.log('[Login Notification] Sending email to:', email);
+    console.log('[Login Notification] Provider:', provider);
+
     const emailResponse = await resend.emails.send({
-      from: "Bot.bj <onboarding@resend.dev>",
+      from: "Bot.bj <notifications@bot.bj>",
       to: [email],
       subject: "✅ Connexion réussie à Bot.bj",
       html: `
@@ -125,10 +128,11 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (emailResponse.error) {
+      console.error('[Login Notification] Resend API error:', emailResponse.error);
       throw emailResponse.error;
     }
 
-    console.log("Login notification sent successfully:", emailResponse);
+    console.log('[Login Notification] Email sent successfully. Message ID:', emailResponse.data?.id);
 
     return new Response(JSON.stringify({ 
       success: true,
@@ -141,11 +145,19 @@ const handler = async (req: Request): Promise<Response> => {
       },
     });
   } catch (error: any) {
-    console.error("Error sending login notification:", error);
+    console.error('[Login Notification] Error:', error);
+    
+    // Message d'erreur plus explicite pour Resend
+    let errorMessage = error.message;
+    if (error.message?.includes('testing emails')) {
+      errorMessage = 'Resend domain not verified. Please verify your domain at resend.com/domains';
+    }
+    
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message 
+        error: errorMessage,
+        details: error.message
       }),
       {
         status: 500,
