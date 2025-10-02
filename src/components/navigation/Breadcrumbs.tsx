@@ -56,7 +56,7 @@ export const Breadcrumbs: React.FC = () => {
       </Link>
       
       {breadcrumbs.map((breadcrumb, index) => (
-        <React.Fragment key={breadcrumb.path}>
+        <div key={breadcrumb.path} className="flex items-center space-x-2">
           <ChevronRight className="w-4 h-4 text-gray-400" />
           {breadcrumb.isLast ? (
             <span className="text-gray-900 font-medium">{breadcrumb.name}</span>
@@ -68,7 +68,7 @@ export const Breadcrumbs: React.FC = () => {
               {breadcrumb.name}
             </Link>
           )}
-        </React.Fragment>
+        </div>
       ))}
     </nav>
   );
