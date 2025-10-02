@@ -40,7 +40,7 @@ export const ProspectPreparationPage = () => {
             <FileText className="w-12 h-12 mx-auto mb-4 text-blue-600" />
             <h2 className="text-xl font-semibold text-gray-800 mb-2">Authentification requise</h2>
             <p className="text-gray-600 mb-4">Vous devez être connecté pour accéder à vos prospects.</p>
-            <Button onClick={() => navigate('/auth')} className="w-full">
+            <Button onClick={() => navigate(`/auth?redirect=${encodeURIComponent('/prospect-preparation')}`)} className="w-full">
               Se connecter
             </Button>
           </CardContent>

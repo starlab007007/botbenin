@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,8 @@ import { toast } from 'sonner';
 const AuthPage: React.FC = () => {
   const { login, register, resetPassword, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/prospect-preparation';
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
@@ -26,10 +28,10 @@ const AuthPage: React.FC = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      console.log('[AuthPage] User authenticated, redirecting to /prospect-preparation');
-      navigate('/prospect-preparation', { replace: true });
+      console.log('[AuthPage] User authenticated, redirecting to:', redirectTo);
+      navigate(redirectTo, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, redirectTo]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +45,7 @@ const AuthPage: React.FC = () => {
       const success = await login(email, password);
       if (success) {
         toast.success('Connexion réussie');
-        navigate('/prospect-preparation');
+        navigate(redirectTo);
       } else {
         toast.error('Erreur lors de la connexion');
       }

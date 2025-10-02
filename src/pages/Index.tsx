@@ -16,8 +16,10 @@ const Index = () => {
   useEffect(() => {
     if (isAuthenticated && !showChat) {
       console.log('[Index] User authenticated, redirecting to /prospect-preparation');
-      // Redirection immédiate sans délai pour OAuth
-      navigate('/prospect-preparation', { replace: true });
+      // Petit délai pour permettre la propagation du contexte
+      setTimeout(() => {
+        navigate('/prospect-preparation', { replace: true });
+      }, 300);
     }
   }, [isAuthenticated, navigate, showChat]);
 
