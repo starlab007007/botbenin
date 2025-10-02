@@ -105,6 +105,59 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setSession(session);
             setSupabaseUser(session.user);
             
+            // Créer immédiatement l'AuthUser pour forcer l'état connecté
+            const authUser: AuthUser = {
+              id: session.user.id,
+              name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Utilisateur',
+              email: session.user.email || '',
+              avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
+              role: 'user',
+              permissions: rolePermissions.user,
+              status: 'active',
+              createdAt: new Date(session.user.created_at),
+              lastLogin: new Date(),
+              subscription: {
+                type: 'free',
+                status: 'active'
+              },
+              chatHistory: []
+            };
+            setUser(authUser);
+            setIsGuest(false);
+            setGuestUser(null);
+            
+            console.log('[Auth] User fully authenticated after OAuth:', authUser.email);
+            
+            // Créer ou récupérer bot_owner
+            try {
+              const { data: ownerId, error: ownerError } = await supabase
+                .rpc('get_or_create_bot_owner', { user_uuid: session.user.id });
+              
+              if (ownerError) {
+                console.error('[Auth] Bot owner creation error:', ownerError);
+              } else {
+                console.log('[Auth] Bot owner ready:', ownerId);
+              }
+            } catch (ownerError) {
+              console.error('[Auth] Bot owner creation exception:', ownerError);
+            }
+            
+            // Envoyer notification email
+            try {
+              await supabase.functions.invoke('send-login-notification', {
+                body: {
+                  email: session.user.email,
+                  name: authUser.name,
+                  provider: 'google',
+                  loginTime: new Date().toISOString(),
+                  userAgent: navigator.userAgent
+                }
+              });
+              console.log('[Auth] Login notification sent');
+            } catch (error) {
+              console.error('[Auth] Failed to send login notification:', error);
+            }
+            
             // Nettoyer l'URL hash pour éviter les problèmes de rechargement
             window.history.replaceState(null, '', window.location.pathname);
             
