@@ -107,18 +107,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setSupabaseUser(session?.user ?? null);
         if (session?.user) {
           setIsGuest(false);
           setGuestUser(null);
-          // Create AuthUser from Supabase user
+          
+          // Create AuthUser from Supabase user with Google info
           const authUser: AuthUser = {
             id: session.user.id,
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
+            name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Utilisateur',
             email: session.user.email || '',
-            role: 'user', // Default role
+            avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
+            role: 'user',
             permissions: rolePermissions.user,
             status: 'active',
             createdAt: new Date(session.user.created_at),
@@ -130,8 +132,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             chatHistory: []
           };
           setUser(authUser);
+
+          // Envoyer notification email pour connexion (seulement pour SIGN_IN)
+          if (event === 'SIGNED_IN') {
+            const provider = session.user.app_metadata?.provider || 'email';
+            
+            try {
+              await supabase.functions.invoke('send-login-notification', {
+                body: {
+                  email: session.user.email,
+                  name: authUser.name,
+                  provider: provider,
+                  loginTime: new Date().toISOString(),
+                  userAgent: navigator.userAgent
+                }
+              });
+              
+              console.log('[Auth] Login notification sent successfully');
+            } catch (error) {
+              console.error('[Auth] Failed to send login notification:', error);
+              // Ne pas bloquer la connexion si l'email échoue
+            }
+          }
         } else {
-          // Pas de session : conserver l’état guest si configuré
+          // Pas de session : conserver l'état guest si configuré
         }
         setIsLoading(false);
       }
@@ -488,6 +512,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setSession(null);
     setIsLoading(false);
   };
+  
   const disableGuestMode = () => {
     GuestAuthService.clearGuest();
     setIsGuest(false);
