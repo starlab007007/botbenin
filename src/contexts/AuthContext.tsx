@@ -630,7 +630,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       user,
       supabaseUser,
       session,
-      isAuthenticated: !!session && !!supabaseUser,
+      isAuthenticated: !!(session && supabaseUser && user),
       isGuest,
       guestUser,
       enableGuestMode,
