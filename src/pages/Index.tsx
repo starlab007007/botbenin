@@ -16,11 +16,14 @@ const Index = () => {
   useEffect(() => {
     // Vérifier à la fois isAuthenticated ET user pour s'assurer que l'état est stable
     if (isAuthenticated && user && !showChat) {
-      console.log('[Index] User authenticated:', user.email, '- Redirecting to /prospect-preparation');
-      // Délai minimal pour permettre à React de stabiliser l'état
+      console.log('[Index] User authenticated:', user.email, '- Preparing redirect to /prospect-preparation');
+      console.log('[Index] Auth state:', { isAuthenticated, hasUser: !!user, userId: user.id });
+      
+      // Délai suffisant pour permettre la propagation complète de la session
       const redirectTimer = setTimeout(() => {
+        console.log('[Index] Executing redirect now...');
         navigate('/prospect-preparation', { replace: true });
-      }, 100);
+      }, 500);
       
       return () => clearTimeout(redirectTimer);
     }
