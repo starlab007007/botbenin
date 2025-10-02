@@ -65,9 +65,12 @@ export const BotManagement: React.FC = () => {
   } = useBotActions();
 
   useEffect(() => {
-    // Auth is now guaranteed by ProtectedRoute wrapper
-    fetchBots();
-  }, []);
+    if (isAuthenticated) {
+      fetchBots();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   const fetchBots = async () => {
     try {
@@ -185,7 +188,15 @@ export const BotManagement: React.FC = () => {
   };
 
   const handleCreateBot = () => {
-    // Auth check removed - handled by ProtectedRoute
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentification requise",
+        description: "Vous devez être connecté pour créer un chatbot",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (botCount >= 10) { // Fixed limit check to 10
       toast({
         title: "Limite atteinte",

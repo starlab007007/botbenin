@@ -38,9 +38,12 @@ export const BotManagementPage: React.FC = () => {
   const { isAuthenticated, session } = useAuth();
 
   useEffect(() => {
-    // Auth is now guaranteed by ProtectedRoute wrapper
-    fetchBots();
-  }, []);
+    if (isAuthenticated) {
+      fetchBots();
+    } else {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
 
   const fetchBots = async () => {
     try {
@@ -90,7 +93,15 @@ export const BotManagementPage: React.FC = () => {
   };
 
   const handleCreateBot = () => {
-    // Auth check removed - handled by ProtectedRoute
+    if (!isAuthenticated) {
+      toast({
+        title: "Authentification requise",
+        description: "Vous devez être connecté pour créer un bot",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (botCount >= 10) { // Fixed limit check to 10
       toast({
         title: "Limite atteinte",
@@ -160,8 +171,50 @@ export const BotManagementPage: React.FC = () => {
     }
   };
 
-  // Auth check removed - handled by ProtectedRoute wrapper in App.tsx
-  
+  // Si l'utilisateur n'est pas authentifié
+  if (!isAuthenticated) {
+    return (
+      <>
+        <div className="container mx-auto px-4 py-8">
+          <Card className="max-w-2xl mx-auto border-amber-200 bg-amber-50">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-amber-800">
+                <Lock className="w-5 h-5" />
+                <span>Authentification requise</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="text-amber-800 font-medium">
+                    Vous devez être connecté pour gérer vos bots
+                  </p>
+                  <p className="text-amber-700 text-sm mt-1">
+                    Connectez-vous pour accéder à votre tableau de bord et créer jusqu'à 10 bots gratuitement.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-4">
+                <Button 
+                  onClick={handleAuthButtonClick}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  Se connecter / S'inscrire
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        <AuthModal 
+          isOpen={showAuthModal} 
+          onClose={() => setShowAuthModal(false)} 
+        />
+      </>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
