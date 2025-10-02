@@ -15,23 +15,22 @@ import {
   Search, 
   MapPin, 
   Building2, 
-  Users, 
   Target, 
   Sparkles, 
   Zap,
-  Briefcase,
-  Award,
   TrendingUp,
   Filter,
   X,
   Plus,
   Globe,
-  Star,
-  Phone
+  Star
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface SmartSearchFilters {
+  // Type de prospection
+  prospectType: string;
+  
   // Localisation intelligente
   location: string;
   locationCoordinates?: { lat: number; lng: number };
@@ -49,15 +48,6 @@ interface SmartSearchFilters {
   foundedYear: string;
   companyType: string;
   certifications: string[];
-  
-  // Contact
-  jobTitle: string;
-  seniority: string;
-  department: string;
-  contactLanguage: string[];
-  decisionMaker: boolean;
-  emailPattern: string;
-  phoneRequired: boolean;
   
   // Recherche avancée
   keywords: string[];
@@ -78,6 +68,37 @@ interface SmartB2BSearchProps {
   onSearch: (filters: SmartSearchFilters) => void;
 }
 
+const PROSPECT_TYPES = [
+  { 
+    value: 'b2b', 
+    label: 'B2B (Business to Business)', 
+    icon: '🏢',
+    color: 'bg-purple-100 text-purple-700 border-purple-300',
+    description: 'Vendre à des entreprises'
+  },
+  { 
+    value: 'b2c', 
+    label: 'B2C (Business to Consumer)', 
+    icon: '🌍',
+    color: 'bg-orange-100 text-orange-700 border-orange-300',
+    description: 'Vendre aux particuliers'
+  },
+  { 
+    value: 'enterprise', 
+    label: 'Entreprise Commerciale', 
+    icon: '🏪',
+    color: 'bg-green-100 text-green-700 border-green-300',
+    description: 'Commerces et boutiques'
+  },
+  { 
+    value: 'profile', 
+    label: 'Profil Personnel', 
+    icon: '👤',
+    color: 'bg-blue-100 text-blue-700 border-blue-300',
+    description: 'Profils individuels'
+  }
+];
+
 const INDUSTRIES = [
   'Technologie', 'Informatique', 'Finance', 'Santé', 'Education', 'Commerce', 'Industrie',
   'Services', 'Transport', 'Immobilier', 'Agriculture', 'Tourisme', 'Média', 'Restaurant',
@@ -89,39 +110,6 @@ const COMPANY_SIZES = [
   { value: 'small', label: 'PME (11-50)', icon: '🏢' },
   { value: 'medium', label: 'ETI (51-250)', icon: '🏬' },
   { value: 'large', label: 'Grande (250+)', icon: '🏭' }
-];
-
-const JOB_TITLES = [
-  'CEO / Directeur Général', 'CTO / Directeur Technique', 'CMO / Directeur Marketing',
-  'CFO / Directeur Financier', 'Responsable Commercial', 'Manager', 'Consultant',
-  'Ingénieur', 'Responsable RH', 'Chef de Projet'
-];
-
-const SENIORITY_LEVELS = [
-  { value: 'junior', label: 'Junior (0-2 ans)', color: 'bg-green-100 text-green-700', icon: '🌱' },
-  { value: 'mid', label: 'Confirmé (3-7 ans)', color: 'bg-blue-100 text-blue-700', icon: '⭐' },
-  { value: 'senior', label: 'Senior (8+ ans)', color: 'bg-purple-100 text-purple-700', icon: '🏆' },
-  { value: 'executive', label: 'Direction', color: 'bg-orange-100 text-orange-700', icon: '👔' }
-];
-
-const DEPARTMENTS = [
-  { value: 'commercial', label: 'Commercial & Ventes', icon: '💼' },
-  { value: 'marketing', label: 'Marketing', icon: '📢' },
-  { value: 'tech', label: 'Technique & IT', icon: '💻' },
-  { value: 'finance', label: 'Finance', icon: '💰' },
-  { value: 'rh', label: 'Ressources Humaines', icon: '👥' },
-  { value: 'operations', label: 'Opérations', icon: '⚙️' },
-  { value: 'direction', label: 'Direction Générale', icon: '🎯' },
-  { value: 'legal', label: 'Juridique', icon: '⚖️' }
-];
-
-const LANGUAGES = [
-  { value: 'fr', label: 'Français', flag: '🇫🇷' },
-  { value: 'en', label: 'Anglais', flag: '🇬🇧' },
-  { value: 'es', label: 'Espagnol', flag: '🇪🇸' },
-  { value: 'de', label: 'Allemand', flag: '🇩🇪' },
-  { value: 'pt', label: 'Portugais', flag: '🇵🇹' },
-  { value: 'ar', label: 'Arabe', flag: '🇸🇦' }
 ];
 
 const COMPANY_TYPES = [
@@ -140,6 +128,7 @@ const CERTIFICATIONS = [
 
 export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch }) => {
   const [filters, setFilters] = useState<SmartSearchFilters>({
+    prospectType: 'b2b',
     location: '',
     locationCoordinates: undefined,
     radius: 25,
@@ -154,13 +143,6 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
     foundedYear: '',
     companyType: '',
     certifications: [],
-    jobTitle: '',
-    seniority: '',
-    department: '',
-    contactLanguage: [],
-    decisionMaker: false,
-    emailPattern: '',
-    phoneRequired: false,
     keywords: [],
     description: '',
     excludeKeywords: [],
@@ -255,11 +237,11 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
 
   // Suggestions IA basées sur les filtres actuels
   useEffect(() => {
-    if (filters.aiSuggestions && (filters.industry.length > 0 || filters.jobTitle)) {
+    if (filters.aiSuggestions && filters.industry.length > 0) {
       const suggestions = generateAISuggestions(filters);
       setAiSuggestions(suggestions);
     }
-  }, [filters.industry, filters.jobTitle, filters.aiSuggestions]);
+  }, [filters.industry, filters.aiSuggestions]);
 
   const generateAISuggestions = (currentFilters: SmartSearchFilters): string[] => {
     const suggestions: string[] = [];
@@ -330,15 +312,6 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
     }));
   };
 
-  const handleLanguageToggle = (language: string) => {
-    setFilters(prev => ({
-      ...prev,
-      contactLanguage: prev.contactLanguage.includes(language)
-        ? prev.contactLanguage.filter(l => l !== language)
-        : [...prev.contactLanguage, language]
-    }));
-  };
-
   const handleCertificationToggle = (cert: string) => {
     setFilters(prev => ({
       ...prev,
@@ -389,6 +362,7 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
 
   const resetFilters = () => {
     setFilters({
+      prospectType: 'b2b',
       location: '',
       locationCoordinates: undefined,
       radius: 25,
@@ -403,13 +377,6 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
       foundedYear: '',
       companyType: '',
       certifications: [],
-      jobTitle: '',
-      seniority: '',
-      department: '',
-      contactLanguage: [],
-      decisionMaker: false,
-      emailPattern: '',
-      phoneRequired: false,
       keywords: [],
       description: '',
       excludeKeywords: [],
@@ -452,8 +419,48 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
           </div>
         </div>
 
+        {/* Type de prospection - Nouvelle section */}
+        <Card className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-purple-600" />
+              Type de prospection
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {PROSPECT_TYPES.map((type) => (
+                <Card
+                  key={type.value}
+                  className={`cursor-pointer transition-all hover:scale-105 border-2 ${
+                    filters.prospectType === type.value 
+                      ? `${type.color} ring-2 ring-offset-2` 
+                      : 'hover:bg-gray-50 border-gray-200'
+                  }`}
+                  onClick={() => setFilters(prev => ({ ...prev, prospectType: type.value }))}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">{type.icon}</div>
+                      <div className="flex-1">
+                        <p className="font-semibold">{type.label}</p>
+                        <p className="text-sm text-gray-600">{type.description}</p>
+                      </div>
+                      {filters.prospectType === type.value && (
+                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm">✓</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="location" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="location" className="flex items-center gap-2">
               <MapPin className="w-4 h-4" />
               Localisation
@@ -461,10 +468,6 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Building2 className="w-4 h-4" />
               Entreprise
-            </TabsTrigger>
-            <TabsTrigger value="contact" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Contact
             </TabsTrigger>
             <TabsTrigger value="advanced" className="flex items-center gap-2">
               <Target className="w-4 h-4" />
@@ -716,136 +719,6 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                     ))}
                   </div>
                   <p className="text-xs text-gray-500">Sélectionnez les certifications importantes pour vous</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Contact Tab */}
-          <TabsContent value="contact">
-            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  Profil Contact
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="jobTitle">Titre du poste</Label>
-                  <Select value={filters.jobTitle} onValueChange={(value) => setFilters(prev => ({ ...prev, jobTitle: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez un poste" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {JOB_TITLES.map((title) => (
-                        <SelectItem key={title} value={title}>
-                          <div className="flex items-center gap-2">
-                            <Briefcase className="w-4 h-4" />
-                            {title}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Niveau d'expérience</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {SENIORITY_LEVELS.map((level) => (
-                      <Badge
-                        key={level.value}
-                        className={`cursor-pointer py-3 text-center transition-all hover:scale-105 ${
-                          filters.seniority === level.value 
-                            ? level.color + ' ring-2 ring-offset-2' 
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                        onClick={() => setFilters(prev => ({ 
-                          ...prev, 
-                          seniority: prev.seniority === level.value ? '' : level.value 
-                        }))}
-                      >
-                        <span className="text-lg mr-2">{level.icon}</span>
-                        {level.label}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="department">Département</Label>
-                  <Select value={filters.department} onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Département cible" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEPARTMENTS.map((dept) => (
-                        <SelectItem key={dept.value} value={dept.value}>
-                          <span className="mr-2">{dept.icon}</span>
-                          {dept.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Langue de communication préférée</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {LANGUAGES.map((lang) => (
-                      <Badge
-                        key={lang.value}
-                        variant={filters.contactLanguage.includes(lang.value) ? "default" : "outline"}
-                        className="cursor-pointer text-center py-2 transition-all hover:scale-105"
-                        onClick={() => handleLanguageToggle(lang.value)}
-                      >
-                        <span className="mr-1">{lang.flag}</span>
-                        {lang.label}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <div className="flex items-center gap-3">
-                      <Target className="w-5 h-5 text-purple-600" />
-                      <div>
-                        <p className="font-medium">Décideur uniquement</p>
-                        <p className="text-sm text-gray-600">Limiter aux personnes ayant un pouvoir de décision</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={filters.decisionMaker}
-                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, decisionMaker: checked }))}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center gap-3">
-                      <Phone className="w-5 h-5 text-blue-600" />
-                      <div>
-                        <p className="font-medium">Téléphone requis</p>
-                        <p className="text-sm text-gray-600">Uniquement les contacts avec numéro de téléphone</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={filters.phoneRequired}
-                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, phoneRequired: checked }))}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="emailPattern">Format d'email préféré (optionnel)</Label>
-                  <Input
-                    id="emailPattern"
-                    placeholder="Ex: prenom.nom@entreprise.com"
-                    value={filters.emailPattern}
-                    onChange={(e) => setFilters(prev => ({ ...prev, emailPattern: e.target.value }))}
-                  />
-                  <p className="text-xs text-gray-500">Exemple de format d'email que vous recherchez</p>
                 </div>
               </CardContent>
             </Card>

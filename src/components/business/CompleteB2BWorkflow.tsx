@@ -57,21 +57,30 @@ interface WorkflowStep {
 }
 
 interface SearchCriteria {
+  prospectType: string;
   location: string;
   locationCoordinates?: { lat: number; lng: number };
   radius: number;
   useGPS: boolean;
+  country: string;
+  city: string;
   companyName: string;
   industry: string[];
   companySize: string;
-  jobTitle: string;
-  seniority: string;
-  department: string;
+  employeeCount: string;
+  annualRevenue: string;
+  foundedYear: string;
+  companyType: string;
+  certifications: string[];
   keywords: string[];
   description: string;
+  excludeKeywords: string[];
+  budget: string;
+  urgency: string;
   aiSuggestions: boolean;
   prioritizeLocal: boolean;
   qualityScore: number;
+  verifiedOnly: boolean;
 }
 
 interface CompleteB2BWorkflowProps {
@@ -500,16 +509,25 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
         
         // Critères de recherche détaillés
         searchCriteria: {
+          prospectType: criteria.prospectType,
           location: criteria.location,
           coordinates: criteria.locationCoordinates,
           radius: criteria.radius,
           useGPS: criteria.useGPS,
+          country: criteria.country,
+          city: criteria.city,
           companyName: criteria.companyName,
           industry: criteria.industry,
           companySize: criteria.companySize,
-          jobTitle: criteria.jobTitle,
-          seniority: criteria.seniority,
-          department: criteria.department
+          employeeCount: criteria.employeeCount,
+          annualRevenue: criteria.annualRevenue,
+          foundedYear: criteria.foundedYear,
+          companyType: criteria.companyType,
+          certifications: criteria.certifications,
+          excludeKeywords: criteria.excludeKeywords,
+          budget: criteria.budget,
+          urgency: criteria.urgency,
+          verifiedOnly: criteria.verifiedOnly
         }
       },
       
@@ -811,10 +829,12 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                   <h3 className="font-medium mb-2">Critères de recherche :</h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
+                    {searchCriteria.prospectType && <p><span className="font-medium">Type:</span> {searchCriteria.prospectType}</p>}
                     {searchCriteria.location && <p><span className="font-medium">Localisation:</span> {searchCriteria.location}</p>}
                     {searchCriteria.industry.length > 0 && <p><span className="font-medium">Secteur:</span> {searchCriteria.industry.join(', ')}</p>}
-                    {searchCriteria.jobTitle && <p><span className="font-medium">Poste:</span> {searchCriteria.jobTitle}</p>}
                     {searchCriteria.companySize && <p><span className="font-medium">Taille:</span> {searchCriteria.companySize}</p>}
+                    {searchCriteria.budget && <p><span className="font-medium">Budget:</span> {searchCriteria.budget}</p>}
+                    {searchCriteria.urgency && <p><span className="font-medium">Urgence:</span> {searchCriteria.urgency}</p>}
                   </div>
                 </div>
               )}
