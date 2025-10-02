@@ -30,7 +30,6 @@ const AccountPage = lazy(() => import("./pages/AccountPage").then(module => ({ d
 
 // Authentication
 const AuthPage = lazy(() => import("./pages/AuthPage"));
-const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 
 // Administration
 const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").then(module => ({ default: module.UsersManagementPage })));
@@ -119,7 +118,6 @@ const App = () => (
                   
                   {/* Routes publiques sans layout */}
                   <Route path="/auth" element={<AuthPage />} />
-                  <Route path="/reset-password" element={<ResetPasswordPage />} />
                   <Route path="/widget" element={<WidgetPage />} />
                   <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
                   <Route path="/bot-test/:botId" element={<BotTestPage />} />
