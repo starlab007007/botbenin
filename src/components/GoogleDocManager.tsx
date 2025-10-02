@@ -98,7 +98,7 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
 
   // Auto-génération quand le type change
   useEffect(() => {
-    if (offerConfig.type) {
+    if (offerConfig.type && showApiConfig === false) {
       // Définir des valeurs par défaut selon le type
       const defaultConfigs = {
         personnel: {
@@ -140,12 +140,8 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
     }
   }, [offerConfig.type]);
 
-  // Auto-génération après mise à jour des valeurs par défaut
-  useEffect(() => {
-    if (offerConfig.type && offerConfig.targetAudience && offerConfig.industry && offerConfig.keyFeatures.length > 0) {
-      generateWithAI();
-    }
-  }, [offerConfig.targetAudience, offerConfig.industry, offerConfig.keyFeatures]);
+  // Auto-génération désactivée par défaut - l'utilisateur doit cliquer explicitement
+  // Supprimé pour éviter les erreurs au chargement
 
   useEffect(() => {
     if (isOpen && googleDocId) {
@@ -187,7 +183,7 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
 
     const currentApiKey = apiKeys[selectedApi];
     if (!currentApiKey.trim()) {
-      toast.error(`Veuillez saisir la clé API ${selectedApi.toUpperCase()}`);
+      toast.warning(`Veuillez configurer la clé API ${selectedApi.toUpperCase()} pour générer du contenu avec l'IA`);
       setShowApiConfig(true);
       return;
     }
