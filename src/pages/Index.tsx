@@ -15,10 +15,9 @@ const Index = () => {
   // Rediriger vers l'app si l'utilisateur est connecté
   useEffect(() => {
     if (isAuthenticated && !showChat) {
-      const timer = setTimeout(() => {
-        navigate('/prospect-preparation');
-      }, 1000);
-      return () => clearTimeout(timer);
+      console.log('[Index] User authenticated, redirecting to /prospect-preparation');
+      // Redirection immédiate sans délai pour OAuth
+      navigate('/prospect-preparation', { replace: true });
     }
   }, [isAuthenticated, navigate, showChat]);
 

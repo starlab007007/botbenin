@@ -26,7 +26,8 @@ const AuthPage: React.FC = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/prospect-preparation');
+      console.log('[AuthPage] User authenticated, redirecting to /prospect-preparation');
+      navigate('/prospect-preparation', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 

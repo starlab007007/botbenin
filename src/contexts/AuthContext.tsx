@@ -87,18 +87,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const runAuthInit = async () => {
       try {
-        // Nettoyer les sessions corrompues en cache
-        await supabase.auth.refreshSession();
+        console.log('[Auth] Initializing auth session...');
         
+        // Vérifier d'abord s'il y a un hash OAuth dans l'URL (retour de Google)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        
+        if (accessToken) {
+          console.log('[Auth] OAuth callback detected, waiting for session establishment...');
+          // Attendre un peu pour que Supabase traite le callback OAuth
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Rafraîchir la session pour s'assurer qu'elle est valide
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        if (refreshData.session) {
+          console.log('[Auth] Session refreshed successfully');
+          setSession(refreshData.session);
+          setSupabaseUser(refreshData.session.user);
+        } else {
+          // Si pas de session après refresh, essayer de récupérer la session actuelle
+          const { data: { session } } = await supabase.auth.getSession();
+          console.log('[Auth] Current session:', session ? 'Found' : 'Not found');
+          setSession(session);
+          setSupabaseUser(session?.user ?? null);
+        }
+      } catch (error) {
+        console.error('[Auth] Error initializing auth:', error);
+        // Ne pas effacer la session en cas d'erreur de réseau
         const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setSupabaseUser(session?.user ?? null);
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        // Nettoyer complètement en cas d'erreur
-        await supabase.auth.signOut();
-        setSession(null);
-        setSupabaseUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -108,8 +127,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('[Auth] Auth state changed:', event, session ? 'Session active' : 'No session');
+        
         setSession(session);
         setSupabaseUser(session?.user ?? null);
+        
         if (session?.user) {
           setIsGuest(false);
           setGuestUser(null);
@@ -132,9 +154,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             chatHistory: []
           };
           setUser(authUser);
+          console.log('[Auth] User authenticated:', authUser.email);
 
-          // Envoyer notification email pour connexion (seulement pour SIGN_IN)
+          // Créer bot_owner pour les nouveaux utilisateurs Google
           if (event === 'SIGNED_IN') {
+            try {
+              const { data: ownerId, error: ownerError } = await supabase
+                .rpc('get_or_create_bot_owner', { user_uuid: session.user.id });
+              
+              if (ownerError) {
+                console.error('[Auth] Bot owner creation error:', ownerError);
+              } else {
+                console.log('[Auth] Bot owner ready:', ownerId);
+              }
+            } catch (ownerError) {
+              console.error('[Auth] Bot owner creation exception:', ownerError);
+            }
+
+            // Envoyer notification email
             const provider = session.user.app_metadata?.provider || 'email';
             
             try {
@@ -148,14 +185,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
               });
               
-              console.log('[Auth] Login notification sent successfully');
+              console.log('[Auth] Login notification sent');
             } catch (error) {
               console.error('[Auth] Failed to send login notification:', error);
-              // Ne pas bloquer la connexion si l'email échoue
             }
           }
         } else {
-          // Pas de session : conserver l'état guest si configuré
+          console.log('[Auth] User logged out or no session');
+          setUser(null);
         }
         setIsLoading(false);
       }
@@ -212,9 +249,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
+      console.log('[Auth] Starting Google OAuth...');
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
+          redirectTo: `${window.location.origin}/`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -223,6 +263,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        console.error('[Auth] Google OAuth error:', error);
         toast({
           title: "Erreur de connexion Google",
           description: error.message,
@@ -232,9 +273,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
-      // OAuth redirect - ne pas désactiver loading ici
+      console.log('[Auth] Google OAuth redirect initiated');
+      // OAuth redirect - ne pas désactiver loading ici car l'utilisateur sera redirigé
       return true;
     } catch (error) {
+      console.error('[Auth] Google OAuth exception:', error);
       toast({
         title: "Erreur de connexion Google",
         description: "Une erreur est survenue",
