@@ -1,31 +1,33 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
+  ArrowLeft, 
+  Search, 
+  MapPin, 
+  Building2, 
   Users, 
   Target, 
-  BarChart3, 
-  FileSpreadsheet, 
-  Search,
-  MapPin,
-  Settings,
-  Database,
+  Sparkles, 
+  CheckCircle,
+  AlertCircle,
+  Clock,
   Download,
-  ExternalLink,
-  Play,
-  ArrowLeft,
+  Eye,
+  Mail,
+  Phone,
+  Globe,
+  Database,
+  Filter,
   Loader2
 } from 'lucide-react';
-import { B2BTargeting } from './B2BTargeting';
-import { LocalProspecting } from './LocalProspecting';
-import { GoogleSheetsImport } from './GoogleSheetsImport';
 import { SmartB2BSearch } from './SmartB2BSearch';
+import { GeoLocationMap } from './GeoLocationMap';
 import { B2BResultsManager } from './B2BResultsManager';
 import { useToast } from '@/hooks/use-toast';
-
-type WorkflowStep = 'overview' | 'b2b-targeting' | 'local-prospecting' | 'google-sheets' | 'smart-search' | 'smart-search-results';
 
 interface B2BContact {
   id: string;
@@ -43,216 +45,559 @@ interface B2BContact {
   instagramUrl?: string;
   description?: string;
   services?: string;
+  rawData?: string; // Pour conserver les données originales du webhook
+}
+
+interface WorkflowStep {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'active' | 'completed' | 'error';
+  icon: React.ReactNode;
+}
+
+interface SearchCriteria {
+  location: string;
+  locationCoordinates?: { lat: number; lng: number };
+  radius: number;
+  useGPS: boolean;
+  companyName: string;
+  industry: string[];
+  companySize: string;
+  jobTitle: string;
+  seniority: string;
+  department: string;
+  keywords: string[];
+  description: string;
+  aiSuggestions: boolean;
+  prioritizeLocal: boolean;
+  qualityScore: number;
 }
 
 interface CompleteB2BWorkflowProps {
-  onBack?: () => void;
+  onBack: () => void;
 }
 
 export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack }) => {
-  const [currentStep, setCurrentStep] = useState<WorkflowStep>('overview');
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [searchCriteria, setSearchCriteria] = useState<SearchCriteria | null>(null);
   const [searchResults, setSearchResults] = useState<B2BContact[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchSessionId, setSearchSessionId] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [selectedView, setSelectedView] = useState<'table' | 'map'>('table');
   const { toast } = useToast();
 
-  const workflowOptions = [
+  const workflowSteps: WorkflowStep[] = [
     {
-      id: 'google-sheets' as WorkflowStep,
-      title: 'Mes Listes de Prospects',
-      description: 'Importez et gérez vos prospects depuis Google Sheets en temps réel',
-      icon: FileSpreadsheet,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      features: ['Import automatique', 'Synchronisation temps réel', 'Filtrage avancé', 'Export données'],
-      status: 'Recommandé',
-      statusColor: 'bg-green-100 text-green-800'
+      id: 'criteria',
+      title: 'Sélection des critères',
+      description: 'Définir les critères de recherche intelligents',
+      status: currentStep === 0 ? 'active' : currentStep > 0 ? 'completed' : 'pending',
+      icon: <Filter className="w-5 h-5" />
     },
     {
-      id: 'b2b-targeting' as WorkflowStep,
-      title: 'Ciblage B2B Avancé',
-      description: 'Trouvez des prospects qualifiés avec notre IA de ciblage intelligent',
-      icon: Target,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      features: ['IA de ciblage', 'Critères multiples', 'Scoring automatique', 'Qualification'],
-      status: 'Populaire',
-      statusColor: 'bg-blue-100 text-blue-800'
+      id: 'search',
+      title: 'Lancement de la recherche',
+      description: 'Envoi des critères au webhook et traitement',
+      status: currentStep === 1 ? 'active' : currentStep > 1 ? 'completed' : 'pending',
+      icon: <Search className="w-5 h-5" />
     },
     {
-      id: 'local-prospecting' as WorkflowStep,
-      title: 'Prospection Locale',
-      description: 'Identifiez des entreprises locales dans votre zone géographique',
-      icon: MapPin,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      features: ['Recherche géolocalisée', 'Données locales', 'Cartographie', 'Proximité'],
-      status: 'Efficace',
-      statusColor: 'bg-purple-100 text-purple-800'
+      id: 'results',
+      title: 'Affichage des résultats',
+      description: 'Présentation des contacts trouvés',
+      status: currentStep === 2 ? 'active' : currentStep > 2 ? 'completed' : 'pending',
+      icon: <Database className="w-5 h-5" />
     },
     {
-      id: 'smart-search' as WorkflowStep,
-      title: 'Recherche Intelligente',
-      description: 'Utilisez notre moteur de recherche IA pour des prospects précis',
-      icon: Search,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
-      features: ['IA avancée', 'Recherche sémantique', 'Résultats pertinents', 'Analyse contextuelle'],
-      status: 'Nouveau',
-      statusColor: 'bg-orange-100 text-orange-800'
+      id: 'visualization',
+      title: 'Visualisation',
+      description: 'Vue tableau et géolocalisation sur carte',
+      status: currentStep === 4 ? 'active' : currentStep > 4 ? 'completed' : 'pending',
+      icon: <MapPin className="w-5 h-5" />
     }
   ];
 
-  // Parse webhook response pour extraire les contacts
+  const getCoordinatesFromLocation = (location: string, searchCriteria?: SearchCriteria): [number, number] | undefined => {
+    // Priorité 1: Utiliser les coordonnées précises du critère de recherche si disponibles
+    if (searchCriteria?.locationCoordinates) {
+      return [searchCriteria.locationCoordinates.lng, searchCriteria.locationCoordinates.lat];
+    }
+
+    // Priorité 2: Parsing basique pour extraire des coordonnées du texte
+    const coordMatch = location.match(/lat:\s*([-\d.]+),?\s*lng?:\s*([-\d.]+)/i);
+    if (coordMatch) {
+      return [parseFloat(coordMatch[2]), parseFloat(coordMatch[1])];
+    }
+
+    // Priorité 3: Villes connues (fallback)
+    const locationLower = location.toLowerCase();
+    const cityCoordinates: { [key: string]: [number, number] } = {
+      'cotonou': [2.3522, 6.4023],
+      'porto-novo': [2.6037, 6.4968],
+      'parakou': [2.6303, 9.3365],
+      'abomey': [1.9931, 7.1827],
+      'paris': [2.3522, 48.8566],
+      'lyon': [4.8357, 45.7640],
+      'marseille': [5.3698, 43.2965],
+      'toulouse': [1.4442, 43.6047],
+      'bordeaux': [-0.5792, 44.8378],
+      'dakar': [-17.4441, 14.6928],
+      'bamako': [-8.0029, 12.6392],
+      'ouagadougou': [-1.5247, 12.3714],
+      'niamey': [2.1111, 13.5116],
+      'lomé': [1.2255, 6.1375],
+      'conakry': [-13.6773, 9.6412],
+    };
+
+    for (const [city, coords] of Object.entries(cityCoordinates)) {
+      if (locationLower.includes(city)) {
+        return coords;
+      }
+    }
+
+    // Priorité 4: Coordonnées par défaut (Cotonou)
+    return [2.3522, 6.4023];
+  };
+
   const parseWebhookResponse = (responseText: string): B2BContact[] => {
-    console.log('Parsing webhook response for smart search:', responseText);
+    console.log('Parsing webhook response:', responseText);
+    
+    if (!responseText || typeof responseText !== 'string') {
+      console.warn('Invalid webhook response: empty or not string');
+      return [];
+    }
     
     const contacts: B2BContact[] = [];
     
     try {
-      const companyPattern = /\d+\.\s*\*\*(.*?)\*\*\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g;
-      let match;
-      let contactIndex = 1;
+      // Pattern amélioré pour capturer différents formats de réponse
+      const patterns = [
+        // Format principal avec numérotation et markdown
+        /\d+\.\s*\*\*(.*?)\*\*\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g,
+        // Format alternatif sans markdown
+        /\d+\.\s*(.*?)\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g,
+        // Format simple avec tirets
+        /-\s*(.*?)\s*\n([\s\S]*?)(?=\n-|\n\n|$)/g
+      ];
 
-      while ((match = companyPattern.exec(responseText)) !== null) {
-        const companyName = match[1].trim();
-        const details = match[2];
+      let totalMatches = 0;
+      
+      for (const pattern of patterns) {
+        let match;
+        let contactIndex = 1;
         
-        const addressMatch = details.match(/\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/);
-        const phoneMatch = details.match(/\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/);
-        const websiteMatch = details.match(/\*\*Site web\s*:\*\*\s*\[(.*?)\]/);
-        const facebookMatch = details.match(/\*\*Facebook\s*:\*\*\s*\[(.*?)\]/);
-        const instagramMatch = details.match(/\*\*Instagram\s*:\*\*\s*\[(.*?)\]/);
-        const categoryMatch = details.match(/\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/);
+        // Reset du pattern pour chaque utilisation
+        pattern.lastIndex = 0;
 
-        const address = addressMatch ? addressMatch[1].trim() : '';
-        const phone = phoneMatch ? phoneMatch[1].trim() : '';
-        const website = websiteMatch ? websiteMatch[1].trim() : '';
-        const facebook = facebookMatch ? facebookMatch[1].trim() : '';
-        const instagram = instagramMatch ? instagramMatch[1].trim() : '';
-        const category = categoryMatch ? categoryMatch[1].trim() : '';
+        while ((match = pattern.exec(responseText)) !== null) {
+          const companyName = match[1].trim().replace(/\*\*/g, ''); // Nettoyer les ** markdown
+          const details = match[2];
+          
+          // Éviter les doublons
+          if (contacts.some(c => c.companyName === companyName)) {
+            continue;
+          }
+          
+          // Patterns de recherche plus flexibles
+          const addressPatterns = [
+            /\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Adresse\s*:\s*(.*?)(?:\n|$)/i,
+            /Localisation\s*:\s*(.*?)(?:\n|$)/i,
+            /Lieu\s*:\s*(.*?)(?:\n|$)/i
+          ];
+          
+          const phonePatterns = [
+            /\*\*Téléphone\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Téléphone\s*:\s*(.*?)(?:\n|$)/i,
+            /Tel\s*:\s*(.*?)(?:\n|$)/i,
+            /Phone\s*:\s*(.*?)(?:\n|$)/i
+          ];
+          
+          const websitePatterns = [
+            /\*\*Site web\s*:\*\*\s*\[(.*?)\]/i,
+            /Site web\s*:\s*(.*?)(?:\n|$)/i,
+            /Website\s*:\s*(.*?)(?:\n|$)/i,
+            /URL\s*:\s*(.*?)(?:\n|$)/i,
+            /www\.\S+/i,
+            /https?:\/\/\S+/i
+          ];
+          
+          const categoryPatterns = [
+            /\*\*Catégorie\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Catégorie\s*:\s*(.*?)(?:\n|$)/i,
+            /Type\s*:\s*(.*?)(?:\n|$)/i,
+            /Secteur\s*:\s*(.*?)(?:\n|$)/i,
+            /Activité\s*:\s*(.*?)(?:\n|$)/i,
+            /Spécialité\s*:\s*(.*?)(?:\n|$)/i
+          ];
 
-        const firstName = ['Marie', 'Pierre', 'Sophie', 'Laurent'][contactIndex % 4];
-        const lastName = ['Dubois', 'Martin', 'Laurent', 'Moreau'][contactIndex % 4];
-        const fullName = `${firstName} ${lastName}`;
-        
-        let email = '';
-        if (website) {
-          const domain = website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-          email = `contact@${domain}`;
-        } else {
-          email = `contact@${companyName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`;
+          const emailPatterns = [
+            /\*\*Email\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Email\s*:\s*(.*?)(?:\n|$)/i,
+            /E-mail\s*:\s*(.*?)(?:\n|$)/i,
+            /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+          ];
+
+          const facebookPatterns = [
+            /\*\*Facebook\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Facebook\s*:\s*(.*?)(?:\n|$)/i,
+            /facebook\.com\/\S+/i
+          ];
+
+          const instagramPatterns = [
+            /\*\*Instagram\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Instagram\s*:\s*(.*?)(?:\n|$)/i,
+            /instagram\.com\/\S+/i
+          ];
+
+          const descriptionPatterns = [
+            /\*\*Description\s*:\*\*\s*(.*?)(?:\n|$)/i,
+            /Description\s*:\s*(.*?)(?:\n|$)/i,
+            /Services\s*:\s*(.*?)(?:\n|$)/i,
+            /Spécialisé\s*dans\s*(.*?)(?:\n|$)/i
+          ];
+
+          // Extraction avec fallbacks
+          let address = '';
+          let phone = '';
+          let website = '';
+          let category = '';
+          let email = '';
+          let facebook = '';
+          let instagram = '';
+          let description = '';
+
+          for (const addressPattern of addressPatterns) {
+            const match = details.match(addressPattern);
+            if (match) {
+              address = match[1].trim();
+              break;
+            }
+          }
+
+          for (const phonePattern of phonePatterns) {
+            const match = details.match(phonePattern);
+            if (match) {
+              phone = match[1].trim();
+              break;
+            }
+          }
+
+          for (const websitePattern of websitePatterns) {
+            const match = details.match(websitePattern);
+            if (match) {
+              website = match[1].trim();
+              // Nettoyer les URLs
+              if (website && !website.startsWith('http')) {
+                website = website.startsWith('www.') ? `https://${website}` : `https://www.${website}`;
+              }
+              break;
+            }
+          }
+
+          for (const categoryPattern of categoryPatterns) {
+            const match = details.match(categoryPattern);
+            if (match) {
+              category = match[1].trim();
+              break;
+            }
+          }
+
+          for (const emailPattern of emailPatterns) {
+            const match = details.match(emailPattern);
+            if (match) {
+              email = match[1] ? match[1].trim() : match[0].trim();
+              break;
+            }
+          }
+
+          for (const facebookPattern of facebookPatterns) {
+            const match = details.match(facebookPattern);
+            if (match) {
+              facebook = match[1].trim();
+              break;
+            }
+          }
+
+          for (const instagramPattern of instagramPatterns) {
+            const match = details.match(instagramPattern);
+            if (match) {
+              instagram = match[1].trim();
+              break;
+            }
+          }
+
+          for (const descriptionPattern of descriptionPatterns) {
+            const match = details.match(descriptionPattern);
+            if (match) {
+              description = match[1].trim();
+              break;
+            }
+          }
+
+          // Validation et nettoyage des données
+          if (!companyName || companyName.length < 2) {
+            console.warn('Skipping invalid company name:', companyName);
+            continue;
+          }
+
+          const coordinates = getCoordinatesFromLocation(address, searchCriteria);
+
+          const contact: B2BContact = {
+            id: `webhook_${Date.now()}_${contactIndex}`,
+            name: '', // Nom du contact vide par défaut
+            companyName: companyName,
+            jobTitle: '', // Poste vide par défaut
+            location: address || 'Localisation non précisée',
+            linkedinUrl: website || '',
+            email: email || '',
+            phone: phone || '',
+            industry: category || 'Non spécifié',
+            companySize: '', // Taille d'entreprise vide par défaut
+            coordinates: coordinates,
+            facebookUrl: facebook || '',
+            instagramUrl: instagram || '',
+            description: description || '',
+            services: description || '',
+            rawData: details // Conserver les données brutes pour debug
+          };
+
+          contacts.push(contact);
+          contactIndex++;
+          totalMatches++;
         }
-
-        const contact: B2BContact = {
-          id: `smart_${contactIndex}`,
-          name: fullName,
-          companyName: companyName,
-          jobTitle: 'Manager',
-          location: address,
-          linkedinUrl: website,
-          email: email,
-          phone: phone,
-          industry: category || 'Non spécifié',
-          companySize: '10-50',
-          facebookUrl: facebook,
-          instagramUrl: instagram,
-        };
-
-        contacts.push(contact);
-        contactIndex++;
+        
+        // Si on trouve des résultats avec ce pattern, on arrête d'essayer les autres
+        if (totalMatches > 0) {
+          break;
+        }
       }
 
-      console.log(`Smart search: ${contacts.length} contacts extracted`);
-      return contacts;
+      console.log(`Total webhook contacts extracted: ${contacts.length}`);
+      
+      // Validation finale
+      const validContacts = contacts.filter(contact => 
+        contact.companyName && 
+        contact.companyName.trim().length > 0 &&
+        contact.companyName !== 'Non spécifié'
+      );
+      
+      console.log(`Valid contacts after filtering: ${validContacts.length}`);
+      return validContacts;
       
     } catch (error) {
-      console.error('Error parsing smart search response:', error);
+      console.error('Error parsing webhook response:', error);
+      console.error('Response text sample:', responseText.substring(0, 500));
       return [];
     }
   };
 
-  // Exécuter la recherche intelligente via webhook
-  const executeSmartSearch = async (filters: any) => {
-    const sessionId = `smart_search_${Date.now()}`;
-    setSearchSessionId(sessionId);
+  const getMockContacts = (): B2BContact[] => {
+    return [
+      {
+        id: '1',
+        name: 'Marie Dubois',
+        companyName: 'TechCorp France',
+        jobTitle: 'Directrice Marketing',
+        location: 'Paris, France',
+        linkedinUrl: 'https://linkedin.com/in/mariedubois',
+        email: 'marie.dubois@techcorp.fr',
+        phone: '+33 1 42 86 88 02',
+        industry: 'Technology',
+        companySize: '500-1000',
+        coordinates: [2.3522, 48.8566]
+      },
+      {
+        id: '2',
+        name: 'Pierre Martin',
+        companyName: 'InnovSolutions',
+        jobTitle: 'Responsable Commercial',
+        location: 'Lyon, France',
+        linkedinUrl: 'https://linkedin.com/in/pierremartin',
+        email: 'pierre.martin@innovsolutions.fr',
+        phone: '+33 4 78 42 33 69',
+        industry: 'Consulting',
+        companySize: '100-500',
+        coordinates: [4.8357, 45.7640]
+      },
+      {
+        id: '3',
+        name: 'Sophie Laurent',
+        companyName: 'Digital Agency Pro',
+        jobTitle: 'CEO',
+        location: 'Marseille, France',
+        linkedinUrl: 'https://linkedin.com/in/sophielaurent',
+        email: 'sophie.laurent@digitalagency.fr',
+        phone: '+33 4 91 54 92 00',
+        industry: 'Marketing',
+        companySize: '50-100',
+        coordinates: [5.3698, 43.2965]
+      }
+    ];
+  };
+
+  const buildSearchMessage = (criteria: SearchCriteria) => {
+    const searchTerms = [];
+    
+    // Prioriser les termes larges pour Google Maps
+    if (criteria.location) searchTerms.push(`Localisation: ${criteria.location}`);
+    if (criteria.industry.length > 0) {
+      // Utiliser des termes plus génériques pour Google Maps
+      const broadIndustryTerms = criteria.industry.map(industry => {
+        switch(industry) {
+          case 'Technologie':
+            return 'informatique';
+          case 'Finance':
+            return 'banque';
+          case 'Santé':
+            return 'médical';
+          case 'Commerce':
+            return 'magasin';
+          case 'Services':
+            return 'service';
+          default:
+            return industry.toLowerCase();
+        }
+      });
+      searchTerms.push(`Type d'entreprise: ${broadIndustryTerms.join(' ou ')}`);
+    }
+    
+    // Simplifier les autres critères pour éviter les recherches trop spécifiques
+    if (criteria.companyName) searchTerms.push(`Nom: ${criteria.companyName}`);
+    if (criteria.keywords.length > 0) {
+      // Prendre seulement les mots-clés les plus génériques
+      const broadKeywords = criteria.keywords.slice(0, 2);
+      searchTerms.push(`Activité: ${broadKeywords.join(' ')}`);
+    }
+
+    if (searchTerms.length === 0) {
+      return "Je cherche des entreprises locales pour ma prospection via Google Maps. Pouvez-vous m'aider à identifier des entreprises avec leurs coordonnées complètes ?";
+    }
+
+    return `Je recherche des entreprises via Google Maps avec les critères suivants: ${searchTerms.join(', ')}. Utilisez des termes génériques pour obtenir plus de résultats sur Google Maps et donnez-moi les informations complètes (nom, adresse, téléphone, site web, catégorie) ?`;
+  };
+
+  const buildWebhookPayload = (criteria: SearchCriteria) => {
+    return {
+      // Message de recherche principal
+      message: buildSearchMessage(criteria),
+      
+      // Données enrichies pour le webhook
+      searchData: {
+        // Recherche Avancée & IA
+        advancedAiSearch: {
+          enabled: criteria.aiSuggestions,
+          qualityScore: criteria.qualityScore,
+          prioritizeLocal: criteria.prioritizeLocal
+        },
+        
+        // Mots-clés stratégiques
+        strategicKeywords: criteria.keywords,
+        
+        // Description libre de la recherche
+        freeTextDescription: criteria.description,
+        
+        // Critères de recherche détaillés
+        searchCriteria: {
+          location: criteria.location,
+          coordinates: criteria.locationCoordinates,
+          radius: criteria.radius,
+          useGPS: criteria.useGPS,
+          companyName: criteria.companyName,
+          industry: criteria.industry,
+          companySize: criteria.companySize,
+          jobTitle: criteria.jobTitle,
+          seniority: criteria.seniority,
+          department: criteria.department
+        }
+      },
+      
+      // Métadonnées de session
+      timestamp: new Date().toISOString(),
+      session_id: `b2b_workflow_${Date.now()}`,
+      user_id: 'b2b_user',
+      source: 'bot_bj_platform',
+      context: 'complete_b2b_workflow'
+    };
+  };
+
+  const executeSearch = async (criteria: SearchCriteria) => {
     setIsSearching(true);
-    
-    console.log('=== SMART B2B SEARCH START ===');
-    console.log('Filters:', filters);
+    setSearchError(null);
+    setCurrentStep(1);
 
-    // Construction du message de recherche
-    const searchCriteria = [];
-    
-    if (filters.location) searchCriteria.push(`Localisation: ${filters.location}`);
-    if (filters.industry && filters.industry.length > 0) {
-      searchCriteria.push(`Secteurs: ${filters.industry.join(', ')}`);
-    }
-    if (filters.keywords && filters.keywords.length > 0) {
-      searchCriteria.push(`Mots-clés: ${filters.keywords.join(', ')}`);
-    }
-    if (filters.companySize) searchCriteria.push(`Taille: ${filters.companySize}`);
-    if (filters.jobTitle) searchCriteria.push(`Poste: ${filters.jobTitle}`);
-
-    const message = searchCriteria.length > 0
-      ? `Je recherche des entreprises B2B avec ces critères: ${searchCriteria.join(', ')}. Donnez-moi une liste détaillée avec nom, adresse, téléphone, site web, Facebook, Instagram et catégorie pour chaque entreprise.`
-      : "Je cherche des entreprises pour ma prospection B2B. Pouvez-vous me donner une liste avec leurs coordonnées complètes (nom, adresse, téléphone, site web, réseaux sociaux) ?";
+    console.log('Executing search with enhanced criteria:', criteria);
 
     try {
+      const requestPayload = buildWebhookPayload(criteria);
+      console.log('Sending enhanced webhook payload:', requestPayload);
+
       const response = await fetch('https://ia.bot.bj/webhook/lead', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'Bot.Bj-Platform/1.0',
         },
-        body: JSON.stringify({
-          message: message,
-          timestamp: new Date().toISOString(),
-          session_id: sessionId,
-          user_id: 'smart_b2b_user',
-          source: 'bot_bj_platform',
-          context: 'smart_b2b_search',
-          filters: filters
-        }),
+        body: JSON.stringify(requestPayload),
+        mode: 'cors',
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const contentType = response.headers.get('content-type') || '';
       let responseData;
+      let processedContent;
 
       if (contentType.includes('application/json')) {
         responseData = await response.json();
-        responseData = responseData.output || responseData.message || responseData.response || JSON.stringify(responseData);
+        processedContent = responseData.output || 
+                          responseData.message || 
+                          responseData.response || 
+                          responseData.text || 
+                          responseData.content ||
+                          responseData.reply ||
+                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
         responseData = await response.text();
+        processedContent = responseData;
       }
 
-      console.log('Smart search response received');
-      const extractedContacts = parseWebhookResponse(responseData);
-      
-      setSearchResults(extractedContacts);
-      setCurrentStep('smart-search-results');
+      console.log('Raw webhook response:', processedContent);
+      const extractedContacts = parseWebhookResponse(processedContent);
       
       if (extractedContacts.length > 0) {
+        console.log('Setting search results:', extractedContacts);
+        setSearchResults(extractedContacts);
+        setCurrentStep(2);
         toast({
-          title: "Recherche réussie",
-          description: `${extractedContacts.length} entreprises trouvées`,
+          title: "Recherche terminée avec succès",
+          description: `${extractedContacts.length} contacts trouvés via webhook`,
         });
       } else {
+        // Aucun résultat trouvé
+        setSearchResults([]);
+        setSearchError("Aucun contact trouvé dans la réponse webhook");
+        setCurrentStep(2);
         toast({
           title: "Aucun résultat",
-          description: "Essayez de modifier vos critères",
+          description: "La recherche n'a retourné aucun contact. Vous pouvez modifier vos critères.",
           variant: "destructive",
         });
       }
 
     } catch (error) {
-      console.error('Smart search error:', error);
+      console.error('Search error:', error);
+      setSearchError(error instanceof Error ? error.message : 'Erreur inconnue');
+      setSearchResults([]);
+      setCurrentStep(2); // Aller à l'étape des résultats même en cas d'erreur
+      
       toast({
         title: "Erreur de recherche",
-        description: "Impossible d'effectuer la recherche",
+        description: "Impossible de se connecter au service de recherche. Vous pouvez réessayer.",
         variant: "destructive",
       });
     } finally {
@@ -260,9 +605,48 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
     }
   };
 
-  const handleExportResults = () => {
+  const handleCriteriaSubmit = (criteria: SearchCriteria) => {
+    setSearchCriteria(criteria);
+    executeSearch(criteria);
+  };
+
+  const handleStepNavigation = (stepIndex: number) => {
+    if (stepIndex === 0) {
+      setCurrentStep(0);
+      setSearchError(null);
+    } else if (stepIndex === 1 && searchCriteria) {
+      // Relancer la recherche
+      executeSearch(searchCriteria);
+    } else if (stepIndex === 2 && searchResults.length > 0) {
+      setCurrentStep(2);
+    } else if (stepIndex === 3 && searchResults.length > 0) {
+      setCurrentStep(4);
+    }
+  };
+
+  const handleReturnToModules = () => {
+    if (window.confirm('Êtes-vous sûr de vouloir retourner aux modules ? Vos résultats actuels seront perdus.')) {
+      onBack();
+    }
+  };
+
+  const handleResetSearch = () => {
+    if (window.confirm('Êtes-vous sûr de vouloir réinitialiser la recherche ?')) {
+      setCurrentStep(0);
+      setSearchCriteria(null);
+      setSearchResults([]);
+      setSearchError(null);
+      setIsSearching(false);
+    }
+  };
+
+  const handleViewResults = () => {
+    setCurrentStep(4);
+  };
+
+  const handleExport = () => {
     const csvContent = [
-      ['Nom', 'Entreprise', 'Poste', 'Email', 'Téléphone', 'Localisation', 'Secteur', 'Site web', 'Facebook', 'Instagram'],
+      ['Nom', 'Entreprise', 'Poste', 'Email', 'Téléphone', 'Localisation', 'Secteur', 'Taille Entreprise', 'LinkedIn'],
       ...searchResults.map(contact => [
         contact.name,
         contact.companyName,
@@ -271,267 +655,388 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
         contact.phone,
         contact.location,
         contact.industry,
-        contact.linkedinUrl || '',
-        contact.facebookUrl || '',
-        contact.instagramUrl || ''
+        contact.companySize,
+        contact.linkedinUrl
       ])
     ].map(row => row.join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `smart_b2b_results_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `contacts_b2b_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
+
+    toast({
+      title: "Export réussi",
+      description: `${searchResults.length} contacts exportés au format CSV`,
+    });
   };
 
-  const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 'google-sheets':
-        return <GoogleSheetsImport onBack={() => setCurrentStep('overview')} />;
-      case 'b2b-targeting':
-        return <B2BTargeting onBack={() => setCurrentStep('overview')} />;
-      case 'local-prospecting':
-        return <LocalProspecting onBack={() => setCurrentStep('overview')} />;
-      case 'smart-search':
-        return (
-          <div className="min-h-screen relative">
-            {isSearching && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <Card className="p-6 max-w-md">
-                  <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-                    <div className="text-center">
-                      <h3 className="text-lg font-semibold mb-2">Recherche en cours...</h3>
-                      <p className="text-sm text-gray-600">
-                        Analyse des entreprises correspondant à vos critères
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            )}
-            <SmartB2BSearch 
-              onBack={() => setCurrentStep('overview')} 
-              onSearch={executeSmartSearch}
-            />
-          </div>
-        );
-      case 'smart-search-results':
-        return (
-          <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex items-center justify-between mb-6">
-                <Button variant="ghost" onClick={() => setCurrentStep('smart-search')}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Nouvelle recherche
-                </Button>
-                <Button variant="outline" onClick={() => setCurrentStep('overview')}>
-                  Retour au menu principal
-                </Button>
-              </div>
-              
-              <B2BResultsManager 
-                contacts={searchResults}
-                onExport={handleExportResults}
-                searchSessionId={searchSessionId}
-              />
-            </div>
-          </div>
-        );
+  const resetWorkflow = () => {
+    setCurrentStep(0);
+    setSearchCriteria(null);
+    setSearchResults([]);
+    setSearchError(null);
+    setIsSearching(false);
+  };
+
+  const getStepStatusIcon = (step: WorkflowStep) => {
+    switch (step.status) {
+      case 'completed':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'active':
+        return isSearching && step.id === 'search' ? 
+          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" /> : 
+          <Clock className="w-5 h-5 text-blue-600" />;
+      case 'error':
+        return <AlertCircle className="w-5 h-5 text-red-600" />;
       default:
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-            <div className="max-w-7xl mx-auto space-y-8">
-              {/* En-tête principal */}
-              <div className="text-center space-y-4">
-                 {onBack && (
-                   <Button variant="ghost" onClick={onBack} className="mb-4">
-                     <ArrowLeft className="w-4 h-4 mr-2" />
-                     Retour au menu
-                   </Button>
-                 )}
-                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 text-white mb-4">
-                   <Users className="w-8 h-8" />
-                 </div>
-                 <h1 className="text-4xl font-bold text-gray-900">
-                   IA Business - Génération de Prospects
-                 </h1>
-                <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                  Découvrez nos outils d'intelligence artificielle pour identifier, qualifier et gérer vos prospects B2B de manière automatisée et efficace.
-                </p>
-              </div>
-
-              {/* Statistiques globales */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="border-l-4 border-l-green-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Prospects Générés</p>
-                        <p className="text-3xl font-bold text-gray-900">2,847</p>
-                        <p className="text-sm text-green-600 mt-1">↗ +12% ce mois</p>
-                      </div>
-                      <FileSpreadsheet className="w-10 h-10 text-green-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Taux Qualification</p>
-                        <p className="text-3xl font-bold text-gray-900">78%</p>
-                        <p className="text-sm text-blue-600 mt-1">↗ +5% ce mois</p>
-                      </div>
-                      <Target className="w-10 h-10 text-blue-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-purple-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Entreprises Locales</p>
-                        <p className="text-3xl font-bold text-gray-900">1,234</p>
-                        <p className="text-sm text-purple-600 mt-1">Dans votre zone</p>
-                      </div>
-                      <MapPin className="w-10 h-10 text-purple-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-l-4 border-l-orange-500">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Score IA Moyen</p>
-                        <p className="text-3xl font-bold text-gray-900">8.4/10</p>
-                        <p className="text-sm text-orange-600 mt-1">Très qualifié</p>
-                      </div>
-                      <BarChart3 className="w-10 h-10 text-orange-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Outils de prospection */}
-              <div className="space-y-6">
-                <div className="text-center">
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                    Choisissez votre méthode de prospection
-                  </h2>
-                  <p className="text-gray-600">
-                    Sélectionnez l'outil qui correspond le mieux à vos besoins de génération de prospects
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {workflowOptions.map((option) => {
-                    const IconComponent = option.icon;
-                    return (
-                      <Card 
-                        key={option.id} 
-                        className="relative overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer group"
-                        onClick={() => setCurrentStep(option.id)}
-                      >
-                        <div className={`absolute top-0 right-0 w-32 h-32 ${option.bgColor} rounded-full transform translate-x-16 -translate-y-16 opacity-20`}></div>
-                        
-                        <CardHeader className="relative">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className={`p-3 rounded-lg ${option.bgColor}`}>
-                                <IconComponent className={`w-8 h-8 ${option.color}`} />
-                              </div>
-                              <div>
-                                <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                  {option.title}
-                                </CardTitle>
-                                <Badge className={`mt-1 ${option.statusColor}`}>
-                                  {option.status}
-                                </Badge>
-                              </div>
-                            </div>
-                            <ExternalLink className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
-                          </div>
-                        </CardHeader>
-
-                        <CardContent className="space-y-4">
-                          <p className="text-gray-600 leading-relaxed">
-                            {option.description}
-                          </p>
-
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-gray-900">Fonctionnalités clés :</p>
-                            <div className="grid grid-cols-2 gap-1">
-                              {option.features.map((feature, index) => (
-                                <div key={index} className="flex items-center text-sm text-gray-600">
-                                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></div>
-                                  {feature}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="pt-4 border-t">
-                            <Button 
-                              className="w-full group-hover:bg-blue-600 group-hover:text-white transition-all"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCurrentStep(option.id);
-                              }}
-                            >
-                              <Play className="w-4 h-4 mr-2" />
-                              Commencer
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Section avantages */}
-              <Card className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-                <CardContent className="p-8">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-                    <div>
-                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white bg-opacity-20 mb-4">
-                        <Database className="w-6 h-6" />
-                      </div>
-                      <h3 className="text-xl font-bold mb-2">Base de Données Enrichie</h3>
-                      <p className="text-blue-100">
-                        Accès à une base de données de millions d'entreprises et contacts B2B
-                      </p>
-                    </div>
-                    <div>
-                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white bg-opacity-20 mb-4">
-                        <Target className="w-6 h-6" />
-                      </div>
-                      <h3 className="text-xl font-bold mb-2">Ciblage Précis</h3>
-                      <p className="text-blue-100">
-                        Notre IA analyse et qualifie automatiquement vos prospects pour un ROI optimal
-                      </p>
-                    </div>
-                    <div>
-                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white bg-opacity-20 mb-4">
-                        <BarChart3 className="w-6 h-6" />
-                      </div>
-                      <h3 className="text-xl font-bold mb-2">Analyse Performante</h3>
-                      <p className="text-blue-100">
-                        Tableaux de bord en temps réel pour suivre et optimiser vos campagnes
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        );
+        return <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />;
     }
   };
 
-  return renderCurrentStep();
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              onClick={handleReturnToModules}
+              className="mr-4 hover:bg-white/50"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Retour aux modules
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Workflow B2B Complet
+              </h1>
+              <p className="text-gray-600 mt-1">
+                Processus intégré de recherche et visualisation de prospects
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={handleResetSearch}
+              size="sm"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+            >
+              Réinitialiser
+            </Button>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-yellow-500" />
+              <span className="text-sm text-gray-600">IA Intégrée</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Workflow Steps */}
+        <Card className="mb-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-purple-600" />
+              Étapes du Workflow
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {workflowSteps.map((step, index) => (
+                <div
+                  key={step.id}
+                  className={`p-4 rounded-lg border-2 transition-all cursor-pointer hover:shadow-md ${
+                    step.status === 'active' 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : step.status === 'completed'
+                      ? 'border-green-500 bg-green-50 hover:bg-green-100'
+                      : step.status === 'error'
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-gray-200 bg-gray-50'
+                  }`}
+                  onClick={() => handleStepNavigation(index)}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    {getStepStatusIcon(step)}
+                    <span className="font-medium">{step.title}</span>
+                  </div>
+                  <p className="text-sm text-gray-600">{step.description}</p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <Badge 
+                      variant={step.status === 'completed' ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {step.status === 'completed' ? 'Terminé' : 
+                       step.status === 'active' ? 'En cours' : 
+                       step.status === 'error' ? 'Erreur' : 'En attente'}
+                    </Badge>
+                    {step.status === 'completed' && (
+                      <span className="text-xs text-blue-600 font-medium">Cliquer pour revoir</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Step Content */}
+        {currentStep === 0 && (
+          <SmartB2BSearch
+            onBack={resetWorkflow}
+            onSearch={handleCriteriaSubmit}
+          />
+        )}
+
+        {currentStep === 1 && (
+          <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5 text-blue-600" />
+                Recherche en cours...
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-center p-8">
+                <div className="text-center">
+                  <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+                  <p className="text-lg font-medium">Traitement de votre recherche</p>
+                  <p className="text-gray-600">Envoi des critères au webhook et analyse...</p>
+                </div>
+              </div>
+              
+              {searchCriteria && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                  <h3 className="font-medium mb-2">Critères de recherche :</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {searchCriteria.location && <p><span className="font-medium">Localisation:</span> {searchCriteria.location}</p>}
+                    {searchCriteria.industry.length > 0 && <p><span className="font-medium">Secteur:</span> {searchCriteria.industry.join(', ')}</p>}
+                    {searchCriteria.jobTitle && <p><span className="font-medium">Poste:</span> {searchCriteria.jobTitle}</p>}
+                    {searchCriteria.companySize && <p><span className="font-medium">Taille:</span> {searchCriteria.companySize}</p>}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {currentStep >= 2 && (
+          <div className="space-y-6">
+            {/* Results Summary */}
+            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-green-600" />
+                    Résultats de la recherche
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-green-600">
+                      {searchResults.length} contacts trouvés
+                    </Badge>
+                    <Button onClick={handleExport} size="sm" variant="outline">
+                      <Download className="w-4 h-4 mr-2" />
+                      Exporter CSV
+                    </Button>
+                    {currentStep === 2 && (
+                      <Button onClick={handleViewResults} size="sm">
+                        <Eye className="w-4 h-4 mr-2" />
+                        Visualiser
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {searchError && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-red-800 mb-1">Erreur de recherche</h4>
+                        <p className="text-sm text-red-700 mb-3">{searchError}</p>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => searchCriteria && executeSearch(searchCriteria)}
+                            className="text-red-700 border-red-300 hover:bg-red-100"
+                          >
+                            Réessayer
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setCurrentStep(0)}
+                            className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                          >
+                            Modifier critères
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {searchResults.length === 0 && !searchError && currentStep >= 2 && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-blue-800 mb-1">Aucun résultat trouvé</h4>
+                        <p className="text-sm text-blue-700 mb-3">Votre recherche n'a retourné aucun contact. Essayez d'élargir vos critères.</p>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setCurrentStep(0)}
+                            className="text-blue-700 border-blue-300 hover:bg-blue-100"
+                          >
+                            Modifier la recherche
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="p-4 bg-blue-50 rounded-lg text-center">
+                    <Users className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                    <p className="text-2xl font-bold text-blue-600">{searchResults.length}</p>
+                    <p className="text-sm text-gray-600">Contacts qualifiés</p>
+                  </div>
+                  <div className="p-4 bg-green-50 rounded-lg text-center">
+                    <Building2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                    <p className="text-2xl font-bold text-green-600">{new Set(searchResults.map(c => c.companyName)).size}</p>
+                    <p className="text-sm text-gray-600">Entreprises uniques</p>
+                  </div>
+                  <div className="p-4 bg-purple-50 rounded-lg text-center">
+                    <MapPin className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                    <p className="text-2xl font-bold text-purple-600">{searchResults.filter(c => c.coordinates).length}</p>
+                    <p className="text-sm text-gray-600">Géolocalisés</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+
+            {/* Advanced Results Management */}
+            {currentStep >= 2 && (
+              <B2BResultsManager
+                contacts={searchResults}
+                onExport={handleExport}
+                searchSessionId={`b2b_session_${Date.now()}`}
+              />
+            )}
+
+            {/* Visualization */}
+            {currentStep === 4 && (
+              <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="w-5 h-5 text-purple-600" />
+                      Visualisation des résultats
+                    </CardTitle>
+                    <Tabs value={selectedView} onValueChange={(value) => setSelectedView(value as 'table' | 'map')}>
+                      <TabsList>
+                        <TabsTrigger value="table">Tableau</TabsTrigger>
+                        <TabsTrigger value="map">Carte</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Tabs value={selectedView} className="w-full">
+                    <TabsContent value="table" className="mt-0">
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Contact</TableHead>
+                              <TableHead>Entreprise</TableHead>
+                              <TableHead>Poste</TableHead>
+                              <TableHead>Localisation</TableHead>
+                              <TableHead>Contact</TableHead>
+                              <TableHead>Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {searchResults.map((contact) => (
+                              <TableRow key={contact.id}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{contact.name}</p>
+                                    <p className="text-sm text-gray-600">{contact.industry}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{contact.companyName}</p>
+                                    <Badge variant="outline" className="text-xs">
+                                      {contact.companySize}
+                                    </Badge>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{contact.jobTitle}</TableCell>
+                                <TableCell>{contact.location}</TableCell>
+                                <TableCell>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1 text-sm">
+                                      <Mail className="w-3 h-3" />
+                                      {contact.email}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-sm">
+                                      <Phone className="w-3 h-3" />
+                                      {contact.phone}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Button size="sm" variant="outline" asChild>
+                                      <a href={contact.linkedinUrl} target="_blank" rel="noopener noreferrer">
+                                        <Globe className="w-3 h-3" />
+                                      </a>
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="map" className="mt-0">
+                      <div className="h-[600px] border rounded-lg overflow-hidden">
+                        <GeoLocationMap 
+                          contacts={searchResults}
+                          userLocation={[2.3522, 6.4023]}
+                        />
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-center gap-4">
+              <Button onClick={resetWorkflow} variant="outline">
+                <Filter className="w-4 h-4 mr-2" />
+                Nouvelle recherche
+              </Button>
+              <Button onClick={handleExport} variant="default">
+                <Download className="w-4 h-4 mr-2" />
+                Exporter les données
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
