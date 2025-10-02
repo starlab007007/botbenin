@@ -94,30 +94,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const accessToken = hashParams.get('access_token');
         
         if (accessToken) {
-          console.log('[Auth] OAuth callback detected, waiting for session establishment...');
-          // Attendre un peu pour que Supabase traite le callback OAuth
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log('[Auth] OAuth callback detected with access_token');
+          // Attendre que Supabase traite complètement le callback OAuth
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Forcer une récupération de session après le callback
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.log('[Auth] OAuth session established:', session.user.email);
+            setSession(session);
+            setSupabaseUser(session.user);
+            
+            // Nettoyer l'URL hash pour éviter les problèmes de rechargement
+            window.history.replaceState(null, '', window.location.pathname);
+            
+            setIsLoading(false);
+            return;
+          }
         }
         
-        // Rafraîchir la session pour s'assurer qu'elle est valide
-        const { data: refreshData } = await supabase.auth.refreshSession();
-        if (refreshData.session) {
-          console.log('[Auth] Session refreshed successfully');
-          setSession(refreshData.session);
-          setSupabaseUser(refreshData.session.user);
-        } else {
-          // Si pas de session après refresh, essayer de récupérer la session actuelle
-          const { data: { session } } = await supabase.auth.getSession();
-          console.log('[Auth] Current session:', session ? 'Found' : 'Not found');
-          setSession(session);
-          setSupabaseUser(session?.user ?? null);
-        }
-      } catch (error) {
-        console.error('[Auth] Error initializing auth:', error);
-        // Ne pas effacer la session en cas d'erreur de réseau
+        // Pour les cas normaux (non-OAuth), récupérer la session existante
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Auth] Current session:', session ? session.user.email : 'Not found');
         setSession(session);
         setSupabaseUser(session?.user ?? null);
+      } catch (error) {
+        console.error('[Auth] Error initializing auth:', error);
+        // En cas d'erreur, essayer quand même de récupérer la session
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          setSession(session);
+          setSupabaseUser(session?.user ?? null);
+        } catch (fallbackError) {
+          console.error('[Auth] Fallback session retrieval failed:', fallbackError);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -154,10 +164,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             chatHistory: []
           };
           setUser(authUser);
-          console.log('[Auth] User authenticated:', authUser.email);
+          console.log('[Auth] User authenticated:', authUser.email, 'Event:', event);
 
-          // Créer bot_owner pour les nouveaux utilisateurs Google
-          if (event === 'SIGNED_IN') {
+          // Créer bot_owner et envoyer notification pour les nouveaux connexions
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
             try {
               const { data: ownerId, error: ownerError } = await supabase
                 .rpc('get_or_create_bot_owner', { user_uuid: session.user.id });
