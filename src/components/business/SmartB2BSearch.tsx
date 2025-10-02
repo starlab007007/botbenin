@@ -26,7 +26,8 @@ import {
   X,
   Plus,
   Globe,
-  Star
+  Star,
+  Phone
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -36,25 +37,40 @@ interface SmartSearchFilters {
   locationCoordinates?: { lat: number; lng: number };
   radius: number;
   useGPS: boolean;
+  country: string;
+  city: string;
   
   // Entreprise
   companyName: string;
   industry: string[];
   companySize: string;
+  employeeCount: string;
+  annualRevenue: string;
+  foundedYear: string;
+  companyType: string;
+  certifications: string[];
   
   // Contact
   jobTitle: string;
   seniority: string;
   department: string;
+  contactLanguage: string[];
+  decisionMaker: boolean;
+  emailPattern: string;
+  phoneRequired: boolean;
   
   // Recherche avancée
   keywords: string[];
   description: string;
+  excludeKeywords: string[];
+  budget: string;
+  urgency: string;
   
   // IA Préférences
   aiSuggestions: boolean;
   prioritizeLocal: boolean;
   qualityScore: number;
+  verifiedOnly: boolean;
 }
 
 interface SmartB2BSearchProps {
@@ -82,10 +98,44 @@ const JOB_TITLES = [
 ];
 
 const SENIORITY_LEVELS = [
-  { value: 'junior', label: 'Junior (0-2 ans)', color: 'bg-green-100 text-green-700' },
-  { value: 'mid', label: 'Confirmé (3-7 ans)', color: 'bg-blue-100 text-blue-700' },
-  { value: 'senior', label: 'Senior (8+ ans)', color: 'bg-purple-100 text-purple-700' },
-  { value: 'executive', label: 'Direction', color: 'bg-orange-100 text-orange-700' }
+  { value: 'junior', label: 'Junior (0-2 ans)', color: 'bg-green-100 text-green-700', icon: '🌱' },
+  { value: 'mid', label: 'Confirmé (3-7 ans)', color: 'bg-blue-100 text-blue-700', icon: '⭐' },
+  { value: 'senior', label: 'Senior (8+ ans)', color: 'bg-purple-100 text-purple-700', icon: '🏆' },
+  { value: 'executive', label: 'Direction', color: 'bg-orange-100 text-orange-700', icon: '👔' }
+];
+
+const DEPARTMENTS = [
+  { value: 'commercial', label: 'Commercial & Ventes', icon: '💼' },
+  { value: 'marketing', label: 'Marketing', icon: '📢' },
+  { value: 'tech', label: 'Technique & IT', icon: '💻' },
+  { value: 'finance', label: 'Finance', icon: '💰' },
+  { value: 'rh', label: 'Ressources Humaines', icon: '👥' },
+  { value: 'operations', label: 'Opérations', icon: '⚙️' },
+  { value: 'direction', label: 'Direction Générale', icon: '🎯' },
+  { value: 'legal', label: 'Juridique', icon: '⚖️' }
+];
+
+const LANGUAGES = [
+  { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  { value: 'en', label: 'Anglais', flag: '🇬🇧' },
+  { value: 'es', label: 'Espagnol', flag: '🇪🇸' },
+  { value: 'de', label: 'Allemand', flag: '🇩🇪' },
+  { value: 'pt', label: 'Portugais', flag: '🇵🇹' },
+  { value: 'ar', label: 'Arabe', flag: '🇸🇦' }
+];
+
+const COMPANY_TYPES = [
+  { value: 'sarl', label: 'SARL' },
+  { value: 'sa', label: 'SA' },
+  { value: 'sas', label: 'SAS' },
+  { value: 'startup', label: 'Startup' },
+  { value: 'association', label: 'Association' },
+  { value: 'public', label: 'Secteur public' }
+];
+
+const CERTIFICATIONS = [
+  'ISO 9001', 'ISO 14001', 'ISO 27001', 'OHSAS 18001',
+  'Qualité certifiée', 'Label RSE', 'Entreprise innovante'
 ];
 
 export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch }) => {
@@ -94,20 +144,36 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
     locationCoordinates: undefined,
     radius: 25,
     useGPS: false,
+    country: '',
+    city: '',
     companyName: '',
     industry: [],
     companySize: '',
+    employeeCount: '',
+    annualRevenue: '',
+    foundedYear: '',
+    companyType: '',
+    certifications: [],
     jobTitle: '',
     seniority: '',
     department: '',
+    contactLanguage: [],
+    decisionMaker: false,
+    emailPattern: '',
+    phoneRequired: false,
     keywords: [],
     description: '',
+    excludeKeywords: [],
+    budget: '',
+    urgency: 'medium',
     aiSuggestions: true,
     prioritizeLocal: true,
-    qualityScore: 7
+    qualityScore: 7,
+    verifiedOnly: false
   });
 
   const [currentKeyword, setCurrentKeyword] = useState('');
+  const [currentExcludeKeyword, setCurrentExcludeKeyword] = useState('');
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [userLocation, setUserLocation] = useState<string>('');
   const { toast } = useToast();
@@ -247,6 +313,41 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
     }));
   };
 
+  const handleAddExcludeKeyword = () => {
+    if (currentExcludeKeyword.trim() && !filters.excludeKeywords.includes(currentExcludeKeyword.trim())) {
+      setFilters(prev => ({
+        ...prev,
+        excludeKeywords: [...prev.excludeKeywords, currentExcludeKeyword.trim()]
+      }));
+      setCurrentExcludeKeyword('');
+    }
+  };
+
+  const handleRemoveExcludeKeyword = (keyword: string) => {
+    setFilters(prev => ({
+      ...prev,
+      excludeKeywords: prev.excludeKeywords.filter(k => k !== keyword)
+    }));
+  };
+
+  const handleLanguageToggle = (language: string) => {
+    setFilters(prev => ({
+      ...prev,
+      contactLanguage: prev.contactLanguage.includes(language)
+        ? prev.contactLanguage.filter(l => l !== language)
+        : [...prev.contactLanguage, language]
+    }));
+  };
+
+  const handleCertificationToggle = (cert: string) => {
+    setFilters(prev => ({
+      ...prev,
+      certifications: prev.certifications.includes(cert)
+        ? prev.certifications.filter(c => c !== cert)
+        : [...prev.certifications, cert]
+    }));
+  };
+
   const handleAISuggestionClick = (suggestion: string) => {
     if (!filters.keywords.includes(suggestion)) {
       setFilters(prev => ({
@@ -292,19 +393,35 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
       locationCoordinates: undefined,
       radius: 25,
       useGPS: false,
+      country: '',
+      city: '',
       companyName: '',
       industry: [],
       companySize: '',
+      employeeCount: '',
+      annualRevenue: '',
+      foundedYear: '',
+      companyType: '',
+      certifications: [],
       jobTitle: '',
       seniority: '',
       department: '',
+      contactLanguage: [],
+      decisionMaker: false,
+      emailPattern: '',
+      phoneRequired: false,
       keywords: [],
       description: '',
+      excludeKeywords: [],
+      budget: '',
+      urgency: 'medium',
       aiSuggestions: true,
       prioritizeLocal: true,
-      qualityScore: 7
+      qualityScore: 7,
+      verifiedOnly: false
     });
     setCurrentKeyword('');
+    setCurrentExcludeKeyword('');
     setAiSuggestions([]);
   };
 
@@ -380,24 +497,47 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                 </div>
 
                 {!filters.useGPS && (
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Ville, région ou pays</Label>
-                    <AddressAutocomplete
-                      value={filters.location}
-                      onChange={(address, coordinates) => {
-                        setFilters(prev => ({
-                          ...prev,
-                          location: address,
-                          locationCoordinates: coordinates
-                        }));
-                      }}
-                      placeholder="Ex: Paris, Cotonou, Bordeaux..."
-                      className="text-lg"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      🔍 Saisissez au moins 3 caractères pour voir les suggestions d'adresses
-                    </p>
-                  </div>
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="country">Pays</Label>
+                        <Input
+                          id="country"
+                          placeholder="Ex: France, Bénin..."
+                          value={filters.country}
+                          onChange={(e) => setFilters(prev => ({ ...prev, country: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="city">Ville</Label>
+                        <Input
+                          id="city"
+                          placeholder="Ex: Paris, Cotonou..."
+                          value={filters.city}
+                          onChange={(e) => setFilters(prev => ({ ...prev, city: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Adresse complète (optionnel)</Label>
+                      <AddressAutocomplete
+                        value={filters.location}
+                        onChange={(address, coordinates) => {
+                          setFilters(prev => ({
+                            ...prev,
+                            location: address,
+                            locationCoordinates: coordinates
+                          }));
+                        }}
+                        placeholder="Ex: 123 Avenue des Champs-Élysées, Paris..."
+                        className="text-lg"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        🔍 Saisissez au moins 3 caractères pour voir les suggestions d'adresses
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 {userLocation && filters.useGPS && (
@@ -422,6 +562,18 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                     <span>National (100km)</span>
                   </div>
                 </div>
+
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-blue-600" />
+                    Conseils de recherche géographique
+                  </h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• Indiquez le pays et la ville pour des résultats plus précis</li>
+                    <li>• Utilisez le GPS pour un ciblage ultra-local</li>
+                    <li>• Ajustez le rayon selon votre zone de prospection</li>
+                  </ul>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -444,6 +596,7 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                     value={filters.companyName}
                     onChange={(e) => setFilters(prev => ({ ...prev, companyName: e.target.value }))}
                   />
+                  <p className="text-xs text-gray-500">Laissez vide pour une recherche large</p>
                 </div>
 
                 <div className="space-y-3">
@@ -485,6 +638,84 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                       </Card>
                     ))}
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="employeeCount">Nombre d'employés (optionnel)</Label>
+                    <Select value={filters.employeeCount} onValueChange={(value) => setFilters(prev => ({ ...prev, employeeCount: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1-10">1-10 employés</SelectItem>
+                        <SelectItem value="11-50">11-50 employés</SelectItem>
+                        <SelectItem value="51-200">51-200 employés</SelectItem>
+                        <SelectItem value="201-500">201-500 employés</SelectItem>
+                        <SelectItem value="500+">500+ employés</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="annualRevenue">Chiffre d'affaires annuel</Label>
+                    <Select value={filters.annualRevenue} onValueChange={(value) => setFilters(prev => ({ ...prev, annualRevenue: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0-100k">0-100K €</SelectItem>
+                        <SelectItem value="100k-500k">100K-500K €</SelectItem>
+                        <SelectItem value="500k-1m">500K-1M €</SelectItem>
+                        <SelectItem value="1m-5m">1M-5M €</SelectItem>
+                        <SelectItem value="5m+">5M+ €</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="foundedYear">Année de création</Label>
+                    <Input
+                      id="foundedYear"
+                      type="number"
+                      placeholder="Ex: 2020"
+                      value={filters.foundedYear}
+                      onChange={(e) => setFilters(prev => ({ ...prev, foundedYear: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="companyType">Type d'entreprise</Label>
+                    <Select value={filters.companyType} onValueChange={(value) => setFilters(prev => ({ ...prev, companyType: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COMPANY_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label>Certifications & Labels (optionnel)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {CERTIFICATIONS.map((cert) => (
+                      <Badge
+                        key={cert}
+                        variant={filters.certifications.includes(cert) ? "default" : "outline"}
+                        className="cursor-pointer transition-all hover:scale-105"
+                        onClick={() => handleCertificationToggle(cert)}
+                      >
+                        {cert}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500">Sélectionnez les certifications importantes pour vous</p>
                 </div>
               </CardContent>
             </Card>
@@ -535,7 +766,7 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                           seniority: prev.seniority === level.value ? '' : level.value 
                         }))}
                       >
-                        <Award className="w-4 h-4 mr-1" />
+                        <span className="text-lg mr-2">{level.icon}</span>
                         {level.label}
                       </Badge>
                     ))}
@@ -549,14 +780,72 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                       <SelectValue placeholder="Département cible" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="commercial">Commercial & Ventes</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="tech">Technique & IT</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="rh">Ressources Humaines</SelectItem>
-                      <SelectItem value="operations">Opérations</SelectItem>
+                      {DEPARTMENTS.map((dept) => (
+                        <SelectItem key={dept.value} value={dept.value}>
+                          <span className="mr-2">{dept.icon}</span>
+                          {dept.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label>Langue de communication préférée</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {LANGUAGES.map((lang) => (
+                      <Badge
+                        key={lang.value}
+                        variant={filters.contactLanguage.includes(lang.value) ? "default" : "outline"}
+                        className="cursor-pointer text-center py-2 transition-all hover:scale-105"
+                        onClick={() => handleLanguageToggle(lang.value)}
+                      >
+                        <span className="mr-1">{lang.flag}</span>
+                        {lang.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="flex items-center gap-3">
+                      <Target className="w-5 h-5 text-purple-600" />
+                      <div>
+                        <p className="font-medium">Décideur uniquement</p>
+                        <p className="text-sm text-gray-600">Limiter aux personnes ayant un pouvoir de décision</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={filters.decisionMaker}
+                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, decisionMaker: checked }))}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <p className="font-medium">Téléphone requis</p>
+                        <p className="text-sm text-gray-600">Uniquement les contacts avec numéro de téléphone</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={filters.phoneRequired}
+                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, phoneRequired: checked }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="emailPattern">Format d'email préféré (optionnel)</Label>
+                  <Input
+                    id="emailPattern"
+                    placeholder="Ex: prenom.nom@entreprise.com"
+                    value={filters.emailPattern}
+                    onChange={(e) => setFilters(prev => ({ ...prev, emailPattern: e.target.value }))}
+                  />
+                  <p className="text-xs text-gray-500">Exemple de format d'email que vous recherchez</p>
                 </div>
               </CardContent>
             </Card>
@@ -573,7 +862,7 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
-                  <Label>Mots-clés stratégiques</Label>
+                  <Label>Mots-clés stratégiques (à inclure)</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="Ajoutez un mot-clé..."
@@ -626,6 +915,40 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                   )}
                 </div>
 
+                <div className="space-y-3">
+                  <Label>Mots-clés à exclure (optionnel)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Excluez des mots-clés..."
+                      value={currentExcludeKeyword}
+                      onChange={(e) => setCurrentExcludeKeyword(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddExcludeKeyword()}
+                    />
+                    <Button onClick={handleAddExcludeKeyword} size="sm" variant="destructive">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
+                  {filters.excludeKeywords.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {filters.excludeKeywords.map((keyword) => (
+                        <Badge key={keyword} variant="destructive" className="pr-1">
+                          {keyword}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto p-1 ml-1"
+                            onClick={() => handleRemoveExcludeKeyword(keyword)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500">Les prospects contenant ces termes seront exclus</p>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="description">Description libre de votre recherche</Label>
                   <Textarea
@@ -635,6 +958,38 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                     onChange={(e) => setFilters(prev => ({ ...prev, description: e.target.value }))}
                     className="min-h-[100px]"
                   />
+                  <p className="text-xs text-gray-500">Utilisez vos propres mots pour décrire votre cible idéale</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="budget">Budget estimé du prospect</Label>
+                    <Select value={filters.budget} onValueChange={(value) => setFilters(prev => ({ ...prev, budget: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Petit budget (&lt;10K €)</SelectItem>
+                        <SelectItem value="medium">Budget moyen (10K-50K €)</SelectItem>
+                        <SelectItem value="large">Gros budget (50K-200K €)</SelectItem>
+                        <SelectItem value="enterprise">Budget entreprise (200K+ €)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="urgency">Niveau d'urgence</Label>
+                    <Select value={filters.urgency} onValueChange={(value) => setFilters(prev => ({ ...prev, urgency: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Faible - Prospection longue</SelectItem>
+                        <SelectItem value="medium">Moyen - Standard</SelectItem>
+                        <SelectItem value="high">Élevé - Besoin immédiat</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="space-y-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
@@ -653,17 +1008,46 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                     step={1}
                     className="w-full"
                   />
+                  <p className="text-xs text-gray-500">Plus le score est élevé, plus les résultats seront filtrés</p>
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
-                  <div>
-                    <p className="font-medium">Prioriser les prospects locaux</p>
-                    <p className="text-sm text-gray-600">Favorise les résultats proche de votre zone</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div>
+                      <p className="font-medium">Prioriser les prospects locaux</p>
+                      <p className="text-sm text-gray-600">Favorise les résultats proche de votre zone</p>
+                    </div>
+                    <Switch
+                      checked={filters.prioritizeLocal}
+                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, prioritizeLocal: checked }))}
+                    />
                   </div>
-                  <Switch
-                    checked={filters.prioritizeLocal}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, prioritizeLocal: checked }))}
-                  />
+
+                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-green-600">Premium</Badge>
+                      <div>
+                        <p className="font-medium">Contacts vérifiés uniquement</p>
+                        <p className="text-sm text-gray-600">Données validées et à jour</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={filters.verifiedOnly}
+                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, verifiedOnly: checked }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-orange-600" />
+                    Optimisation IA activée
+                  </h4>
+                  <ul className="text-sm text-gray-600 space-y-1">
+                    <li>• L'IA analysera vos critères pour suggérer des prospects pertinents</li>
+                    <li>• Les résultats seront triés par pertinence automatiquement</li>
+                    <li>• Les doublons et contacts invalides seront filtrés</li>
+                  </ul>
                 </div>
               </CardContent>
             </Card>
