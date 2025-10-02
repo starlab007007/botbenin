@@ -85,12 +85,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const runAuthInit = async () => {
-      // Si déjà connecté => pas de mode guest
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      try {
+        // Nettoyer les sessions corrompues en cache
+        await supabase.auth.refreshSession();
+        
+        const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setSupabaseUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        // Nettoyer complètement en cas d'erreur
+        await supabase.auth.signOut();
+        setSession(null);
+        setSupabaseUser(null);
+      } finally {
         setIsLoading(false);
-      });
+      }
     };
     runAuthInit();
     
@@ -251,22 +261,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.user) {
         // Étape 2: Créer manuellement le bot_owner (méthode additive)
         try {
-          // Vérifier si le bot_owner existe déjà
-          const { data: existingOwner } = await supabase
-            .from('bot_owners')
-            .select('id')
-            .eq('user_id', data.user.id)
-            .maybeSingle();
+          // Utiliser la fonction RPC qui gère automatiquement les conflits
+          const { data: ownerId, error: ownerError } = await supabase
+            .rpc('get_or_create_bot_owner', { user_uuid: data.user.id });
           
-          // Créer uniquement s'il n'existe pas
-          if (!existingOwner) {
-            await supabase
-              .from('bot_owners')
-              .insert({
-                user_id: data.user.id,
-                subscription_plan: 'free',
-                max_bots: 5
-              });
+          if (ownerError) {
+            console.error('Bot owner creation error (non-blocking):', ownerError);
+          } else {
+            console.log('Bot owner créé/récupéré avec succès:', ownerId);
           }
         } catch (ownerError) {
           console.error('Bot owner creation error (non-blocking):', ownerError);
