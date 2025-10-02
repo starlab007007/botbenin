@@ -85,22 +85,67 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { toast } = useToast();
 
   useEffect(() => {
-    let mounted = true;
-    console.log('[Auth] Setting up authentication...');
-
-    // ÉTAPE 1: Configurer le listener AVANT toute initialisation
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-
-        console.log('[Auth] Auth state change:', event, session?.user?.email || 'No user');
+    const runAuthInit = async () => {
+      try {
+        console.log('[Auth] Initializing auth session...');
+        
+        // Vérifier d'abord s'il y a un hash OAuth dans l'URL (retour de Google)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        
+        if (accessToken) {
+          console.log('[Auth] OAuth callback detected with access_token');
+          // Attendre que Supabase traite complètement le callback OAuth
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Forcer une récupération de session après le callback
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.log('[Auth] OAuth session established:', session.user.email);
+            setSession(session);
+            setSupabaseUser(session.user);
+            
+            // Nettoyer l'URL hash pour éviter les problèmes de rechargement
+            window.history.replaceState(null, '', window.location.pathname);
+            
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // Pour les cas normaux (non-OAuth), récupérer la session existante
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[Auth] Current session:', session ? session.user.email : 'Not found');
         setSession(session);
         setSupabaseUser(session?.user ?? null);
-
+      } catch (error) {
+        console.error('[Auth] Error initializing auth:', error);
+        // En cas d'erreur, essayer quand même de récupérer la session
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          setSession(session);
+          setSupabaseUser(session?.user ?? null);
+        } catch (fallbackError) {
+          console.error('[Auth] Fallback session retrieval failed:', fallbackError);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    runAuthInit();
+    
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('[Auth] Auth state changed:', event, session ? 'Session active' : 'No session');
+        
+        setSession(session);
+        setSupabaseUser(session?.user ?? null);
+        
         if (session?.user) {
           setIsGuest(false);
           setGuestUser(null);
-
+          
           // Create AuthUser from Supabase user with Google info
           const authUser: AuthUser = {
             id: session.user.id,
@@ -119,81 +164,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             chatHistory: []
           };
           setUser(authUser);
-          console.log('[Auth] User state updated:', authUser.email);
+          console.log('[Auth] User authenticated:', authUser.email, 'Event:', event);
 
-          // UNIQUEMENT envoyer notification sur SIGNED_IN (nouvelle connexion)
-          if (event === 'SIGNED_IN') {
-            console.log('[Auth] New sign-in detected, creating bot owner and sending notification...');
-            
-            // Utiliser setTimeout pour éviter le deadlock Supabase
-            setTimeout(async () => {
-              try {
-                const { data: ownerId, error: ownerError } = await supabase
-                  .rpc('get_or_create_bot_owner', { user_uuid: session.user.id });
-
-                if (ownerError) throw ownerError;
-                console.log('[Auth] Bot owner created/verified:', ownerId);
-
-                // Envoyer une notification de connexion
-                const { error: notificationError } = await supabase.functions.invoke(
-                  'send-login-notification',
-                  {
-                    body: {
-                      email: session.user.email,
-                      name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
-                      provider: session.user.app_metadata?.provider || 'google',
-                      loginTime: new Date().toISOString(),
-                      ipAddress: session.user.user_metadata?.ip_address,
-                      userAgent: navigator.userAgent
-                    }
-                  }
-                );
-
-                if (notificationError) {
-                  console.error('[Auth] Error sending login notification:', notificationError);
-                } else {
-                  console.log('[Auth] Login notification sent successfully');
-                }
-              } catch (error) {
-                console.error('[Auth] Error in post-signin operations:', error);
+          // Créer bot_owner et envoyer notification pour les nouveaux connexions
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            try {
+              const { data: ownerId, error: ownerError } = await supabase
+                .rpc('get_or_create_bot_owner', { user_uuid: session.user.id });
+              
+              if (ownerError) {
+                console.error('[Auth] Bot owner creation error:', ownerError);
+              } else {
+                console.log('[Auth] Bot owner ready:', ownerId);
               }
-            }, 0);
+            } catch (ownerError) {
+              console.error('[Auth] Bot owner creation exception:', ownerError);
+            }
+
+            // Envoyer notification email
+            const provider = session.user.app_metadata?.provider || 'email';
+            
+            try {
+              await supabase.functions.invoke('send-login-notification', {
+                body: {
+                  email: session.user.email,
+                  name: authUser.name,
+                  provider: provider,
+                  loginTime: new Date().toISOString(),
+                  userAgent: navigator.userAgent
+                }
+              });
+              
+              console.log('[Auth] Login notification sent');
+            } catch (error) {
+              console.error('[Auth] Failed to send login notification:', error);
+            }
           }
         } else {
+          console.log('[Auth] User logged out or no session');
           setUser(null);
-          console.log('[Auth] User signed out');
         }
+        setIsLoading(false);
       }
     );
 
-    // ÉTAPE 2: Initialiser la session APRÈS avoir configuré le listener
-    const initializeAuth = async () => {
-      try {
-        console.log('[Auth] Checking for existing session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('[Auth] Error getting session:', error);
-        } else if (session) {
-          console.log('[Auth] Existing session found:', session.user.email);
-          // Le listener onAuthStateChange se chargera de mettre à jour l'état
-        } else {
-          console.log('[Auth] No existing session');
-        }
-      } catch (error) {
-        console.error('[Auth] Error initializing auth:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      console.log('[Auth] Cleanup: unsubscribed from auth changes');
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {

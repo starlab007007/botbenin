@@ -21,7 +21,7 @@ import { useNavigate } from 'react-router-dom';
 
 export const ProspectPreparationPage = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   
   // Configuration Google Sheets - utilise le sheet fourni par l'utilisateur
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
@@ -31,23 +31,8 @@ export const ProspectPreparationPage = () => {
   const [showConfig, setShowConfig] = useState(false);
   const [showGoogleDocManager, setShowGoogleDocManager] = useState(false);
 
-  // Afficher un loader pendant la vérification d'authentification
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm max-w-md mx-auto">
-          <CardContent className="p-8 text-center">
-            <div className="w-12 h-12 mx-auto mb-4 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-600">Vérification de l'authentification...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Redirection si non authentifié - APRÈS vérification du loading
+  // Redirection si non authentifié - APRÈS tous les hooks
   if (!isAuthenticated) {
-    console.log('[ProspectPreparation] User not authenticated, redirecting to auth page');
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
         <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm max-w-md mx-auto">
@@ -63,8 +48,6 @@ export const ProspectPreparationPage = () => {
       </div>
     );
   }
-
-  console.log('[ProspectPreparation] User authenticated:', user?.email);
 
   const openGoogleSheet = () => {
     const url = `https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/edit`;

@@ -8,26 +8,18 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 const Index = () => {
   const [showChat, setShowChat] = useState(false);
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   // Rediriger vers l'app si l'utilisateur est connecté
   useEffect(() => {
-    // Vérifier à la fois isAuthenticated ET user pour s'assurer que l'état est stable
-    if (isAuthenticated && user && !showChat) {
-      console.log('[Index] User authenticated:', user.email, '- Preparing redirect to /prospect-preparation');
-      console.log('[Index] Auth state:', { isAuthenticated, hasUser: !!user, userId: user.id });
-      
-      // Délai suffisant pour permettre la propagation complète de la session
-      const redirectTimer = setTimeout(() => {
-        console.log('[Index] Executing redirect now...');
-        navigate('/prospect-preparation', { replace: true });
-      }, 500);
-      
-      return () => clearTimeout(redirectTimer);
+    if (isAuthenticated && !showChat) {
+      console.log('[Index] User authenticated, redirecting to /prospect-preparation');
+      // Redirection immédiate sans délai pour OAuth
+      navigate('/prospect-preparation', { replace: true });
     }
-  }, [isAuthenticated, user, navigate, showChat]);
+  }, [isAuthenticated, navigate, showChat]);
 
   const handleStartChat = () => {
     if (isAuthenticated) {

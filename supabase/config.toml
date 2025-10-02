@@ -114,6 +114,3 @@ verify_jwt = false
 
 [functions.generate-commercial-offer]
 verify_jwt = false
-
-[functions.send-login-notification]
-verify_jwt = false
