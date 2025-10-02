@@ -42,7 +42,6 @@ interface AuthContextType {
   disableGuestMode: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
-  loginWithGoogle: () => Promise<boolean>;
   register: (userData: {
     name: string;
     email: string;
@@ -86,126 +85,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const runAuthInit = async () => {
-      try {
-        console.log('[Auth] Initializing auth session...');
-        
-        // Vérifier d'abord s'il y a un hash OAuth dans l'URL (retour de Google)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        
-        if (accessToken) {
-          console.log('[Auth] OAuth callback detected with access_token');
-          // Attendre que Supabase traite complètement le callback OAuth
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Forcer une récupération de session après le callback
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            console.log('[Auth] OAuth session established:', session.user.email);
-            setSession(session);
-            setSupabaseUser(session.user);
-            
-            // Créer immédiatement l'AuthUser pour forcer l'état connecté
-            const authUser: AuthUser = {
-              id: session.user.id,
-              name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Utilisateur',
-              email: session.user.email || '',
-              avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
-              role: 'user',
-              permissions: rolePermissions.user,
-              status: 'active',
-              createdAt: new Date(session.user.created_at),
-              lastLogin: new Date(),
-              subscription: {
-                type: 'free',
-                status: 'active'
-              },
-              chatHistory: []
-            };
-            setUser(authUser);
-            setIsGuest(false);
-            setGuestUser(null);
-            
-            console.log('[Auth] User fully authenticated after OAuth:', authUser.email);
-            
-            // Créer ou récupérer bot_owner
-            try {
-              const { data: ownerId, error: ownerError } = await supabase
-                .rpc('get_or_create_bot_owner', { user_uuid: session.user.id });
-              
-              if (ownerError) {
-                console.error('[Auth] Bot owner creation error:', ownerError);
-              } else {
-                console.log('[Auth] Bot owner ready:', ownerId);
-              }
-            } catch (ownerError) {
-              console.error('[Auth] Bot owner creation exception:', ownerError);
-            }
-            
-            // Envoyer notification email
-            try {
-              await supabase.functions.invoke('send-login-notification', {
-                body: {
-                  email: session.user.email,
-                  name: authUser.name,
-                  provider: 'google',
-                  loginTime: new Date().toISOString(),
-                  userAgent: navigator.userAgent
-                }
-              });
-              console.log('[Auth] Login notification sent');
-            } catch (error) {
-              console.error('[Auth] Failed to send login notification:', error);
-            }
-            
-            // Nettoyer l'URL hash pour éviter les problèmes de rechargement
-            window.history.replaceState(null, '', window.location.pathname);
-            
-            setIsLoading(false);
-            return;
-          }
-        }
-        
-        // Pour les cas normaux (non-OAuth), récupérer la session existante
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('[Auth] Current session:', session ? session.user.email : 'Not found');
+      // Si déjà connecté => pas de mode guest
+      supabase.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
         setSupabaseUser(session?.user ?? null);
-      } catch (error) {
-        console.error('[Auth] Error initializing auth:', error);
-        // En cas d'erreur, essayer quand même de récupérer la session
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          setSession(session);
-          setSupabaseUser(session?.user ?? null);
-        } catch (fallbackError) {
-          console.error('[Auth] Fallback session retrieval failed:', fallbackError);
-        }
-      } finally {
         setIsLoading(false);
-      }
+      });
     };
     runAuthInit();
     
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('[Auth] Auth state changed:', event, session ? 'Session active' : 'No session');
-        
+      (event, session) => {
         setSession(session);
         setSupabaseUser(session?.user ?? null);
-        
         if (session?.user) {
           setIsGuest(false);
           setGuestUser(null);
-          
-          // Create AuthUser from Supabase user with Google info
+          // Create AuthUser from Supabase user
           const authUser: AuthUser = {
             id: session.user.id,
-            name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Utilisateur',
+            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
             email: session.user.email || '',
-            avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture,
-            role: 'user',
+            role: 'user', // Default role
             permissions: rolePermissions.user,
             status: 'active',
             createdAt: new Date(session.user.created_at),
@@ -217,45 +119,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             chatHistory: []
           };
           setUser(authUser);
-          console.log('[Auth] User authenticated:', authUser.email, 'Event:', event);
-
-          // Créer bot_owner et envoyer notification pour les nouveaux connexions
-          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-            try {
-              const { data: ownerId, error: ownerError } = await supabase
-                .rpc('get_or_create_bot_owner', { user_uuid: session.user.id });
-              
-              if (ownerError) {
-                console.error('[Auth] Bot owner creation error:', ownerError);
-              } else {
-                console.log('[Auth] Bot owner ready:', ownerId);
-              }
-            } catch (ownerError) {
-              console.error('[Auth] Bot owner creation exception:', ownerError);
-            }
-
-            // Envoyer notification email
-            const provider = session.user.app_metadata?.provider || 'email';
-            
-            try {
-              await supabase.functions.invoke('send-login-notification', {
-                body: {
-                  email: session.user.email,
-                  name: authUser.name,
-                  provider: provider,
-                  loginTime: new Date().toISOString(),
-                  userAgent: navigator.userAgent
-                }
-              });
-              
-              console.log('[Auth] Login notification sent');
-            } catch (error) {
-              console.error('[Auth] Failed to send login notification:', error);
-            }
-          }
         } else {
-          console.log('[Auth] User logged out or no session');
-          setUser(null);
+          // Pas de session : conserver l'état guest si configuré
         }
         setIsLoading(false);
       }
@@ -308,49 +173,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return login(phone, password);
   };
 
-  const loginWithGoogle = async (): Promise<boolean> => {
-    setIsLoading(true);
-    
-    try {
-      console.log('[Auth] Starting Google OAuth...');
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
-      });
-
-      if (error) {
-        console.error('[Auth] Google OAuth error:', error);
-        toast({
-          title: "Erreur de connexion Google",
-          description: error.message,
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return false;
-      }
-
-      console.log('[Auth] Google OAuth redirect initiated');
-      // OAuth redirect - ne pas désactiver loading ici car l'utilisateur sera redirigé
-      return true;
-    } catch (error) {
-      console.error('[Auth] Google OAuth exception:', error);
-      toast({
-        title: "Erreur de connexion Google",
-        description: "Une erreur est survenue",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return false;
-    }
-  };
-
   const register = async (userData: {
     name: string;
     email: string;
@@ -360,61 +182,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     
     try {
-      // Vérifier que le client Supabase est configuré
-      console.log('[Auth] Starting registration for:', userData.email);
-      
-      // Étape 1: Inscription Supabase avec retry
-      let data, error;
-      let retryCount = 0;
-      const maxRetries = 2;
-      
-      while (retryCount <= maxRetries) {
-        const result = await supabase.auth.signUp({
-          email: userData.email,
-          password: userData.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              full_name: userData.name,
-              phone: userData.phone
-            }
-          }
-        });
-        
-        data = result.data;
-        error = result.error;
-        
-        // Si pas d'erreur d'API key, sortir de la boucle
-        if (!error || !error.message?.includes('API key')) {
-          break;
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            full_name: userData.name,
+            phone: userData.phone,
+          },
+          emailRedirectTo: `${window.location.origin}/`
         }
-        
-        retryCount++;
-        console.warn(`[Auth] API key error, retry ${retryCount}/${maxRetries}`);
-        
-        // Attendre un peu avant de réessayer
-        if (retryCount <= maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
+      });
 
       if (error) {
-        console.error('[Auth] Signup error:', error);
-        
+        // Gérer les erreurs spécifiques d'inscription
         let errorMessage = error.message;
         
-        if (error.message?.includes('API key')) {
-          errorMessage = "Problème de configuration. Veuillez vider le cache de votre navigateur (Ctrl+Shift+R) et réessayer.";
-        } else if (error.message?.includes('already registered') || error.message?.includes('duplicate')) {
+        if (error.message?.includes('User already registered')) {
           errorMessage = "Un compte existe déjà avec cette adresse email";
-        } else if (error.message?.includes('Password')) {
+        } else if (error.message?.includes('Password should be at least')) {
           errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
         } else if (error.message?.includes('Email not confirmed')) {
           errorMessage = "Veuillez vérifier votre email et cliquer sur le lien de confirmation";
         } else if (error.message?.includes('Invalid email')) {
           errorMessage = "Adresse email invalide";
-        } else if (error.status === 500) {
-          errorMessage = "Erreur serveur. Veuillez réessayer dans quelques instants.";
         }
         
         toast({
@@ -427,34 +218,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
-        // Étape 2: Créer manuellement le bot_owner (méthode additive)
-        try {
-          // Utiliser la fonction RPC qui gère automatiquement les conflits
-          const { data: ownerId, error: ownerError } = await supabase
-            .rpc('get_or_create_bot_owner', { user_uuid: data.user.id });
-          
-          if (ownerError) {
-            console.error('Bot owner creation error (non-blocking):', ownerError);
-          } else {
-            console.log('Bot owner créé/récupéré avec succès:', ownerId);
-          }
-        } catch (ownerError) {
-          console.error('Bot owner creation error (non-blocking):', ownerError);
-          // Ne pas bloquer l'inscription même si la création du bot_owner échoue
-        }
+        // Vérifier si l'email a été confirmé automatiquement
+        const isConfirmed = data.user.email_confirmed_at !== null;
         
         toast({
           title: "Compte créé avec succès",
-          description: "Vérifiez votre email pour confirmer votre compte.",
+          description: isConfirmed 
+            ? "Votre compte est prêt à utiliser !" 
+            : "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
         });
         setIsLoading(false);
         return true;
       }
-    } catch (error: any) {
-      console.error('Registration exception:', error);
+    } catch (error) {
+      console.error('Registration error:', error);
       toast({
         title: "Erreur d'inscription",
-        description: error?.message || "Une erreur est survenue lors de la création du compte",
+        description: "Une erreur est survenue lors de la création du compte",
         variant: "destructive",
       });
     }
@@ -618,7 +398,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setSession(null);
     setIsLoading(false);
   };
-  
   const disableGuestMode = () => {
     GuestAuthService.clearGuest();
     setIsGuest(false);
@@ -630,14 +409,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       user,
       supabaseUser,
       session,
-      isAuthenticated: !!(session && supabaseUser && user),
+      isAuthenticated: !!session && !!supabaseUser,
       isGuest,
       guestUser,
       enableGuestMode,
       disableGuestMode,
       login,
       loginWithPhone,
-      loginWithGoogle,
       register,
       logout,
       updateProfile,

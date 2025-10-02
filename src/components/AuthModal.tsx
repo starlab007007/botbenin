@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
-import { FaGoogle } from 'react-icons/fa';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -17,7 +16,7 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register, resetPassword, loginWithGoogle } = useAuth();
+  const { login, register, resetPassword } = useAuth();
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -85,11 +84,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(false);
   };
 
-  const handleGoogleLogin = async () => {
-    setIsLoading(true);
-    await loginWithGoogle();
-    // Le loading reste actif pendant la redirection OAuth
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -106,26 +100,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </TabsList>
           
           <TabsContent value="login">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mb-4 flex items-center justify-center gap-2"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-            >
-              <FaGoogle className="w-5 h-5" />
-              Continuer avec Google
-            </Button>
-            
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Ou</span>
-              </div>
-            </div>
-            
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="login-email">Email</Label>
@@ -198,26 +172,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </TabsContent>
           
           <TabsContent value="register">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mb-4 flex items-center justify-center gap-2"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-            >
-              <FaGoogle className="w-5 h-5" />
-              S'inscrire avec Google
-            </Button>
-            
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Ou</span>
-              </div>
-            </div>
-            
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="register-name">Nom complet</Label>
