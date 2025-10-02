@@ -8,20 +8,20 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 const Index = () => {
   const [showChat, setShowChat] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   // Rediriger vers l'app si l'utilisateur est connecté
   useEffect(() => {
+    // Wait for auth to initialize
+    if (isLoading) return;
+    
     if (isAuthenticated && !showChat) {
       console.log('[Index] User authenticated, redirecting to /prospect-preparation');
-      // Petit délai pour permettre la propagation du contexte
-      setTimeout(() => {
-        navigate('/prospect-preparation', { replace: true });
-      }, 300);
+      navigate('/prospect-preparation', { replace: true });
     }
-  }, [isAuthenticated, navigate, showChat]);
+  }, [isAuthenticated, isLoading, navigate, showChat]);
 
   const handleStartChat = () => {
     if (isAuthenticated) {

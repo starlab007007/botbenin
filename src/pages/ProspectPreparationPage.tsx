@@ -31,23 +31,7 @@ export const ProspectPreparationPage = () => {
   const [showConfig, setShowConfig] = useState(false);
   const [showGoogleDocManager, setShowGoogleDocManager] = useState(false);
 
-  // Redirection si non authentifié - APRÈS tous les hooks
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
-        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm max-w-md mx-auto">
-          <CardContent className="p-8 text-center">
-            <FileText className="w-12 h-12 mx-auto mb-4 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Authentification requise</h2>
-            <p className="text-gray-600 mb-4">Vous devez être connecté pour accéder à vos prospects.</p>
-            <Button onClick={() => navigate(`/auth?redirect=${encodeURIComponent('/prospect-preparation')}`)} className="w-full">
-              Se connecter
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Auth check removed - handled by ProtectedRoute wrapper in App.tsx
 
   const openGoogleSheet = () => {
     const url = `https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/edit`;

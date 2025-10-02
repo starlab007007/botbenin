@@ -10,6 +10,9 @@ export const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
 
+  // Note: Auth check is now handled by ProtectedRoute wrapper in App.tsx
+  // This layout only handles the UI structure
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header moderne */}

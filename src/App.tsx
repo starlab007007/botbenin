@@ -13,6 +13,9 @@ import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 
+// Protected Route Component
+const ProtectedRoute = lazy(() => import("./components/auth/ProtectedRoute").then(module => ({ default: module.ProtectedRoute })));
+
 // Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
 const KpakpatoPage = lazy(() => import("./pages/KpakpatoPage").then(module => ({ default: module.KpakpatoPage })));
@@ -77,43 +80,43 @@ const App = () => (
             <UserProvider>
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
-                  {/* Route d'accueil avec redirection vers prospect-preparation */}
-                  <Route path="/" element={<Navigate to="/prospect-preparation" replace />} />
+                  {/* Landing page - accessible sans auth */}
+                  <Route path="/" element={<Index />} />
                   
-                  {/* Routes avec layout principal */}
+                  {/* Routes avec layout principal - TOUTES PROTÉGÉES */}
                   <Route element={<MainLayout />}>
-                    <Route path="/home" element={<HomePage />} />
-                    <Route path="/chat" element={<KpakpatoPage />} />
-                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+                    <Route path="/chat" element={<ProtectedRoute><KpakpatoPage /></ProtectedRoute>} />
+                    <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
                     
                     {/* Gestion des bots */}
-                    <Route path="/bots" element={<BotManagementPage />} />
-                    <Route path="/automations" element={<AutomationsPage />} />
+                    <Route path="/bots" element={<ProtectedRoute><BotManagementPage /></ProtectedRoute>} />
+                    <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
                     
                     {/* Campagnes de partage */}
-                    <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
+                    <Route path="/social-campaigns" element={<ProtectedRoute><SocialSharingCampaignsPage /></ProtectedRoute>} />
                     
                     {/* WhatsApp Connect */}
-                    <Route path="/whatsapp-connect" element={<WhatsAppConnectPage />} />
+                    <Route path="/whatsapp-connect" element={<ProtectedRoute><WhatsAppConnectPage /></ProtectedRoute>} />
                     
                     {/* Modules IA */}
-                    <Route path="/modules/business" element={<BusinessModule />} />
+                    <Route path="/modules/business" element={<ProtectedRoute><BusinessModule /></ProtectedRoute>} />
                     
                     {/* Support et compte */}
-                    <Route path="/support" element={<SupportPage />} />
-                    <Route path="/account" element={<AccountPage />} />
+                    <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
+                    <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
                     
                     {/* Administration */}
-                    <Route path="/admin/users" element={<UsersManagementPage />} />
+                    <Route path="/admin/users" element={<ProtectedRoute><UsersManagementPage /></ProtectedRoute>} />
                     
                     {/* Tests système */}
-                    <Route path="/system-test" element={<SystemTestPage />} />
+                    <Route path="/system-test" element={<ProtectedRoute><SystemTestPage /></ProtectedRoute>} />
                     
                      {/* CRM & Prospects */}
-                     <Route path="/prospects" element={<ProspectsLayout />} />
-                     <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
-                     <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
-                     <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
+                     <Route path="/prospects" element={<ProtectedRoute><ProspectsLayout /></ProtectedRoute>} />
+                     <Route path="/ia-prospect-precall" element={<ProtectedRoute><IAProspectPreCallPage /></ProtectedRoute>} />
+                     <Route path="/prospect-preparation" element={<ProtectedRoute><ProspectPreparationPage /></ProtectedRoute>} />
+                     <Route path="/evaluation-results" element={<ProtectedRoute><EvaluationResultsPage /></ProtectedRoute>} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}

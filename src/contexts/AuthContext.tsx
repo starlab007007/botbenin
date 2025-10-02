@@ -36,6 +36,7 @@ interface AuthContextType {
   supabaseUser: SupabaseUser | null;
   session: Session | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   isGuest: boolean;
   guestUser: GuestUser | null;
   enableGuestMode: () => void;
@@ -80,57 +81,110 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
   const [guestUser, setGuestUser] = useState<GuestUser | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    const runAuthInit = async () => {
-      // Si déjà connecté => pas de mode guest
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-        setSupabaseUser(session?.user ?? null);
-        setIsLoading(false);
-      });
-    };
-    runAuthInit();
-    
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setSupabaseUser(session?.user ?? null);
-        if (session?.user) {
-          setIsGuest(false);
-          setGuestUser(null);
-          // Create AuthUser from Supabase user
-          const authUser: AuthUser = {
-            id: session.user.id,
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
-            email: session.user.email || '',
-            role: 'user', // Default role
-            permissions: rolePermissions.user,
-            status: 'active',
-            createdAt: new Date(session.user.created_at),
-            lastLogin: new Date(),
-            subscription: {
-              type: 'free',
-              status: 'active'
-            },
-            chatHistory: []
-          };
-          setUser(authUser);
-        } else {
-          // Pas de session : conserver l'état guest si configuré
-        }
-        setIsLoading(false);
-      }
-    );
+    console.log('[AuthContext] Initializing authentication...');
+    let mounted = true;
 
-    return () => subscription.unsubscribe();
+    const initAuth = async () => {
+      try {
+        // 1. Set up auth state listener FIRST
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          (event, session) => {
+            if (!mounted) return;
+            
+            console.log('[AuthContext] Auth state changed:', event, !!session);
+            setSession(session);
+            setSupabaseUser(session?.user ?? null);
+            
+            if (session?.user) {
+              // Clear guest mode on login
+              setIsGuest(false);
+              setGuestUser(null);
+              
+              // Create AuthUser from Supabase user
+              const authUser: AuthUser = {
+                id: session.user.id,
+                name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
+                email: session.user.email || '',
+                role: 'user',
+                permissions: rolePermissions.user,
+                status: 'active',
+                createdAt: new Date(session.user.created_at),
+                lastLogin: new Date(),
+                subscription: {
+                  type: 'free',
+                  status: 'active'
+                },
+                chatHistory: []
+              };
+              setUser(authUser);
+            } else {
+              setUser(null);
+            }
+            
+            setIsLoading(false);
+            setIsInitialized(true);
+          }
+        );
+
+        // 2. THEN check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[AuthContext] Initial session check:', !!session);
+        
+        if (mounted) {
+          setSession(session);
+          setSupabaseUser(session?.user ?? null);
+          
+          if (session?.user) {
+            const authUser: AuthUser = {
+              id: session.user.id,
+              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
+              email: session.user.email || '',
+              role: 'user',
+              permissions: rolePermissions.user,
+              status: 'active',
+              createdAt: new Date(session.user.created_at),
+              lastLogin: new Date(),
+              subscription: {
+                type: 'free',
+                status: 'active'
+              },
+              chatHistory: []
+            };
+            setUser(authUser);
+          }
+          
+          setIsLoading(false);
+          setIsInitialized(true);
+        }
+
+        return () => {
+          mounted = false;
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('[AuthContext] Init error:', error);
+        if (mounted) {
+          setIsLoading(false);
+          setIsInitialized(true);
+        }
+      }
+    };
+
+    initAuth();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    console.log('[AuthContext] Login attempt');
     setIsLoading(true);
     
     try {
@@ -140,6 +194,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        console.error('[AuthContext] Login error:', error);
         toast({
           title: "Erreur de connexion",
           description: error.message,
@@ -150,6 +205,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (data.user) {
+        console.log('[AuthContext] Login success');
+        // Clear guest mode on successful login
+        disableGuestMode();
+        
         toast({
           title: "Connexion réussie",
           description: `Bienvenue !`,
@@ -158,6 +217,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return true;
       }
     } catch (error) {
+      console.error('[AuthContext] Login exception:', error);
       toast({
         title: "Erreur de connexion",
         description: "Une erreur est survenue",
@@ -175,11 +235,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loginWithGoogle = async (): Promise<boolean> => {
+    console.log('[AuthContext] Google login attempt');
     try {
+      // Clear guest mode before OAuth
+      disableGuestMode();
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/prospect-preparation`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -188,6 +252,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        console.error('[AuthContext] Google login error:', error);
         toast({
           title: "Erreur de connexion Google",
           description: error.message,
@@ -196,8 +261,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
+      console.log('[AuthContext] Google OAuth redirect initiated');
       return true;
     } catch (error) {
+      console.error('[AuthContext] Google login exception:', error);
       toast({
         title: "Erreur de connexion Google",
         description: "Une erreur est survenue lors de la connexion avec Google",
@@ -278,16 +345,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
+    console.log('[AuthContext] Logout');
     try {
       await supabase.auth.signOut();
       setUser(null);
       setSupabaseUser(null);
       setSession(null);
+      disableGuestMode();
+      
       toast({
         title: "Déconnexion",
         description: "Vous avez été déconnecté avec succès",
       });
     } catch (error) {
+      console.error('[AuthContext] Logout error:', error);
       toast({
         title: "Erreur",
         description: "Erreur lors de la déconnexion",
@@ -444,6 +515,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       supabaseUser,
       session,
       isAuthenticated: !!session && !!supabaseUser,
+      isInitialized,
       isGuest,
       guestUser,
       enableGuestMode,

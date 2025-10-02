@@ -15,6 +15,9 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+  // NOTE: Ce composant est maintenant obsolète. 
+  // Utilisez plutôt /auth comme page d'authentification principale.
+  // Ce composant est conservé pour compatibilité mais ne devrait plus être utilisé.
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login, register, resetPassword, loginWithGoogle } = useAuth();
