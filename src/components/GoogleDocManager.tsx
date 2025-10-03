@@ -567,29 +567,27 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                       ))}
                     </div>
                   </div>
-                </div>
 
-                {/* Génération IA */}
-                <Button
-                  onClick={generateWithAI}
-                  disabled={isGenerating || !offerConfig.targetAudience.trim() || !offerConfig.industry.trim()}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-xs sm:text-sm"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
-                      Génération en cours...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                      Générer avec l'IA
-                    </>
-                  )}
-                </Button>
+                  {/* Génération IA */}
+                  <Button
+                    onClick={generateWithAI}
+                    disabled={isGenerating || !offerConfig.targetAudience.trim() || !offerConfig.industry.trim()}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-xs sm:text-sm"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
+                        Génération en cours...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                        Générer avec l'IA
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
-            </div>
-            </div>
 
             {/* Content Panel - Scrollable */}
             <div className="flex-1 p-2 sm:p-3 md:p-4 overflow-y-auto max-h-[50vh] lg:max-h-full bg-white dark:bg-gray-900">
