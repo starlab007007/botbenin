@@ -5538,6 +5538,10 @@ export type Database = {
           source: string
         }[]
       }
+      has_role: {
+        Args: { _role_name: string; _user_id: string }
+        Returns: boolean
+      }
       hide_demo_account_data: {
         Args: { data_value: string; user_id: string }
         Returns: string
