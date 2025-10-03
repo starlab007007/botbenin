@@ -26,6 +26,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import whatsappIcon from '@/assets/whatsapp-icon.png';
 
 interface ModernSidebarProps {
   isOpen: boolean;
@@ -70,7 +71,8 @@ const marketingItems = [
   { 
     title: 'WhatsApp Connect', 
     path: '/whatsapp-connect', 
-    icon: Phone, 
+    icon: 'image',
+    iconImage: whatsappIcon,
     color: 'from-green-500 to-green-600',
     description: 'Connexion WhatsApp',
     badge: 'New'
@@ -143,8 +145,12 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           : 'hover:bg-white/60 hover:shadow-sm'
       }`}
     >
-      <div className={`w-10 h-10 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
-        <item.icon className="w-5 h-5 text-white" />
+      <div className={`w-10 h-10 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow overflow-hidden`}>
+        {item.iconImage ? (
+          <img src={item.iconImage} alt={item.title} className="w-full h-full object-cover" />
+        ) : (
+          <item.icon className="w-5 h-5 text-white" />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
