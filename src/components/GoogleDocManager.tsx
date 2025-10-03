@@ -352,40 +352,6 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                     📝 Enregistrement manuel dans le Google Document
                   </p>
                 </div>
-
-                {/* Instructions de partage Google Docs - Accessible à tous */}
-                <div className="space-y-2">
-                  <Label className="text-xs sm:text-sm font-medium">Configuration Google Docs</Label>
-                  
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-medium text-sm text-blue-800 mb-1">📧 Email du Service Account</h4>
-                        <code className="text-xs bg-white px-2 py-1 rounded border break-all">
-                          {SERVICE_ACCOUNT_EMAIL}
-                        </code>
-                      </div>
-                      
-                      <div className="text-xs text-blue-700">
-                        <h4 className="font-medium mb-1">🔧 Instructions de configuration:</h4>
-                        <ol className="list-decimal list-inside space-y-1 text-xs">
-                          <li>Copiez l'email ci-dessus</li>
-                          <li>
-                            <button 
-                              onClick={() => window.open(`https://docs.google.com/document/d/${googleDocId}/edit`, '_blank')}
-                              className="text-blue-600 underline"
-                            >
-                              Ouvrez le Google Document
-                            </button>
-                          </li>
-                          <li>Cliquez sur "Partager" (en haut à droite)</li>
-                          <li>Collez l'email et donnez les permissions "Éditeur"</li>
-                          <li>Cliquez sur "Envoyer"</li>
-                        </ol>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Configuration API IA - Uniquement super admin */}
