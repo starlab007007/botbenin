@@ -14,7 +14,6 @@ import {
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthModal } from '@/components/AuthModal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -26,7 +25,6 @@ import {
 
 export const TopHeader: React.FC = () => {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -133,7 +131,7 @@ export const TopHeader: React.FC = () => {
             </DropdownMenu>
           ) : (
             <Button
-              onClick={() => setShowAuthModal(true)}
+              onClick={() => navigate('/auth')}
               className="bg-blue-600 hover:bg-blue-700 text-white"
               size="sm"
             >
@@ -148,12 +146,6 @@ export const TopHeader: React.FC = () => {
       <MobileSidebar 
         isOpen={showMobileSidebar}
         onClose={() => setShowMobileSidebar(false)} 
-      />
-
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
       />
     </>
   );
