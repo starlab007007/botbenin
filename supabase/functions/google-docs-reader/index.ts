@@ -161,11 +161,11 @@ serve(async (req) => {
       );
     }
 
-    // Check permission - Must have google_sheets.config.manage permission
+    // Check permission
     const { data: hasPermission } = await supabase
       .rpc('user_has_permission', {
         user_uuid: user.id,
-        permission_name: 'google_sheets.config.manage'
+        permission_name: 'sheets.view'
       });
 
     if (!hasPermission) {

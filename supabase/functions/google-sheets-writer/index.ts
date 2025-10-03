@@ -487,16 +487,16 @@ serve(async (req) => {
       );
     }
 
-    // Check permission - Must have google_sheets.config.manage permission
+    // Check permission
     const { data: hasPermission } = await supabase
       .rpc('user_has_permission', {
         user_uuid: user.id,
-        permission_name: 'google_sheets.config.manage'
+        permission_name: 'sheets.edit'
       });
 
     if (!hasPermission) {
       return new Response(
-        JSON.stringify({
+        JSON.stringify({ 
           error: 'Permission refusée',
           message: 'Vous n\'avez pas la permission de modifier les Google Sheets'
         }),

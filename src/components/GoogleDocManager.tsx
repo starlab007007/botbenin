@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePermission } from '@/hooks/usePermission';
 import { supabase } from '@/integrations/supabase/client';
 import { useGoogleDocsWriter } from '@/hooks/useGoogleDocsWriter';
 import { 
@@ -56,7 +55,6 @@ const offerTypes = {
 
 export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId }: GoogleDocManagerProps) => {
   const { user } = useAuth();
-  const { hasPermission: canManageConfig } = usePermission('google_sheets.config.manage');
   const { writeToGoogleDoc, isWriting: isDocWriting } = useGoogleDocsWriter(user?.id);
   const [googleDocId, setGoogleDocId] = useState(propGoogleDocId || '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg');
   const [docContent, setDocContent] = useState('');
@@ -277,11 +275,6 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
       toast.success('🔗 Connecté au Google Document de préparation d\'appel IA', { duration: 3000 });
     }
   }, [isOpen, googleDocId]);
-
-  // Protection d'accès - Ne rien afficher si pas les permissions
-  if (!canManageConfig) {
-    return null;
-  }
 
   if (!isOpen) return null;
 
