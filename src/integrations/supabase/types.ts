@@ -5730,6 +5730,14 @@ export type Database = {
         Args: { p_bot_id: string }
         Returns: boolean
       }
+      user_owns_campaign: {
+        Args: { p_campaign_id: string }
+        Returns: boolean
+      }
+      user_owns_prospect: {
+        Args: { p_prospect_id: string }
+        Returns: boolean
+      }
       user_owns_whatsapp_account: {
         Args: { acc_id: string }
         Returns: boolean
