@@ -237,8 +237,7 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
                   <Label htmlFor="integration-code">Code d'intégration</Label>
                   <Textarea
                     id="integration-code"
-                    placeholder={`<elevenlabs-convai agent-id="agent_xxxxxxxxxxxxx"></elevenlabs-convai>
-<script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>`}
+                    placeholder="Code reçu pour votre agent vocal"
                     value={integrationCode}
                     onChange={(e) => setIntegrationCode(e.target.value)}
                     className="min-h-[80px] sm:min-h-[100px] font-mono text-xs sm:text-sm"
