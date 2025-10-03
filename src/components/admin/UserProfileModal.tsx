@@ -92,17 +92,53 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const fetchUserData = async () => {
     setLoading(true);
     try {
-      // Récupérer le profil
+      // Récupérer le profil depuis public.users
       const { data: profileData, error: profileError } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (profileError) throw profileError;
-      setProfile(profileData);
-      setFullName(profileData.full_name || '');
-      setStatus(profileData.status || 'active');
+      // Si l'utilisateur n'existe pas dans public.users, essayer de le créer
+      if (!profileData) {
+        console.log('User not found in public.users, attempting to create...');
+        
+        // Récupérer les données depuis auth.users via l'edge function
+        const { data: authUserData } = await supabase.functions.invoke('list-users-admin');
+        
+        if (authUserData?.users) {
+          const authUser = authUserData.users.find((u: any) => u.id === userId);
+          
+          if (authUser) {
+            // Créer l'utilisateur dans public.users
+            const { data: newProfile, error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: userId,
+                email: authUser.email || userEmail,
+                full_name: authUser.user_metadata?.full_name || 'Utilisateur',
+                status: 'active'
+              })
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error('Error creating user profile:', insertError);
+              throw new Error('Impossible de créer le profil utilisateur');
+            }
+            
+            setProfile(newProfile);
+            setFullName(newProfile.full_name || '');
+            setStatus(newProfile.status || 'active');
+          } else {
+            throw new Error('Utilisateur non trouvé dans auth.users');
+          }
+        }
+      } else {
+        setProfile(profileData);
+        setFullName(profileData.full_name || '');
+        setStatus(profileData.status || 'active');
+      }
 
       // Récupérer l'abonnement
       const { data: subData } = await supabase
