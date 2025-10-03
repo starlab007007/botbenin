@@ -5060,6 +5060,19 @@ export type Database = {
           },
         ]
       }
+      user_permission_details: {
+        Row: {
+          action: string | null
+          category: string | null
+          permission_description: string | null
+          permission_name: string | null
+          resource: string | null
+          role_name: string | null
+          source: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       user_stats: {
         Row: {
           created_at: string | null
@@ -5704,6 +5717,10 @@ export type Database = {
       transfer_local_businesses_to_prospects: {
         Args: { business_ids: string[]; target_database_id: string }
         Returns: number
+      }
+      user_has_any_permission: {
+        Args: { permission_names: string[]; user_uuid: string }
+        Returns: boolean
       }
       user_has_permission: {
         Args: { permission_name: string; user_uuid: string }
