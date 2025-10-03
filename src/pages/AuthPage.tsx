@@ -15,7 +15,7 @@ const AuthPage: React.FC = () => {
   const { login, register, resetPassword, loginWithGoogle, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/prospect-preparation';
+  const redirectTo = searchParams.get('redirect') || '/home';
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
