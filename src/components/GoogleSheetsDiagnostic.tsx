@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 
 interface DiagnosticResult {
   test: string;
@@ -150,13 +151,17 @@ export const GoogleSheetsDiagnostic: React.FC = () => {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <RefreshCw className="w-5 h-5" />
-          Diagnostic Google Sheets
-        </CardTitle>
-      </CardHeader>
+    <PermissionGuard 
+      anyPermissions={['sheets.diagnostic.basic', 'sheets.diagnostic.advanced']}
+      fallbackMessage="Vous n'avez pas la permission d'effectuer des diagnostics Google Sheets."
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="w-5 h-5" />
+            Diagnostic Google Sheets
+          </CardTitle>
+        </CardHeader>
       <CardContent className="space-y-4">
         <Button onClick={runDiagnostic} disabled={isRunning} className="w-full">
           {isRunning ? (
@@ -212,5 +217,6 @@ export const GoogleSheetsDiagnostic: React.FC = () => {
         )}
       </CardContent>
     </Card>
+    </PermissionGuard>
   );
 };

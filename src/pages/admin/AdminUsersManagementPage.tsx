@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserProfileModal } from '@/components/admin/UserProfileModal';
 import { Eye, Edit, MoreVertical } from 'lucide-react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 
 interface User {
   id: string;
@@ -329,13 +330,17 @@ export const AdminUsersManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Gestion des Utilisateurs</h1>
-        <p className="text-muted-foreground">
-          Gérer les utilisateurs et leurs rôles
-        </p>
-      </div>
+    <PermissionGuard 
+      anyPermissions={['users.view', 'users.edit']}
+      fallbackMessage="Vous n'avez pas la permission de gérer les utilisateurs. Cette page est réservée aux administrateurs."
+    >
+      <div className="container mx-auto py-8 px-4">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Gestion des Utilisateurs</h1>
+          <p className="text-muted-foreground">
+            Gérer les utilisateurs et leurs rôles
+          </p>
+        </div>
 
       {/* Panneau de diagnostic */}
       <Card className="mb-6 border-blue-500">
@@ -550,5 +555,6 @@ export const AdminUsersManagementPage: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </PermissionGuard>
   );
 };

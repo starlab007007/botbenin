@@ -44,11 +44,16 @@ interface GoogleSheetEditorProps {
   sheetName: string;
 }
 
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { usePermission } from '@/hooks/usePermission';
+
 export const GoogleSheetEditor: React.FC<GoogleSheetEditorProps> = ({
   spreadsheetId,
   sheetName
 }) => {
   const { user, isAuthenticated } = useAuth();
+  const { hasPermission: canEdit } = usePermission('sheets.edit');
+  const { hasPermission: canSync } = usePermission('sheets.sync');
   const [localData, setLocalData] = useState<GoogleSheetRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);

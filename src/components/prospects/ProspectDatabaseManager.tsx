@@ -20,6 +20,8 @@ import { DatabaseStatsCard } from './DatabaseStatsCard';
 import { CreateDatabaseModal } from './CreateDatabaseModal';
 import { ProspectDatabase, useProspectDatabases } from '@/hooks/useProspectDatabases';
 import { useToast } from '@/hooks/use-toast';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { PermissionButton } from '@/components/auth/PermissionButton';
 
 export const ProspectDatabaseManager: React.FC = () => {
   const { databases, isLoading, stats, refreshDatabases } = useProspectDatabases();
@@ -71,9 +73,13 @@ export const ProspectDatabaseManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* En-tête avec statistiques globales */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <PermissionGuard 
+      anyPermissions={['prospects.view.own', 'prospects.view.all']}
+      fallbackMessage="Vous n'avez pas la permission de voir les prospects. Contactez votre administrateur."
+    >
+      <div className="space-y-6">
+        {/* En-tête avec statistiques globales */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -148,13 +154,15 @@ export const ProspectDatabaseManager: React.FC = () => {
                 <Download className="w-4 h-4 mr-1" />
                 Export global
               </Button>
-              <Button 
+              <PermissionButton
+                permission="prospects.create"
+                noPermissionMessage="Vous n'avez pas la permission de créer des bases de prospects"
                 size="sm"
                 onClick={() => setShowCreateModal(true)}
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Nouvelle base
-              </Button>
+              </PermissionButton>
             </div>
           </div>
         </CardHeader>
@@ -254,5 +262,6 @@ export const ProspectDatabaseManager: React.FC = () => {
         onSuccess={handleDatabaseCreated}
       />
     </div>
+    </PermissionGuard>
   );
 };

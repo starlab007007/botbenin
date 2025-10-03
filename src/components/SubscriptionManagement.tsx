@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Crown, Zap, Rocket, Check, X } from 'lucide-react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { PermissionButton } from '@/components/auth/PermissionButton';
 
 interface BotOwner {
   id: string;
@@ -158,9 +160,13 @@ export const SubscriptionManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Abonnement actuel */}
-      <Card className="p-6">
+    <PermissionGuard 
+      anyPermissions={['subscriptions.view.own', 'subscriptions.view.all']}
+      fallbackMessage="Vous n'avez pas la permission de voir les abonnements."
+    >
+      <div className="space-y-6">
+        {/* Abonnement actuel */}
+        <Card className="p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Abonnement actuel</h2>
         {botOwner && (
           <div className="flex items-center justify-between">
@@ -243,7 +249,9 @@ export const SubscriptionManagement: React.FC = () => {
                   ))}
                 </ul>
 
-                <Button
+                <PermissionButton
+                  permission="subscriptions.manage"
+                  noPermissionMessage="Vous n'avez pas la permission de modifier votre abonnement"
                   className="w-full"
                   variant={isCurrentPlan ? "outline" : "default"}
                   disabled={isCurrentPlan}
@@ -251,7 +259,7 @@ export const SubscriptionManagement: React.FC = () => {
                 >
                   {isCurrentPlan ? 'Plan actuel' : 
                    isUpgrade ? 'Passer à ce plan' : 'Rétrograder'}
-                </Button>
+                </PermissionButton>
               </Card>
             );
           })}
@@ -272,5 +280,6 @@ export const SubscriptionManagement: React.FC = () => {
         </div>
       </Card>
     </div>
+    </PermissionGuard>
   );
 };
