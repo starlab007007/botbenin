@@ -7,7 +7,6 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { IACallPreparationForm } from '@/components/IACallPreparationForm';
 import { GoogleSheetsColumnDiagnostic } from '@/components/GoogleSheetsColumnDiagnostic';
-import { UserRoleDebug } from '@/components/admin/UserRoleDebug';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   ArrowLeft,
@@ -100,11 +99,6 @@ export const ProspectPreparationPage = () => {
               <span className="hidden sm:inline">Ouvrir Google Sheet</span>
             </Button>
           </div>
-        </div>
-
-        {/* Debug Role & Permissions - Visible uniquement en dev */}
-        <div className="mb-6">
-          <UserRoleDebug />
         </div>
 
         {/* Configuration Panel */}
