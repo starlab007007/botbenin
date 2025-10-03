@@ -318,17 +318,8 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
           <div className="flex flex-col lg:grid lg:grid-cols-2 h-full">
             {/* Configuration Panel - Scrollable */}
             <div className="flex-shrink-0 lg:flex-1 p-2 sm:p-3 md:p-4 lg:border-r bg-gray-50/50 dark:bg-gray-800/30 overflow-y-auto max-h-[40vh] lg:max-h-full">
-              {canManageConfig && (
-                <>
-                  <div className="sticky top-0 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-sm pb-2 mb-4">
-                    <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                      <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
-                      Configuration
-                    </h3>
-                  </div>
-
-                  <div className="space-y-4">
-                {/* Google Doc ID */}
+              {/* Google Doc ID - Accessible à tous */}
+              <div className="space-y-4 mb-4">
                 <div className="space-y-2">
                   <Label htmlFor="doc-id" className="text-xs sm:text-sm flex items-center gap-2">
                     ID du Google Doc
@@ -362,7 +353,7 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                   </p>
                 </div>
 
-                {/* Instructions de partage Google Docs */}
+                {/* Instructions de partage Google Docs - Accessible à tous */}
                 <div className="space-y-2">
                   <Label className="text-xs sm:text-sm font-medium">Configuration Google Docs</Label>
                   
@@ -395,85 +386,96 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Configuration API IA */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs sm:text-sm font-medium">Configuration API IA</Label>
-                    <Button
-                      onClick={() => setShowApiConfig(!showApiConfig)}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs"
-                    >
-                      <Settings className="w-3 h-3 mr-1" />
-                      {showApiConfig ? 'Masquer' : 'Configurer'}
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs font-medium">API:</Label>
-                    <Select value={selectedApi} onValueChange={(value: 'gemini' | 'openai' | 'mistral') => setSelectedApi(value)}>
-                      <SelectTrigger className="w-32 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gemini">Gemini</SelectItem>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="mistral">Mistral AI</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Badge variant={apiKeys[selectedApi] ? "default" : "destructive"} className="text-xs">
-                      {apiKeys[selectedApi] ? "Configuré" : "Non configuré"}
-                    </Badge>
-                  </div>
-
-                  {showApiConfig && (
-                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 space-y-3">
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium">Clé API {selectedApi.toUpperCase()}</Label>
-                        <Input
-                          type="password"
-                          value={apiKeys[selectedApi]}
-                          onChange={(e) => setApiKeys(prev => ({ ...prev, [selectedApi]: e.target.value }))}
-                          placeholder={`Entrez votre clé API ${selectedApi.toUpperCase()}`}
-                          className="font-mono text-xs"
-                        />
-                      </div>
-                      <div className="text-xs text-yellow-700">
-                        <p className="font-medium mb-1">🔑 Instructions pour {selectedApi.toUpperCase()}:</p>
-                        {selectedApi === 'gemini' && (
-                          <ul className="list-disc list-inside space-y-1">
-                            <li>Allez sur <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-600 underline">Google AI Studio</a></li>
-                            <li>Créez une nouvelle clé API</li>
-                            <li>Copiez et collez la clé ci-dessus</li>
-                          </ul>
-                        )}
-                        {selectedApi === 'openai' && (
-                          <ul className="list-disc list-inside space-y-1">
-                            <li>Allez sur <a href="https://platform.openai.com/api-keys" target="_blank" className="text-blue-600 underline">OpenAI Platform</a></li>
-                            <li>Créez une nouvelle clé API</li>
-                            <li>Copiez et collez la clé ci-dessus</li>
-                          </ul>
-                        )}
-                        {selectedApi === 'mistral' && (
-                          <ul className="list-disc list-inside space-y-1">
-                            <li>Allez sur <a href="https://console.mistral.ai/" target="_blank" className="text-blue-600 underline">Mistral Console</a></li>
-                            <li>Créez une nouvelle clé API</li>
-                            <li>Copiez et collez la clé ci-dessus</li>
-                          </ul>
-                        )}
-                      </div>
+              {/* Configuration API IA - Uniquement super admin */}
+              {canManageConfig && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200">
+                        Configuration API IA
+                      </h3>
                     </div>
-                  )}
-                </div>
-                  </div>
 
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs sm:text-sm font-medium">API sélectionnée</Label>
+                        <Button
+                          onClick={() => setShowApiConfig(!showApiConfig)}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                        >
+                          <Settings className="w-3 h-3 mr-1" />
+                          {showApiConfig ? 'Masquer' : 'Configurer'}
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs font-medium">API:</Label>
+                        <Select value={selectedApi} onValueChange={(value: 'gemini' | 'openai' | 'mistral') => setSelectedApi(value)}>
+                          <SelectTrigger className="w-32 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="gemini">Gemini</SelectItem>
+                            <SelectItem value="openai">OpenAI</SelectItem>
+                            <SelectItem value="mistral">Mistral AI</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Badge variant={apiKeys[selectedApi] ? "default" : "destructive"} className="text-xs">
+                          {apiKeys[selectedApi] ? "Configuré" : "Non configuré"}
+                        </Badge>
+                      </div>
+
+                      {showApiConfig && (
+                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 space-y-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-medium">Clé API {selectedApi.toUpperCase()}</Label>
+                            <Input
+                              type="password"
+                              value={apiKeys[selectedApi]}
+                              onChange={(e) => setApiKeys(prev => ({ ...prev, [selectedApi]: e.target.value }))}
+                              placeholder={`Entrez votre clé API ${selectedApi.toUpperCase()}`}
+                              className="font-mono text-xs"
+                            />
+                          </div>
+                          <div className="text-xs text-yellow-700">
+                            <p className="font-medium mb-1">🔑 Instructions pour {selectedApi.toUpperCase()}:</p>
+                            {selectedApi === 'gemini' && (
+                              <ul className="list-disc list-inside space-y-1">
+                                <li>Allez sur <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-600 underline">Google AI Studio</a></li>
+                                <li>Créez une nouvelle clé API</li>
+                                <li>Copiez et collez la clé ci-dessus</li>
+                              </ul>
+                            )}
+                            {selectedApi === 'openai' && (
+                              <ul className="list-disc list-inside space-y-1">
+                                <li>Allez sur <a href="https://platform.openai.com/api-keys" target="_blank" className="text-blue-600 underline">OpenAI Platform</a></li>
+                                <li>Créez une nouvelle clé API</li>
+                                <li>Copiez et collez la clé ci-dessus</li>
+                              </ul>
+                            )}
+                            {selectedApi === 'mistral' && (
+                              <ul className="list-disc list-inside space-y-1">
+                                <li>Allez sur <a href="https://console.mistral.ai/" target="_blank" className="text-blue-600 underline">Mistral Console</a></li>
+                                <li>Créez une nouvelle clé API</li>
+                                <li>Copiez et collez la clé ci-dessus</li>
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <Separator className="my-4" />
                 </>
               )}
 
-              {/* Configuration de l'offre */}
+              {/* Configuration de l'offre - Accessible à tous */}
               <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-xs sm:text-sm font-medium">Type d'offre</Label>
