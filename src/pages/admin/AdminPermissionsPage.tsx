@@ -229,7 +229,22 @@ export const AdminPermissionsPage: React.FC = () => {
       </div>
 
       <div className="space-y-6">
-        {Object.entries(groupedPermissions).map(([resource, perms]) => (
+        {Object.keys(groupedPermissions).length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center text-muted-foreground">
+                <Key className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium mb-2">Aucune permission trouvée</p>
+                <p className="text-sm">
+                  {searchTerm 
+                    ? "Aucune permission ne correspond à votre recherche" 
+                    : "Il n'y a pas encore de permissions configurées dans le système"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          Object.entries(groupedPermissions).map(([resource, perms]) => (
           <Card key={resource}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -269,7 +284,7 @@ export const AdminPermissionsPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-        ))}
+        )))}
       </div>
     </div>
   );

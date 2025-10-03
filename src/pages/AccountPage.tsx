@@ -105,7 +105,7 @@ export const AccountPage: React.FC = () => {
           roles (
             name,
             role_permissions (
-              permissions (name, action, resource)
+              detailed_permissions (name, action, resource)
             )
           )
         `)
@@ -114,7 +114,7 @@ export const AccountPage: React.FC = () => {
       if (userRoles && userRoles.length > 0) {
         const role = userRoles[0].roles;
         const permissions = role.role_permissions?.map(rp => 
-          `${rp.permissions.action}:${rp.permissions.resource}`
+          `${rp.detailed_permissions.action}:${rp.detailed_permissions.resource}`
         ) || [];
         
         setUserPermissions({

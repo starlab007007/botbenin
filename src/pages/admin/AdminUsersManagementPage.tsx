@@ -70,27 +70,28 @@ export const AdminUsersManagementPage: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data: { users: authUsers }, error } = await supabase.auth.admin.listUsers();
+      const { data, error } = await supabase.functions.invoke('list-users-admin');
 
       if (error) throw error;
       
-      // Convertir les utilisateurs auth en format attendu
-      const formattedUsers: User[] = (authUsers || [])
-        .filter((u: AuthUser) => u.email) // Filtrer ceux sans email
-        .map((u: AuthUser) => ({
-          id: u.id,
-          email: u.email!,
-          created_at: u.created_at,
-          email_confirmed_at: u.email_confirmed_at || null,
-          last_sign_in_at: u.last_sign_in_at || null,
-        }));
+      if (!data || !data.users) {
+        throw new Error('Format de réponse invalide');
+      }
+      
+      const formattedUsers: User[] = data.users.map((u: any) => ({
+        id: u.id,
+        email: u.email || 'Sans email',
+        created_at: u.created_at,
+        email_confirmed_at: u.email_confirmed_at || null,
+        last_sign_in_at: u.last_sign_in_at || null,
+      }));
       
       setUsers(formattedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les utilisateurs',
+        description: 'Impossible de charger les utilisateurs. Assurez-vous d\'avoir la permission users.view',
         variant: 'destructive',
       });
     } finally {
@@ -232,7 +233,20 @@ export const AdminUsersManagementPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
+              {filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
+                    <p className="text-lg font-medium mb-2">Aucun utilisateur trouvé</p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchTerm 
+                        ? "Aucun utilisateur ne correspond à votre recherche" 
+                        : "Il n'y a pas encore d'utilisateurs inscrits"}
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
@@ -264,7 +278,7 @@ export const AdminUsersManagementPage: React.FC = () => {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
             </TableBody>
           </Table>
         </CardContent>

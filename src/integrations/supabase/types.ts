@@ -2479,16 +2479,19 @@ export type Database = {
       }
       role_permissions: {
         Row: {
+          created_at: string | null
           id: string
           permission_id: string
           role_id: string
         }
         Insert: {
+          created_at?: string | null
           id?: string
           permission_id: string
           role_id: string
         }
         Update: {
+          created_at?: string | null
           id?: string
           permission_id?: string
           role_id?: string
@@ -2498,7 +2501,7 @@ export type Database = {
             foreignKeyName: "role_permissions_permission_id_fkey"
             columns: ["permission_id"]
             isOneToOne: false
-            referencedRelation: "permissions"
+            referencedRelation: "detailed_permissions"
             referencedColumns: ["id"]
           },
           {

@@ -120,3 +120,6 @@ verify_jwt = true
 
 [functions.get-user-profile-with-role]
 verify_jwt = true
+
+[functions.list-users-admin]
+verify_jwt = true
