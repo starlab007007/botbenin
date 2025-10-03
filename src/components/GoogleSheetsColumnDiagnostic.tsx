@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 import { useGoogleSheets } from '@/hooks/useGoogleSheets';
 import { useGoogleSheetsWriter } from '@/hooks/useGoogleSheetsWriter';
 import { 
@@ -42,6 +43,7 @@ export const GoogleSheetsColumnDiagnostic: React.FC<{
   sheetName: string; 
 }> = ({ spreadsheetId, sheetName }) => {
   const { user, isAuthenticated } = useAuth();
+  const { hasPermission: canManageConfig, isLoading: isCheckingPermission } = usePermission('google_sheets.config.manage');
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<DiagnosticResults | null>(null);
   
@@ -241,6 +243,21 @@ export const GoogleSheetsColumnDiagnostic: React.FC<{
         </AlertDescription>
       </Alert>
     );
+  }
+
+  if (isCheckingPermission) {
+    return (
+      <Alert>
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <AlertDescription>
+          Vérification des permissions...
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!canManageConfig) {
+    return null; // Masquer complètement si pas les permissions
   }
 
   return (
