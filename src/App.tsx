@@ -56,6 +56,7 @@ import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
 import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
 import { AdminUsersManagementPage } from "./pages/admin/AdminUsersManagementPage";
+import { SystemLogsViewer } from "./components/admin/SystemLogsViewer";
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -116,6 +117,7 @@ const App = () => (
                     <Route path="/admin/roles" element={<AdminRolesPage />} />
                     <Route path="/admin/permissions" element={<AdminPermissionsPage />} />
                     <Route path="/admin/users" element={<AdminUsersManagementPage />} />
+                    <Route path="/admin/logs" element={<SystemLogsViewer />} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />
