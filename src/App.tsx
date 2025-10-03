@@ -51,8 +51,11 @@ const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage")
 const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
 const EvaluationResultsPage = lazy(() => import("./pages/EvaluationResultsPage").then(module => ({ default: module.EvaluationResultsPage })));
 
-// Pages spéciales
-const SystemTestPage = lazy(() => import("./pages/SystemTestPage").then(module => ({ default: module.SystemTestPage })));
+import { SystemTestPage } from "./pages/SystemTestPage";
+import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
+import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
+import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
+import { AdminUsersManagementPage } from "./pages/admin/AdminUsersManagementPage";
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -108,6 +111,12 @@ const App = () => (
                     
                     {/* Tests système */}
                     <Route path="/system-test" element={<SystemTestPage />} />
+                    
+                    {/* Admin dashboard */}
+                    <Route path="/admin" element={<AdminDashboardPage />} />
+                    <Route path="/admin/roles" element={<AdminRolesPage />} />
+                    <Route path="/admin/permissions" element={<AdminPermissionsPage />} />
+                    <Route path="/admin/users" element={<AdminUsersManagementPage />} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />
