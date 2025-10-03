@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useGoogleDocsWriter } from '@/hooks/useGoogleDocsWriter';
+import { usePermission } from '@/hooks/usePermission';
 import { 
   FileText,
   Edit3,
@@ -56,6 +57,7 @@ const offerTypes = {
 export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId }: GoogleDocManagerProps) => {
   const { user } = useAuth();
   const { writeToGoogleDoc, isWriting: isDocWriting } = useGoogleDocsWriter(user?.id);
+  const { hasPermission: canManageConfig } = usePermission('google_sheets.config.manage');
   const [googleDocId, setGoogleDocId] = useState(propGoogleDocId || '1TXeYy0iEw8HTiGkzv8HZzDShg0Vmjnn7kcIE8SpIhmg');
   const [docContent, setDocContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -316,14 +318,16 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
           <div className="flex flex-col lg:grid lg:grid-cols-2 h-full">
             {/* Configuration Panel - Scrollable */}
             <div className="flex-shrink-0 lg:flex-1 p-2 sm:p-3 md:p-4 lg:border-r bg-gray-50/50 dark:bg-gray-800/30 overflow-y-auto max-h-[40vh] lg:max-h-full">
-              <div className="sticky top-0 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-sm pb-2 mb-4">
-                <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
-                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
-                  Configuration
-                </h3>
-              </div>
+              {canManageConfig && (
+                <>
+                  <div className="sticky top-0 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-sm pb-2 mb-4">
+                    <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                      <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                      Configuration
+                    </h3>
+                  </div>
 
-              <div className="space-y-4">
+                  <div className="space-y-4">
                 {/* Google Doc ID */}
                 <div className="space-y-2">
                   <Label htmlFor="doc-id" className="text-xs sm:text-sm flex items-center gap-2">
@@ -463,11 +467,14 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                     </div>
                   )}
                 </div>
+                  </div>
 
-                <Separator />
+                  <Separator className="my-4" />
+                </>
+              )}
 
-                {/* Configuration de l'offre */}
-                <div className="space-y-4">
+              {/* Configuration de l'offre */}
+              <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-xs sm:text-sm font-medium">Type d'offre</Label>
                     <Select 
@@ -581,6 +588,7 @@ export const GoogleDocManager = ({ isOpen, onClose, googleDocId: propGoogleDocId
                   )}
                 </Button>
               </div>
+            </div>
             </div>
 
             {/* Content Panel - Scrollable */}
