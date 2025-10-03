@@ -54,7 +54,10 @@ serve(async (req) => {
     // Get user from authorization header
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Non authentifié' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(
@@ -62,7 +65,28 @@ serve(async (req) => {
     );
 
     if (authError || !user) {
-      throw new Error('Invalid token');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Token invalide' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check permission
+    const { data: hasPermission } = await supabase
+      .rpc('user_has_permission', {
+        user_uuid: user.id,
+        permission_name: 'whatsapp.manage'
+      });
+
+    if (!hasPermission) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Permission refusée',
+          message: 'Vous n\'avez pas la permission de gérer les sessions WhatsApp'
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const { action, sessionName, phoneNumber }: WAHASessionRequest = await req.json();

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -462,6 +463,47 @@ serve(async (req) => {
   try {
     console.log('=== Google Sheets Writer Function Started ===');
     
+    // Authentication & Permission Check
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Non authentifié' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Token invalide' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check permission
+    const { data: hasPermission } = await supabase
+      .rpc('user_has_permission', {
+        user_uuid: user.id,
+        permission_name: 'sheets.edit'
+      });
+
+    if (!hasPermission) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Permission refusée',
+          message: 'Vous n\'avez pas la permission de modifier les Google Sheets'
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId, prospectId, fieldName, fieldValue } = await req.json();
     console.log('Request params:', { spreadsheetId, sheetName, operation, dataLength: data?.length, userId: userId?.substring(0, 8) + '...' });
 
