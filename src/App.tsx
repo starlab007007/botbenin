@@ -107,7 +107,6 @@ const App = () => (
                     <Route path="/account" element={<AccountPage />} />
                     
                     {/* Administration */}
-                    <Route path="/admin/users" element={<UsersManagementPage />} />
                     
                     {/* Tests système */}
                     <Route path="/system-test" element={<SystemTestPage />} />
