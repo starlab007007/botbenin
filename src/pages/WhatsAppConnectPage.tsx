@@ -15,7 +15,7 @@ import {
   Target,
   CheckCircle2
 } from 'lucide-react';
-import whatsappLogo from '@/assets/whatsapp-logo.png';
+import whatsappLogo from '@/assets/whatsapp-icon-official.png';
 
 const WhatsAppConnectPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -28,9 +28,7 @@ const WhatsAppConnectPage: React.FC = () => {
           {/* Header Section */}
           <div className="text-center mb-12">
             <div className="flex items-center justify-center mb-6">
-              <div className="bg-green-500 rounded-2xl p-4 mr-4">
-                <img src={whatsappLogo} alt="WhatsApp" className="w-12 h-12" />
-              </div>
+              <img src={whatsappLogo} alt="WhatsApp" className="w-16 h-16 rounded-2xl mr-4" />
               <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                 WhatsApp IA
               </h1>
