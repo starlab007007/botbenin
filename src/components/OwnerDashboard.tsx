@@ -9,7 +9,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { DashboardGlobalStats } from './owner-dashboard/DashboardGlobalStats';
 import { TopPerformingBotCard } from './owner-dashboard/TopPerformingBotCard';
 import { LastActivityCard } from './owner-dashboard/LastActivityCard';
-import { BotsSummaryList } from './owner-dashboard/BotsSummaryList';
 
 // Types
 interface OwnerDashboardProps {
@@ -28,19 +27,9 @@ interface DashboardStats {
   top_performing_bot_name: string;
   last_activity: string;
 }
-interface BotSummary {
-  bot_id: string;
-  bot_name: string;
-  is_active: boolean;
-  total_unique_users: number;
-  total_messages: number;
-  messages_24h: number;
-  last_message_at: string;
-}
 
 export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalytics }) => {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [botsSummary, setBotsSummary] = useState<BotSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -51,10 +40,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
-      await Promise.all([
-        fetchDashboardStats(),
-        fetchBotsSummary()
-      ]);
+      await fetchDashboardStats();
     } catch (error) {
       console.error('Erreur lors du chargement du dashboard:', error);
       toast({
@@ -97,28 +83,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
     }
   };
 
-  const fetchBotsSummary = async () => {
-    const { data, error } = await supabase
-      .from('detailed_bot_stats')
-      .select(`
-        bot_id,
-        bot_name,
-        is_active,
-        total_unique_users,
-        total_messages,
-        messages_24h,
-        last_message_at
-      `)
-      .order('total_messages', { ascending: false })
-      .limit(10);
-
-    if (error) {
-      console.error('Erreur résumé des bots:', error);
-      return;
-    }
-
-    setBotsSummary(data || []);
-  };
 
   if (isLoading) {
     return (
@@ -177,12 +141,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
         />
         <LastActivityCard lastActivity={dashboardStats.last_activity} />
       </div>
-
-      {/* Résumé des bots */}
-      <BotsSummaryList
-        botsSummary={botsSummary}
-        onViewBotAnalytics={onViewBotAnalytics}
-      />
     </div>
   );
 };
