@@ -1,7 +1,8 @@
 import React from 'react';
 import { usePermission, useAnyPermission } from '@/hooks/usePermission';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Lock } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Lock, ShieldAlert, Info } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface PermissionGuardProps {
   /** Permission unique requise */
@@ -54,8 +55,11 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
 
   if (isLoading && showLoader) {
     return (
-      <div className="flex items-center justify-center p-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center space-y-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-sm text-muted-foreground">Vérification des permissions...</p>
+        </div>
       </div>
     );
   }
@@ -67,8 +71,19 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
 
     return (
       <Alert variant="destructive" className="my-4">
-        <Lock className="h-4 w-4" />
-        <AlertDescription>{fallbackMessage}</AlertDescription>
+        <ShieldAlert className="h-5 w-5" />
+        <AlertTitle className="ml-2">Accès restreint</AlertTitle>
+        <AlertDescription className="ml-2 mt-2">
+          <p>{fallbackMessage}</p>
+          {(permission || anyPermissions) && (
+            <div className="mt-2 text-xs opacity-75">
+              <p className="font-medium">Permissions requises :</p>
+              <code className="bg-destructive/10 px-1 py-0.5 rounded mt-1 block">
+                {permission || anyPermissions?.join(' ou ')}
+              </code>
+            </div>
+          )}
+        </AlertDescription>
       </Alert>
     );
   }

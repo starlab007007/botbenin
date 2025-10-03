@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { ConditionalRender } from '@/components/auth/ConditionalRender';
+import { PermissionBadge } from '@/components/auth/PermissionBadge';
 import { 
   Bot, 
   Settings, 
@@ -84,7 +86,12 @@ export const BotCard: React.FC<BotCardProps> = ({
               <Bot className="w-5 h-5 text-white" />
             </div>
             <div>
-              <CardTitle className="text-lg text-gray-900">{bot.name}</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg text-gray-900">{bot.name}</CardTitle>
+                <ConditionalRender anyPermissions={['bots.edit.own', 'bots.edit.all']}>
+                  <PermissionBadge permission="bots.edit.own" showWhenGranted />
+                </ConditionalRender>
+              </div>
               <p className="text-sm text-gray-600 mt-1">{bot.description}</p>
             </div>
           </div>
@@ -185,22 +192,26 @@ export const BotCard: React.FC<BotCardProps> = ({
         {/* Actions de gestion */}
         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           <div className="flex items-center space-x-1">
-            <Button
-              onClick={() => onToggleStatus(bot)}
-              variant="outline"
-              size="sm"
-              className={bot.is_active ? "text-red-600 border-red-200 hover:bg-red-50" : "text-green-600 border-green-200 hover:bg-green-50"}
-            >
-              {bot.is_active ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
-            </Button>
-            <Button
-              onClick={() => onDelete(bot.id)}
-              variant="outline"
-              size="sm"
-              className="text-red-600 border-red-200 hover:bg-red-50"
-            >
-              <Trash2 className="w-3 h-3" />
-            </Button>
+            <ConditionalRender anyPermissions={['bots.edit.own', 'bots.edit.all']}>
+              <Button
+                onClick={() => onToggleStatus(bot)}
+                variant="outline"
+                size="sm"
+                className={bot.is_active ? "text-red-600 border-red-200 hover:bg-red-50" : "text-green-600 border-green-200 hover:bg-green-50"}
+              >
+                {bot.is_active ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
+              </Button>
+            </ConditionalRender>
+            <ConditionalRender anyPermissions={['bots.delete.own', 'bots.delete.all']}>
+              <Button
+                onClick={() => onDelete(bot.id)}
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            </ConditionalRender>
           </div>
           <Badge variant={bot.is_active ? "default" : "secondary"} className="text-xs">
             {bot.chat_context}

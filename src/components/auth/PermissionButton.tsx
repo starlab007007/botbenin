@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, ButtonProps } from '@/components/ui/button';
 import { usePermission } from '@/hooks/usePermission';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Lock, ShieldAlert } from 'lucide-react';
 
 interface PermissionButtonProps extends ButtonProps {
   /** Permission requise pour activer le bouton */
@@ -39,13 +40,23 @@ export const PermissionButton: React.FC<PermissionButtonProps> = ({
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-block">
-              <Button disabled={true} {...props}>
+              <Button disabled={true} {...props} className={`opacity-60 ${props.className || ''}`}>
+                <Lock className="w-3 h-3 mr-2" />
                 {children}
               </Button>
             </span>
           </TooltipTrigger>
-          <TooltipContent>
-            <p>{noPermissionMessage}</p>
+          <TooltipContent className="max-w-xs">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-orange-500" />
+                <p className="font-medium">Permission requise</p>
+              </div>
+              <p className="text-sm">{noPermissionMessage}</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                <code className="bg-muted px-1 py-0.5 rounded">{permission}</code>
+              </p>
+            </div>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
