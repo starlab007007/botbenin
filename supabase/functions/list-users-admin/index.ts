@@ -11,6 +11,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('Starting list-users-admin function');
+    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -23,41 +25,75 @@ Deno.serve(async (req) => {
     );
 
     // Vérifier que l'utilisateur est authentifié
-    const authHeader = req.headers.get('Authorization')!;
+    const authHeader = req.headers.get('Authorization');
+    console.log('Auth header present:', !!authHeader);
+    
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authorization header manquant' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
+    console.log('User authenticated:', !!user, 'Error:', userError);
+
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Non autorisé' }), {
+      return new Response(JSON.stringify({ error: 'Non autorisé', details: userError?.message }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     // Vérifier que l'utilisateur a la permission users.view
+    console.log('Checking permission for user:', user.id);
     const { data: hasPermission, error: permError } = await supabaseClient
       .rpc('user_has_permission', { 
         user_uuid: user.id, 
         permission_name: 'users.view' 
       });
 
-    if (permError || !hasPermission) {
-      return new Response(JSON.stringify({ error: 'Permission refusée' }), {
+    console.log('Permission check result:', hasPermission, 'Error:', permError);
+
+    if (permError) {
+      console.error('Permission check error:', permError);
+      return new Response(JSON.stringify({ error: 'Erreur lors de la vérification des permissions', details: permError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!hasPermission) {
+      return new Response(JSON.stringify({ error: 'Permission refusée - vous devez avoir la permission users.view' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     // Lister tous les utilisateurs
+    console.log('Fetching users from auth.users...');
     const { data: authUsers, error: listError } = await supabaseClient.auth.admin.listUsers();
 
+    console.log('Users fetched:', authUsers?.users?.length, 'Error:', listError);
+
     if (listError) {
+      console.error('Error listing users:', listError);
       throw listError;
     }
 
+    if (!authUsers || !authUsers.users) {
+      console.log('No users returned from auth.admin.listUsers');
+      return new Response(JSON.stringify({ users: [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     // Récupérer les rôles de chaque utilisateur
+    console.log('Fetching roles for', authUsers.users.length, 'users');
     const usersWithRoles = await Promise.all(
-      (authUsers.users || []).map(async (authUser) => {
+      authUsers.users.map(async (authUser) => {
         const { data: userRoles } = await supabaseClient
           .from('user_roles')
           .select(`
@@ -85,12 +121,17 @@ Deno.serve(async (req) => {
       })
     );
 
+    console.log('Returning', usersWithRoles.length, 'users with roles');
+
     return new Response(JSON.stringify({ users: usersWithRoles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   } catch (error) {
     console.error('Error in list-users-admin function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      stack: error.stack 
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

@@ -70,13 +70,27 @@ export const AdminUsersManagementPage: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
+      console.log('Fetching users...');
       const { data, error } = await supabase.functions.invoke('list-users-admin');
 
-      if (error) throw error;
-      
-      if (!data || !data.users) {
-        throw new Error('Format de réponse invalide');
+      console.log('Response:', { data, error });
+
+      if (error) {
+        console.error('Function error:', error);
+        throw error;
       }
+      
+      if (!data) {
+        console.error('No data returned');
+        throw new Error('Aucune donnée retournée');
+      }
+
+      if (!data.users) {
+        console.error('No users array in response:', data);
+        throw new Error('Format de réponse invalide - aucun tableau users');
+      }
+
+      console.log('Users received:', data.users.length);
       
       const formattedUsers: User[] = data.users.map((u: any) => ({
         id: u.id,
@@ -87,13 +101,21 @@ export const AdminUsersManagementPage: React.FC = () => {
       }));
       
       setUsers(formattedUsers);
-    } catch (error) {
+      
+      if (formattedUsers.length === 0) {
+        toast({
+          title: 'Information',
+          description: 'Aucun utilisateur trouvé dans la base de données',
+        });
+      }
+    } catch (error: any) {
       console.error('Error fetching users:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les utilisateurs. Assurez-vous d\'avoir la permission users.view',
+        description: error.message || 'Impossible de charger les utilisateurs. Assurez-vous d\'avoir la permission users.view',
         variant: 'destructive',
       });
+      setUsers([]);
     } finally {
       setLoading(false);
     }
