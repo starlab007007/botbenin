@@ -180,18 +180,42 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
           {/* Étape d'avertissement */}
           {currentStep === 'warning' && !sessionConnected && (
             <Card className="border-orange-200 bg-orange-50">
-              <CardContent className="p-4 md:p-6">
+              <CardContent className="p-3 sm:p-4 md:p-6">
                 <div className="flex flex-col sm:flex-row items-start gap-3 md:gap-4">
                   <AlertTriangle className="h-6 w-6 md:h-8 md:w-8 text-orange-600 flex-shrink-0 mt-1" />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-orange-800 text-sm md:text-base mb-2">
-                      Important à lire avant de continuer
-                    </h3>
-                    <div className="text-orange-700 text-xs md:text-sm space-y-2">
-                      <p>• Assurez-vous que WhatsApp n'est pas ouvert sur un autre appareil</p>
-                      <p>• Gardez votre téléphone à proximité pour scanner le QR code</p>
-                      <p>• La connexion peut prendre quelques secondes après le scan</p>
-                      <p>• Ne fermez pas cette fenêtre pendant la connexion</p>
+                  <div className="flex-1 space-y-3 md:space-y-4">
+                    <div>
+                      <h3 className="font-semibold text-orange-800 text-sm md:text-base mb-2">
+                        Important à lire avant de continuer
+                      </h3>
+                      <p className="text-orange-700 text-xs md:text-sm">
+                        Vous êtes sur le point de connecter <strong>{sessionName}</strong> à un numéro WhatsApp.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="font-medium text-orange-800 text-xs md:text-sm">Veuillez noter :</p>
+                      <div className="text-orange-700 text-xs md:text-sm space-y-1.5 md:space-y-2">
+                        <p>• <strong>Contrôle complet par l'IA :</strong> Une fois connecté, l'agent IA répondra automatiquement à TOUS les messages reçus sur ce numéro WhatsApp.</p>
+                        <p>• <strong>Actif 24h/24 et 7j/7 :</strong> L'agent restera actif jusqu'à ce que vous désactiviez manuellement la campagne ou déconnectiez le compte.</p>
+                        <p>• <strong>Utilisez un numéro dédié :</strong> Nous recommandons d'utiliser un compte WhatsApp Business ou un numéro dédié à cet usage.</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-2.5 md:p-3">
+                      <p className="text-blue-800 text-xs md:text-sm">
+                        <strong>Vous gardez le contrôle :</strong> Vous pouvez mettre en pause, modifier ou déconnecter complètement votre agent à tout moment depuis le tableau de bord.
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-orange-200 space-y-1.5 md:space-y-2">
+                      <p className="font-medium text-orange-800 text-xs md:text-sm">Avant de scanner :</p>
+                      <div className="text-orange-700 text-xs md:text-sm space-y-1">
+                        <p>• Assurez-vous que WhatsApp n'est pas ouvert sur un autre appareil</p>
+                        <p>• Gardez votre téléphone à proximité pour scanner le QR code</p>
+                        <p>• La connexion peut prendre quelques secondes après le scan</p>
+                        <p>• Ne fermez pas cette fenêtre pendant la connexion</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -199,7 +223,7 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
                 <div className="flex flex-col sm:flex-row gap-2 mt-4">
                   <Button 
                     onClick={handleProceedToQR}
-                    className="flex-1 gap-2"
+                    className="flex-1 gap-2 text-sm"
                   >
                     <QrCode className="h-4 w-4" />
                     J'ai compris, générer le QR code
@@ -207,7 +231,7 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
                   <Button 
                     variant="outline" 
                     onClick={() => onOpenChange(false)}
-                    className="flex-1"
+                    className="flex-1 text-sm"
                   >
                     Annuler
                   </Button>
