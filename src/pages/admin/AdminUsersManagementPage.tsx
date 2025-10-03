@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Search, Shield, Mail } from 'lucide-react';
+import { Users, Search, Shield, Mail, AlertCircle, CheckCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -58,6 +59,14 @@ interface Role {
   name: string;
 }
 
+interface DiagnosticInfo {
+  step: string;
+  status: 'success' | 'error' | 'pending';
+  message: string;
+  data?: any;
+  timestamp: Date;
+}
+
 export const AdminUsersManagementPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -66,21 +75,27 @@ export const AdminUsersManagementPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticInfo[]>([]);
+  const [showDiagnostics, setShowDiagnostics] = useState(true);
   const { toast } = useToast();
 
+  const addDiagnostic = (step: string, status: 'success' | 'error' | 'pending', message: string, data?: any) => {
+    setDiagnostics(prev => [...prev, { step, status, message, data, timestamp: new Date() }]);
+  };
+
   const fetchUsers = async () => {
+    setDiagnostics([]);
+    addDiagnostic('init', 'pending', 'Début de la récupération des utilisateurs');
     console.log('🔍 [AdminUsers] Fetching users...');
     
     // Vérifier l'authentification d'abord
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    console.log('🔐 [AdminUsers] Session:', { 
-      hasSession: !!session, 
-      userId: session?.user?.id,
-      email: session?.user?.email,
-      error: sessionError 
-    });
     
-    if (!session) {
+    if (sessionError) {
+      addDiagnostic('session', 'error', 'Erreur lors de la récupération de la session', { error: sessionError });
+      console.error('❌ [AdminUsers] Session error:', sessionError);
+    } else if (!session) {
+      addDiagnostic('session', 'error', 'Aucune session active - utilisateur non connecté');
       console.error('❌ [AdminUsers] No active session');
       toast({
         title: 'Erreur d\'authentification',
@@ -89,12 +104,23 @@ export const AdminUsersManagementPage: React.FC = () => {
       });
       setLoading(false);
       return;
+    } else {
+      addDiagnostic('session', 'success', 'Session authentifiée', {
+        userId: session.user.id,
+        email: session.user.email
+      });
+      console.log('✅ [AdminUsers] Session valid:', { 
+        userId: session.user.id,
+        email: session.user.email
+      });
     }
     
     try {
       setLoading(true);
       
+      addDiagnostic('function-call', 'pending', 'Appel de la fonction list-users-admin');
       console.log('📞 [AdminUsers] Calling list-users-admin function...');
+      
       const { data, error } = await supabase.functions.invoke('list-users-admin', {
         headers: {
           Authorization: `Bearer ${session.access_token}`
@@ -109,6 +135,10 @@ export const AdminUsersManagementPage: React.FC = () => {
       });
       
       if (error) {
+        addDiagnostic('function-call', 'error', 'Erreur lors de l\'appel de la fonction', { 
+          error: error.message,
+          details: error 
+        });
         console.error('❌ [AdminUsers] Error from function:', error);
         toast({
           title: 'Erreur',
@@ -120,6 +150,7 @@ export const AdminUsersManagementPage: React.FC = () => {
       }
 
       if (!data) {
+        addDiagnostic('function-call', 'error', 'Aucune donnée retournée par la fonction');
         console.error('⚠️ [AdminUsers] No data returned');
         toast({
           title: 'Avertissement',
@@ -130,6 +161,7 @@ export const AdminUsersManagementPage: React.FC = () => {
       }
 
       if (!data.users) {
+        addDiagnostic('function-call', 'error', 'Format de réponse invalide - pas de tableau users', { response: data });
         console.error('⚠️ [AdminUsers] No users array in response:', data);
         toast({
           title: 'Avertissement',
@@ -139,6 +171,10 @@ export const AdminUsersManagementPage: React.FC = () => {
         return;
       }
 
+      addDiagnostic('function-call', 'success', `${data.users.length} utilisateurs récupérés`, {
+        usersCount: data.users.length,
+        sampleUsers: data.users.slice(0, 3)
+      });
       console.log('✅ [AdminUsers] Users received:', data.users.length);
       console.log('👥 [AdminUsers] Sample users:', data.users.slice(0, 3));
       
@@ -151,15 +187,22 @@ export const AdminUsersManagementPage: React.FC = () => {
       }));
       
       setUsers(formattedUsers);
+      addDiagnostic('formatting', 'success', `${formattedUsers.length} utilisateurs formatés avec succès`);
+      
       toast({
         title: 'Succès',
         description: `${formattedUsers.length} utilisateur(s) chargé(s)`,
       });
       
       if (formattedUsers.length === 0) {
+        addDiagnostic('result', 'error', 'Aucun utilisateur trouvé dans la base de données');
         console.log('⚠️ [AdminUsers] No users found in database');
       }
     } catch (error: any) {
+      addDiagnostic('exception', 'error', 'Exception lors de la récupération', { 
+        error: error.message,
+        stack: error.stack 
+      });
       console.error('💥 [AdminUsers] Exception:', error);
       toast({
         title: 'Erreur',
@@ -274,6 +317,82 @@ export const AdminUsersManagementPage: React.FC = () => {
           Gérer les utilisateurs et leurs rôles
         </p>
       </div>
+
+      {/* Panneau de diagnostic */}
+      <Card className="mb-6 border-blue-500">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-blue-500" />
+              Diagnostic du Système
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDiagnostics(!showDiagnostics)}
+            >
+              {showDiagnostics ? 'Masquer' : 'Afficher'}
+            </Button>
+          </div>
+        </CardHeader>
+        {showDiagnostics && (
+          <CardContent>
+            <div className="space-y-3">
+              {diagnostics.length === 0 ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Aucun diagnostic disponible</AlertTitle>
+                  <AlertDescription>
+                    Cliquez sur le bouton de rechargement pour lancer le diagnostic
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                diagnostics.map((diag, index) => (
+                  <Alert 
+                    key={index} 
+                    variant={diag.status === 'error' ? 'destructive' : 'default'}
+                    className={diag.status === 'success' ? 'border-green-500' : ''}
+                  >
+                    <div className="flex items-start gap-3">
+                      {diag.status === 'success' && <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />}
+                      {diag.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500 mt-0.5" />}
+                      {diag.status === 'pending' && <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5" />}
+                      <div className="flex-1">
+                        <AlertTitle className="text-sm font-semibold mb-1">
+                          {diag.step} - {diag.status}
+                        </AlertTitle>
+                        <AlertDescription className="text-xs">
+                          <div className="mb-2">{diag.message}</div>
+                          {diag.data && (
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-xs font-medium">
+                                Voir les détails
+                              </summary>
+                              <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto max-h-40">
+                                {JSON.stringify(diag.data, null, 2)}
+                              </pre>
+                            </details>
+                          )}
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {diag.timestamp.toLocaleTimeString()}
+                          </div>
+                        </AlertDescription>
+                      </div>
+                    </div>
+                  </Alert>
+                ))
+              )}
+            </div>
+            <Button 
+              onClick={fetchUsers} 
+              className="w-full mt-4"
+              variant="outline"
+            >
+              Relancer le diagnostic
+            </Button>
+          </CardContent>
+        )}
+      </Card>
 
       <Card className="mb-6">
         <CardHeader>
