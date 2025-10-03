@@ -66,7 +66,7 @@ export const ProspectPreparationPage = () => {
           <div className="flex items-center gap-4 mb-4 sm:mb-0">
             <div>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Google Sheet - Préparation d'Appel IA
+              Préparation d'Appel IA
             </h1>
             <p className="text-gray-600 mt-1">
               Gérez vos prospects et préparez vos appels commerciaux avec l'IA
