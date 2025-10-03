@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,13 @@ export const IAProspectPreCallPage = () => {
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
+  // Redirection automatique si l'utilisateur est connecté
+  useEffect(() => {
+    if (user) {
+      navigate('/prospect-preparation');
+    }
+  }, [user, navigate]);
+
   const handleStartPreparation = () => {
     if (!user) {
       setShowAuthModal(true);
@@ -33,6 +40,12 @@ export const IAProspectPreCallPage = () => {
       navigate('/prospect-preparation');
     }
   };
+
+  // Ne pas afficher la page si l'utilisateur est connecté (en cours de redirection)
+  if (user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
