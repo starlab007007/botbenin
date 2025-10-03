@@ -290,9 +290,6 @@ export const KpakpatoPage: React.FC = () => {
 
         {/* Footer */}
         <div className="text-center mt-6 sm:mt-8 lg:mt-12 space-y-1 sm:space-y-2">
-          <p className="text-xs text-muted-foreground/75">
-            Alimenté par ElevenLabs Conversational AI
-          </p>
           <div className="flex items-center justify-center space-x-2">
             <div className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 animate-pulse" />
             <span className="text-xs text-muted-foreground">Interface vocale avancée</span>

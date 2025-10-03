@@ -85,7 +85,7 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
   const handleNextStep = () => {
     if (step === 1) {
       if (!integrationCode.trim()) {
-        setError('Veuillez coller votre code d\'intégration ElevenLabs');
+        setError('Veuillez coller votre code d\'intégration');
         return;
       }
       
@@ -137,13 +137,13 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
         botOwner = newBotOwner;
       }
 
-      // Créer le bot avec l'agent ElevenLabs
+      // Créer le bot avec l'agent IA
       const { data: bot, error: botError } = await supabase
         .from('bots')
         .insert([{
           owner_id: botOwner.id,
           name: agentName,
-          description: `Agent IA personnel créé à partir d'ElevenLabs`,
+          description: `Agent IA personnel`,
           elevenlabs_agent_id: agentId,
           widget_config: widgetConfig as any,
           is_personal_agent: true,
@@ -201,7 +201,7 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl">Créer mon agent IA personnel</DialogTitle>
           <DialogDescription className="text-sm sm:text-base">
-            Créez votre propre agent de conversation en utilisant votre code d'intégration ElevenLabs
+            Créez votre propre agent de conversation en utilisant votre code d'intégration
           </DialogDescription>
         </DialogHeader>
 
@@ -226,10 +226,10 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
               <CardHeader className="pb-3 sm:pb-6">
                 <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <span className="w-5 h-5 sm:w-6 sm:h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs sm:text-sm">1</span>
-                  Code d'intégration ElevenLabs
+                  Code d'intégration
                 </CardTitle>
                 <CardDescription className="text-sm">
-                  Collez votre code d'intégration ElevenLabs pour extraire l'agent-id
+                  Collez votre code d'intégration pour extraire l'agent-id
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 sm:space-y-4">
@@ -256,13 +256,9 @@ export const PersonalAgentCreator: React.FC<PersonalAgentCreatorProps> = ({
                 )}
 
                 <div className="text-xs sm:text-sm text-muted-foreground">
-                  <p><strong>Où trouver votre code ?</strong></p>
-                  <ol className="list-decimal list-inside space-y-1 mt-2 text-xs sm:text-sm">
-                    <li>Connectez-vous à votre compte ElevenLabs</li>
-                    <li>Allez dans la section "ConvAI"</li>
-                    <li>Sélectionnez votre agent</li>
-                    <li>Copiez le code d'intégration fourni</li>
-                  </ol>
+                  <p className="text-center p-3 bg-muted/50 rounded-lg">
+                    <strong>Vous recevez votre code après souscription</strong>
+                  </p>
                 </div>
               </CardContent>
             </Card>
