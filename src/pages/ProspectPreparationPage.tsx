@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { IACallPreparationForm } from '@/components/IACallPreparationForm';
 import { GoogleSheetsColumnDiagnostic } from '@/components/GoogleSheetsColumnDiagnostic';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 import { 
   ArrowLeft,
   Settings,
@@ -22,6 +23,9 @@ import { useNavigate } from 'react-router-dom';
 export const ProspectPreparationPage = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  
+  // Vérifier si l'utilisateur a la permission de gérer la configuration Google Sheets
+  const { hasPermission: canManageConfig } = usePermission('google_sheets.config.manage');
   
   // Configuration Google Sheets - utilise le sheet fourni par l'utilisateur
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState({
@@ -71,38 +75,42 @@ export const ProspectPreparationPage = () => {
           </div>
           
           <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => setShowConfig(!showConfig)}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Configuration</span>
-            </Button>
-            <Button
-              onClick={() => setShowGoogleDocManager(true)}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:from-purple-100 hover:to-blue-100"
-            >
-              <BookOpen className="w-4 h-4 text-purple-600" />
-              <span className="hidden sm:inline text-purple-600">Offre Commerciale</span>
-            </Button>
-            <Button
-              onClick={openGoogleSheet}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span className="hidden sm:inline">Ouvrir Google Sheet</span>
-            </Button>
+            {canManageConfig && (
+              <>
+                <Button
+                  onClick={() => setShowConfig(!showConfig)}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="hidden sm:inline">Configuration</span>
+                </Button>
+                <Button
+                  onClick={() => setShowGoogleDocManager(true)}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:from-purple-100 hover:to-blue-100"
+                >
+                  <BookOpen className="w-4 h-4 text-purple-600" />
+                  <span className="hidden sm:inline text-purple-600">Offre Commerciale</span>
+                </Button>
+                <Button
+                  onClick={openGoogleSheet}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span className="hidden sm:inline">Ouvrir Google Sheet</span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Configuration Panel */}
-        {showConfig && (
+        {/* Configuration Panel - Accessible uniquement aux admins */}
+        {canManageConfig && showConfig && (
           <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-purple-50 mb-6">
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -143,8 +151,8 @@ export const ProspectPreparationPage = () => {
           </Card>
         )}
 
-        {/* Diagnostic discret */}
-        {showConfig && (
+        {/* Diagnostic discret - Accessible uniquement aux admins */}
+        {canManageConfig && showConfig && (
           <GoogleSheetsColumnDiagnostic 
             spreadsheetId={googleSheetsConfig.spreadsheetId}
             sheetName={googleSheetsConfig.sheetName}
@@ -157,11 +165,13 @@ export const ProspectPreparationPage = () => {
           sheetName={googleSheetsConfig.sheetName}
         />
 
-        {/* Google Doc Manager Modal */}
-        <GoogleDocManager
-          isOpen={showGoogleDocManager}
-          onClose={() => setShowGoogleDocManager(false)}
-        />
+        {/* Google Doc Manager Modal - Accessible uniquement aux admins */}
+        {canManageConfig && (
+          <GoogleDocManager
+            isOpen={showGoogleDocManager}
+            onClose={() => setShowGoogleDocManager(false)}
+          />
+        )}
       </div>
     </div>
   );
