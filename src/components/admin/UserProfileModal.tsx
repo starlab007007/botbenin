@@ -157,7 +157,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setSubscription(subData);
 
       // Récupérer les rôles
-      const { data: rolesData } = await supabase
+      const { data: rolesData, error: rolesError } = await supabase
         .from('user_roles')
         .select(`
           role_id,
@@ -169,12 +169,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         `)
         .eq('user_id', userId);
 
+      if (rolesError) {
+        console.warn('Warning fetching roles:', rolesError);
+      }
+      
       setRoles(rolesData || []);
     } catch (error: any) {
       console.error('Error fetching user data:', error);
       toast({
         title: 'Erreur',
-        description: 'Impossible de charger les données utilisateur',
+        description: error.message || 'Impossible de charger les données utilisateur',
         variant: 'destructive',
       });
     } finally {
