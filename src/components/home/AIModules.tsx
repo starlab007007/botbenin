@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,43 +11,87 @@ import {
   TrendingUp,
   Share2
 } from 'lucide-react';
-
-const aiModules = [
-  {
-    title: 'IA Business',
-    description: 'Solutions B2B et prospection automatisée',
-    icon: Briefcase,
-    path: '/modules/business',
-    stats: '156 prospects générés',
-    badge: 'Populaire'
-  },
-  {
-    title: 'IA Marketing',
-    description: 'Campagnes et génération de leads',
-    icon: Megaphone,
-    path: '/modules/marketing',
-    stats: '23 campagnes actives',
-    badge: 'Nouveau'
-  },
-  {
-    title: 'Campagnes Sociales',
-    description: 'Partage personnalisé multi-plateformes',
-    icon: Share2,
-    path: '/social-campaigns',
-    stats: 'Nouvelle fonctionnalité',
-    badge: 'New'
-  },
-  {
-    title: 'Automatisations',
-    description: 'Workflows et processus automatisés',
-    icon: Zap,
-    path: '/automations',
-    stats: '12 automatisations',
-    badge: 'Pro'
-  }
-];
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const AIModules: React.FC = () => {
+  const { user } = useAuth();
+  const [stats, setStats] = useState({
+    prospectsCount: 0,
+    campaignsCount: 0,
+    automationsCount: 0
+  });
+
+  useEffect(() => {
+    if (user) {
+      fetchStats();
+    }
+  }, [user]);
+
+  const fetchStats = async () => {
+    try {
+      // Compter les prospects
+      const { count: prospectsCount } = await supabase
+        .from('prospects')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user?.id);
+
+      // Compter les campagnes
+      const { count: campaignsCount } = await supabase
+        .from('social_sharing_campaigns')
+        .select('*', { count: 'exact', head: true })
+        .eq('owner_id', user?.id);
+
+      // Compter les automatisations
+      const { count: automationsCount } = await supabase
+        .from('automations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user?.id);
+
+      setStats({
+        prospectsCount: prospectsCount || 0,
+        campaignsCount: campaignsCount || 0,
+        automationsCount: automationsCount || 0
+      });
+    } catch (error) {
+      console.error('Erreur lors du chargement des statistiques:', error);
+    }
+  };
+
+  const aiModules = [
+    {
+      title: 'IA Business',
+      description: 'Solutions B2B et prospection automatisée',
+      icon: Briefcase,
+      path: '/modules/business',
+      stats: stats.prospectsCount > 0 ? `${stats.prospectsCount} prospects` : 'Commencer',
+      badge: 'Populaire'
+    },
+    {
+      title: 'IA Marketing',
+      description: 'Campagnes et génération de leads',
+      icon: Megaphone,
+      path: '/modules/marketing',
+      stats: stats.campaignsCount > 0 ? `${stats.campaignsCount} campagnes` : 'Commencer',
+      badge: 'Nouveau'
+    },
+    {
+      title: 'Campagnes Sociales',
+      description: 'Partage personnalisé multi-plateformes',
+      icon: Share2,
+      path: '/social-campaigns',
+      stats: stats.campaignsCount > 0 ? `${stats.campaignsCount} actives` : 'Nouvelle fonctionnalité',
+      badge: 'New'
+    },
+    {
+      title: 'Automatisations',
+      description: 'Workflows et processus automatisés',
+      icon: Zap,
+      path: '/automations',
+      stats: stats.automationsCount > 0 ? `${stats.automationsCount} workflows` : 'Commencer',
+      badge: 'Pro'
+    }
+  ];
   return (
     <div>
       <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Modules IA spécialisés</h2>

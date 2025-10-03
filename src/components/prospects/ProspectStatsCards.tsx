@@ -31,7 +31,6 @@ export const ProspectStatsCards: React.FC<ProspectStatsCardsProps> = ({ stats })
       icon: Users,
       color: 'bg-blue-50 text-blue-600 border-blue-200',
       bgColor: 'bg-blue-600',
-      change: '+12%',
       description: 'Prospects totaux'
     },
     {
@@ -40,7 +39,6 @@ export const ProspectStatsCards: React.FC<ProspectStatsCardsProps> = ({ stats })
       icon: UserPlus,
       color: 'bg-green-50 text-green-600 border-green-200',
       bgColor: 'bg-green-600',
-      change: '+5',
       description: 'Cette semaine'
     },
     {
@@ -49,7 +47,6 @@ export const ProspectStatsCards: React.FC<ProspectStatsCardsProps> = ({ stats })
       icon: Phone,
       color: 'bg-yellow-50 text-yellow-600 border-yellow-200',
       bgColor: 'bg-yellow-600',
-      change: '+8',
       description: 'En cours'
     },
     {
@@ -58,7 +55,6 @@ export const ProspectStatsCards: React.FC<ProspectStatsCardsProps> = ({ stats })
       icon: UserCheck,
       color: 'bg-purple-50 text-purple-600 border-purple-200',
       bgColor: 'bg-purple-600',
-      change: '+3',
       description: 'Prêts à convertir'
     },
     {
@@ -67,7 +63,6 @@ export const ProspectStatsCards: React.FC<ProspectStatsCardsProps> = ({ stats })
       icon: Target,
       color: 'bg-emerald-50 text-emerald-600 border-emerald-200',
       bgColor: 'bg-emerald-600',
-      change: '+2',
       description: 'Clients acquis'
     },
     {
@@ -76,7 +71,6 @@ export const ProspectStatsCards: React.FC<ProspectStatsCardsProps> = ({ stats })
       icon: TrendingUp,
       color: 'bg-orange-50 text-orange-600 border-orange-200',
       bgColor: 'bg-orange-600',
-      change: '+5%',
       description: 'Qualité globale'
     }
   ];
@@ -90,9 +84,6 @@ export const ProspectStatsCards: React.FC<ProspectStatsCardsProps> = ({ stats })
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${item.color}`}>
                 <item.icon className="w-5 h-5" />
               </div>
-              <Badge variant="outline" className="text-xs">
-                {item.change}
-              </Badge>
             </div>
             
             <div>
