@@ -52,6 +52,7 @@ const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPa
 const EvaluationResultsPage = lazy(() => import("./pages/EvaluationResultsPage").then(module => ({ default: module.EvaluationResultsPage })));
 
 import { SystemTestPage } from "./pages/SystemTestPage";
+import { PlatformTestPage } from "./pages/PlatformTestPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
 import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
@@ -111,6 +112,7 @@ const App = () => (
                     
                     {/* Tests système */}
                     <Route path="/system-test" element={<SystemTestPage />} />
+                    <Route path="/platform-test" element={<PlatformTestPage />} />
                     
                     {/* Admin dashboard */}
                     <Route path="/admin" element={<AdminDashboardPage />} />
