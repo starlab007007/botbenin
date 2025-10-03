@@ -56,18 +56,18 @@ export const QuickStatsCards: React.FC<QuickStatsCardsProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {quickStats.map((stat, index) => (
           <Card key={index} className="uniform-stats-card">
-            <div className="flex flex-col items-center justify-center mb-3">
-              <div className={`w-12 h-12 ${stat.bgColor} rounded-xl flex items-center justify-center mb-3`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+            <div className="flex flex-col items-center justify-center mb-2 sm:mb-3">
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bgColor} rounded-xl flex items-center justify-center mb-2 sm:mb-3`}>
+                <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
               </div>
             </div>
-            <h3 className="text-gray-600 text-sm mb-1 text-center">{stat.title}</h3>
-            <div className="text-2xl font-bold text-gray-900 text-center">
+            <h3 className="text-gray-600 text-xs sm:text-sm mb-1 text-center">{stat.title}</h3>
+            <div className="text-xl sm:text-2xl font-bold text-gray-900 text-center">
               {stat.value}
-              {stat.limit && <span className="text-sm text-gray-500">/{stat.limit}</span>}
+              {stat.limit && <span className="text-xs sm:text-sm text-gray-500">/{stat.limit}</span>}
             </div>
           </Card>
         ))}
@@ -75,10 +75,10 @@ export const QuickStatsCards: React.FC<QuickStatsCardsProps> = ({
       
       {/* Bouton pour voir toutes les données */}
       {onShowAllData && (
-        <div className="flex justify-center">
-          <Button onClick={onShowAllData} variant="outline" className="w-full max-w-md">
+        <div className="flex justify-center px-2 sm:px-0">
+          <Button onClick={onShowAllData} variant="outline" className="w-full sm:max-w-md">
             <Eye className="w-4 h-4 mr-2" />
-            Voir toutes les données détaillées
+            <span className="text-sm sm:text-base">Voir toutes les données</span>
           </Button>
         </div>
       )}

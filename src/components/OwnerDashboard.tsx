@@ -107,12 +107,12 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Tableau de bord</h2>
-          <p className="text-gray-600">Vue d'ensemble de vos chatbots et analytics</p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="w-full sm:w-auto">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Tableau de bord</h2>
+          <p className="text-sm sm:text-base text-gray-600">Vue d'ensemble de vos chatbots et analytics</p>
         </div>
         <Button variant="outline" onClick={fetchDashboardData} className="w-full sm:w-auto">
           <RefreshCw className="w-4 h-4 mr-2" />
@@ -133,7 +133,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({ onViewBotAnalyti
       />
 
       {/* Meilleur bot et dernière activité */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <TopPerformingBotCard
           topBotId={dashboardStats.top_performing_bot_id}
           topBotName={dashboardStats.top_performing_bot_name}

@@ -22,17 +22,17 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ onActionClick }) => 
   ];
 
   return (
-    <Card className="uniform-card p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <Card className="uniform-card p-4 sm:p-6">
+      <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Actions rapides</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
         {actions.map((action) => (
           <Button 
             key={action.id}
-            className="uniform-button-secondary flex items-center space-x-2"
+            className="uniform-button-secondary flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-2 h-auto py-3 sm:py-2"
             onClick={() => onActionClick?.(action.id)}
           >
-            <action.icon className="w-4 h-4" />
-            <span>{action.label}</span>
+            <action.icon className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-xs sm:text-sm">{action.label}</span>
           </Button>
         ))}
       </div>

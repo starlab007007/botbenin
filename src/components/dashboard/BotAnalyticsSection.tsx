@@ -22,14 +22,15 @@ export const BotAnalyticsSection: React.FC<BotAnalyticsSectionProps> = ({
   if (bots.length === 0) return null;
 
   return (
-    <Card className="uniform-card p-6 mb-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Voir les analytics d'un bot</h3>
+    <Card className="uniform-card p-4 sm:p-6 mb-4">
+      <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Voir les analytics d'un bot</h3>
       <div className="flex flex-wrap gap-2">
         {bots.map(bot => (
           <Button
             key={bot.id}
             variant="outline"
-            className={selectedBotId === bot.id ? "border-blue-600" : ""}
+            size="sm"
+            className={`text-xs sm:text-sm ${selectedBotId === bot.id ? "border-blue-600 bg-blue-50" : ""}`}
             onClick={() => onBotSelect(bot.id, bot.name)}
           >
             {bot.name}

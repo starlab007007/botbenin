@@ -160,7 +160,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
+    <div className="p-3 sm:p-4 lg:p-8 space-y-4 sm:space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
       {/* Header */}
       <DashboardHeader permissions={permissions} />
 
