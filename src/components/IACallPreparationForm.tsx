@@ -41,7 +41,7 @@ import {
   Save
 } from 'lucide-react';
 
-type Step = 'add' | 'activate' | 'evaluate' | 'view';
+type Step = 'add' | 'activate' | 'commercial' | 'evaluate' | 'view';
 
 interface RecentProspect {
   id: string;
@@ -205,9 +205,9 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
         setSelectedProspect(updatedProspect);
 
         if (activate) {
-          // Passer directement à l'étape évaluation
-          setCurrentStep('evaluate');
-          toast.success('Prospect activé ! Prêt pour l\'évaluation IA.');
+          // Passer à l'étape offre commerciale
+          setCurrentStep('commercial');
+          toast.success('Prospect activé ! Passez à l\'offre commerciale.');
         } else {
           // Retourner à l'étape activation si désactivé
           setCurrentStep('activate');
@@ -315,33 +315,69 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
         </Card>
       )}
 
-      {/* Indicateur d'étapes */}
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className={`flex items-center gap-2 ${currentStep === 'add' ? 'text-blue-600' : (currentStep === 'activate' || currentStep === 'evaluate') ? 'text-green-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 'add' ? 'bg-blue-100' : (currentStep === 'activate' || currentStep === 'evaluate') ? 'bg-green-100' : 'bg-gray-100'}`}>
-                <Plus className="w-4 h-4" />
+      {/* Indicateur d'étapes - Responsive */}
+      <Card className="border-0 shadow-sm overflow-hidden">
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-1 sm:gap-2">
+            {/* Étape 1: Ajouter */}
+            <div className={`flex flex-col sm:flex-row items-center gap-1 sm:gap-2 flex-1 ${
+              currentStep === 'add' ? 'text-blue-600' : 
+              ['activate', 'commercial', 'evaluate'].includes(currentStep) ? 'text-green-600' : 'text-gray-400'
+            }`}>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${
+                currentStep === 'add' ? 'bg-blue-100' : 
+                ['activate', 'commercial', 'evaluate'].includes(currentStep) ? 'bg-green-100' : 'bg-gray-100'
+              }`}>
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <span className="text-sm font-medium">Ajouter</span>
+              <span className="text-xs sm:text-sm font-medium text-center sm:text-left">Ajouter</span>
             </div>
             
-            <ArrowRight className="w-4 h-4 text-gray-400" />
+            <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 shrink-0" />
             
-            <div className={`flex items-center gap-2 ${currentStep === 'activate' ? 'text-blue-600' : currentStep === 'evaluate' ? 'text-green-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 'activate' ? 'bg-blue-100' : currentStep === 'evaluate' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                <Settings className="w-4 h-4" />
+            {/* Étape 2: Activer */}
+            <div className={`flex flex-col sm:flex-row items-center gap-1 sm:gap-2 flex-1 ${
+              currentStep === 'activate' ? 'text-blue-600' : 
+              ['commercial', 'evaluate'].includes(currentStep) ? 'text-green-600' : 'text-gray-400'
+            }`}>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${
+                currentStep === 'activate' ? 'bg-blue-100' : 
+                ['commercial', 'evaluate'].includes(currentStep) ? 'bg-green-100' : 'bg-gray-100'
+              }`}>
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <span className="text-sm font-medium">Activer</span>
+              <span className="text-xs sm:text-sm font-medium text-center sm:text-left">Activer</span>
             </div>
             
-            <ArrowRight className="w-4 h-4 text-gray-400" />
+            <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 shrink-0" />
             
-            <div className={`flex items-center gap-2 ${currentStep === 'evaluate' ? 'text-blue-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 'evaluate' ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                <Rocket className="w-4 h-4" />
+            {/* Étape 3: Offre Commerciale */}
+            <div className={`flex flex-col sm:flex-row items-center gap-1 sm:gap-2 flex-1 ${
+              currentStep === 'commercial' ? 'text-blue-600' : 
+              currentStep === 'evaluate' ? 'text-green-600' : 'text-gray-400'
+            }`}>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${
+                currentStep === 'commercial' ? 'bg-blue-100' : 
+                currentStep === 'evaluate' ? 'bg-green-100' : 'bg-gray-100'
+              }`}>
+                <FileEdit className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <span className="text-sm font-medium">Évaluer</span>
+              <span className="text-xs sm:text-sm font-medium text-center sm:text-left hidden sm:inline">Offre</span>
+              <span className="text-xs font-medium text-center sm:hidden">Offre</span>
+            </div>
+            
+            <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 shrink-0" />
+            
+            {/* Étape 4: Évaluer */}
+            <div className={`flex flex-col sm:flex-row items-center gap-1 sm:gap-2 flex-1 ${
+              currentStep === 'evaluate' ? 'text-blue-600' : 'text-gray-400'
+            }`}>
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${
+                currentStep === 'evaluate' ? 'bg-blue-100' : 'bg-gray-100'
+              }`}>
+                <Rocket className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <span className="text-xs sm:text-sm font-medium text-center sm:text-left">Évaluer</span>
             </div>
           </div>
         </CardContent>
@@ -353,17 +389,20 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
             {currentStep === 'add' && <Phone className="w-8 h-8 text-white" />}
             {currentStep === 'activate' && <Settings className="w-8 h-8 text-white" />}
+            {currentStep === 'commercial' && <FileEdit className="w-8 h-8 text-white" />}
             {currentStep === 'evaluate' && <Rocket className="w-8 h-8 text-white" />}
           </div>
-          <CardTitle className="text-2xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <CardTitle className="text-xl sm:text-2xl bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             {currentStep === 'add' && 'Ajouter un Prospect'}
             {currentStep === 'activate' && 'Activer le Prospect'}
+            {currentStep === 'commercial' && 'Offre Commerciale'}
             {currentStep === 'evaluate' && 'Lancer l\'Évaluation IA'}
           </CardTitle>
-          <p className="text-muted-foreground">
-            {currentStep === 'add' && 'Saisissez les informations du prospect'}
-            {currentStep === 'activate' && 'Activez le prospect pour l\'évaluation IA'}
-            {currentStep === 'evaluate' && 'Démarrez l\'analyse IA du prospect'}
+          <p className="text-sm sm:text-base text-muted-foreground">
+            {currentStep === 'add' && 'Saisir les informations du prospect'}
+            {currentStep === 'activate' && 'Démarrer/Arrêter le prospect'}
+            {currentStep === 'commercial' && 'Proposer l\'offre commerciale, générer, modifier et enregistrer'}
+            {currentStep === 'evaluate' && 'Lancer l\'analyse IA'}
           </p>
         </CardHeader>
         <CardContent>
@@ -531,19 +570,14 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-yellow-800">
-                    <h4 className="font-semibold mb-2">⚡ Guide - Étape 2: Activation du prospect</h4>
+                    <h4 className="font-semibold mb-2">⚡ Étape 2: Activation du prospect</h4>
                     <div className="space-y-2">
                       <p className="mb-2">
-                        <strong>🎯 Objectif :</strong> Marquer le prospect comme "prêt" pour l'analyse IA
+                        <strong>🎯 Objectif :</strong> Activer le prospect pour permettre l'analyse IA
                       </p>
                       <p className="mb-2">
-                        <strong>📋 Action requise :</strong> Cliquez sur "Démarrer" pour permettre à l'IA d'analyser ce prospect
+                        <strong>📋 Action :</strong> Cliquez sur "Démarrer" pour activer ce prospect
                       </p>
-                      <div className="bg-yellow-100 p-3 rounded-md mt-2">
-                        <p className="text-xs font-medium">
-                          💡 Info : Seuls les prospects activés peuvent être évalués par l'IA. Vous pouvez désactiver un prospect à tout moment.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -605,29 +639,86 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
             </div>
           )}
 
-          {/* Étape 3: Évaluer */}
+          {/* Étape 3: Offre Commerciale */}
+          {currentStep === 'commercial' && selectedProspect && (
+            <div className="space-y-6">
+              <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+                <div className="flex items-start gap-3">
+                  <FileEdit className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-orange-800">
+                    <h4 className="font-semibold mb-2">📄 Étape 3: Offre Commerciale</h4>
+                    <div className="space-y-2">
+                      <p className="mb-2">
+                        <strong>🎯 Objectif :</strong> Créer et personnaliser l'offre commerciale pour votre prospect
+                      </p>
+                      <p className="mb-2">
+                        <strong>📋 Action :</strong> Générez, modifiez et enregistrez votre offre commerciale
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                <h3 className="font-semibold text-orange-900 mb-2">Prospect sélectionné</h3>
+                <div className="text-orange-800">
+                  <div className="font-medium">{selectedProspect.contact_name}</div>
+                  <div className="text-sm">{selectedProspect.company_name}</div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-center text-muted-foreground">
+                  Gérez votre offre commerciale pour ce prospect
+                </p>
+                
+                <Button
+                  onClick={() => setShowGoogleDocManager(true)}
+                  className="w-full h-12 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-sm sm:text-base"
+                >
+                  <FileEdit className="w-5 h-5 mr-2" />
+                  <span className="hidden sm:inline">Créer/Modifier l'offre commerciale</span>
+                  <span className="sm:hidden">Gérer l'offre</span>
+                </Button>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={() => setCurrentStep('activate')}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Retour à l'activation
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setCurrentStep('evaluate')}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                  >
+                    Continuer vers l'évaluation
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Étape 4: Évaluer */}
           {currentStep === 'evaluate' && selectedProspect && (
             <div className="space-y-6">
               <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
                 <div className="flex items-start gap-3">
                   <Rocket className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-green-800">
-                    <h4 className="font-semibold mb-2">🚀 Guide - Étape 3: Évaluation IA du prospect</h4>
+                    <h4 className="font-semibold mb-2">🚀 Étape 4: Évaluation IA du prospect</h4>
                     <div className="space-y-2">
                       <p className="mb-2">
-                        <strong>🤖 Processus :</strong> L'IA va analyser le LinkedIn, le site web de l'entreprise et toutes les données disponibles
+                        <strong>🤖 Analyse :</strong> L'IA analyse le LinkedIn, le site web et toutes les données disponibles
                       </p>
                       <p className="mb-2">
-                        <strong>📊 Résultat :</strong> Vous obtiendrez un rapport complet avec score de pertinence et stratégie d'approche
+                        <strong>📊 Résultat :</strong> Rapport complet avec score et stratégie d'approche
                       </p>
                       <p className="mb-2">
-                        <strong>⏱️ Durée :</strong> L'analyse prend généralement 2-5 minutes selon la complexité
+                        <strong>⏱️ Durée :</strong> 2-5 minutes selon la complexité
                       </p>
-                      <div className="bg-green-100 p-3 rounded-md mt-2">
-                        <p className="text-xs font-medium">
-                          ⚠️ Important : Évitez de lancer plusieurs évaluations simultanées pour garantir la qualité de l'analyse
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -713,13 +804,13 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
                   </Button>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
-                    onClick={() => setCurrentStep('activate')}
+                    onClick={() => setCurrentStep('commercial')}
                     variant="outline"
                     className="flex-1"
                   >
-                    Retour à l'activation
+                    Retour à l'offre
                   </Button>
                   
                   <Button
@@ -859,13 +950,12 @@ export const IACallPreparationForm: React.FC<IACallPreparationFormProps> = ({
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
             <div className="text-sm text-amber-800">
-              <h4 className="font-semibold mb-1">Processus en 3 étapes :</h4>
+              <h4 className="font-semibold mb-1">Processus en 4 étapes :</h4>
               <ul className="space-y-1 text-amber-700">
                 <li>• <strong>Ajouter :</strong> Saisir les informations du prospect</li>
-                <li>• <strong>Activer :</strong> Démarrer/Arrêter le prospect (Run = True/False)</li>
-                <li>• <strong>Évaluer :</strong> Lancer l'analyse IA via webhook</li>
-                <li>• <strong>Offre Commerciale :</strong> Générer et synchroniser avec Google Docs</li>
-                <li>• Les données sont synchronisées automatiquement avec Google Sheets et Google Docs</li>
+                <li>• <strong>Activer :</strong> Démarrer/Arrêter le prospect</li>
+                <li>• <strong>Offre Commerciale :</strong> Proposer l'offre commerciale, générer, modifier et enregistrer</li>
+                <li>• <strong>Évaluer :</strong> Lancer l'analyse IA</li>
               </ul>
             </div>
           </div>
