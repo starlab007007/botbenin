@@ -114,3 +114,9 @@ verify_jwt = false
 
 [functions.generate-commercial-offer]
 verify_jwt = false
+
+[functions.check-user-permission]
+verify_jwt = true
+
+[functions.get-user-profile-with-role]
+verify_jwt = true
