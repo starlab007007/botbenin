@@ -64,13 +64,6 @@ const botManagementItems = [
     color: 'from-indigo-500 to-indigo-600',
     badge: 'Pro'
   },
-  { 
-    title: 'Automatisations', 
-    path: '/automations', 
-    icon: Zap, 
-    color: 'from-orange-500 to-orange-600',
-    badge: 'New'
-  },
 ];
 
 const marketingItems = [

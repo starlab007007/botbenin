@@ -12,7 +12,6 @@ interface MobileSidebarProps {
 const menuItems = [
   { title: 'Accueil', path: '/', icon: Home },
   { title: 'Chat', path: '/chat', icon: MessageCircle },
-  { title: 'Automatisations', path: '/automatisations', icon: Workflow },
   { title: 'Tableaux de bord', path: '/dashboard', icon: BarChart3 },
 ];
 
