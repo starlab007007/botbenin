@@ -29,6 +29,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { UserProfileModal } from '@/components/admin/UserProfileModal';
+import { Eye, Edit, MoreVertical } from 'lucide-react';
 
 interface User {
   id: string;
@@ -75,6 +83,7 @@ export const AdminUsersManagementPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DiagnosticInfo[]>([]);
   const [showDiagnostics, setShowDiagnostics] = useState(true);
   const { toast } = useToast();
@@ -258,6 +267,16 @@ export const AdminUsersManagementPage: React.FC = () => {
     setSelectedUser(user);
     await fetchUserRoles(user.id);
     setIsDialogOpen(true);
+  };
+
+  const handleViewProfile = (user: User) => {
+    setSelectedUser(user);
+    setIsProfileModalOpen(true);
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setIsProfileModalOpen(true);
   };
 
   const handleToggleRole = async (roleId: string) => {
@@ -460,14 +479,27 @@ export const AdminUsersManagementPage: React.FC = () => {
                       : 'Jamais'}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenUserDialog(user)}
-                    >
-                      <Shield className="h-4 w-4 mr-2" />
-                      Gérer Rôles
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleViewProfile(user)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          Voir le profil
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Modifier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenUserDialog(user)}>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Permissions
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               )))}
@@ -475,6 +507,16 @@ export const AdminUsersManagementPage: React.FC = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {selectedUser && (
+        <UserProfileModal
+          userId={selectedUser.id}
+          userEmail={selectedUser.email}
+          open={isProfileModalOpen}
+          onOpenChange={setIsProfileModalOpen}
+          onUpdate={fetchUsers}
+        />
+      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
