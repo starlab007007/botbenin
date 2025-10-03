@@ -69,28 +69,78 @@ export const AdminUsersManagementPage: React.FC = () => {
   const { toast } = useToast();
 
   const fetchUsers = async () => {
+    console.log('🔍 [AdminUsers] Fetching users...');
+    
+    // Vérifier l'authentification d'abord
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('🔐 [AdminUsers] Session:', { 
+      hasSession: !!session, 
+      userId: session?.user?.id,
+      email: session?.user?.email,
+      error: sessionError 
+    });
+    
+    if (!session) {
+      console.error('❌ [AdminUsers] No active session');
+      toast({
+        title: 'Erreur d\'authentification',
+        description: 'Vous devez être connecté pour accéder à cette page',
+        variant: 'destructive',
+      });
+      setLoading(false);
+      return;
+    }
+    
     try {
-      console.log('Fetching users...');
-      const { data, error } = await supabase.functions.invoke('list-users-admin');
-
-      console.log('Response:', { data, error });
-
-      if (error) {
-        console.error('Function error:', error);
-        throw error;
-      }
+      setLoading(true);
       
+      console.log('📞 [AdminUsers] Calling list-users-admin function...');
+      const { data, error } = await supabase.functions.invoke('list-users-admin', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+      
+      console.log('📊 [AdminUsers] Response:', { 
+        hasData: !!data, 
+        dataKeys: data ? Object.keys(data) : [],
+        error: error,
+        rawData: JSON.stringify(data, null, 2)
+      });
+      
+      if (error) {
+        console.error('❌ [AdminUsers] Error from function:', error);
+        toast({
+          title: 'Erreur',
+          description: error.message || 'Erreur inconnue lors de la récupération des utilisateurs',
+          variant: 'destructive',
+        });
+        setUsers([]);
+        return;
+      }
+
       if (!data) {
-        console.error('No data returned');
-        throw new Error('Aucune donnée retournée');
+        console.error('⚠️ [AdminUsers] No data returned');
+        toast({
+          title: 'Avertissement',
+          description: 'Aucune donnée retournée par le serveur',
+        });
+        setUsers([]);
+        return;
       }
 
       if (!data.users) {
-        console.error('No users array in response:', data);
-        throw new Error('Format de réponse invalide - aucun tableau users');
+        console.error('⚠️ [AdminUsers] No users array in response:', data);
+        toast({
+          title: 'Avertissement',
+          description: 'Format de réponse invalide - aucun tableau users',
+        });
+        setUsers([]);
+        return;
       }
 
-      console.log('Users received:', data.users.length);
+      console.log('✅ [AdminUsers] Users received:', data.users.length);
+      console.log('👥 [AdminUsers] Sample users:', data.users.slice(0, 3));
       
       const formattedUsers: User[] = data.users.map((u: any) => ({
         id: u.id,
@@ -101,18 +151,19 @@ export const AdminUsersManagementPage: React.FC = () => {
       }));
       
       setUsers(formattedUsers);
+      toast({
+        title: 'Succès',
+        description: `${formattedUsers.length} utilisateur(s) chargé(s)`,
+      });
       
       if (formattedUsers.length === 0) {
-        toast({
-          title: 'Information',
-          description: 'Aucun utilisateur trouvé dans la base de données',
-        });
+        console.log('⚠️ [AdminUsers] No users found in database');
       }
     } catch (error: any) {
-      console.error('Error fetching users:', error);
+      console.error('💥 [AdminUsers] Exception:', error);
       toast({
         title: 'Erreur',
-        description: error.message || 'Impossible de charger les utilisateurs. Assurez-vous d\'avoir la permission users.view',
+        description: error.message || 'Impossible de charger les utilisateurs',
         variant: 'destructive',
       });
       setUsers([]);
