@@ -89,34 +89,34 @@ export const ProspectsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header avec actions */}
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0">
+      <div className="space-y-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestion des Prospects</h1>
-            <p className="text-gray-600">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Gestion des Prospects</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               Organisez, suivez et optimisez vos prospects et campagnes
             </p>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={() => setIsGlobalReportOpen(true)}>
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Rapport global
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <Button variant="outline" size="sm" onClick={() => setIsGlobalReportOpen(true)} className="flex-1 sm:flex-none">
+              <BarChart3 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Rapport global</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
-              <Download className="w-4 h-4 mr-2" />
-              Export complet
+            <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)} className="flex-1 sm:flex-none">
+              <Download className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export complet</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" className="flex-1 sm:flex-none">
                   <Plus className="w-4 h-4 mr-2" />
                   Créer
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => setIsCreateDatabaseOpen(true)}>
                   <Database className="w-4 h-4 mr-2" />
                   Nouvelle base de données
@@ -140,22 +140,22 @@ export const ProspectsPage: React.FC = () => {
       </div>
 
       {/* Statistiques enrichies */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {enrichedStats.map((stat, index) => (
           <Card key={index} className={`hover:shadow-md transition-all border-l-4 ${getStatColor(stat.color).split(' ')[2]}`}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${getStatColor(stat.color)}`}>
-                  <stat.icon className="w-6 h-6" />
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center ${getStatColor(stat.color)}`}>
+                  <stat.icon className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <Badge variant="outline" className="text-xs">
                   {stat.change}
                 </Badge>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
-                <p className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</p>
-                <p className="text-xs text-gray-500">{stat.description}</p>
+                <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1">{stat.title}</p>
+                <p className="text-xl sm:text-2xl font-bold text-foreground mb-1">{stat.value}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{stat.description}</p>
               </div>
             </CardContent>
           </Card>
@@ -163,26 +163,26 @@ export const ProspectsPage: React.FC = () => {
       </div>
 
       {/* Barre d'actions avec onglets */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0">
-            <div className="flex items-center space-x-4">
-              <h2 className="text-xl font-semibold">Tableau de bord</h2>
-              <div className="flex items-center space-x-1">
-                <Activity className="w-4 h-4 text-green-500" />
-                <span className="text-sm text-muted-foreground">Temps réel</span>
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <h2 className="text-lg sm:text-xl font-semibold">Tableau de bord</h2>
+              <div className="flex items-center gap-1">
+                <Activity className="w-3 h-3 sm:w-4 sm:h-4 text-green-500 animate-pulse" />
+                <span className="text-xs sm:text-sm text-muted-foreground">Temps réel</span>
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Import className="w-4 h-4 mr-2" />
-                    Importer
+                  <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                    <Import className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Importer</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent>
+                <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem>
                     <Database className="w-4 h-4 mr-2" />
                     Importer CSV
@@ -198,9 +198,9 @@ export const ProspectsPage: React.FC = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
               
-              <Button variant="outline" size="sm">
-                <Filter className="w-4 h-4 mr-2" />
-                Filtres
+              <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                <Filter className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Filtres</span>
               </Button>
             </div>
           </div>
@@ -208,27 +208,27 @@ export const ProspectsPage: React.FC = () => {
       </Card>
 
       {/* Navigation par onglets améliorée */}
-      <Tabs value={activeView} onValueChange={(value) => setActiveView(value as any)} className="space-y-6">
-        <div className="border-b border-gray-200 bg-white rounded-lg shadow-sm">
+      <Tabs value={activeView} onValueChange={(value) => setActiveView(value as any)} className="space-y-4 sm:space-y-6">
+        <div className="bg-card rounded-lg shadow-sm border">
           <TabsList className="grid w-full grid-cols-3 h-auto p-1">
-            <TabsTrigger value="databases" className="flex items-center space-x-2 py-3">
-              <Database className="w-4 h-4" />
+            <TabsTrigger value="databases" className="flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 text-xs sm:text-sm">
+              <Database className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Bases de Données</span>
               <span className="sm:hidden">Bases</span>
-              <Badge variant="secondary" className="ml-2">
+              <Badge variant="secondary" className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-2">
                 {stats.totalDatabases}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="prospects" className="flex items-center space-x-2 py-3">
-              <Users className="w-4 h-4" />
+            <TabsTrigger value="prospects" className="flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 text-xs sm:text-sm">
+              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Prospects</span>
               <span className="sm:hidden">Contacts</span>
-              <Badge variant="secondary" className="ml-2">
+              <Badge variant="secondary" className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-2">
                 {stats.totalProspects}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center space-x-2 py-3">
-              <BarChart3 className="w-4 h-4" />
+            <TabsTrigger value="analytics" className="flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-3 text-xs sm:text-sm">
+              <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Analytics</span>
               <span className="sm:hidden">Stats</span>
             </TabsTrigger>
@@ -239,14 +239,14 @@ export const ProspectsPage: React.FC = () => {
           <ProspectDatabaseManager />
         </TabsContent>
 
-        <TabsContent value="prospects" className="space-y-6">
+        <TabsContent value="prospects" className="space-y-4">
           <div className="space-y-4">
             {/* Barre de recherche intégrée */}
             <Card>
-              <CardContent className="p-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 sm:gap-4">
                   <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
                     <Input
                       placeholder="Rechercher un prospect..."
                       value={searchTerm}
@@ -255,16 +255,16 @@ export const ProspectsPage: React.FC = () => {
                     />
                   </div>
                   
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm">
-                      <Filter className="w-4 h-4 mr-2" />
-                      Filtres
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                      <Filter className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Filtres</span>
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Exporter
+                    <Button variant="outline" size="sm" onClick={() => setIsExportOpen(true)} className="flex-1 sm:flex-none">
+                      <Download className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Exporter</span>
                     </Button>
-                    <Button size="sm" onClick={() => setIsCreateProspectOpen(true)}>
+                    <Button size="sm" onClick={() => setIsCreateProspectOpen(true)} className="flex-1 sm:flex-none">
                       <Plus className="w-4 h-4 mr-2" />
                       Ajouter
                     </Button>
