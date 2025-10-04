@@ -94,7 +94,7 @@ export const LeadQualificationWorkflow: React.FC<LeadQualificationWorkflowProps>
               <Bot className="w-5 h-5 mr-2" />
               Bots Automatisés Actifs ({botOptions.length})
             </div>
-            <Button variant="outline" size="sm" onClick={() => window.location.href = '/automations'}>
+            <Button variant="outline" size="sm" onClick={() => window.location.href = '/bots'}>
               <ExternalLink className="w-4 h-4 mr-1" />
               Gérer
             </Button>
@@ -112,7 +112,7 @@ export const LeadQualificationWorkflow: React.FC<LeadQualificationWorkflowProps>
               <p className="text-gray-600 mb-4">
                 Créez votre premier bot automatisé pour commencer la qualification IA
               </p>
-              <Button onClick={() => window.location.href = '/automations'}>
+              <Button onClick={() => window.location.href = '/bots'}>
                 Créer mon premier bot
               </Button>
             </div>

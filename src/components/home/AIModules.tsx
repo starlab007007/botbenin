@@ -87,7 +87,7 @@ export const AIModules: React.FC = () => {
       title: 'Automatisations',
       description: 'Workflows et processus automatisés',
       icon: Zap,
-      path: '/automations',
+      path: '/bots',
       stats: stats.automationsCount > 0 ? `${stats.automationsCount} workflows` : 'Commencer',
       badge: 'Pro'
     }

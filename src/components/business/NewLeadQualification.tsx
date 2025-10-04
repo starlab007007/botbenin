@@ -388,7 +388,7 @@ Cordialement,`
                   </Select>
                   {botOptions.length === 0 && !loading && (
                     <p className="text-sm text-gray-500 mt-1">
-                      <Button variant="link" className="p-0 h-auto text-blue-600" onClick={() => window.open('/automations', '_blank')}>
+                      <Button variant="link" className="p-0 h-auto text-blue-600" onClick={() => window.open('/bots', '_blank')}>
                         Créez votre premier bot automatisé
                       </Button>
                     </p>
