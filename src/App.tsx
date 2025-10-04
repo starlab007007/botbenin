@@ -42,6 +42,9 @@ const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(mo
 const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.CitoyenModule })));
 const VisualCreatorModule = lazy(() => import("./pages/modules/VisualCreatorModule").then(module => ({ default: module.VisualCreatorModule })));
 
+// Marketing
+const MarketingGallery = lazy(() => import("./pages/MarketingGallery"));
+
 // Campagnes de partage
 const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.SocialSharingCampaignsPage })));
 
@@ -112,6 +115,9 @@ const App = () => {
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
                     <Route path="/modules/visual-creator" element={<VisualCreatorModule />} />
+                    
+                    {/* Marketing */}
+                    <Route path="/marketing-gallery" element={<MarketingGallery />} />
                     
                     {/* Support et compte */}
                     <Route path="/support" element={<SupportPage />} />
