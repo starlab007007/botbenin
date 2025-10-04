@@ -80,11 +80,19 @@ export function useSocialSharingCampaigns() {
         return;
       }
 
-      // Récupérer les campagnes directement par owner_id (user_id)
+      // Récupérer le bot_owner_id pour cet utilisateur
+      const botOwnerId = await getBotOwnerId(userData.user.id);
+      if (!botOwnerId) {
+        setCampaigns([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Récupérer les campagnes par owner_id (bot_owners.id)
       const { data, error } = await supabase
         .from("social_sharing_campaigns")
         .select("*")
-        .eq('owner_id', userData.user.id)
+        .eq('owner_id', botOwnerId)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -177,11 +185,12 @@ export function useSocialSharingCampaigns() {
       }
       
       // Préparer les données avec les IDs corrects
-      // owner_id fait référence à user_id directement, pas bot_owners.id
+      // owner_id doit référencer bot_owners.id, pas user_id
       const dbInsert = mapCampaignToDbInsert({
         ...data,
         botId: data.botId, // ID du bot validé
-        ownerId: userData.user.id, // user_id directement
+        ownerId: botOwnerId, // bot_owners.id
+        description: data.description || data.name || '', // Assurer une description valide
       });
 
       console.log('Données campagne à insérer:', dbInsert);
