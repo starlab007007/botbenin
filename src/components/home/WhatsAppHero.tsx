@@ -21,7 +21,7 @@ export const WhatsAppHero: React.FC = () => {
             
             <div>
               <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-                Automatisez WhatsApp Business avec l'IA
+                Automatisez WhatsApp avec l'IA
               </h2>
               <p className="text-white/90 text-lg leading-relaxed">
                 Transformez WhatsApp en machine à convertir. Répondez automatiquement à vos clients 24/7, 
@@ -52,7 +52,7 @@ export const WhatsAppHero: React.FC = () => {
               <Button 
                 size="lg" 
                 className="bg-white text-green-600 hover:bg-white/90 font-semibold"
-                onClick={() => window.open('https://wa.me/22947333289?text=Bonjour, je souhaite automatiser WhatsApp Business avec votre plateforme IA', '_blank')}
+                onClick={() => window.open('https://wa.me/22947333289?text=Bonjour, je souhaite automatiser WhatsApp avec votre plateforme IA', '_blank')}
               >
                 <MessageCircle className="mr-2 h-5 w-5" />
                 Démarrer sur WhatsApp

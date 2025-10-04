@@ -16,7 +16,7 @@ import {
 
 const quickActions = [
   {
-    title: 'WhatsApp Business',
+    title: 'WhatsApp',
     description: 'Automatisez vos conversations WhatsApp',
     icon: MessageCircle,
     path: '/modules/business',

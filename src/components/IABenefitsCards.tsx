@@ -13,7 +13,7 @@ import {
 const iaBenefits = [
   {
     title: 'Vous voulez automatiser vos conversations WhatsApp',
-    description: 'Gérez automatiquement vos échanges WhatsApp Business, répondez instantanément à vos clients 24/7 et convertissez plus de prospects sans effort.',
+    description: 'Gérez automatiquement vos échanges WhatsApp, répondez instantanément à vos clients 24/7 et convertissez plus de prospects sans effort.',
     icon: Settings,
     color: 'from-green-500 to-green-600'
   },

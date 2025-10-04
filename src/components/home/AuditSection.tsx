@@ -27,7 +27,7 @@ export const AuditSection: React.FC = () => {
             </Badge>
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
-            Découvrez gratuitement, en seulement 30 minutes, combien de temps et de ressources vous pouvez économiser grâce à l'IA.
+            Prêt à transformer votre business ? Découvrez en 30 minutes comment l'IA peut multiplier votre productivité et booster vos résultats. C'est gratuit, c'est maintenant !
           </CardTitle>
         </CardHeader>
         
