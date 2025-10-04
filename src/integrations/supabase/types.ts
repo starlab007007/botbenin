@@ -2438,48 +2438,42 @@ export type Database = {
           channel: string
           contact_type: string
           contact_value: string
-          created_at: string | null
-          delivered_at: string | null
+          created_at: string
           error_message: string | null
           id: string
           message_id: string | null
           metadata: Json | null
-          retry_count: number | null
           sent_at: string | null
           status: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
           campaign_id: string
           channel: string
           contact_type: string
           contact_value: string
-          created_at?: string | null
-          delivered_at?: string | null
+          created_at?: string
           error_message?: string | null
           id?: string
           message_id?: string | null
           metadata?: Json | null
-          retry_count?: number | null
           sent_at?: string | null
           status?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
           campaign_id?: string
           channel?: string
           contact_type?: string
           contact_value?: string
-          created_at?: string | null
-          delivered_at?: string | null
+          created_at?: string
           error_message?: string | null
           id?: string
           message_id?: string | null
           metadata?: Json | null
-          retry_count?: number | null
           sent_at?: string | null
           status?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -2493,119 +2487,63 @@ export type Database = {
       }
       qualification_campaigns: {
         Row: {
-          average_score: number | null
-          bot_id: string | null
-          bot_link: string
-          bot_name: string
-          channels: string[]
+          bot_link: string | null
           completed_at: string | null
           created_at: string
+          description: string | null
+          failed_count: number | null
           id: string
-          launched_at: string | null
-          message: string
+          message_template: string | null
           metadata: Json | null
           name: string
+          qualification_type: string
+          sent_count: number | null
+          started_at: string | null
           status: string
-          target_emails: string[]
-          target_phones: string[]
-          total_qualified: number
-          total_responses: number
-          total_sent: number
+          success_count: number | null
+          total_prospects: number | null
+          updated_at: string
           user_id: string
         }
         Insert: {
-          average_score?: number | null
-          bot_id?: string | null
-          bot_link: string
-          bot_name: string
-          channels?: string[]
+          bot_link?: string | null
           completed_at?: string | null
           created_at?: string
+          description?: string | null
+          failed_count?: number | null
           id?: string
-          launched_at?: string | null
-          message: string
+          message_template?: string | null
           metadata?: Json | null
           name: string
+          qualification_type: string
+          sent_count?: number | null
+          started_at?: string | null
           status?: string
-          target_emails?: string[]
-          target_phones?: string[]
-          total_qualified?: number
-          total_responses?: number
-          total_sent?: number
+          success_count?: number | null
+          total_prospects?: number | null
+          updated_at?: string
           user_id: string
         }
         Update: {
-          average_score?: number | null
-          bot_id?: string | null
-          bot_link?: string
-          bot_name?: string
-          channels?: string[]
+          bot_link?: string | null
           completed_at?: string | null
           created_at?: string
+          description?: string | null
+          failed_count?: number | null
           id?: string
-          launched_at?: string | null
-          message?: string
+          message_template?: string | null
           metadata?: Json | null
           name?: string
+          qualification_type?: string
+          sent_count?: number | null
+          started_at?: string | null
           status?: string
-          target_emails?: string[]
-          target_phones?: string[]
-          total_qualified?: number
-          total_responses?: number
-          total_sent?: number
+          success_count?: number | null
+          total_prospects?: number | null
+          updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "qualification_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owner_conversations"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "qualification_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_performance_metrics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "qualification_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_stats"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "qualification_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bot_visitor_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "qualification_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "bots"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "qualification_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "qualification_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "detailed_bot_stats"
-            referencedColumns: ["bot_id"]
-          },
-        ]
+        Relationships: []
       }
       qualification_emails: {
         Row: {
@@ -2702,13 +2640,6 @@ export type Database = {
           status?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "qualification_results_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "qualification_campaigns"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "qualification_results_prospect_id_fkey"
             columns: ["prospect_id"]
