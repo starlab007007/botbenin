@@ -110,32 +110,45 @@ export const CampaignLauncher: React.FC<CampaignLauncherProps> = ({
 
     try {
       // Créer la campagne dans la base de données
-      const userId = (await supabase.auth.getUser()).data.user?.id;
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
+      if (userError || !user) {
+        throw new Error("Utilisateur non connecté");
+      }
+
+      // Obtenir l'owner_id à partir du bot_id
+      const { data: botOwner } = await supabase
+        .from('bot_owners')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      const { data: bot } = await supabase
+        .from('bots')
+        .select('id')
+        .eq('owner_id', botOwner?.id || '')
+        .limit(1)
+        .single();
+
       const { data: campaign, error } = await supabase
         .from('social_sharing_campaigns')
         .insert({
           campaign_name: campaignName,
-          user_id: userId,
+          owner_id: botOwner?.id || user.id,
+          bot_id: bot?.id || '',
           campaign_description: `Campagne ${campaignType} générée depuis l'import intelligent`,
-          bot_id: '', // Pas de bot associé pour l'instant
-          platforms: JSON.stringify([campaignType === 'email' ? 'email' : 'whatsapp']),
-          target_audience: JSON.stringify({
-            database_id: database.id,
-            field: selectedField,
-            total: validContacts.length
-          }),
-          content_variations: JSON.stringify([{
-            platform: campaignType,
-            content: message,
-            predicted_performance: 0.8
-          }]),
-          is_active: !scheduledDate,
-          scheduled_start: scheduledDate || null,
+          custom_message: message,
+          target_platforms: JSON.stringify([campaignType === 'email' ? 'email' : 'whatsapp']),
           ai_settings: JSON.stringify({
             source: 'intelligent_import',
+            database_id: database.id,
+            field: selectedField,
             contacts_count: validContacts.length
-          })
+          }),
+          is_active: !scheduledDate,
+          scheduling_settings: scheduledDate ? JSON.stringify({
+            scheduled_date: scheduledDate
+          }) : null
         })
         .select()
         .single();

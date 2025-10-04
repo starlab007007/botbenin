@@ -12,12 +12,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 interface ImportedDatabase {
   id: string;
   name: string;
-  template_type: string;
-  data: any[];
-  file_name: string;
-  total_records: number;
+  template_type?: string;
+  data?: any;
+  file_name?: string;
+  total_records?: number;
   created_at: string;
   metadata?: any;
+  description?: string;
+  is_active?: boolean;
+  updated_at?: string;
+  user_id: string;
 }
 
 interface ImportedDataManagerProps {
@@ -46,7 +50,7 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setDatabases(data || []);
+      setDatabases((data || []) as ImportedDatabase[]);
     } catch (error: any) {
       toast({
         title: "Erreur",
@@ -105,7 +109,9 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
   };
 
   const hasEmails = (db: ImportedDatabase) => {
-    return db.data.some((row: any) => 
+    if (!db.data || !Array.isArray(db.data)) return false;
+    const dataArray = Array.isArray(db.data) ? db.data : [];
+    return dataArray.some((row: any) => 
       Object.values(row).some(val => 
         typeof val === 'string' && val.includes('@')
       )
@@ -113,7 +119,9 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
   };
 
   const hasPhones = (db: ImportedDatabase) => {
-    return db.data.some((row: any) => 
+    if (!db.data || !Array.isArray(db.data)) return false;
+    const dataArray = Array.isArray(db.data) ? db.data : [];
+    return dataArray.some((row: any) => 
       Object.values(row).some(val => 
         typeof val === 'string' && /[\d+\-\(\)\s]{8,}/.test(val)
       )
@@ -170,9 +178,9 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
                       </CardTitle>
                       <CardDescription className="mt-2">
                         {db.file_name && <span className="block">Fichier: {db.file_name}</span>}
-                        <span className="block">
-                          Template: <Badge variant="secondary">{db.template_type}</Badge>
-                        </span>
+                      <span className="block">
+                        Template: <Badge variant="secondary">{db.template_type || 'Standard'}</Badge>
+                      </span>
                         <span className="block mt-1 text-xs">
                           Importé le {new Date(db.created_at).toLocaleDateString('fr-FR', {
                             day: '2-digit',
@@ -184,7 +192,7 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
                         </span>
                       </CardDescription>
                     </div>
-                    <Badge className="text-lg">{db.total_records} prospects</Badge>
+                    <Badge className="text-lg">{db.total_records || 0} prospects</Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -263,7 +271,7 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
               {selectedDb?.total_records} enregistrements
             </DialogDescription>
           </DialogHeader>
-          {selectedDb && (
+          {selectedDb && selectedDb.data && selectedDb.data.length > 0 && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -285,7 +293,7 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
               </Table>
               {selectedDb.data.length > 20 && (
                 <p className="text-sm text-muted-foreground mt-4 text-center">
-                  Affichage des 20 premiers enregistrements sur {selectedDb.total_records}
+                  Affichage des 20 premiers enregistrements sur {selectedDb.total_records || selectedDb.data.length}
                 </p>
               )}
             </div>
@@ -301,12 +309,17 @@ export const ImportedDataManager: React.FC<ImportedDataManagerProps> = ({ onBack
               Lancer une campagne {campaignType === 'email' ? 'Email' : 'WhatsApp'}
             </DialogTitle>
             <DialogDescription>
-              Configurez votre campagne pour {selectedDb?.total_records} prospects
+              Configurez votre campagne pour {selectedDb?.total_records || selectedDb?.data?.length || 0} prospects
             </DialogDescription>
           </DialogHeader>
           {selectedDb && (
             <CampaignLauncher
-              database={selectedDb}
+              database={{
+                id: selectedDb.id,
+                name: selectedDb.name,
+                data: Array.isArray(selectedDb.data) ? selectedDb.data : [],
+                total_records: selectedDb.total_records || 0
+              }}
               campaignType={campaignType}
               onComplete={() => {
                 setShowCampaignLauncher(false);

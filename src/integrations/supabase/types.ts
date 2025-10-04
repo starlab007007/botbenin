@@ -2331,28 +2331,43 @@ export type Database = {
       prospect_databases: {
         Row: {
           created_at: string | null
+          data: Json
           description: string | null
+          file_name: string | null
           id: string
           is_active: boolean | null
+          metadata: Json | null
           name: string
+          template_type: string
+          total_records: number
           updated_at: string | null
           user_id: string
         }
         Insert: {
           created_at?: string | null
+          data?: Json
           description?: string | null
+          file_name?: string | null
           id?: string
           is_active?: boolean | null
+          metadata?: Json | null
           name: string
+          template_type?: string
+          total_records?: number
           updated_at?: string | null
           user_id: string
         }
         Update: {
           created_at?: string | null
+          data?: Json
           description?: string | null
+          file_name?: string | null
           id?: string
           is_active?: boolean | null
+          metadata?: Json | null
           name?: string
+          template_type?: string
+          total_records?: number
           updated_at?: string | null
           user_id?: string
         }
