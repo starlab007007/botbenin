@@ -5402,6 +5402,17 @@ export type Database = {
         }
         Returns: string
       }
+      create_notification: {
+        Args: {
+          p_action_url?: string
+          p_content: string
+          p_metadata?: Json
+          p_title: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_or_get_visitor_fingerprint: {
         Args: {
           p_browser_info?: Json
@@ -5815,6 +5826,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      mark_all_notifications_read: {
+        Args: { p_user_id: string }
+        Returns: number
       }
       reconcile_bot_user_session_token: {
         Args: { p_bot_id: string; p_session_token: string }

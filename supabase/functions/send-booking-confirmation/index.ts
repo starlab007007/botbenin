@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,6 +40,11 @@ const handler = async (req: Request): Promise<Response> => {
     const resend = new Resend(resendApiKey);
     const requestData: BookingConfirmationRequest = await req.json();
     const { name, email, phone, isCompany, companyType, date, time } = requestData;
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log('Envoi email de confirmation de réservation:', {
       name,
@@ -115,6 +121,31 @@ const handler = async (req: Request): Promise<Response> => {
     // Envoi de l'email via Resend
     console.log('Tentative d\'envoi via Resend à bot.bjdata@gmail.com...');
     
+    // Create notification for admin users
+    const { data: adminUsers } = await supabaseClient
+      .from('user_roles')
+      .select('user_id')
+      .eq('role_id', (
+        await supabaseClient
+          .from('roles')
+          .select('id')
+          .eq('name', 'admin')
+          .single()
+      ).data?.id);
+
+    if (adminUsers && adminUsers.length > 0) {
+      for (const admin of adminUsers) {
+        await supabaseClient.rpc('create_notification', {
+          p_user_id: admin.user_id,
+          p_title: 'Nouvelle réservation audit IA',
+          p_content: `${name} (${email}) a réservé un audit pour le ${date} à ${time}`,
+          p_type: 'booking',
+          p_metadata: { name, email, phone, isCompany, companyType, date, time },
+          p_action_url: '/dashboard'
+        });
+      }
+    }
+
     const emailResult = await resend.emails.send({
       from: "BJ Data <onboarding@resend.dev>",
       to: ["bot.bjdata@gmail.com"],

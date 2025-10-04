@@ -20,6 +20,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { NotificationPanel } from '@/components/notifications/NotificationPanel';
+import { useNotifications } from '@/hooks/useNotifications';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +49,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCommandDialog, setShowCommandDialog] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -66,6 +69,14 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
   };
 
   const hasAdminAccess = !!user?.permissions?.includes?.('manage_users');
+  const { unreadCount, requestNotificationPermission } = useNotifications();
+
+  // Request notification permission on mount
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      requestNotificationPermission();
+    }
+  }, [isAuthenticated, requestNotificationPermission]);
 
   const quickActions = [
     { name: 'Accueil', path: '/home', icon: Home },
@@ -144,9 +155,18 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 
           {/* Notifications */}
           {isAuthenticated && (
-            <Button variant="ghost" size="sm" className="relative">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="relative"
+              onClick={() => setShowNotifications(!showNotifications)}
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs"></span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full text-xs text-white flex items-center justify-center font-medium px-1">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Button>
           )}
 
@@ -231,6 +251,12 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
       <AuthModal 
         isOpen={showAuthModal} 
         onClose={() => setShowAuthModal(false)} 
+      />
+
+      {/* Notification Panel */}
+      <NotificationPanel 
+        isOpen={showNotifications} 
+        onClose={() => setShowNotifications(false)} 
       />
 
       {/* Command Dialog */}
