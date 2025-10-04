@@ -225,15 +225,18 @@ Cordialement,`
         .insert({
           user_id: (await supabase.auth.getUser()).data.user?.id,
           name: campaign.name,
-          bot_id: campaign.selectedBot,
-          bot_name: selectedBotData?.name || 'Bot',
+          qualification_type: 'email',
           bot_link: botLink,
-          message: campaign.message,
-          channels: campaign.channels,
-          target_emails: campaign.targetEmails,
-          target_phones: campaign.targetPhones,
+          message_template: campaign.message,
           status: 'active' as const,
-          launched_at: new Date().toISOString()
+          started_at: new Date().toISOString(),
+          metadata: {
+            bot_id: campaign.selectedBot,
+            bot_name: selectedBotData?.name || 'Bot',
+            channels: campaign.channels,
+            target_emails: campaign.targetEmails,
+            target_phones: campaign.targetPhones
+          }
         })
         .select()
         .single();
@@ -282,7 +285,7 @@ Cordialement,`
       await supabase
         .from('qualification_campaigns')
         .update({ 
-          total_sent: prospects.length * campaign.channels.length 
+          sent_count: prospects.length * campaign.channels.length 
         })
         .eq('id', campaignData.id);
 

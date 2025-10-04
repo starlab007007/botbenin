@@ -135,14 +135,14 @@ export const DataMappingInterface: React.FC<DataMappingInterfaceProps> = ({
                 
                 <div className="flex-1">
                   <Select
-                    value={fieldMapping[field.name] || ''}
-                    onValueChange={(value) => handleFieldMappingChange(field.name, value)}
+                    value={fieldMapping[field.name] || '_unmapped'}
+                    onValueChange={(value) => handleFieldMappingChange(field.name, value === '_unmapped' ? '' : value)}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Sélectionner une colonne..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Non mappé</SelectItem>
+                      <SelectItem value="_unmapped">Non mappé</SelectItem>
                       {sourceData.headers.map((header: string) => (
                         <SelectItem key={header} value={header}>
                           {header}
@@ -152,7 +152,7 @@ export const DataMappingInterface: React.FC<DataMappingInterfaceProps> = ({
                   </Select>
                 </div>
 
-                {fieldMapping[field.name] && (
+                {fieldMapping[field.name] && fieldMapping[field.name] !== '_unmapped' && (
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
                 )}
               </div>

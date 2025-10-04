@@ -68,20 +68,20 @@ export const useQualificationCampaigns = () => {
       const campaigns: QualificationCampaign[] = (data || []).map(row => ({
         id: row.id,
         name: row.name,
-        botId: row.bot_id || '',
-        botName: row.bot_name,
-        message: row.message,
-        channels: row.channels || [],
-        targetEmails: row.target_emails || [],
-        targetPhones: row.target_phones || [],
+        botId: (row.metadata as any)?.bot_id || row.bot_link || '',
+        botName: (row.metadata as any)?.bot_name || 'Bot',
+        message: row.message_template || '',
+        channels: (row.metadata as any)?.channels || [],
+        targetEmails: (row.metadata as any)?.target_emails || [],
+        targetPhones: (row.metadata as any)?.target_phones || [],
         status: row.status as 'draft' | 'active' | 'paused' | 'completed',
         createdAt: row.created_at,
-        launchedAt: row.launched_at || undefined,
+        launchedAt: row.started_at || undefined,
         completedAt: row.completed_at || undefined,
-        totalSent: row.total_sent,
-        totalResponses: row.total_responses,
-        totalQualified: row.total_qualified,
-        averageScore: row.average_score || 0
+        totalSent: row.sent_count || 0,
+        totalResponses: (row.metadata as any)?.total_responses || 0,
+        totalQualified: (row.metadata as any)?.total_qualified || 0,
+        averageScore: (row.metadata as any)?.average_score || 0
       }));
 
       setCampaigns(campaigns);
@@ -157,14 +157,17 @@ export const useQualificationCampaigns = () => {
         .insert({
           user_id: session.user.id,
           name: campaignData.name,
-          bot_id: campaignData.botId || null,
-          bot_name: campaignData.botName,
+          qualification_type: 'email',
           bot_link: campaignData.botLink || '',
-          message: campaignData.message,
-          channels: campaignData.channels,
-          target_emails: campaignData.targetEmails,
-          target_phones: campaignData.targetPhones,
-          status: campaignData.status as 'draft' | 'active' | 'paused' | 'completed'
+          message_template: campaignData.message,
+          status: campaignData.status as 'draft' | 'active' | 'paused' | 'completed',
+          metadata: {
+            bot_id: campaignData.botId,
+            bot_name: campaignData.botName,
+            channels: campaignData.channels,
+            target_emails: campaignData.targetEmails,
+            target_phones: campaignData.targetPhones
+          }
         })
         .select()
         .single();
@@ -174,13 +177,13 @@ export const useQualificationCampaigns = () => {
       const newCampaign: QualificationCampaign = {
         id: data.id,
         name: data.name,
-        botId: data.bot_id || '',
-        botName: data.bot_name,
+        botId: (data.metadata as any)?.bot_id || '',
+        botName: (data.metadata as any)?.bot_name || 'Bot',
         botLink: data.bot_link,
-        message: data.message,
-        channels: data.channels || [],
-        targetEmails: data.target_emails || [],
-        targetPhones: data.target_phones || [],
+        message: data.message_template || '',
+        channels: (data.metadata as any)?.channels || [],
+        targetEmails: (data.metadata as any)?.target_emails || [],
+        targetPhones: (data.metadata as any)?.target_phones || [],
         status: data.status as 'draft' | 'active' | 'paused' | 'completed',
         createdAt: data.created_at,
         totalSent: 0,
