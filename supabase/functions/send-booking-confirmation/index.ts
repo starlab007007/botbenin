@@ -116,7 +116,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log('Tentative d\'envoi via Resend à bot.bjdata@gmail.com...');
     
     const emailResult = await resend.emails.send({
-      from: "BJ Data <bot@bjdata.com>",
+      from: "BJ Data <onboarding@resend.dev>",
       to: ["bot.bjdata@gmail.com"],
       subject: `🎯 Nouvelle Réservation Audit IA - ${name} - ${date} à ${time}`,
       text: `Nouvelle réservation d'audit IA\n\nNom: ${name}\nEmail: ${email}\nTéléphone: ${phone}\nType: ${isCompany === 'oui' ? 'Entreprise' : companyType || 'Particulier'}\nDate: ${date}\nHeure: ${time}\nDurée: 45min\nPlateforme: Google Meet`,
