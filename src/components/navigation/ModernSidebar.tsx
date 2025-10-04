@@ -21,7 +21,8 @@ import {
   Shield,
   X,
   Phone,
-  FileText
+  FileText,
+  Wand2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -95,15 +96,23 @@ const crmItems = [
     description: 'Préparation d\'appels B2B',
     badge: 'New'
   },
-];
-
-const aiModules = [
   { 
     title: 'IA Business', 
     path: '/modules/business', 
     icon: Briefcase, 
     color: 'from-blue-600 to-blue-700',
     description: 'Solutions B2B'
+  },
+];
+
+const aiModules = [
+  { 
+    title: 'IA Créateur Visuel', 
+    path: '/modules/visual-creator', 
+    icon: Wand2, 
+    color: 'from-purple-600 to-pink-600',
+    description: 'Création de contenu visuel',
+    badge: 'New'
   },
 ];
 

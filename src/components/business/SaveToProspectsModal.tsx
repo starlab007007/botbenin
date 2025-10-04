@@ -169,9 +169,10 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
       console.log('✅ Transfert terminé:', transferResult);
 
       // Afficher un message détaillé basé sur les résultats
-      const successCount = transferResult?.successfully_added || 0;
-      const duplicateCount = transferResult?.skipped_duplicates || 0;
-      const failedCount = transferResult?.failed || 0;
+      const result = transferResult as { successfully_added?: number; skipped_duplicates?: number; failed?: number };
+      const successCount = result?.successfully_added || 0;
+      const duplicateCount = result?.skipped_duplicates || 0;
+      const failedCount = result?.failed || 0;
 
       if (successCount > 0) {
         toast({
