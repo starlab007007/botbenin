@@ -158,14 +158,19 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
   const [currentExcludeKeyword, setCurrentExcludeKeyword] = useState('');
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [userLocation, setUserLocation] = useState<string>('');
+  const [isLoadingGPS, setIsLoadingGPS] = useState(false);
+  const [gpsError, setGpsError] = useState<string>('');
   const { toast } = useToast();
 
   // Géolocalisation automatique avec reverse geocoding
   useEffect(() => {
     if (filters.useGPS && navigator.geolocation) {
+      setIsLoadingGPS(true);
+      setGpsError('');
+      
       toast({
-        title: "Recherche de position...",
-        description: "Localisation en cours...",
+        title: "🌍 Recherche de position...",
+        description: "Détection GPS en cours, cela peut prendre jusqu'à 30 secondes...",
       });
 
       navigator.geolocation.getCurrentPosition(
@@ -189,8 +194,11 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                 locationCoordinates: { lat: latitude, lng: longitude }
               }));
               
+              setIsLoadingGPS(false);
+              setGpsError('');
+              
               toast({
-                title: "Position détectée avec succès",
+                title: "✅ Position détectée avec succès",
                 description: "Votre adresse a été automatiquement configurée",
               });
             } else {
@@ -210,25 +218,54 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
               locationCoordinates: { lat: latitude, lng: longitude }
             }));
             
+            setIsLoadingGPS(false);
+            setGpsError('');
+            
             toast({
-              title: "Position détectée",
+              title: "✅ Position détectée",
               description: "Coordonnées configurées automatiquement",
             });
           }
         },
         (error) => {
           console.error('Erreur GPS:', error);
+          setIsLoadingGPS(false);
           setFilters(prev => ({ ...prev, useGPS: false }));
           
+          let errorTitle = "Géolocalisation indisponible";
+          let errorDescription = "Veuillez saisir manuellement votre localisation ci-dessous";
+          
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorTitle = "🚫 Permission refusée";
+              errorDescription = "Veuillez autoriser la géolocalisation dans les paramètres de votre navigateur";
+              setGpsError("Permission GPS refusée. Veuillez l'autoriser dans votre navigateur.");
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorTitle = "📡 Position non disponible";
+              errorDescription = "Impossible d'obtenir votre position. Vérifiez votre connexion GPS.";
+              setGpsError("Signal GPS indisponible. Vérifiez votre connexion.");
+              break;
+            case error.TIMEOUT:
+              errorTitle = "⏱️ Délai d'attente dépassé";
+              errorDescription = "Le GPS prend trop de temps. Essayez à nouveau ou saisissez manuellement.";
+              setGpsError("Le GPS a pris trop de temps à répondre. Saisissez votre localisation manuellement.");
+              break;
+            default:
+              errorTitle = "❌ Erreur GPS inconnue";
+              errorDescription = "Une erreur s'est produite. Veuillez saisir manuellement votre localisation.";
+              setGpsError("Erreur lors de la géolocalisation. Saisissez votre localisation manuellement.");
+          }
+          
           toast({
-            title: "Géolocalisation indisponible",
-            description: "Veuillez saisir manuellement votre localisation",
+            title: errorTitle,
+            description: errorDescription,
             variant: "destructive",
           });
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 30000, // Augmenté à 30 secondes
           maximumAge: 600000 // 10 minutes
         }
       );
@@ -331,13 +368,24 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
   };
 
   const handleSearch = () => {
-    if (!filters.location && !filters.useGPS) {
+    if (!filters.location && !filters.city && !filters.country) {
       toast({
-        title: "Localisation requise",
-        description: "Veuillez préciser une localisation ou activer le GPS",
+        title: "❌ Localisation requise",
+        description: "Veuillez saisir au minimum un pays et une ville, ou activer le GPS",
         variant: "destructive",
       });
       return;
+    }
+    
+    if (!filters.country || !filters.city) {
+      if (!filters.location) {
+        toast({
+          title: "⚠️ Localisation incomplète",
+          description: "Veuillez saisir au minimum un pays et une ville",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     if (filters.industry.length === 0 && filters.keywords.length === 0) {
@@ -493,16 +541,27 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900">Géolocalisation GPS</p>
-                        <p className="text-sm text-gray-600">Détection automatique de votre position</p>
+                        <p className="text-sm text-gray-600">
+                          {isLoadingGPS ? "🔄 Détection en cours..." : "Détection automatique de votre position"}
+                        </p>
                       </div>
                     </div>
                     <Switch
                       checked={filters.useGPS}
                       onCheckedChange={(checked) => setFilters(prev => ({ ...prev, useGPS: checked }))}
+                      disabled={isLoadingGPS}
                     />
                   </div>
                   
-                  {!filters.useGPS && (
+                  {isLoadingGPS && (
+                    <div className="p-3 bg-blue-100 rounded-lg border border-blue-300 animate-pulse">
+                      <p className="text-sm text-blue-800 text-center">
+                        🌍 Recherche GPS en cours... Veuillez patienter jusqu'à 30 secondes
+                      </p>
+                    </div>
+                  )}
+                  
+                  {!filters.useGPS && !isLoadingGPS && (
                     <Button
                       onClick={() => setFilters(prev => ({ ...prev, useGPS: true }))}
                       className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
@@ -511,27 +570,50 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                       Détecter ma position
                     </Button>
                   )}
+                  
+                  {gpsError && (
+                    <div className="p-3 bg-red-50 rounded-lg border border-red-300">
+                      <p className="text-sm text-red-700">⚠️ {gpsError}</p>
+                    </div>
+                  )}
                 </div>
 
-                {!filters.useGPS && (
-                  <>
+                {(!filters.useGPS || gpsError) && (
+                  <div className={`space-y-4 ${gpsError ? 'p-4 bg-yellow-50 border-2 border-yellow-300 rounded-xl' : ''}`}>
+                    {gpsError && (
+                      <div className="mb-3">
+                        <p className="text-sm font-semibold text-yellow-800 mb-1">
+                          📝 Saisie manuelle requise
+                        </p>
+                        <p className="text-xs text-yellow-700">
+                          Le GPS n'est pas disponible. Veuillez saisir votre localisation ci-dessous.
+                        </p>
+                      </div>
+                    )}
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="country">Pays</Label>
+                        <Label htmlFor="country" className="flex items-center gap-2">
+                          Pays <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="country"
                           placeholder="Ex: France, Bénin..."
                           value={filters.country}
                           onChange={(e) => setFilters(prev => ({ ...prev, country: e.target.value }))}
+                          className={gpsError ? 'border-2 border-yellow-400' : ''}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="city">Ville</Label>
+                        <Label htmlFor="city" className="flex items-center gap-2">
+                          Ville <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           id="city"
                           placeholder="Ex: Paris, Cotonou..."
                           value={filters.city}
                           onChange={(e) => setFilters(prev => ({ ...prev, city: e.target.value }))}
+                          className={gpsError ? 'border-2 border-yellow-400' : ''}
                         />
                       </div>
                     </div>
@@ -546,6 +628,7 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                             location: address,
                             locationCoordinates: coordinates
                           }));
+                          setGpsError('');
                         }}
                         placeholder="Ex: 123 Avenue des Champs-Élysées, Paris..."
                         className="text-lg"
@@ -554,7 +637,7 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                         🔍 Saisissez au moins 3 caractères pour voir les suggestions d'adresses
                       </p>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {userLocation && filters.useGPS && (
