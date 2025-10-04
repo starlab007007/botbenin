@@ -8,7 +8,6 @@ import { WhatsAppHero } from '@/components/home/WhatsAppHero';
 import { AuditSection } from '@/components/home/AuditSection';
 import { PricingSection } from '@/components/home/PricingSection';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { FloatingChatButton } from '@/components/FloatingChatButton';
 
 export const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -37,9 +36,6 @@ export const HomePage: React.FC = () => {
       <div className="-mx-[2.5%] sm:mx-0">
         <PricingSection />
       </div>
-
-      {/* Bouton de chat en direct */}
-      <FloatingChatButton />
     </div>
   );
 };
