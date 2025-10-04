@@ -12,6 +12,7 @@ import { Clock, MapPin, Video, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -53,7 +54,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({ isOpen, onClose }) =
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedDate || !selectedTime || !formData.name || !formData.email || !formData.acceptTerms) {
       toast({
         title: "Informations manquantes",
@@ -63,19 +64,47 @@ export const BookingModal: React.FC<BookingModalProps> = ({ isOpen, onClose }) =
       return;
     }
 
-    console.log('Booking confirmed:', {
-      date: selectedDate,
-      time: selectedTime,
-      ...formData
-    });
+    try {
+      // Envoi de l'email de confirmation via la fonction Supabase
+      const { data, error } = await supabase.functions.invoke('send-booking-confirmation', {
+        body: {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          isCompany: formData.isCompany,
+          companyType: formData.companyType,
+          date: format(selectedDate, 'EEEE dd MMMM yyyy', { locale: fr }),
+          time: selectedTime
+        }
+      });
 
-    toast({
-      title: "Réservation confirmée !",
-      description: `Votre audit est programmé le ${format(selectedDate, 'dd MMMM yyyy', { locale: fr })} à ${selectedTime}`,
-    });
+      if (error) {
+        console.error('Erreur envoi email:', error);
+        toast({
+          title: "Erreur",
+          description: "Une erreur est survenue lors de l'envoi de la confirmation. Veuillez réessayer.",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    onClose();
-    resetForm();
+      console.log('Email de confirmation envoyé avec succès:', data);
+
+      toast({
+        title: "Réservation confirmée !",
+        description: `Votre audit est programmé le ${format(selectedDate, 'dd MMMM yyyy', { locale: fr })} à ${selectedTime}`,
+      });
+
+      onClose();
+      resetForm();
+    } catch (error) {
+      console.error('Erreur lors de la confirmation:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    }
   };
 
   const resetForm = () => {
