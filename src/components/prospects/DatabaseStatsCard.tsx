@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,11 @@ import {
   Plus
 } from 'lucide-react';
 import { ProspectDatabase } from '@/hooks/useProspectDatabases';
+import { DatabaseActionsMenu } from './DatabaseActionsMenu';
+import { EditDatabaseModal } from './EditDatabaseModal';
+import { DatabaseProspectsModal } from './DatabaseProspectsModal';
+import { ProspectExportModal } from './ProspectExportModal';
+import { CreateCampaignModal } from './CreateCampaignModal';
 
 interface DatabaseStatsCardProps {
   database: ProspectDatabase;
@@ -22,6 +27,7 @@ interface DatabaseStatsCardProps {
   onViewProspects: (database: ProspectDatabase) => void;
   onCreateCampaign: (database: ProspectDatabase) => void;
   onExport: (database: ProspectDatabase) => void;
+  onRefresh?: () => void;
 }
 
 export const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
@@ -29,8 +35,13 @@ export const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
   onEdit,
   onViewProspects,
   onCreateCampaign,
-  onExport
+  onExport,
+  onRefresh
 }) => {
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isProspectsOpen, setIsProspectsOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isCampaignOpen, setIsCampaignOpen] = useState(false);
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
       day: '2-digit',
@@ -125,7 +136,7 @@ export const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => onViewProspects(database)}
+            onClick={() => setIsProspectsOpen(true)}
             className="w-full text-xs sm:text-sm"
           >
             <Users className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
@@ -134,7 +145,7 @@ export const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
           </Button>
           <Button 
             size="sm" 
-            onClick={() => onEdit(database)}
+            onClick={() => setIsEditOpen(true)}
             className="w-full text-xs sm:text-sm"
           >
             <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
@@ -147,7 +158,7 @@ export const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => onCreateCampaign(database)}
+            onClick={() => setIsCampaignOpen(true)}
             className="w-full text-[10px] sm:text-xs px-1 sm:px-2"
           >
             <Mail className="w-3 h-3 sm:mr-1" />
@@ -156,22 +167,45 @@ export const DatabaseStatsCard: React.FC<DatabaseStatsCardProps> = ({
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => onExport(database)}
+            onClick={() => setIsExportOpen(true)}
             className="w-full text-[10px] sm:text-xs px-1 sm:px-2"
           >
             <Phone className="w-3 h-3 sm:mr-1" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => onEdit(database)}
-            className="w-full text-[10px] sm:text-xs px-1 sm:px-2"
-          >
-            <Plus className="w-3 h-3 sm:mr-1" />
-            <span className="hidden sm:inline">Actions</span>
-          </Button>
+          <DatabaseActionsMenu
+            database={database}
+            onExport={() => setIsExportOpen(true)}
+            onEdit={() => setIsEditOpen(true)}
+            onRefresh={onRefresh}
+          />
         </div>
+
+        {/* Modals */}
+        <EditDatabaseModal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          database={database}
+          onSuccess={onRefresh}
+        />
+
+        <DatabaseProspectsModal
+          isOpen={isProspectsOpen}
+          onClose={() => setIsProspectsOpen(false)}
+          database={database}
+        />
+
+        <ProspectExportModal
+          isOpen={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+          databaseId={database.id}
+        />
+
+        <CreateCampaignModal
+          isOpen={isCampaignOpen}
+          onClose={() => setIsCampaignOpen(false)}
+          selectedProspects={[]}
+        />
       </CardContent>
     </Card>
   );

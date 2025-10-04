@@ -256,6 +256,7 @@ export const ProspectDatabaseManager: React.FC = () => {
               onViewProspects={handleViewProspects}
               onCreateCampaign={handleCreateCampaign}
               onExport={handleExport}
+              onRefresh={refreshDatabases}
             />
           ))}
         </div>
