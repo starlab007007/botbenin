@@ -12,39 +12,39 @@ import {
 
 const iaBenefits = [
   {
-    title: 'Vos processus manuels freinent votre croissance',
-    description: 'Vous passez trop de temps sur des tâches répétitives qui ne demandent pas votre expertise, au lieu de vous concentrer sur l\'innovation.',
+    title: 'Vous voulez automatiser vos conversations WhatsApp',
+    description: 'Gérez automatiquement vos échanges WhatsApp Business, répondez instantanément à vos clients 24/7 et convertissez plus de prospects sans effort.',
     icon: Settings,
-    color: 'from-blue-500 to-blue-600'
-  },
-  {
-    title: 'Vos équipes sont constamment débordées',
-    description: 'La charge opérationnelle empêche vos collaborateurs de se consacrer aux missions à forte valeur ajoutée et freine votre développement.',
-    icon: RotateCcw,
     color: 'from-green-500 to-green-600'
   },
   {
-    title: 'La productivité est votre priorité',
-    description: 'Vous souhaitez optimiser chaque minute de votre journée pour réorienter vos ressources vers des projets stratégiques et créatifs.',
+    title: 'Vous perdez des prospects par manque de suivi',
+    description: 'Notre plateforme capture, organise et suit automatiquement tous vos prospects. Import intelligent depuis n\'importe quel format, mapping automatique et relances personnalisées.',
+    icon: Target,
+    color: 'from-blue-500 to-blue-600'
+  },
+  {
+    title: 'Vos campagnes marketing manquent d\'efficacité',
+    description: 'Créez et lancez des campagnes multicanales (Email, WhatsApp, SMS) en quelques clics. L\'IA génère votre contenu, optimise vos messages et analyse vos performances en temps réel.',
     icon: TrendingUp,
     color: 'from-purple-500 to-purple-600'
   },
   {
-    title: 'Le recrutement, c\'est une galère',
-    description: 'Trouver les bons profils pour soulager votre opérationnel représente un investissement en temps et en argent. Nos solutions remplacent cette complexité en automatisant les tâches chronophages.',
+    title: 'Votre service client ne peut pas répondre assez vite',
+    description: 'Déployez des chatbots IA multilingues qui répondent instantanément à vos clients, comprennent leurs besoins et les orientent intelligemment vers les bonnes solutions.',
+    icon: Bot,
+    color: 'from-pink-500 to-pink-600'
+  },
+  {
+    title: 'Vous manquez de temps pour créer du contenu',
+    description: 'L\'IA génère automatiquement vos textes marketing, posts réseaux sociaux, emails de prospection et contenus publicitaires. Publiez sur toutes vos plateformes en un clic.',
     icon: Users,
     color: 'from-orange-500 to-orange-600'
   },
   {
-    title: 'Vous visez l\'excellence opérationnelle',
-    description: 'Pour rester en tête, vous devez moderniser vos processus et intégrer une technologie de pointe qui vous donne un avantage durable.',
-    icon: Target,
-    color: 'from-pink-500 to-pink-600'
-  },
-  {
-    title: 'Pas le temps de vous informer et d\'apprendre sur l\'IA',
-    description: 'Vous savez que l\'IA peut transformer votre business, mais vous n\'avez pas le temps de devenir expert. Laissez-nous vous apporter les résultats, rapidement et efficacement.',
-    icon: Bot,
+    title: 'Vous voulez des données pour prendre de meilleures décisions',
+    description: 'Tableaux de bord analytiques en temps réel, tracking des visiteurs, scoring automatique des prospects et rapports prédictifs pour optimiser votre stratégie.',
+    icon: RotateCcw,
     color: 'from-indigo-500 to-indigo-600'
   }
 ];

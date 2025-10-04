@@ -46,7 +46,7 @@ export const PricingSection: React.FC = () => {
       {
         id: 'starter',
         name: 'Pack Starter',
-        priceCFA: 5000,
+        priceCFA: 2500,
         description: 'Pour démarrer efficacement',
         features: [
           "3 bots IA personnalisés",
@@ -64,7 +64,7 @@ export const PricingSection: React.FC = () => {
       {
         id: 'business-pro',
         name: 'Pack Business Pro 🚀',
-        priceCFA: 15000,
+        priceCFA: 7500,
         description: 'Solution complète pour PME',
         features: [
           "10 bots IA illimités",
@@ -88,7 +88,7 @@ export const PricingSection: React.FC = () => {
       {
         id: 'marketing-automation',
         name: 'Pack Marketing Automation 🎯',
-        priceCFA: 25000,
+        priceCFA: 12500,
         description: 'Spécialisé marketing digital',
         features: [
           "15 bots IA spécialisés marketing",
@@ -113,7 +113,7 @@ export const PricingSection: React.FC = () => {
       {
         id: 'service-client',
         name: 'Pack Service Client Premium 💬',
-        priceCFA: 30000,
+        priceCFA: 15000,
         description: 'Support client automatisé',
         features: [
           "Bots IA illimités pour support client",
@@ -138,7 +138,7 @@ export const PricingSection: React.FC = () => {
       {
         id: 'enterprise',
         name: 'Pack Enterprise 👑',
-        priceCFA: 50000,
+        priceCFA: 25000,
         description: 'Solution sur mesure',
         features: [
           "Bots IA illimités tous modules",

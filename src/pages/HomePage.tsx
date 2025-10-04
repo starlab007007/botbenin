@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { IABenefitsCards } from '@/components/IABenefitsCards';
 import { WelcomeHeader } from '@/components/home/WelcomeHeader';
 import { QuickActions } from '@/components/home/QuickActions';
-import { AIModules } from '@/components/home/AIModules';
+import { WhatsAppHero } from '@/components/home/WhatsAppHero';
 import { AuditSection } from '@/components/home/AuditSection';
 import { PricingSection } from '@/components/home/PricingSection';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -19,14 +19,14 @@ export const HomePage: React.FC = () => {
       {/* Header de bienvenue - responsive */}
       <WelcomeHeader userName={user?.name} />
 
+      {/* Section WhatsApp Hero - Mise en avant */}
+      <WhatsAppHero />
+
       {/* Section Audit Offert */}
       <AuditSection />
 
       {/* Actions rapides - responsive grid */}
       <QuickActions />
-
-      {/* Modules IA */}
-      <AIModules />
 
       {/* Section "L'IA est faite pour vous si" en bas */}
       <div>

@@ -9,38 +9,54 @@ import {
   BarChart3, 
   Target,
   ArrowRight,
-  Star
+  Star,
+  Briefcase,
+  Sparkles
 } from 'lucide-react';
 
 const quickActions = [
   {
-    title: 'Kpakpato',
-    description: 'Messages vocaux interactifs',
+    title: 'WhatsApp Business',
+    description: 'Automatisez vos conversations WhatsApp',
     icon: MessageCircle,
-    path: '/chat',
+    path: '/modules/business',
     color: 'from-green-500 to-green-600',
     featured: true
   },
   {
-    title: 'Créer un Bot',
-    description: 'Configurez un nouveau bot automatisé',
-    icon: Bot,
-    path: '/bots',
+    title: 'IA Prospects',
+    description: 'Import et gestion intelligente de prospects',
+    icon: Target,
+    path: '/modules/business',
     color: 'from-blue-500 to-blue-600'
+  },
+  {
+    title: 'IA Business',
+    description: 'Solutions B2B et automatisation',
+    icon: Briefcase,
+    path: '/modules/business',
+    color: 'from-purple-500 to-purple-600'
+  },
+  {
+    title: 'IA Créateur',
+    description: 'Générez du contenu avec l\'IA',
+    icon: Sparkles,
+    path: '/bots',
+    color: 'from-pink-500 to-pink-600'
   },
   {
     title: 'Dashboard',
     description: 'Consultez vos statistiques',
     icon: BarChart3,
     path: '/dashboard',
-    color: 'from-purple-500 to-purple-600'
+    color: 'from-orange-500 to-orange-600'
   },
   {
-    title: 'Prospects',
-    description: 'Gérez votre pipeline commercial',
-    icon: Target,
-    path: '/prospects',
-    color: 'from-pink-500 to-pink-600'
+    title: 'Créer un Bot',
+    description: 'Configurez un nouveau bot IA',
+    icon: Bot,
+    path: '/bots',
+    color: 'from-indigo-500 to-indigo-600'
   }
 ];
 
