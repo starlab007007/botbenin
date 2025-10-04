@@ -4,9 +4,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserHistoryManagement } from '@/components/UserHistoryManagement';
-import { PasswordChangeForm } from '@/components/PasswordChangeForm';
+import { SubscriptionManagement } from '@/components/SubscriptionManagement';
+import { AccountOverview } from '@/components/account/AccountOverview';
+import { SecuritySettings } from '@/components/account/SecuritySettings';
+import { NotificationSettings } from '@/components/account/NotificationSettings';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,10 +21,11 @@ import {
   Shield, 
   History,
   Bell,
-  CreditCard,
-  Key,
   Save,
-  Edit3
+  LayoutDashboard,
+  Lock,
+  ChevronRight,
+  CheckCircle2
 } from 'lucide-react';
 
 interface UserProfile {
@@ -197,268 +202,314 @@ export const AccountPage: React.FC = () => {
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
-          Mon Compte - {userPermissions?.role || 'Utilisateur'}
-        </h1>
-        <p className="text-gray-600">
-          Gérez vos informations personnelles et votre abonnement
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background">
+      <div className="max-w-7xl mx-auto p-4 lg:p-8 space-y-8">
+        {/* Header moderne avec profil */}
+        <div className="relative">
+          <Card className="overflow-hidden">
+            {/* Background gradient */}
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent"></div>
+            
+            <div className="relative p-8">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="flex items-center space-x-6">
+                  {/* Avatar */}
+                  <Avatar className="w-24 h-24 border-4 border-background shadow-xl">
+                    <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+                      {authUser?.name?.[0]?.toUpperCase() || authUser?.email?.[0]?.toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  {/* Infos utilisateur */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h1 className="text-3xl font-bold tracking-tight">
+                        {formData.full_name || authUser?.email?.split('@')[0] || 'Utilisateur'}
+                      </h1>
+                      <Badge variant="outline" className="capitalize">
+                        <Shield className="w-3 h-3 mr-1" />
+                        {userPermissions?.role || 'user'}
+                      </Badge>
+                    </div>
+                    <p className="text-muted-foreground flex items-center gap-2">
+                      {authUser?.email}
+                      {authUser?.email && (
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      )}
+                    </p>
+                    <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                      <span>Membre depuis {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : 'N/A'}</span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Crown className="w-4 h-4 text-primary" />
+                        Plan {botOwner?.subscription_plan || 'free'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-      <Card className="uniform-card">
-        <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 p-1 bg-gray-100 rounded-t-xl">
-            <TabsTrigger value="profile" className="flex items-center space-x-2">
-              <User className="w-4 h-4" />
+                {/* Stats rapides */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-3 bg-background/50 backdrop-blur rounded-lg border">
+                    <div className="text-2xl font-bold text-primary">{botOwner?.max_bots || 0}</div>
+                    <div className="text-xs text-muted-foreground">Bots max</div>
+                  </div>
+                  <div className="text-center p-3 bg-background/50 backdrop-blur rounded-lg border">
+                    <div className="text-2xl font-bold text-primary">{userPermissions?.permissions.length || 0}</div>
+                    <div className="text-xs text-muted-foreground">Permissions</div>
+                  </div>
+                  <div className="text-center p-3 bg-background/50 backdrop-blur rounded-lg border">
+                    <div className="text-2xl font-bold text-green-600">98%</div>
+                    <div className="text-xs text-muted-foreground">Sécurité</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Tabs modernes */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto p-1 bg-muted/50 backdrop-blur border">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Vue d'ensemble</span>
+              <span className="sm:hidden">Vue</span>
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <User className="w-4 h-4 mr-2" />
               <span>Profil</span>
             </TabsTrigger>
-            <TabsTrigger value="password" className="flex items-center space-x-2">
-              <Key className="w-4 h-4" />
-              <span>Mot de passe</span>
+            <TabsTrigger value="security" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Lock className="w-4 h-4 mr-2" />
+              <span>Sécurité</span>
             </TabsTrigger>
-            <TabsTrigger value="subscription" className="flex items-center space-x-2">
-              <Crown className="w-4 h-4" />
-              <span>Abonnement</span>
+            <TabsTrigger value="subscription" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Crown className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Abonnement</span>
+              <span className="sm:hidden">Plan</span>
             </TabsTrigger>
-            <TabsTrigger value="permissions" className="flex items-center space-x-2">
-              <Shield className="w-4 h-4" />
-              <span>Permissions</span>
+            <TabsTrigger value="permissions" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Shield className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Permissions</span>
+              <span className="sm:hidden">Accès</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center space-x-2">
-              <History className="w-4 h-4" />
-              <span>Historique</span>
+            <TabsTrigger value="notifications" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <Bell className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Notifications</span>
+              <span className="sm:hidden">Notifs</span>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              <History className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Historique</span>
+              <span className="sm:hidden">Logs</span>
             </TabsTrigger>
           </TabsList>
           
-          <div className="p-6">
+          <div className="mt-6">
+            {/* Vue d'ensemble */}
+            <TabsContent value="overview" className="mt-0">
+              <AccountOverview />
+            </TabsContent>
+
+            {/* Profil */}
             <TabsContent value="profile" className="mt-0 space-y-6">
               {/* Informations générales */}
-              <Card className="uniform-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Informations personnelles
-                  </h3>
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <User className="w-5 h-5 text-primary" />
+                      Informations personnelles
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Gérez vos informations de compte
+                    </p>
+                  </div>
                   <Button 
                     onClick={updateProfile}
                     disabled={isUpdating}
-                    className="uniform-button-primary"
+                    size="lg"
                   >
                     <Save className="w-4 h-4 mr-2" />
-                    {isUpdating ? 'Mise à jour...' : 'Sauvegarder'}
+                    {isUpdating ? 'Enregistrement...' : 'Enregistrer'}
                   </Button>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nom complet
-                    </label>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Nom complet</label>
                     <Input
                       value={formData.full_name}
                       onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
                       placeholder="Votre nom complet"
-                      className="uniform-input"
+                      className="h-11"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2">
                       Email
+                      <Badge variant="outline" className="text-xs">Vérifié</Badge>
                     </label>
                     <Input
                       value={authUser.email || ''}
                       disabled
-                      className="uniform-input bg-gray-100"
+                      className="h-11 bg-muted"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Téléphone
-                    </label>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Téléphone</label>
                     <Input
                       value={formData.phone}
                       onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="+33 1 23 45 67 89"
-                      className="uniform-input"
+                      placeholder="+229 XX XX XX XX"
+                      className="h-11"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Membre depuis</label>
+                    <Input
+                      value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('fr-FR', { 
+                        day: 'numeric', 
+                        month: 'long', 
+                        year: 'numeric' 
+                      }) : 'N/A'}
+                      disabled
+                      className="h-11 bg-muted"
+                    />
+                  </div>
+                </div>
+              </Card>
+
+              {/* Préférences */}
+              <Card className="p-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Settings className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Membre depuis
-                    </label>
-                    <Input
-                      value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('fr-FR') : 'N/A'}
-                      disabled
-                      className="uniform-input bg-gray-100"
-                    />
+                    <h3 className="text-lg font-semibold">Préférences du compte</h3>
+                    <p className="text-sm text-muted-foreground">Personnalisez votre expérience</p>
                   </div>
                 </div>
-              </Card>
-
-              {/* Statistiques du compte */}
-              <Card className="uniform-card p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Résumé du compte
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {botOwner?.max_bots || 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Bots autorisés</div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {userPermissions?.role === 'admin' ? 'Admin' : 
-                       userPermissions?.role === 'manager' ? 'Manager' : 'User'}
-                    </div>
-                    <div className="text-sm text-gray-600">Niveau d'accès</div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {profile?.subscription_tier === 'free' ? 'Gratuit' : 'Premium'}
-                    </div>
-                    <div className="text-sm text-gray-600">Plan actuel</div>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {userPermissions?.permissions.length || 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Permissions</div>
-                  </div>
-                </div>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="password" className="mt-0 space-y-6">
-              <div className="flex justify-center">
-                <PasswordChangeForm />
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="subscription" className="mt-0 space-y-6">
-              {/* Abonnement actuel */}
-              <Card className="uniform-card p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Abonnement actuel
-                </h3>
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                      <Crown className="w-6 h-6 text-gray-600" />
-                    </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                     <div>
-                      <h4 className="font-semibold text-gray-900 capitalize">
-                        Plan {botOwner?.subscription_plan || 'free'}
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        {botOwner?.max_bots || 1} chatbot(s) maximum
-                      </p>
+                      <p className="font-medium">Langue de l'interface</p>
+                      <p className="text-sm text-muted-foreground">Français (France)</p>
                     </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
                   </div>
-                  <Badge className="uniform-badge-active">
-                    Actif
-                  </Badge>
-                </div>
-              </Card>
-
-              {/* Fonctionnalités incluses */}
-              <Card className="uniform-card p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Fonctionnalités incluses
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Création de chatbots personnalisés</span>
-                  </div>
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Gestion centralisée des messages</span>
-                  </div>
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Analytics et statistiques</span>
-                  </div>
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <Shield className="w-5 h-5 text-gray-600" />
-                    <span className="text-gray-700">Intégrations webhook</span>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Actions d'abonnement */}
-              <Card className="uniform-card p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Gestion de l'abonnement
-                </h3>
-                <div className="space-y-4">
-                  <p className="text-gray-600">
-                    Vous êtes actuellement sur le plan gratuit. 
-                    Passez au plan Premium pour débloquer plus de fonctionnalités.
-                  </p>
-                  <div className="flex space-x-3">
-                    <Button className="uniform-button-primary">
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Passer au Premium
-                    </Button>
-                    <Button className="uniform-button-secondary">
-                      Voir les détails de facturation
-                    </Button>
+                  
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <p className="font-medium">Fuseau horaire</p>
+                      <p className="text-sm text-muted-foreground">WAT (GMT+1)</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
                   </div>
                 </div>
               </Card>
             </TabsContent>
+            
+            {/* Sécurité */}
+            <TabsContent value="security" className="mt-0">
+              <SecuritySettings />
+            </TabsContent>
+            
+            {/* Abonnement */}
+            <TabsContent value="subscription" className="mt-0">
+              <SubscriptionManagement />
+            </TabsContent>
 
+            {/* Permissions */}
             <TabsContent value="permissions" className="mt-0 space-y-6">
-              <Card className="uniform-card p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Rôle et Permissions
-                </h3>
-                <div className="space-y-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <Shield className="w-6 h-6 text-gray-600" />
+              <Card className="p-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+                    <Shield className="w-6 h-6 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">Rôle et Permissions</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Votre niveau d'accès: <span className="font-semibold capitalize">{userPermissions?.role || 'user'}</span>
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                  {/* Badge de rôle */}
+                  <div className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-lg">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-semibold text-gray-900 capitalize">
-                          Rôle: {userPermissions?.role || 'Non défini'}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          Niveau d'accès attribué à votre compte
+                        <p className="text-sm text-muted-foreground mb-1">Rôle actuel</p>
+                        <h4 className="text-2xl font-bold capitalize">{userPermissions?.role || 'Non défini'}</h4>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {userPermissions?.role === 'admin' && 'Accès complet à toutes les fonctionnalités'}
+                          {userPermissions?.role === 'manager' && 'Gestion d\'équipe et accès business'}
+                          {userPermissions?.role === 'user' && 'Accès aux fonctionnalités de base'}
+                          {!userPermissions?.role && 'Niveau d\'accès standard'}
                         </p>
                       </div>
+                      <Badge variant="default" className="text-base px-4 py-2">
+                        {userPermissions?.permissions.length || 0} permissions
+                      </Badge>
                     </div>
                   </div>
                   
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">
-                      Permissions disponibles ({userPermissions?.permissions.length || 0})
-                    </h4>
-                    {userPermissions?.permissions.length ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {/* Liste des permissions */}
+                  {userPermissions?.permissions.length ? (
+                    <div>
+                      <h4 className="font-semibold mb-4 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        Permissions actives
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {userPermissions.permissions.map((permission, index) => (
-                          <div key={index} className="flex items-center space-x-2 p-2 bg-white border border-gray-200 rounded">
-                            <Key className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm text-gray-700">{permission}</span>
+                          <div key={index} className="flex items-center space-x-3 p-3 bg-muted/50 rounded-lg border">
+                            <div className="w-8 h-8 rounded bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                            </div>
+                            <span className="text-sm font-medium">{permission}</span>
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="text-gray-600">Aucune permission spécifique attribuée</p>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <Card className="p-6 bg-muted/30">
+                      <p className="text-center text-muted-foreground">
+                        Aucune permission spécifique attribuée
+                      </p>
+                    </Card>
+                  )}
                 </div>
               </Card>
             </TabsContent>
 
+            {/* Notifications */}
+            <TabsContent value="notifications" className="mt-0">
+              <NotificationSettings />
+            </TabsContent>
+
+            {/* Historique */}
             <TabsContent value="history" className="mt-0">
-              <UserHistoryManagement />
+              <Card className="p-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <History className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Historique d'activité</h3>
+                    <p className="text-sm text-muted-foreground">Consultez vos conversations et actions</p>
+                  </div>
+                </div>
+                <UserHistoryManagement />
+              </Card>
             </TabsContent>
           </div>
         </Tabs>
-      </Card>
+      </div>
     </div>
   );
 };
