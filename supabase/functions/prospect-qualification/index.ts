@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,12 +40,17 @@ serve(async (req) => {
 
     console.log(`Starting qualification for ${prospects.length} prospects using ${qualificationType}`);
 
-    // Get necessary API keys from environment
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+    // Get necessary secrets from environment
+    const GMAIL_EMAIL = Deno.env.get('GMAIL_EMAIL');
+    const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD');
     
-    if (qualificationType === 'email' && !RESEND_API_KEY) {
+    if (qualificationType === 'email' && (!GMAIL_EMAIL || !GMAIL_APP_PASSWORD)) {
+      console.error('Gmail configuration missing:', { 
+        hasEmail: !!GMAIL_EMAIL, 
+        hasPassword: !!GMAIL_APP_PASSWORD 
+      });
       return new Response(
-        JSON.stringify({ error: 'Configuration email manquante' }),
+        JSON.stringify({ error: 'Configuration Gmail manquante' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -89,11 +95,11 @@ serve(async (req) => {
 
         switch (qualificationType) {
           case 'email':
-            if (!RESEND_API_KEY) {
-              result = { prospectId: prospect.id, status: 'error', method: qualificationType, error: 'RESEND_API_KEY not configured' };
+            if (!GMAIL_EMAIL || !GMAIL_APP_PASSWORD) {
+              result = { prospectId: prospect.id, status: 'error', method: qualificationType, error: 'Gmail configuration not set' };
               break;
             }
-            result = await sendQualificationEmail(prospect, RESEND_API_KEY, message, botLink);
+            result = await sendQualificationEmail(prospect, GMAIL_EMAIL, GMAIL_APP_PASSWORD, message, botLink);
             break;
           case 'sms':
             result = await sendQualificationSMS(prospect, message, botLink);
@@ -181,58 +187,117 @@ serve(async (req) => {
   }
 });
 
-async function sendQualificationEmail(prospect: any, apiKey: string, customMessage?: string, botLink?: string) {
+async function sendQualificationEmail(
+  prospect: any, 
+  gmailEmail: string, 
+  gmailPassword: string, 
+  customMessage?: string, 
+  botLink?: string
+) {
+  const client = new SmtpClient();
+  
   try {
+    console.log(`📧 Sending qualification email to ${prospect.email}...`);
+    
     const message = customMessage || `
-    Bonjour ${prospect.name},
+Bonjour ${prospect.name},
 
-    Nous avons remarqué votre profil et pensons que notre solution d'IA pourrait être intéressante pour ${prospect.company}.
+Nous avons remarqué votre profil et pensons que notre solution d'IA pourrait être intéressante pour ${prospect.company}.
 
-    En tant que ${prospect.position}, vous pourriez bénéficier de notre assistant IA qui aide les entreprises à:
-    - Automatiser la prospection B2B
-    - Qualifier les leads automatiquement
-    - Optimiser les campagnes marketing
+En tant que ${prospect.position}, vous pourriez bénéficier de notre assistant IA qui aide les entreprises à:
+- Automatiser la prospection B2B
+- Qualifier les leads automatiquement
+- Optimiser les campagnes marketing
 
-    Seriez-vous disponible pour un appel de 15 minutes cette semaine pour explorer comment nous pourrions vous aider?
+Seriez-vous disponible pour un appel de 15 minutes cette semaine pour explorer comment nous pourrions vous aider?
 
-    Cordialement,
-    L'équipe IA Business
+${botLink ? `\n👉 Commencez la qualification ici : ${botLink}\n` : ''}
+
+Cordialement,
+L'équipe IA Business
     `;
 
     const finalMessage = botLink ? message.replace('[LIEN_BOT]', botLink).replace('{botLink}', botLink) : message;
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'noreply@ia-business.com',
-        to: [prospect.email],
-        subject: `Opportunité IA pour ${prospect.company || 'votre entreprise'}`,
-        text: finalMessage,
-      }),
+    // Construction du message HTML
+    const htmlMessage = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+        .content { background: #fff; padding: 30px; border: 1px solid #ddd; }
+        .bot-link { background: #667eea; color: white; padding: 15px 25px; text-align: center; border-radius: 8px; margin: 20px 0; }
+        .bot-link a { color: white; text-decoration: none; font-weight: bold; }
+        .footer { background: #f8f9fa; padding: 20px; border-radius: 0 0 8px 8px; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>🤖 Qualification Automatisée avec Bot IA</h2>
+        </div>
+        <div class="content">
+            ${finalMessage.replace(/\n/g, '<br>')}
+        </div>
+        <div class="footer">
+            <p>Cet email a été envoyé automatiquement par notre système de qualification IA.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    console.log('🔐 Connecting to Gmail SMTP server...');
+    
+    // Connexion au serveur SMTP Gmail
+    await client.connectTLS({
+      hostname: "smtp.gmail.com",
+      port: 587,
+      username: gmailEmail,
+      password: gmailPassword,
     });
+    
+    console.log('✅ Connected to Gmail SMTP successfully');
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`Email API error: ${response.status} - ${errorData}`);
-    }
-
-    const result = await response.json();
-    console.log(`Email sent successfully to ${prospect.email}:`, result.id);
+    // Envoi de l'email
+    console.log(`📤 Sending email to ${prospect.email}...`);
+    
+    await client.send({
+      from: `IA Business <${gmailEmail}>`,
+      to: prospect.email,
+      subject: `Opportunité IA pour ${prospect.company || 'votre entreprise'}`,
+      content: finalMessage,
+      html: htmlMessage,
+    });
+    
+    console.log(`✅ Email sent successfully to ${prospect.email}`);
+    
+    await client.close();
+    console.log('🔒 SMTP connection closed');
 
     return {
       prospectId: prospect.id,
       status: 'success',
       method: 'email',
-      messageId: result.id,
+      messageId: `gmail-${Date.now()}-${prospect.id}`,
       sentTo: prospect.email
     };
 
   } catch (error) {
-    console.error(`Failed to send email to ${prospect.email}:`, error);
+    console.error(`❌ Failed to send email to ${prospect.email}:`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    try {
+      await client.close();
+    } catch (closeError) {
+      console.error('Error closing SMTP connection:', closeError);
+    }
+    
     return {
       prospectId: prospect.id,
       status: 'error',
