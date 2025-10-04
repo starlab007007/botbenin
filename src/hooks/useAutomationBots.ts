@@ -53,12 +53,11 @@ export const useAutomationBots = () => {
         return;
       }
 
-      // Récupérer les bots automatisés actifs
+      // Récupérer tous les bots actifs de l'utilisateur
       const { data: botsData, error: botsError } = await supabase
         .from('bots')
         .select('*')
         .eq('owner_id', ownerData.id)
-        .eq('chat_context', 'automation')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
