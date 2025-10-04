@@ -239,7 +239,7 @@ export const PricingSection: React.FC = () => {
                     <PhoneCall className="mr-2 h-4 w-4" /> WhatsApp
                   </Button>
                   <Button size="sm" variant="outline" className="w-full" asChild>
-                    <a href="https://bot.bj/bot/0484686a-34c8-4eeb-8974-90b079ee9fe2" target="_blank" rel="noopener noreferrer">
+                    <a href="https://bot.bj/bot/770c2547-db60-41ab-9f18-1f080fa7ebbb" target="_blank" rel="noopener noreferrer">
                       <MessageCircle className="mr-2 h-4 w-4" /> Discuter
                     </a>
                   </Button>
