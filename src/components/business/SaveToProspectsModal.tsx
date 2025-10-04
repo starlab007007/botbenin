@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Database, Users, Plus } from 'lucide-react';
+import { Loader2, Database, Users, Plus, AlertCircle } from 'lucide-react';
 import { CreateDatabaseModal } from '../prospects/CreateDatabaseModal';
 import { useProspectDatabases } from '@/hooks/useProspectDatabases';
 
@@ -251,14 +251,18 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
                 <span className="text-sm">Chargement des bases...</span>
               </div>
             ) : databases.length === 0 ? (
-              <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg text-center">
-                <p className="text-sm text-gray-500 mb-2">Aucune base de données trouvée</p>
+              <div className="p-6 border-2 border-dashed rounded-lg text-center bg-muted/30">
+                <AlertCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                <p className="text-sm font-medium text-foreground mb-1">Aucune base de données disponible</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Il n'y a pas de base de données pour le moment
+                </p>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="default"
                   size="sm"
                   onClick={handleCreateDatabase}
-                  className="flex items-center"
+                  className="flex items-center mx-auto"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Créer votre première base
