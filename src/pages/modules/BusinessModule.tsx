@@ -47,9 +47,9 @@ export const BusinessModule: React.FC = () => {
     },
     {
       id: 'listes-prospects',
-      title: "Import & Gestion de Prospects",
-      description: "Importez vos listes existantes (CSV, Google Sheets) et enrichissez-les automatiquement avec des données supplémentaires. Centralisez tous vos contacts pour une gestion efficace de votre prospection.",
-      details: "Import CSV/Sheets + enrichissement automatique",
+      title: "Import Intelligent de Prospects",
+      description: "Importez vos données depuis n'importe quel format et mappez-les automatiquement. Capturez vos documents directement avec la caméra, analysez et organisez vos prospects intelligemment.",
+      details: "Import multi-format + mapping automatique + OCR",
       icon: Upload,
       color: 'bg-gradient-to-br from-purple-50 to-purple-100',
       iconColor: 'text-purple-600',
