@@ -11,8 +11,8 @@ export const FloatingChatButton: React.FC = () => {
   const [chatState, setChatState] = useState<ChatWindowState>('minimized');
   const isMobile = useIsMobile();
   
-  // Extraire le botId du webhook URL
-  const webhookUrl = "https://bot.bj/bot/770c2547-db60-41ab-9f18-1f080fa7ebbb";
+  // Configuration du webhook backend
+  const webhookUrl = "https://ia.bot.bj/webhook/bot";
   const botId = "770c2547-db60-41ab-9f18-1f080fa7ebbb";
 
   // Gérer ouverture/fermeture
