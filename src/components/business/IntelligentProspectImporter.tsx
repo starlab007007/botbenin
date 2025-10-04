@@ -19,12 +19,23 @@ interface IntelligentProspectImporterProps {
 
 type ImportStage = 'upload' | 'parsing' | 'mapping' | 'validation' | 'importing' | 'complete';
 
+const STAGES = [
+  { id: 'upload', label: 'Téléchargement', icon: Upload },
+  { id: 'parsing', label: 'Analyse', icon: Brain },
+  { id: 'mapping', label: 'Mapping', icon: Table },
+  { id: 'validation', label: 'Validation', icon: CheckCircle2 },
+  { id: 'importing', label: 'Import', icon: Loader2 },
+  { id: 'complete', label: 'Terminé', icon: CheckCircle2 }
+] as const;
+
 export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterProps> = ({ onBack }) => {
   const { toast } = useToast();
   const [stage, setStage] = useState<ImportStage>('upload');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [cameraMode, setCameraMode] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [validatedData, setValidatedData] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { parseFile, parsedData, isProcessing, error } = useFileParser();
@@ -92,12 +103,51 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
   };
 
   const handleMappingComplete = async (mappedData: any, template: string) => {
+    setValidatedData(mappedData);
+    setSelectedTemplate(template);
     setStage('validation');
-    // Validation logic here
-    setTimeout(() => {
-      setStage('importing');
-      importData(mappedData, template);
-    }, 1000);
+  };
+
+  const goToNextStage = () => {
+    const currentIndex = STAGES.findIndex(s => s.id === stage);
+    if (currentIndex < STAGES.length - 1) {
+      const nextStage = STAGES[currentIndex + 1].id as ImportStage;
+      
+      // Skip parsing stage if going forward manually
+      if (nextStage === 'parsing' && parsedData) {
+        setStage('mapping');
+      } else {
+        setStage(nextStage);
+      }
+    }
+  };
+
+  const goToPreviousStage = () => {
+    const currentIndex = STAGES.findIndex(s => s.id === stage);
+    if (currentIndex > 0) {
+      const prevStage = STAGES[currentIndex - 1].id as ImportStage;
+      
+      // Skip parsing stage when going back
+      if (prevStage === 'parsing') {
+        setStage('upload');
+      } else {
+        setStage(prevStage);
+      }
+    }
+  };
+
+  const canNavigateToStage = (stageId: string): boolean => {
+    const stageIndex = STAGES.findIndex(s => s.id === stageId);
+    const currentIndex = STAGES.findIndex(s => s.id === stage);
+    
+    // Can go back to any previous completed stage
+    if (stageIndex < currentIndex) return true;
+    
+    // Can't skip ahead unless data is ready
+    if (stageId === 'mapping' && !parsedData) return false;
+    if (stageId === 'validation' && !validatedData) return false;
+    
+    return stageIndex <= currentIndex + 1;
   };
 
   const importData = async (data: any, template: string) => {
@@ -158,28 +208,50 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
 
         {/* Progress Stepper */}
         <Card className="border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              {['upload', 'parsing', 'mapping', 'validation', 'importing', 'complete'].map((s, idx) => (
-                <div key={s} className="flex items-center">
-                  <div className={`flex items-center justify-center w-10 h-10 rounded-full transition-all ${
-                    stage === s ? 'bg-primary text-primary-foreground scale-110' :
-                    ['upload', 'parsing', 'mapping', 'validation', 'importing', 'complete'].indexOf(stage) > idx ?
-                    'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {['upload', 'parsing', 'mapping', 'validation', 'importing', 'complete'].indexOf(stage) > idx ? 
-                      <CheckCircle2 className="w-5 h-5" /> : 
-                      <span className="text-sm font-semibold">{idx + 1}</span>
-                    }
+          <CardContent className="pt-6 pb-4">
+            <div className="flex items-center justify-between mb-4">
+              {STAGES.map((s, idx) => {
+                const StageIcon = s.icon;
+                const currentIndex = STAGES.findIndex(st => st.id === stage);
+                const isCompleted = currentIndex > idx;
+                const isCurrent = stage === s.id;
+                const canNavigate = canNavigateToStage(s.id);
+                
+                return (
+                  <div key={s.id} className="flex items-center flex-1">
+                    <button
+                      onClick={() => canNavigate && setStage(s.id as ImportStage)}
+                      disabled={!canNavigate || s.id === 'parsing' || s.id === 'importing'}
+                      className={`flex flex-col items-center gap-2 transition-all ${
+                        canNavigate && s.id !== 'parsing' && s.id !== 'importing' ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+                      }`}
+                    >
+                      <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all border-2 ${
+                        isCurrent ? 'bg-primary text-primary-foreground border-primary scale-110 shadow-lg' :
+                        isCompleted ? 'bg-primary/20 text-primary border-primary' : 
+                        'bg-muted text-muted-foreground border-muted'
+                      }`}>
+                        {isCompleted ? 
+                          <CheckCircle2 className="w-6 h-6" /> : 
+                          <StageIcon className={`w-6 h-6 ${isCurrent && s.id === 'parsing' ? 'animate-pulse' : ''}`} />
+                        }
+                      </div>
+                      <span className={`text-xs font-medium text-center ${
+                        isCurrent ? 'text-primary' : 
+                        isCompleted ? 'text-primary/70' : 
+                        'text-muted-foreground'
+                      }`}>
+                        {s.label}
+                      </span>
+                    </button>
+                    {idx < STAGES.length - 1 && (
+                      <div className={`flex-1 h-1 mx-2 transition-all ${
+                        isCompleted ? 'bg-primary' : 'bg-muted'
+                      }`} />
+                    )}
                   </div>
-                  {idx < 5 && (
-                    <div className={`w-16 h-1 mx-2 ${
-                      ['upload', 'parsing', 'mapping', 'validation', 'importing', 'complete'].indexOf(stage) > idx ?
-                      'bg-primary' : 'bg-muted'
-                    }`} />
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -241,9 +313,24 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
                           <X className="w-4 h-4" />
                         </Button>
                       </div>
-                    ))}
+                ))}
                   </div>
                 )}
+
+                <div className="flex justify-end gap-2 mt-6 pt-6 border-t">
+                  <Button
+                    onClick={() => {
+                      if (uploadedFiles.length > 0) {
+                        setStage('parsing');
+                        processFiles(uploadedFiles);
+                      }
+                    }}
+                    disabled={uploadedFiles.length === 0}
+                  >
+                    Analyser les fichiers
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -299,11 +386,20 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
         {stage === 'mapping' && parsedData && (
           <>
             <DataPreview data={parsedData} />
-            <TemplateSelector onSelect={(template) => setStage('validation')} />
+            <TemplateSelector onSelect={(template) => setSelectedTemplate(template)} />
             <DataMappingInterface
               sourceData={parsedData}
               onMappingComplete={handleMappingComplete}
             />
+            <div className="flex justify-between gap-2 mt-6">
+              <Button variant="outline" onClick={goToPreviousStage}>
+                Précédent
+              </Button>
+              <Button onClick={() => handleMappingComplete(validatedData, selectedTemplate)}>
+                Valider le mapping
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
           </>
         )}
 
@@ -311,9 +407,12 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
           <Card>
             <CardHeader>
               <CardTitle>Validation des données</CardTitle>
+              <CardDescription>
+                Vérifiez que toutes les données sont correctes avant l'import final
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
                   <span>Format validé</span>
@@ -325,6 +424,37 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
                   <span>Données conformes</span>
+                </div>
+                
+                {validatedData && (
+                  <div className="mt-6 p-4 bg-muted rounded-lg">
+                    <p className="text-sm font-medium mb-2">Résumé de l'import:</p>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Nombre de lignes:</span>
+                        <span className="ml-2 font-semibold">{validatedData.rows?.length || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Template:</span>
+                        <span className="ml-2 font-semibold">{selectedTemplate?.name || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-between gap-2 mt-6 pt-6 border-t">
+                  <Button variant="outline" onClick={goToPreviousStage}>
+                    Modifier le mapping
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setStage('importing');
+                      importData(validatedData, selectedTemplate);
+                    }}
+                  >
+                    Lancer l'import
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
                 </div>
               </div>
             </CardContent>
