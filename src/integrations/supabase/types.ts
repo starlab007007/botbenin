@@ -5806,6 +5806,10 @@ export type Database = {
           source: string
         }[]
       }
+      grant_whatsapp_permissions_to_user: {
+        Args: { target_user_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: { _role_name: string; _user_id: string }
         Returns: boolean
