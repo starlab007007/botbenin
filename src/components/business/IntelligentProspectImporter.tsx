@@ -12,6 +12,8 @@ import { DataMappingInterface } from './DataMappingInterface';
 import { CameraCapture } from './CameraCapture';
 import { DataPreview } from './DataPreview';
 import { TemplateSelector } from './TemplateSelector';
+import { ImportedDataManager } from './ImportedDataManager';
+import { supabase } from '@/integrations/supabase/client';
 
 interface IntelligentProspectImporterProps {
   onBack?: () => void;
@@ -36,6 +38,8 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
   const [progress, setProgress] = useState(0);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [validatedData, setValidatedData] = useState<any>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showManager, setShowManager] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { parseFile, parsedData, isProcessing, error } = useFileParser();
@@ -150,21 +154,56 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
     return stageIndex <= currentIndex + 1;
   };
 
-  const importData = async (data: any, template: string) => {
+  const importData = async (data: any, template: any) => {
+    setStage('importing');
     try {
       setProgress(0);
-      // Import logic based on template type
-      // ... implementation
+      
+      // Obtenir l'utilisateur courant
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error("Utilisateur non connecté");
+      }
+
+      setProgress(30);
+
+      // Sauvegarder dans la base de données
+      const { data: dbData, error: dbError } = await supabase
+        .from('prospect_databases')
+        .insert({
+          user_id: user.id,
+          name: uploadedFiles[0]?.name.replace(/\.[^/.]+$/, '') || 'Import sans nom',
+          template_type: template?.name || selectedTemplate?.name || 'Standard',
+          data: data,
+          file_name: uploadedFiles[0]?.name,
+          total_records: data.length,
+          metadata: {
+            imported_at: new Date().toISOString(),
+            template_id: template?.id || selectedTemplate?.id,
+            parsed_from: uploadedFiles[0]?.type
+          }
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('Database error:', dbError);
+        throw dbError;
+      }
+
       setProgress(100);
       setStage('complete');
+      
       toast({
         title: "Import réussi",
         description: `${data.length} prospects importés avec succès.`,
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Import error:', error);
       toast({
         title: "Erreur d'import",
-        description: "Une erreur est survenue lors de l'import.",
+        description: error.message || "Une erreur est survenue lors de l'import.",
         variant: "destructive"
       });
     }
@@ -473,26 +512,51 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
         )}
 
         {stage === 'complete' && (
-          <Card className="border-2 border-green-500">
-            <CardContent className="pt-6 text-center">
-              <CheckCircle2 className="w-16 h-16 mx-auto mb-4 text-green-500" />
-              <h3 className="text-2xl font-bold mb-2">Import terminé avec succès !</h3>
-              <p className="text-muted-foreground mb-6">
-                Vos prospects ont été importés et sont prêts à être utilisés
-              </p>
-              <div className="flex gap-4 justify-center">
-                <Button onClick={() => setStage('upload')}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Importer d'autres fichiers
-                </Button>
-                {onBack && (
-                  <Button variant="outline" onClick={onBack}>
-                    Retour au menu
+          <>
+            <Card className="border-2 border-green-500">
+              <CardContent className="pt-6 text-center">
+                <CheckCircle2 className="w-16 h-16 mx-auto mb-4 text-green-500" />
+                <h3 className="text-2xl font-bold mb-2">Import terminé avec succès !</h3>
+                <p className="text-muted-foreground mb-6">
+                  Vos prospects ont été importés et sont prêts à être utilisés
+                </p>
+                <div className="flex gap-4 justify-center">
+                  <Button 
+                    onClick={() => {
+                      setRefreshTrigger(prev => prev + 1);
+                      setShowManager(true);
+                    }}
+                    className="bg-gradient-to-r from-primary to-primary/80"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Voir mes données importées
                   </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  <Button onClick={() => {
+                    setStage('upload');
+                    setUploadedFiles([]);
+                    setSelectedTemplate(null);
+                    setValidatedData(null);
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Importer d'autres fichiers
+                  </Button>
+                  {onBack && (
+                    <Button variant="outline" onClick={onBack}>
+                      Retour au menu
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Gestionnaire de données importées */}
+            {showManager && (
+              <ImportedDataManager 
+                refreshTrigger={refreshTrigger}
+                onBack={() => setShowManager(false)}
+              />
+            )}
+          </>
         )}
 
         {/* Formats supportés */}
