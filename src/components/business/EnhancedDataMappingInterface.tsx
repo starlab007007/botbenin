@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Wand2, CheckCircle2, FileText } from 'lucide-react';
 import { useDataMapper } from '@/hooks/useDataMapper';
+import { useToast } from '@/hooks/use-toast';
 
 interface EnhancedDataMappingInterfaceProps {
   sourceData: any;
@@ -15,6 +16,7 @@ export const EnhancedDataMappingInterface: React.FC<EnhancedDataMappingInterface
   sourceData,
   onMappingComplete
 }) => {
+  const { toast } = useToast();
   const { templates, analyzeAndSuggestTemplate, autoMapFields, mapToTemplate, validateMapping } = useDataMapper();
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
@@ -44,20 +46,31 @@ export const EnhancedDataMappingInterface: React.FC<EnhancedDataMappingInterface
   };
 
   const handleComplete = () => {
-    if (!selectedTemplate) {
-      setValidationErrors(['Veuillez sélectionner un type de données']);
+    const finalMapping = mapToTemplate(sourceData, selectedTemplate, fieldMapping);
+    
+    if (!finalMapping) {
       return;
     }
 
-    const mapped = mapToTemplate(sourceData, selectedTemplate, fieldMapping);
-    const validation = validateMapping(mapped, selectedTemplate);
+    const validation = validateMapping(finalMapping, selectedTemplate);
     
+    // Afficher les avertissements mais permettre de continuer
     if (!validation.valid) {
       setValidationErrors(validation.errors);
-      return;
+      toast({
+        title: "⚠️ Avertissements détectés",
+        description: "Certains champs requis sont manquants. Vous pouvez continuer ou corriger.",
+        variant: "default"
+      });
+      // Ne pas return, permettre de continuer
+    } else {
+      toast({
+        title: "✓ Mapping validé",
+        description: "Données prêtes pour l'import"
+      });
     }
 
-    onMappingComplete(mapped, selectedTemplate.id);
+    onMappingComplete({ rows: finalMapping }, selectedTemplate);
   };
 
   if (!sourceData) return null;
@@ -147,8 +160,8 @@ export const EnhancedDataMappingInterface: React.FC<EnhancedDataMappingInterface
           </CardHeader>
           <CardContent className="space-y-3">
             {selectedTemplate.fields.map((field: any) => (
-              <div key={field.name} className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
-                <div className="flex-1">
+              <div key={field.name} className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-3 bg-muted/50 rounded-lg">
+                <div className="flex-1 w-full">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{field.name}</span>
                     {field.required && (
@@ -160,9 +173,9 @@ export const EnhancedDataMappingInterface: React.FC<EnhancedDataMappingInterface
                   )}
                 </div>
                 
-                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                <ArrowRight className="w-4 h-4 text-muted-foreground hidden md:block" />
                 
-                <div className="flex-1">
+                <div className="flex-1 w-full">
                   <Select
                     value={fieldMapping[field.name] || '_unmapped'}
                     onValueChange={(value) => handleFieldMappingChange(field.name, value === '_unmapped' ? '' : value)}
@@ -190,14 +203,24 @@ export const EnhancedDataMappingInterface: React.FC<EnhancedDataMappingInterface
         </Card>
       )}
 
-      {/* Validation Errors */}
+      {/* Validation Warnings */}
       {validationErrors.length > 0 && (
-        <Card className="border-2 border-destructive">
+        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20">
           <CardContent className="pt-6">
-            <h4 className="font-medium text-sm text-destructive mb-3">Erreurs de validation</h4>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 bg-yellow-500/10 rounded-lg">
+                <CheckCircle2 className="w-4 h-4 text-yellow-600 dark:text-yellow-500" />
+              </div>
+              <h4 className="font-medium text-sm text-yellow-700 dark:text-yellow-500">
+                Avertissements de validation ({validationErrors.length})
+              </h4>
+            </div>
+            <p className="text-xs text-yellow-600 dark:text-yellow-500/80 mb-3">
+              Ces champs requis sont manquants. Vous pouvez continuer ou les corriger.
+            </p>
             <ul className="list-disc list-inside space-y-1">
               {validationErrors.map((error, idx) => (
-                <li key={idx} className="text-sm text-destructive">{error}</li>
+                <li key={idx} className="text-sm text-yellow-700 dark:text-yellow-500">{error}</li>
               ))}
             </ul>
           </CardContent>
@@ -205,10 +228,22 @@ export const EnhancedDataMappingInterface: React.FC<EnhancedDataMappingInterface
       )}
 
       {/* Complete Button */}
-      <Button onClick={handleComplete} className="w-full" size="lg">
-        Valider le mapping et continuer
-        <ArrowRight className="w-4 h-4 ml-2" />
-      </Button>
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 md:gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="text-sm text-muted-foreground text-center md:text-left">
+          {Object.keys(fieldMapping).filter(k => fieldMapping[k]).length} champs mappés sur {selectedTemplate?.fields?.length || 0}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button onClick={handleAutoMap} variant="outline" size="sm" className="w-full sm:w-auto">
+            <Wand2 className="w-4 h-4 mr-2" />
+            Auto-mapper
+          </Button>
+          <Button onClick={handleComplete} size="lg" className="w-full sm:w-auto sm:min-w-[200px]">
+            <CheckCircle2 className="w-4 h-4 mr-2" />
+            <span className="truncate">{validationErrors.length > 0 ? 'Continuer malgré tout' : 'Valider et continuer'}</span>
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

@@ -45,7 +45,7 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { parseFile, parsedData, isProcessing, error } = useFileParser();
-  const { mappedData, suggestedTemplate, mapToTemplate } = useDataMapper();
+  const { mappedData, suggestedTemplate, mapToTemplate, templates } = useDataMapper();
   const [editedData, setEditedData] = useState<any>(null);
 
   const handleFileUpload = useCallback((files: FileList | null) => {
@@ -245,26 +245,28 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
               Import Intelligent de Prospects
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-sm lg:text-base text-muted-foreground mt-2">
               Importez vos données depuis n'importe quel format et mappez-les automatiquement
             </p>
           </div>
-          {onBack && (
-            <Button variant="outline" onClick={onBack}>
-              Retour
-            </Button>
-          )}
+          <div className="flex gap-2 w-full lg:w-auto">
+            {onBack && (
+              <Button variant="outline" onClick={onBack} className="flex-1 lg:flex-none">
+                Retour
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Progress Stepper */}
         <Card className="border-2">
           <CardContent className="pt-6 pb-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
               {STAGES.map((s, idx) => {
                 const StageIcon = s.icon;
                 const currentIndex = STAGES.findIndex(st => st.id === stage);
@@ -273,25 +275,25 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
                 const canNavigate = canNavigateToStage(s.id);
                 
                 return (
-                  <div key={s.id} className="flex items-center flex-1">
+                  <div key={s.id} className="flex items-center w-full md:flex-1">
                     <button
                       onClick={() => canNavigate && setStage(s.id as ImportStage)}
                       disabled={!canNavigate || s.id === 'parsing' || s.id === 'importing'}
-                      className={`flex flex-col items-center gap-2 transition-all ${
+                      className={`flex flex-col items-center gap-2 transition-all w-full md:w-auto ${
                         canNavigate && s.id !== 'parsing' && s.id !== 'importing' ? 'cursor-pointer hover:scale-105' : 'cursor-default'
                       }`}
                     >
-                      <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all border-2 ${
+                      <div className={`flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full transition-all border-2 ${
                         isCurrent ? 'bg-primary text-primary-foreground border-primary scale-110 shadow-lg' :
                         isCompleted ? 'bg-primary/20 text-primary border-primary' : 
                         'bg-muted text-muted-foreground border-muted'
                       }`}>
                         {isCompleted ? 
-                          <CheckCircle2 className="w-6 h-6" /> : 
-                          <StageIcon className={`w-6 h-6 ${isCurrent && s.id === 'parsing' ? 'animate-pulse' : ''}`} />
+                          <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6" /> : 
+                          <StageIcon className={`w-5 h-5 md:w-6 md:h-6 ${isCurrent && s.id === 'parsing' ? 'animate-pulse' : ''}`} />
                         }
                       </div>
-                      <span className={`text-xs font-medium text-center ${
+                      <span className={`text-xs font-medium text-center hidden md:block ${
                         isCurrent ? 'text-primary' : 
                         isCompleted ? 'text-primary/70' : 
                         'text-muted-foreground'
@@ -300,7 +302,7 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
                       </span>
                     </button>
                     {idx < STAGES.length - 1 && (
-                      <div className={`flex-1 h-1 mx-2 transition-all ${
+                      <div className={`hidden md:block flex-1 h-1 mx-2 transition-all ${
                         isCompleted ? 'bg-primary' : 'bg-muted'
                       }`} />
                     )}
@@ -313,9 +315,22 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
 
         {/* Main Content */}
         {stage === 'upload' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Upload Area */}
-            <Card className="border-2 border-dashed hover:border-primary transition-all">
+          <Tabs defaultValue="import" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="import">
+                <Upload className="w-4 h-4 mr-2" />
+                Importer un fichier
+              </TabsTrigger>
+              <TabsTrigger value="manual">
+                <Plus className="w-4 h-4 mr-2" />
+                Saisie manuelle
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="import">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Upload Area */}
+                <Card className="border-2 border-dashed hover:border-primary transition-all">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="w-5 h-5" />
@@ -418,6 +433,36 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
               </CardContent>
             </Card>
           </div>
+            </TabsContent>
+
+            <TabsContent value="manual">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Saisie Manuelle de Prospects</CardTitle>
+                  <CardDescription>
+                    Choisissez un template et remplissez les données manuellement
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <TemplateSelector
+                    onSelect={(templateId) => {
+                      const template = templates.find(t => t.id === templateId);
+                      if (template) {
+                        setSelectedTemplate(template);
+                        // Créer des données vides pour le mapping manuel
+                        const emptyData = {
+                          headers: template.fields.map((f: any) => f.name),
+                          rows: [{}]
+                        };
+                        setEditedData(emptyData);
+                        setStage('mapping');
+                      }
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         )}
 
         {stage === 'parsing' && (
