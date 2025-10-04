@@ -14,6 +14,10 @@ export const DataPreview: React.FC<DataPreviewProps> = ({ data }) => {
   }
 
   const previewRows = data.rows.slice(0, 10);
+  const rowCount = data.metadata?.rowCount || data.rows?.length || 0;
+  const columnCount = data.metadata?.columnCount || data.headers?.length || 0;
+  const fileType = data.metadata?.fileType || 'Fichier';
+  const fileName = data.metadata?.fileName || 'Document';
 
   return (
     <Card>
@@ -22,13 +26,13 @@ export const DataPreview: React.FC<DataPreviewProps> = ({ data }) => {
           <div>
             <CardTitle>Aperçu des données</CardTitle>
             <CardDescription>
-              {data.metadata.rowCount} lignes × {data.metadata.columnCount} colonnes
+              {rowCount} lignes × {columnCount} colonnes
               {data.rows.length > 10 && ` (affichage des 10 premières lignes)`}
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Badge variant="secondary">{data.metadata.fileType}</Badge>
-            <Badge variant="outline">{data.metadata.fileName}</Badge>
+            <Badge variant="secondary">{fileType}</Badge>
+            <Badge variant="outline">{fileName}</Badge>
           </div>
         </div>
       </CardHeader>
