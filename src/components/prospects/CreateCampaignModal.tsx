@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Mail, 
   Phone, 
@@ -16,10 +18,17 @@ import {
   Target,
   Users,
   Settings,
-  Send
+  Send,
+  Bot,
+  UserCog,
+  Edit,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useProspectDatabases } from '@/hooks/useProspectDatabases';
+import { useProspects } from '@/hooks/useProspects';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -42,9 +51,53 @@ export const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   const [scheduleType, setScheduleType] = useState<'immediate' | 'scheduled'>('immediate');
   const [scheduleDate, setScheduleDate] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [executionMode, setExecutionMode] = useState<'manual' | 'ai'>('manual');
+  const [selectedBotId, setSelectedBotId] = useState<string>('');
+  const [availableBots, setAvailableBots] = useState<any[]>([]);
+  const [prospectsData, setProspectsData] = useState<any[]>([]);
+  const [editingContact, setEditingContact] = useState<string | null>(null);
+  const [contactUpdates, setContactUpdates] = useState<Record<string, { email?: string; phone?: string }>>({});
   
   const { toast } = useToast();
   const { databases } = useProspectDatabases();
+  const { prospects, fetchProspects } = useProspects({ databaseId: selectedDatabase });
+
+  // Charger les bots disponibles
+  useEffect(() => {
+    const loadBots = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('bots')
+          .select('id, name, description')
+          .eq('is_active', true)
+          .order('name');
+
+        if (!error && data) {
+          setAvailableBots(data);
+        }
+      } catch (error) {
+        console.error('Error loading bots:', error);
+      }
+    };
+
+    if (isOpen && executionMode === 'ai') {
+      loadBots();
+    }
+  }, [isOpen, executionMode]);
+
+  // Charger les prospects de la base sélectionnée
+  useEffect(() => {
+    if (selectedDatabase && isOpen) {
+      fetchProspects(true);
+    }
+  }, [selectedDatabase, isOpen]);
+
+  useEffect(() => {
+    setProspectsData(prospects);
+  }, [prospects]);
 
   const campaignTypes = [
     {
@@ -99,8 +152,50 @@ Cordialement,
     }
   ];
 
+  const handleUpdateContact = async (prospectId: string) => {
+    const updates = contactUpdates[prospectId];
+    if (!updates) return;
+
+    try {
+      const { error } = await supabase
+        .from('prospects')
+        .update(updates)
+        .eq('id', prospectId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Contact mis à jour",
+        description: "Les informations ont été enregistrées.",
+      });
+
+      setEditingContact(null);
+      fetchProspects(true);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le contact.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getValidContacts = () => {
+    return prospectsData.filter(p => {
+      if (campaignType === 'email') {
+        return p.email && p.email.trim() !== '';
+      }
+      if (campaignType === 'phone' || campaignType === 'sms') {
+        return p.phone && p.phone.trim() !== '';
+      }
+      return false;
+    });
+  };
+
   const handleCreateCampaign = async () => {
-    if (!name || !message || (!selectedDatabase && !selectedProspects)) {
+    const validContacts = getValidContacts();
+    
+    if (!name || !message) {
       toast({
         title: "Informations manquantes",
         description: "Veuillez remplir tous les champs obligatoires.",
@@ -109,24 +204,83 @@ Cordialement,
       return;
     }
 
+    if (validContacts.length === 0) {
+      toast({
+        title: "Aucun contact valide",
+        description: `Aucun prospect n'a ${campaignType === 'email' ? "d'email" : 'de téléphone'} valide.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (executionMode === 'ai' && !selectedBotId) {
+      toast({
+        title: "Bot non sélectionné",
+        description: "Veuillez sélectionner un bot pour la prise en main IA.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsCreating(true);
     
-    // Simuler la création de campagne
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast({
-      title: "Campagne créée",
-      description: `La campagne "${name}" a été créée avec succès.`,
-    });
-    
-    setIsCreating(false);
-    onClose();
-    
-    // Reset form
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Non authentifié');
+
+      const campaignData = {
+        user_id: user.id,
+        name,
+        type: campaignType,
+        status: scheduleType === 'immediate' ? 'active' : 'scheduled',
+        start_date: scheduleType === 'scheduled' ? scheduleDate : new Date().toISOString(),
+        content: {
+          subject: campaignType === 'email' ? subject : undefined,
+          message,
+          execution_mode: executionMode,
+          bot_id: executionMode === 'ai' ? selectedBotId : undefined
+        },
+        segment: {
+          database_id: selectedDatabase,
+          prospect_count: validContacts.length,
+          contact_type: campaignType
+        }
+      };
+
+      const { error } = await supabase
+        .from('campaigns')
+        .insert(campaignData);
+
+      if (error) throw error;
+
+      toast({
+        title: "Campagne créée",
+        description: `Campagne "${name}" créée avec ${validContacts.length} contacts. ${executionMode === 'ai' ? 'Le bot prendra en charge l\'exécution.' : 'Mode manuel activé.'}`,
+      });
+
+      onClose();
+      resetForm();
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer la campagne.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const resetForm = () => {
     setName('');
     setSubject('');
     setMessage('');
     setSelectedDatabase('');
+    setExecutionMode('manual');
+    setSelectedBotId('');
+    setContactUpdates({});
+    setEditingContact(null);
   };
 
   const getTargetDescription = () => {
@@ -203,26 +357,142 @@ Cordialement,
                   Audience cible
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground mb-4">
-                  {getTargetDescription()}
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="database">Base de données</Label>
+                  <Select value={selectedDatabase} onValueChange={setSelectedDatabase}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Sélectionnez une base de données" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {databases.map((db) => (
+                        <SelectItem key={db.id} value={db.id}>
+                          {db.name} ({db.prospect_count || 0} prospects)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                
-                {!selectedProspects && (
+
+                {selectedDatabase && prospectsData.length > 0 && (
                   <div>
-                    <Label htmlFor="database">Base de données</Label>
-                    <Select value={selectedDatabase} onValueChange={setSelectedDatabase}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Sélectionnez une base de données" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {databases.map((db) => (
-                          <SelectItem key={db.id} value={db.id}>
-                            {db.name} ({db.prospect_count || 0} prospects)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between mb-3">
+                      <Label>Contacts disponibles ({getValidContacts().length} valides)</Label>
+                      <Badge variant={getValidContacts().length === 0 ? 'destructive' : 'default'}>
+                        {campaignType === 'email' ? 'Avec email' : 'Avec téléphone'}
+                      </Badge>
+                    </div>
+                    
+                    <ScrollArea className="h-64 border rounded-lg p-3">
+                      <div className="space-y-2">
+                        {prospectsData.map((prospect) => {
+                          const hasValidContact = campaignType === 'email' 
+                            ? prospect.email && prospect.email.trim() !== ''
+                            : prospect.phone && prospect.phone.trim() !== '';
+                          
+                          const isEditing = editingContact === prospect.id;
+                          
+                          return (
+                            <div 
+                              key={prospect.id} 
+                              className={`p-3 border rounded-lg ${!hasValidContact ? 'bg-muted/50 border-destructive/20' : ''}`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="font-medium flex items-center gap-2">
+                                    {prospect.first_name} {prospect.last_name}
+                                    {!hasValidContact && (
+                                      <AlertCircle className="w-4 h-4 text-destructive" />
+                                    )}
+                                  </div>
+                                  
+                                  {campaignType === 'email' && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Mail className="w-3 h-3 text-muted-foreground" />
+                                      {isEditing ? (
+                                        <div className="flex items-center gap-2">
+                                          <Input
+                                            type="email"
+                                            value={contactUpdates[prospect.id]?.email ?? prospect.email ?? ''}
+                                            onChange={(e) => setContactUpdates(prev => ({
+                                              ...prev,
+                                              [prospect.id]: { ...prev[prospect.id], email: e.target.value }
+                                            }))}
+                                            className="h-7 text-xs"
+                                            placeholder="email@example.com"
+                                          />
+                                          <Button 
+                                            size="sm" 
+                                            variant="ghost"
+                                            onClick={() => handleUpdateContact(prospect.id)}
+                                          >
+                                            <Check className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">
+                                          {prospect.email || 'Non renseigné'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  
+                                  {(campaignType === 'phone' || campaignType === 'sms') && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Phone className="w-3 h-3 text-muted-foreground" />
+                                      {isEditing ? (
+                                        <div className="flex items-center gap-2">
+                                          <Input
+                                            type="tel"
+                                            value={contactUpdates[prospect.id]?.phone ?? prospect.phone ?? ''}
+                                            onChange={(e) => setContactUpdates(prev => ({
+                                              ...prev,
+                                              [prospect.id]: { ...prev[prospect.id], phone: e.target.value }
+                                            }))}
+                                            className="h-7 text-xs"
+                                            placeholder="+33 6 12 34 56 78"
+                                          />
+                                          <Button 
+                                            size="sm" 
+                                            variant="ghost"
+                                            onClick={() => handleUpdateContact(prospect.id)}
+                                          >
+                                            <Check className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">
+                                          {prospect.phone || 'Non renseigné'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {!isEditing && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditingContact(prospect.id);
+                                      setContactUpdates(prev => ({
+                                        ...prev,
+                                        [prospect.id]: {
+                                          email: prospect.email || '',
+                                          phone: prospect.phone || ''
+                                        }
+                                      }));
+                                    }}
+                                  >
+                                    <Edit className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
                   </div>
                 )}
               </CardContent>
@@ -342,6 +612,59 @@ Cordialement,
               </div>
             )}
 
+            <div>
+              <Label className="text-base font-medium mb-3">Mode d'exécution</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <Card 
+                  className={`cursor-pointer transition-all ${executionMode === 'manual' ? 'ring-2 ring-primary' : ''}`}
+                  onClick={() => setExecutionMode('manual')}
+                >
+                  <CardContent className="p-4 text-center">
+                    <UserCog className="w-8 h-8 mx-auto mb-2" />
+                    <div className="font-medium">Manuel</div>
+                    <div className="text-sm text-muted-foreground">Vous gérez l'envoi</div>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className={`cursor-pointer transition-all ${executionMode === 'ai' ? 'ring-2 ring-primary' : ''}`}
+                  onClick={() => setExecutionMode('ai')}
+                >
+                  <CardContent className="p-4 text-center">
+                    <Bot className="w-8 h-8 mx-auto mb-2" />
+                    <div className="font-medium">IA / Bot</div>
+                    <div className="text-sm text-muted-foreground">Automatisé par bot</div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {executionMode === 'ai' && (
+              <div>
+                <Label htmlFor="botSelect">Sélectionner un bot</Label>
+                <Select value={selectedBotId} onValueChange={setSelectedBotId}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Choisir un bot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableBots.map((bot) => (
+                      <SelectItem key={bot.id} value={bot.id}>
+                        <div>
+                          <div className="font-medium">{bot.name}</div>
+                          {bot.description && (
+                            <div className="text-xs text-muted-foreground">{bot.description}</div>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Le bot sélectionné prendra en charge l'exécution de la campagne
+                </p>
+              </div>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle>Résumé de la campagne</CardTitle>
@@ -356,12 +679,20 @@ Cordialement,
                   <span>{name || 'Non défini'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cible:</span>
-                  <span>{getTargetDescription()}</span>
+                  <span className="text-muted-foreground">Contacts valides:</span>
+                  <Badge variant={getValidContacts().length === 0 ? 'destructive' : 'default'}>
+                    {getValidContacts().length}
+                  </Badge>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Planification:</span>
                   <span>{scheduleType === 'immediate' ? 'Immédiat' : 'Programmé'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Exécution:</span>
+                  <Badge variant="outline">
+                    {executionMode === 'ai' ? 'Automatique (Bot)' : 'Manuel'}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
