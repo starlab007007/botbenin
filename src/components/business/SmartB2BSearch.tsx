@@ -36,8 +36,6 @@ interface SmartSearchFilters {
   locationCoordinates?: { lat: number; lng: number };
   radius: number;
   useGPS: boolean;
-  country: string;
-  city: string;
   
   // Entreprise
   companyName: string;
@@ -133,8 +131,6 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
     locationCoordinates: undefined,
     radius: 25,
     useGPS: false,
-    country: '',
-    city: '',
     companyName: '',
     industry: [],
     companySize: '',
@@ -162,7 +158,22 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
   const [gpsError, setGpsError] = useState<string>('');
   const { toast } = useToast();
 
-  // Géolocalisation automatique avec reverse geocoding
+  // Fonction de géolocalisation avec stratégie multi-niveaux
+  const attemptGeolocation = async (highAccuracy: boolean, timeoutMs: number) => {
+    return new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        reject,
+        {
+          enableHighAccuracy: highAccuracy,
+          timeout: timeoutMs,
+          maximumAge: 300000 // 5 minutes
+        }
+      );
+    });
+  };
+
+  // Géolocalisation automatique avec reverse geocoding et stratégie de fallback
   useEffect(() => {
     if (filters.useGPS && navigator.geolocation) {
       setIsLoadingGPS(true);
@@ -170,22 +181,47 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
       
       toast({
         title: "🌍 Recherche de position...",
-        description: "Détection GPS en cours, cela peut prendre jusqu'à 30 secondes...",
+        description: "Détection GPS en cours...",
       });
 
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
+      const tryGeolocation = async () => {
+        try {
+          console.log('🔍 Tentative 1: GPS rapide (précision basse, 10s)');
+          
+          // Stratégie 1: GPS rapide avec précision basse (10 secondes)
+          let position: GeolocationPosition;
           try {
-            const { latitude, longitude } = position.coords;
+            position = await attemptGeolocation(false, 10000);
+            console.log('✅ GPS rapide réussi:', position.coords);
+          } catch (firstError: any) {
+            console.log('❌ GPS rapide échoué:', firstError.message);
+            console.log('🔍 Tentative 2: GPS précis (haute précision, 15s)');
             
-            // Reverse geocoding avec Nominatim pour obtenir une vraie adresse
+            // Stratégie 2: GPS haute précision (15 secondes)
+            try {
+              position = await attemptGeolocation(true, 15000);
+              console.log('✅ GPS haute précision réussi:', position.coords);
+            } catch (secondError: any) {
+              console.log('❌ GPS haute précision échoué:', secondError.message);
+              throw secondError; // Propager l'erreur finale
+            }
+          }
+          
+          const { latitude, longitude, accuracy } = position.coords;
+          console.log(`📍 Position obtenue: ${latitude}, ${longitude} (précision: ${accuracy}m)`);
+          
+          // Reverse geocoding avec Nominatim
+          try {
+            console.log('🗺️ Tentative de reverse geocoding...');
             const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=fr&addressdetails=1`
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=fr&addressdetails=1`,
+              { headers: { 'User-Agent': 'BotBJ-App' } }
             );
             
             if (response.ok) {
               const data = await response.json();
-              const formattedAddress = data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+              const formattedAddress = data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+              console.log('✅ Adresse trouvée:', formattedAddress);
               
               setUserLocation(formattedAddress);
               setFilters(prev => ({ 
@@ -199,17 +235,16 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
               
               toast({
                 title: "✅ Position détectée avec succès",
-                description: "Votre adresse a été automatiquement configurée",
+                description: `Précision: ${Math.round(accuracy)}m`,
               });
             } else {
-              throw new Error('Reverse geocoding failed');
+              throw new Error('Reverse geocoding API error');
             }
-          } catch (error) {
-            console.error('Erreur géolocalisation:', error);
+          } catch (geocodeError) {
+            console.warn('⚠️ Reverse geocoding échoué, utilisation des coordonnées:', geocodeError);
             
-            // Fallback avec coordonnées si reverse geocoding échoue
-            const { latitude, longitude } = position.coords;
-            const fallbackLocation = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            // Fallback: utiliser les coordonnées directement
+            const fallbackLocation = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             
             setUserLocation(fallbackLocation);
             setFilters(prev => ({ 
@@ -223,52 +258,52 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
             
             toast({
               title: "✅ Position détectée",
-              description: "Coordonnées configurées automatiquement",
+              description: `Coordonnées GPS configurées (précision: ${Math.round(accuracy)}m)`,
             });
           }
-        },
-        (error) => {
-          console.error('Erreur GPS:', error);
+          
+        } catch (error: any) {
+          console.error('❌ Toutes les tentatives GPS ont échoué:', error);
           setIsLoadingGPS(false);
           setFilters(prev => ({ ...prev, useGPS: false }));
           
           let errorTitle = "Géolocalisation indisponible";
-          let errorDescription = "Veuillez saisir manuellement votre localisation ci-dessous";
+          let errorDescription = "Veuillez saisir manuellement votre adresse complète";
+          let errorDetail = "";
           
           switch (error.code) {
-            case error.PERMISSION_DENIED:
+            case 1: // PERMISSION_DENIED
               errorTitle = "🚫 Permission refusée";
-              errorDescription = "Veuillez autoriser la géolocalisation dans les paramètres de votre navigateur";
-              setGpsError("Permission GPS refusée. Veuillez l'autoriser dans votre navigateur.");
+              errorDescription = "Autorisez la géolocalisation dans votre navigateur";
+              errorDetail = "Cliquez sur l'icône 🔒 dans la barre d'adresse et autorisez la localisation.";
               break;
-            case error.POSITION_UNAVAILABLE:
+            case 2: // POSITION_UNAVAILABLE
               errorTitle = "📡 Position non disponible";
-              errorDescription = "Impossible d'obtenir votre position. Vérifiez votre connexion GPS.";
-              setGpsError("Signal GPS indisponible. Vérifiez votre connexion.");
+              errorDescription = "Le GPS ne peut pas déterminer votre position";
+              errorDetail = "Vérifiez que le GPS est activé sur votre appareil.";
               break;
-            case error.TIMEOUT:
+            case 3: // TIMEOUT
               errorTitle = "⏱️ Délai d'attente dépassé";
-              errorDescription = "Le GPS prend trop de temps. Essayez à nouveau ou saisissez manuellement.";
-              setGpsError("Le GPS a pris trop de temps à répondre. Saisissez votre localisation manuellement.");
+              errorDescription = "Le GPS a pris trop de temps à répondre";
+              errorDetail = "Essayez de vous rapprocher d'une fenêtre ou d'aller à l'extérieur.";
               break;
             default:
               errorTitle = "❌ Erreur GPS inconnue";
-              errorDescription = "Une erreur s'est produite. Veuillez saisir manuellement votre localisation.";
-              setGpsError("Erreur lors de la géolocalisation. Saisissez votre localisation manuellement.");
+              errorDescription = "Une erreur s'est produite lors de la géolocalisation";
+              errorDetail = "Saisissez votre adresse manuellement ci-dessous.";
           }
+          
+          setGpsError(errorDetail);
           
           toast({
             title: errorTitle,
             description: errorDescription,
             variant: "destructive",
           });
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 30000, // Augmenté à 30 secondes
-          maximumAge: 600000 // 10 minutes
         }
-      );
+      };
+      
+      tryGeolocation();
     }
   }, [filters.useGPS, toast]);
 
@@ -368,24 +403,14 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
   };
 
   const handleSearch = () => {
-    if (!filters.location && !filters.city && !filters.country) {
+    // Validation stricte de l'adresse complète
+    if (!filters.location || filters.location.trim().length < 10) {
       toast({
-        title: "❌ Localisation requise",
-        description: "Veuillez saisir au minimum un pays et une ville, ou activer le GPS",
+        title: "❌ Adresse complète requise",
+        description: "Veuillez saisir une adresse complète (rue, code postal, ville, pays) ou activer le GPS",
         variant: "destructive",
       });
       return;
-    }
-    
-    if (!filters.country || !filters.city) {
-      if (!filters.location) {
-        toast({
-          title: "⚠️ Localisation incomplète",
-          description: "Veuillez saisir au minimum un pays et une ville",
-          variant: "destructive",
-        });
-        return;
-      }
     }
 
     if (filters.industry.length === 0 && filters.keywords.length === 0) {
@@ -415,8 +440,6 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
       locationCoordinates: undefined,
       radius: 25,
       useGPS: false,
-      country: '',
-      city: '',
       companyName: '',
       industry: [],
       companySize: '',
@@ -438,6 +461,8 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
     setCurrentKeyword('');
     setCurrentExcludeKeyword('');
     setAiSuggestions([]);
+    setUserLocation('');
+    setGpsError('');
   };
 
   return (
@@ -581,45 +606,23 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                 {(!filters.useGPS || gpsError) && (
                   <div className={`space-y-4 ${gpsError ? 'p-4 bg-yellow-50 border-2 border-yellow-300 rounded-xl' : ''}`}>
                     {gpsError && (
-                      <div className="mb-3">
-                        <p className="text-sm font-semibold text-yellow-800 mb-1">
+                      <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm font-semibold text-red-800 mb-1">
                           📝 Saisie manuelle requise
                         </p>
-                        <p className="text-xs text-yellow-700">
-                          Le GPS n'est pas disponible. Veuillez saisir votre localisation ci-dessous.
+                        <p className="text-xs text-red-700 mb-2">
+                          {gpsError}
+                        </p>
+                        <p className="text-xs text-red-600 font-medium">
+                          Veuillez saisir votre adresse complète ci-dessous.
                         </p>
                       </div>
                     )}
                     
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="country" className="flex items-center gap-2">
-                          Pays <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="country"
-                          placeholder="Ex: France, Bénin..."
-                          value={filters.country}
-                          onChange={(e) => setFilters(prev => ({ ...prev, country: e.target.value }))}
-                          className={gpsError ? 'border-2 border-yellow-400' : ''}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="city" className="flex items-center gap-2">
-                          Ville <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="city"
-                          placeholder="Ex: Paris, Cotonou..."
-                          value={filters.city}
-                          onChange={(e) => setFilters(prev => ({ ...prev, city: e.target.value }))}
-                          className={gpsError ? 'border-2 border-yellow-400' : ''}
-                        />
-                      </div>
-                    </div>
-                    
                     <div className="space-y-2">
-                      <Label htmlFor="location">Adresse complète (optionnel)</Label>
+                      <Label htmlFor="location" className="flex items-center gap-2 text-base font-semibold">
+                        Adresse complète <span className="text-red-500">*</span>
+                      </Label>
                       <AddressAutocomplete
                         value={filters.location}
                         onChange={(address, coordinates) => {
@@ -630,12 +633,20 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                           }));
                           setGpsError('');
                         }}
-                        placeholder="Ex: 123 Avenue des Champs-Élysées, Paris..."
-                        className="text-lg"
+                        placeholder="Ex: 123 Avenue des Champs-Élysées, 75008 Paris, France"
+                        className={`text-lg ${gpsError ? 'border-2 border-red-400 bg-red-50' : ''}`}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        🔍 Saisissez au moins 3 caractères pour voir les suggestions d'adresses
-                      </p>
+                      <div className="flex items-start gap-2 text-xs text-muted-foreground mt-2">
+                        <span className="text-blue-600">💡</span>
+                        <div>
+                          <p className="font-medium text-gray-700 mb-1">Pour de meilleurs résultats:</p>
+                          <ul className="space-y-1">
+                            <li>• Saisissez au moins 3 caractères pour voir les suggestions</li>
+                            <li>• Incluez le numéro, la rue, le code postal et la ville</li>
+                            <li>• Sélectionnez une suggestion dans la liste pour un ciblage précis</li>
+                          </ul>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -669,9 +680,10 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                     Conseils de recherche géographique
                   </h4>
                   <ul className="text-sm text-gray-600 space-y-1">
-                    <li>• Indiquez le pays et la ville pour des résultats plus précis</li>
-                    <li>• Utilisez le GPS pour un ciblage ultra-local</li>
-                    <li>• Ajustez le rayon selon votre zone de prospection</li>
+                    <li>• <strong>GPS activé:</strong> Position automatique détectée en 10-15 secondes</li>
+                    <li>• <strong>Saisie manuelle:</strong> Adresse complète obligatoire pour une précision maximale</li>
+                    <li>• Ajustez le rayon selon votre zone de prospection (5-100 km)</li>
+                    <li>• En cas d'échec GPS, nous basculons automatiquement en mode manuel</li>
                   </ul>
                 </div>
               </CardContent>
