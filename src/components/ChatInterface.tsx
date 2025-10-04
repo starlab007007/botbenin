@@ -23,13 +23,17 @@ interface ChatInterfaceProps {
   webhookUrl?: string;
   chatTitle?: string;
   chatContext?: string;
+  botId?: string;
+  botName?: string;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onBackToLanding, 
   webhookUrl,
   chatTitle = 'Bot.Bj Assistant',
-  chatContext
+  chatContext,
+  botId: propBotId,
+  botName: propBotName
 }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -39,12 +43,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     webhookUrl,
     chatTitle,
     chatContext,
+    propBotId,
+    propBotName,
     onBackToLanding: !!onBackToLanding
   });
 
-  // Récupérer les paramètres supplémentaires de l'URL si disponibles
-  const urlBotId = searchParams.get('bot');
-  const urlBotName = searchParams.get('bot_name');
+  // Récupérer les paramètres supplémentaires de l'URL si disponibles, ou utiliser les props
+  const urlBotId = propBotId || searchParams.get('bot');
+  const urlBotName = propBotName || searchParams.get('bot_name');
   const isTest = searchParams.get('test') === 'true';
 
   // Utiliser le hook de gestion de session

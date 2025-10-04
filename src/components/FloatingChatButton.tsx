@@ -10,6 +10,10 @@ type ChatWindowState = 'default' | 'maximized' | 'minimized';
 export const FloatingChatButton: React.FC = () => {
   const [chatState, setChatState] = useState<ChatWindowState>('minimized');
   const isMobile = useIsMobile();
+  
+  // Extraire le botId du webhook URL
+  const webhookUrl = "https://bot.bj/bot/770c2547-db60-41ab-9f18-1f080fa7ebbb";
+  const botId = "770c2547-db60-41ab-9f18-1f080fa7ebbb";
 
   // Gérer ouverture/fermeture
   const handleToggleChat = () => {
@@ -100,7 +104,12 @@ export const FloatingChatButton: React.FC = () => {
             </div>
             {/* Chat Interface */}
             <div className="h-[calc(100%-2.5rem)]">
-              <ChatInterface onBackToLanding={handleMinimize} webhookUrl="https://bot.bj/bot/770c2547-db60-41ab-9f18-1f080fa7ebbb" />
+              <ChatInterface 
+                onBackToLanding={handleMinimize} 
+                webhookUrl={webhookUrl}
+                botId={botId}
+                botName="Assistant IA"
+              />
             </div>
           </div>
         </div>
