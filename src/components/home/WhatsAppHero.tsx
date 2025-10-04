@@ -64,7 +64,7 @@ export const WhatsAppHero: React.FC = () => {
                 className="bg-white/10 border-white/30 text-white hover:bg-white/20"
                 asChild
               >
-                <a href="https://bot.bj/bot/0484686a-34c8-4eeb-8974-90b079ee9fe2" target="_blank" rel="noopener noreferrer">
+                <a href="https://bot.bj/bot/770c2547-db60-41ab-9f18-1f080fa7ebbb" target="_blank" rel="noopener noreferrer">
                   Discuter avec notre IA
                 </a>
               </Button>
