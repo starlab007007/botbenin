@@ -485,18 +485,32 @@ export const SmartB2BSearch: React.FC<SmartB2BSearchProps> = ({ onBack, onSearch
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Globe className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <p className="font-medium">Géolocalisation automatique</p>
-                      <p className="text-sm text-gray-600">Utilisez votre position actuelle</p>
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-500 rounded-lg">
+                        <Globe className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">Géolocalisation GPS</p>
+                        <p className="text-sm text-gray-600">Détection automatique de votre position</p>
+                      </div>
                     </div>
+                    <Switch
+                      checked={filters.useGPS}
+                      onCheckedChange={(checked) => setFilters(prev => ({ ...prev, useGPS: checked }))}
+                    />
                   </div>
-                  <Switch
-                    checked={filters.useGPS}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, useGPS: checked }))}
-                  />
+                  
+                  {!filters.useGPS && (
+                    <Button
+                      onClick={() => setFilters(prev => ({ ...prev, useGPS: true }))}
+                      className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                    >
+                      <MapPin className="w-4 h-4 mr-2" />
+                      Détecter ma position
+                    </Button>
+                  )}
                 </div>
 
                 {!filters.useGPS && (

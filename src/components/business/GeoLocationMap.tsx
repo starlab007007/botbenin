@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { MapPin, Globe } from 'lucide-react';
-import { MapboxMap } from './MapboxMap';
+import { MapPin, Map as MapIcon } from 'lucide-react';
+import { OpenStreetMap } from './OpenStreetMap';
 
 interface Contact {
   id: string;
@@ -10,6 +10,10 @@ interface Contact {
   companyName: string;
   location: string;
   coordinates?: [number, number];
+  phone?: string;
+  email?: string;
+  linkedinUrl?: string;
+  industry?: string;
 }
 
 interface GeoLocationMapProps {
@@ -144,41 +148,41 @@ const SimpleMap: React.FC<GeoLocationMapProps> = ({ contacts, userLocation }) =>
 };
 
 export const GeoLocationMap: React.FC<GeoLocationMapProps> = ({ contacts, userLocation }) => {
-  const [useAdvancedMap, setUseAdvancedMap] = useState(false);
+  const [useSimpleMap, setUseSimpleMap] = useState(false);
 
-  if (useAdvancedMap) {
+  if (useSimpleMap) {
     return (
       <div className="w-full h-full relative">
-        <div className="absolute top-2 left-2 z-10">
+        <div className="absolute top-4 left-4 z-[1000]">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setUseAdvancedMap(false)}
-            className="bg-white text-black border-gray-300 hover:bg-gray-100"
+            onClick={() => setUseSimpleMap(false)}
+            className="bg-white/95 backdrop-blur text-gray-900 border-gray-300 hover:bg-white shadow-lg"
           >
-            <MapPin className="w-4 h-4 mr-1" />
-            Carte simple
+            <MapIcon className="w-4 h-4 mr-2" />
+            Carte Interactive
           </Button>
         </div>
-        <MapboxMap contacts={contacts} userLocation={userLocation} />
+        <SimpleMap contacts={contacts} userLocation={userLocation} />
       </div>
     );
   }
 
   return (
     <div className="w-full h-full relative">
-      <div className="absolute top-2 left-2 z-10">
+      <div className="absolute top-4 left-4 z-[1000]">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setUseAdvancedMap(true)}
-          className="bg-white text-black border-gray-300 hover:bg-gray-100"
+          onClick={() => setUseSimpleMap(true)}
+          className="bg-white/95 backdrop-blur text-gray-900 border-gray-300 hover:bg-white shadow-lg"
         >
-          <Globe className="w-4 h-4 mr-1" />
-          Carte Mapbox
+          <MapPin className="w-4 h-4 mr-2" />
+          Vue Simple
         </Button>
       </div>
-      <SimpleMap contacts={contacts} userLocation={userLocation} />
+      <OpenStreetMap contacts={contacts} userLocation={userLocation} />
     </div>
   );
 };
