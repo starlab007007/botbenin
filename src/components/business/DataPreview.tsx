@@ -9,7 +9,7 @@ interface DataPreviewProps {
 }
 
 export const DataPreview: React.FC<DataPreviewProps> = ({ data }) => {
-  if (!data || !data.rows || data.rows.length === 0) {
+  if (!data || !data.rows || data.rows.length === 0 || !data.headers || data.headers.length === 0) {
     return null;
   }
 
