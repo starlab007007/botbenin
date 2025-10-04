@@ -17,6 +17,7 @@ import { CompleteB2BWorkflow } from '@/components/business/CompleteB2BWorkflow';
 import { LeadQualificationWorkflow } from '@/components/business/LeadQualificationWorkflow';
 import { LeadQualificationMenu } from '@/components/business/LeadQualificationMenu';
 import { GoogleSheetsImport } from '@/components/business/GoogleSheetsImport';
+import { CampaignEngagementManager } from '@/components/business/CampaignEngagementManager';
 
 type ViewMode = 'menu' | 'ciblage-b2b-complet' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
 
@@ -62,7 +63,7 @@ export const BusinessModule: React.FC = () => {
       icon: MessageSquare,
       color: 'bg-gradient-to-br from-red-50 to-red-100',
       iconColor: 'text-red-600',
-      badge: 'Bientôt'
+      badge: 'Nouveau'
     }
   ];
 
@@ -95,22 +96,7 @@ export const BusinessModule: React.FC = () => {
   }
 
   if (currentView === 'campagnes-engagement') {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={handleBackToMenu} className="mb-6">
-            <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-            Retour au menu
-          </Button>
-          <Card className="p-8 text-center">
-            <MessageSquare className="w-16 h-16 mx-auto mb-4 text-red-600" />
-            <h2 className="text-2xl font-bold mb-4">Campagnes & Modèles d'Engagement</h2>
-            <p className="text-gray-600 mb-6">Cette fonctionnalité sera bientôt disponible.</p>
-            <p className="text-sm text-gray-500">Création de campagnes personnalisées avec IA pour l'engagement client.</p>
-          </Card>
-        </div>
-      </div>
-    );
+    return <CampaignEngagementManager onBack={handleBackToMenu} />;
   }
 
   // Default menu view
