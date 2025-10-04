@@ -158,19 +158,41 @@ export const SaveToProspectsModal: React.FC<SaveToProspectsModalProps> = ({
         .rpc('transfer_local_businesses_to_prospects', {
           business_ids: businessIds,
           target_database_id: selectedDatabaseId
-        });
+        })
+        .single();
 
       if (transferError) {
         console.error('❌ Erreur transfert:', transferError);
         throw transferError;
       }
 
-      console.log('✅ Transfert terminé:', transferResult, 'prospects créés');
+      console.log('✅ Transfert terminé:', transferResult);
 
-      toast({
-        title: "Succès",
-        description: `${transferResult || selectedBusinesses.length} entreprises ajoutées à la base "${dbCheck.name}"`,
-      });
+      // Afficher un message détaillé basé sur les résultats
+      const successCount = transferResult?.successfully_added || 0;
+      const duplicateCount = transferResult?.skipped_duplicates || 0;
+      const failedCount = transferResult?.failed || 0;
+
+      if (successCount > 0) {
+        toast({
+          title: "Succès",
+          description: duplicateCount > 0
+            ? `${successCount} entreprise(s) ajoutée(s) avec succès. ${duplicateCount} doublon(s) ignoré(s).`
+            : `${successCount} entreprise(s) ajoutée(s) avec succès à la base "${dbCheck.name}"`,
+        });
+      } else if (duplicateCount > 0 && successCount === 0) {
+        toast({
+          title: "Information",
+          description: `Toutes les entreprises (${duplicateCount}) existent déjà dans cette base de données.`,
+          variant: "default",
+        });
+      } else if (failedCount > 0) {
+        toast({
+          title: "Avertissement",
+          description: `${failedCount} entreprise(s) n'ont pas pu être ajoutée(s).`,
+          variant: "destructive",
+        });
+      }
 
       onClose();
     } catch (error: any) {

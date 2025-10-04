@@ -5716,7 +5716,12 @@ export type Database = {
       }
       transfer_local_businesses_to_prospects: {
         Args: { business_ids: string[]; target_database_id: string }
-        Returns: number
+        Returns: {
+          failed: number
+          skipped_duplicates: number
+          successfully_added: number
+          total_processed: number
+        }[]
       }
       user_has_any_permission: {
         Args: { permission_names: string[]; user_uuid: string }
