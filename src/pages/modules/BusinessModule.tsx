@@ -16,7 +16,7 @@ import { LocalProspecting } from '@/components/business/LocalProspecting';
 import { CompleteB2BWorkflow } from '@/components/business/CompleteB2BWorkflow';
 import { LeadQualificationWorkflow } from '@/components/business/LeadQualificationWorkflow';
 import { LeadQualificationMenu } from '@/components/business/LeadQualificationMenu';
-import { GoogleSheetsImport } from '@/components/business/GoogleSheetsImport';
+import { IntelligentProspectImporter } from '@/components/business/IntelligentProspectImporter';
 import { CampaignEngagementManager } from '@/components/business/CampaignEngagementManager';
 
 type ViewMode = 'menu' | 'ciblage-b2b-complet' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
@@ -92,7 +92,7 @@ export const BusinessModule: React.FC = () => {
   }
 
   if (currentView === 'listes-prospects') {
-    return <GoogleSheetsImport onBack={handleBackToMenu} />;
+    return <IntelligentProspectImporter onBack={handleBackToMenu} />;
   }
 
   if (currentView === 'campagnes-engagement') {
