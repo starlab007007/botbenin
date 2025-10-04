@@ -6,9 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAutomationBots } from '@/hooks/useAutomationBots';
 import { SocialSharingModal } from './SocialSharingModal';
+import { CampaignSendsTracker } from './CampaignSendsTracker';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   ArrowLeft,
@@ -54,6 +56,7 @@ export const NewLeadQualification: React.FC<NewLeadQualificationProps> = ({ onBa
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [botLink, setBotLink] = useState('');
   const [launching, setLaunching] = useState(false);
+  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   
   const { botOptions, loading } = useAutomationBots();
   const { toast } = useToast();
@@ -237,6 +240,8 @@ Cordialement,`
 
       if (campaignError) throw campaignError;
 
+      setActiveCampaignId(campaignData.id);
+
       // Préparer les prospects pour l'envoi
       const prospects = [
         ...campaign.targetEmails.map(email => ({
@@ -286,16 +291,8 @@ Cordialement,`
         description: `La campagne "${campaign.name}" a été lancée avec succès !`,
       });
 
-      // Réinitialiser le formulaire
-      setCampaign({
-        name: '',
-        selectedBot: '',
-        message: '',
-        channels: [],
-        targetEmails: [],
-        targetPhones: []
-      });
-      setBotLink('');
+      // Ne pas réinitialiser le formulaire pour pouvoir voir le suivi
+      // Juste reset le statut de launching
       
     } catch (error: any) {
       console.error('Erreur lancement campagne:', error);
@@ -318,6 +315,19 @@ Cordialement,`
     }
   };
 
+  const resetForm = () => {
+    setCampaign({
+      name: '',
+      selectedBot: '',
+      message: '',
+      channels: [],
+      targetEmails: [],
+      targetPhones: []
+    });
+    setBotLink('');
+    setActiveCampaignId(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -327,6 +337,12 @@ Cordialement,`
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retour au menu
           </Button>
+          {activeCampaignId && (
+            <Button onClick={resetForm} variant="outline">
+              <Plus className="w-4 h-4 mr-2" />
+              Nouvelle Campagne
+            </Button>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 border">
@@ -620,6 +636,15 @@ Cordialement,`
             </Card>
           </div>
         </div>
+
+        {/* Suivi des envois */}
+        {activeCampaignId && (
+          <CampaignSendsTracker 
+            campaignId={activeCampaignId}
+            campaignMessage={campaign.message}
+            campaignBotLink={botLink}
+          />
+        )}
 
         {/* Modal de partage social */}
         <SocialSharingModal

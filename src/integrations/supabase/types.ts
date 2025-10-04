@@ -2432,6 +2432,65 @@ export type Database = {
           },
         ]
       }
+      qualification_campaign_sends: {
+        Row: {
+          campaign_id: string
+          channel: string
+          contact_type: string
+          contact_value: string
+          created_at: string | null
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          message_id: string | null
+          metadata: Json | null
+          retry_count: number | null
+          sent_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          campaign_id: string
+          channel: string
+          contact_type: string
+          contact_value: string
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          retry_count?: number | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          channel?: string
+          contact_type?: string
+          contact_value?: string
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          retry_count?: number | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qualification_campaign_sends_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "qualification_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       qualification_campaigns: {
         Row: {
           average_score: number | null
