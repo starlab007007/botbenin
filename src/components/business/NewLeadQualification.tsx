@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAutomationBots } from '@/hooks/useAutomationBots';
 import { SocialSharingModal } from './SocialSharingModal';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   ArrowLeft,
   Bot,
@@ -52,6 +53,7 @@ export const NewLeadQualification: React.FC<NewLeadQualificationProps> = ({ onBa
   const [newPhone, setNewPhone] = useState('');
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [botLink, setBotLink] = useState('');
+  const [launching, setLaunching] = useState(false);
   
   const { botOptions, loading } = useAutomationBots();
   const { toast } = useToast();
@@ -181,7 +183,7 @@ Cordialement,`
     setShareModalOpen(true);
   };
 
-  const launchCampaign = () => {
+  const launchCampaign = async () => {
     if (!campaign.name || !campaign.selectedBot || !campaign.message) {
       toast({
         title: "Erreur",
@@ -191,13 +193,120 @@ Cordialement,`
       return;
     }
 
-    toast({
-      title: "Campagne lancée",
-      description: `La campagne "${campaign.name}" a été lancée avec succès !`,
-    });
+    if (campaign.channels.length === 0) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner au moins un canal de diffusion",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // Ici vous pourriez sauvegarder la campagne en base de données
-    console.log('Campagne lancée:', campaign);
+    if (campaign.targetEmails.length === 0 && campaign.targetPhones.length === 0) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez ajouter au moins un contact (email ou téléphone)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setLaunching(true);
+
+      const selectedBotData = botOptions.find(bot => bot.id === campaign.selectedBot);
+      
+      // Créer la campagne dans Supabase d'abord
+      const { data: campaignData, error: campaignError } = await supabase
+        .from('qualification_campaigns')
+        .insert({
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          name: campaign.name,
+          bot_id: campaign.selectedBot,
+          bot_name: selectedBotData?.name || 'Bot',
+          bot_link: botLink,
+          message: campaign.message,
+          channels: campaign.channels,
+          target_emails: campaign.targetEmails,
+          target_phones: campaign.targetPhones,
+          status: 'active' as const,
+          launched_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (campaignError) throw campaignError;
+
+      // Préparer les prospects pour l'envoi
+      const prospects = [
+        ...campaign.targetEmails.map(email => ({
+          email,
+          name: email.split('@')[0],
+          id: `email-${email}`
+        })),
+        ...campaign.targetPhones.map(phone => ({
+          phone,
+          name: phone,
+          id: `phone-${phone}`
+        }))
+      ];
+
+      // Envoyer via l'edge function pour chaque canal sélectionné
+      for (const channel of campaign.channels) {
+        const { data: qualificationData, error: qualificationError } = await supabase.functions.invoke(
+          'prospect-qualification',
+          {
+            body: {
+              prospects,
+              qualificationType: channel,
+              message: campaign.message,
+              botLink: botLink,
+              campaignId: campaignData.id
+            }
+          }
+        );
+
+        if (qualificationError) {
+          console.error(`Erreur envoi ${channel}:`, qualificationError);
+        } else {
+          console.log(`✅ Envoi ${channel} réussi:`, qualificationData);
+        }
+      }
+
+      // Mettre à jour le nombre d'envois
+      await supabase
+        .from('qualification_campaigns')
+        .update({ 
+          total_sent: prospects.length * campaign.channels.length 
+        })
+        .eq('id', campaignData.id);
+
+      toast({
+        title: "Campagne lancée",
+        description: `La campagne "${campaign.name}" a été lancée avec succès !`,
+      });
+
+      // Réinitialiser le formulaire
+      setCampaign({
+        name: '',
+        selectedBot: '',
+        message: '',
+        channels: [],
+        targetEmails: [],
+        targetPhones: []
+      });
+      setBotLink('');
+      
+    } catch (error: any) {
+      console.error('Erreur lancement campagne:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Une erreur est survenue lors du lancement de la campagne",
+        variant: "destructive"
+      });
+    } finally {
+      setLaunching(false);
+    }
   };
 
   const getChannelIcon = (channel: string) => {
@@ -496,13 +605,16 @@ Cordialement,`
                   onClick={launchCampaign}
                   className="w-full"
                   size="lg"
-                  disabled={!campaign.name || !campaign.selectedBot || !campaign.message}
+                  disabled={!campaign.name || !campaign.selectedBot || !campaign.message || launching}
                 >
                   <Zap className="w-4 h-4 mr-2" />
-                  Lancer la Qualification
+                  {launching ? 'Lancement en cours...' : 'Lancer la Qualification'}
                 </Button>
                 <p className="text-xs text-gray-500 text-center mt-2">
-                  La campagne sera lancée immédiatement
+                  {launching 
+                    ? 'Envoi des messages de qualification...' 
+                    : 'La campagne sera lancée immédiatement'
+                  }
                 </p>
               </CardContent>
             </Card>

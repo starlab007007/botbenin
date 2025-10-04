@@ -8,6 +8,7 @@ export interface QualificationCampaign {
   name: string;
   botId: string;
   botName: string;
+  botLink?: string;
   message: string;
   channels: string[];
   targetEmails: string[];
@@ -56,47 +57,34 @@ export const useQualificationCampaigns = () => {
 
     setLoading(true);
     try {
-      // Simuler le chargement des campagnes
-      // Dans un vrai projet, cela viendrait de Supabase
-      const mockCampaigns: QualificationCampaign[] = [
-        {
-          id: '1',
-          name: 'Qualification Prospects B2B Q1 2024',
-          botId: 'bot-1',
-          botName: 'Bot Qualification B2B Pro',
-          message: 'Bonjour ! Nous avons développé des solutions qui pourraient vous intéresser...',
-          channels: ['whatsapp', 'email'],
-          targetEmails: ['prospect1@test.com', 'prospect2@test.com'],
-          targetPhones: ['+33123456789'],
-          status: 'active',
-          createdAt: '2024-01-15T10:00:00Z',
-          launchedAt: '2024-01-15T10:30:00Z',
-          totalSent: 47,
-          totalResponses: 35,
-          totalQualified: 12,
-          averageScore: 7.8
-        },
-        {
-          id: '2',
-          name: 'Test Campagne PME',
-          botId: 'bot-2',
-          botName: 'Bot Qualification Standard',
-          message: 'Bonjour, nous proposons des solutions adaptées...',
-          channels: ['sms'],
-          targetEmails: [],
-          targetPhones: ['+33234567890', '+33345678901'],
-          status: 'completed',
-          createdAt: '2024-01-10T14:00:00Z',
-          launchedAt: '2024-01-10T14:30:00Z',
-          completedAt: '2024-01-12T18:00:00Z',
-          totalSent: 23,
-          totalResponses: 18,
-          totalQualified: 8,
-          averageScore: 6.2
-        }
-      ];
+      const { data, error } = await supabase
+        .from('qualification_campaigns')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
 
-      setCampaigns(mockCampaigns);
+      if (error) throw error;
+
+      const campaigns: QualificationCampaign[] = (data || []).map(row => ({
+        id: row.id,
+        name: row.name,
+        botId: row.bot_id || '',
+        botName: row.bot_name,
+        message: row.message,
+        channels: row.channels || [],
+        targetEmails: row.target_emails || [],
+        targetPhones: row.target_phones || [],
+        status: row.status as 'draft' | 'active' | 'paused' | 'completed',
+        createdAt: row.created_at,
+        launchedAt: row.launched_at || undefined,
+        completedAt: row.completed_at || undefined,
+        totalSent: row.total_sent,
+        totalResponses: row.total_responses,
+        totalQualified: row.total_qualified,
+        averageScore: row.average_score || 0
+      }));
+
+      setCampaigns(campaigns);
     } catch (err: any) {
       console.error('Erreur chargement campagnes:', err);
       setError(err.message);
@@ -110,50 +98,48 @@ export const useQualificationCampaigns = () => {
 
     setLoading(true);
     try {
-      // Simuler le chargement des résultats
-      const mockResults: QualificationResult[] = [
-        {
-          id: '1',
-          campaignId: '1',
-          campaignName: 'Qualification Prospects B2B Q1 2024',
-          contactName: 'Marie Dubois',
-          companyName: 'TechnoSoft SARL',
-          email: 'marie.dubois@technosoft.fr',
-          phone: '+33123456789',
-          channel: 'whatsapp',
-          status: 'completed',
-          score: 8.5,
-          responses: [
-            { question: 'Quel est votre budget annuel pour ce type de solution ?', answer: '15-25K€', score: 9 },
-            { question: 'Dans quel délai souhaitez-vous implémenter la solution ?', answer: '3-6 mois', score: 8 },
-            { question: 'Qui prend la décision finale ?', answer: 'Je suis décisionnaire', score: 10 },
-            { question: 'Avez-vous déjà une solution en place ?', answer: 'Solution obsolète', score: 7 }
-          ],
-          createdAt: '2024-01-15T10:30:00Z',
-          completedAt: '2024-01-15T11:45:00Z',
-          botUsed: 'Bot Qualification B2B Pro'
-        },
-        {
-          id: '2',
-          campaignId: '1',
-          campaignName: 'Qualification Prospects B2B Q1 2024',
-          contactName: 'Jean Martin',
-          companyName: 'Martin & Associés',
-          email: 'j.martin@martin-associes.fr',
-          phone: '+33234567890',
-          channel: 'email',
-          status: 'partial',
-          score: 5.2,
-          responses: [
-            { question: 'Quel est votre budget annuel pour ce type de solution ?', answer: '5-10K€', score: 6 },
-            { question: 'Dans quel délai souhaitez-vous implémenter la solution ?', answer: 'Pas défini', score: 4 }
-          ],
-          createdAt: '2024-01-14T14:20:00Z',
-          botUsed: 'Bot Qualification B2B Pro'
-        }
-      ];
+      // Récupérer les résultats de qualification avec les infos de campagne
+      const { data: campaigns } = await supabase
+        .from('qualification_campaigns')
+        .select('id')
+        .eq('user_id', session.user.id);
 
-      setResults(mockResults);
+      if (!campaigns || campaigns.length === 0) {
+        setResults([]);
+        return;
+      }
+
+      const campaignIds = campaigns.map(c => c.id);
+
+      const { data, error } = await supabase
+        .from('qualification_results')
+        .select(`
+          *,
+          campaign:qualification_campaigns(name)
+        `)
+        .in('campaign_id', campaignIds)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const results: QualificationResult[] = (data || []).map(row => ({
+        id: row.id,
+        campaignId: row.campaign_id,
+        campaignName: (row.campaign as any)?.name || 'Campagne inconnue',
+        contactName: row.contact_name,
+        companyName: row.company_name || '',
+        email: row.email || '',
+        phone: row.phone || '',
+        channel: row.channel as 'whatsapp' | 'sms' | 'email',
+        status: row.status as 'completed' | 'partial' | 'no-response',
+        score: row.score || 0,
+        responses: Array.isArray(row.responses) ? row.responses as { question: string; answer: string; score?: number }[] : [],
+        createdAt: row.created_at,
+        completedAt: row.completed_at || undefined,
+        botUsed: ''
+      }));
+
+      setResults(results);
     } catch (err: any) {
       console.error('Erreur chargement résultats:', err);
       setError(err.message);
@@ -163,12 +149,40 @@ export const useQualificationCampaigns = () => {
   };
 
   const createCampaign = async (campaignData: Omit<QualificationCampaign, 'id' | 'createdAt' | 'totalSent' | 'totalResponses' | 'totalQualified' | 'averageScore'>) => {
+    if (!session?.user?.id) throw new Error('User not authenticated');
+
     try {
-      // Simuler la création de campagne
+      const { data, error } = await supabase
+        .from('qualification_campaigns')
+        .insert({
+          user_id: session.user.id,
+          name: campaignData.name,
+          bot_id: campaignData.botId || null,
+          bot_name: campaignData.botName,
+          bot_link: campaignData.botLink || '',
+          message: campaignData.message,
+          channels: campaignData.channels,
+          target_emails: campaignData.targetEmails,
+          target_phones: campaignData.targetPhones,
+          status: campaignData.status as 'draft' | 'active' | 'paused' | 'completed'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
       const newCampaign: QualificationCampaign = {
-        ...campaignData,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
+        id: data.id,
+        name: data.name,
+        botId: data.bot_id || '',
+        botName: data.bot_name,
+        botLink: data.bot_link,
+        message: data.message,
+        channels: data.channels || [],
+        targetEmails: data.target_emails || [],
+        targetPhones: data.target_phones || [],
+        status: data.status as 'draft' | 'active' | 'paused' | 'completed',
+        createdAt: data.created_at,
         totalSent: 0,
         totalResponses: 0,
         totalQualified: 0,
@@ -192,6 +206,16 @@ export const useQualificationCampaigns = () => {
 
   const launchCampaign = async (campaignId: string) => {
     try {
+      const { error } = await supabase
+        .from('qualification_campaigns')
+        .update({
+          status: 'active',
+          launched_at: new Date().toISOString()
+        })
+        .eq('id', campaignId);
+
+      if (error) throw error;
+
       setCampaigns(prev => prev.map(campaign => 
         campaign.id === campaignId 
           ? { ...campaign, status: 'active' as const, launchedAt: new Date().toISOString() }

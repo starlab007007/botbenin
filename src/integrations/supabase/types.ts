@@ -2432,6 +2432,122 @@ export type Database = {
           },
         ]
       }
+      qualification_campaigns: {
+        Row: {
+          average_score: number | null
+          bot_id: string | null
+          bot_link: string
+          bot_name: string
+          channels: string[]
+          completed_at: string | null
+          created_at: string
+          id: string
+          launched_at: string | null
+          message: string
+          metadata: Json | null
+          name: string
+          status: string
+          target_emails: string[]
+          target_phones: string[]
+          total_qualified: number
+          total_responses: number
+          total_sent: number
+          user_id: string
+        }
+        Insert: {
+          average_score?: number | null
+          bot_id?: string | null
+          bot_link: string
+          bot_name: string
+          channels?: string[]
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          launched_at?: string | null
+          message: string
+          metadata?: Json | null
+          name: string
+          status?: string
+          target_emails?: string[]
+          target_phones?: string[]
+          total_qualified?: number
+          total_responses?: number
+          total_sent?: number
+          user_id: string
+        }
+        Update: {
+          average_score?: number | null
+          bot_id?: string | null
+          bot_link?: string
+          bot_name?: string
+          channels?: string[]
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          launched_at?: string | null
+          message?: string
+          metadata?: Json | null
+          name?: string
+          status?: string
+          target_emails?: string[]
+          target_phones?: string[]
+          total_qualified?: number
+          total_responses?: number
+          total_sent?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qualification_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "qualification_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "qualification_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "qualification_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "qualification_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qualification_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "qualification_campaigns_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+        ]
+      }
       qualification_emails: {
         Row: {
           bot_link: string
@@ -2476,6 +2592,72 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      qualification_results: {
+        Row: {
+          campaign_id: string
+          channel: string
+          company_name: string | null
+          completed_at: string | null
+          contact_name: string
+          created_at: string
+          email: string | null
+          id: string
+          metadata: Json | null
+          phone: string | null
+          prospect_id: string | null
+          responses: Json | null
+          score: number | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          channel: string
+          company_name?: string | null
+          completed_at?: string | null
+          contact_name: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          metadata?: Json | null
+          phone?: string | null
+          prospect_id?: string | null
+          responses?: Json | null
+          score?: number | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          channel?: string
+          company_name?: string | null
+          completed_at?: string | null
+          contact_name?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          metadata?: Json | null
+          phone?: string | null
+          prospect_id?: string | null
+          responses?: Json | null
+          score?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qualification_results_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "qualification_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qualification_results_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_permissions: {
         Row: {
