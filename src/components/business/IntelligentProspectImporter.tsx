@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFileParser } from '@/hooks/useFileParser';
 import { useDataMapper } from '@/hooks/useDataMapper';
 import { DataMappingInterface } from './DataMappingInterface';
+import { EditableDataPreview } from './EditableDataPreview';
+import { EnhancedDataMappingInterface } from './EnhancedDataMappingInterface';
 import { CameraCapture } from './CameraCapture';
 import { DataPreview } from './DataPreview';
 import { TemplateSelector } from './TemplateSelector';
@@ -44,6 +46,7 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
 
   const { parseFile, parsedData, isProcessing, error } = useFileParser();
   const { mappedData, suggestedTemplate, mapToTemplate } = useDataMapper();
+  const [editedData, setEditedData] = useState<any>(null);
 
   const handleFileUpload = useCallback((files: FileList | null) => {
     if (!files) return;
@@ -107,6 +110,14 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
   };
 
   const handleMappingComplete = async (mappedData: any, template: string) => {
+    if (!mappedData || !mappedData.rows || mappedData.rows.length === 0) {
+      toast({
+        title: "Erreur de mapping",
+        description: "Aucune donnée valide n'a été mappée",
+        variant: "destructive"
+      });
+      return;
+    }
     setValidatedData(mappedData);
     setSelectedTemplate(template);
     setStage('validation');
@@ -159,6 +170,11 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
     try {
       setProgress(0);
       
+      // Validation des données avant import
+      if (!data || !Array.isArray(data.rows) || data.rows.length === 0) {
+        throw new Error("Aucune donnée à importer");
+      }
+      
       // Obtenir l'utilisateur courant
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
@@ -197,7 +213,7 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
       
       toast({
         title: "Import réussi",
-        description: `${data.length} prospects importés avec succès.`,
+        description: `${data.rows?.length || 0} prospects importés avec succès.`,
       });
     } catch (error: any) {
       console.error('Import error:', error);
@@ -424,48 +440,46 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
 
         {stage === 'mapping' && parsedData && (
           <>
-            <DataPreview data={parsedData} />
-            <TemplateSelector onSelect={(template) => setSelectedTemplate(template)} />
-            <DataMappingInterface
-              sourceData={parsedData}
+            <EditableDataPreview 
+              data={editedData || parsedData} 
+              onDataChange={(updatedData) => setEditedData(updatedData)}
+            />
+            <EnhancedDataMappingInterface
+              sourceData={editedData || parsedData}
               onMappingComplete={handleMappingComplete}
             />
-            <div className="flex justify-between gap-2 mt-6">
+            <div className="flex justify-start gap-2 mt-6">
               <Button variant="outline" onClick={goToPreviousStage}>
                 Précédent
-              </Button>
-              <Button onClick={() => handleMappingComplete(validatedData, selectedTemplate)}>
-                Valider le mapping
-                <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </>
         )}
 
-        {stage === 'validation' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Validation des données</CardTitle>
-              <CardDescription>
-                Vérifiez que toutes les données sont correctes avant l'import final
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  <span>Format validé</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  <span>Doublons vérifiés</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  <span>Données conformes</span>
-                </div>
-                
-                {validatedData && (
+        {stage === 'validation' && validatedData && (
+          <>
+            <Card className="border-2 border-primary/20">
+              <CardHeader>
+                <CardTitle>Validation des données mappées</CardTitle>
+                <CardDescription>
+                  Vérifiez que toutes les données sont correctes avant l'import final
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    <span>Format validé</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    <span>Mapping vérifié</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    <span>Données conformes</span>
+                  </div>
+                  
                   <div className="mt-6 p-4 bg-muted rounded-lg">
                     <p className="text-sm font-medium mb-2">Résumé de l'import:</p>
                     <div className="grid grid-cols-2 gap-4 text-sm">
@@ -477,27 +491,38 @@ export const IntelligentProspectImporter: React.FC<IntelligentProspectImporterPr
                         <span className="text-muted-foreground">Template:</span>
                         <span className="ml-2 font-semibold">{selectedTemplate?.name || 'N/A'}</span>
                       </div>
+                      <div>
+                        <span className="text-muted-foreground">Type de fichier:</span>
+                        <span className="ml-2 font-semibold">{validatedData.metadata?.fileType || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Nom du fichier:</span>
+                        <span className="ml-2 font-semibold truncate">{validatedData.metadata?.fileName || 'N/A'}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-
-                <div className="flex justify-between gap-2 mt-6 pt-6 border-t">
-                  <Button variant="outline" onClick={goToPreviousStage}>
-                    Modifier le mapping
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      setStage('importing');
-                      importData(validatedData, selectedTemplate);
-                    }}
-                  >
-                    Lancer l'import
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <DataPreview data={validatedData} />
+
+            <div className="flex justify-between gap-2">
+              <Button variant="outline" onClick={goToPreviousStage}>
+                Modifier le mapping
+              </Button>
+              <Button 
+                onClick={() => {
+                  setStage('importing');
+                  importData(validatedData, selectedTemplate);
+                }}
+                size="lg"
+              >
+                Lancer l'import
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </>
         )}
 
         {stage === 'importing' && (
