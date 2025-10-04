@@ -74,37 +74,33 @@ export const ProspectPreparationPage = () => {
             </div>
           </div>
           
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-3 sm:gap-4 w-full sm:w-auto">
             {canManageConfig && (
               <>
-                <Button
+                <button
                   onClick={() => setShowConfig(!showConfig)}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2 flex-1 sm:flex-initial justify-center"
+                  className="group flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-background border-2 border-border rounded-xl hover:border-primary/50 hover:bg-accent/50 transition-all duration-200 flex-1 sm:flex-initial min-w-[100px] sm:min-w-[120px]"
                 >
-                  <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="text-xs sm:text-sm">Config</span>
-                </Button>
-                <Button
+                  <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <span className="text-xs sm:text-sm font-medium text-foreground">Configuration</span>
+                </button>
+                <button
                   onClick={() => setShowGoogleDocManager(true)}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:from-purple-100 hover:to-blue-100 flex-1 sm:flex-initial justify-center"
+                  className="group flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-2 border-amber-200 dark:border-amber-800 rounded-xl hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-md transition-all duration-200 flex-1 sm:flex-initial min-w-[100px] sm:min-w-[120px]"
                 >
-                  <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 text-purple-600" />
-                  <span className="text-xs sm:text-sm text-purple-600">Offre</span>
-                </Button>
-                <Button
+                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs sm:text-sm font-medium text-amber-700 dark:text-amber-300">Offre Commerciale</span>
+                </button>
+                <button
                   onClick={openGoogleSheet}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2 flex-1 sm:flex-initial justify-center"
+                  className="group flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border-2 border-emerald-200 dark:border-emerald-800 rounded-xl hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-md transition-all duration-200 flex-1 sm:flex-initial min-w-[100px] sm:min-w-[120px]"
                 >
-                  <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="text-xs sm:text-sm hidden md:inline">Google Sheet</span>
-                  <span className="text-xs sm:text-sm md:hidden">Sheet</span>
-                </Button>
+                  <ExternalLink className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs sm:text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                    <span className="hidden md:inline">Google Sheet</span>
+                    <span className="md:hidden">Sheet</span>
+                  </span>
+                </button>
               </>
             )}
           </div>
