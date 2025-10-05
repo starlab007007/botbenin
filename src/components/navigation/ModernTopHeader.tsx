@@ -19,6 +19,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { BotBjLogo } from '@/components/ui/BotBjLogo';
 import { Input } from '@/components/ui/input';
 import { NotificationPanel } from '@/components/notifications/NotificationPanel';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -116,12 +117,10 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           {/* Logo */}
           <button 
             onClick={handleLogoClick}
-            className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+            className="flex items-center hover:opacity-80 transition-opacity"
           >
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-              <span className="text-white font-bold text-sm">B</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900 hidden sm:block">Bot.Bj</span>
+            <BotBjLogo variant="icon" className="w-10 h-10 sm:hidden" />
+            <BotBjLogo variant="compact" className="hidden sm:block h-10" />
           </button>
         </div>
 
