@@ -78,14 +78,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
                 </div>
                 <h2 className="font-playfair font-semibold text-lg text-gray-900">Chatbot Intelligent 24/7</h2>
                 <p className="text-gray-600 text-sm">Répondez automatiquement à vos clients sur WhatsApp Business avec notre IA conversationnelle. Disponible jour et nuit.</p>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="w-full mt-2"
-                  onClick={() => window.open('https://wa.me/22900000000?text=Je%20veux%20créer%20mon%20chatbot', '_blank')}
-                >
-                  Démarrer sur WhatsApp →
-                </Button>
               </div>
             </Card>
 
@@ -96,14 +88,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
                 </div>
                 <h2 className="font-playfair font-semibold text-lg text-gray-900">Qualification Automatique</h2>
                 <p className="text-gray-600 text-sm">Qualifiez et scorez vos leads automatiquement. CRM intégré pour suivre vos prospects et clients.</p>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="w-full mt-2"
-                  onClick={() => window.location.href = '/use-case/ecommerce'}
-                >
-                  Voir cas d'usage →
-                </Button>
               </div>
             </Card>
 
@@ -114,14 +98,6 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
                 </div>
                 <h2 className="font-playfair font-semibold text-lg text-gray-900">Boostez vos Conversions</h2>
                 <p className="text-gray-600 text-sm">+40% de conversions en moyenne. Campagnes marketing automatisées et relances intelligentes.</p>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="w-full mt-2"
-                  onClick={() => window.location.href = '/testimonials'}
-                >
-                  Voir témoignages →
-                </Button>
               </div>
             </Card>
           </div>
