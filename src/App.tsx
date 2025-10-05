@@ -16,6 +16,8 @@ import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
+import { FloatingAIChat } from "./components/FloatingAIChat";
+import { FloatingWhatsAppButton } from "./components/FloatingWhatsAppButton";
 
 // Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
@@ -104,6 +106,8 @@ const App = () => {
             <Sonner />
             <BrowserRouter>
               <GoogleAnalytics />
+              <FloatingAIChat />
+              <FloatingWhatsAppButton />
               <AuthProvider>
                 <UserProvider>
                 <Suspense fallback={<LoadingSpinner />}>
