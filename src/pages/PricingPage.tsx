@@ -3,6 +3,7 @@ import { PricingSection } from '@/components/home/PricingSection';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 export const PricingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ export const PricingPage: React.FC = () => {
 
       <div className="min-h-screen gradient-warm">
         <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Breadcrumbs items={[{ label: 'Tarifs', href: '/pricing' }]} />
+          
           <Button
             variant="ghost"
             onClick={() => navigate('/')}
@@ -27,23 +30,31 @@ export const PricingPage: React.FC = () => {
 
           <header className="text-center mb-12">
             <h1 className="text-4xl sm:text-5xl font-bold text-foreground mb-4">
-              Tarifs transparents pour votre croissance
+              Tarifs Chatbot WhatsApp Bot.BJ - Plans dès 2 500 XOF/mois
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Choisissez le plan adapté à votre business. Essai gratuit sans carte bancaire.
+              Choisissez le plan adapté à votre business au Bénin. Essai gratuit sans carte bancaire. Support client inclus.
             </p>
           </header>
 
           <PricingSection />
 
-          <section className="mt-16 text-center">
+          <section className="mt-16 text-center space-y-4">
             <h2 className="text-2xl font-bold mb-4">Questions sur nos tarifs ?</h2>
             <p className="text-muted-foreground mb-6">
-              Notre équipe est là pour vous aider à choisir le meilleur plan.
+              Notre équipe est là pour vous aider à choisir le meilleur plan pour votre chatbot WhatsApp.
             </p>
-            <Button size="lg" onClick={() => navigate('/home')}>
-              Discuter avec notre équipe
-            </Button>
+            <div className="flex gap-4 justify-center flex-wrap">
+              <Button size="lg" onClick={() => navigate('/home')}>
+                Discuter avec notre IA
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => navigate('/faq')}>
+                Voir la FAQ
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => navigate('/whatsapp-connect')}>
+                Connecter WhatsApp
+              </Button>
+            </div>
           </section>
         </div>
       </div>

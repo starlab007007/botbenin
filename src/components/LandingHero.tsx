@@ -23,13 +23,13 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
           {/* Hero Text */}
           <div className="space-y-6">
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent leading-tight">
-              Rencontrez Jarvis
+              Chatbot WhatsApp IA au Bénin
               <br />
-              <span className="text-2xl md:text-3xl lg:text-4xl font-normal">Votre Assistant IA Personnel</span>
+              <span className="text-2xl md:text-3xl lg:text-4xl font-normal">Automatisez votre Business avec Bot.BJ</span>
             </h1>
             
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Intelligence artificielle conversationnelle avancée pour répondre à tous vos besoins
+              Créez votre chatbot WhatsApp intelligent en 10 minutes. Disponible 24/7, qualification automatique des leads, +40% de conversions. Essai gratuit sans carte bancaire.
             </p>
           </div>
 
@@ -74,20 +74,20 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
             <Card className="p-6 bg-white/70 backdrop-blur-sm border-warm-beige-200 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="space-y-3">
                 <div className="w-12 h-12 bg-soft-peach-100 rounded-full flex items-center justify-center mx-auto">
-                  <span className="text-2xl">🎯</span>
+                  <span className="text-2xl">🤖</span>
                 </div>
-                <h3 className="font-playfair font-semibold text-lg text-gray-900">Find Your Direction</h3>
-                <p className="text-gray-600 text-sm">Get personalized career path suggestions based on your goals and interests.</p>
+                <h2 className="font-playfair font-semibold text-lg text-gray-900">Chatbot Intelligent 24/7</h2>
+                <p className="text-gray-600 text-sm">Répondez automatiquement à vos clients sur WhatsApp Business avec notre IA conversationnelle. Disponible jour et nuit.</p>
               </div>
             </Card>
 
             <Card className="p-6 bg-white/70 backdrop-blur-sm border-warm-beige-200 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
               <div className="space-y-3">
                 <div className="w-12 h-12 bg-soft-peach-100 rounded-full flex items-center justify-center mx-auto">
-                  <span className="text-2xl">📚</span>
+                  <span className="text-2xl">📊</span>
                 </div>
-                <h3 className="font-playfair font-semibold text-lg text-gray-900">Learn & Grow</h3>
-                <p className="text-gray-600 text-sm">Discover curated learning resources, books, and courses for your journey.</p>
+                <h2 className="font-playfair font-semibold text-lg text-gray-900">Qualification Automatique</h2>
+                <p className="text-gray-600 text-sm">Qualifiez et scorez vos leads automatiquement. CRM intégré pour suivre vos prospects et clients.</p>
               </div>
             </Card>
 
@@ -96,30 +96,41 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
                 <div className="w-12 h-12 bg-soft-peach-100 rounded-full flex items-center justify-center mx-auto">
                   <span className="text-2xl">🚀</span>
                 </div>
-                <h3 className="font-playfair font-semibold text-lg text-gray-900">Take Action</h3>
-                <p className="text-gray-600 text-sm">Get actionable steps and strategies to move forward with confidence.</p>
+                <h2 className="font-playfair font-semibold text-lg text-gray-900">Boostez vos Conversions</h2>
+                <p className="text-gray-600 text-sm">+40% de conversions en moyenne. Campagnes marketing automatisées et relances intelligentes.</p>
               </div>
             </Card>
           </div>
 
-          {/* CTA Button */}
-          <div className="mt-12">
+          {/* CTA Buttons */}
+          <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button 
               onClick={onStartChat}
-              className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground px-8 py-4 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 relative overflow-hidden group"
+              size="lg"
+              className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground px-8 py-6 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 relative overflow-hidden group"
             >
-              <span className="relative z-10">Commencer avec Jarvis</span>
+              <span className="relative z-10">Essai Gratuit - Sans Carte Bancaire</span>
               <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </Button>
+            <Button 
+              onClick={() => window.location.href = '/pricing'}
+              size="lg"
+              variant="outline"
+              className="px-8 py-6 text-lg font-semibold rounded-full"
+            >
+              Voir les Tarifs
             </Button>
           </div>
 
-          {/* Example Questions */}
-          <div className="mt-8 text-sm text-gray-600">
-            <p className="mb-2">Try asking:</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <span className="bg-white/60 px-3 py-1 rounded-full border border-warm-beige-200">"I want to transition into AI engineering"</span>
-              <span className="bg-white/60 px-3 py-1 rounded-full border border-warm-beige-200">"How to develop leadership skills?"</span>
-              <span className="bg-white/60 px-3 py-1 rounded-full border border-warm-beige-200">"Career change at 35"</span>
+          {/* Social Proof & Links */}
+          <div className="mt-8 text-sm text-muted-foreground space-y-3">
+            <p className="font-semibold">✅ +1000 entreprises béninoises nous font confiance</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <a href="/faq" className="hover:text-foreground transition-colors underline">Questions fréquentes</a>
+              <span>•</span>
+              <a href="/whatsapp-connect" className="hover:text-foreground transition-colors underline">Connecter WhatsApp</a>
+              <span>•</span>
+              <a href="/auth" className="hover:text-foreground transition-colors underline">Se connecter</a>
             </div>
           </div>
         </div>

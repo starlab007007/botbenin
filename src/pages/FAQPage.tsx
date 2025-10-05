@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 
 export const FAQPage: React.FC = () => {
   const navigate = useNavigate();
@@ -68,6 +69,8 @@ export const FAQPage: React.FC = () => {
 
       <div className="min-h-screen gradient-warm">
         <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Breadcrumbs items={[{ label: 'FAQ', href: '/faq' }]} />
+          
           <Button
             variant="ghost"
             onClick={() => navigate('/')}
@@ -79,10 +82,10 @@ export const FAQPage: React.FC = () => {
 
           <header className="text-center mb-12">
             <h1 className="text-4xl sm:text-5xl font-bold text-foreground mb-4">
-              Questions Fréquentes
+              FAQ Bot.BJ - Questions Chatbot WhatsApp IA Bénin
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Tout ce que vous devez savoir sur Bot.BJ et notre chatbot WhatsApp IA
+              Tout ce que vous devez savoir sur notre chatbot WhatsApp intelligent et l'automatisation de votre business
             </p>
           </header>
 
@@ -113,7 +116,7 @@ export const FAQPage: React.FC = () => {
             <CardContent className="text-center py-8">
               <h2 className="text-2xl font-bold mb-4">Vous ne trouvez pas votre réponse ?</h2>
               <p className="text-muted-foreground mb-6">
-                Notre équipe est disponible pour répondre à toutes vos questions
+                Notre équipe est disponible pour répondre à toutes vos questions sur notre chatbot WhatsApp
               </p>
               <div className="flex gap-4 justify-center flex-wrap">
                 <Button size="lg" onClick={() => navigate('/home')}>
@@ -121,6 +124,9 @@ export const FAQPage: React.FC = () => {
                 </Button>
                 <Button size="lg" variant="outline" onClick={() => navigate('/whatsapp-connect')}>
                   Démarrer sur WhatsApp
+                </Button>
+                <Button size="lg" variant="outline" onClick={() => navigate('/pricing')}>
+                  Voir les Tarifs
                 </Button>
               </div>
             </CardContent>
