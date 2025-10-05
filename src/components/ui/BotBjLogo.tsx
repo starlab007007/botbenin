@@ -9,7 +9,7 @@ export const BotBjLogo: React.FC<BotBjLogoProps> = ({
   className = '' 
 }) => {
   return (
-    <div className={`flex items-center gap-1.5 sm:gap-2 border-2 rounded-md sm:rounded-lg px-2 py-1 sm:px-3 sm:py-2 ${className}`} style={{ borderColor: '#5DBBF5' }}>
+    <div className={`flex items-center gap-1.5 sm:gap-2 ${className}`}>
       <img 
         src={iconImage} 
         alt="BOT.BJ Icon" 
