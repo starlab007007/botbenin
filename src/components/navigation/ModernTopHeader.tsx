@@ -119,8 +119,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
             onClick={handleLogoClick}
             className="flex items-center hover:opacity-80 transition-opacity"
           >
-            <BotBjLogo variant="icon" className="w-10 h-10 sm:hidden" />
-            <BotBjLogo variant="compact" className="hidden sm:block h-10" />
+            <BotBjLogo />
           </button>
         </div>
 
