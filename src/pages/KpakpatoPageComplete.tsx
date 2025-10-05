@@ -34,6 +34,8 @@ export const KpakpatoPage: React.FC = () => {
   const [showWidgetManager, setShowWidgetManager] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [sharedAgentId, setSharedAgentId] = useState<string | null>(null);
+  const [callTimer, setCallTimer] = useState<number>(60);
+  const [isCallActive, setIsCallActive] = useState(false);
   
   const { isAuthenticated } = useAuth();
   const { activeAgent, sharedAgent, agents, hasPersonalAgents, fetchAgents, fetchSharedAgent, selectAgent } = usePersonalAgents();
@@ -104,6 +106,64 @@ export const KpakpatoPage: React.FC = () => {
     setTimeout(translateText, 2000);
     setTimeout(translateText, 3000);
   };
+
+  // Effet pour surveiller l'état du widget ElevenLabs et gérer le timer
+  useEffect(() => {
+    const checkWidgetState = () => {
+      const widget = document.querySelector('elevenlabs-convai');
+      if (!widget) return;
+
+      // Vérifier si le widget est en mode conversation active
+      const shadowRoot = (widget as any).shadowRoot;
+      if (shadowRoot) {
+        const callButton = shadowRoot.querySelector('[data-testid="call-button"], button');
+        const callStatus = shadowRoot.textContent || '';
+        
+        // Détecter si l'appel est actif (le widget affiche "End call" ou équivalent)
+        const isActive = callStatus.includes('Terminer') || callStatus.includes('End call') || 
+                        callStatus.includes('J\'écoute') || callStatus.includes('L\'agent vous parle');
+        
+        if (isActive && !isCallActive) {
+          setIsCallActive(true);
+          setCallTimer(60); // Réinitialiser le timer à 60 secondes
+        } else if (!isActive && isCallActive) {
+          setIsCallActive(false);
+          setCallTimer(60);
+        }
+      }
+    };
+
+    const interval = setInterval(checkWidgetState, 500);
+    return () => clearInterval(interval);
+  }, [isCallActive]);
+
+  // Effet pour le décompte du timer
+  useEffect(() => {
+    if (!isCallActive) return;
+
+    const timerInterval = setInterval(() => {
+      setCallTimer((prev) => {
+        if (prev <= 1) {
+          // Timer terminé - arrêter l'appel
+          const widget = document.querySelector('elevenlabs-convai');
+          if (widget) {
+            const shadowRoot = (widget as any).shadowRoot;
+            if (shadowRoot) {
+              const endButton = shadowRoot.querySelector('button');
+              if (endButton) {
+                endButton.click(); // Simuler un clic sur le bouton de fin d'appel
+              }
+            }
+          }
+          setIsCallActive(false);
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerInterval);
+  }, [isCallActive]);
 
   useEffect(() => {
     // Lancer la traduction après le montage du composant
@@ -287,6 +347,30 @@ export const KpakpatoPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Timer de conversation */}
+        {isCallActive && (
+          <div className="fixed top-4 right-4 z-50 animate-fade-in">
+            <Card className="bg-card/95 backdrop-blur-sm border-primary/30 shadow-lg">
+              <CardContent className="p-4">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-red-500 to-orange-500 flex items-center justify-center animate-pulse">
+                      <span className="text-white font-bold text-lg">{callTimer}</span>
+                    </div>
+                    <div className="absolute inset-0 rounded-full border-2 border-red-500/50 animate-ping" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-foreground">Temps restant</p>
+                    <p className="text-xs text-muted-foreground">
+                      {callTimer} seconde{callTimer !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center mt-6 sm:mt-8 lg:mt-12 space-y-1 sm:space-y-2">
