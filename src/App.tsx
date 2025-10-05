@@ -51,6 +51,10 @@ const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampa
 // WhatsApp Connect
 const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 
+// SEO Pages
+const PricingPage = lazy(() => import("./pages/PricingPage").then(module => ({ default: module.PricingPage })));
+const FAQPage = lazy(() => import("./pages/FAQPage").then(module => ({ default: module.FAQPage })));
+
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
 const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
@@ -111,6 +115,10 @@ const App = () => {
                     
                     {/* WhatsApp Connect */}
                     <Route path="/whatsapp-connect" element={<WhatsAppConnectPage />} />
+                    
+                    {/* SEO Pages */}
+                    <Route path="/pricing" element={<PricingPage />} />
+                    <Route path="/faq" element={<FAQPage />} />
                     
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
