@@ -113,27 +113,80 @@ export const KpakpatoPage: React.FC = () => {
       const widget = document.querySelector('elevenlabs-convai');
       if (!widget) return;
 
-      // Vérifier si le widget est en mode conversation active
-      const shadowRoot = (widget as any).shadowRoot;
-      if (shadowRoot) {
-        const callButton = shadowRoot.querySelector('[data-testid="call-button"], button');
-        const callStatus = shadowRoot.textContent || '';
-        
-        // Détecter si l'appel est actif (le widget affiche "End call" ou équivalent)
-        const isActive = callStatus.includes('Terminer') || callStatus.includes('End call') || 
-                        callStatus.includes('J\'écoute') || callStatus.includes('L\'agent vous parle');
-        
-        if (isActive && !isCallActive) {
-          setIsCallActive(true);
-          setCallTimer(60); // Réinitialiser le timer à 60 secondes
-        } else if (!isActive && isCallActive) {
-          setIsCallActive(false);
-          setCallTimer(60);
+      try {
+        // Méthode 1: Vérifier via shadowRoot
+        const shadowRoot = (widget as any).shadowRoot;
+        if (shadowRoot) {
+          const allText = shadowRoot.textContent || '';
+          const buttons = shadowRoot.querySelectorAll('button');
+          
+          // Chercher des indicateurs d'appel actif
+          let foundActiveIndicator = false;
+          
+          // Vérifier le texte affiché
+          if (allText.includes('Terminer') || allText.includes('End call') || 
+              allText.includes('J\'écoute') || allText.includes('écoute') ||
+              allText.includes('L\'agent') || allText.includes('Listening') ||
+              allText.includes('Speaking')) {
+            foundActiveIndicator = true;
+          }
+          
+          // Vérifier les boutons
+          buttons.forEach((btn) => {
+            const btnText = btn.textContent || '';
+            if (btnText.includes('Terminer') || btnText.includes('End') || btnText.includes('Fin')) {
+              foundActiveIndicator = true;
+            }
+          });
+
+          if (foundActiveIndicator && !isCallActive) {
+            console.log('🎙️ Appel détecté - Démarrage du timer de 60 secondes');
+            setIsCallActive(true);
+            setCallTimer(60);
+          } else if (!foundActiveIndicator && isCallActive) {
+            console.log('📞 Appel terminé - Arrêt du timer');
+            setIsCallActive(false);
+            setCallTimer(60);
+          }
         }
+        
+        // Méthode 2: Observer les attributs du widget
+        const dataState = widget.getAttribute('data-state') || widget.getAttribute('state');
+        if (dataState === 'active' || dataState === 'calling') {
+          if (!isCallActive) {
+            console.log('🎙️ Appel détecté via attribut - Démarrage du timer');
+            setIsCallActive(true);
+            setCallTimer(60);
+          }
+        }
+      } catch (error) {
+        console.log('Erreur lors de la vérification du widget:', error);
       }
     };
 
-    const interval = setInterval(checkWidgetState, 500);
+    // Vérifier immédiatement
+    checkWidgetState();
+    
+    // Vérifier régulièrement
+    const interval = setInterval(checkWidgetState, 300);
+    
+    // Observer les mutations du widget
+    const widget = document.querySelector('elevenlabs-convai');
+    if (widget) {
+      const observer = new MutationObserver(checkWidgetState);
+      observer.observe(widget, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+      
+      return () => {
+        clearInterval(interval);
+        observer.disconnect();
+      };
+    }
+    
     return () => clearInterval(interval);
   }, [isCallActive]);
 
@@ -141,28 +194,47 @@ export const KpakpatoPage: React.FC = () => {
   useEffect(() => {
     if (!isCallActive) return;
 
+    console.log('⏰ Timer actif - décompte de 60 secondes commencé');
+
     const timerInterval = setInterval(() => {
       setCallTimer((prev) => {
-        if (prev <= 1) {
+        const newTime = prev - 1;
+        
+        if (newTime % 10 === 0) {
+          console.log(`⏰ Temps restant: ${newTime} secondes`);
+        }
+        
+        if (newTime <= 0) {
+          console.log('⏰ Timer terminé - Arrêt automatique de l\'appel');
           // Timer terminé - arrêter l'appel
           const widget = document.querySelector('elevenlabs-convai');
           if (widget) {
             const shadowRoot = (widget as any).shadowRoot;
             if (shadowRoot) {
-              const endButton = shadowRoot.querySelector('button');
-              if (endButton) {
-                endButton.click(); // Simuler un clic sur le bouton de fin d'appel
-              }
+              // Chercher tous les boutons
+              const buttons = shadowRoot.querySelectorAll('button');
+              buttons.forEach((btn: HTMLButtonElement) => {
+                const btnText = btn.textContent || '';
+                // Cliquer sur le bouton qui termine l'appel
+                if (btnText.includes('Terminer') || btnText.includes('End') || 
+                    btnText.includes('Fin') || btnText.includes('Stop')) {
+                  console.log('🛑 Clic sur le bouton de fin d\'appel');
+                  btn.click();
+                }
+              });
             }
           }
           setIsCallActive(false);
           return 60;
         }
-        return prev - 1;
+        return newTime;
       });
     }, 1000);
 
-    return () => clearInterval(timerInterval);
+    return () => {
+      console.log('🧹 Nettoyage du timer');
+      clearInterval(timerInterval);
+    };
   }, [isCallActive]);
 
   useEffect(() => {
