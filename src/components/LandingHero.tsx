@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import jarvisCore from '@/assets/jarvis-ai-core.png';
+import { trackCTAClick } from '@/components/GoogleAnalytics';
 
 interface LandingHeroProps {
   onStartChat: () => void;
@@ -102,25 +102,22 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onStartChat }) => {
             </Card>
           </div>
 
-          {/* CTA Buttons */}
-          <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button 
-              onClick={onStartChat}
-              size="lg"
-              className="bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground px-8 py-6 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 relative overflow-hidden group"
-            >
-              <span className="relative z-10">Essai Gratuit - Sans Carte Bancaire</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-accent to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            </Button>
-            <Button 
-              onClick={() => window.location.href = '/pricing'}
-              size="lg"
-              variant="outline"
-              className="px-8 py-6 text-lg font-semibold rounded-full"
-            >
-              Voir les Tarifs
-            </Button>
-          </div>
+              <div className="flex gap-4 justify-center flex-wrap">
+                <Button size="lg" onClick={() => {
+                  trackCTAClick('Essai Gratuit', 'Homepage Hero');
+                  onStartChat();
+                }}>
+                  Essai Gratuit - Sans Carte Bancaire
+                </Button>
+                <Button 
+                  onClick={() => window.location.href = '/pricing'}
+                  size="lg"
+                  variant="outline"
+                  className="px-8 py-6 text-lg font-semibold rounded-full"
+                >
+                  Voir les Tarifs
+                </Button>
+              </div>
 
           {/* Social Proof & Links */}
           <div className="mt-8 text-sm text-muted-foreground space-y-3">

@@ -13,6 +13,7 @@ import Index from "./pages/Index";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
 import { LoadingSpinner } from "./components/LoadingSpinner";
+import { GoogleAnalytics } from "./components/GoogleAnalytics";
 
 // Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
@@ -54,6 +55,11 @@ const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 // SEO Pages
 const PricingPage = lazy(() => import("./pages/PricingPage").then(module => ({ default: module.PricingPage })));
 const FAQPage = lazy(() => import("./pages/FAQPage").then(module => ({ default: module.FAQPage })));
+const BlogPage = lazy(() => import("./pages/BlogPage").then(module => ({ default: module.BlogPage })));
+const BlogPostPage = lazy(() => import("./pages/BlogPostPage").then(module => ({ default: module.BlogPostPage })));
+const TestimonialsPage = lazy(() => import("./pages/TestimonialsPage").then(module => ({ default: module.TestimonialsPage })));
+const UseCaseEcommercePage = lazy(() => import("./pages/UseCaseEcommercePage").then(module => ({ default: module.UseCaseEcommercePage })));
+const UseCaseSupportPage = lazy(() => import("./pages/UseCaseSupportPage").then(module => ({ default: module.UseCaseSupportPage })));
 
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
@@ -93,6 +99,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <GoogleAnalytics />
             <AuthProvider>
               <UserProvider>
                 <Suspense fallback={<LoadingSpinner />}>
@@ -119,6 +126,11 @@ const App = () => {
                     {/* SEO Pages */}
                     <Route path="/pricing" element={<PricingPage />} />
                     <Route path="/faq" element={<FAQPage />} />
+                    <Route path="/blog" element={<BlogPage />} />
+                    <Route path="/blog/:slug" element={<BlogPostPage />} />
+                    <Route path="/testimonials" element={<TestimonialsPage />} />
+                    <Route path="/use-case/ecommerce" element={<UseCaseEcommercePage />} />
+                    <Route path="/use-case/support" element={<UseCaseSupportPage />} />
                     
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
