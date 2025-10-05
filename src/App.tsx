@@ -119,7 +119,6 @@ const App = () => {
                     
                     {/* Gestion des bots */}
                     <Route path="/bots" element={<BotManagementPage />} />
-                    <Route path="/bots" element={<AutomationsPage />} />
                     
                     {/* Campagnes de partage */}
                     <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
