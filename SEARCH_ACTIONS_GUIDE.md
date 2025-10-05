@@ -10,13 +10,13 @@ Ce guide explique comment faire apparaître les actions "Démarrer sur WhatsApp"
 ✅ **Ajouté dans `index.html`:**
 - Schema `Organization` avec `potentialAction`
 - Schema `WebSite` avec `InteractAction`
-- Actions pour WhatsApp et Chat IA
+- Actions pour WhatsApp (https://wa.me/22900000000) et Chat IA (https://bot.bj/bot/770c2547-db60-41ab-9f18-1f080fa7ebbb)
 - Support multi-plateforme (Desktop, Mobile, iOS, Android)
 
 ### 2. Meta Tags Optimisés
 ✅ **Description mise à jour** pour inclure les actions clés
 ✅ **Robots.txt** créé avec directives optimales
-✅ **Sitemap.xml** mis à jour avec liens vers #whatsapp et #chat
+✅ **Sitemap.xml** mis à jour avec liens vers WhatsApp et le bot IA (770c2547-db60-41ab-9f18-1f080fa7ebbb)
 
 ## 🔧 Configuration Requise
 
@@ -101,9 +101,9 @@ https://search.google.com/test/mobile-friendly?url=https://bot.bj
 - Support multi-plateforme
 
 ### 2. InteractAction (Chat IA)
-- Redirection vers le site
-- Ouverture du chat
-- Expérience transparente
+- Redirection vers le bot IA : https://bot.bj/bot/770c2547-db60-41ab-9f18-1f080fa7ebbb
+- Ouverture du chat IA directement
+- Expérience transparente avec assistant virtuel
 
 ## ⏱️ Délai d'Apparition
 
