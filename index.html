@@ -39,9 +39,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
     <!-- Meta tags SEO optimisés -->
-    <meta name="description" content="Bot.BJ - Créez votre chatbot WhatsApp intelligent avec IA. Automatisez votre support client 24/7, qualifiez vos leads et boostez vos conversions de +40%. Essai gratuit sans carte bancaire. Solution 100% béninoise." />
+    <meta name="description" content="Bot.BJ - Créez votre chatbot WhatsApp intelligent avec IA. Automatisez votre support client 24/7, qualifiez vos leads et boostez vos conversions de +40%. 🚀 Démarrez sur WhatsApp ou discutez avec notre IA maintenant. Essai gratuit sans carte bancaire." />
     <meta name="author" content="Bot.BJ" />
     <meta name="keywords" content="chatbot whatsapp bénin, chatbot ia benin, automatisation whatsapp, assistant virtuel benin, intelligence artificielle benin, bot whatsapp business, support client automatique, chatbot francais, whatsapp business api benin, bot.bj" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
     <link rel="canonical" href="https://bot.bj/" />
     
     <!-- Open Graph / Facebook -->
@@ -87,7 +88,8 @@
           "logo": "https://bot.bj/favicon.ico",
           "sameAs": [
             "https://www.facebook.com/botbj",
-            "https://twitter.com/botbj"
+            "https://twitter.com/botbj",
+            "https://wa.me/22900000000"
           ],
           "contactPoint": {
             "@type": "ContactPoint",
@@ -119,6 +121,82 @@
         "Support multilingue",
         "Analyses et statistiques détaillées",
         "Campagnes marketing automatisées"
+      ],
+      "potentialAction": [
+        {
+          "@type": "CommunicateAction",
+          "name": "Démarrer sur WhatsApp",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://wa.me/22900000000?text=Bonjour%20Bot.BJ,%20je%20souhaite%20en%20savoir%20plus%20sur%20vos%20services",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform",
+              "http://schema.org/IOSPlatform",
+              "http://schema.org/AndroidPlatform"
+            ]
+          }
+        },
+        {
+          "@type": "InteractAction",
+          "name": "Discuter avec notre IA",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://bot.bj/#chat-ai",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ]
+          }
+        }
+      ]
+    }
+    </script>
+    
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Bot.BJ",
+      "url": "https://bot.bj",
+      "description": "Plateforme de chatbots WhatsApp intelligents avec IA au Bénin",
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://bot.bj/search?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        },
+        {
+          "@type": "InteractAction",
+          "name": "Démarrer sur WhatsApp",
+          "description": "Commencez une conversation directement sur WhatsApp",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://wa.me/22900000000?text=Bonjour%20Bot.BJ",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform",
+              "http://schema.org/IOSPlatform",
+              "http://schema.org/AndroidPlatform"
+            ]
+          }
+        },
+        {
+          "@type": "InteractAction",
+          "name": "Discuter avec notre IA",
+          "description": "Essayez notre assistant IA directement en ligne",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://bot.bj/#chat-ai",
+            "actionPlatform": [
+              "http://schema.org/DesktopWebPlatform",
+              "http://schema.org/MobileWebPlatform"
+            ]
+          }
+        }
       ]
     }
     </script>
