@@ -2,177 +2,168 @@ import React from 'react';
 
 interface BotBjLogoProps {
   className?: string;
-  showText?: boolean;
   variant?: 'full' | 'icon' | 'compact';
 }
 
 export const BotBjLogo: React.FC<BotBjLogoProps> = ({ 
   className = '', 
-  showText = true,
   variant = 'full'
 }) => {
-  const getViewBox = () => {
-    if (variant === 'icon') return '0 0 100 100';
-    if (variant === 'compact') return '0 0 300 100';
-    return '0 0 500 120';
-  };
+  const baseColor = '#3B82F6'; // Bleu principal
+  
+  if (variant === 'icon') {
+    return (
+      <svg 
+        viewBox="0 0 100 100" 
+        className={className}
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+        role="img"
+        aria-label="Bot.BJ"
+      >
+        <circle 
+          cx="50" 
+          cy="50" 
+          r="42" 
+          stroke={baseColor}
+          strokeWidth="8" 
+          fill="white"
+        />
+        <path 
+          d="M 56 35 L 38 50 L 56 65" 
+          stroke={baseColor}
+          strokeWidth="8" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <path 
+          d="M 44 35 L 62 50 L 44 65" 
+          stroke={baseColor}
+          strokeWidth="8" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    );
+  }
+
+  if (variant === 'compact') {
+    return (
+      <svg 
+        viewBox="0 0 400 100" 
+        className={className}
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+        role="img"
+        aria-label="Bot.BJ"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <rect 
+          x="8" 
+          y="8" 
+          width="384" 
+          height="84" 
+          rx="16" 
+          stroke={baseColor}
+          strokeWidth="6" 
+          fill="white"
+        />
+        <circle 
+          cx="62" 
+          cy="50" 
+          r="28" 
+          stroke={baseColor}
+          strokeWidth="6" 
+          fill="white"
+        />
+        <path 
+          d="M 67 36 L 54 50 L 67 64" 
+          stroke={baseColor}
+          strokeWidth="6" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <path 
+          d="M 57 36 L 70 50 L 57 64" 
+          stroke={baseColor}
+          strokeWidth="6" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <text 
+          x="110" 
+          y="63" 
+          fontSize="42" 
+          fontWeight="700" 
+          fill={baseColor}
+          fontFamily="Arial, sans-serif"
+          letterSpacing="1"
+        >
+          BOT.BJ
+        </text>
+      </svg>
+    );
+  }
 
   return (
     <svg 
-      viewBox={getViewBox()} 
+      viewBox="0 0 600 140" 
       className={className}
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="Bot.BJ Logo"
+      aria-label="Bot.BJ"
+      preserveAspectRatio="xMidYMid meet"
     >
-      {variant === 'full' && (
-        <>
-          {/* Cadre rectangulaire arrondi */}
-          <rect 
-            x="10" 
-            y="10" 
-            width="480" 
-            height="100" 
-            rx="20" 
-            stroke="currentColor" 
-            strokeWidth="6" 
-            fill="none"
-          />
-          
-          {/* Cercle avec symbole code */}
-          <circle 
-            cx="70" 
-            cy="60" 
-            r="35" 
-            stroke="currentColor" 
-            strokeWidth="6" 
-            fill="none"
-          />
-          
-          {/* Symbole < */}
-          <path 
-            d="M 75 45 L 60 60 L 75 75" 
-            stroke="currentColor" 
-            strokeWidth="6" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            fill="none"
-          />
-          
-          {/* Symbole > */}
-          <path 
-            d="M 65 45 L 80 60 L 65 75" 
-            stroke="currentColor" 
-            strokeWidth="6" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            fill="none"
-          />
-          
-          {/* Texte BOT.BJ */}
-          {showText && (
-            <text 
-              x="130" 
-              y="75" 
-              fontSize="60" 
-              fontWeight="800" 
-              fill="currentColor"
-              fontFamily="system-ui, -apple-system, sans-serif"
-            >
-              BOT.BJ
-            </text>
-          )}
-        </>
-      )}
-
-      {variant === 'compact' && (
-        <>
-          {/* Version compacte pour mobile */}
-          <rect 
-            x="5" 
-            y="15" 
-            width="290" 
-            height="70" 
-            rx="15" 
-            stroke="currentColor" 
-            strokeWidth="5" 
-            fill="none"
-          />
-          
-          <circle 
-            cx="50" 
-            cy="50" 
-            r="25" 
-            stroke="currentColor" 
-            strokeWidth="5" 
-            fill="none"
-          />
-          
-          <path 
-            d="M 53 38 L 43 50 L 53 62" 
-            stroke="currentColor" 
-            strokeWidth="5" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            fill="none"
-          />
-          
-          <path 
-            d="M 47 38 L 57 50 L 47 62" 
-            stroke="currentColor" 
-            strokeWidth="5" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            fill="none"
-          />
-          
-          {showText && (
-            <text 
-              x="85" 
-              y="60" 
-              fontSize="38" 
-              fontWeight="800" 
-              fill="currentColor"
-              fontFamily="system-ui, -apple-system, sans-serif"
-            >
-              BOT.BJ
-            </text>
-          )}
-        </>
-      )}
-
-      {variant === 'icon' && (
-        <>
-          {/* Version icône uniquement */}
-          <circle 
-            cx="50" 
-            cy="50" 
-            r="40" 
-            stroke="currentColor" 
-            strokeWidth="6" 
-            fill="none"
-          />
-          
-          <path 
-            d="M 53 32 L 38 50 L 53 68" 
-            stroke="currentColor" 
-            strokeWidth="6" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            fill="none"
-          />
-          
-          <path 
-            d="M 47 32 L 62 50 L 47 68" 
-            stroke="currentColor" 
-            strokeWidth="6" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </>
-      )}
+      <rect 
+        x="10" 
+        y="10" 
+        width="580" 
+        height="120" 
+        rx="24" 
+        stroke={baseColor}
+        strokeWidth="8" 
+        fill="white"
+      />
+      <circle 
+        cx="90" 
+        cy="70" 
+        r="42" 
+        stroke={baseColor}
+        strokeWidth="8" 
+        fill="white"
+      />
+      <path 
+        d="M 97 50 L 78 70 L 97 90" 
+        stroke={baseColor}
+        strokeWidth="8" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path 
+        d="M 83 50 L 102 70 L 83 90" 
+        stroke={baseColor}
+        strokeWidth="8" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <text 
+        x="160" 
+        y="90" 
+        fontSize="64" 
+        fontWeight="700" 
+        fill={baseColor}
+        fontFamily="Arial, sans-serif"
+        letterSpacing="2"
+      >
+        BOT.BJ
+      </text>
     </svg>
   );
 };
