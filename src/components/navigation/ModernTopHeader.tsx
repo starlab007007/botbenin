@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { NotificationPanel } from '@/components/notifications/NotificationPanel';
 import { useNotifications } from '@/hooks/useNotifications';
+import { BotBjLogo } from '@/components/ui/BotBjLogo';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,12 +117,16 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           {/* Logo */}
           <button 
             onClick={handleLogoClick}
-            className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
+            className="flex items-center hover:opacity-80 transition-opacity"
           >
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-              <span className="text-white font-bold text-sm">B</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900 hidden sm:block">Bot.Bj</span>
+            <BotBjLogo 
+              variant="compact"
+              className="h-10 w-auto text-primary hidden sm:block"
+            />
+            <BotBjLogo 
+              variant="icon"
+              className="h-8 w-8 text-primary sm:hidden"
+            />
           </button>
         </div>
 
