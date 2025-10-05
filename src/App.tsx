@@ -8,7 +8,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
+import { initPerformanceMonitoring } from "./utils/performance";
 import Index from "./pages/Index";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
@@ -87,21 +89,23 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
-  // Register service worker for push notifications
+  // Register service worker for push notifications and initialize performance monitoring
   useEffect(() => {
     registerServiceWorker();
+    initPerformanceMonitoring();
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <GoogleAnalytics />
-            <AuthProvider>
-              <UserProvider>
+        <LanguageProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <GoogleAnalytics />
+              <AuthProvider>
+                <UserProvider>
                 <Suspense fallback={<LoadingSpinner />}>
                   <Routes>
                   {/* Route d'accueil avec redirection vers home */}
@@ -178,7 +182,8 @@ const App = () => {
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
-    </ThemeProvider>
+    </LanguageProvider>
+  </ThemeProvider>
   </QueryClientProvider>
   );
 };
