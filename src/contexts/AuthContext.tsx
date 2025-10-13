@@ -85,9 +85,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { toast } = useToast();
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Clear any existing timeout
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Safety timeout: force loading to false after 5 seconds
+        timeoutId = setTimeout(() => {
+          console.warn('[Auth] Forcing isLoading to false after timeout');
+          setIsLoading(false);
+        }, 5000);
+        
         setSession(session);
         setSupabaseUser(session?.user ?? null);
         
@@ -96,8 +107,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setGuestUser(null);
           
           try {
-            // Récupérer le rôle depuis user_roles
-            const { data: roleData, error: roleError } = await supabase
+            // Récupérer le rôle depuis user_roles avec timeout
+            const rolePromise = supabase
               .from('user_roles')
               .select(`
                 roles (
@@ -107,17 +118,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               .eq('user_id', session.user.id)
               .maybeSingle();
             
+            const { data: roleData, error: roleError } = await Promise.race([
+              rolePromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Role fetch timeout')), 3000))
+            ]) as any;
+            
             if (roleError) {
               console.error('Error fetching role:', roleError);
             }
 
             const userRole = (roleData?.roles as any)?.name || 'user';
 
-            // Récupérer les permissions depuis la fonction get_user_permissions
-            const { data: permissionsData } = await supabase
-              .rpc('get_user_permissions', { 
-                user_uuid: session.user.id 
-              });
+            // Récupérer les permissions depuis la fonction get_user_permissions avec timeout
+            const permissionsPromise = supabase.rpc('get_user_permissions', { 
+              user_uuid: session.user.id 
+            });
+            
+            const { data: permissionsData } = await Promise.race([
+              permissionsPromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Permissions fetch timeout')), 3000))
+            ]) as any;
 
             const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions.user;
 
@@ -168,11 +188,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             };
             setUser(authUser);
           } finally {
+            clearTimeout(timeoutId);
             setIsLoading(false);
           }
         } else {
           // Pas de session : conserver l'état guest si configuré
           setUser(null);
+          clearTimeout(timeoutId);
           setIsLoading(false);
         }
       }
@@ -180,14 +202,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Let onAuthStateChange handle it
-      } else {
+      if (!session) {
         setIsLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
