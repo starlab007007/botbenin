@@ -1,5 +1,5 @@
-import React from 'react';
-import { Bell, Check, CheckCheck, Trash2, ExternalLink, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Bell, Check, CheckCheck, Trash2, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,20 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, on
     markAllAsRead,
     deleteNotification,
   } = useNotifications();
+
+  const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (notificationId: string) => {
+    setExpandedNotifications(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(notificationId)) {
+        newSet.delete(notificationId);
+      } else {
+        newSet.add(notificationId);
+      }
+      return newSet;
+    });
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -92,85 +106,135 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ isOpen, on
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={cn(
-                    'p-4 hover:bg-gray-50 transition-colors cursor-pointer',
-                    !notification.read && 'bg-blue-50'
-                  )}
-                  onClick={() => !notification.read && markAsRead(notification.id)}
-                >
-                  <div className="flex items-start space-x-3">
-                    <span className="text-2xl flex-shrink-0">
-                      {getNotificationIcon(notification.type)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <p className={cn(
-                          'text-sm font-medium text-gray-900',
-                          !notification.read && 'font-semibold'
-                        )}>
-                          {notification.title}
-                        </p>
-                        {!notification.read && (
-                          <span className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1.5" />
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                        {notification.content}
-                      </p>
-                      <div className="flex items-center justify-between mt-2">
-                        <p className="text-xs text-gray-400">
-                          {formatDistanceToNow(new Date(notification.created_at), {
-                            addSuffix: true,
-                            locale: fr,
-                          })}
-                        </p>
-                        <div className="flex items-center space-x-2">
-                          {notification.action_url && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-2 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.location.href = notification.action_url!;
-                              }}
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </Button>
-                          )}
+              {notifications.map((notification) => {
+                const isExpanded = expandedNotifications.has(notification.id);
+                return (
+                  <div
+                    key={notification.id}
+                    className={cn(
+                      'p-4 hover:bg-gray-50 transition-colors',
+                      !notification.read && 'bg-blue-50'
+                    )}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <span className="text-2xl flex-shrink-0">
+                        {getNotificationIcon(notification.type)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <p className={cn(
+                            'text-sm font-medium text-gray-900',
+                            !notification.read && 'font-semibold'
+                          )}>
+                            {notification.title}
+                          </p>
                           {!notification.read && (
+                            <span className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1.5" />
+                          )}
+                        </div>
+                        
+                        <div className="mt-2">
+                          <p className={cn(
+                            "text-sm text-gray-600 whitespace-pre-wrap",
+                            !isExpanded && "line-clamp-3"
+                          )}>
+                            {notification.content}
+                          </p>
+                          
+                          {notification.content && notification.content.length > 150 && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 px-2 text-xs"
+                              className="h-6 px-0 text-xs text-primary hover:text-primary/80 mt-1"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                markAsRead(notification.id);
+                                toggleExpanded(notification.id);
                               }}
                             >
-                              <Check className="w-3 h-3" />
+                              {isExpanded ? (
+                                <>
+                                  <ChevronUp className="w-3 h-3 mr-1" />
+                                  Réduire
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="w-3 h-3 mr-1" />
+                                  Voir plus
+                                </>
+                              )}
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteNotification(notification.id);
-                            }}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                        </div>
+
+                        {notification.metadata && Object.keys(notification.metadata).length > 0 && isExpanded && (
+                          <div className="mt-3 p-3 bg-gray-100 rounded-md">
+                            <p className="text-xs font-medium text-gray-700 mb-2">Détails supplémentaires :</p>
+                            <div className="space-y-1">
+                              {Object.entries(notification.metadata).map(([key, value]) => (
+                                <div key={key} className="text-xs">
+                                  <span className="font-medium text-gray-600">{key} : </span>
+                                  <span className="text-gray-800">{JSON.stringify(value)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {notification.action_url && isExpanded && (
+                          <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                            <p className="text-gray-600 mb-1">Lien associé :</p>
+                            <a 
+                              href={notification.action_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline break-all"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {notification.action_url}
+                            </a>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between mt-3">
+                          <p className="text-xs text-gray-400">
+                            {formatDistanceToNow(new Date(notification.created_at), {
+                              addSuffix: true,
+                              locale: fr,
+                            })}
+                          </p>
+                          <div className="flex items-center space-x-2">
+                            {!notification.read && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markAsRead(notification.id);
+                                }}
+                              >
+                                <Check className="w-3 h-3 mr-1" />
+                                Marquer lu
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification(notification.id);
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </ScrollArea>
