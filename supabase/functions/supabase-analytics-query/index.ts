@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,35 +13,54 @@ serve(async (req) => {
   try {
     const { logType = 'auth' } = await req.json()
     
-    // Utiliser l'API Analytics de Supabase directement
-    const analyticsUrl = `${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/${logType === 'auth' ? 'auth_logs' : 'postgres_logs'}`
-    
-    let query = '';
-    if (logType === 'auth') {
-      query = 'select=id,timestamp,event_message,metadata&order=timestamp.desc&limit=100'
-    } else if (logType === 'postgres') {
-      query = 'select=identifier,timestamp,id,event_message&order=timestamp.desc&limit=100'
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('Missing environment variables')
     }
 
-    const response = await fetch(`${analyticsUrl}?${query}`, {
+    // Utiliser l'endpoint REST Analytics de Supabase
+    let endpoint = ''
+    if (logType === 'auth') {
+      endpoint = `${supabaseUrl}/rest/v1/rpc/auth_logs`
+    } else if (logType === 'postgres') {
+      endpoint = `${supabaseUrl}/rest/v1/rpc/postgres_logs`
+    } else {
+      throw new Error('Invalid log type')
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'apikey': Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-        'Content-Type': 'application/json'
-      }
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'apikey': serviceRoleKey,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({})
     })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Supabase API error:', errorText)
+      throw new Error(`Failed to fetch logs: ${response.status} - ${errorText}`)
+    }
 
     const data = await response.json()
 
     return new Response(
-      JSON.stringify({ data }),
+      JSON.stringify({ data: data || [] }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     console.error('Error in supabase-analytics-query:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      JSON.stringify({ 
+        error: error.message,
+        data: [] 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   }
 })

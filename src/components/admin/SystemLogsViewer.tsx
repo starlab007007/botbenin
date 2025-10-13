@@ -83,7 +83,9 @@ export const SystemLogsViewer: React.FC = () => {
   };
 
   const formatTimestamp = (timestamp: number | string) => {
+    if (!timestamp) return 'N/A';
     const date = new Date(typeof timestamp === 'number' ? timestamp / 1000 : timestamp);
+    if (isNaN(date.getTime())) return 'Invalid date';
     return date.toLocaleString('fr-FR');
   };
 
@@ -188,7 +190,7 @@ export const SystemLogsViewer: React.FC = () => {
                 </div>
               )}
             </ScrollArea>
-        </TabsContent>
+          </TabsContent>
 
         <TabsContent value="access">
           <ScrollArea className="h-[600px] w-full">
