@@ -65,6 +65,9 @@ export const AccountPage: React.FC = () => {
   useEffect(() => {
     if (authUser) {
       fetchUserProfile();
+    } else {
+      // Arrêter le chargement si pas d'utilisateur
+      setIsLoading(false);
     }
   }, [authUser]);
 
