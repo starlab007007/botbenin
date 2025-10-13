@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           try {
             // Récupérer le rôle depuis user_roles
-            const { data: roleData } = await supabase
+            const { data: roleData, error: roleError } = await supabase
               .from('user_roles')
               .select(`
                 roles (
@@ -105,7 +105,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 )
               `)
               .eq('user_id', session.user.id)
-              .single();
+              .maybeSingle();
+            
+            if (roleError) {
+              console.error('Error fetching role:', roleError);
+            }
 
             const userRole = (roleData?.roles as any)?.name || 'user';
 
