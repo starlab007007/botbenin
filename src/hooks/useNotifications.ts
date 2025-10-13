@@ -101,6 +101,29 @@ export const useNotifications = () => {
     }
   };
 
+  // Persistance localStorage
+  useEffect(() => {
+    if (notifications.length > 0) {
+      localStorage.setItem('notifications_backup', JSON.stringify(notifications));
+      localStorage.setItem('unread_count', unreadCount.toString());
+    }
+  }, [notifications, unreadCount]);
+
+  // Charger le backup au démarrage si pas d'utilisateur
+  useEffect(() => {
+    const backup = localStorage.getItem('notifications_backup');
+    const savedCount = localStorage.getItem('unread_count');
+    if (backup && !user) {
+      try {
+        setNotifications(JSON.parse(backup));
+        setUnreadCount(parseInt(savedCount || '0'));
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Erreur chargement backup notifications:', error);
+      }
+    }
+  }, [user]);
+
   // Setup realtime subscription
   useEffect(() => {
     if (!user) return;

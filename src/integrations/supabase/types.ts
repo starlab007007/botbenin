@@ -2126,12 +2126,43 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          created_at: string | null
+          email_enabled: boolean | null
+          id: string
+          preference_type: string
+          push_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          preference_type: string
+          push_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          preference_type?: string
+          push_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           action_url: string | null
           content: string
           created_at: string
           id: string
+          metadata: Json | null
           read: boolean | null
           title: string
           type: string
@@ -2142,6 +2173,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          metadata?: Json | null
           read?: boolean | null
           title: string
           type: string
@@ -2152,6 +2184,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          metadata?: Json | null
           read?: boolean | null
           title?: string
           type?: string

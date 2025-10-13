@@ -58,6 +58,9 @@ const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 
 // SEO Pages
 const PricingPage = lazy(() => import("./pages/PricingPage").then(module => ({ default: module.PricingPage })));
+
+// Admin Pages
+const NotificationTestPage = lazy(() => import("./pages/admin/NotificationTestPage").then(module => ({ default: module.NotificationTestPage })));
 const FAQPage = lazy(() => import("./pages/FAQPage").then(module => ({ default: module.FAQPage })));
 const BlogPage = lazy(() => import("./pages/BlogPage").then(module => ({ default: module.BlogPage })));
 const BlogPostPage = lazy(() => import("./pages/BlogPostPage").then(module => ({ default: module.BlogPostPage })));
@@ -145,7 +148,8 @@ const AppContent = () => {
                     <Route path="/admin/roles" element={<AdminRoute><AdminRolesPage /></AdminRoute>} />
                     <Route path="/admin/permissions" element={<AdminRoute><AdminPermissionsPage /></AdminRoute>} />
                     <Route path="/admin/users" element={<AdminRoute><AdminUsersManagementPage /></AdminRoute>} />
-                    <Route path="/admin/logs" element={<AdminRoute><SystemLogsPage /></AdminRoute>} />
+          <Route path="/admin/logs" element={<AdminRoute><SystemLogsPage /></AdminRoute>} />
+          <Route path="/admin/notification-test" element={<AdminRoute><NotificationTestPage /></AdminRoute>} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />
