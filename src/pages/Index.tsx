@@ -1,55 +1,26 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LandingHero } from '@/components/LandingHero';
-import { ChatInterface } from '@/components/ChatInterface';
 import { useAuth } from '@/contexts/AuthContext';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { HomePage } from './HomePage';
 
 const Index = () => {
-  const [showChat, setShowChat] = useState(false);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
 
-  // Rediriger vers l'app si l'utilisateur est connecté
+  // Rediriger vers /home si l'utilisateur est connecté
   useEffect(() => {
-    if (isAuthenticated && !showChat) {
+    if (isAuthenticated) {
       console.log('[Index] User authenticated, redirecting to /home');
       // Délai suffisant pour la propagation complète du contexte après OAuth
       setTimeout(() => {
         navigate('/home', { replace: true });
       }, 500);
     }
-  }, [isAuthenticated, navigate, showChat]);
+  }, [isAuthenticated, navigate]);
 
-  const handleStartChat = () => {
-    if (isAuthenticated) {
-      navigate('/chat');
-    } else {
-      setShowChat(true);
-    }
-  };
-
-  const handleBackToLanding = () => {
-    setShowChat(false);
-  };
-
-  return (
-    <div className="min-h-screen gradient-warm">
-        <div className="w-full max-w-[1440px] mx-auto">
-          {!showChat ? (
-            <div>
-              <LandingHero onStartChat={handleStartChat} />
-            </div>
-          ) : (
-            <div className={isMobile ? 'px-[2.5%]' : 'px-4 sm:px-6 lg:px-8'}>
-              <ChatInterface onBackToLanding={handleBackToLanding} />
-            </div>
-        )}
-      </div>
-    </div>
-  );
+  // Afficher le même contenu que /home pour les utilisateurs non connectés
+  return <HomePage />;
 };
 
 export default Index;
