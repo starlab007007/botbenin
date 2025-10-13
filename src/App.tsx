@@ -11,6 +11,7 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
 import { initPerformanceMonitoring } from "./utils/performance";
+import { useActivityTracking } from "./hooks/useActivityTracking";
 import Index from "./pages/Index";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
@@ -75,7 +76,7 @@ import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
 import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
 import { AdminUsersManagementPage } from "./pages/admin/AdminUsersManagementPage";
-import { SystemLogsViewer } from "./components/admin/SystemLogsViewer";
+const SystemLogsPage = lazy(() => import("./pages/admin/SystemLogsPage"));
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -89,26 +90,12 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => {
-  // Register service worker for push notifications and initialize performance monitoring
-  useEffect(() => {
-    registerServiceWorker();
-    initPerformanceMonitoring();
-  }, []);
-
+const AppContent = () => {
+  useActivityTracking();
+  
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light">
-        <LanguageProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <GoogleAnalytics />
-              <AuthProvider>
-                <UserProvider>
-                <Suspense fallback={<LoadingSpinner />}>
-                  <Routes>
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     {/* Route d'accueil */}
@@ -157,7 +144,7 @@ const App = () => {
                     <Route path="/admin/roles" element={<AdminRolesPage />} />
                     <Route path="/admin/permissions" element={<AdminPermissionsPage />} />
                     <Route path="/admin/users" element={<AdminUsersManagementPage />} />
-                    <Route path="/admin/logs" element={<SystemLogsViewer />} />
+                    <Route path="/admin/logs" element={<SystemLogsPage />} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />
@@ -178,13 +165,35 @@ const App = () => {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
-            </UserProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </LanguageProvider>
-  </ThemeProvider>
-  </QueryClientProvider>
+  );
+};
+
+const App = () => {
+  // Register service worker for push notifications and initialize performance monitoring
+  useEffect(() => {
+    registerServiceWorker();
+    initPerformanceMonitoring();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light">
+        <LanguageProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <GoogleAnalytics />
+              <AuthProvider>
+                <UserProvider>
+                  <AppContent />
+                </UserProvider>
+              </AuthProvider>
+            </BrowserRouter>
+          </TooltipProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };
 

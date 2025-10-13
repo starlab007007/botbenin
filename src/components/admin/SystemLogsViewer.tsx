@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, AlertCircle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle, Info, XCircle, Activity } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface LogEntry {
@@ -21,6 +21,7 @@ interface LogEntry {
 export const SystemLogsViewer: React.FC = () => {
   const [authLogs, setAuthLogs] = useState<LogEntry[]>([]);
   const [postgresLogs, setPostgresLogs] = useState<LogEntry[]>([]);
+  const [accessLogs, setAccessLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchLogs = async () => {
@@ -60,6 +61,19 @@ export const SystemLogsViewer: React.FC = () => {
 
       if (pgData?.data) {
         setPostgresLogs(pgData.data);
+      }
+
+      // Récupérer les logs d'activité
+      const { data: accessData, error: accessError } = await supabase
+        .from('access_logs')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(100);
+
+      if (accessError) {
+        console.error('Error fetching access logs:', accessError);
+      } else {
+        setAccessLogs(accessData || []);
       }
     } catch (error) {
       console.error('Error fetching logs:', error);
@@ -114,12 +128,16 @@ export const SystemLogsViewer: React.FC = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="auth" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="auth">
-              Logs d'authentification ({authLogs.length})
+              Authentification ({authLogs.length})
             </TabsTrigger>
             <TabsTrigger value="postgres">
-              Logs PostgreSQL ({postgresLogs.length})
+              PostgreSQL ({postgresLogs.length})
+            </TabsTrigger>
+            <TabsTrigger value="access">
+              <Activity className="w-4 h-4 mr-2" />
+              Activités ({accessLogs.length})
             </TabsTrigger>
           </TabsList>
 
@@ -188,9 +206,48 @@ export const SystemLogsViewer: React.FC = () => {
                 </div>
               )}
             </ScrollArea>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+        </TabsContent>
+
+        <TabsContent value="access">
+          <ScrollArea className="h-[600px] w-full">
+            <div className="space-y-4">
+              {accessLogs.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  Aucun log d'activité disponible
+                </p>
+              ) : (
+                accessLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Activity className="h-5 w-5 mt-0.5 text-primary" />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-sm">{log.action}</p>
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimestamp(log.timestamp)}
+                          </span>
+                        </div>
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          <p>User ID: {log.user_id}</p>
+                          <p>IP: {log.ip_address}</p>
+                          {log.details?.path && <p>Path: {log.details.path}</p>}
+                          {log.user_agent && (
+                            <p className="text-xs truncate">Agent: {log.user_agent}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
+    </CardContent>
+  </Card>
   );
 };
