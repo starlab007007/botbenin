@@ -85,104 +85,103 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { toast } = useToast();
 
   useEffect(() => {
-    const runAuthInit = async () => {
-      // Si déjà connecté => pas de mode guest
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-        setSupabaseUser(session?.user ?? null);
-        setIsLoading(false);
-      });
-    };
-    runAuthInit();
-    
-    // Set up auth state listener
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setSupabaseUser(session?.user ?? null);
+        
         if (session?.user) {
           setIsGuest(false);
           setGuestUser(null);
           
-          // Fetch user role and permissions from database
-          (async () => {
-            try {
-              // Récupérer le rôle depuis user_roles
-              const { data: roleData } = await supabase
-                .from('user_roles')
-                .select(`
-                  roles (
-                    name
-                  )
-                `)
-                .eq('user_id', session.user.id)
-                .single();
+          try {
+            // Récupérer le rôle depuis user_roles
+            const { data: roleData } = await supabase
+              .from('user_roles')
+              .select(`
+                roles (
+                  name
+                )
+              `)
+              .eq('user_id', session.user.id)
+              .single();
 
-              const userRole = (roleData?.roles as any)?.name || 'user';
+            const userRole = (roleData?.roles as any)?.name || 'user';
 
-              // Récupérer les permissions depuis la fonction get_user_permissions
-              const { data: permissionsData } = await supabase
-                .rpc('get_user_permissions', { 
-                  user_uuid: session.user.id 
-                });
+            // Récupérer les permissions depuis la fonction get_user_permissions
+            const { data: permissionsData } = await supabase
+              .rpc('get_user_permissions', { 
+                user_uuid: session.user.id 
+              });
 
-              const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions.user;
+            const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions.user;
 
-              // Create AuthUser from Supabase user with DB role and permissions
-              const authUser: AuthUser = {
-                id: session.user.id,
-                name: session.user.user_metadata?.full_name || 
-                      session.user.user_metadata?.name || 
-                      session.user.email?.split('@')[0] || 
-                      'Utilisateur',
-                email: session.user.email || '',
-                avatar: session.user.user_metadata?.avatar_url || 
-                        session.user.user_metadata?.picture,
-                role: userRole as 'admin' | 'manager' | 'user' | 'viewer',
-                permissions: permissions,
-                status: 'active',
-                createdAt: new Date(session.user.created_at),
-                lastLogin: new Date(),
-                subscription: {
-                  type: 'free',
-                  status: 'active'
-                },
-                chatHistory: []
-              };
-              setUser(authUser);
-            } catch (error) {
-              console.error('Error fetching role and permissions:', error);
-              // Fallback to default user role if DB fetch fails
-              const authUser: AuthUser = {
-                id: session.user.id,
-                name: session.user.user_metadata?.full_name || 
-                      session.user.user_metadata?.name || 
-                      session.user.email?.split('@')[0] || 
-                      'Utilisateur',
-                email: session.user.email || '',
-                avatar: session.user.user_metadata?.avatar_url || 
-                        session.user.user_metadata?.picture,
-                role: 'user',
-                permissions: rolePermissions.user,
-                status: 'active',
-                createdAt: new Date(session.user.created_at),
-                lastLogin: new Date(),
-                subscription: {
-                  type: 'free',
-                  status: 'active'
-                },
-                chatHistory: []
-              };
-              setUser(authUser);
-            }
-          })();
+            // Create AuthUser from Supabase user with DB role and permissions
+            const authUser: AuthUser = {
+              id: session.user.id,
+              name: session.user.user_metadata?.full_name || 
+                    session.user.user_metadata?.name || 
+                    session.user.email?.split('@')[0] || 
+                    'Utilisateur',
+              email: session.user.email || '',
+              avatar: session.user.user_metadata?.avatar_url || 
+                      session.user.user_metadata?.picture,
+              role: userRole as 'admin' | 'manager' | 'user' | 'viewer',
+              permissions: permissions,
+              status: 'active',
+              createdAt: new Date(session.user.created_at),
+              lastLogin: new Date(),
+              subscription: {
+                type: 'free',
+                status: 'active'
+              },
+              chatHistory: []
+            };
+            setUser(authUser);
+          } catch (error) {
+            console.error('Error fetching role and permissions:', error);
+            // Fallback to default user role if DB fetch fails
+            const authUser: AuthUser = {
+              id: session.user.id,
+              name: session.user.user_metadata?.full_name || 
+                    session.user.user_metadata?.name || 
+                    session.user.email?.split('@')[0] || 
+                    'Utilisateur',
+              email: session.user.email || '',
+              avatar: session.user.user_metadata?.avatar_url || 
+                      session.user.user_metadata?.picture,
+              role: 'user',
+              permissions: rolePermissions.user,
+              status: 'active',
+              createdAt: new Date(session.user.created_at),
+              lastLogin: new Date(),
+              subscription: {
+                type: 'free',
+                status: 'active'
+              },
+              chatHistory: []
+            };
+            setUser(authUser);
+          } finally {
+            setIsLoading(false);
+          }
         } else {
           // Pas de session : conserver l'état guest si configuré
           setUser(null);
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // Let onAuthStateChange handle it
+      } else {
+        setIsLoading(false);
+      }
+    });
 
     return () => subscription.unsubscribe();
   }, []);

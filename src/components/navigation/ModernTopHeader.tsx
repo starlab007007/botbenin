@@ -51,7 +51,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCommandDialog, setShowCommandDialog] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -170,7 +170,11 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 
           <ThemeToggle />
           
-          {isAuthenticated ? (
+          {isLoading ? (
+            <div className="w-10 h-10 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            </div>
+          ) : isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                  <Button variant="ghost" className="flex items-center space-x-2 h-10">
