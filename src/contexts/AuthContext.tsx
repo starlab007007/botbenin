@@ -131,8 +131,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               // Create AuthUser from Supabase user with DB role and permissions
               const authUser: AuthUser = {
                 id: session.user.id,
-                name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
+                name: session.user.user_metadata?.full_name || 
+                      session.user.user_metadata?.name || 
+                      session.user.email?.split('@')[0] || 
+                      'Utilisateur',
                 email: session.user.email || '',
+                avatar: session.user.user_metadata?.avatar_url || 
+                        session.user.user_metadata?.picture,
                 role: userRole as 'admin' | 'manager' | 'user' | 'viewer',
                 permissions: permissions,
                 status: 'active',
@@ -150,8 +155,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               // Fallback to default user role if DB fetch fails
               const authUser: AuthUser = {
                 id: session.user.id,
-                name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Utilisateur',
+                name: session.user.user_metadata?.full_name || 
+                      session.user.user_metadata?.name || 
+                      session.user.email?.split('@')[0] || 
+                      'Utilisateur',
                 email: session.user.email || '',
+                avatar: session.user.user_metadata?.avatar_url || 
+                        session.user.user_metadata?.picture,
                 role: 'user',
                 permissions: rolePermissions.user,
                 status: 'active',
