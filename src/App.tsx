@@ -109,8 +109,8 @@ const App = () => {
                 <UserProvider>
                 <Suspense fallback={<LoadingSpinner />}>
                   <Routes>
-                  {/* Route d'accueil - Landing page */}
-                  <Route path="/" element={<Index />} />
+                  {/* Route d'accueil avec redirection vers home */}
+                  <Route path="/" element={<Navigate to="/home" replace />} />
                   
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
