@@ -14,35 +14,25 @@ serve(async (req) => {
   try {
     const { logType = 'auth' } = await req.json()
     
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    let query = '';
+    // Utiliser l'API Analytics de Supabase directement
+    const analyticsUrl = `${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/${logType === 'auth' ? 'auth_logs' : 'postgres_logs'}`
     
+    let query = '';
     if (logType === 'auth') {
-      query = `
-        select id, auth_logs.timestamp, event_message, metadata.level, metadata.status, metadata.path, metadata.msg as msg, metadata.error from auth_logs
-        cross join unnest(metadata) as metadata
-        order by timestamp desc
-        limit 100
-      `;
+      query = 'select=id,timestamp,event_message,metadata&order=timestamp.desc&limit=100'
     } else if (logType === 'postgres') {
-      query = `
-        select identifier, postgres_logs.timestamp, id, event_message, parsed.error_severity from postgres_logs
-        cross join unnest(metadata) as m
-        cross join unnest(m.parsed) as parsed
-        order by timestamp desc
-        limit 100
-      `;
+      query = 'select=identifier,timestamp,id,event_message&order=timestamp.desc&limit=100'
     }
 
-    const { data, error } = await supabaseClient.rpc('pg_stat_statements_analytics', {
-      query_text: query
+    const response = await fetch(`${analyticsUrl}?${query}`, {
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'apikey': Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        'Content-Type': 'application/json'
+      }
     })
 
-    if (error) throw error
+    const data = await response.json()
 
     return new Response(
       JSON.stringify({ data }),

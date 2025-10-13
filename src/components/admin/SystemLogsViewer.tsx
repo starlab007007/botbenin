@@ -29,16 +29,7 @@ export const SystemLogsViewer: React.FC = () => {
     try {
       // Récupérer les logs d'authentification
       const { data: authData } = await supabase.functions.invoke('supabase-analytics-query', {
-        body: {
-          query: `
-            select id, auth_logs.timestamp, event_message, metadata.level, metadata.status, 
-                   metadata.path, metadata.msg as msg, metadata.error 
-            from auth_logs
-            cross join unnest(metadata) as metadata
-            order by timestamp desc
-            limit 50
-          `
-        }
+        body: { logType: 'auth' }
       });
 
       if (authData?.data) {
@@ -47,16 +38,7 @@ export const SystemLogsViewer: React.FC = () => {
 
       // Récupérer les logs postgres
       const { data: pgData } = await supabase.functions.invoke('supabase-analytics-query', {
-        body: {
-          query: `
-            select identifier, postgres_logs.timestamp, id, event_message, parsed.error_severity 
-            from postgres_logs
-            cross join unnest(metadata) as m
-            cross join unnest(m.parsed) as parsed
-            order by timestamp desc
-            limit 50
-          `
-        }
+        body: { logType: 'postgres' }
       });
 
       if (pgData?.data) {
