@@ -77,6 +77,7 @@ import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
 import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
 import { AdminUsersManagementPage } from "./pages/admin/AdminUsersManagementPage";
 const SystemLogsPage = lazy(() => import("./pages/admin/SystemLogsPage"));
+import { AdminRoute } from "./components/auth/AdminRoute";
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -139,12 +140,12 @@ const AppContent = () => {
                     <Route path="/system-test" element={<SystemTestPage />} />
                     <Route path="/platform-test" element={<PlatformTestPage />} />
                     
-                    {/* Admin dashboard */}
-                    <Route path="/admin" element={<AdminDashboardPage />} />
-                    <Route path="/admin/roles" element={<AdminRolesPage />} />
-                    <Route path="/admin/permissions" element={<AdminPermissionsPage />} />
-                    <Route path="/admin/users" element={<AdminUsersManagementPage />} />
-                    <Route path="/admin/logs" element={<SystemLogsPage />} />
+                    {/* Admin dashboard - Protected */}
+                    <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+                    <Route path="/admin/roles" element={<AdminRoute><AdminRolesPage /></AdminRoute>} />
+                    <Route path="/admin/permissions" element={<AdminRoute><AdminPermissionsPage /></AdminRoute>} />
+                    <Route path="/admin/users" element={<AdminRoute><AdminUsersManagementPage /></AdminRoute>} />
+                    <Route path="/admin/logs" element={<AdminRoute><SystemLogsPage /></AdminRoute>} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />

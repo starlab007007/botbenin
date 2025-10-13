@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useAdminRole } from '@/hooks/useAdminRole';
 import { 
   Home, 
   MessageCircle, 
@@ -134,6 +135,7 @@ const bottomItems = [
 export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { user } = useAuth();
+  const { isAdmin } = useAdminRole();
 
   const isActive = (path: string) => {
     if (path === '/home') {
@@ -258,18 +260,18 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           </div>
         </div>
 
-        {/* Administration */}
-        {hasAdminAccess && (
+        {/* Administration - Only for admins */}
+        {isAdmin && (
           <div>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
               Administration
             </h3>
             <div className="space-y-2">
               <NavLink
-                to="/admin/users"
+                to="/admin"
                 onClick={onClose}
                 className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                  isActive('/admin/users')
+                  isActive('/admin')
                     ? 'bg-white shadow-md border border-gray-100'
                     : 'hover:bg-white/60 hover:shadow-sm'
                 }`}
@@ -278,9 +280,9 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
                   <Shield className="w-5 h-5 text-white" />
                 </div>
                 <span className={`font-medium ${
-                  isActive('/admin/users') ? 'text-gray-900' : 'text-gray-700'
+                  isActive('/admin') ? 'text-gray-900' : 'text-gray-700'
                 }`}>
-                  Utilisateurs
+                  Administration
                 </span>
               </NavLink>
             </div>
