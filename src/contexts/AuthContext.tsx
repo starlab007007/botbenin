@@ -191,8 +191,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true);
-    
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -205,7 +203,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           description: error.message,
           variant: "destructive",
         });
-        setIsLoading(false);
         return false;
       }
 
@@ -214,7 +211,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           title: "Connexion réussie",
           description: `Bienvenue !`,
         });
-        setIsLoading(false);
         return true;
       }
     } catch (error) {
@@ -225,7 +221,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     }
     
-    setIsLoading(false);
     return false;
   };
 
