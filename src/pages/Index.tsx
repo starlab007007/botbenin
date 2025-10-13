@@ -16,10 +16,10 @@ const Index = () => {
   useEffect(() => {
     if (isAuthenticated && !showChat) {
       console.log('[Index] User authenticated, redirecting to /home');
-      // Petit délai pour permettre la propagation du contexte
+      // Délai suffisant pour la propagation complète du contexte après OAuth
       setTimeout(() => {
         navigate('/home', { replace: true });
-      }, 300);
+      }, 500);
     }
   }, [isAuthenticated, navigate, showChat]);
 
