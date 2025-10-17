@@ -25,13 +25,27 @@ export const MTNMomoPaymentModal: React.FC<MTNMomoPaymentModalProps> = ({ open, 
       toast({ title: 'Téléphone requis', description: 'Veuillez saisir votre numéro MTN Mobile Money', variant: 'destructive' });
       return;
     }
+
+    // Clean phone number (remove all non-numeric characters)
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // Validate phone format (should be 229XXXXXXXX for Benin)
+    if (!/^229\d{8}$/.test(cleanPhone)) {
+      toast({ 
+        title: 'Format invalide', 
+        description: 'Le numéro doit être au format 229XXXXXXXX (ex: 22967123456)', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setIsLoading(true);
     setResult(null);
     try {
       const { data, error } = await supabase.functions.invoke('qosic-payment', {
         body: {
           amount: amountCFA,
-          phoneNumber: phone,
+          phoneNumber: cleanPhone,
           fullName: fullName || undefined,
           planName,
           operator: 'MTN',

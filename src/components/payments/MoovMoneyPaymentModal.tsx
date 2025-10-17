@@ -40,12 +40,25 @@ export const MoovMoneyPaymentModal = ({
       return;
     }
 
+    // Clean phone number (remove all non-numeric characters)
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    
+    // Validate phone format (should be 229XXXXXXXX for Benin)
+    if (!/^229\d{8}$/.test(cleanPhone)) {
+      toast({ 
+        title: 'Format invalide', 
+        description: 'Le numéro doit être au format 229XXXXXXXX (ex: 22997123456)', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('qosic-payment', {
         body: {
           amount: amountCFA,
-          phoneNumber: phoneNumber.trim(),
+          phoneNumber: cleanPhone,
           fullName: fullName.trim() || undefined,
           planName: planName || 'Payment',
           operator: 'MOOV',

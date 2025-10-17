@@ -43,38 +43,15 @@ serve(async (req) => {
       throw new Error('Missing required fields');
     }
 
-    // Get operator-specific credentials
-    const getCredentials = () => {
-      const username = Deno.env.get('QOSIC_USERNAME');
-      
-      switch (operator) {
-        case 'MTN':
-          return {
-            clientId: Deno.env.get('QOSIC_MTN_CLIENT_ID'),
-            clientSecret: Deno.env.get('QOSIC_MTN_CLIENT_SECRET'),
-            username,
-          };
-        case 'MOOV':
-          return {
-            clientId: Deno.env.get('QOSIC_MOOV_CLIENT_ID'),
-            clientSecret: Deno.env.get('QOSIC_MOOV_CLIENT_SECRET'),
-            username,
-          };
-        case 'SBIN':
-          return {
-            clientId: Deno.env.get('QOSIC_SBIN_CLIENT_ID'),
-            clientSecret: Deno.env.get('QOSIC_SBIN_CLIENT_SECRET'),
-            username,
-          };
-        default:
-          throw new Error('Invalid operator');
-      }
-    };
+    // Get Qosic credentials (same for all operators)
+    const username = Deno.env.get('QOSIC_USERNAME');
+    const password = Deno.env.get('QOSIC_PASSWORD');
+    const clientId = Deno.env.get('QOSIC_CLIENT_ID');
+    const baseUrl = Deno.env.get('QOSIC_BASE_URL');
 
-    const credentials = getCredentials();
-
-    if (!credentials.clientId || !credentials.clientSecret || !credentials.username) {
-      throw new Error(`Missing ${operator} credentials`);
+    if (!username || !password || !clientId || !baseUrl) {
+      console.error('Missing credentials:', { username: !!username, password: !!password, clientId: !!clientId, baseUrl: !!baseUrl });
+      throw new Error('Missing Qosic credentials');
     }
 
     // Generate unique order ID
@@ -117,34 +94,59 @@ serve(async (req) => {
 
     console.log('Transaction record created:', transaction.id);
 
-    // Prepare Qosic API request
+    // Clean phone number (remove all non-numeric characters)
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    
+    // Validate phone format (should be 229XXXXXXXX for Benin)
+    if (!/^229\d{8}$/.test(cleanPhone)) {
+      console.warn('Invalid phone format:', cleanPhone);
+    }
+
+    // Split full name into first and last name
+    const nameParts = (fullName || 'Client').split(' ');
+    const firstname = nameParts[0] || 'Client';
+    const lastname = nameParts.slice(1).join(' ') || '';
+
+    // Prepare Qosic API request according to official documentation
     const qosicPayload = {
-      recipient: phoneNumber,
-      amount: amount,
-      orderId: orderId,
-      description: planName || 'Payment',
+      msisdn: cleanPhone,
+      amount: amount.toString(), // Amount as string
+      firstname: firstname,
+      lastname: lastname,
+      transref: orderId,
+      clientid: clientId,
+      comment: planName || 'Abonnement Bot.BJ',
     };
 
-    console.log('Qosic payload:', qosicPayload);
+    console.log('=== QOSIC PAYMENT REQUEST ===');
+    console.log('Operator:', operator);
+    console.log('Phone (cleaned):', cleanPhone);
+    console.log('Amount:', amount);
+    console.log('Transaction ref:', orderId);
+    console.log('Payload:', JSON.stringify(qosicPayload, null, 2));
 
-    // Call Qosic API
-    const qosicUrl = `https://api.qosic.com/v1/payments/${operator.toLowerCase()}`;
+    // Call Qosic API with correct endpoint
+    const qosicUrl = `${baseUrl}/QosicBridge/user/requestpayment`;
     
-    const authString = btoa(`${credentials.clientId}:${credentials.clientSecret}`);
+    // Basic authentication with username:password
+    const authString = btoa(`${username}:${password}`);
     
+    console.log('Request URL:', qosicUrl);
+
     const qosicResponse = await fetch(qosicUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Basic ${authString}`,
-        'X-Username': credentials.username,
       },
       body: JSON.stringify(qosicPayload),
     });
 
     const qosicData = await qosicResponse.json();
 
-    console.log('Qosic response:', qosicData);
+    console.log('=== QOSIC API RESPONSE ===');
+    console.log('Status:', qosicResponse.status);
+    console.log('Response:', JSON.stringify(qosicData, null, 2));
 
     // Update transaction with Qosic response
     const updateData: any = {
@@ -152,14 +154,22 @@ serve(async (req) => {
       metadata: {
         ...transaction.metadata,
         qosic_response_at: new Date().toISOString(),
+        operator: operator,
+        cleaned_phone: cleanPhone,
       },
     };
 
-    if (qosicResponse.ok) {
+    // Check Qosic response code (00 or 0 = success)
+    const responseCode = qosicData.responsecode || qosicData.responseCode || '';
+    const isSuccess = responseCode === '00' || responseCode === '0';
+
+    if (qosicResponse.ok && isSuccess) {
       updateData.status = 'processing';
-      updateData.qosic_transaction_id = qosicData.transactionId || qosicData.id;
+      updateData.qosic_transaction_id = qosicData.transref || qosicData.transactionId || qosicData.id;
+      console.log('✅ Payment initiated successfully');
     } else {
       updateData.status = 'failed';
+      console.error('❌ Payment failed:', qosicData.message || 'Unknown error');
     }
 
     const { error: updateError } = await supabaseClient
