@@ -59,6 +59,10 @@ const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 // SEO Pages
 const PricingPage = lazy(() => import("./pages/PricingPage").then(module => ({ default: module.PricingPage })));
 
+// Payment Pages
+const PaymentHistoryPage = lazy(() => import("./pages/PaymentHistoryPage").then(module => ({ default: module.PaymentHistoryPage })));
+const PaymentTestPage = lazy(() => import("./pages/PaymentTestPage").then(module => ({ default: module.PaymentTestPage })));
+
 // Admin Pages
 const NotificationTestPage = lazy(() => import("./pages/admin/NotificationTestPage").then(module => ({ default: module.NotificationTestPage })));
 const FAQPage = lazy(() => import("./pages/FAQPage").then(module => ({ default: module.FAQPage })));
@@ -119,6 +123,7 @@ const AppContent = () => {
                     
                     {/* SEO Pages */}
                     <Route path="/pricing" element={<PricingPage />} />
+                    <Route path="/payment-history" element={<PaymentHistoryPage />} />
                     <Route path="/faq" element={<FAQPage />} />
                     <Route path="/blog" element={<BlogPage />} />
                     <Route path="/blog/:slug" element={<BlogPostPage />} />
@@ -150,6 +155,7 @@ const AppContent = () => {
                     <Route path="/admin/users" element={<AdminRoute><AdminUsersManagementPage /></AdminRoute>} />
           <Route path="/admin/logs" element={<AdminRoute><SystemLogsPage /></AdminRoute>} />
           <Route path="/admin/notification-test" element={<AdminRoute><NotificationTestPage /></AdminRoute>} />
+          <Route path="/admin/payment-tests" element={<AdminRoute><PaymentTestPage /></AdminRoute>} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />

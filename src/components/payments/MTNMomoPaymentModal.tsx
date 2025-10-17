@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { PaymentStatusTracker } from './PaymentStatusTracker';
 
 interface MTNMomoPaymentModalProps {
   open: boolean;
@@ -19,6 +20,8 @@ export const MTNMomoPaymentModal: React.FC<MTNMomoPaymentModalProps> = ({ open, 
   const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<null | { status: string; message?: string; demo?: boolean }>(null);
+  const [showTracker, setShowTracker] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState('');
 
   const initiatePayment = async () => {
     if (!phone) {
@@ -59,6 +62,8 @@ export const MTNMomoPaymentModal: React.FC<MTNMomoPaymentModalProps> = ({ open, 
           message: data.message,
           orderId: data.orderId 
         } as any);
+        setCurrentOrderId(data.orderId);
+        setShowTracker(true);
         toast({
           title: 'Paiement initié',
           description: 'Veuillez confirmer le paiement sur votre téléphone MTN Mobile Money',
@@ -111,6 +116,16 @@ export const MTNMomoPaymentModal: React.FC<MTNMomoPaymentModalProps> = ({ open, 
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {showTracker && currentOrderId && (
+        <PaymentStatusTracker
+          open={showTracker}
+          onOpenChange={setShowTracker}
+          orderId={currentOrderId}
+          operator="MTN"
+          amount={amountCFA}
+        />
+      )}
     </Dialog>
   );
 };

@@ -14,209 +14,256 @@ interface PaymentRequest {
   operator: 'MTN' | 'MOOV' | 'SBIN';
 }
 
+const log = (level: string, action: string, data: any) => {
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    function: 'qosic-payment',
+    action,
+    ...data
+  }));
+};
+
 serve(async (req) => {
+  const startTime = Date.now();
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    log('info', 'request_received', { method: req.method, url: req.url });
+
+    // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    // Try to get authenticated user, but don't require it
-    let userId: string | null = null;
+    // Try to get authenticated user
     const authHeader = req.headers.get('Authorization');
+    let userId: string | null = null;
     
     if (authHeader) {
-      const {
-        data: { user },
-      } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
-      userId = user?.id || null;
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user } } = await supabaseClient.auth.getUser(token);
+        userId = user?.id || null;
+        log('info', 'user_authenticated', { userId });
+      } catch (authError) {
+        log('warn', 'auth_failed', { error: authError.message });
+      }
+    } else {
+      log('info', 'guest_payment', { note: 'No auth header provided' });
     }
 
-    const { amount, phoneNumber, fullName, planName, operator }: PaymentRequest = await req.json();
+    // Parse request body
+    const requestBody: PaymentRequest = await req.json();
+    log('info', 'request_parsed', { 
+      operator: requestBody.operator, 
+      amount: requestBody.amount,
+      hasFullName: !!requestBody.fullName,
+      planName: requestBody.planName 
+    });
 
-    // Validate input
-    if (!amount || !phoneNumber || !operator) {
-      throw new Error('Missing required fields');
+    // Validation
+    const { amount, phoneNumber, fullName, planName, operator } = requestBody;
+    
+    if (!amount || amount <= 0) {
+      log('error', 'validation_failed', { field: 'amount', value: amount });
+      throw new Error('Montant invalide');
+    }
+    
+    if (!phoneNumber) {
+      log('error', 'validation_failed', { field: 'phoneNumber', value: 'missing' });
+      throw new Error('Numéro de téléphone requis');
     }
 
-    // Get Qosic credentials (same for all operators)
-    const username = Deno.env.get('QOSIC_USERNAME');
-    const password = Deno.env.get('QOSIC_PASSWORD');
-    const clientId = Deno.env.get('QOSIC_CLIENT_ID');
-    const baseUrl = Deno.env.get('QOSIC_BASE_URL');
-
-    if (!username || !password || !clientId || !baseUrl) {
-      console.error('Missing credentials:', { username: !!username, password: !!password, clientId: !!clientId, baseUrl: !!baseUrl });
-      throw new Error('Missing Qosic credentials');
+    if (!['MTN', 'MOOV', 'SBIN'].includes(operator)) {
+      log('error', 'validation_failed', { field: 'operator', value: operator });
+      throw new Error('Opérateur invalide');
     }
+
+    log('info', 'validation_passed', { operator, amount, phoneNumber: phoneNumber.substring(0, 6) + '***' });
+
+    // Get Qosic credentials from environment
+    const qosicUsername = Deno.env.get('QOSIC_USERNAME');
+    const qosicPassword = Deno.env.get('QOSIC_PASSWORD');
+    const clientIdMap = {
+      'MTN': Deno.env.get('QOSIC_MTN_CLIENT_ID'),
+      'MOOV': Deno.env.get('QOSIC_MOOV_CLIENT_ID'),
+      'SBIN': Deno.env.get('QOSIC_SBIN_CLIENT_ID'),
+    };
+    const clientId = clientIdMap[operator];
+
+    if (!qosicUsername || !qosicPassword || !clientId) {
+      log('error', 'config_missing', { operator, hasUsername: !!qosicUsername, hasPassword: !!qosicPassword, hasClientId: !!clientId });
+      throw new Error('Configuration Qosic manquante');
+    }
+
+    log('info', 'config_loaded', { operator, clientId: clientId.substring(0, 8) + '***' });
 
     // Generate unique order ID
-    const orderId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const orderId = `PAY_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    log('info', 'order_id_generated', { orderId });
 
-    console.log(`Initiating ${operator} payment for order ${orderId}`);
-
-    // Create transaction record in database
-    const transactionData: any = {
-      order_id: orderId,
-      amount,
-      currency: 'XOF',
-      phone_number: phoneNumber,
-      full_name: fullName,
-      plan_name: planName,
-      status: 'pending',
-      payment_method: operator.toLowerCase() === 'mtn' ? 'mtn_momo' : operator.toLowerCase() === 'moov' ? 'moov_money' : 'sbin',
-      operator,
-      metadata: {
-        initiated_at: new Date().toISOString(),
-        is_guest: !userId,
-      },
-    };
-
-    // Add user_id only if user is authenticated
-    if (userId) {
-      transactionData.user_id = userId;
-    }
-
-    const { data: transaction, error: dbError } = await supabaseClient
+    // Insert transaction record
+    log('info', 'db_insert_start', { orderId });
+    const { data: transaction, error: insertError } = await supabaseClient
       .from('payment_transactions')
-      .insert(transactionData)
+      .insert({
+        order_id: orderId,
+        user_id: userId,
+        amount,
+        currency: 'XOF',
+        phone_number: phoneNumber,
+        full_name: fullName || null,
+        plan_name: planName || null,
+        status: 'pending',
+        payment_method: 'mobile_money',
+        operator: operator,
+        metadata: {
+          created_at: new Date().toISOString(),
+          request_source: 'web_app'
+        }
+      })
       .select()
       .single();
 
-    if (dbError) {
-      console.error('Database error:', dbError);
-      throw new Error('Failed to create transaction record');
+    if (insertError) {
+      log('error', 'db_insert_failed', { orderId, error: insertError.message });
+      throw new Error(`Erreur DB: ${insertError.message}`);
     }
 
-    console.log('Transaction record created:', transaction.id);
+    log('info', 'db_insert_success', { orderId, transactionId: transaction.id });
 
-    // Clean phone number (remove all non-numeric characters)
+    // Clean and validate phone number
     const cleanPhone = phoneNumber.replace(/\D/g, '');
-    
-    // Validate phone format (should be 229XXXXXXXX for Benin)
     if (!/^229\d{8}$/.test(cleanPhone)) {
-      console.warn('Invalid phone format:', cleanPhone);
+      log('error', 'phone_validation_failed', { orderId, phoneFormat: cleanPhone.substring(0, 6) + '***' });
+      throw new Error('Format de téléphone invalide (doit être 229XXXXXXXX)');
     }
 
-    // Split full name into first and last name
-    const nameParts = (fullName || 'Client').split(' ');
-    const firstname = nameParts[0] || 'Client';
-    const lastname = nameParts.slice(1).join(' ') || '';
+    log('info', 'phone_validated', { orderId, phonePrefix: cleanPhone.substring(0, 6) + '***' });
 
-    // Prepare Qosic API request according to official documentation
+    // Prepare Qosic API request
     const qosicPayload = {
+      clientId: clientId,
+      amount: amount,
       msisdn: cleanPhone,
-      amount: amount.toString(), // Amount as string
-      firstname: firstname,
-      lastname: lastname,
-      transref: orderId,
-      clientid: clientId,
-      comment: planName || 'Abonnement Bot.BJ',
+      orderId: orderId,
+      description: planName ? `Paiement ${planName}` : 'Paiement',
     };
 
-    console.log('=== QOSIC PAYMENT REQUEST ===');
-    console.log('Operator:', operator);
-    console.log('Phone (cleaned):', cleanPhone);
-    console.log('Amount:', amount);
-    console.log('Transaction ref:', orderId);
-    console.log('Payload:', JSON.stringify(qosicPayload, null, 2));
+    log('info', 'qosic_api_call_start', { orderId, endpoint: 'https://qosic.net/api/payments' });
 
-    // Call Qosic API with correct endpoint
-    const qosicUrl = `${baseUrl}/QosicBridge/user/requestpayment`;
-    
-    // Basic authentication with username:password
-    const authString = btoa(`${username}:${password}`);
-    
-    console.log('Request URL:', qosicUrl);
+    // Call Qosic API with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-    const qosicResponse = await fetch(qosicUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${authString}`,
-      },
-      body: JSON.stringify(qosicPayload),
-    });
+    try {
+      const qosicResponse = await fetch('https://qosic.net/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${btoa(`${qosicUsername}:${qosicPassword}`)}`,
+        },
+        body: JSON.stringify(qosicPayload),
+        signal: controller.signal,
+      });
 
-    const qosicData = await qosicResponse.json();
+      clearTimeout(timeoutId);
 
-    console.log('=== QOSIC API RESPONSE ===');
-    console.log('Status:', qosicResponse.status);
-    console.log('Response:', JSON.stringify(qosicData, null, 2));
+      const responseText = await qosicResponse.text();
+      log('info', 'qosic_api_response_received', { 
+        orderId, 
+        status: qosicResponse.status, 
+        responseLength: responseText.length 
+      });
 
-    // Update transaction with Qosic response
-    const updateData: any = {
-      qosic_response: qosicData,
-      metadata: {
-        ...transaction.metadata,
-        qosic_response_at: new Date().toISOString(),
-        operator: operator,
-        cleaned_phone: cleanPhone,
-      },
-    };
+      let qosicData;
+      try {
+        qosicData = JSON.parse(responseText);
+      } catch {
+        log('error', 'qosic_response_parse_failed', { orderId, responseText: responseText.substring(0, 200) });
+        throw new Error('Réponse API invalide');
+      }
 
-    // Check Qosic response code (00 or 0 = success)
-    const responseCode = qosicData.responsecode || qosicData.responseCode || '';
-    const isSuccess = responseCode === '00' || responseCode === '0';
+      log('info', 'qosic_response_parsed', { 
+        orderId, 
+        success: qosicData.success, 
+        hasTransactionId: !!qosicData.transactionId 
+      });
 
-    if (qosicResponse.ok && isSuccess) {
-      updateData.status = 'processing';
-      updateData.qosic_transaction_id = qosicData.transref || qosicData.transactionId || qosicData.id;
-      console.log('✅ Payment initiated successfully');
-    } else {
-      updateData.status = 'failed';
-      console.error('❌ Payment failed:', qosicData.message || 'Unknown error');
-    }
+      // Update transaction with Qosic response
+      const updateData = {
+        status: qosicResponse.ok && qosicData.success ? 'processing' : 'failed',
+        qosic_transaction_id: qosicData.transactionId || null,
+        qosic_response: qosicData,
+        metadata: {
+          ...transaction.metadata,
+          qosic_status: qosicData.status,
+          qosic_message: qosicData.message,
+          updated_at: new Date().toISOString(),
+        }
+      };
 
-    const { error: updateError } = await supabaseClient
-      .from('payment_transactions')
-      .update(updateData)
-      .eq('id', transaction.id);
+      log('info', 'db_update_start', { orderId, newStatus: updateData.status });
 
-    if (updateError) {
-      console.error('Failed to update transaction:', updateError);
-    }
+      const { error: updateError } = await supabaseClient
+        .from('payment_transactions')
+        .update(updateData)
+        .eq('id', transaction.id);
 
-    if (!qosicResponse.ok) {
+      if (updateError) {
+        log('error', 'db_update_failed', { orderId, error: updateError.message });
+        throw new Error(`Erreur mise à jour: ${updateError.message}`);
+      }
+
+      log('info', 'db_update_success', { orderId, finalStatus: updateData.status });
+
+      const duration = Date.now() - startTime;
+      log('info', 'payment_completed', { orderId, status: updateData.status, duration_ms: duration });
+
       return new Response(
         JSON.stringify({
-          success: false,
-          message: qosicData.message || 'Payment initiation failed',
-          orderId,
+          success: qosicResponse.ok && qosicData.success,
+          orderId: orderId,
           transactionId: transaction.id,
+          qosicTransactionId: qosicData.transactionId,
+          status: updateData.status,
+          message: qosicData.message || 'Paiement initié',
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
+
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError.name === 'AbortError') {
+        log('error', 'qosic_api_timeout', { orderId, timeout: '30s' });
+        throw new Error('Timeout lors de l\'appel à Qosic');
+      }
+      
+      log('error', 'qosic_api_call_failed', { orderId, error: fetchError.message });
+      throw fetchError;
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Payment initiated successfully',
-        orderId,
-        transactionId: transaction.id,
-        qosicTransactionId: qosicData.transactionId || qosicData.id,
-        status: 'processing',
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-
-  } catch (error) {
-    console.error('Payment error:', error);
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    log('error', 'payment_failed', { 
+      error: error.message, 
+      stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+      duration_ms: duration 
+    });
+    
     return new Response(
       JSON.stringify({
         success: false,
-        message: error.message || 'An error occurred',
+        message: error.message || 'Erreur lors du traitement du paiement',
       }),
       {
         status: 500,

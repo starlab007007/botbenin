@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { PaymentStatusTracker } from './PaymentStatusTracker';
 
 interface SBINPaymentModalProps {
   open: boolean;
@@ -29,6 +30,8 @@ export const SBINPaymentModal = ({
     orderId?: string;
   }>({ status: 'idle' });
   const { toast } = useToast();
+  const [showTracker, setShowTracker] = useState(false);
+  const [currentOrderId, setCurrentOrderId] = useState('');
 
   const initiatePayment = async () => {
     if (!phoneNumber.trim()) {
@@ -73,6 +76,8 @@ export const SBINPaymentModal = ({
           message: 'Paiement en cours de traitement. Veuillez confirmer sur votre téléphone.',
           orderId: data.orderId,
         });
+        setCurrentOrderId(data.orderId);
+        setShowTracker(true);
         
         toast({
           title: "Paiement initié",
@@ -177,6 +182,16 @@ export const SBINPaymentModal = ({
           </Button>
         </div>
       </DialogContent>
+
+      {showTracker && currentOrderId && (
+        <PaymentStatusTracker
+          open={showTracker}
+          onOpenChange={setShowTracker}
+          orderId={currentOrderId}
+          operator="SBIN"
+          amount={amountCFA}
+        />
+      )}
     </Dialog>
   );
 };
