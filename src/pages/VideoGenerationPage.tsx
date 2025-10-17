@@ -68,9 +68,9 @@ export const VideoGenerationPage: React.FC = () => {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            <strong>Comment ça marche :</strong> Sélectionnez une vidéo ci-dessous pour générer automatiquement 
-            4 frames (Hero, Demo, Result, CTA) via l'IA Lovable. Chaque frame est optimisée pour le format vertical 
-            9:16 (1080x1920) avec le branding Bot.BJ.
+            <strong>Comment ça marche :</strong> Sélectionnez une vidéo, générez automatiquement les 4 frames via l'IA, 
+            puis cliquez sur "Générer la vidéo" pour assembler automatiquement une vidéo MP4 avec transitions, 
+            textes et musique. Visualisez et téléchargez directement !
           </AlertDescription>
         </Alert>
       </div>
@@ -206,37 +206,37 @@ export const VideoGenerationPage: React.FC = () => {
             <div>
               <h4 className="font-semibold mb-2">1. Génération des frames</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Sélectionnez une vidéo</li>
+                <li>• Sélectionnez une vidéo dans la liste</li>
                 <li>• Cliquez sur "Générer toutes les frames"</li>
-                <li>• Attendez la génération (4 frames)</li>
-                <li>• Téléchargez les frames générées</li>
+                <li>• Attendez la génération IA (4 frames)</li>
+                <li>• Vérifiez les frames générées</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">2. Montage vidéo</h4>
+              <h4 className="font-semibold mb-2">2. Assemblage automatique</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Importez les frames dans CapCut/Canva</li>
-                <li>• Ajoutez transitions et textes</li>
-                <li>• Ajoutez musique de fond</li>
-                <li>• Exportez en 1080x1920, 10s, MP4</li>
+                <li>• Choisissez un template de montage</li>
+                <li>• Sélectionnez la musique de fond</li>
+                <li>• Ajustez le volume si nécessaire</li>
+                <li>• Cliquez sur "Générer la vidéo"</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">3. Spécifications</h4>
+              <h4 className="font-semibold mb-2">3. Visualisation</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Format: 1080x1920 (9:16)</li>
-                <li>• Durée: Exactement 10 secondes</li>
-                <li>• Format: MP4 H.264</li>
-                <li>• FPS: 30fps minimum</li>
+                <li>• La vidéo s'affiche automatiquement</li>
+                <li>• Prévisualisation dans le lecteur intégré</li>
+                <li>• Format: 1080x1920 (9:16), 10s</li>
+                <li>• Transitions et textes inclus</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">4. Publication</h4>
+              <h4 className="font-semibold mb-2">4. Téléchargement & Publication</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Suivez le calendrier de publication</li>
-                <li>• Ajoutez hashtags appropriés</li>
-                <li>• Publiez sur plateformes sélectionnées</li>
-                <li>• Suivez les analytics</li>
+                <li>• Téléchargez la vidéo en MP4</li>
+                <li>• Publiez sur TikTok, Instagram, etc.</li>
+                <li>• Ajoutez les hashtags appropriés</li>
+                <li>• Suivez les analytics de performance</li>
               </ul>
             </div>
           </div>
