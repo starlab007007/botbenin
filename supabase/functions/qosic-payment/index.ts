@@ -163,8 +163,8 @@ serve(async (req) => {
 
     log('info', 'phone_validated', { orderId, phonePrefix: cleanPhone.substring(0, 6) + '***' });
 
-    // Check for test mode - ACTIVÉ PAR DÉFAUT jusqu'à résolution du problème SSL Qosic
-    const testMode = Deno.env.get('QOSIC_TEST_MODE') !== 'false'; // Activé par défaut
+    // Check for test mode - Désactivé par défaut pour les tests en production
+    const testMode = Deno.env.get('QOSIC_TEST_MODE') === 'true';
     
     if (testMode) {
       // ⚠️ TEST MODE: Simulate successful payment response
@@ -227,6 +227,17 @@ serve(async (req) => {
     }
     
     // PRODUCTION MODE: Real API call
+    const qosicBaseUrl = 'https://qosic.net';
+    
+    // Map operator to correct endpoint
+    const endpointMap = {
+      'MTN': `${qosicBaseUrl}/QosicBridge/user/requestpayment`,
+      'MOOV': `${qosicBaseUrl}/QosicBridge/user/requestpaymentmv`,
+      'SBIN': `${qosicBaseUrl}/QosicBridge/sb/v1/requestpayment`
+    };
+    
+    const apiEndpoint = endpointMap[operator];
+    
     const qosicPayload = {
       clientId: clientId,
       amount: amount,
@@ -235,14 +246,14 @@ serve(async (req) => {
       description: planName ? `Paiement ${planName}` : 'Paiement',
     };
 
-    log('info', 'qosic_api_call_start', { orderId, endpoint: 'https://qosic.net/api/payments' });
+    log('info', 'qosic_api_call_start', { orderId, operator, endpoint: apiEndpoint });
 
     // Call Qosic API with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     try {
-      const qosicResponse = await fetch('https://qosic.net/api/payments', {
+      const qosicResponse = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
