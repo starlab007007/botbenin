@@ -12,14 +12,31 @@ serve(async (req) => {
   }
 
   try {
+    // Get auth header - JWT is already verified by Supabase
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
+
     const { videoId, videoTitle, frames, config, userId, templateId, musicId } = await req.json();
 
     console.log('Starting video assembly for:', videoId);
 
-    // Initialiser le client Supabase
+    // Initialiser le client Supabase with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Verify user authentication
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+    
+    if (userError || !user) {
+      console.error('Auth error:', userError);
+      throw new Error('Not authenticated');
+    }
+
+    console.log('User authenticated:', user.id);
 
     // 1. Créer un montage de frames (collage d'images)
     console.log('Creating video from frames...');

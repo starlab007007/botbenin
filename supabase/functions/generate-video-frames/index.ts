@@ -14,24 +14,27 @@ serve(async (req) => {
   try {
     const { videoId, prompt, frameType } = await req.json();
     
-    // Get auth header for Supabase client
+    // Get auth header - JWT is already verified by Supabase
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('No authorization header');
     }
 
-    // Create Supabase client
+    // Create Supabase client with service role for backend operations
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get authenticated user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Extract user from JWT (already verified by Supabase)
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+    
     if (userError || !user) {
+      console.error('Auth error:', userError);
       throw new Error('Not authenticated');
     }
+
+    console.log('User authenticated:', user.id);
 
     if (!prompt) {
       return new Response(
