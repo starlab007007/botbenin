@@ -94,8 +94,11 @@ CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
   };
 
   const handleContinueToVideo = () => {
+    console.log('🎬 Continuer vers création vidéo', { frames, videoId: video.id });
     if (onFramesReady) {
       onFramesReady(frames);
+    } else {
+      console.error('❌ onFramesReady callback not provided');
     }
   };
 

@@ -25,9 +25,15 @@ export const VideoGenerationPage = () => {
     : null;
 
   const handleFramesReady = (frames: any[]) => {
+    console.log('📹 handleFramesReady appelé', { 
+      frames, 
+      selectedVideoId,
+      currentFrames: generatedFrames[selectedVideoId || '']
+    });
     setShowAssembler(true);
     // Scroll to assembler section
     setTimeout(() => {
+      console.log('📍 Scrolling to assembler', { assemblerRef: assemblerRef.current });
       assemblerRef.current?.scrollIntoView({ 
         behavior: 'smooth', 
         block: 'start' 
@@ -186,7 +192,7 @@ export const VideoGenerationPage = () => {
               />
               
               {/* Montage section with ref */}
-              {showAssembler && generatedFrames[selectedVideo.id]?.length === 4 && (
+              {showAssembler && generatedFrames[selectedVideo.id]?.length === 4 ? (
                 <div ref={assemblerRef}>
                   <VideoAssembler
                     video={selectedVideo}
@@ -198,6 +204,13 @@ export const VideoGenerationPage = () => {
                     }}
                   />
                 </div>
+              ) : showAssembler && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    ⏳ Frames en cours de chargement... ({generatedFrames[selectedVideo.id]?.length || 0}/4)
+                  </AlertDescription>
+                </Alert>
               )}
             </>
           ) : (
