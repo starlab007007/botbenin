@@ -1755,6 +1755,54 @@ export type Database = {
           },
         ]
       }
+      generated_videos: {
+        Row: {
+          created_at: string | null
+          duration: number | null
+          format: string | null
+          id: string
+          music_id: string
+          size_bytes: number | null
+          storage_path: string
+          template_id: string
+          thumbnail_url: string | null
+          user_id: string | null
+          video_id: string
+          video_title: string
+          video_url: string
+        }
+        Insert: {
+          created_at?: string | null
+          duration?: number | null
+          format?: string | null
+          id?: string
+          music_id: string
+          size_bytes?: number | null
+          storage_path: string
+          template_id: string
+          thumbnail_url?: string | null
+          user_id?: string | null
+          video_id: string
+          video_title: string
+          video_url: string
+        }
+        Update: {
+          created_at?: string | null
+          duration?: number | null
+          format?: string | null
+          id?: string
+          music_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          template_id?: string
+          thumbnail_url?: string | null
+          user_id?: string | null
+          video_id?: string
+          video_title?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           company: string | null
@@ -4078,6 +4126,39 @@ export type Database = {
           timezone?: string | null
           two_factor_enabled?: boolean | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      video_frames: {
+        Row: {
+          created_at: string | null
+          frame_type: string
+          id: string
+          image_url: string
+          prompt: string
+          storage_path: string
+          user_id: string | null
+          video_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          frame_type: string
+          id?: string
+          image_url: string
+          prompt: string
+          storage_path: string
+          user_id?: string | null
+          video_id: string
+        }
+        Update: {
+          created_at?: string | null
+          frame_type?: string
+          id?: string
+          image_url?: string
+          prompt?: string
+          storage_path?: string
+          user_id?: string | null
+          video_id?: string
         }
         Relationships: []
       }

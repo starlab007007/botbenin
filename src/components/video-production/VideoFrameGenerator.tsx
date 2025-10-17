@@ -1,21 +1,36 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Download, Sparkles, Eye, Loader2, Film, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, Download, Eye } from 'lucide-react';
 import { VideoProduction } from '@/types/video-production';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
-import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 
 interface VideoFrameGeneratorProps {
   video: VideoProduction;
+  onFramesReady?: (frames: any[]) => void;
 }
 
-export const VideoFrameGenerator: React.FC<VideoFrameGeneratorProps> = ({ video }) => {
-  const { isGenerating, generatedFrames, generateAllFramesForVideo } = useVideoGeneration();
+export const VideoFrameGenerator: React.FC<VideoFrameGeneratorProps> = ({ video, onFramesReady }) => {
+  const { 
+    isGenerating, 
+    isLoading,
+    generatedFrames, 
+    generateAllFramesForVideo,
+    loadExistingFrames,
+    hasAllFrames
+  } = useVideoGeneration();
   const [generationProgress, setGenerationProgress] = useState(0);
 
   const frames = generatedFrames[video.id] || [];
+
+  // Load existing frames on mount
+  useEffect(() => {
+    loadExistingFrames(video.id);
+  }, [video.id]);
 
   const buildPrompts = () => {
     const baseStyle = `Modern mobile-first design, vertical 9:16 format 1080x1920, 
@@ -56,9 +71,31 @@ CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
     setGenerationProgress(0);
     const prompts = buildPrompts();
     
-    for (let i = 0; i < prompts.length; i++) {
-      await generateAllFramesForVideo(video.id, [prompts[i]]);
-      setGenerationProgress(((i + 1) / prompts.length) * 100);
+    // Generate only missing frames
+    const missingFrameTypes = ['hero', 'demo', 'result', 'cta'].filter(
+      type => !frames.some(f => f.frameType === type)
+    );
+
+    if (missingFrameTypes.length === 0) {
+      toast.info('Toutes les frames sont déjà générées!');
+      return;
+    }
+
+    const missingPrompts = prompts.filter(p => 
+      missingFrameTypes.includes(p.frameType)
+    );
+    
+    for (let i = 0; i < missingPrompts.length; i++) {
+      await generateAllFramesForVideo(video.id, [missingPrompts[i]]);
+      setGenerationProgress(((i + 1) / missingPrompts.length) * 100);
+    }
+
+    toast.success('✅ Toutes les frames sont générées!');
+  };
+
+  const handleContinueToVideo = () => {
+    if (onFramesReady) {
+      onFramesReady(frames);
     }
   };
 
@@ -74,42 +111,57 @@ CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Génération IA - {video.title}
-            </CardTitle>
-            <CardDescription>
-              Génération automatique des frames avec l'IA
-            </CardDescription>
-          </div>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          Génération IA - {video.title}
+        </CardTitle>
+        <div className="flex gap-2">
           <Button 
             onClick={handleGenerateAll}
-            disabled={isGenerating}
+            disabled={isGenerating || isLoading}
             className="gap-2"
           >
-            {isGenerating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Génération...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4" />
-                Générer toutes les frames
-              </>
-            )}
+            <Sparkles className="h-4 w-4" />
+            {isGenerating ? 'Génération...' : 
+             hasAllFrames(video.id) ? '♻️ Regénérer' : 'Générer toutes les frames'}
           </Button>
+
+          {hasAllFrames(video.id) && (
+            <Button 
+              onClick={handleContinueToVideo}
+              variant="default"
+              className="gap-2 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
+            >
+              <Film className="h-4 w-4" />
+              Continuer → Créer la vidéo
+            </Button>
+          )}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-6">
+        {isLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {frames.length > 0 && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              {hasAllFrames(video.id) 
+                ? '✅ 4/4 frames générées - Prêt pour la vidéo!'
+                : `⏳ ${frames.length}/4 frames générées`}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {isGenerating && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span>Progression</span>
-              <span className="font-semibold">{Math.round(generationProgress)}%</span>
+              <span>Génération en cours...</span>
+              <span>{Math.round(generationProgress)}%</span>
             </div>
             <Progress value={generationProgress} />
           </div>

@@ -1,24 +1,39 @@
-import React, { useState } from 'react';
-import { videoProductionData } from '@/data/videoProductionData';
+import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { VideoFrameGenerator } from '@/components/video-production/VideoFrameGenerator';
 import { VideoAssembler } from '@/components/video-production/VideoAssembler';
-import { useVideoGeneration } from '@/hooks/useVideoGeneration';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { videoProductionData } from '@/data/videoProductionData';
+import { VideoProduction } from '@/types/video-production';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Zap, Info, ArrowLeft } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useNavigate } from 'react-router-dom';
+import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Zap, Info, Library } from 'lucide-react';
+import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 
-export const VideoGenerationPage: React.FC = () => {
+export const VideoGenerationPage = () => {
   const navigate = useNavigate();
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [showAssembler, setShowAssembler] = useState(false);
+  const assemblerRef = useRef<HTMLDivElement>(null);
   const { generatedFrames } = useVideoGeneration();
 
   const selectedVideo = selectedVideoId 
-    ? videoProductionData.find(v => v.id === selectedVideoId)
+    ? videoProductionData.find(v => v.id === selectedVideoId) 
     : null;
+
+  const handleFramesReady = (frames: any[]) => {
+    setShowAssembler(true);
+    // Scroll to assembler section
+    setTimeout(() => {
+      assemblerRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }, 100);
+  };
 
   const videosBySeries = videoProductionData.reduce((acc, video) => {
     if (!acc[video.series]) {
@@ -42,29 +57,27 @@ export const VideoGenerationPage: React.FC = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="space-y-4">
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate('/video-production')}
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Retour à la production
-        </Button>
-
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-lg bg-primary/10">
-            <Sparkles className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">Génération IA des Vidéos</h1>
-            <p className="text-muted-foreground">
-              Génération automatique des frames pour les 30+ vidéos de la campagne Bot.BJ
-            </p>
-          </div>
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Retour
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/video-library')}>
+            <Library className="h-4 w-4 mr-2" />
+            Bibliothèque
+          </Button>
         </div>
+        <div>
+          <h1 className="text-3xl font-bold mb-2">🎬 Génération de Vidéos</h1>
+          <p className="text-muted-foreground">
+            Génération automatique des frames pour les 30+ vidéos de la campagne Bot.BJ
+          </p>
+        </div>
+      </div>
 
-        {/* Info Alert */}
+      {/* Info Alert */}
+      <div>
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
@@ -167,19 +180,24 @@ export const VideoGenerationPage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {selectedVideo ? (
             <>
-              <VideoFrameGenerator video={selectedVideo} />
+              <VideoFrameGenerator 
+                video={selectedVideo}
+                onFramesReady={handleFramesReady}
+              />
               
-              {/* Section de montage vidéo */}
-              {selectedVideo && generatedFrames[selectedVideo.id]?.length === 4 && (
-                <VideoAssembler
-                  video={selectedVideo}
-                  frames={{
-                    hero: generatedFrames[selectedVideo.id][0].imageUrl,
-                    demo: generatedFrames[selectedVideo.id][1].imageUrl,
-                    result: generatedFrames[selectedVideo.id][2].imageUrl,
-                    cta: generatedFrames[selectedVideo.id][3].imageUrl
-                  }}
-                />
+              {/* Montage section with ref */}
+              {showAssembler && generatedFrames[selectedVideo.id]?.length === 4 && (
+                <div ref={assemblerRef}>
+                  <VideoAssembler
+                    video={selectedVideo}
+                    frames={{
+                      hero: generatedFrames[selectedVideo.id].find(f => f.frameType === 'hero')?.imageUrl || '',
+                      demo: generatedFrames[selectedVideo.id].find(f => f.frameType === 'demo')?.imageUrl || '',
+                      result: generatedFrames[selectedVideo.id].find(f => f.frameType === 'result')?.imageUrl || '',
+                      cta: generatedFrames[selectedVideo.id].find(f => f.frameType === 'cta')?.imageUrl || ''
+                    }}
+                  />
+                </div>
               )}
             </>
           ) : (
@@ -187,9 +205,16 @@ export const VideoGenerationPage: React.FC = () => {
               <CardContent className="p-12 text-center">
                 <Zap className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold mb-2">Sélectionnez une vidéo</h3>
-                <p className="text-muted-foreground">
-                  Choisissez une vidéo dans la liste pour commencer la génération
+                <p className="text-muted-foreground mb-4">
+                  Choisissez une vidéo dans la liste pour commencer
                 </p>
+                <Button 
+                  variant="outline"
+                  onClick={() => navigate('/video-library')}
+                >
+                  <Library className="h-4 w-4 mr-2" />
+                  Voir ma bibliothèque
+                </Button>
               </CardContent>
             </Card>
           )}

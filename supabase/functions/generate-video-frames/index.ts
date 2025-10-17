@@ -1,18 +1,38 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
+  if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { videoId, prompt, frameType } = await req.json();
     
+    // Get auth header for Supabase client
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
+
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      throw new Error('Not authenticated');
+    }
+
     if (!prompt) {
       return new Response(
         JSON.stringify({ error: "Prompt is required" }),
@@ -39,12 +59,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
+        messages: [{ role: "user", content: prompt }],
         modalities: ["image", "text"]
       }),
     });
@@ -73,9 +88,9 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    const base64Image = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
-    if (!imageUrl) {
+    if (!base64Image) {
       console.error("No image URL in response:", JSON.stringify(data));
       return new Response(
         JSON.stringify({ error: "No image generated" }),
@@ -83,14 +98,65 @@ serve(async (req) => {
       );
     }
 
-    console.log("Image generated successfully");
+    console.log('Image generated, uploading to storage...');
+
+    // Convert base64 to blob
+    const base64Data = base64Image.split(',')[1];
+    const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+    // Upload to Supabase Storage
+    const fileName = `${user.id}/${videoId}/${frameType}_${Date.now()}.png`;
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('video-assets')
+      .upload(fileName, binaryData, {
+        contentType: 'image/png',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw uploadError;
+    }
+
+    console.log('Image uploaded, getting public URL...');
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('video-assets')
+      .getPublicUrl(fileName);
+
+    console.log('Public URL obtained, saving to database...');
+
+    // Save to database
+    const { data: frameData, error: dbError } = await supabase
+      .from('video_frames')
+      .upsert({
+        video_id: videoId,
+        frame_type: frameType,
+        image_url: publicUrl,
+        storage_path: fileName,
+        prompt: prompt,
+        user_id: user.id
+      }, {
+        onConflict: 'video_id,frame_type,user_id'
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Database error:', dbError);
+      throw dbError;
+    }
+
+    console.log('Frame saved successfully:', frameData.id);
 
     return new Response(
       JSON.stringify({
-        imageUrl,
+        imageUrl: publicUrl,
         videoId,
         frameType,
-        prompt
+        prompt,
+        storagePath: fileName
       }),
       { 
         status: 200,
@@ -98,10 +164,10 @@ serve(async (req) => {
       }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in generate-video-frames:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: error?.message || "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

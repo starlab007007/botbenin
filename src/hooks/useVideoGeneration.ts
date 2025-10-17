@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -17,9 +17,60 @@ interface GeneratedFrame {
 
 export const useVideoGeneration = () => {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [generatedFrames, setGeneratedFrames] = useState<Record<string, GeneratedFrame[]>>({});
 
+  // Load existing frames from database
+  const loadExistingFrames = async (videoId: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('video_frames')
+        .select('*')
+        .eq('video_id', videoId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const frames = data.map(frame => ({
+          imageUrl: frame.image_url,
+          videoId: frame.video_id,
+          frameType: frame.frame_type,
+          prompt: frame.prompt
+        }));
+
+        setGeneratedFrames(prev => ({
+          ...prev,
+          [videoId]: frames
+        }));
+
+        return frames;
+      }
+    } catch (error) {
+      console.error('Error loading frames:', error);
+    } finally {
+      setIsLoading(false);
+    }
+    return [];
+  };
+
+  // Check if all 4 frames exist for a video
+  const hasAllFrames = (videoId: string) => {
+    const frames = generatedFrames[videoId] || [];
+    return frames.length === 4 && 
+      ['hero', 'demo', 'result', 'cta'].every(type => 
+        frames.some(f => f.frameType === type)
+      );
+  };
+
   const generateFrame = async ({ videoId, prompt, frameType }: GenerateFrameParams): Promise<GeneratedFrame | null> => {
+    // Check if frame already exists
+    const existing = generatedFrames[videoId]?.find(f => f.frameType === frameType);
+    if (existing) {
+      toast.info('Frame déjà générée, utilisation de la version existante');
+      return existing;
+    }
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-video-frames', {
@@ -86,8 +137,11 @@ export const useVideoGeneration = () => {
 
   return {
     isGenerating,
+    isLoading,
     generatedFrames,
     generateFrame,
-    generateAllFramesForVideo
+    generateAllFramesForVideo,
+    loadExistingFrames,
+    hasAllFrames
   };
 };

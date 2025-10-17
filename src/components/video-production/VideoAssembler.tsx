@@ -10,6 +10,8 @@ import { VideoProduction } from '@/types/video-production';
 import { getTemplatesList } from '@/data/videoTemplates';
 import { musicLibrary } from '@/data/musicLibrary';
 import { africanContext } from '@/data/africanContextData';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface VideoAssemblerProps {
   video: VideoProduction;
@@ -50,6 +52,52 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
     { key: 'adding_audio', label: 'Musique' },
     { key: 'uploading', label: 'Finalisation' },
   ];
+
+  const saveVideoToDatabase = async (videoUrl: string, videoBlob: Blob) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const file = new File([videoBlob], `${video.id}.mp4`, { type: 'video/mp4' });
+      const fileName = `${user.id}/videos/${video.id}_${Date.now()}.mp4`;
+
+      // Upload to Storage
+      const { error: uploadError } = await supabase.storage
+        .from('video-assets')
+        .upload(fileName, file, {
+          contentType: 'video/mp4',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('video-assets')
+        .getPublicUrl(fileName);
+
+      // Save to database
+      const { error: dbError } = await supabase
+        .from('generated_videos')
+        .insert({
+          video_id: video.id,
+          video_title: video.title,
+          video_url: publicUrl,
+          storage_path: fileName,
+          size_bytes: videoBlob.size,
+          template_id: selectedTemplate,
+          music_id: selectedMusic,
+          user_id: user.id
+        });
+
+      if (dbError) throw dbError;
+
+      toast.success('✅ Vidéo sauvegardée dans la bibliothèque!');
+    } catch (error) {
+      console.error('Error saving video:', error);
+      toast.error('Erreur lors de la sauvegarde');
+    }
+  };
 
   const handleAssemble = async () => {
     const template = templates.find(t => t.id === selectedTemplate) || templates[0];
@@ -101,6 +149,11 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
 
     if (videoUrl) {
       setGeneratedVideoUrl(videoUrl);
+      
+      // Save to database and storage
+      const response = await fetch(videoUrl);
+      const blob = await response.blob();
+      await saveVideoToDatabase(videoUrl, blob);
     }
   };
 
