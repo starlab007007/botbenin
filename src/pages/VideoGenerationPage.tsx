@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { videoProductionData } from '@/data/videoProductionData';
 import { VideoFrameGenerator } from '@/components/video-production/VideoFrameGenerator';
+import { VideoAssembler } from '@/components/video-production/VideoAssembler';
+import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 export const VideoGenerationPage: React.FC = () => {
   const navigate = useNavigate();
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const { generatedFrames } = useVideoGeneration();
 
   const selectedVideo = selectedVideoId 
     ? videoProductionData.find(v => v.id === selectedVideoId)
@@ -161,9 +164,24 @@ export const VideoGenerationPage: React.FC = () => {
         </Card>
 
         {/* Generation Area */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           {selectedVideo ? (
-            <VideoFrameGenerator video={selectedVideo} />
+            <>
+              <VideoFrameGenerator video={selectedVideo} />
+              
+              {/* Section de montage vidéo */}
+              {selectedVideo && generatedFrames[selectedVideo.id]?.length === 4 && (
+                <VideoAssembler
+                  video={selectedVideo}
+                  frames={{
+                    hero: generatedFrames[selectedVideo.id][0].imageUrl,
+                    demo: generatedFrames[selectedVideo.id][1].imageUrl,
+                    result: generatedFrames[selectedVideo.id][2].imageUrl,
+                    cta: generatedFrames[selectedVideo.id][3].imageUrl
+                  }}
+                />
+              )}
+            </>
           ) : (
             <Card>
               <CardContent className="p-12 text-center">

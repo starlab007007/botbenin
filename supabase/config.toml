@@ -135,3 +135,6 @@ verify_jwt = false
 
 [functions.generate-video-frames]
 verify_jwt = false
+
+[functions.assemble-video]
+verify_jwt = false

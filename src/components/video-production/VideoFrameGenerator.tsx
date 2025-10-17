@@ -18,7 +18,19 @@ export const VideoFrameGenerator: React.FC<VideoFrameGeneratorProps> = ({ video 
   const frames = generatedFrames[video.id] || [];
 
   const buildPrompts = () => {
-    const baseStyle = "Modern mobile-first design, vertical 9:16 format 1080x1920, vibrant colors with Bot.BJ branding (green #10B981, blue #3B82F6, orange #F59E0B), clean UI, professional quality, high resolution";
+    const baseStyle = `Modern mobile-first design, vertical 9:16 format 1080x1920, 
+vibrant colors with Bot.BJ branding (green #10B981, blue #3B82F6, orange #F59E0B), 
+clean UI, professional quality, high resolution.
+
+CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
+- Personnages: Africains diversifiés, entrepreneurs béninois
+- Décor: Environnement urbain béninois (Cotonou, Porto-Novo, marchés animés)
+- Commerce: Maquis, boutiques, restaurants locaux
+- Couleurs: Vives et chaleureuses, reflets de l'Afrique
+- Textes: UNIQUEMENT en français, devise en CFA
+- Éviter: Contextes européens/américains, personnes non-africaines
+- Style: Moderne mais authentique, professionnel mais chaleureux
+- Éléments: Smartphones, commerce moderne africain, entrepreneurs locaux`;
     
     return [
       {
