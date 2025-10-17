@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, PlayCircle } from "lucide-react";
 import { PaymentStatusTracker } from "@/components/payments/PaymentStatusTracker";
+import { PaymentDiagnostic } from "@/components/payments/PaymentDiagnostic";
 
 export const PaymentTestPage = () => {
   const { toast } = useToast();
@@ -116,7 +118,14 @@ export const PaymentTestPage = () => {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <Card>
+      <Tabs defaultValue="test" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="test">Test de Paiement</TabsTrigger>
+          <TabsTrigger value="diagnostic">Diagnostic</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="test">
+          <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <PlayCircle className="w-6 h-6" />
@@ -244,6 +253,12 @@ export const PaymentTestPage = () => {
           amount={parseInt(amount)}
         />
       )}
+        </TabsContent>
+
+        <TabsContent value="diagnostic">
+          <PaymentDiagnostic />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
