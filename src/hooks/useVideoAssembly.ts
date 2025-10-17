@@ -15,19 +15,54 @@ interface AssembleVideoParams {
   config: AssemblyConfig;
 }
 
+export type AssemblyStep = 
+  | 'preparing'
+  | 'processing_frames'
+  | 'adding_transitions'
+  | 'adding_overlays'
+  | 'adding_audio'
+  | 'finalizing'
+  | 'uploading'
+  | 'completed'
+  | 'error';
+
+interface AssemblyStatus {
+  step: AssemblyStep;
+  progress: number;
+  message: string;
+}
+
 export const useVideoAssembly = () => {
   const [isAssembling, setIsAssembling] = useState(false);
-  const [assemblyProgress, setAssemblyProgress] = useState(0);
+  const [assemblyStatus, setAssemblyStatus] = useState<AssemblyStatus>({
+    step: 'preparing',
+    progress: 0,
+    message: ''
+  });
   const [assembledVideos, setAssembledVideos] = useState<Record<string, AssembledVideo>>({});
+
+  const updateStatus = (step: AssemblyStep, progress: number, message: string) => {
+    setAssemblyStatus({ step, progress, message });
+  };
 
   const assembleVideo = async (params: AssembleVideoParams): Promise<AssembledVideo | null> => {
     setIsAssembling(true);
-    setAssemblyProgress(0);
+    updateStatus('preparing', 0, 'Préparation du montage...');
 
     try {
       toast.info('Démarrage du montage vidéo...');
-      setAssemblyProgress(10);
+      
+      updateStatus('processing_frames', 10, 'Traitement des frames...');
+      await new Promise(resolve => setTimeout(resolve, 500));
 
+      updateStatus('adding_transitions', 30, 'Ajout des transitions...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      updateStatus('adding_overlays', 50, 'Ajout des textes et logos...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      updateStatus('adding_audio', 70, 'Intégration de la musique...');
+      
       // Appel à l'edge function pour assembler la vidéo
       const { data, error } = await supabase.functions.invoke('assemble-video', {
         body: {
@@ -40,6 +75,8 @@ export const useVideoAssembly = () => {
 
       if (error) {
         console.error('Error assembling video:', error);
+        updateStatus('error', 0, 'Erreur lors du montage');
+        
         if (error.message?.includes('429') || error.message?.includes('Rate limit')) {
           toast.error('Limite de taux atteinte. Réessayez dans quelques instants.');
         } else if (error.message?.includes('credits')) {
@@ -50,9 +87,11 @@ export const useVideoAssembly = () => {
         return null;
       }
 
-      setAssemblyProgress(90);
+      updateStatus('uploading', 90, 'Finalisation et upload...');
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       if (!data?.videoUrl) {
+        updateStatus('error', 0, 'Aucune vidéo générée');
         toast.error('Aucune vidéo générée');
         return null;
       }
@@ -72,18 +111,18 @@ export const useVideoAssembly = () => {
         [params.videoId]: assembledVideo
       }));
 
-      setAssemblyProgress(100);
+      updateStatus('completed', 100, 'Vidéo assemblée avec succès!');
       toast.success('Vidéo assemblée avec succès! 🎬');
       
       return assembledVideo;
 
     } catch (error) {
       console.error('Error in video assembly:', error);
+      updateStatus('error', 0, 'Erreur lors du montage vidéo');
       toast.error('Erreur lors du montage vidéo');
       return null;
     } finally {
       setIsAssembling(false);
-      setTimeout(() => setAssemblyProgress(0), 2000);
     }
   };
 
@@ -108,7 +147,7 @@ export const useVideoAssembly = () => {
 
   return {
     isAssembling,
-    assemblyProgress,
+    assemblyStatus,
     assembledVideos,
     assembleVideo,
     downloadVideo
