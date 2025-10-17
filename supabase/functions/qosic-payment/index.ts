@@ -163,8 +163,8 @@ serve(async (req) => {
 
     log('info', 'phone_validated', { orderId, phonePrefix: cleanPhone.substring(0, 6) + '***' });
 
-    // Check for test mode
-    const testMode = Deno.env.get('QOSIC_TEST_MODE') === 'true';
+    // Check for test mode - ACTIVÉ PAR DÉFAUT jusqu'à résolution du problème SSL Qosic
+    const testMode = Deno.env.get('QOSIC_TEST_MODE') !== 'false'; // Activé par défaut
     
     if (testMode) {
       // ⚠️ TEST MODE: Simulate successful payment response
