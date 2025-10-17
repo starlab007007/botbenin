@@ -163,7 +163,70 @@ serve(async (req) => {
 
     log('info', 'phone_validated', { orderId, phonePrefix: cleanPhone.substring(0, 6) + '***' });
 
-    // Prepare Qosic API request
+    // Check for test mode
+    const testMode = Deno.env.get('QOSIC_TEST_MODE') === 'true';
+    
+    if (testMode) {
+      // ⚠️ TEST MODE: Simulate successful payment response
+      log('warn', 'test_mode_active', { 
+        orderId, 
+        message: '⚠️ MODE TEST ACTIVÉ - Simulation de paiement réussi',
+        operator,
+        amount,
+        note: 'SSL certificate error workaround'
+      });
+      
+      const qosicData = {
+        success: true,
+        status: 'completed',
+        transactionId: `TEST_${orderId}`,
+        message: 'Paiement simulé avec succès (MODE TEST)'
+      };
+      
+      // Update transaction status to completed in test mode
+      const { error: updateError } = await supabaseClient
+        .from('payment_transactions')
+        .update({
+          status: 'completed',
+          qosic_transaction_id: qosicData.transactionId,
+          qosic_response: qosicData,
+          metadata: {
+            ...transaction.metadata,
+            test_mode: true,
+            completed_at: new Date().toISOString(),
+            simulated_response: qosicData,
+            note: 'Simulated payment due to Qosic SSL certificate issue'
+          }
+        })
+        .eq('id', transaction.id);
+
+      if (updateError) {
+        log('error', 'db_update_failed_test_mode', { orderId, error: updateError.message });
+        throw new Error(`Erreur mise à jour: ${updateError.message}`);
+      }
+      
+      log('info', 'test_payment_completed', { orderId, transactionId: qosicData.transactionId });
+      
+      const duration = Date.now() - startTime;
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          orderId: orderId,
+          transactionId: transaction.id,
+          qosicTransactionId: qosicData.transactionId,
+          status: 'completed',
+          message: qosicData.message,
+          testMode: true
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    
+    // PRODUCTION MODE: Real API call
     const qosicPayload = {
       clientId: clientId,
       amount: amount,
@@ -259,6 +322,41 @@ serve(async (req) => {
 
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
+      
+      // Handle SSL certificate errors specifically
+      if (String(fetchError.message).includes('invalid peer certificate') || 
+          String(fetchError.message).includes('Expired')) {
+        log('error', 'ssl_certificate_error', { 
+          orderId,
+          message: 'Certificat SSL Qosic expiré',
+          error: fetchError.message,
+          recommendation: 'Activer QOSIC_TEST_MODE pour contourner temporairement'
+        });
+        
+        // Update transaction with clear error message
+        await supabaseClient
+          .from('payment_transactions')
+          .update({
+            status: 'failed',
+            metadata: {
+              ...transaction.metadata,
+              error: 'Service temporairement indisponible (certificat SSL expiré)',
+              error_type: 'ssl_certificate_expired',
+              failed_at: new Date().toISOString()
+            }
+          })
+          .eq('id', transaction.id);
+          
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: 'Service de paiement temporairement indisponible. Veuillez réessayer plus tard.',
+            technical_details: 'SSL certificate expired on Qosic server',
+            orderId
+          }),
+          { status: 503, headers: corsHeaders }
+        );
+      }
       
       if (fetchError.name === 'AbortError') {
         log('error', 'qosic_api_timeout', { orderId, timeout: '30s' });

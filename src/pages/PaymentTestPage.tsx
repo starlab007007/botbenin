@@ -67,7 +67,11 @@ export const PaymentTestPage = () => {
       addLog(`📊 Réponse: ${JSON.stringify(data, null, 2)}`);
 
       if (data.success) {
-        addLog(`✅ Paiement initié - Order ID: ${data.orderId}`);
+        if (data.testMode) {
+          addLog(`⚠️ MODE TEST: Paiement simulé - Order ID: ${data.orderId}`);
+        } else {
+          addLog(`✅ Paiement initié - Order ID: ${data.orderId}`);
+        }
         addLog('🔄 En attente de confirmation...');
         
         setTestResult(data);
@@ -121,6 +125,20 @@ export const PaymentTestPage = () => {
           <CardDescription>
             Interface de test complète pour valider le système de paiement
           </CardDescription>
+          
+          {/* Test Mode Warning */}
+          <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+              <span className="text-lg">⚠️</span>
+              <div className="text-sm">
+                <strong>MODE TEST ACTIVÉ</strong>
+                <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
+                  Les paiements sont simulés en raison d'un problème temporaire avec l'API Qosic (certificat SSL expiré).
+                  Les transactions seront marquées comme "completed" immédiatement.
+                </p>
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Test Configuration */}
@@ -195,13 +213,18 @@ export const PaymentTestPage = () => {
 
           {/* Test Result */}
           {testResult && (
-            <Card className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
+            <Card className={`border-2 ${testResult.testMode ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950' : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950'}`}>
               <CardHeader>
-                <CardTitle className="text-green-900 dark:text-green-100">
-                  ✅ Test Réussi
+                <CardTitle className={testResult.testMode ? 'text-amber-900 dark:text-amber-100' : 'text-green-900 dark:text-green-100'}>
+                  {testResult.testMode ? '⚠️ Test Réussi (MODE TEST)' : '✅ Test Réussi'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {testResult.testMode && (
+                  <div className="mb-3 text-sm text-amber-700 dark:text-amber-300">
+                    Ce paiement a été simulé et n'a pas été réellement traité par Qosic.
+                  </div>
+                )}
                 <pre className="text-xs overflow-x-auto">
                   {JSON.stringify(testResult, null, 2)}
                 </pre>
