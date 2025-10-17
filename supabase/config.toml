@@ -67,6 +67,12 @@ verify_jwt = false
 [functions.mtn-momo-initiate]
 verify_jwt = false
 
+[functions.qosic-payment]
+verify_jwt = true
+
+[functions.qosic-webhook]
+verify_jwt = false
+
 [functions.waha-webhook]
 verify_jwt = false
 

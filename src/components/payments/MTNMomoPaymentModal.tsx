@@ -28,23 +28,33 @@ export const MTNMomoPaymentModal: React.FC<MTNMomoPaymentModalProps> = ({ open, 
     setIsLoading(true);
     setResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke('mtn-momo-initiate', {
+      const { data, error } = await supabase.functions.invoke('qosic-payment', {
         body: {
           amount: amountCFA,
-          currency: 'XOF',
           phoneNumber: phone,
-          customerName: fullName,
+          fullName: fullName || undefined,
           planName,
+          operator: 'MTN',
         },
       });
       if (error) throw error;
-      setResult(data as any);
-      toast({
-        title: data?.demo ? 'Paiement de démonstration' : 'Paiement initié',
-        description: data?.demo ? "Mode démo actif. Aucune transaction réelle n'a été effectuée." : 'Veuillez confirmer sur votre téléphone.',
-      });
+      
+      if (data.success) {
+        setResult({ 
+          status: 'processing', 
+          message: data.message,
+          orderId: data.orderId 
+        } as any);
+        toast({
+          title: 'Paiement initié',
+          description: 'Veuillez confirmer le paiement sur votre téléphone MTN Mobile Money',
+        });
+      } else {
+        throw new Error(data.message || 'Échec de l\'initiation du paiement');
+      }
     } catch (e: any) {
       console.error('MTN MoMo error:', e);
+      setResult({ status: 'failed', message: e.message } as any);
       toast({ title: 'Erreur paiement', description: e.message || 'Impossible de lancer le paiement', variant: 'destructive' });
     } finally {
       setIsLoading(false);
