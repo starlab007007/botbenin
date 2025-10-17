@@ -33,8 +33,12 @@ export const useVideoRendering = () => {
   const [isFFmpegLoaded, setIsFFmpegLoaded] = useState(false);
 
   const loadFFmpeg = async () => {
-    if (ffmpegRef.current) return;
+    if (ffmpegRef.current) {
+      console.log('FFmpeg already loaded');
+      return;
+    }
 
+    console.log('🎬 Starting FFmpeg initialization...');
     const ffmpeg = new FFmpeg();
     
     ffmpeg.on('log', ({ message }) => {
@@ -42,6 +46,7 @@ export const useVideoRendering = () => {
     });
 
     ffmpeg.on('progress', ({ progress }) => {
+      console.log('[FFmpeg Progress]:', progress);
       setRenderStatus(prev => ({
         ...prev,
         progress: Math.round(prev.progress + (progress * 10))
@@ -50,16 +55,24 @@ export const useVideoRendering = () => {
 
     try {
       const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      console.log('📦 Loading FFmpeg core from:', baseURL);
+      
+      const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+      const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+      
+      console.log('✅ Core URLs loaded, initializing FFmpeg...');
+      
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        coreURL,
+        wasmURL,
       });
       
       ffmpegRef.current = ffmpeg;
       setIsFFmpegLoaded(true);
-      console.log('FFmpeg loaded successfully');
+      console.log('✅ FFmpeg loaded successfully!');
+      toast.success('Moteur vidéo prêt! 🎬');
     } catch (error) {
-      console.error('Failed to load FFmpeg:', error);
+      console.error('❌ Failed to load FFmpeg:', error);
       toast.error('Erreur lors du chargement du moteur vidéo');
       throw error;
     }

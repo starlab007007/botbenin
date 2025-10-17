@@ -34,7 +34,11 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
 
   // Preload FFmpeg on component mount
   useEffect(() => {
-    loadFFmpeg();
+    console.log('VideoAssembler mounted, loading FFmpeg...');
+    console.log('Frames received:', frames);
+    loadFFmpeg().catch(err => {
+      console.error('Error loading FFmpeg in VideoAssembler:', err);
+    });
   }, []);
 
   const getStepIcon = (step: string) => {
@@ -100,8 +104,24 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
   };
 
   const handleAssemble = async () => {
+    console.log('🎬 Starting video assembly...');
+    console.log('Frames to assemble:', frames);
+    
+    // Validate frames
+    const frameUrls = Object.values(frames);
+    const invalidFrames = frameUrls.filter(url => !url || url === '');
+    
+    if (invalidFrames.length > 0) {
+      toast.error('❌ Certaines frames sont manquantes ou invalides');
+      console.error('Invalid frames detected:', frames);
+      return;
+    }
+    
     const template = templates.find(t => t.id === selectedTemplate) || templates[0];
     const music = musicLibrary.find(m => m.id === selectedMusic) || musicLibrary[0];
+
+    console.log('Template:', template);
+    console.log('Music:', music);
 
     const videoUrl = await renderVideo({
       frames,
@@ -148,12 +168,20 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
     });
 
     if (videoUrl) {
+      console.log('✅ Video generated successfully:', videoUrl);
       setGeneratedVideoUrl(videoUrl);
       
       // Save to database and storage
-      const response = await fetch(videoUrl);
-      const blob = await response.blob();
-      await saveVideoToDatabase(videoUrl, blob);
+      try {
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        await saveVideoToDatabase(videoUrl, blob);
+      } catch (error) {
+        console.error('Error saving video:', error);
+        toast.error('Vidéo générée mais erreur de sauvegarde');
+      }
+    } else {
+      console.error('❌ Video generation failed');
     }
   };
 
@@ -243,15 +271,22 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
 
       {/* Bouton d'assemblage */}
       {!generatedVideoUrl && (
-        <Button
-          onClick={handleAssemble}
-          disabled={isRendering || !isFFmpegLoaded}
-          className="w-full"
-          size="lg"
-        >
-          <Film className="w-4 h-4 mr-2" />
-          {!isFFmpegLoaded ? 'Chargement du moteur...' : isRendering ? 'Génération en cours...' : 'Générer la vidéo'}
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={handleAssemble}
+            disabled={isRendering || !isFFmpegLoaded}
+            className="w-full"
+            size="lg"
+          >
+            <Film className="w-4 h-4 mr-2" />
+            {!isFFmpegLoaded ? 'Chargement du moteur...' : isRendering ? 'Génération en cours...' : 'Générer la vidéo'}
+          </Button>
+          {!isFFmpegLoaded && (
+            <p className="text-xs text-muted-foreground text-center">
+              Le moteur vidéo se charge en arrière-plan (peut prendre 10-30 secondes)...
+            </p>
+          )}
+        </div>
       )}
 
       {/* Progress bar avec étapes détaillées */}
