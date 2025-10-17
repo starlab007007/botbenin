@@ -23,21 +23,17 @@ serve(async (req) => {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
     );
 
-    // Get authenticated user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
-
-    if (userError || !user) {
-      throw new Error('Unauthorized');
+    // Try to get authenticated user, but don't require it
+    let userId: string | null = null;
+    const authHeader = req.headers.get('Authorization');
+    
+    if (authHeader) {
+      const {
+        data: { user },
+      } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
+      userId = user?.id || null;
     }
 
     const { amount, phoneNumber, fullName, planName, operator }: PaymentRequest = await req.json();
@@ -87,23 +83,30 @@ serve(async (req) => {
     console.log(`Initiating ${operator} payment for order ${orderId}`);
 
     // Create transaction record in database
+    const transactionData: any = {
+      order_id: orderId,
+      amount,
+      currency: 'XOF',
+      phone_number: phoneNumber,
+      full_name: fullName,
+      plan_name: planName,
+      status: 'pending',
+      payment_method: operator.toLowerCase() === 'mtn' ? 'mtn_momo' : operator.toLowerCase() === 'moov' ? 'moov_money' : 'sbin',
+      operator,
+      metadata: {
+        initiated_at: new Date().toISOString(),
+        is_guest: !userId,
+      },
+    };
+
+    // Add user_id only if user is authenticated
+    if (userId) {
+      transactionData.user_id = userId;
+    }
+
     const { data: transaction, error: dbError } = await supabaseClient
       .from('payment_transactions')
-      .insert({
-        user_id: user.id,
-        order_id: orderId,
-        amount,
-        currency: 'XOF',
-        phone_number: phoneNumber,
-        full_name: fullName,
-        plan_name: planName,
-        status: 'pending',
-        payment_method: operator.toLowerCase() === 'mtn' ? 'mtn_momo' : operator.toLowerCase() === 'moov' ? 'moov_money' : 'sbin',
-        operator,
-        metadata: {
-          initiated_at: new Date().toISOString(),
-        },
-      })
+      .insert(transactionData)
       .select()
       .single();
 

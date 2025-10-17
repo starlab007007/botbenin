@@ -4,7 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, MessageCircle, PhoneCall, CreditCard } from 'lucide-react';
 
+import { PaymentMethodSelector } from '@/components/payments/PaymentMethodSelector';
 import { MTNMomoPaymentModal } from '@/components/payments/MTNMomoPaymentModal';
+import { MoovMoneyPaymentModal } from '@/components/payments/MoovMoneyPaymentModal';
+import { SBINPaymentModal } from '@/components/payments/SBINPaymentModal';
 
 interface Plan {
   id: string;
@@ -167,6 +170,8 @@ export const PricingSection: React.FC = () => {
   );
 
   const [paymentPlan, setPaymentPlan] = useState<null | { name: string; amount: number }>(null);
+  const [showMethodSelector, setShowMethodSelector] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<'MTN' | 'MOOV' | 'SBIN' | null>(null);
 
   const handleWhatsApp = (plan: Plan) => {
     const price = plan.priceCFA === 0 ? 'Gratuit' : `${plan.priceCFA.toLocaleString()} CFA/mois`;
@@ -175,6 +180,21 @@ export const PricingSection: React.FC = () => {
     );
     // Ouvre WhatsApp avec le numéro Bénin dédié
     window.open(`https://wa.me/22947333289?text=${text}`, '_blank');
+  };
+
+  const handleSubscribe = (plan: Plan) => {
+    setPaymentPlan({ name: plan.name, amount: plan.priceCFA });
+    setShowMethodSelector(true);
+  };
+
+  const handleMethodSelect = (method: 'MTN' | 'MOOV' | 'SBIN') => {
+    setSelectedMethod(method);
+    setShowMethodSelector(false);
+  };
+
+  const closePaymentModal = () => {
+    setSelectedMethod(null);
+    setPaymentPlan(null);
   };
 
   return (
@@ -230,7 +250,7 @@ export const PricingSection: React.FC = () => {
                   <Button
                     size="sm"
                     className="w-full"
-                    onClick={() => setPaymentPlan({ name: plan.name, amount: plan.priceCFA })}
+                    onClick={() => handleSubscribe(plan)}
                     disabled={plan.priceCFA === 0}
                   >
                     <CreditCard className="mr-2 h-4 w-4" /> S'abonner
@@ -250,11 +270,33 @@ export const PricingSection: React.FC = () => {
         </div>
       </div>
 
-      <MTNMomoPaymentModal
-        open={!!paymentPlan}
-        onOpenChange={(v) => !v && setPaymentPlan(null)}
+      <PaymentMethodSelector
+        open={showMethodSelector}
+        onOpenChange={setShowMethodSelector}
+        onSelectMethod={handleMethodSelect}
         amountCFA={paymentPlan?.amount || 0}
-        planName={paymentPlan?.name || ''}
+        planName={paymentPlan?.name}
+      />
+
+      <MTNMomoPaymentModal
+        open={selectedMethod === 'MTN' && paymentPlan !== null}
+        onOpenChange={(open) => !open && closePaymentModal()}
+        amountCFA={paymentPlan?.amount || 0}
+        planName={paymentPlan?.name}
+      />
+
+      <MoovMoneyPaymentModal
+        open={selectedMethod === 'MOOV' && paymentPlan !== null}
+        onOpenChange={(open) => !open && closePaymentModal()}
+        amountCFA={paymentPlan?.amount || 0}
+        planName={paymentPlan?.name}
+      />
+
+      <SBINPaymentModal
+        open={selectedMethod === 'SBIN' && paymentPlan !== null}
+        onOpenChange={(open) => !open && closePaymentModal()}
+        amountCFA={paymentPlan?.amount || 0}
+        planName={paymentPlan?.name}
       />
     </section>
   );
