@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { Play, Download, Share2, Film } from 'lucide-react';
-import { useVideoAssembly } from '@/hooks/useVideoAssembly';
+import { useVideoRendering } from '@/hooks/useVideoRendering';
 import { VideoProduction } from '@/types/video-production';
 import { getTemplatesList } from '@/data/videoTemplates';
 import { musicLibrary } from '@/data/musicLibrary';
@@ -22,18 +22,23 @@ interface VideoAssemblerProps {
 }
 
 export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
-  const { isAssembling, assemblyStatus, assembledVideos, assembleVideo, downloadVideo } = useVideoAssembly();
+  const { isRendering, renderStatus, isFFmpegLoaded, renderVideo, loadFFmpeg } = useVideoRendering();
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
   const [selectedMusic, setSelectedMusic] = useState(musicLibrary[0].id);
   const [musicVolume, setMusicVolume] = useState([30]);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
 
   const templates = getTemplatesList();
-  const assembledVideo = assembledVideos[video.id];
+
+  // Preload FFmpeg on component mount
+  useEffect(() => {
+    loadFFmpeg();
+  }, []);
 
   const getStepIcon = (step: string) => {
     if (step === 'completed') return '✓';
     if (step === 'error') return '✗';
-    if (assemblyStatus.step === step) return '⏳';
+    if (renderStatus.step === step) return '⏳';
     return '○';
   };
 
@@ -50,9 +55,7 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
     const template = templates.find(t => t.id === selectedTemplate) || templates[0];
     const music = musicLibrary.find(m => m.id === selectedMusic) || musicLibrary[0];
 
-    await assembleVideo({
-      videoId: video.id,
-      videoTitle: video.title,
+    const videoUrl = await renderVideo({
       frames,
       config: {
         frameDurations: template.frameDurations,
@@ -92,8 +95,24 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
             animation: 'fadeIn'
           }
         }
-      }
+      },
+      videoTitle: video.title
     });
+
+    if (videoUrl) {
+      setGeneratedVideoUrl(videoUrl);
+    }
+  };
+
+  const handleDownload = () => {
+    if (!generatedVideoUrl) return;
+    
+    const a = document.createElement('a');
+    a.href = generatedVideoUrl;
+    a.download = `${video.title}.mp4`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   return (
@@ -170,27 +189,27 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
       </div>
 
       {/* Bouton d'assemblage */}
-      {!assembledVideo && (
+      {!generatedVideoUrl && (
         <Button
           onClick={handleAssemble}
-          disabled={isAssembling}
+          disabled={isRendering || !isFFmpegLoaded}
           className="w-full"
           size="lg"
         >
           <Film className="w-4 h-4 mr-2" />
-          {isAssembling ? 'Montage en cours...' : 'Assembler la vidéo'}
+          {!isFFmpegLoaded ? 'Chargement du moteur...' : isRendering ? 'Génération en cours...' : 'Générer la vidéo'}
         </Button>
       )}
 
       {/* Progress bar avec étapes détaillées */}
-      {isAssembling && (
+      {isRendering && (
         <Card className="p-6 space-y-4 bg-muted/50">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm font-medium">
-              <span>{assemblyStatus.message}</span>
-              <span>{assemblyStatus.progress}%</span>
+              <span>{renderStatus.message}</span>
+              <span>{renderStatus.progress}%</span>
             </div>
-            <Progress value={assemblyStatus.progress} className="h-2" />
+            <Progress value={renderStatus.progress} className="h-2" />
           </div>
           
           <div className="grid grid-cols-2 gap-3">
@@ -198,7 +217,7 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
               <div
                 key={step.key}
                 className={`flex items-center gap-2 text-sm ${
-                  assemblyStatus.step === step.key
+                  renderStatus.step === step.key
                     ? 'text-primary font-medium'
                     : 'text-muted-foreground'
                 }`}
@@ -211,8 +230,8 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
         </Card>
       )}
 
-      {/* Vidéo assemblée */}
-      {assembledVideo && (
+      {/* Vidéo générée */}
+      {generatedVideoUrl && (
         <Card className="p-6 space-y-4 border-2 border-primary/20">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-2 rounded-full bg-primary/10">
@@ -223,10 +242,10 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
 
           <div className="bg-black rounded-lg overflow-hidden shadow-lg">
             <video
-              src={assembledVideo.url}
+              src={generatedVideoUrl}
               controls
               className="w-full aspect-[9/16] object-contain"
-              poster={assembledVideo.thumbnailUrl}
+              poster={frames.hero}
               preload="metadata"
             >
               Votre navigateur ne supporte pas la lecture vidéo.
@@ -236,37 +255,43 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
           <div className="grid grid-cols-3 gap-3">
             <Button
               variant="outline"
-              onClick={() => window.open(assembledVideo.url, '_blank')}
+              onClick={() => window.open(generatedVideoUrl, '_blank')}
               className="gap-2"
             >
               <Play className="w-4 h-4" />
               Lire
             </Button>
             <Button
-              onClick={() => downloadVideo(assembledVideo.url, `${video.title}.mp4`)}
+              onClick={handleDownload}
               className="gap-2"
             >
               <Download className="w-4 h-4" />
               Télécharger
             </Button>
-            <Button variant="outline" className="gap-2">
-              <Share2 className="w-4 h-4" />
-              Partager
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => {
+                setGeneratedVideoUrl(null);
+              }}
+            >
+              <Film className="w-4 h-4" />
+              Régénérer
             </Button>
           </div>
 
           <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary">{assembledVideo.duration}s</p>
+              <p className="text-2xl font-bold text-primary">10s</p>
               <p className="text-xs text-muted-foreground">Durée</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary">{assembledVideo.format.toUpperCase()}</p>
+              <p className="text-2xl font-bold text-primary">MP4</p>
               <p className="text-xs text-muted-foreground">Format</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary">{(assembledVideo.size / (1024 * 1024)).toFixed(1)}</p>
-              <p className="text-xs text-muted-foreground">MB</p>
+              <p className="text-2xl font-bold text-primary">9:16</p>
+              <p className="text-xs text-muted-foreground">Ratio</p>
             </div>
           </div>
         </Card>
