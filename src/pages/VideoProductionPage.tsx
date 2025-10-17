@@ -171,7 +171,18 @@ export const VideoProductionPage: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="flex gap-3 flex-wrap">
-        <Button variant="outline" className="gap-2">
+        <Button 
+          onClick={() => window.location.href = '/video-production/generate'} 
+          className="gap-2"
+        >
+          <Film className="h-4 w-4" />
+          Générer avec l'IA
+        </Button>
+        <Button 
+          variant="outline" 
+          className="gap-2"
+          onClick={() => window.location.href = '/video-production/calendar'}
+        >
           <Calendar className="h-4 w-4" />
           Calendrier de publication
         </Button>

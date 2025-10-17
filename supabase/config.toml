@@ -129,3 +129,9 @@ verify_jwt = true
 
 [functions.list-users-admin]
 verify_jwt = true
+
+[functions.generate-visual-content]
+verify_jwt = false
+
+[functions.generate-video-frames]
+verify_jwt = false
