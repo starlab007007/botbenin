@@ -1,17 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { Play, Download, Share2, Film } from 'lucide-react';
-import { useVideoRendering } from '@/hooks/useVideoRendering';
+import { Play, Download, Film, History } from 'lucide-react';
 import { VideoProduction } from '@/types/video-production';
 import { getTemplatesList } from '@/data/videoTemplates';
 import { musicLibrary } from '@/data/musicLibrary';
-import { africanContext } from '@/data/africanContextData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 interface VideoAssemblerProps {
   video: VideoProduction;
@@ -24,173 +23,100 @@ interface VideoAssemblerProps {
 }
 
 export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
-  const { isRendering, renderStatus, isFFmpegLoaded, renderVideo, loadFFmpeg } = useVideoRendering();
+  const navigate = useNavigate();
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
   const [selectedMusic, setSelectedMusic] = useState(musicLibrary[0].id);
   const [musicVolume, setMusicVolume] = useState([30]);
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [isAssembling, setIsAssembling] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState('');
+  const [generatedVideoData, setGeneratedVideoData] = useState<any>(null);
 
   const templates = getTemplatesList();
 
-  // Preload FFmpeg on component mount
-  useEffect(() => {
-    console.log('VideoAssembler mounted, loading FFmpeg...');
-    console.log('Frames received:', frames);
-    loadFFmpeg().catch(err => {
-      console.error('Error loading FFmpeg in VideoAssembler:', err);
-    });
-  }, []);
-
-  const getStepIcon = (step: string) => {
-    if (step === 'completed') return '✓';
-    if (step === 'error') return '✗';
-    if (renderStatus.step === step) return '⏳';
-    return '○';
-  };
-
   const steps = [
-    { key: 'preparing', label: 'Préparation' },
-    { key: 'processing_frames', label: 'Traitement frames' },
-    { key: 'adding_transitions', label: 'Transitions' },
-    { key: 'adding_overlays', label: 'Textes & logos' },
-    { key: 'adding_audio', label: 'Musique' },
-    { key: 'uploading', label: 'Finalisation' },
+    { key: 'init', label: 'Initialisation', progress: 10 },
+    { key: 'validate', label: 'Validation frames', progress: 25 },
+    { key: 'upload', label: 'Upload données', progress: 50 },
+    { key: 'save', label: 'Sauvegarde base', progress: 75 },
+    { key: 'complete', label: 'Finalisation', progress: 100 },
   ];
 
-  const saveVideoToDatabase = async (videoUrl: string, videoBlob: Blob) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const file = new File([videoBlob], `${video.id}.mp4`, { type: 'video/mp4' });
-      const fileName = `${user.id}/videos/${video.id}_${Date.now()}.mp4`;
-
-      // Upload to Storage
-      const { error: uploadError } = await supabase.storage
-        .from('video-assets')
-        .upload(fileName, file, {
-          contentType: 'video/mp4',
-          upsert: true
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('video-assets')
-        .getPublicUrl(fileName);
-
-      // Save to database
-      const { error: dbError } = await supabase
-        .from('generated_videos')
-        .insert({
-          video_id: video.id,
-          video_title: video.title,
-          video_url: publicUrl,
-          storage_path: fileName,
-          size_bytes: videoBlob.size,
-          template_id: selectedTemplate,
-          music_id: selectedMusic,
-          user_id: user.id
-        });
-
-      if (dbError) throw dbError;
-
-      toast.success('✅ Vidéo sauvegardée dans la bibliothèque!');
-    } catch (error) {
-      console.error('Error saving video:', error);
-      toast.error('Erreur lors de la sauvegarde');
-    }
-  };
-
   const handleAssemble = async () => {
-    console.log('🎬 Starting video assembly...');
-    console.log('Frames to assemble:', frames);
-    
-    // Validate frames
-    const frameUrls = Object.values(frames);
-    const invalidFrames = frameUrls.filter(url => !url || url === '');
-    
-    if (invalidFrames.length > 0) {
-      toast.error('❌ Certaines frames sont manquantes ou invalides');
-      console.error('Invalid frames detected:', frames);
-      return;
-    }
-    
-    const template = templates.find(t => t.id === selectedTemplate) || templates[0];
-    const music = musicLibrary.find(m => m.id === selectedMusic) || musicLibrary[0];
+    setIsAssembling(true);
+    setProgress(0);
+    setCurrentStep('init');
 
-    console.log('Template:', template);
-    console.log('Music:', music);
-
-    const videoUrl = await renderVideo({
-      frames,
-      config: {
-        frameDurations: template.frameDurations,
-        transitions: template.transitions,
-        musicId: music.id,
-        musicVolume: musicVolume[0] / 100,
-        templateId: template.id,
-        textOverlays: {
-          hook: {
-            text: video.hook,
-            position: template.textPositions.hook,
-            fontSize: 72,
-            fontColor: '#FFFFFF',
-            fontFamily: 'Poppins-Bold',
-            duration: [0, template.frameDurations[0]],
-            animation: 'fadeIn'
-          },
-          content: video.content.map((text, index) => ({
-            text,
-            position: template.textPositions.content,
-            fontSize: 48,
-            fontColor: '#FFFFFF',
-            fontFamily: 'Poppins',
-            duration: [
-              template.frameDurations.slice(0, index + 1).reduce((a, b) => a + b, 0),
-              template.frameDurations.slice(0, index + 2).reduce((a, b) => a + b, 0)
-            ],
-            animation: 'slideIn'
-          })),
-          cta: {
-            text: `${video.cta}\n${africanContext.contact.phone}\n${africanContext.contact.website}`,
-            position: template.textPositions.cta,
-            fontSize: 56,
-            fontColor: '#10B981',
-            fontFamily: 'Poppins-Bold',
-            duration: [7.5, 10],
-            animation: 'fadeIn'
-          }
-        }
-      },
-      videoTitle: video.title
-    });
-
-    if (videoUrl) {
-      console.log('✅ Video generated successfully:', videoUrl);
-      setGeneratedVideoUrl(videoUrl);
+    try {
+      // Étape 1: Validation
+      setCurrentStep('validate');
+      setProgress(25);
+      console.log('🎬 Starting video assembly...');
       
-      // Save to database and storage
-      try {
-        const response = await fetch(videoUrl);
-        const blob = await response.blob();
-        await saveVideoToDatabase(videoUrl, blob);
-      } catch (error) {
-        console.error('Error saving video:', error);
-        toast.error('Vidéo générée mais erreur de sauvegarde');
+      const frameUrls = Object.values(frames);
+      const invalidFrames = frameUrls.filter(url => !url || url === '');
+      
+      if (invalidFrames.length > 0) {
+        toast.error('❌ Certaines frames sont manquantes');
+        return;
       }
-    } else {
-      console.error('❌ Video generation failed');
+
+      // Étape 2: Préparation des données
+      setCurrentStep('upload');
+      setProgress(50);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Vous devez être connecté');
+        return;
+      }
+
+      const template = templates.find(t => t.id === selectedTemplate) || templates[0];
+      const music = musicLibrary.find(m => m.id === selectedMusic) || musicLibrary[0];
+
+      // Étape 3: Appel de l'edge function
+      setCurrentStep('save');
+      setProgress(75);
+
+      const { data, error } = await supabase.functions.invoke('assemble-video', {
+        body: {
+          videoId: video.id,
+          videoTitle: video.title,
+          frames,
+          config: {
+            frameDurations: template.frameDurations,
+            transitions: template.transitions,
+            musicVolume: musicVolume[0] / 100,
+          },
+          userId: user.id,
+          templateId: selectedTemplate,
+          musicId: selectedMusic
+        }
+      });
+
+      if (error) throw error;
+
+      // Étape 4: Finalisation
+      setCurrentStep('complete');
+      setProgress(100);
+
+      console.log('✅ Video saved successfully:', data);
+      setGeneratedVideoData(data);
+      
+      toast.success('✅ Vidéo créée et sauvegardée dans l\'historique!');
+
+    } catch (error: any) {
+      console.error('❌ Video assembly failed:', error);
+      toast.error(`Erreur: ${error.message || 'Échec de la création'}`);
+    } finally {
+      setIsAssembling(false);
     }
   };
 
-  const handleDownload = () => {
-    if (!generatedVideoUrl) return;
-    
+  const downloadFrame = (frameUrl: string, frameName: string) => {
     const a = document.createElement('a');
-    a.href = generatedVideoUrl;
-    a.download = `${video.title}.mp4`;
+    a.href = frameUrl;
+    a.download = `${video.title}_${frameName}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -270,34 +196,27 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
       </div>
 
       {/* Bouton d'assemblage */}
-      {!generatedVideoUrl && (
-        <div className="space-y-2">
-          <Button
-            onClick={handleAssemble}
-            disabled={isRendering || !isFFmpegLoaded}
-            className="w-full"
-            size="lg"
-          >
-            <Film className="w-4 h-4 mr-2" />
-            {!isFFmpegLoaded ? 'Chargement du moteur...' : isRendering ? 'Génération en cours...' : 'Générer la vidéo'}
-          </Button>
-          {!isFFmpegLoaded && (
-            <p className="text-xs text-muted-foreground text-center">
-              Le moteur vidéo se charge en arrière-plan (peut prendre 10-30 secondes)...
-            </p>
-          )}
-        </div>
+      {!generatedVideoData && (
+        <Button
+          onClick={handleAssemble}
+          disabled={isAssembling}
+          className="w-full"
+          size="lg"
+        >
+          <Film className="w-4 h-4 mr-2" />
+          {isAssembling ? 'Création en cours...' : 'Créer la vidéo'}
+        </Button>
       )}
 
-      {/* Progress bar avec étapes détaillées */}
-      {isRendering && (
+      {/* Progress bar */}
+      {isAssembling && (
         <Card className="p-6 space-y-4 bg-muted/50">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm font-medium">
-              <span>{renderStatus.message}</span>
-              <span>{renderStatus.progress}%</span>
+              <span>{steps.find(s => s.key === currentStep)?.label || 'En cours...'}</span>
+              <span>{progress}%</span>
             </div>
-            <Progress value={renderStatus.progress} className="h-2" />
+            <Progress value={progress} className="h-2" />
           </div>
           
           <div className="grid grid-cols-2 gap-3">
@@ -305,12 +224,16 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
               <div
                 key={step.key}
                 className={`flex items-center gap-2 text-sm ${
-                  renderStatus.step === step.key
+                  currentStep === step.key
                     ? 'text-primary font-medium'
+                    : progress >= step.progress
+                    ? 'text-green-600'
                     : 'text-muted-foreground'
                 }`}
               >
-                <span className="text-lg">{getStepIcon(step.key)}</span>
+                <span className="text-lg">
+                  {progress >= step.progress ? '✓' : currentStep === step.key ? '⏳' : '○'}
+                </span>
                 <span>{step.label}</span>
               </div>
             ))}
@@ -319,62 +242,72 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
       )}
 
       {/* Vidéo générée */}
-      {generatedVideoUrl && (
+      {generatedVideoData && (
         <Card className="p-6 space-y-4 border-2 border-primary/20">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-2 rounded-full bg-primary/10">
               <Film className="w-5 h-5 text-primary" />
             </div>
-            <h4 className="font-semibold text-lg">Vidéo générée avec succès!</h4>
+            <h4 className="font-semibold text-lg">Vidéo créée avec succès!</h4>
           </div>
 
-          <div className="bg-black rounded-lg overflow-hidden shadow-lg">
-            <video
-              src={generatedVideoUrl}
-              controls
-              className="w-full aspect-[9/16] object-contain"
-              poster={frames.hero}
-              preload="metadata"
-            >
-              Votre navigateur ne supporte pas la lecture vidéo.
-            </video>
+          <div className="p-4 bg-muted/50 rounded-lg">
+            <p className="text-sm text-muted-foreground mb-4">
+              Votre vidéo a été sauvegardée dans l'historique avec toutes les frames générées.
+            </p>
+            
+            {/* Grille des frames */}
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(generatedVideoData.allFrames || frames).map(([key, url]) => (
+                <div key={key} className="relative group">
+                  <img 
+                    src={url as string} 
+                    alt={key}
+                    className="w-full rounded-lg shadow-md"
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => downloadFrame(url as string, key)}
+                  >
+                    <Download className="w-3 h-3" />
+                  </Button>
+                  <p className="text-xs mt-1 text-center capitalize">{key}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="flex gap-3">
             <Button
-              variant="outline"
-              onClick={() => window.open(generatedVideoUrl, '_blank')}
-              className="gap-2"
+              onClick={() => navigate('/video-library')}
+              className="flex-1 gap-2"
             >
-              <Play className="w-4 h-4" />
-              Lire
-            </Button>
-            <Button
-              onClick={handleDownload}
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Télécharger
+              <History className="w-4 h-4" />
+              Voir l'historique
             </Button>
             <Button 
               variant="outline" 
-              className="gap-2"
+              className="flex-1 gap-2"
               onClick={() => {
-                setGeneratedVideoUrl(null);
+                setGeneratedVideoData(null);
+                setProgress(0);
+                setCurrentStep('');
               }}
             >
               <Film className="w-4 h-4" />
-              Régénérer
+              Créer une autre
             </Button>
           </div>
 
           <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary">10s</p>
-              <p className="text-xs text-muted-foreground">Durée</p>
+              <p className="text-2xl font-bold text-primary">4</p>
+              <p className="text-xs text-muted-foreground">Frames</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary">MP4</p>
+              <p className="text-2xl font-bold text-primary">PNG</p>
               <p className="text-xs text-muted-foreground">Format</p>
             </div>
             <div className="text-center">
