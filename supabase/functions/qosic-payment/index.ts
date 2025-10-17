@@ -107,8 +107,25 @@ serve(async (req) => {
     const orderId = `PAY_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     log('info', 'order_id_generated', { orderId });
 
+    // IMPORTANT: Map operator to payment_method matching DB CHECK constraint
+    // - MTN → 'mtn_momo'
+    // - MOOV → 'moov_money'  
+    // - SBIN → 'sbin'
+    const paymentMethodMap = {
+      'MTN': 'mtn_momo',
+      'MOOV': 'moov_money',
+      'SBIN': 'sbin'
+    } as const;
+
+    const paymentMethod = paymentMethodMap[operator];
+    
+    if (!paymentMethod) {
+      log('error', 'invalid_operator_mapping', { operator });
+      throw new Error(`Opérateur invalide: ${operator}`);
+    }
+
     // Insert transaction record
-    log('info', 'db_insert_start', { orderId });
+    log('info', 'db_insert_start', { orderId, paymentMethod });
     const { data: transaction, error: insertError } = await supabaseClient
       .from('payment_transactions')
       .insert({
@@ -120,7 +137,7 @@ serve(async (req) => {
         full_name: fullName || null,
         plan_name: planName || null,
         status: 'pending',
-        payment_method: 'mobile_money',
+        payment_method: paymentMethod,
         operator: operator,
         metadata: {
           created_at: new Date().toISOString(),
