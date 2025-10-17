@@ -2207,6 +2207,63 @@ export type Database = {
           },
         ]
       }
+      payment_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          full_name: string | null
+          id: string
+          metadata: Json | null
+          operator: string
+          order_id: string
+          payment_method: string
+          phone_number: string
+          plan_name: string | null
+          qosic_response: Json | null
+          qosic_transaction_id: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          full_name?: string | null
+          id?: string
+          metadata?: Json | null
+          operator: string
+          order_id: string
+          payment_method: string
+          phone_number: string
+          plan_name?: string | null
+          qosic_response?: Json | null
+          qosic_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          full_name?: string | null
+          id?: string
+          metadata?: Json | null
+          operator?: string
+          order_id?: string
+          payment_method?: string
+          phone_number?: string
+          plan_name?: string | null
+          qosic_response?: Json | null
+          qosic_transaction_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       performance_predictions: {
         Row: {
           campaign_id: string
