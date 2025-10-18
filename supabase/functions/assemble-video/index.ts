@@ -115,6 +115,33 @@ serve(async (req) => {
 
     console.log('✅ Video saved successfully:', videoRecord.id);
 
+    // 3. Sauvegarder les frames individuelles dans video_frames
+    console.log('📸 Saving individual frames...');
+    
+    const frameTypes = ['hero', 'demo', 'result', 'cta'];
+    const frameInserts = frameTypes
+      .filter(type => frames[type])
+      .map(type => ({
+        video_id: videoId,
+        frame_type: type,
+        image_url: frames[type],
+        prompt: `Frame ${type} pour ${videoTitle}`,
+        user_id: user.id
+      }));
+
+    if (frameInserts.length > 0) {
+      const { error: framesError } = await supabase
+        .from('video_frames')
+        .insert(frameInserts);
+
+      if (framesError) {
+        console.error('⚠️ Error saving frames:', framesError);
+        // Continue anyway, frames not critical
+      } else {
+        console.log(`✅ Saved ${frameInserts.length} frames`);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

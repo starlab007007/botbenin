@@ -4,8 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Download, Share2, Trash2, Play, Search, Video } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Trash2, Play, Search, Video, Clock, HardDrive } from 'lucide-react';
 import { toast } from 'sonner';
+import { VideoSlideshow } from '@/components/video/VideoSlideshow';
 
 interface GeneratedVideo {
   id: string;
@@ -85,17 +86,35 @@ export const VideoLibraryPage = () => {
 
   const downloadVideo = async (video: GeneratedVideo) => {
     try {
-      const response = await fetch(video.video_url);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${video.video_title}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success('Vidéo téléchargée!');
+      const frames = videoFrames[video.video_id] || [];
+      if (frames.length === 0) {
+        toast.error('Aucune frame disponible pour le téléchargement');
+        return;
+      }
+
+      // Télécharger toutes les frames dans un ZIP ou individuellement
+      toast.info('Téléchargement de toutes les frames...');
+      
+      for (let i = 0; i < frames.length; i++) {
+        const frame = frames[i];
+        const response = await fetch(frame.image_url);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${video.video_title}_${frame.frame_type}.png`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Petit délai entre chaque téléchargement
+        if (i < frames.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      toast.success(`${frames.length} frames téléchargées!`);
     } catch (error) {
       console.error('Error downloading video:', error);
       toast.error('Erreur lors du téléchargement');
@@ -161,8 +180,23 @@ export const VideoLibraryPage = () => {
     video.video_title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalSize = videos.reduce((sum, video) => sum + (video.size_bytes || 0), 0);
+  // Calculer la taille réelle basée sur les frames
+  const calculateVideoSize = (videoId: string): number => {
+    const frames = videoFrames[videoId] || [];
+    // Estimation: ~500KB par frame (image haute qualité)
+    return frames.length * 500 * 1024;
+  };
+
+  const totalSize = videos.reduce((sum, video) => {
+    return sum + calculateVideoSize(video.video_id);
+  }, 0);
   const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+
+  // Calculer la durée réelle (2.5s par frame)
+  const calculateDuration = (videoId: string): number => {
+    const frames = videoFrames[videoId] || [];
+    return frames.length * 2.5; // secondes
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -215,9 +249,9 @@ export const VideoLibraryPage = () => {
               <Play className="h-8 w-8 text-primary" />
               <div>
                 <p className="text-3xl font-bold">
-                  {(videos.reduce((sum, v) => sum + v.duration, 0) / 60).toFixed(1)}
+                  {videos.reduce((sum, v) => sum + calculateDuration(v.video_id), 0).toFixed(0)}
                 </p>
-                <p className="text-sm text-muted-foreground">Minutes de contenu</p>
+                <p className="text-sm text-muted-foreground">Secondes de contenu</p>
               </div>
             </div>
           </CardContent>
@@ -257,82 +291,110 @@ export const VideoLibraryPage = () => {
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredVideos.map((video) => (
-            <Card key={video.id} className="overflow-hidden hover:shadow-lg transition">
-              <CardHeader className="p-0">
-                <video 
-                  src={video.video_url} 
-                  className="w-full aspect-[9/16] object-cover"
-                  controls
-                />
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <h3 className="font-semibold mb-2 truncate">{video.video_title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(video.created_at).toLocaleDateString('fr-FR', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric'
-                    })}
-                  </p>
-                </div>
+          {filteredVideos.map((video) => {
+            const frames = videoFrames[video.video_id] || [];
+            const frameUrls = frames.map(f => f.image_url);
+            const duration = calculateDuration(video.video_id);
+            const sizeBytes = calculateVideoSize(video.video_id);
+            const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
 
-                {/* Frames individuelles */}
-                {videoFrames[video.video_id] && videoFrames[video.video_id].length > 0 && (
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t">
-                    {videoFrames[video.video_id].map((frame) => (
-                      <div key={frame.id} className="relative group">
-                        <img 
-                          src={frame.image_url} 
-                          alt={frame.frame_type}
-                          className="w-full rounded aspect-[9/16] object-cover"
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                          onClick={() => downloadFrame(frame)}
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                        <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-[10px] text-white">
-                          {frame.frame_type}
-                        </div>
+            return (
+              <Card key={video.id} className="overflow-hidden hover:shadow-lg transition">
+                <CardHeader className="p-0 relative">
+                  {frameUrls.length > 0 ? (
+                    <VideoSlideshow 
+                      frames={frameUrls}
+                      duration={2.5}
+                      className="w-full aspect-[9/16]"
+                    />
+                  ) : (
+                    <div className="w-full aspect-[9/16] bg-muted flex items-center justify-center">
+                      <Video className="h-16 w-16 text-muted-foreground" />
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <h3 className="font-semibold mb-2 truncate">{video.video_title}</h3>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{duration}s</span>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-1">
+                        <HardDrive className="h-3 w-3" />
+                        <span>{sizeMB} MB</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Video className="h-3 w-3" />
+                        <span>{frames.length} frames</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(video.created_at).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })}
+                    </p>
                   </div>
-                )}
 
-                <div className="flex gap-2 pt-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => downloadVideo(video)}
-                    className="flex-1"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => shareVideo(video)}
-                    className="flex-1"
-                  >
-                    <Share2 className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => deleteVideo(video)}
-                    className="flex-1 text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  {/* Miniatures des frames */}
+                  {frames.length > 0 && (
+                    <div className="grid grid-cols-4 gap-1 pt-2 border-t">
+                      {frames.map((frame) => (
+                        <div key={frame.id} className="relative group">
+                          <img 
+                            src={frame.image_url} 
+                            alt={frame.frame_type}
+                            className="w-full rounded aspect-[9/16] object-cover cursor-pointer hover:opacity-75 transition"
+                            title={frame.frame_type}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/60 rounded"
+                            onClick={() => downloadFrame(frame)}
+                          >
+                            <Download className="h-3 w-3 text-white" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => downloadVideo(video)}
+                      className="flex-1"
+                      title="Télécharger toutes les frames"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Frames
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => shareVideo(video)}
+                      className="flex-1"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => deleteVideo(video)}
+                      className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
