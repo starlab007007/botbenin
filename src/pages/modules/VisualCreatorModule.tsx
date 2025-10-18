@@ -19,11 +19,17 @@ import {
   Palette,
   Camera,
   Layout,
-  TrendingUp
+  TrendingUp,
+  Eye,
+  Trash2,
+  History
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useMediaManager, MediaItem } from '@/hooks/useMediaManager';
+import { UniversalMediaModal } from '@/components/visual-creator/UniversalMediaModal';
+import { useNavigate } from 'react-router-dom';
 
 interface SocialFormat {
   id: string;
@@ -50,11 +56,15 @@ const styles = [
 ];
 
 export const VisualCreatorModule: React.FC = () => {
+  const navigate = useNavigate();
+  const { saveToGallery, downloadMedia } = useMediaManager();
   const [prompt, setPrompt] = useState('');
   const [selectedFormat, setSelectedFormat] = useState<string>('instagram-post');
   const [selectedStyle, setSelectedStyle] = useState<string>('modern');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [generatedImages, setGeneratedImages] = useState<MediaItem[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -80,8 +90,23 @@ export const VisualCreatorModule: React.FC = () => {
       if (error) throw error;
 
       if (data?.imageUrl) {
-        setGeneratedImages(prev => [data.imageUrl, ...prev]);
-        toast.success('Création générée avec succès !');
+        // Sauvegarder automatiquement dans la galerie
+        const savedMedia = await saveToGallery({
+          type: 'image',
+          prompt: prompt,
+          style: style?.name,
+          format: format?.name,
+          imageUrl: data.imageUrl,
+          metadata: {
+            format: format?.size,
+            generatedAt: new Date().toISOString()
+          }
+        });
+
+        if (savedMedia) {
+          setGeneratedImages(prev => [savedMedia, ...prev]);
+          toast.success('✅ Création générée et sauvegardée !');
+        }
       }
     } catch (error) {
       console.error('Erreur génération:', error);
@@ -89,6 +114,15 @@ export const VisualCreatorModule: React.FC = () => {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleView = (media: MediaItem) => {
+    setSelectedMedia(media);
+    setIsModalOpen(true);
+  };
+
+  const handleDownload = (url: string, fileName: string) => {
+    downloadMedia(url, fileName);
   };
 
   return (
@@ -299,28 +333,45 @@ export const VisualCreatorModule: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <ImageIcon className="w-5 h-5" />
-                    Vos créations ({generatedImages.length})
+                    Vos créations récentes ({generatedImages.length})
                   </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/visual-gallery')}
+                    className="gap-2"
+                  >
+                    <History className="w-4 h-4" />
+                    Voir toute la galerie
+                  </Button>
                 </div>
                 
                 <ScrollArea className="h-96">
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {generatedImages.map((image, index) => (
+                    {generatedImages.map((media, index) => (
                       <div
-                        key={index}
+                        key={media.id}
                         className="group relative aspect-square rounded-lg overflow-hidden border-2 border-border hover:border-primary transition-all"
                       >
                         <img
-                          src={image}
-                          alt={`Création ${index + 1}`}
+                          src={media.thumbnail_url || media.image_url}
+                          alt={media.title || `Création ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                          <Button size="sm" variant="secondary">
-                            <Download className="w-4 h-4" />
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleView(media)}
+                          >
+                            <Eye className="w-4 h-4" />
                           </Button>
-                          <Button size="sm" variant="secondary">
-                            <Share2 className="w-4 h-4" />
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleDownload(media.image_url!, `creation-${media.id}.png`)}
+                          >
+                            <Download className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -346,6 +397,14 @@ export const VisualCreatorModule: React.FC = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Modal de visualisation */}
+      <UniversalMediaModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        media={selectedMedia}
+        onDownload={handleDownload}
+      />
     </div>
   );
 };

@@ -3904,6 +3904,39 @@ export type Database = {
           },
         ]
       }
+      user_media_gallery: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          media_ids: string[] | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          media_ids?: string[] | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          media_ids?: string[] | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_module_access: {
         Row: {
           access_level: string
@@ -4553,6 +4586,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      visual_creations: {
+        Row: {
+          created_at: string | null
+          format: string | null
+          id: string
+          image_url: string | null
+          metadata: Json | null
+          prompt: string
+          storage_path: string | null
+          style: string | null
+          thumbnail_url: string | null
+          title: string | null
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          format?: string | null
+          id?: string
+          image_url?: string | null
+          metadata?: Json | null
+          prompt: string
+          storage_path?: string | null
+          style?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          format?: string | null
+          id?: string
+          image_url?: string | null
+          metadata?: Json | null
+          prompt?: string
+          storage_path?: string | null
+          style?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       waha_message_logs: {
         Row: {

@@ -47,6 +47,7 @@ const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").the
 const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(module => ({ default: module.GestionModule })));
 const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.CitoyenModule })));
 const VisualCreatorModule = lazy(() => import("./pages/modules/VisualCreatorModule").then(module => ({ default: module.VisualCreatorModule })));
+const VisualGalleryPage = lazy(() => import("./pages/VisualGalleryPage"));
 
 // Marketing
 const MarketingGallery = lazy(() => import("./pages/MarketingGallery"));
@@ -140,6 +141,7 @@ const AppContent = () => {
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
                     <Route path="/modules/visual-creator" element={<VisualCreatorModule />} />
+                    <Route path="/visual-gallery" element={<VisualGalleryPage />} />
                     
                     {/* Marketing */}
                     <Route path="/marketing-gallery" element={<MarketingGallery />} />
