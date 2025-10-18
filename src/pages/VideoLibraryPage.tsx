@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, Share2, Trash2, Play, Search, Video, Clock, HardDrive, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { VideoSlideshow } from '@/components/video/VideoSlideshow';
+import { VideoExportDialog } from '@/components/video-production/VideoExportDialog';
+import { VideoShareDialog } from '@/components/video-production/VideoShareDialog';
 
 interface GeneratedVideo {
   id: string;
@@ -468,15 +470,33 @@ export const VideoLibraryPage = () => {
                         <Download className="h-4 w-4 mr-1" />
                         {video.use_shotstack && video.rendered_video_url ? 'MP4' : 'Frames'}
                       </Button>
-                    )}
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => shareVideo(video)}
-                      className="flex-1"
-                    >
-                      <Share2 className="h-4 w-4" />
-                    </Button>
+                     )}
+                    <VideoShareDialog
+                      videoUrl={video.use_shotstack && video.rendered_video_url ? video.rendered_video_url : video.video_url}
+                      videoTitle={video.video_title}
+                      trigger={
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
+                    <VideoExportDialog
+                      videoUrl={video.use_shotstack && video.rendered_video_url ? video.rendered_video_url : video.video_url}
+                      videoTitle={video.video_title}
+                      trigger={
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
                     <Button 
                       size="sm" 
                       variant="outline"
