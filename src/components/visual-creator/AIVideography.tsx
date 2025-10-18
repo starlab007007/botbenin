@@ -43,6 +43,7 @@ export const AIVideography = () => {
   const [description, setDescription] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [originalBackground, setOriginalBackground] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,10 +67,13 @@ export const AIVideography = () => {
     try {
       let processedImage = image;
       
-      // Si l'effet est 360-rotate, supprimer le fond de l'image
+      // Si l'effet est 360-rotate, supprimer le fond de l'image mais garder l'original
       if (cameraEffect === '360-rotate') {
         toast.info('Suppression du fond en cours...', { duration: 3000 });
         try {
+          // Garder l'image originale pour le fond
+          setOriginalBackground(image);
+          
           const blob = await imageUrlToBlob(image);
           const imageElement = await loadImage(blob);
           const resultBlob = await removeBackground(imageElement);
@@ -78,6 +82,7 @@ export const AIVideography = () => {
         } catch (bgError) {
           console.error('Background removal error:', bgError);
           toast.error('Erreur lors de la suppression du fond, utilisation de l\'image originale');
+          setOriginalBackground('');
         }
       }
 
@@ -276,15 +281,21 @@ High quality, marketing-ready video output.`;
       {result && (
         <Card className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Résultat</h3>
-          <div className={`relative aspect-video rounded-lg overflow-hidden border ${
-            result.metadata?.hasTransparentBackground 
-              ? 'bg-[repeating-conic-gradient(#ccc_0%_25%,white_0%_50%)] bg-[length:20px_20px]' 
-              : 'bg-black'
-          }`}>
+          <div className="relative aspect-video rounded-lg overflow-hidden border bg-black">
+            {/* Fond original fixe pour l'effet 360-rotate */}
+            {result.metadata?.cameraEffect === '360-rotate' && originalBackground && (
+              <img
+                src={originalBackground}
+                alt="Fond original"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            )}
+            
+            {/* Image animée */}
             <img
               src={result.image_url}
               alt="Vidéo générée"
-              className={`w-full h-full object-contain ${
+              className={`relative w-full h-full object-contain ${
                 result.metadata?.cameraEffect === 'zoom-in' ? 'animate-[zoom-in_5s_ease-in-out_infinite]' :
                 result.metadata?.cameraEffect === 'zoom-out' ? 'animate-[zoom-out_5s_ease-in-out_infinite]' :
                 result.metadata?.cameraEffect === 'pan-left' ? 'animate-[pan-left_5s_ease-in-out_infinite]' :
