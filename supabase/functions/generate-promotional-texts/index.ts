@@ -35,7 +35,7 @@ serve(async (req) => {
         hero: `Génère un texte promotionnel époustouflant de 20-30 mots pour une image d'accroche.
 
 Contexte visuel : ${framePrompt}
-Contexte culturel : ${africaContext || 'Afrique de l\'Ouest, Bénin, entrepreneurs locaux'}
+Contexte culturel : ${africaContext || 'Afrique de l\'\'Ouest, Bénin, entrepreneurs locaux'}
 
 Le texte doit :
 - Capter IMMÉDIATEMENT l'attention

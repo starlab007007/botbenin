@@ -148,11 +148,5 @@ verify_jwt = true
 [functions.generate-video-description]
 verify_jwt = true
 
-[functions.generate-frame-promotional-text]
-verify_jwt = true
-
-[functions.generate-video-promotional-summary]
-verify_jwt = true
-
 [functions.generate-promotional-texts]
-verify_jwt = true
+verify_jwt = false
