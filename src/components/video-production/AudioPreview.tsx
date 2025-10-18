@@ -8,12 +8,13 @@ interface AudioPreviewProps {
   audioUrl: string;
   title?: string;
   className?: string;
+  duration?: number; // Durée en secondes depuis la DB
 }
 
-export const AudioPreview = ({ audioUrl, title, className }: AudioPreviewProps) => {
+export const AudioPreview = ({ audioUrl, title, className, duration: providedDuration }: AudioPreviewProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(providedDuration || 0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -22,20 +23,47 @@ export const AudioPreview = ({ audioUrl, title, className }: AudioPreviewProps) 
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Forcer le rechargement quand l'URL change
+    audio.load();
+
     const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
+    
+    const updateDuration = () => {
+      // Ne mettre à jour que si on n'a pas déjà une durée fournie
+      if (!providedDuration && audio.duration && !isNaN(audio.duration)) {
+        console.log('Audio metadata loaded, duration:', audio.duration);
+        setDuration(audio.duration);
+      }
+    };
+    
     const handleEnded = () => setIsPlaying(false);
+
+    const handleCanPlay = () => {
+      // Backup pour s'assurer que la durée est bien chargée
+      if (!providedDuration && audio.duration && !isNaN(audio.duration) && duration === 0) {
+        setDuration(audio.duration);
+      }
+    };
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', updateDuration);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('canplay', handleCanPlay);
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', updateDuration);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('canplay', handleCanPlay);
     };
-  }, []);
+  }, [audioUrl, providedDuration]);
+
+  // Mettre à jour la durée si elle est fournie après le montage
+  useEffect(() => {
+    if (providedDuration) {
+      setDuration(providedDuration);
+    }
+  }, [providedDuration]);
 
   const togglePlay = () => {
     const audio = audioRef.current;

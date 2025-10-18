@@ -11,6 +11,7 @@ import { PromotionalTextDisplay } from '@/components/video-production/Promotiona
 import { PromotionalTextExporter } from '@/components/video-production/PromotionalTextExporter';
 import { VoiceSelector } from '@/components/video-production/VoiceSelector';
 import { AudioPreview } from '@/components/video-production/AudioPreview';
+import { FinalVideoAssembler } from '@/components/video-production/FinalVideoAssembler';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Sparkles, CheckCircle, AlertCircle, TestTube, Mic } from 'lucide-react';
 
@@ -360,12 +361,32 @@ export const PromotionalTextGeneratorPage = () => {
                     key={track.id}
                     audioUrl={track.audio_url}
                     title={`${track.frame_type?.toUpperCase()} - ${track.voice_name}`}
+                    duration={track.audio_duration}
                   />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Assemblage Vidéo Finale */}
+      {audioTracks.length === 4 && video && frames.length === 4 && (
+        <FinalVideoAssembler
+          videoId={videoId!}
+          videoUrl={video.video_url || video.video_asset_url}
+          audioTracks={audioTracks.map(track => ({
+            url: track.audio_url,
+            frameType: track.frame_type,
+            duration: track.audio_duration,
+          }))}
+          frames={{
+            hero: frames.find(f => f.frame_type === 'hero')?.image_url,
+            demo: frames.find(f => f.frame_type === 'demo')?.image_url,
+            result: frames.find(f => f.frame_type === 'result')?.image_url,
+            cta: frames.find(f => f.frame_type === 'cta')?.image_url,
+          }}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
