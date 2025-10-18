@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, Share2, Trash2, Play, Search, Video, Clock, HardDrive, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { VideoSlideshow } from '@/components/video/VideoSlideshow';
+import { FramesDownloadButton } from '@/components/video-production/FramesDownloadButton';
 import { VideoExportDialog } from '@/components/video-production/VideoExportDialog';
 import { VideoShareDialog } from '@/components/video-production/VideoShareDialog';
 
@@ -465,12 +466,16 @@ export const VideoLibraryPage = () => {
                         onClick={() => downloadVideo(video)}
                         className="flex-1"
                         disabled={video.use_shotstack && video.render_status !== 'completed'}
-                        title={video.use_shotstack && video.rendered_video_url ? 'Télécharger la vidéo MP4' : 'Télécharger les frames'}
+                        title="Télécharger la vidéo complète"
                       >
                         <Download className="h-4 w-4 mr-1" />
-                        {video.use_shotstack && video.rendered_video_url ? 'MP4' : 'Frames'}
+                        Vidéo
                       </Button>
                      )}
+                    <FramesDownloadButton 
+                      frames={videoFrames[video.video_id] || []} 
+                      videoTitle={video.video_title}
+                    />
                     <VideoShareDialog
                       videoUrl={video.use_shotstack && video.rendered_video_url ? video.rendered_video_url : video.video_url}
                       videoTitle={video.video_title}

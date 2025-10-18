@@ -28,6 +28,7 @@ const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(mo
 const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.AutomationsPage })));
 const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.BotTestPage })));
 const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.PublicBotChatPage })));
+const VideoAssetsPage = lazy(() => import("./pages/VideoAssetsPage"));
 
 // Support et compte
 const SupportPage = lazy(() => import("./pages/SupportPage").then(module => ({ default: module.SupportPage })));
@@ -144,7 +145,8 @@ const AppContent = () => {
                     <Route path="/video-production" element={<VideoProductionPage />} />
                     <Route path="/video-production/calendar" element={<VideoProductionCalendar />} />
                     <Route path="/video-production/generate" element={<VideoGenerationPage />} />
-                    <Route path="/video-library" element={<VideoLibraryPage />} />
+          <Route path="/video-library" element={<VideoLibraryPage />} />
+          <Route path="/video-assets" element={<VideoAssetsPage />} />
                     
                     {/* Support et compte */}
                     <Route path="/support" element={<SupportPage />} />

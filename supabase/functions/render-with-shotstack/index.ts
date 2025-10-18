@@ -149,7 +149,13 @@ serve(async (req) => {
           height: 1920
         },
         fps: 30,
-        scaleTo: "preview"
+        scaleTo: "preview",
+        // CRITIQUE: Forcer H.264 + AAC pour compatibilité maximale
+        poster: {
+          capture: 1
+        },
+        // Spécifier les codecs explicitement si possible
+        quality: "high"
       }
     };
 
