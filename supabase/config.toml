@@ -153,3 +153,6 @@ verify_jwt = true
 
 [functions.generate-video-promotional-summary]
 verify_jwt = true
+
+[functions.generate-promotional-texts]
+verify_jwt = true

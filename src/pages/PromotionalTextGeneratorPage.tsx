@@ -1,31 +1,67 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { ArrowLeft, Sparkles } from 'lucide-react';
-import { toast } from 'sonner';
-import { usePromotionalTextGeneration, PromotionalStyle } from '@/hooks/usePromotionalTextGeneration';
+import { Badge } from '@/components/ui/badge';
+import { usePromotionalTextGeneration, PromotionalStyle, FrameType } from '@/hooks/usePromotionalTextGeneration';
 import { PromotionalTextDisplay } from '@/components/video-production/PromotionalTextDisplay';
 import { PromotionalTextExporter } from '@/components/video-production/PromotionalTextExporter';
+import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft, Sparkles, CheckCircle, AlertCircle, TestTube } from 'lucide-react';
 
 export const PromotionalTextGeneratorPage = () => {
   const { videoId } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [frames, setFrames] = useState<any[]>([]);
   const [video, setVideo] = useState<any>(null);
-  const [style, setStyle] = useState<PromotionalStyle>('epic');
+  const [selectedStyle, setSelectedStyle] = useState<PromotionalStyle>('epic');
   const [allGenerated, setAllGenerated] = useState(false);
+  const [functionStatus, setFunctionStatus] = useState<'checking' | 'ready' | 'deploying' | 'demo'>('checking');
   
-  const { generateAllFrameTexts, generateVideoSummary, isGenerating } = usePromotionalTextGeneration();
+  const { 
+    generateAllFrameTexts, 
+    generateVideoSummary, 
+    isGenerating,
+    useFallback,
+    checkFunctionAvailability 
+  } = usePromotionalTextGeneration();
 
   useEffect(() => {
     if (videoId) {
       loadData();
+      testFunctionStatus();
     }
   }, [videoId]);
+
+  const testFunctionStatus = async () => {
+    setFunctionStatus('checking');
+    const isAvailable = await checkFunctionAvailability();
+    setFunctionStatus(isAvailable ? 'ready' : 'deploying');
+  };
+
+  const handleTestConnection = async () => {
+    toast({
+      title: 'Test de connexion...',
+      description: 'Vérification de la disponibilité des fonctions'
+    });
+    
+    await testFunctionStatus();
+    
+    if (functionStatus === 'ready') {
+      toast({
+        title: '✅ Fonctions opérationnelles',
+        description: 'Les fonctions sont déployées et prêtes à générer des textes'
+      });
+    } else {
+      toast({
+        title: '⏳ Fonctions en déploiement',
+        description: 'Mode démo activé avec textes exemples'
+      });
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -54,13 +90,21 @@ export const PromotionalTextGeneratorPage = () => {
       setAllGenerated(allHaveText || false);
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Erreur de chargement');
+      toast({
+        title: 'Erreur',
+        description: 'Erreur de chargement des données',
+        variant: 'destructive'
+      });
     }
   };
 
   const handleGenerateAll = async () => {
     if (!frames.length) {
-      toast.error('Aucune frame disponible pour générer les textes');
+      toast({
+        title: 'Erreur',
+        description: 'Aucune frame disponible pour générer les textes',
+        variant: 'destructive'
+      });
       return;
     }
 
@@ -71,43 +115,41 @@ export const PromotionalTextGeneratorPage = () => {
           frame_type: f.frame_type,
           prompt: f.prompt
         })),
-        style
+        selectedStyle
       );
 
       if (success) {
         await loadData();
         setAllGenerated(true);
-        toast.success('Textes promotionnels générés avec succès!');
 
         // Générer automatiquement le résumé vidéo
         if (frames.length === 4) {
-          const refreshedFrames = await supabase
+          const { data: refreshedFrames } = await supabase
             .from('video_frames')
             .select('*')
             .eq('video_id', videoId)
             .order('created_at', { ascending: true });
 
-          if (refreshedFrames.data) {
-            const heroText = refreshedFrames.data.find(f => f.frame_type === 'hero')?.promotional_text;
-            const demoText = refreshedFrames.data.find(f => f.frame_type === 'demo')?.promotional_text;
-            const resultText = refreshedFrames.data.find(f => f.frame_type === 'result')?.promotional_text;
-            const ctaText = refreshedFrames.data.find(f => f.frame_type === 'cta')?.promotional_text;
+          if (refreshedFrames) {
+            const heroText = refreshedFrames.find(f => f.frame_type === 'hero')?.promotional_text;
+            const demoText = refreshedFrames.find(f => f.frame_type === 'demo')?.promotional_text;
+            const resultText = refreshedFrames.find(f => f.frame_type === 'result')?.promotional_text;
+            const ctaText = refreshedFrames.find(f => f.frame_type === 'cta')?.promotional_text;
 
             if (heroText && demoText && resultText && ctaText && videoId) {
-              const summarySuccess = await generateVideoSummary(videoId, heroText, demoText, resultText, ctaText);
-              if (summarySuccess) {
-                toast.success('Résumé vidéo généré avec succès!');
-              }
+              await generateVideoSummary(videoId, heroText, demoText, resultText, ctaText);
               await loadData();
             }
           }
         }
-      } else {
-        toast.error('Erreur lors de la génération. Veuillez vérifier que les edge functions sont déployées.');
       }
     } catch (error) {
       console.error('Error in handleGenerateAll:', error);
-      toast.error('Erreur: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+      toast({
+        title: 'Erreur',
+        description: error instanceof Error ? error.message : 'Erreur inconnue',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -132,41 +174,90 @@ export const PromotionalTextGeneratorPage = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg sm:text-xl">Configuration</CardTitle>
-          <CardDescription className="text-sm">
-            Choisissez le style de vos textes promotionnels
-          </CardDescription>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="text-lg sm:text-xl">Configuration</CardTitle>
+              <CardDescription className="text-sm">
+                Choisissez le style de vos textes promotionnels
+              </CardDescription>
+            </div>
+            
+            {/* Badge de statut */}
+            <Badge variant={functionStatus === 'ready' ? 'default' : 'secondary'} className="gap-2">
+              {functionStatus === 'checking' && <>⏳ Vérification...</>}
+              {functionStatus === 'ready' && <><CheckCircle className="h-3 w-3" /> Fonction prête</>}
+              {functionStatus === 'deploying' && <><AlertCircle className="h-3 w-3" /> En déploiement</>}
+              {functionStatus === 'demo' && <>🎨 Mode démo</>}
+            </Badge>
+          </div>
         </CardHeader>
+        
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Style de texte</Label>
-            <Select value={style} onValueChange={(v) => setStyle(v as PromotionalStyle)}>
+            <label className="text-sm font-medium">Style promotionnel</label>
+            <Select
+              value={selectedStyle}
+              onValueChange={(value) => setSelectedStyle(value as PromotionalStyle)}
+            >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue placeholder="Sélectionner un style" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="epic">🚀 Épique (Impact maximal)</SelectItem>
-                <SelectItem value="professional">💼 Professionnel</SelectItem>
-                <SelectItem value="casual">😊 Décontracté</SelectItem>
-                <SelectItem value="urgent">⚡ Urgent</SelectItem>
+                <SelectItem value="epic">🚀 Épique - Impact maximum</SelectItem>
+                <SelectItem value="professional">💼 Professionnel - Sérieux et crédible</SelectItem>
+                <SelectItem value="casual">😊 Décontracté - Proche et amical</SelectItem>
+                <SelectItem value="urgent">⚡ Urgent - Action immédiate</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <Button 
-            onClick={handleGenerateAll}
-            disabled={isGenerating || allGenerated}
-            className="w-full text-sm sm:text-base"
-            size="lg"
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            {isGenerating ? 'Génération en cours...' : allGenerated ? 'Textes déjà générés' : 'Générer tous les textes'}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button 
+              onClick={handleGenerateAll}
+              disabled={isGenerating || allGenerated}
+              className="flex-1 text-sm sm:text-base"
+              size="lg"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {isGenerating ? 'Génération en cours...' : allGenerated ? 'Textes déjà générés' : 'Générer tous les textes'}
+            </Button>
 
-          {!allGenerated && frames.length > 0 && (
-            <p className="text-xs text-muted-foreground text-center">
-              💡 Note: Les edge functions doivent être déployées pour générer les textes
-            </p>
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={isGenerating}
+              size="lg"
+            >
+              <TestTube className="mr-2 h-4 w-4" />
+              Tester
+            </Button>
+          </div>
+
+          {/* Messages informatifs */}
+          {functionStatus === 'deploying' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-xs text-yellow-800">
+                ⏳ <strong>Fonctions en déploiement</strong> - Le mode démo utilise des textes exemples. 
+                La génération IA sera disponible après le déploiement complet (2-5 minutes).
+              </p>
+            </div>
+          )}
+
+          {useFallback && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-800">
+                🎨 <strong>Mode démo actif</strong> - Textes exemples utilisés. 
+                Cliquez sur "Tester" pour vérifier si les fonctions sont maintenant déployées.
+              </p>
+            </div>
+          )}
+
+          {functionStatus === 'ready' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-xs text-green-800">
+                ✅ <strong>Système opérationnel</strong> - Les textes seront générés avec Lovable AI.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
