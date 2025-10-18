@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useMediaManager } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from './UniversalMediaModal';
 import { removeBackground, loadImage, imageUrlToBlob, blobToDataUrl } from '@/utils/backgroundRemoval';
+import { detectBackgroundColor } from '@/utils/colorDetection';
 
 const cameraEffects = [
   { id: 'zoom-in', name: 'Zoom In', description: 'Zoom progressif vers le sujet', icon: '🔍' },
@@ -44,6 +45,7 @@ export const AIVideography = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [originalBackground, setOriginalBackground] = useState<string>('');
+  const [backgroundColor, setBackgroundColor] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,12 +69,13 @@ export const AIVideography = () => {
     try {
       let processedImage = image;
       
-      // Si l'effet est 360-rotate, supprimer le fond de l'image mais garder l'original
+      // Si l'effet est 360-rotate, supprimer le fond de l'image et détecter la couleur
       if (cameraEffect === '360-rotate') {
-        toast.info('Suppression du fond en cours...', { duration: 3000 });
+        toast.info('Analyse et suppression du fond en cours...', { duration: 3000 });
         try {
-          // Garder l'image originale pour le fond
-          setOriginalBackground(image);
+          // Détecter la couleur du fond
+          const bgColor = await detectBackgroundColor(image);
+          setBackgroundColor(bgColor);
           
           const blob = await imageUrlToBlob(image);
           const imageElement = await loadImage(blob);
@@ -82,7 +85,7 @@ export const AIVideography = () => {
         } catch (bgError) {
           console.error('Background removal error:', bgError);
           toast.error('Erreur lors de la suppression du fond, utilisation de l\'image originale');
-          setOriginalBackground('');
+          setBackgroundColor('');
         }
       }
 
@@ -120,14 +123,15 @@ High quality, marketing-ready video output.`;
           style: videoStyle,
           format: `${duration}s`,
           imageUrl: data.videoUrl,
-          metadata: {
-            cameraEffect: cameraEffect,
-            videoStyle: videoStyle,
-            duration: parseInt(duration),
-            description: description,
-            isEnhancedImage: data.isEnhancedImage || false,
-            hasTransparentBackground: cameraEffect === '360-rotate'
-          }
+            metadata: {
+              cameraEffect: cameraEffect,
+              videoStyle: videoStyle,
+              duration: parseInt(duration),
+              description: description,
+              isEnhancedImage: data.isEnhancedImage || false,
+              hasTransparentBackground: cameraEffect === '360-rotate',
+              backgroundColor: backgroundColor
+            }
         });
 
         if (savedMedia) {
@@ -281,16 +285,14 @@ High quality, marketing-ready video output.`;
       {result && (
         <Card className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Résultat</h3>
-          <div className="relative aspect-video rounded-lg overflow-hidden border bg-black">
-            {/* Fond original fixe pour l'effet 360-rotate */}
-            {result.metadata?.cameraEffect === '360-rotate' && originalBackground && (
-              <img
-                src={originalBackground}
-                alt="Fond original"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            )}
-            
+          <div 
+            className="relative aspect-video rounded-lg overflow-hidden border"
+            style={{
+              backgroundColor: result.metadata?.cameraEffect === '360-rotate' && backgroundColor 
+                ? backgroundColor 
+                : 'black'
+            }}
+          >
             {/* Image animée */}
             <img
               src={result.image_url}
