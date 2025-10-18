@@ -1652,6 +1652,86 @@ export type Database = {
           },
         ]
       }
+      facebook_credentials: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          page_id: string | null
+          page_name: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          page_id?: string | null
+          page_name?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          page_id?: string | null
+          page_name?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      facebook_posts: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          facebook_post_id: string | null
+          id: string
+          page_id: string | null
+          post_url: string | null
+          published_at: string | null
+          status: string
+          user_id: string
+          video_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          facebook_post_id?: string | null
+          id?: string
+          page_id?: string | null
+          post_url?: string | null
+          published_at?: string | null
+          status?: string
+          user_id: string
+          video_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          facebook_post_id?: string | null
+          id?: string
+          page_id?: string | null
+          post_url?: string | null
+          published_at?: string | null
+          status?: string
+          user_id?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facebook_posts_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "generated_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       file_folders: {
         Row: {
           created_at: string | null
