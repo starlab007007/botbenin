@@ -103,8 +103,7 @@ serve(async (req) => {
         size_bytes: JSON.stringify(videoData).length,
         template_id: templateId,
         music_id: musicId,
-        user_id: user.id,
-        status: 'completed'
+        user_id: user.id
       })
       .select()
       .single();
