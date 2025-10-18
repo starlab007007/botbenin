@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, format, style } = await req.json();
+    const { prompt, format, style, type, baseImage } = await req.json();
     
     if (!prompt) {
       return new Response(
@@ -25,7 +25,20 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY non configurée');
     }
 
-    console.log('Génération d\'image avec prompt:', prompt);
+    console.log('Génération avec prompt:', prompt, 'type:', type || 'image');
+
+    // Construire le message pour l'IA
+    const messageContent: any[] = [
+      { type: 'text', text: prompt }
+    ];
+
+    // Si une image de base est fournie (pour flyers/édition)
+    if (baseImage) {
+      messageContent.push({
+        type: 'image_url',
+        image_url: { url: baseImage }
+      });
+    }
 
     // Appel à Lovable AI pour générer l'image
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -39,7 +52,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'user',
-            content: prompt
+            content: messageContent
           }
         ],
         modalities: ['image', 'text']

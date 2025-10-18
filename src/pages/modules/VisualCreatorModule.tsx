@@ -22,7 +22,8 @@ import {
   TrendingUp,
   Eye,
   Trash2,
-  History
+  History,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +31,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useMediaManager, MediaItem } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from '@/components/visual-creator/UniversalMediaModal';
 import { useNavigate } from 'react-router-dom';
+import { FlyerGenerator } from '@/components/visual-creator/FlyerGenerator';
+import { ImageCombiner } from '@/components/visual-creator/ImageCombiner';
 
 interface SocialFormat {
   id: string;
@@ -57,7 +60,7 @@ const styles = [
 
 export const VisualCreatorModule: React.FC = () => {
   const navigate = useNavigate();
-  const { saveToGallery, downloadMedia } = useMediaManager();
+  const { saveToGallery, downloadMedia, loadUserGallery } = useMediaManager();
   const [prompt, setPrompt] = useState('');
   const [selectedFormat, setSelectedFormat] = useState<string>('instagram-post');
   const [selectedStyle, setSelectedStyle] = useState<string>('modern');
@@ -65,6 +68,15 @@ export const VisualCreatorModule: React.FC = () => {
   const [generatedImages, setGeneratedImages] = useState<MediaItem[]>([]);
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Charger les créations récentes au montage
+  React.useEffect(() => {
+    const loadRecent = async () => {
+      const recent = await loadUserGallery({ limit: 8 });
+      setGeneratedImages(recent);
+    };
+    loadRecent();
+  }, []);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -168,15 +180,22 @@ export const VisualCreatorModule: React.FC = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Tabs defaultValue="images" className="space-y-6">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 h-12">
+          <TabsList className="grid w-full max-w-4xl mx-auto grid-cols-4 h-12">
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="w-4 h-4" />
               Images
             </TabsTrigger>
+            <TabsTrigger value="flyers" className="gap-2">
+              <FileText className="w-4 h-4" />
+              Flyers
+            </TabsTrigger>
+            <TabsTrigger value="combine" className="gap-2">
+              <Layout className="w-4 h-4" />
+              Combiner
+            </TabsTrigger>
             <TabsTrigger value="videos" className="gap-2">
               <Video className="w-4 h-4" />
               Vidéos
-              <Badge variant="secondary" className="ml-1">Bientôt</Badge>
             </TabsTrigger>
           </TabsList>
 
@@ -382,17 +401,32 @@ export const VisualCreatorModule: React.FC = () => {
             )}
           </TabsContent>
 
+          {/* Flyers Tab */}
+          <TabsContent value="flyers" className="space-y-6">
+            <FlyerGenerator />
+          </TabsContent>
+
+          {/* Image Combiner Tab */}
+          <TabsContent value="combine" className="space-y-6">
+            <ImageCombiner />
+          </TabsContent>
+
           {/* Videos Tab */}
           <TabsContent value="videos" className="space-y-6">
             <Card className="p-12 text-center space-y-4 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
               <Video className="w-16 h-16 mx-auto text-primary" />
               <h3 className="text-2xl font-bold text-foreground">Création de vidéos IA</h3>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Bientôt disponible ! Créez des vidéos promotionnelles époustouflantes en quelques clics.
+                Générez des vidéos promotionnelles avec texte, voix et images !
               </p>
-              <Badge variant="secondary" className="text-sm px-4 py-2">
-                En développement
-              </Badge>
+              <Button
+                size="lg"
+                className="gap-2"
+                onClick={() => navigate('/video-production/generate')}
+              >
+                <Video className="w-5 h-5" />
+                Accéder au générateur de vidéos
+              </Button>
             </Card>
           </TabsContent>
         </Tabs>

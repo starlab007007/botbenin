@@ -197,7 +197,7 @@ export default function VisualGalleryPage() {
                   <h3 className="font-semibold line-clamp-1 flex-1">
                     {media.title}
                   </h3>
-                  <Badge variant="outline" className={getTypeIcon && getTypeColor(media.type)}>
+                  <Badge variant="outline" className={getTypeColor(media.type)}>
                     <span className="flex items-center gap-1">
                       {getTypeIcon(media.type)}
                       {media.type}
