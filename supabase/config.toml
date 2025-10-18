@@ -150,3 +150,6 @@ verify_jwt = true
 
 [functions.generate-promotional-texts]
 verify_jwt = false
+
+[functions.generate-promotional-voice]
+verify_jwt = true

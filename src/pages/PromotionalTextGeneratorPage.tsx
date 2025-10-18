@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { usePromotionalTextGeneration, PromotionalStyle, FrameType } from '@/hooks/usePromotionalTextGeneration';
+import { useVoiceGeneration } from '@/hooks/useVoiceGeneration';
 import { PromotionalTextDisplay } from '@/components/video-production/PromotionalTextDisplay';
 import { PromotionalTextExporter } from '@/components/video-production/PromotionalTextExporter';
+import { VoiceSelector } from '@/components/video-production/VoiceSelector';
+import { AudioPreview } from '@/components/video-production/AudioPreview';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Sparkles, CheckCircle, AlertCircle, TestTube } from 'lucide-react';
+import { ArrowLeft, Sparkles, CheckCircle, AlertCircle, TestTube, Mic } from 'lucide-react';
 
 export const PromotionalTextGeneratorPage = () => {
   const { videoId } = useParams();
@@ -20,6 +23,8 @@ export const PromotionalTextGeneratorPage = () => {
   const [selectedStyle, setSelectedStyle] = useState<PromotionalStyle>('epic');
   const [allGenerated, setAllGenerated] = useState(false);
   const [functionStatus, setFunctionStatus] = useState<'checking' | 'ready' | 'deploying' | 'demo'>('checking');
+  const [selectedVoiceId, setSelectedVoiceId] = useState('antoine-professional');
+  const [audioTracks, setAudioTracks] = useState<any[]>([]);
   
   const { 
     generateAllFrameTexts, 
@@ -29,12 +34,35 @@ export const PromotionalTextGeneratorPage = () => {
     checkFunctionAvailability 
   } = usePromotionalTextGeneration();
 
+  const { 
+    generateMultipleVoices,
+    isGenerating: isGeneratingVoice 
+  } = useVoiceGeneration();
+
   useEffect(() => {
     if (videoId) {
       loadData();
+      loadAudioTracks();
       testFunctionStatus();
     }
   }, [videoId]);
+
+  const loadAudioTracks = async () => {
+    if (!videoId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('video_audio_tracks')
+        .select('*')
+        .eq('video_id', videoId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAudioTracks(data || []);
+    } catch (error) {
+      console.error('Error loading audio tracks:', error);
+    }
+  };
 
   const testFunctionStatus = async () => {
     setFunctionStatus('checking');
@@ -95,6 +123,39 @@ export const PromotionalTextGeneratorPage = () => {
         description: 'Erreur de chargement des données',
         variant: 'destructive'
       });
+    }
+  };
+
+  const handleGenerateVoices = async () => {
+    if (!frames.length || !videoId) {
+      toast({
+        title: 'Erreur',
+        description: 'Aucun texte disponible pour générer les voix',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const textsToGenerate = frames
+      .filter(f => f.promotional_text)
+      .map(f => ({
+        text: f.promotional_text,
+        frameType: f.frame_type as 'hero' | 'demo' | 'result' | 'cta',
+      }));
+
+    if (textsToGenerate.length === 0) {
+      toast({
+        title: 'Erreur',
+        description: 'Générez d\'abord les textes avant de créer les voix',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const success = await generateMultipleVoices(textsToGenerate, selectedVoiceId, videoId);
+    
+    if (success) {
+      await loadAudioTracks();
     }
   };
 
@@ -261,6 +322,51 @@ export const PromotionalTextGeneratorPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Sélection de voix et génération audio */}
+      {allGenerated && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mic className="h-5 w-5" />
+              Génération Vocale
+            </CardTitle>
+            <CardDescription>
+              Créez une voix-off professionnelle pour votre vidéo
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <VoiceSelector
+              selectedVoiceId={selectedVoiceId}
+              onVoiceSelect={setSelectedVoiceId}
+            />
+
+            <Button
+              onClick={handleGenerateVoices}
+              disabled={isGeneratingVoice}
+              className="w-full"
+              size="lg"
+            >
+              <Mic className="mr-2 h-4 w-4" />
+              {isGeneratingVoice ? 'Génération en cours...' : 'Générer toutes les voix-off'}
+            </Button>
+
+            {/* Aperçu des pistes audio */}
+            {audioTracks.length > 0 && (
+              <div className="space-y-3 pt-4">
+                <h4 className="font-medium text-sm">Pistes audio générées</h4>
+                {audioTracks.map((track) => (
+                  <AudioPreview
+                    key={track.id}
+                    audioUrl={track.audio_url}
+                    title={`${track.frame_type?.toUpperCase()} - ${track.voice_name}`}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {frames.map((frame) => (

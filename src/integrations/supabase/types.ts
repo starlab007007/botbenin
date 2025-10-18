@@ -4168,6 +4168,54 @@ export type Database = {
         }
         Relationships: []
       }
+      video_audio_tracks: {
+        Row: {
+          audio_duration: number
+          audio_size_bytes: number | null
+          audio_url: string
+          created_at: string | null
+          frame_type: string | null
+          id: string
+          language: string | null
+          speed: number | null
+          text_content: string
+          user_id: string | null
+          video_id: string
+          voice_id: string
+          voice_name: string | null
+        }
+        Insert: {
+          audio_duration: number
+          audio_size_bytes?: number | null
+          audio_url: string
+          created_at?: string | null
+          frame_type?: string | null
+          id?: string
+          language?: string | null
+          speed?: number | null
+          text_content: string
+          user_id?: string | null
+          video_id: string
+          voice_id: string
+          voice_name?: string | null
+        }
+        Update: {
+          audio_duration?: number
+          audio_size_bytes?: number | null
+          audio_url?: string
+          created_at?: string | null
+          frame_type?: string | null
+          id?: string
+          language?: string | null
+          speed?: number | null
+          text_content?: string
+          user_id?: string | null
+          video_id?: string
+          voice_id?: string
+          voice_name?: string | null
+        }
+        Relationships: []
+      }
       video_descriptions: {
         Row: {
           audio_duration: number | null
