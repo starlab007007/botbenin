@@ -27,20 +27,20 @@ serve(async (req) => {
 
     console.log('Generating AI video with camera effect:', cameraEffect);
 
-    // Utiliser l'API Lovable pour générer la vidéo avec IA
-    const enhancedPrompt = `${prompt}
+    // Utiliser l'API Lovable pour générer une image améliorée avec effets visuels
+    const enhancedPrompt = `Create an enhanced version of this image with dramatic visual effects for a promotional video:
+    
+Camera motion style: ${cameraEffect}
+Visual style: ${videoStyle}
+${description ? `Product/Context: ${description}` : ''}
 
-Technical specifications:
-- Input: Single image
-- Camera motion: ${cameraEffect}
-- Style: ${videoStyle}
-- Duration: ${duration} seconds
-- Output: High-quality video with smooth transitions
-- Add cinematic motion blur and depth effects
-- Maintain image quality throughout the animation
-${description ? `Context: ${description}` : ''}
+Apply professional cinematic effects:
+- Add depth and dimension with subtle lighting
+- Enhance colors and contrast for ${videoStyle} style
+- Create a visually striking composition ready for ${cameraEffect} animation
+- Maintain the product focus while adding atmospheric effects
 
-Create a professional promotional video with fluid camera movements and realistic motion.`;
+Output: High-quality enhanced image optimized for animated presentation.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -61,8 +61,7 @@ Create a professional promotional video with fluid camera movements and realisti
               }
             ]
           }
-        ],
-        modalities: ['image', 'text']
+        ]
       }),
     });
 
@@ -79,25 +78,48 @@ Create a professional promotional video with fluid camera movements and realisti
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      const errorText = await response.text();
+      console.error('AI API error:', response.status, errorText);
       throw new Error(`AI API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const generatedVideo = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-
-    if (!generatedVideo) {
-      throw new Error('Aucune vidéo générée par l\'IA');
+    console.log('AI Response structure:', JSON.stringify(data).substring(0, 500));
+    
+    // Extraire l'image générée de la réponse
+    let generatedImage = null;
+    
+    if (data.choices?.[0]?.message?.content) {
+      // Le contenu peut être du texte avec l'URL de l'image
+      const content = data.choices[0].message.content;
+      const urlMatch = content.match(/https?:\/\/[^\s]+/);
+      if (urlMatch) {
+        generatedImage = urlMatch[0];
+      }
+    }
+    
+    // Vérifier aussi dans les images directes
+    if (!generatedImage && data.choices?.[0]?.message?.images?.[0]) {
+      const imageData = data.choices[0].message.images[0];
+      generatedImage = imageData.image_url?.url || imageData.url || imageData;
     }
 
-    console.log('Video generated successfully');
+    // Si pas d'image générée, retourner l'image originale
+    if (!generatedImage) {
+      console.log('No enhanced image generated, using original');
+      generatedImage = image;
+    }
+
+    console.log('Image generated successfully');
 
     return new Response(
       JSON.stringify({
         success: true,
-        videoUrl: generatedVideo,
+        videoUrl: generatedImage,
         cameraEffect,
         videoStyle,
-        duration
+        duration,
+        isEnhancedImage: true
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

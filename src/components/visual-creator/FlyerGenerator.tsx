@@ -239,30 +239,38 @@ Ultra high quality, print-ready design.`;
       {/* Preview Generated Flyer */}
       {generatedFlyer && (
         <Card className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold">Flyer généré</h3>
-          <div className="relative aspect-[3/4] rounded-lg overflow-hidden border">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">✅ Flyer créé avec succès</h3>
+            <div className="text-sm text-muted-foreground">
+              Sauvegardé dans votre galerie
+            </div>
+          </div>
+          <div className="relative aspect-[3/4] rounded-lg overflow-hidden border shadow-lg">
             <img
               src={generatedFlyer.image_url}
               alt={generatedFlyer.title}
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
-              className="flex-1 gap-2"
+              className="gap-2"
               onClick={() => setIsModalOpen(true)}
             >
               <Eye className="w-4 h-4" />
-              Visualiser
+              Visualiser en grand
             </Button>
             <Button
-              className="flex-1 gap-2"
+              className="gap-2"
               onClick={() => downloadMedia(generatedFlyer.image_url, `flyer-${generatedFlyer.id}.png`)}
             >
               <Download className="w-4 h-4" />
               Télécharger
             </Button>
+          </div>
+          <div className="text-xs text-muted-foreground text-center">
+            Le flyer est enregistré dans votre galerie et peut être téléchargé à tout moment
           </div>
         </Card>
       )}

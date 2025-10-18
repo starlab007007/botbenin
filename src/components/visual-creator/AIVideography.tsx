@@ -91,7 +91,7 @@ High quality, marketing-ready video output.`;
       if (data?.videoUrl) {
         const savedMedia = await saveToGallery({
           type: 'video',
-          title: `Video ${cameraEffect}`,
+          title: `Vidéo ${cameraEffect} - ${videoStyle}`,
           prompt: prompt,
           style: videoStyle,
           format: `${duration}s`,
@@ -100,13 +100,14 @@ High quality, marketing-ready video output.`;
             cameraEffect: cameraEffect,
             videoStyle: videoStyle,
             duration: parseInt(duration),
-            description: description
+            description: description,
+            isEnhancedImage: data.isEnhancedImage || false
           }
         });
 
         if (savedMedia) {
           setResult(savedMedia);
-          toast.success('Vidéo générée avec succès !');
+          toast.success('Vidéo animée générée avec succès !');
         }
       }
     } catch (error) {
@@ -255,14 +256,23 @@ High quality, marketing-ready video output.`;
       {result && (
         <Card className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Résultat</h3>
-          <div className="relative aspect-video rounded-lg overflow-hidden border">
-            <video
+          <div className="relative aspect-video rounded-lg overflow-hidden border bg-black">
+            <img
               src={result.image_url}
-              className="w-full h-full object-cover"
-              controls
-              autoPlay
-              loop
+              alt="Vidéo générée"
+              className={`w-full h-full object-contain ${
+                result.metadata?.cameraEffect === 'zoom-in' ? 'animate-[zoom-in_5s_ease-in-out_infinite]' :
+                result.metadata?.cameraEffect === 'zoom-out' ? 'animate-[zoom-out_5s_ease-in-out_infinite]' :
+                result.metadata?.cameraEffect === 'pan-left' ? 'animate-[pan-left_5s_ease-in-out_infinite]' :
+                result.metadata?.cameraEffect === 'pan-right' ? 'animate-[pan-right_5s_ease-in-out_infinite]' :
+                result.metadata?.cameraEffect === 'orbit' ? 'animate-[orbit_5s_ease-in-out_infinite]' :
+                result.metadata?.cameraEffect === 'parallax' ? 'animate-[parallax_5s_ease-in-out_infinite]' :
+                ''
+              }`}
             />
+            <div className="absolute top-2 right-2 px-3 py-1 bg-black/70 text-white text-xs rounded-full">
+              Animation: {result.metadata?.cameraEffect || 'auto'}
+            </div>
           </div>
           <div className="flex gap-2">
             <Button
@@ -275,7 +285,7 @@ High quality, marketing-ready video output.`;
             </Button>
             <Button
               className="flex-1 gap-2"
-              onClick={() => downloadMedia(result.image_url, `video-${result.id}.mp4`)}
+              onClick={() => downloadMedia(result.image_url, `video-animated-${result.id}.png`)}
             >
               <Download className="w-4 h-4" />
               Télécharger

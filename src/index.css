@@ -182,3 +182,34 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom-left-radius: 8px !important;
   border-bottom-right-radius: 8px !important;
 }
+
+/* Custom animations for AI Videography */
+@keyframes zoom-in {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes zoom-out {
+  0%, 100% { transform: scale(1.2); }
+  50% { transform: scale(1); }
+}
+
+@keyframes pan-left {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-10%); }
+}
+
+@keyframes pan-right {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(10%); }
+}
+
+@keyframes orbit {
+  0% { transform: rotate(0deg) translateX(5%) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(5%) rotate(-360deg); }
+}
+
+@keyframes parallax {
+  0%, 100% { transform: perspective(1000px) rotateY(0deg); }
+  50% { transform: perspective(1000px) rotateY(10deg); }
+}

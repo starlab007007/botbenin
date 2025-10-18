@@ -49,9 +49,15 @@ export const useMediaManager = () => {
       let thumbnailUrl = params.imageUrl;
       
       if (params.imageUrl.startsWith('data:image')) {
-        // Convertir base64 en blob
-        const response = await fetch(params.imageUrl);
-        const blob = await response.blob();
+        // Convertir base64 en blob de manière robuste
+        const base64Data = params.imageUrl.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/png' });
         
         // Upload vers Storage
         const fileName = `${user.id}/${Date.now()}-${params.type}.png`;
