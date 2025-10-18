@@ -23,6 +23,7 @@ const cameraEffects = [
   { id: 'pan-right', name: 'Pan Right', description: 'Mouvement de gauche à droite', icon: '➡️' },
   { id: 'orbit', name: 'Orbit', description: 'Rotation autour du sujet', icon: '🔄' },
   { id: 'parallax', name: 'Parallax', description: 'Effet de profondeur 3D', icon: '🎬' },
+  { id: '360-rotate', name: '360° Rotation', description: 'Rotation complète à 360 degrés', icon: '🌐' },
 ];
 
 const videoStyles = [
@@ -267,6 +268,7 @@ High quality, marketing-ready video output.`;
                 result.metadata?.cameraEffect === 'pan-right' ? 'animate-[pan-right_5s_ease-in-out_infinite]' :
                 result.metadata?.cameraEffect === 'orbit' ? 'animate-[orbit_5s_ease-in-out_infinite]' :
                 result.metadata?.cameraEffect === 'parallax' ? 'animate-[parallax_5s_ease-in-out_infinite]' :
+                result.metadata?.cameraEffect === '360-rotate' ? 'animate-[rotate-360_8s_linear_infinite]' :
                 ''
               }`}
             />

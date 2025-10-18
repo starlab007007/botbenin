@@ -213,3 +213,8 @@ h1, h2, h3, h4, h5, h6 {
   0%, 100% { transform: perspective(1000px) rotateY(0deg); }
   50% { transform: perspective(1000px) rotateY(10deg); }
 }
+
+@keyframes rotate-360 {
+  0% { transform: perspective(1000px) rotateY(0deg) scale(1.1); }
+  100% { transform: perspective(1000px) rotateY(360deg) scale(1.1); }
+}
