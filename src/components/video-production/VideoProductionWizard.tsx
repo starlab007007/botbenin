@@ -92,7 +92,8 @@ export const VideoProductionWizard = ({ videoId, onComplete }: VideoProductionWi
 
     if (result) {
       markStepComplete('assemble');
-      onComplete?.(result.dataUrl || '');
+      onComplete?.(result.url || '');
+    }
   };
 
   return (
