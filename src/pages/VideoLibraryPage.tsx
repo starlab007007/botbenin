@@ -39,6 +39,8 @@ interface VideoFrame {
   image_url: string;
   prompt: string;
   created_at: string;
+  promotional_text?: string | null;
+  promotional_style?: string | null;
 }
 
 export const VideoLibraryPage = () => {
@@ -489,6 +491,15 @@ export const VideoLibraryPage = () => {
                         </Button>
                       }
                     />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/promotional-text/${video.video_id}`)}
+                      className="flex-1"
+                      title="Générer des textes promotionnels"
+                    >
+                      ✨
+                    </Button>
                     <VideoExportDialog
                       videoUrl={video.use_shotstack && video.rendered_video_url ? video.rendered_video_url : video.video_url}
                       videoTitle={video.video_title}

@@ -76,8 +76,9 @@ export const VideoDetailsDialog = ({ video, frames = [], trigger }: VideoDetails
         </DialogHeader>
 
         <Tabs defaultValue="frames" className="w-full">
-          <TabsList className="grid grid-cols-4 w-full">
+          <TabsList className="grid grid-cols-5 w-full">
             <TabsTrigger value="frames">🖼️ Frames</TabsTrigger>
+            <TabsTrigger value="promotional">✨ Textes</TabsTrigger>
             <TabsTrigger value="script">📝 Script</TabsTrigger>
             <TabsTrigger value="audio">🎵 Audio</TabsTrigger>
             <TabsTrigger value="metadata">📊 Métadonnées</TabsTrigger>
@@ -111,6 +112,128 @@ export const VideoDetailsDialog = ({ video, frames = [], trigger }: VideoDetails
             {frames.length === 0 && (
               <p className="text-center text-muted-foreground py-8">
                 Aucune frame disponible
+              </p>
+            )}
+          </TabsContent>
+
+          {/* Onglet Textes Promotionnels */}
+          <TabsContent value="promotional" className="space-y-4">
+            {frames.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 gap-4">
+                  {frames.map((frame) => (
+                    <Card key={frame.id}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <Badge className="w-fit uppercase">{frame.frame_type}</Badge>
+                          {frame.promotional_style && (
+                            <Badge variant="outline">{frame.promotional_style}</Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="flex gap-4">
+                        <img 
+                          src={frame.image_url} 
+                          alt={frame.frame_type}
+                          className="w-32 h-32 rounded object-cover"
+                        />
+                        <div className="flex-1">
+                          {frame.promotional_text ? (
+                            <>
+                              <p className="font-semibold text-lg leading-relaxed mb-2">
+                                {frame.promotional_text}
+                              </p>
+                              <div className="flex gap-2">
+                                <Badge variant="outline">
+                                  {frame.promotional_text.split(/\s+/).length} mots
+                                </Badge>
+                                <Badge variant="outline">
+                                  {frame.promotional_text.length} caractères
+                                </Badge>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-muted-foreground italic">
+                              Aucun texte promotionnel généré pour cette frame
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                      {frame.promotional_text && (
+                        <CardFooter>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(frame.promotional_text);
+                              toast.success('Texte copié');
+                            }}
+                          >
+                            Copier
+                          </Button>
+                        </CardFooter>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+
+                {video.promotional_summary && (
+                  <Card className="mt-4">
+                    <CardHeader>
+                      <CardTitle className="text-xl">🎬 Résumé Vidéo Complet</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-lg leading-relaxed mb-4">
+                        {video.promotional_summary}
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        <Badge variant="outline">
+                          {video.promotional_summary.split(/\s+/).length} mots
+                        </Badge>
+                        <Badge variant="outline">
+                          {video.promotional_summary.length} caractères
+                        </Badge>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(video.promotional_summary);
+                          toast.success('Résumé copié');
+                        }}
+                      >
+                        Copier le résumé
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const text = `${video.promotional_summary}\n\n#BéninEntrepreneurs #BusinessAfricain #TechBenin`;
+                          navigator.clipboard.writeText(text);
+                          toast.success('Copié pour TikTok');
+                        }}
+                      >
+                        Copier pour TikTok
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const text = `${video.promotional_summary}\n\n#Entrepreneuriat #AfriqueDigitale`;
+                          navigator.clipboard.writeText(text);
+                          toast.success('Copié pour Instagram');
+                        }}
+                      >
+                        Copier pour Instagram
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                Aucun texte promotionnel disponible
               </p>
             )}
           </TabsContent>

@@ -54,6 +54,7 @@ const VideoProductionPage = lazy(() => import("./pages/VideoProductionPage").the
 const VideoProductionCalendar = lazy(() => import("./pages/VideoProductionCalendar").then(module => ({ default: module.VideoProductionCalendar })));
 const VideoGenerationPage = lazy(() => import("./pages/VideoGenerationPage").then(module => ({ default: module.VideoGenerationPage })));
 const VideoLibraryPage = lazy(() => import("./pages/VideoLibraryPage").then(module => ({ default: module.VideoLibraryPage })));
+const PromotionalTextGeneratorPage = lazy(() => import("./pages/PromotionalTextGeneratorPage").then(module => ({ default: module.PromotionalTextGeneratorPage })));
 
 // Campagnes de partage
 const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampaignsPage").then(module => ({ default: module.SocialSharingCampaignsPage })));
@@ -146,6 +147,7 @@ const AppContent = () => {
                     <Route path="/video-production/calendar" element={<VideoProductionCalendar />} />
                     <Route path="/video-production/generate" element={<VideoGenerationPage />} />
           <Route path="/video-library" element={<VideoLibraryPage />} />
+          <Route path="/promotional-text/:videoId" element={<PromotionalTextGeneratorPage />} />
           <Route path="/video-assets" element={<VideoAssetsPage />} />
                     
                     {/* Support et compte */}

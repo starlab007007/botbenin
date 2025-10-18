@@ -1768,6 +1768,8 @@ export type Database = {
           id: string
           music_id: string
           optimized_for_platform: string | null
+          promotional_summary: string | null
+          promotional_summary_generated_at: string | null
           render_status: string | null
           rendered_video_url: string | null
           share_urls: Json | null
@@ -1794,6 +1796,8 @@ export type Database = {
           id?: string
           music_id: string
           optimized_for_platform?: string | null
+          promotional_summary?: string | null
+          promotional_summary_generated_at?: string | null
           render_status?: string | null
           rendered_video_url?: string | null
           share_urls?: Json | null
@@ -1820,6 +1824,8 @@ export type Database = {
           id?: string
           music_id?: string
           optimized_for_platform?: string | null
+          promotional_summary?: string | null
+          promotional_summary_generated_at?: string | null
           render_status?: string | null
           rendered_video_url?: string | null
           share_urls?: Json | null
@@ -4212,6 +4218,11 @@ export type Database = {
           frame_type: string
           id: string
           image_url: string
+          promotional_style: string | null
+          promotional_text: string | null
+          promotional_text_char_count: number | null
+          promotional_text_generated_at: string | null
+          promotional_text_word_count: number | null
           prompt: string
           storage_path: string
           user_id: string | null
@@ -4222,6 +4233,11 @@ export type Database = {
           frame_type: string
           id?: string
           image_url: string
+          promotional_style?: string | null
+          promotional_text?: string | null
+          promotional_text_char_count?: number | null
+          promotional_text_generated_at?: string | null
+          promotional_text_word_count?: number | null
           prompt: string
           storage_path: string
           user_id?: string | null
@@ -4232,6 +4248,11 @@ export type Database = {
           frame_type?: string
           id?: string
           image_url?: string
+          promotional_style?: string | null
+          promotional_text?: string | null
+          promotional_text_char_count?: number | null
+          promotional_text_generated_at?: string | null
+          promotional_text_word_count?: number | null
           prompt?: string
           storage_path?: string
           user_id?: string | null
