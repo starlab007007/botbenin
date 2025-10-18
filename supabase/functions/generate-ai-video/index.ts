@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,11 +11,11 @@ serve(async (req) => {
   }
 
   try {
-    const { images, layout, overlayText, prompt } = await req.json();
+    const { image, cameraEffect, videoStyle, duration, description, prompt } = await req.json();
 
-    if (!images || images.length < 2) {
+    if (!image) {
       return new Response(
-        JSON.stringify({ error: 'Au moins 2 images sont requises' }),
+        JSON.stringify({ error: 'Image requise' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -26,21 +25,22 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY non configurée');
     }
 
-    // Utiliser l'API Lovable pour combiner les images avec IA
-    const combinedPrompt = `${prompt}
+    console.log('Generating AI video with camera effect:', cameraEffect);
 
-Layout type: ${layout}
-Number of images: ${images.length}
-${overlayText ? `Overlay text: "${overlayText}"` : ''}
+    // Utiliser l'API Lovable pour générer la vidéo avec IA
+    const enhancedPrompt = `${prompt}
 
-Instructions:
-- Create a seamless composition blending all images
-- Maintain high quality and professional look
-- Ensure smooth transitions between images
-- Add the overlay text stylishly if provided
-- Optimize for social media sharing`;
+Technical specifications:
+- Input: Single image
+- Camera motion: ${cameraEffect}
+- Style: ${videoStyle}
+- Duration: ${duration} seconds
+- Output: High-quality video with smooth transitions
+- Add cinematic motion blur and depth effects
+- Maintain image quality throughout the animation
+${description ? `Context: ${description}` : ''}
 
-    console.log('Combining images with AI...');
+Create a professional promotional video with fluid camera movements and realistic motion.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -54,11 +54,11 @@ Instructions:
           {
             role: 'user',
             content: [
-              { type: 'text', text: combinedPrompt },
-              ...images.slice(0, 6).map((img: string) => ({
+              { type: 'text', text: enhancedPrompt },
+              {
                 type: 'image_url',
-                image_url: { url: img }
-              }))
+                image_url: { url: image }
+              }
             ]
           }
         ],
@@ -83,27 +83,28 @@ Instructions:
     }
 
     const data = await response.json();
-    const generatedImage = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    const generatedVideo = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
-    if (!generatedImage) {
-      throw new Error('Aucune image générée par l\'IA');
+    if (!generatedVideo) {
+      throw new Error('Aucune vidéo générée par l\'IA');
     }
 
-    console.log('Images combined successfully');
+    console.log('Video generated successfully');
 
     return new Response(
       JSON.stringify({
         success: true,
-        imageUrl: generatedImage,
-        layout,
-        imageCount: images.length
+        videoUrl: generatedVideo,
+        cameraEffect,
+        videoStyle,
+        duration
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
   } catch (error) {
-    console.error('Error in combine-images:', error);
+    console.error('Error in generate-ai-video:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Erreur inconnue' }),
       {

@@ -18,7 +18,6 @@ import {
   Zap,
   Palette,
   Camera,
-  Layout,
   TrendingUp,
   Eye,
   Trash2,
@@ -32,7 +31,7 @@ import { useMediaManager, MediaItem } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from '@/components/visual-creator/UniversalMediaModal';
 import { useNavigate } from 'react-router-dom';
 import { FlyerGenerator } from '@/components/visual-creator/FlyerGenerator';
-import { ImageCombiner } from '@/components/visual-creator/ImageCombiner';
+import { AIVideography } from '@/components/visual-creator/AIVideography';
 
 interface SocialFormat {
   id: string;
@@ -180,7 +179,7 @@ export const VisualCreatorModule: React.FC = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Tabs defaultValue="images" className="space-y-6">
-          <TabsList className="grid w-full max-w-4xl mx-auto grid-cols-4 h-12">
+          <TabsList className="grid w-full max-w-4xl mx-auto grid-cols-3 h-12">
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="w-4 h-4" />
               Images
@@ -189,13 +188,9 @@ export const VisualCreatorModule: React.FC = () => {
               <FileText className="w-4 h-4" />
               Flyers
             </TabsTrigger>
-            <TabsTrigger value="combine" className="gap-2">
-              <Layout className="w-4 h-4" />
-              Combiner
-            </TabsTrigger>
             <TabsTrigger value="videos" className="gap-2">
               <Video className="w-4 h-4" />
-              Vidéos
+              AI Videography
             </TabsTrigger>
           </TabsList>
 
@@ -218,7 +213,7 @@ export const VisualCreatorModule: React.FC = () => {
                   {/* Format Selection */}
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                      <Layout className="w-4 h-4" />
+                      <ImageIcon className="w-4 h-4" />
                       Format de publication
                     </label>
                     <div className="grid grid-cols-2 gap-3">
@@ -406,28 +401,9 @@ export const VisualCreatorModule: React.FC = () => {
             <FlyerGenerator />
           </TabsContent>
 
-          {/* Image Combiner Tab */}
-          <TabsContent value="combine" className="space-y-6">
-            <ImageCombiner />
-          </TabsContent>
-
-          {/* Videos Tab */}
+          {/* AI Videography Tab */}
           <TabsContent value="videos" className="space-y-6">
-            <Card className="p-12 text-center space-y-4 bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
-              <Video className="w-16 h-16 mx-auto text-primary" />
-              <h3 className="text-2xl font-bold text-foreground">Création de vidéos IA</h3>
-              <p className="text-muted-foreground max-w-md mx-auto">
-                Générez des vidéos promotionnelles avec texte, voix et images !
-              </p>
-              <Button
-                size="lg"
-                className="gap-2"
-                onClick={() => navigate('/video-production/generate')}
-              >
-                <Video className="w-5 h-5" />
-                Accéder au générateur de vidéos
-              </Button>
-            </Card>
+            <AIVideography />
           </TabsContent>
         </Tabs>
       </div>

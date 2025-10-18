@@ -160,5 +160,5 @@ verify_jwt = true
 [functions.assemble-final-video]
 verify_jwt = true
 
-[functions.combine-images]
-verify_jwt = true
+[functions.generate-ai-video]
+verify_jwt = false
