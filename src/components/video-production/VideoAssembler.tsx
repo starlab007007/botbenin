@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
-import { Play, Download, Film, History } from 'lucide-react';
+import { Play, Download, Film, History, Video, Info } from 'lucide-react';
 import { VideoProduction } from '@/types/video-production';
 import { getTemplatesList } from '@/data/videoTemplates';
 import { musicLibrary } from '@/data/musicLibrary';
@@ -27,6 +27,7 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
   const [selectedMusic, setSelectedMusic] = useState(musicLibrary[0].id);
   const [musicVolume, setMusicVolume] = useState([30]);
+  const [useShotstack, setUseShotstack] = useState(false);
   const [isAssembling, setIsAssembling] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
@@ -106,7 +107,8 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
           },
           userId: user.id,
           templateId: selectedTemplate,
-          musicId: selectedMusic
+          musicId: selectedMusic,
+          useShotstack
         }
       });
 
@@ -233,6 +235,38 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
             max={100}
             step={5}
           />
+        </div>
+
+        {/* Option Shotstack */}
+        <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Video className="h-4 w-4" />
+                Créer une vraie vidéo animée
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Utilise Shotstack pour créer une vidéo MP4 complète avec transitions et musique
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useShotstack}
+                onChange={(e) => setUseShotstack(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span className="text-sm font-medium">{useShotstack ? 'Activé' : 'Désactivé'}</span>
+            </label>
+          </div>
+          {useShotstack && (
+            <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md">
+              <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-600 dark:text-blue-400">
+                La vidéo sera rendue en quelques minutes. Vous recevrez une notification quand elle sera prête.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

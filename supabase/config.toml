@@ -138,3 +138,9 @@ verify_jwt = true
 
 [functions.assemble-video]
 verify_jwt = true
+
+[functions.render-with-shotstack]
+verify_jwt = true
+
+[functions.check-shotstack-status]
+verify_jwt = true

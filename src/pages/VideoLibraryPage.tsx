@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Download, Share2, Trash2, Play, Search, Video, Clock, HardDrive } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Download, Share2, Trash2, Play, Search, Video, Clock, HardDrive, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { VideoSlideshow } from '@/components/video/VideoSlideshow';
 
@@ -22,6 +23,10 @@ interface GeneratedVideo {
   music_id: string;
   created_at: string;
   user_id: string;
+  use_shotstack?: boolean;
+  shotstack_render_id?: string;
+  rendered_video_url?: string;
+  render_status?: 'pending' | 'processing' | 'completed' | 'failed';
 }
 
 interface VideoFrame {
@@ -39,10 +44,41 @@ export const VideoLibraryPage = () => {
   const [videoFrames, setVideoFrames] = useState<Record<string, VideoFrame[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [checkingRenders, setCheckingRenders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadVideos();
   }, []);
+
+  const checkShotstackStatus = async (video: GeneratedVideo) => {
+    if (!video.shotstack_render_id || video.render_status === 'completed' || video.render_status === 'failed') {
+      return;
+    }
+
+    setCheckingRenders(prev => new Set(prev).add(video.video_id));
+
+    try {
+      const { data, error } = await supabase.functions.invoke('check-shotstack-status', {
+        body: { 
+          renderId: video.shotstack_render_id,
+          videoId: video.video_id
+        }
+      });
+
+      if (!error && data?.status === 'done') {
+        toast.success(`Vidéo prête ! "${video.video_title}" est disponible.`);
+        loadVideos();
+      }
+    } catch (error) {
+      console.error('Error checking render status:', error);
+    } finally {
+      setCheckingRenders(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(video.video_id);
+        return newSet;
+      });
+    }
+  };
 
   const loadVideos = async () => {
     try {
@@ -52,7 +88,14 @@ export const VideoLibraryPage = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setVideos(data || []);
+      setVideos(data as GeneratedVideo[] || []);
+      
+      // Vérifier le statut des vidéos Shotstack en cours
+      data?.forEach(video => {
+        if (video.use_shotstack && video.render_status === 'processing') {
+          checkShotstackStatus(video as GeneratedVideo);
+        }
+      });
       
       // Charger les frames pour chaque vidéo
       if (data) {
@@ -86,14 +129,28 @@ export const VideoLibraryPage = () => {
 
   const downloadVideo = async (video: GeneratedVideo) => {
     try {
-      const frames = videoFrames[video.video_id] || [];
-      if (frames.length === 0) {
-        toast.error('Aucune frame disponible pour le téléchargement');
+      // Si c'est une vraie vidéo Shotstack, télécharger le MP4
+      if (video.use_shotstack && video.rendered_video_url) {
+        const a = document.createElement('a');
+        a.href = video.rendered_video_url;
+        a.download = `${video.video_title.replace(/\s+/g, '-')}.mp4`;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        toast.success(`Téléchargement de la vidéo ${video.video_title}`);
         return;
       }
 
-      // Télécharger toutes les frames dans un ZIP ou individuellement
-      toast.info('Téléchargement de toutes les frames...');
+      // Sinon, télécharger toutes les frames
+      const frames = videoFrames[video.video_id] || [];
+      if (frames.length === 0) {
+        toast.error('Aucune frame disponible');
+        return;
+      }
+      
+      toast.info('Téléchargement des frames...');
       
       for (let i = 0; i < frames.length; i++) {
         const frame = frames[i];
@@ -108,7 +165,6 @@ export const VideoLibraryPage = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        // Petit délai entre chaque téléchargement
         if (i < frames.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
@@ -134,14 +190,12 @@ export const VideoLibraryPage = () => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette vidéo?')) return;
 
     try {
-      // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('video-assets')
         .remove([video.storage_path]);
 
       if (storageError) throw storageError;
 
-      // Delete from database
       const { error: dbError } = await supabase
         .from('generated_videos')
         .delete()
@@ -180,10 +234,8 @@ export const VideoLibraryPage = () => {
     video.video_title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Calculer la taille réelle basée sur les frames
   const calculateVideoSize = (videoId: string): number => {
     const frames = videoFrames[videoId] || [];
-    // Estimation: ~500KB par frame (image haute qualité)
     return frames.length * 500 * 1024;
   };
 
@@ -192,10 +244,9 @@ export const VideoLibraryPage = () => {
   }, 0);
   const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
 
-  // Calculer la durée réelle (2.5s par frame)
   const calculateDuration = (videoId: string): number => {
     const frames = videoFrames[videoId] || [];
-    return frames.length * 2.5; // secondes
+    return frames.length * 2.5;
   };
 
   return (
@@ -363,17 +414,61 @@ export const VideoLibraryPage = () => {
                     </div>
                   )}
 
+                  {/* Status Badge Shotstack */}
+                  {video.use_shotstack && (
+                    <div className="pt-2 border-t">
+                      {video.render_status === 'processing' ? (
+                        <Badge variant="secondary" className="w-full justify-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Rendu en cours...
+                        </Badge>
+                      ) : video.render_status === 'completed' ? (
+                        <Badge variant="default" className="w-full justify-center gap-2 bg-green-500">
+                          <CheckCircle className="h-3 w-3" />
+                          Vidéo MP4 prête
+                        </Badge>
+                      ) : video.render_status === 'failed' ? (
+                        <Badge variant="destructive" className="w-full justify-center">
+                          Échec du rendu
+                        </Badge>
+                      ) : null}
+                    </div>
+                  )}
+
                   <div className="flex gap-2 pt-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => downloadVideo(video)}
-                      className="flex-1"
-                      title="Télécharger toutes les frames"
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Frames
-                    </Button>
+                    {video.use_shotstack && video.render_status === 'processing' ? (
+                      <Button
+                        onClick={() => checkShotstackStatus(video)}
+                        size="sm"
+                        variant="outline"
+                        disabled={checkingRenders.has(video.video_id)}
+                        className="flex-1 gap-2"
+                      >
+                        {checkingRenders.has(video.video_id) ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Vérification...
+                          </>
+                        ) : (
+                          <>
+                            <Video className="h-4 w-4" />
+                            Vérifier le statut
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => downloadVideo(video)}
+                        className="flex-1"
+                        disabled={video.use_shotstack && video.render_status !== 'completed'}
+                        title={video.use_shotstack && video.rendered_video_url ? 'Télécharger la vidéo MP4' : 'Télécharger les frames'}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        {video.use_shotstack && video.rendered_video_url ? 'MP4' : 'Frames'}
+                      </Button>
+                    )}
                     <Button 
                       size="sm" 
                       variant="outline"

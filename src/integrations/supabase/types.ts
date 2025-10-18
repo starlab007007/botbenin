@@ -1762,10 +1762,14 @@ export type Database = {
           format: string | null
           id: string
           music_id: string
+          render_status: string | null
+          rendered_video_url: string | null
+          shotstack_render_id: string | null
           size_bytes: number | null
           storage_path: string
           template_id: string
           thumbnail_url: string | null
+          use_shotstack: boolean | null
           user_id: string | null
           video_id: string
           video_title: string
@@ -1777,10 +1781,14 @@ export type Database = {
           format?: string | null
           id?: string
           music_id: string
+          render_status?: string | null
+          rendered_video_url?: string | null
+          shotstack_render_id?: string | null
           size_bytes?: number | null
           storage_path: string
           template_id: string
           thumbnail_url?: string | null
+          use_shotstack?: boolean | null
           user_id?: string | null
           video_id: string
           video_title: string
@@ -1792,10 +1800,14 @@ export type Database = {
           format?: string | null
           id?: string
           music_id?: string
+          render_status?: string | null
+          rendered_video_url?: string | null
+          shotstack_render_id?: string | null
           size_bytes?: number | null
           storage_path?: string
           template_id?: string
           thumbnail_url?: string | null
+          use_shotstack?: boolean | null
           user_id?: string | null
           video_id?: string
           video_title?: string

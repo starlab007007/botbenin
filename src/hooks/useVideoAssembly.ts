@@ -13,6 +13,9 @@ interface AssembleVideoParams {
     cta: string;
   };
   config: AssemblyConfig;
+  templateId: string;
+  musicId: string;
+  useShotstack?: boolean;
 }
 
 export type AssemblyStep = 
@@ -69,7 +72,10 @@ export const useVideoAssembly = () => {
           videoId: params.videoId,
           videoTitle: params.videoTitle,
           frames: params.frames,
-          config: params.config
+          config: params.config,
+          templateId: params.templateId,
+          musicId: params.musicId,
+          useShotstack: params.useShotstack || false
         }
       });
 

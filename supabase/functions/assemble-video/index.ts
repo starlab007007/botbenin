@@ -19,7 +19,7 @@ serve(async (req) => {
       throw new Error('No authorization header');
     }
 
-    const { videoId, videoTitle, frames, config, userId, templateId, musicId } = await req.json();
+    const { videoId, videoTitle, frames, config, userId, templateId, musicId, useShotstack } = await req.json();
 
     console.log('📥 Request received:', { 
       videoId, 
@@ -28,7 +28,8 @@ serve(async (req) => {
       frameKeys: Object.keys(frames || {}),
       userId,
       templateId,
-      musicId
+      musicId,
+      useShotstack
     });
 
     // Initialiser DEUX clients Supabase
@@ -98,12 +99,14 @@ serve(async (req) => {
       .insert({
         video_id: videoId,
         video_title: videoTitle,
-        video_url: frames.hero, // Utiliser la première frame comme preview
+        video_url: frames.hero,
         storage_path: fileName,
         size_bytes: JSON.stringify(videoData).length,
         template_id: templateId,
         music_id: musicId,
-        user_id: user.id
+        user_id: user.id,
+        use_shotstack: useShotstack || false,
+        render_status: useShotstack ? 'pending' : 'completed'
       })
       .select()
       .single();
@@ -114,6 +117,28 @@ serve(async (req) => {
     }
 
     console.log('✅ Video saved successfully:', videoRecord.id);
+
+    // 2.5. Si Shotstack est activé, lancer le rendu
+    if (useShotstack) {
+      console.log('🎬 Initiating Shotstack render...');
+      
+      try {
+        // Appeler la fonction render-with-shotstack
+        const { data: renderData, error: renderError } = await supabase.functions.invoke('render-with-shotstack', {
+          body: { videoId, frames, config }
+        });
+
+        if (renderError) {
+          console.error('⚠️ Shotstack render initiation failed:', renderError);
+          // Continue anyway, l'utilisateur aura au moins les frames
+        } else {
+          console.log('✅ Shotstack render initiated:', renderData);
+        }
+      } catch (renderErr) {
+        console.error('⚠️ Shotstack render error:', renderErr);
+        // Continue anyway
+      }
+    }
 
     // 3. Sauvegarder les frames individuelles dans video_frames
     console.log('📸 Saving individual frames...');
@@ -151,8 +176,12 @@ serve(async (req) => {
         allFrames: frames,
         size: JSON.stringify(videoData).length,
         duration: 10,
-        format: 'frames',
-        message: 'Vidéo sauvegardée avec succès dans l\'historique'
+        format: useShotstack ? 'mp4' : 'frames',
+        useShotstack: useShotstack || false,
+        renderStatus: useShotstack ? 'processing' : 'completed',
+        message: useShotstack 
+          ? 'Vidéo en cours de rendu avec Shotstack. Rafraîchissez dans quelques minutes.'
+          : 'Vidéo sauvegardée avec succès dans l\'historique'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
