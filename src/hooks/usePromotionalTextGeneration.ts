@@ -32,7 +32,14 @@ export const usePromotionalTextGeneration = () => {
         body: { frameType, framePrompt, style, africaContext }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(`Edge function error: ${error.message || 'Fonction non déployée'}`);
+      }
+
+      if (!data?.promotionalText) {
+        throw new Error('No promotional text generated');
+      }
 
       const generated: GeneratedText = data;
 
@@ -58,9 +65,13 @@ export const usePromotionalTextGeneration = () => {
       return generated.promotionalText;
     } catch (error) {
       console.error('Error generating frame text:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
       toast({
-        title: 'Erreur',
-        description: 'Impossible de générer le texte promotionnel',
+        title: 'Erreur de génération',
+        description: errorMessage.includes('404') || errorMessage.includes('non déployée')
+          ? "Les edge functions ne sont pas encore déployées. Veuillez rafraîchir la page ou attendre quelques minutes."
+          : `Impossible de générer le texte: ${errorMessage}`,
         variant: 'destructive'
       });
       return null;
@@ -121,7 +132,14 @@ export const usePromotionalTextGeneration = () => {
         body: { heroText, demoText, resultText, ctaText, duration }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(`Edge function error: ${error.message || 'Fonction non déployée'}`);
+      }
+
+      if (!data?.promotionalSummary) {
+        throw new Error('No promotional summary generated');
+      }
 
       // Sauvegarder dans la base de données
       const { error: updateError } = await supabase
@@ -130,9 +148,12 @@ export const usePromotionalTextGeneration = () => {
           promotional_summary: data.promotionalSummary,
           promotional_summary_generated_at: new Date().toISOString()
         })
-        .eq('id', videoId);
+        .eq('video_id', videoId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Database update error:', updateError);
+        throw updateError;
+      }
 
       toast({
         title: 'Résumé créé',
@@ -142,9 +163,13 @@ export const usePromotionalTextGeneration = () => {
       return data.promotionalSummary;
     } catch (error) {
       console.error('Error generating video summary:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+      
       toast({
-        title: 'Erreur',
-        description: 'Impossible de générer le résumé vidéo',
+        title: 'Erreur de génération',
+        description: errorMessage.includes('404') || errorMessage.includes('non déployée')
+          ? "Les edge functions ne sont pas encore déployées."
+          : `Impossible de générer le résumé: ${errorMessage}`,
         variant: 'destructive'
       });
       return null;

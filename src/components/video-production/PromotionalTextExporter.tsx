@@ -93,22 +93,22 @@ ${ctaFrame?.promotional_text || 'Non généré'}
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button onClick={exportAsJSON} size="sm">
+    <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+      <Button onClick={exportAsJSON} size="sm" className="w-full sm:w-auto">
         <Download className="mr-2 h-4 w-4" />
-        JSON
+        <span className="text-xs sm:text-sm">Vidéo</span>
       </Button>
-      <Button onClick={exportAsMarkdown} size="sm" variant="outline">
+      <Button onClick={exportAsMarkdown} size="sm" variant="outline" className="w-full sm:w-auto">
         <Download className="mr-2 h-4 w-4" />
-        Markdown
+        <span className="text-xs sm:text-sm">📦 Frames (ZIP)</span>
       </Button>
-      <Button onClick={() => copyForSocialMedia('tiktok')} size="sm" variant="outline">
+      <Button onClick={() => copyForSocialMedia('tiktok')} size="sm" variant="outline" className="w-full sm:w-auto">
         <Share2 className="mr-2 h-4 w-4" />
-        TikTok
+        <span className="text-xs sm:text-sm">TikTok</span>
       </Button>
-      <Button onClick={() => copyForSocialMedia('instagram')} size="sm" variant="outline">
+      <Button onClick={() => copyForSocialMedia('instagram')} size="sm" variant="outline" className="w-full sm:w-auto">
         <Share2 className="mr-2 h-4 w-4" />
-        Instagram
+        <span className="text-xs sm:text-sm">Instagram</span>
       </Button>
     </div>
   );
