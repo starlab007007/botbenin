@@ -12,34 +12,50 @@ serve(async (req) => {
   }
 
   try {
-    // Get auth header - JWT is already verified by Supabase
+    // Get auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ No authorization header');
       throw new Error('No authorization header');
     }
 
     const { videoId, videoTitle, frames, config, userId, templateId, musicId } = await req.json();
 
-    console.log('Starting video assembly for:', videoId);
+    console.log('📥 Request received:', { 
+      videoId, 
+      videoTitle, 
+      hasFrames: !!frames,
+      frameKeys: Object.keys(frames || {}),
+      userId,
+      templateId,
+      musicId
+    });
 
-    // Initialiser le client Supabase with service role
+    // Initialiser DEUX clients Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Client 1: Avec JWT utilisateur pour vérifier l'auth
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
 
-    // Verify user authentication
-    const jwt = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+    // Vérifier l'authentification
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     
     if (userError || !user) {
-      console.error('Auth error:', userError);
+      console.error('❌ Auth error:', userError);
       throw new Error('Not authenticated');
     }
 
-    console.log('User authenticated:', user.id);
+    console.log('🔐 User authenticated:', user.id, user.email);
+
+    // Client 2: Avec service role pour opérations privilégiées
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Créer un montage de frames (collage d'images)
-    console.log('Creating video from frames...');
+    console.log('🎬 Creating video from frames...');
     
     // Pour l'instant, nous allons créer une entrée avec les frames
     // et simuler le processus de création vidéo
@@ -57,6 +73,8 @@ serve(async (req) => {
       createdAt: new Date().toISOString()
     };
 
+    console.log('💾 Saving to storage:', fileName);
+    
     const { error: uploadError } = await supabase.storage
       .from('video-assets')
       .upload(fileName, JSON.stringify(videoData), {
@@ -65,10 +83,15 @@ serve(async (req) => {
       });
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
+      console.error('❌ Storage upload error:', uploadError);
+      throw uploadError;
     }
+    
+    console.log('✅ Storage upload successful');
 
     // 2. Créer l'entrée dans la base de données
+    console.log('📊 Saving to database...');
+    
     const { data: videoRecord, error: dbError } = await supabase
       .from('generated_videos')
       .insert({
@@ -79,18 +102,18 @@ serve(async (req) => {
         size_bytes: JSON.stringify(videoData).length,
         template_id: templateId,
         music_id: musicId,
-        user_id: userId,
+        user_id: user.id,
         status: 'completed'
       })
       .select()
       .single();
 
     if (dbError) {
-      console.error('Database error:', dbError);
+      console.error('❌ Database error:', dbError);
       throw dbError;
     }
 
-    console.log('Video record created:', videoRecord);
+    console.log('✅ Video saved successfully:', videoRecord.id);
 
     return new Response(
       JSON.stringify({

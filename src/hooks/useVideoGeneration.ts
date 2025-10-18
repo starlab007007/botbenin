@@ -24,6 +24,8 @@ export const useVideoGeneration = () => {
   const loadExistingFrames = async (videoId: string) => {
     setIsLoading(true);
     try {
+      console.log('📦 Loading frames for video:', videoId);
+      
       const { data, error } = await supabase
         .from('video_frames')
         .select('*')
@@ -33,6 +35,8 @@ export const useVideoGeneration = () => {
       if (error) throw error;
 
       if (data && data.length > 0) {
+        console.log('✅ Frames loaded from DB:', data.length, data.map(f => f.frame_type));
+        
         const frames = data.map(frame => ({
           imageUrl: frame.image_url,
           videoId: frame.video_id,
@@ -46,9 +50,11 @@ export const useVideoGeneration = () => {
         }));
 
         return frames;
+      } else {
+        console.log('ℹ️ No frames found in DB for:', videoId);
       }
     } catch (error) {
-      console.error('Error loading frames:', error);
+      console.error('❌ Error loading frames:', error);
     } finally {
       setIsLoading(false);
     }

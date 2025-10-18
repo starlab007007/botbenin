@@ -12,25 +12,34 @@ import { Badge } from '@/components/ui/badge';
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Zap, Info, Library } from 'lucide-react';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
+import { toast } from 'sonner';
 
 export const VideoGenerationPage = () => {
   const navigate = useNavigate();
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [showAssembler, setShowAssembler] = useState(false);
   const assemblerRef = useRef<HTMLDivElement>(null);
-  const { generatedFrames } = useVideoGeneration();
+  const { generatedFrames, loadExistingFrames, hasAllFrames } = useVideoGeneration();
 
   const selectedVideo = selectedVideoId 
     ? videoProductionData.find(v => v.id === selectedVideoId) 
     : null;
 
-  const handleFramesReady = (frames: any[]) => {
+  const handleFramesReady = async (frames: any[]) => {
     console.log('📹 handleFramesReady appelé', { 
       frames, 
       selectedVideoId,
       currentFrames: generatedFrames[selectedVideoId || '']
     });
+    
+    // Recharger depuis la DB pour s'assurer d'avoir les dernières données
+    if (selectedVideoId) {
+      console.log('🔄 Reloading frames from DB...');
+      await loadExistingFrames(selectedVideoId);
+    }
+    
     setShowAssembler(true);
+    
     // Scroll to assembler section
     setTimeout(() => {
       console.log('📍 Scrolling to assembler', { assemblerRef: assemblerRef.current });
@@ -39,6 +48,21 @@ export const VideoGenerationPage = () => {
         block: 'start' 
       });
     }, 100);
+  };
+
+  const reloadFrames = async () => {
+    if (!selectedVideoId) return;
+    
+    console.log('🔄 Reloading frames for:', selectedVideoId);
+    const frames = await loadExistingFrames(selectedVideoId);
+    console.log('📦 Frames loaded:', frames.length);
+    
+    if (hasAllFrames(selectedVideoId)) {
+      setShowAssembler(true);
+      toast.success('✅ Toutes les frames sont chargées!');
+    } else {
+      toast.warning(`⚠️ Frames incomplètes (${frames.length}/4)`);
+    }
   };
 
   const videosBySeries = videoProductionData.reduce((acc, video) => {
@@ -207,8 +231,17 @@ export const VideoGenerationPage = () => {
               ) : showAssembler && (
                 <Alert>
                   <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    ⏳ Frames en cours de chargement... ({generatedFrames[selectedVideo.id]?.length || 0}/4)
+                  <AlertDescription className="flex items-center justify-between">
+                    <span>
+                      ⏳ Frames en cours de chargement... ({generatedFrames[selectedVideo.id]?.length || 0}/4)
+                    </span>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={reloadFrames}
+                    >
+                      🔄 Recharger
+                    </Button>
                   </AlertDescription>
                 </Alert>
               )}

@@ -51,12 +51,23 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
       // Étape 1: Validation
       setCurrentStep('validate');
       setProgress(25);
-      console.log('🎬 Starting video assembly...');
+      
+      console.log('🎬 Starting video assembly...', {
+        videoId: video.id,
+        videoTitle: video.title,
+        frames: {
+          hero: frames.hero ? '✓' : '✗',
+          demo: frames.demo ? '✓' : '✗',
+          result: frames.result ? '✓' : '✗',
+          cta: frames.cta ? '✓' : '✗'
+        }
+      });
       
       const frameUrls = Object.values(frames);
       const invalidFrames = frameUrls.filter(url => !url || url === '');
       
       if (invalidFrames.length > 0) {
+        console.error('❌ Invalid frames detected:', invalidFrames);
         toast.error('❌ Certaines frames sont manquantes');
         return;
       }
@@ -67,9 +78,12 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        toast.error('Vous devez être connecté');
+        console.error('❌ User not authenticated');
+        toast.error('🔐 Vous devez être connecté');
         return;
       }
+
+      console.log('✓ User authenticated:', user.id);
 
       const template = templates.find(t => t.id === selectedTemplate) || templates[0];
       const music = musicLibrary.find(m => m.id === selectedMusic) || musicLibrary[0];
@@ -77,6 +91,8 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
       // Étape 3: Appel de l'edge function
       setCurrentStep('save');
       setProgress(75);
+
+      console.log('📞 Calling assemble-video edge function...');
 
       const { data, error } = await supabase.functions.invoke('assemble-video', {
         body: {
@@ -94,20 +110,45 @@ export const VideoAssembler = ({ video, frames }: VideoAssemblerProps) => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Assembly error:', error);
+        
+        if (error.message?.includes('429') || error.message?.includes('Rate limit')) {
+          toast.error('⏱️ Trop de requêtes. Veuillez patienter 30 secondes et réessayer.');
+          return;
+        } else if (error.message?.includes('402') || error.message?.includes('credits')) {
+          toast.error('💳 Crédits insuffisants. Veuillez ajouter des crédits à votre workspace Lovable.');
+          return;
+        } else if (error.message?.includes('Not authenticated')) {
+          toast.error('🔐 Session expirée. Veuillez vous reconnecter.');
+          return;
+        } else {
+          toast.error(`❌ Erreur: ${error.message}`);
+        }
+        throw error;
+      }
 
       // Étape 4: Finalisation
       setCurrentStep('complete');
       setProgress(100);
 
-      console.log('✅ Video saved successfully:', data);
+      console.log('✅ Video assembly completed:', {
+        videoId: data.videoId,
+        videoUrl: data.videoUrl,
+        allFrames: data.allFrames,
+        duration: data.duration,
+        format: data.format
+      });
+      
       setGeneratedVideoData(data);
       
-      toast.success('✅ Vidéo créée et sauvegardée dans l\'historique!');
+      toast.success('✅ Vidéo créée et sauvegardée dans l\'historique! 🎬');
 
     } catch (error: any) {
       console.error('❌ Video assembly failed:', error);
-      toast.error(`Erreur: ${error.message || 'Échec de la création'}`);
+      if (!error.message?.includes('429') && !error.message?.includes('402') && !error.message?.includes('Not authenticated')) {
+        toast.error(`❌ Erreur: ${error.message || 'Échec de la création'}`);
+      }
     } finally {
       setIsAssembling(false);
     }
