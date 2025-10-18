@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text, voice_id, model_id } = await req.json();
+    const { text, voice_id, model_id, speed = 1.0 } = await req.json();
 
     if (!text) {
       throw new Error('Text is required');
@@ -42,7 +42,8 @@ serve(async (req) => {
           stability: 0.5,
           similarity_boost: 0.5,
           style: 0.0,
-          use_speaker_boost: true
+          use_speaker_boost: true,
+          speed: Math.max(0.5, Math.min(2.0, speed)) // Clamp between 0.5x and 2.0x
         }
       }),
     });

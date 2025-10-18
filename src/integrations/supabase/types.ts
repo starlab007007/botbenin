@@ -1757,13 +1757,20 @@ export type Database = {
       }
       generated_videos: {
         Row: {
+          audio_voice_id: string | null
           created_at: string | null
+          description_audio_url: string | null
+          description_text: string | null
           duration: number | null
+          export_format: string | null
+          export_resolution: string | null
           format: string | null
           id: string
           music_id: string
+          optimized_for_platform: string | null
           render_status: string | null
           rendered_video_url: string | null
+          share_urls: Json | null
           shotstack_render_id: string | null
           size_bytes: number | null
           storage_path: string
@@ -1776,13 +1783,20 @@ export type Database = {
           video_url: string
         }
         Insert: {
+          audio_voice_id?: string | null
           created_at?: string | null
+          description_audio_url?: string | null
+          description_text?: string | null
           duration?: number | null
+          export_format?: string | null
+          export_resolution?: string | null
           format?: string | null
           id?: string
           music_id: string
+          optimized_for_platform?: string | null
           render_status?: string | null
           rendered_video_url?: string | null
+          share_urls?: Json | null
           shotstack_render_id?: string | null
           size_bytes?: number | null
           storage_path: string
@@ -1795,13 +1809,20 @@ export type Database = {
           video_url: string
         }
         Update: {
+          audio_voice_id?: string | null
           created_at?: string | null
+          description_audio_url?: string | null
+          description_text?: string | null
           duration?: number | null
+          export_format?: string | null
+          export_resolution?: string | null
           format?: string | null
           id?: string
           music_id?: string
+          optimized_for_platform?: string | null
           render_status?: string | null
           rendered_video_url?: string | null
+          share_urls?: Json | null
           shotstack_render_id?: string | null
           size_bytes?: number | null
           storage_path?: string
@@ -4140,6 +4161,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      video_descriptions: {
+        Row: {
+          audio_duration: number | null
+          audio_url: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          script_length: string | null
+          script_text: string
+          video_id: string | null
+          voice_id: string | null
+        }
+        Insert: {
+          audio_duration?: number | null
+          audio_url?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          script_length?: string | null
+          script_text: string
+          video_id?: string | null
+          voice_id?: string | null
+        }
+        Update: {
+          audio_duration?: number | null
+          audio_url?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          script_length?: string | null
+          script_text?: string
+          video_id?: string | null
+          voice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_descriptions_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "generated_videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       video_frames: {
         Row: {

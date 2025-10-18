@@ -17,7 +17,7 @@ serve(async (req) => {
       throw new Error('No authorization header');
     }
 
-    const { videoId, frames, config } = await req.json();
+    const { videoId, frames, config, audioUrl, audioVolume = 1.0 } = await req.json();
 
     console.log('🎬 Starting Shotstack render:', { videoId });
 
@@ -39,75 +39,103 @@ serve(async (req) => {
       throw new Error('Not authenticated');
     }
 
-    // Construire le JSON Shotstack
-    const timeline = {
-      soundtrack: config.musicId ? {
-        src: `https://example.com/music/${config.musicId}.mp3`,
-        effect: "fadeInFadeOut",
-        volume: config.musicVolume
-      } : undefined,
-      tracks: [
-        {
-          clips: [
-            {
-              asset: {
-                type: "image",
-                src: frames.hero
-              },
-              start: 0,
-              length: 2.5,
-              fit: "cover",
-              scale: 1,
-              transition: {
-                in: "fade",
-                out: "fade"
-              }
+    // Construire le JSON Shotstack avec audio de description
+    const tracks = [
+      {
+        clips: [
+          {
+            asset: {
+              type: "image",
+              src: frames.hero
             },
-            {
-              asset: {
-                type: "image",
-                src: frames.demo
-              },
-              start: 2.5,
-              length: 2.5,
-              fit: "cover",
-              scale: 1,
-              transition: {
-                in: "fade",
-                out: "fade"
-              }
-            },
-            {
-              asset: {
-                type: "image",
-                src: frames.result
-              },
-              start: 5,
-              length: 2.5,
-              fit: "cover",
-              scale: 1,
-              transition: {
-                in: "fade",
-                out: "fade"
-              }
-            },
-            {
-              asset: {
-                type: "image",
-                src: frames.cta
-              },
-              start: 7.5,
-              length: 2.5,
-              fit: "cover",
-              scale: 1,
-              transition: {
-                in: "fade",
-                out: "fade"
-              }
+            start: 0,
+            length: 2.5,
+            fit: "cover",
+            scale: 1,
+            transition: {
+              in: "fade",
+              out: "fade"
             }
-          ]
-        }
-      ]
+          },
+          {
+            asset: {
+              type: "image",
+              src: frames.demo
+            },
+            start: 2.5,
+            length: 2.5,
+            fit: "cover",
+            scale: 1,
+            transition: {
+              in: "fade",
+              out: "fade"
+            }
+          },
+          {
+            asset: {
+              type: "image",
+              src: frames.result
+            },
+            start: 5,
+            length: 2.5,
+            fit: "cover",
+            scale: 1,
+            transition: {
+              in: "fade",
+              out: "fade"
+            }
+          },
+          {
+            asset: {
+              type: "image",
+              src: frames.cta
+            },
+            start: 7.5,
+            length: 2.5,
+            fit: "cover",
+            scale: 1,
+            transition: {
+              in: "fade",
+              out: "fade"
+            }
+          }
+        ]
+      }
+    ];
+
+    // Ajouter la piste audio de description si fournie
+    if (audioUrl) {
+      tracks.push({
+        clips: [{
+          asset: {
+            type: "audio",
+            src: audioUrl
+          },
+          start: 0,
+          length: 10, // Durée totale de la vidéo
+          volume: audioVolume
+        }]
+      });
+    }
+
+    // Ajouter la musique de fond si configurée
+    if (config.musicId) {
+      tracks.push({
+        clips: [{
+          asset: {
+            type: "audio",
+            src: `https://example.com/music/${config.musicId}.mp3`
+          },
+          start: 0,
+          length: 10,
+          volume: audioUrl ? (config.musicVolume * 0.3) : config.musicVolume, // Réduire si voix-off
+          effect: "fadeInFadeOut"
+        }]
+      });
+    }
+
+    const timeline = {
+      tracks
     };
 
     const shotstackPayload = {
