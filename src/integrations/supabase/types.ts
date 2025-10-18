@@ -1835,6 +1835,48 @@ export type Database = {
           },
         ]
       }
+      final_videos: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          final_video_size_bytes: number | null
+          final_video_url: string | null
+          id: string
+          merged_audio_duration: number | null
+          merged_audio_url: string | null
+          status: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          final_video_size_bytes?: number | null
+          final_video_url?: string | null
+          id?: string
+          merged_audio_duration?: number | null
+          merged_audio_url?: string | null
+          status?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          final_video_size_bytes?: number | null
+          final_video_url?: string | null
+          id?: string
+          merged_audio_duration?: number | null
+          merged_audio_url?: string | null
+          status?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: []
+      }
       generated_videos: {
         Row: {
           audio_voice_id: string | null

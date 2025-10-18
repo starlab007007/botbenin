@@ -19,10 +19,22 @@ export function AudioPreviewPlayer({ audioUrl, className }: AudioPreviewPlayerPr
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !audioUrl) return;
+
+    // Forcer le rechargement quand l'URL change
+    audio.load();
 
     const handleLoadedMetadata = () => {
+      console.log('Audio metadata loaded, duration:', audio.duration);
       setDuration(audio.duration);
+      // Si la durée est encore 0 ou NaN, réessayer après un court délai
+      if (!audio.duration || isNaN(audio.duration)) {
+        setTimeout(() => {
+          if (audio.duration && !isNaN(audio.duration)) {
+            setDuration(audio.duration);
+          }
+        }, 100);
+      }
     };
 
     const handleTimeUpdate = () => {
@@ -34,14 +46,23 @@ export function AudioPreviewPlayer({ audioUrl, className }: AudioPreviewPlayerPr
       setCurrentTime(0);
     };
 
+    const handleCanPlay = () => {
+      // Backup pour s'assurer que la durée est bien chargée
+      if (audio.duration && !isNaN(audio.duration) && duration === 0) {
+        setDuration(audio.duration);
+      }
+    };
+
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('canplay', handleCanPlay);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('canplay', handleCanPlay);
     };
   }, [audioUrl]);
 

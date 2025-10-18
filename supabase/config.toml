@@ -153,3 +153,9 @@ verify_jwt = false
 
 [functions.generate-promotional-voice]
 verify_jwt = true
+
+[functions.merge-audio-tracks]
+verify_jwt = true
+
+[functions.assemble-final-video]
+verify_jwt = true
