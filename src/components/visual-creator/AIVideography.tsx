@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useMediaManager } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from './UniversalMediaModal';
+import { removeBackground, loadImage, imageUrlToBlob, blobToDataUrl } from '@/utils/backgroundRemoval';
 
 const cameraEffects = [
   { id: 'zoom-in', name: 'Zoom In', description: 'Zoom progressif vers le sujet', icon: '🔍' },
@@ -63,6 +64,23 @@ export const AIVideography = () => {
 
     setIsGenerating(true);
     try {
+      let processedImage = image;
+      
+      // Si l'effet est 360-rotate, supprimer le fond de l'image
+      if (cameraEffect === '360-rotate') {
+        toast.info('Suppression du fond en cours...', { duration: 3000 });
+        try {
+          const blob = await imageUrlToBlob(image);
+          const imageElement = await loadImage(blob);
+          const resultBlob = await removeBackground(imageElement);
+          processedImage = await blobToDataUrl(resultBlob);
+          toast.success('Fond supprimé avec succès !');
+        } catch (bgError) {
+          console.error('Background removal error:', bgError);
+          toast.error('Erreur lors de la suppression du fond, utilisation de l\'image originale');
+        }
+      }
+
       const selectedEffect = cameraEffects.find(e => e.id === cameraEffect);
       const selectedStyle = videoStyles.find(s => s.id === videoStyle);
       
@@ -78,7 +96,7 @@ High quality, marketing-ready video output.`;
 
       const { data, error } = await supabase.functions.invoke('generate-ai-video', {
         body: {
-          image: image,
+          image: processedImage,
           cameraEffect: cameraEffect,
           videoStyle: videoStyle,
           duration: parseInt(duration),
@@ -102,7 +120,8 @@ High quality, marketing-ready video output.`;
             videoStyle: videoStyle,
             duration: parseInt(duration),
             description: description,
-            isEnhancedImage: data.isEnhancedImage || false
+            isEnhancedImage: data.isEnhancedImage || false,
+            hasTransparentBackground: cameraEffect === '360-rotate'
           }
         });
 
@@ -257,7 +276,11 @@ High quality, marketing-ready video output.`;
       {result && (
         <Card className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Résultat</h3>
-          <div className="relative aspect-video rounded-lg overflow-hidden border bg-black">
+          <div className={`relative aspect-video rounded-lg overflow-hidden border ${
+            result.metadata?.hasTransparentBackground 
+              ? 'bg-[repeating-conic-gradient(#ccc_0%_25%,white_0%_50%)] bg-[length:20px_20px]' 
+              : 'bg-black'
+          }`}>
             <img
               src={result.image_url}
               alt="Vidéo générée"
