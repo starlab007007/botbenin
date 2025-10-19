@@ -79,7 +79,7 @@ serve(async (req) => {
         'minimal-elegant': 'sophisticated Minimal Elegant design'
       };
 
-      const enhancementPrompt = prompt || `Enhance this product image to professional marketing quality for ${videoTypeDescriptions[videoType]}:
+      const enhancementPrompt = prompt || `Extract and enhance ONLY the product from this image with COMPLETE BACKGROUND REMOVAL:
 
 Product: ${description || 'product in image'}
 Video Type: ${videoType}
@@ -87,16 +87,20 @@ Visual Style: ${videoStyle}
 Camera Effect: ${cameraEffect}
 Export Format: ${exportFormat}
 
-CRITICAL ENHANCEMENTS FOR ${videoType.toUpperCase()}:
-1. Image Quality:
-   - Ultra high resolution and maximum sharpness
-   - Remove all noise, blur, and imperfections
-   - Professional product photography standards
+CRITICAL REQUIREMENTS FOR ${videoType.toUpperCase()}:
+1. BACKGROUND REMOVAL (PRIORITY #1):
+   - COMPLETELY REMOVE all background - must be 100% transparent
+   - Extract ONLY the product object itself
+   - No white background, no colored background - ONLY transparent
+   - Clean cutout edges with perfect anti-aliasing
+   - Product must be isolated for compositing
    
-2. Visual Enhancement:
+2. Product Enhancement:
+   - Ultra high resolution and maximum sharpness
    - Optimize colors, contrast, and lighting for ${videoStyle} aesthetic
-   - Make product stand out with clarity and dramatic impact
-   - Professional studio-quality color grading
+   - Professional product photography quality
+   - Studio-grade color grading
+   - Remove noise, blur, and imperfections from product only
    
 3. Composition for ${videoType}:
    ${videoType === 'product-showcase' ? '- Center product perfectly for luxury presentation' : ''}
@@ -106,7 +110,7 @@ CRITICAL ENHANCEMENTS FOR ${videoType.toUpperCase()}:
    - Perfect aspect ratio for ${exportFormat} format
    - Maximize product detail visibility
 
-OUTPUT: Professional-grade enhanced product image optimized for ${videoType} video, ${exportFormat} format.`;
+OUTPUT: High-quality product cutout with TRANSPARENT BACKGROUND, ready for ${videoType} video composition in ${exportFormat} format.`;
 
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
@@ -125,7 +129,9 @@ OUTPUT: Professional-grade enhanced product image optimized for ${videoType} vid
               ]
             }
           ],
-          modalities: ['image', 'text']
+          modalities: ['image', 'text'],
+          background: 'transparent',
+          output_format: 'png'
         }),
       });
 
