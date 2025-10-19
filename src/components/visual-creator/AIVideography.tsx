@@ -436,20 +436,50 @@ export const AIVideography = () => {
   const selectedFormat = exportFormats.find(f => f.id === exportFormat);
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6 space-y-6">
-        <div className="flex items-center gap-3">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Guide d'utilisation */}
+      <Card className="p-4 md:p-6 bg-gradient-to-br from-primary/5 via-primary/10 to-transparent border-primary/20">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Sparkles className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-base mb-2">Comment utiliser ce studio vidéo ?</h3>
+            <ol className="space-y-2 text-sm text-muted-foreground">
+              <li className="flex gap-2">
+                <span className="font-semibold text-primary">1.</span>
+                <span>Choisissez le type de vidéo et uploadez votre image produit</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-primary">2.</span>
+                <span>Décrivez l'environnement souhaité et configurez les options</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-primary">3.</span>
+                <span>Lancez la génération - chaque étape peut être visualisée et téléchargée</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-primary">4.</span>
+                <span>Téléchargez votre vidéo finale au format MP4</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-4 md:p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
             <Video className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">
+          <div className="flex-1">
+            <h2 className="text-xl font-bold flex flex-wrap items-center gap-2">
               Studio de Production Vidéo AI
               <span className="text-xs px-2 py-0.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full">
                 MP4 Real-Time
               </span>
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mt-1">
               Génération de vidéos MP4 professionnelles avec animations Canvas en temps réel
             </p>
           </div>
@@ -457,8 +487,11 @@ export const AIVideography = () => {
 
         {/* TYPE DE VIDÉO */}
         <div className="space-y-3">
-          <Label className="text-base font-semibold">1. Type de vidéo</Label>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            1. Type de vidéo
+            <span className="text-xs font-normal text-muted-foreground">(Requis)</span>
+          </Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {videoTypes.map((type) => {
               const Icon = type.icon;
               return (
@@ -492,7 +525,10 @@ export const AIVideography = () => {
 
         {/* IMAGE DU PRODUIT */}
         <div className="space-y-3">
-          <Label className="text-base font-semibold">2. Image du produit</Label>
+          <Label className="text-base font-semibold flex items-center gap-2">
+            2. Image du produit
+            <span className="text-xs font-normal text-muted-foreground">(Requis)</span>
+          </Label>
           {image ? (
             <div className="relative aspect-video rounded-lg overflow-hidden border group">
               <img src={image} alt="Source" className="w-full h-full object-contain bg-muted" />
@@ -522,7 +558,10 @@ export const AIVideography = () => {
 
         {/* ENVIRONNEMENT */}
         <div className="space-y-3">
-          <Label className="text-base font-semibold">3. Environnement (description)</Label>
+          <Label className="text-base font-semibold flex items-center gap-2">
+            3. Environnement (description)
+            <span className="text-xs font-normal text-muted-foreground">(Requis)</span>
+          </Label>
           <Textarea
             value={environmentPrompt}
             onChange={(e) => setEnvironmentPrompt(e.target.value)}
@@ -668,7 +707,7 @@ export const AIVideography = () => {
         {/* FORMAT D'EXPORT */}
         <div className="space-y-3">
           <Label className="text-base font-semibold">8. Format d'export</Label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {exportFormats.map((format) => (
               <button
                 key={format.id}
@@ -762,14 +801,14 @@ export const AIVideography = () => {
 
       {/* RÉSULTAT */}
       {result && (
-        <Card>
-          <CardHeader>
+        <Card className="border-2 border-green-500/20 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-green-500/10 to-emerald-500/10">
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-500" />
-              Vidéo MP4 Générée
+              Vidéo MP4 Générée avec Succès !
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 md:p-6">
             <div className="relative rounded-lg overflow-hidden border bg-black">
               {result.type === 'video' ? (
                 <video
@@ -789,19 +828,19 @@ export const AIVideography = () => {
                 />
               )}
             </div>
-            <div className="p-3 bg-muted rounded-lg">
+            <div className="p-4 bg-muted rounded-lg space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Format:</span>
                 <span className="font-medium">{exportFormat} • 30 FPS • WebM</span>
               </div>
-              <div className="flex items-center justify-between text-sm mt-2">
+              <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Durée:</span>
                 <span className="font-medium">
                   {animationTypes.find(a => a.id === animationType)?.duration}s
                 </span>
               </div>
               {result.blob && (
-                <div className="flex items-center justify-between text-sm mt-2">
+                <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Taille:</span>
                   <span className="font-medium">
                     {(result.blob.size / (1024 * 1024)).toFixed(2)} MB
@@ -809,20 +848,22 @@ export const AIVideography = () => {
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 variant="outline"
                 onClick={() => setIsModalOpen(true)}
-                className="flex-1"
+                className="flex-1 gap-2"
+                size="lg"
               >
-                <Eye className="mr-2 h-4 w-4" />
+                <Eye className="h-4 w-4" />
                 Visualiser en grand
               </Button>
               <Button
                 onClick={handleDownload}
-                className="flex-1"
+                className="flex-1 gap-2"
+                size="lg"
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="h-4 w-4" />
                 Télécharger MP4
               </Button>
             </div>

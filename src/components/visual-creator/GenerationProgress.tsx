@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Check, X, RefreshCw, Play, Eye } from 'lucide-react';
+import { Check, X, RefreshCw, Play, Eye, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 interface GenerationStep {
   id: string;
@@ -33,6 +34,24 @@ export const GenerationProgress = ({
 }: GenerationProgressProps) => {
   const [previewStep, setPreviewStep] = useState<GenerationStep | null>(null);
 
+  const handleDownloadImage = async (imageUrl: string, stepTitle: string) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${stepTitle.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Téléchargement réussi !');
+    } catch (error) {
+      toast.error('Erreur lors du téléchargement');
+    }
+  };
+
   const getStatusIcon = (status: GenerationStep['status']) => {
     switch (status) {
       case 'completed':
@@ -61,23 +80,31 @@ export const GenerationProgress = ({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-foreground">Progression de la génération</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">Progression de la génération</h3>
+        <div className="text-sm text-muted-foreground">
+          Étape {currentStepIndex + 1}/{steps.length}
+        </div>
+      </div>
       
       <div className="space-y-3">
         {steps.map((step, index) => (
-          <Card key={step.id} className={`p-4 border-2 transition-all ${getStatusColor(step.status)}`}>
-            <div className="flex items-start gap-4">
+          <Card key={step.id} className={`p-4 md:p-5 border-2 transition-all ${getStatusColor(step.status)}`}>
+            <div className="flex flex-col sm:flex-row items-start gap-4">
               <div className="flex-shrink-0 mt-1">
                 {getStatusIcon(step.status)}
               </div>
               
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex-1 min-w-0 w-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
                   <h4 className="font-medium text-foreground">
                     {index + 1}. {step.title}
                   </h4>
-                  <span className="text-xs text-muted-foreground capitalize">
-                    {step.status === 'processing' ? 'En cours...' : step.status}
+                  <span className="text-xs text-muted-foreground capitalize px-2 py-1 bg-background rounded-md">
+                    {step.status === 'processing' && <Loader2 className="w-3 h-3 inline-block animate-spin mr-1" />}
+                    {step.status === 'processing' ? 'En cours...' : 
+                     step.status === 'completed' ? 'Completed' :
+                     step.status === 'error' ? 'Échoué' : 'En attente'}
                   </span>
                 </div>
                 
@@ -86,24 +113,38 @@ export const GenerationProgress = ({
                 </p>
 
                 {step.error && (
-                  <div className="p-2 bg-red-100 border border-red-300 rounded text-sm text-red-700 mb-3">
-                    {step.error}
+                  <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm text-destructive mb-3">
+                    <p className="font-medium mb-1">Erreur:</p>
+                    <p>{step.error}</p>
                   </div>
                 )}
 
-                {step.result?.image && (
-                  <div className="mb-3 rounded-lg overflow-hidden border">
+                {step.result?.image && step.id !== 'animate-video' && (
+                  <div className="mb-3 rounded-lg overflow-hidden border bg-muted">
                     <img 
                       src={step.result.image} 
                       alt={step.title}
-                      className="w-full h-32 object-cover"
+                      className="w-full h-40 sm:h-48 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setPreviewStep(step)}
                     />
+                  </div>
+                )}
+
+                {step.result?.image && step.id === 'animate-video' && (
+                  <div className="mb-3 rounded-lg overflow-hidden border bg-black">
+                    <video
+                      src={step.result.image}
+                      controls
+                      className="w-full h-auto"
+                    >
+                      Votre navigateur ne supporte pas la lecture vidéo.
+                    </video>
                   </div>
                 )}
 
                 {/* Actions */}
                 {step.status === 'completed' && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -111,8 +152,20 @@ export const GenerationProgress = ({
                       className="gap-2"
                     >
                       <Eye className="w-4 h-4" />
-                      Visualiser
+                      <span className="hidden sm:inline">Visualiser</span>
                     </Button>
+                    
+                    {step.result?.image && step.id !== 'animate-video' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownloadImage(step.result.image!, step.title)}
+                        className="gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span className="hidden sm:inline">Télécharger</span>
+                      </Button>
+                    )}
                     
                     <Button
                       size="sm"
@@ -121,7 +174,7 @@ export const GenerationProgress = ({
                       className="gap-2"
                     >
                       <RefreshCw className="w-4 h-4" />
-                      Régénérer
+                      <span className="hidden sm:inline">Régénérer</span>
                     </Button>
 
                     {index === currentStepIndex && index < steps.length - 1 && (
@@ -155,18 +208,45 @@ export const GenerationProgress = ({
 
       {/* Preview Dialog */}
       <Dialog open={!!previewStep} onOpenChange={(open) => !open && setPreviewStep(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{previewStep?.title}</DialogTitle>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{previewStep?.title}</span>
+              {previewStep?.result?.image && previewStep.id !== 'animate-video' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDownloadImage(previewStep.result.image!, previewStep.title)}
+                  className="gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Télécharger
+                </Button>
+              )}
+            </DialogTitle>
           </DialogHeader>
           
-          {previewStep?.result?.image && (
-            <div className="rounded-lg overflow-hidden">
+          {previewStep?.result?.image && previewStep.id !== 'animate-video' && (
+            <div className="rounded-lg overflow-hidden bg-muted">
               <img 
                 src={previewStep.result.image} 
                 alt={previewStep.title}
-                className="w-full h-auto"
+                className="w-full h-auto object-contain"
               />
+            </div>
+          )}
+
+          {previewStep?.result?.image && previewStep.id === 'animate-video' && (
+            <div className="rounded-lg overflow-hidden bg-black">
+              <video
+                src={previewStep.result.image}
+                controls
+                autoPlay
+                loop
+                className="w-full h-auto"
+              >
+                Votre navigateur ne supporte pas la lecture vidéo.
+              </video>
             </div>
           )}
 
