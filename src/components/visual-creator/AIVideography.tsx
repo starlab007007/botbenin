@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -11,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Upload, Wand2, X, Download, Eye, Video, Sparkles } from 'lucide-react';
+import { Upload, Wand2, X, Download, Eye, Video, Sparkles, Zap, BookOpen, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useMediaManager } from '@/hooks/useMediaManager';
@@ -20,30 +21,71 @@ import { removeBackground, loadImage, imageUrlToBlob, blobToDataUrl } from '@/ut
 import { detectBackgroundColor } from '@/utils/colorDetection';
 
 const cameraEffects = [
-  { id: 'zoom-in', name: 'Zoom In', description: 'Zoom progressif vers le sujet', icon: '🔍' },
-  { id: 'zoom-out', name: 'Zoom Out', description: 'Zoom arrière révélant le contexte', icon: '🔎' },
-  { id: 'pan-left', name: 'Pan Left', description: 'Mouvement de droite à gauche', icon: '⬅️' },
-  { id: 'pan-right', name: 'Pan Right', description: 'Mouvement de gauche à droite', icon: '➡️' },
-  { id: 'orbit', name: 'Orbit', description: 'Rotation autour du sujet', icon: '🔄' },
-  { id: 'parallax', name: 'Parallax', description: 'Effet de profondeur 3D', icon: '🎬' },
-  { id: '360-rotate', name: '360° Rotation', description: 'Rotation complète à 360 degrés', icon: '🌐' },
+  { id: 'zoom-in', name: 'Zoom In', description: 'Zoom progressif', icon: '🔍' },
+  { id: 'zoom-out', name: 'Zoom Out', description: 'Zoom arrière', icon: '🔎' },
+  { id: 'pan-left', name: 'Pan Left', description: 'Droite à gauche', icon: '⬅️' },
+  { id: 'pan-right', name: 'Pan Right', description: 'Gauche à droite', icon: '➡️' },
+  { id: 'orbit', name: 'Orbit', description: 'Rotation autour', icon: '🔄' },
+  { id: 'parallax', name: 'Parallax', description: 'Profondeur 3D', icon: '🎬' },
+  { id: '360-rotate', name: '360° Rotation', description: 'Rotation complète', icon: '🌐' },
 ];
 
 const videoStyles = [
-  { id: 'modern', name: 'Moderne', description: 'Style épuré et professionnel' },
-  { id: 'dynamic', name: 'Dynamique', description: 'Transitions rapides et énergiques' },
-  { id: 'cinematic', name: 'Cinématique', description: 'Style film avec effets dramatiques' },
-  { id: 'smooth', name: 'Fluide', description: 'Mouvements doux et élégants' },
+  { id: 'modern', name: 'Moderne', description: 'Épuré et professionnel' },
+  { id: 'dynamic', name: 'Dynamique', description: 'Rapides et énergiques' },
+  { id: 'cinematic', name: 'Cinématique', description: 'Style film dramatique' },
+  { id: 'smooth', name: 'Fluide', description: 'Doux et élégants' },
+];
+
+const videoTypes = [
+  {
+    id: 'product-showcase',
+    name: 'Product Showcase',
+    description: 'Mise en valeur luxueuse du produit',
+    icon: Sparkles,
+    features: ['Fond premium', 'Effets lumière', 'Rotation 360°']
+  },
+  {
+    id: 'story-telling',
+    name: 'Story Telling',
+    description: 'Narration visuelle avec contexte',
+    icon: BookOpen,
+    features: ['Scène contextuelle', 'Transitions fluides', 'Ambiance narrative']
+  },
+  {
+    id: 'dynamic-ad',
+    name: 'Dynamic Ad',
+    description: 'Publicité énergique et dynamique',
+    icon: Zap,
+    features: ['Multiples effets', 'Texte animé', 'CTA percutant']
+  },
+  {
+    id: 'minimal-elegant',
+    name: 'Minimal Élégant',
+    description: 'Design épuré et sophistiqué',
+    icon: Palette,
+    features: ['Fond abstrait', 'Mouvements doux', 'Minimaliste']
+  }
+];
+
+const exportFormats = [
+  { id: '1080x1080', name: 'Carré', description: 'Instagram Feed, Facebook', ratio: '1:1' },
+  { id: '1080x1920', name: 'Vertical', description: 'Stories, Reels, TikTok', ratio: '9:16' },
+  { id: '1920x1080', name: 'Horizontal', description: 'YouTube, Facebook Video', ratio: '16:9' },
 ];
 
 export const AIVideography = () => {
   const { saveToGallery, downloadMedia } = useMediaManager();
   const [image, setImage] = useState<string>('');
+  const [videoType, setVideoType] = useState('product-showcase');
   const [cameraEffect, setCameraEffect] = useState('zoom-in');
   const [videoStyle, setVideoStyle] = useState('modern');
   const [duration, setDuration] = useState('5');
   const [description, setDescription] = useState('');
   const [environmentPrompt, setEnvironmentPrompt] = useState('');
+  const [generateElements, setGenerateElements] = useState(false);
+  const [exportFormat, setExportFormat] = useState('1080x1080');
+  const [textOverlay, setTextOverlay] = useState({ title: '', subtitle: '', cta: '' });
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [backgroundColor, setBackgroundColor] = useState<string>('');
@@ -75,19 +117,19 @@ export const AIVideography = () => {
     setResult(null);
 
     try {
-      // ============================================================
       // ÉTAPE 1: Amélioration AI du produit
-      // ============================================================
       toast.info('🎨 Amélioration AI du produit...', { duration: 3000 });
-      console.log('Étape 1/4: Traitement AI du produit...');
+      console.log('Étape 1/5: Traitement AI du produit...');
       
       const { data: enhancedData, error: enhanceError } = await supabase.functions.invoke('generate-ai-video', {
         body: {
           image,
           cameraEffect,
           videoStyle,
+          videoType,
           duration: parseInt(duration),
           description: description || 'Product promotional video',
+          exportFormat,
           step: 'enhance-product'
         }
       });
@@ -95,18 +137,18 @@ export const AIVideography = () => {
       if (enhanceError) throw enhanceError;
 
       const enhancedProductImage = enhancedData?.enhancedImage || image;
-      console.log('✓ Produit amélioré avec succès');
+      console.log('✓ Produit amélioré');
 
-      // ============================================================
-      // ÉTAPE 2: Génération de l'environnement de luxe
-      // ============================================================
-      toast.info('🌍 Création de l\'environnement de luxe...', { duration: 4000 });
-      console.log('Étape 2/4: Génération de l\'environnement...');
+      // ÉTAPE 2: Génération de l'environnement
+      toast.info('🌍 Création de l\'environnement...', { duration: 4000 });
+      console.log('Étape 2/5: Génération environnement...');
       
       const { data: environmentData, error: environmentError } = await supabase.functions.invoke('generate-ai-video', {
         body: {
           environmentPrompt,
           videoStyle,
+          videoType,
+          exportFormat,
           step: 'generate-environment'
         }
       });
@@ -114,17 +156,37 @@ export const AIVideography = () => {
       if (environmentError) throw environmentError;
 
       const environmentImage = environmentData?.environmentImage;
-      console.log('✓ Environnement généré avec succès');
+      console.log('✓ Environnement généré');
 
       if (!environmentImage) {
         throw new Error('Échec de la génération de l\'environnement');
       }
 
-      // ============================================================
-      // ÉTAPE 3: Composition finale produit + environnement
-      // ============================================================
-      toast.info('🎬 Composition Product Showcase...', { duration: 4000 });
-      console.log('Étape 3/4: Composition finale...');
+      // ÉTAPE 3: Génération des éléments visuels (optionnel)
+      let elementsImage = null;
+      if (generateElements) {
+        toast.info('✨ Ajout des effets visuels...', { duration: 3000 });
+        console.log('Étape 3/5: Génération éléments visuels...');
+        
+        const { data: elementsData } = await supabase.functions.invoke('generate-ai-video', {
+          body: {
+            videoType,
+            videoStyle,
+            exportFormat,
+            generateElements: true,
+            step: 'generate-elements'
+          }
+        });
+
+        if (elementsData && !elementsData.skipped) {
+          elementsImage = elementsData.elementsImage;
+          console.log('✓ Éléments visuels générés');
+        }
+      }
+
+      // ÉTAPE 4: Composition finale
+      toast.info('🎬 Composition finale...', { duration: 4000 });
+      console.log('Étape 4/5: Composition...');
       
       const { data: compositionData, error: compositionError } = await supabase.functions.invoke('generate-ai-video', {
         body: {
@@ -132,6 +194,9 @@ export const AIVideography = () => {
           environmentImage: environmentImage,
           cameraEffect,
           videoStyle,
+          videoType,
+          exportFormat,
+          textOverlay: textOverlay.title || textOverlay.subtitle || textOverlay.cta ? textOverlay : null,
           step: 'compose-final'
         }
       });
@@ -139,70 +204,67 @@ export const AIVideography = () => {
       if (compositionError) throw compositionError;
 
       const finalComposedImage = compositionData?.composedImage;
-      console.log('✓ Composition terminée avec succès');
+      console.log('✓ Composition terminée');
 
       if (!finalComposedImage) {
         throw new Error('Échec de la composition finale');
       }
 
-      // ============================================================
-      // ÉTAPE 4: Traitement optionnel pour effet 360°
-      // ============================================================
+      // ÉTAPE 5: Traitement optionnel pour effet 360°
       let processedImage = finalComposedImage;
       let detectedBackgroundColor: string | null = null;
 
       if (cameraEffect === '360-rotate') {
-        toast.info('🔍 Optimisation pour rotation 360°...', { duration: 2000 });
-        console.log('Étape 4/4: Optimisation 360°...');
+        toast.info('🔍 Optimisation 360°...', { duration: 2000 });
+        console.log('Étape 5/5: Optimisation 360°...');
         
         try {
-          // Détection couleur fond
           detectedBackgroundColor = await detectBackgroundColor(finalComposedImage);
-          console.log('✓ Couleur de fond détectée:', detectedBackgroundColor);
           setBackgroundColor(detectedBackgroundColor);
 
-          // Suppression fond
           const imageBlob = await imageUrlToBlob(finalComposedImage);
           const imageForProcessing = await loadImage(imageBlob);
           const resultBlob = await removeBackground(imageForProcessing);
           processedImage = await blobToDataUrl(resultBlob);
-          console.log('✓ Fond supprimé - produit isolé');
+          console.log('✓ Optimisation 360° terminée');
         } catch (bgError) {
-          console.error('Erreur suppression fond:', bgError);
+          console.error('Erreur optimisation 360°:', bgError);
           detectedBackgroundColor = 'rgb(255, 255, 255)';
           setBackgroundColor(detectedBackgroundColor);
         }
       }
 
-      // ============================================================
-      // ÉTAPE 5: Sauvegarde du résultat avec métadonnées complètes
-      // ============================================================
-      toast.info('💾 Sauvegarde de votre Product Showcase...', { duration: 2000 });
-      console.log('Étape 5/5: Sauvegarde...');
+      // SAUVEGARDE
+      toast.info('💾 Sauvegarde...', { duration: 2000 });
+      console.log('Sauvegarde...');
 
       const savedMedia = await saveToGallery({
         type: 'video',
-        title: `Product Showcase - ${description || 'Sans titre'}`,
-        prompt: `Vidéo Product Showcase professionnelle avec environnement généré: ${environmentPrompt}. Effet ${cameraEffect}, style ${videoStyle}.`,
+        title: `${videoTypes.find(t => t.id === videoType)?.name} - ${description || 'Sans titre'}`,
+        prompt: `Vidéo ${videoType} avec environnement généré: ${environmentPrompt}. Effet ${cameraEffect}, style ${videoStyle}. Format ${exportFormat}.`,
         style: videoStyle,
-        format: `${duration}s - 1080x1080`,
+        format: `${duration}s - ${exportFormat}`,
         imageUrl: processedImage,
         metadata: {
-          videoType: 'product-showcase',
+          videoType,
           cameraEffect,
           videoStyle,
           duration: parseInt(duration),
           description,
           environmentPrompt,
           hasGeneratedEnvironment: true,
+          hasVisualElements: generateElements && !!elementsImage,
+          textOverlay: textOverlay.title || textOverlay.subtitle || textOverlay.cta ? textOverlay : null,
+          exportFormat,
           aiEnhanced: true,
-          enhancementPrompt: `Professional Product Showcase with generated luxury environment: ${environmentPrompt}`,
+          enhancementPrompt: `Professional ${videoType} with generated environment: ${environmentPrompt}`,
           hasTransparentBackground: cameraEffect === '360-rotate',
           backgroundColor: detectedBackgroundColor,
-          qualityLevel: 'professional-advanced',
+          qualityLevel: 'professional-complete',
           processingSteps: [
             'product_enhancement',
             'environment_generation',
+            generateElements ? 'visual_elements_generation' : null,
             'final_composition',
             cameraEffect === '360-rotate' ? 'background_optimization' : null,
             'camera_animation'
@@ -212,16 +274,19 @@ export const AIVideography = () => {
 
       if (savedMedia) {
         setResult(savedMedia);
-        toast.success('🎉 Product Showcase créé avec succès !', { duration: 4000 });
-        console.log('✓ Génération terminée avec succès !');
+        toast.success('🎉 Vidéo créée avec succès !', { duration: 4000 });
+        console.log('✓ Génération complète terminée !');
       }
     } catch (error) {
       console.error('Video generation error:', error);
-      toast.error('Erreur lors de la génération de la vidéo');
+      toast.error('Erreur lors de la génération');
     } finally {
       setIsGenerating(false);
     }
   };
+
+  const selectedVideoType = videoTypes.find(t => t.id === videoType);
+  const selectedFormat = exportFormats.find(f => f.id === exportFormat);
 
   return (
     <div className="space-y-6">
@@ -232,21 +297,55 @@ export const AIVideography = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold flex items-center gap-2">
-              Product Showcase AI
-              <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full">MVP</span>
+              AI Videography Pro
+              <span className="text-xs px-2 py-0.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full">
+                Phases 1-3
+              </span>
             </h2>
             <p className="text-sm text-muted-foreground">
-              Créez des spots publicitaires professionnels en combinant votre produit avec un environnement généré par AI
+              Système complet de génération de vidéos promotionnelles professionnelles
             </p>
           </div>
         </div>
 
-        {/* === SECTION 1: Image du produit === */}
+        {/* TYPE DE VIDÉO */}
         <div className="space-y-3">
-          <Label className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
-            Image du produit
-          </Label>
+          <Label className="text-base font-semibold">1. Type de vidéo</Label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {videoTypes.map((type) => {
+              const Icon = type.icon;
+              return (
+                <button
+                  key={type.id}
+                  onClick={() => setVideoType(type.id)}
+                  className={`p-4 rounded-lg border-2 transition-all hover:scale-105 text-left ${
+                    videoType === type.id
+                      ? 'border-primary bg-primary/10 shadow-lg'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Icon className={`w-6 h-6 mb-2 ${videoType === type.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <div className="text-sm font-semibold">{type.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{type.description}</div>
+                  {videoType === type.id && (
+                    <div className="mt-2 pt-2 border-t space-y-1">
+                      {type.features.map((feature, idx) => (
+                        <div key={idx} className="text-xs text-primary flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          {feature}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* IMAGE DU PRODUIT */}
+        <div className="space-y-3">
+          <Label className="text-base font-semibold">2. Image du produit</Label>
           {image ? (
             <div className="relative aspect-video rounded-lg overflow-hidden border group">
               <img src={image} alt="Source" className="w-full h-full object-contain bg-muted" />
@@ -274,16 +373,18 @@ export const AIVideography = () => {
           )}
         </div>
 
-        {/* === SECTION 2: Description de l'environnement === */}
+        {/* ENVIRONNEMENT */}
         <div className="space-y-3">
-          <Label className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-            Environnement de luxe (description)
-          </Label>
+          <Label className="text-base font-semibold">3. Environnement (description)</Label>
           <Textarea
             value={environmentPrompt}
             onChange={(e) => setEnvironmentPrompt(e.target.value)}
-            placeholder="Ex: Marbre blanc élégant avec éclairage doré doux, ambiance minimaliste luxueuse, style studio haut de gamme"
+            placeholder={
+              videoType === 'product-showcase' ? "Ex: Marbre blanc élégant avec éclairage doré, ambiance luxueuse" :
+              videoType === 'story-telling' ? "Ex: Bureau moderne lumineux avec vue sur la ville, professionnnel" :
+              videoType === 'dynamic-ad' ? "Ex: Arrière-plan urbain dynamique avec néons et mouvement" :
+              "Ex: Fond abstrait géométrique minimaliste, couleurs douces"
+            }
             rows={3}
             disabled={isGenerating}
             className="resize-none"
@@ -291,16 +392,52 @@ export const AIVideography = () => {
           <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
             <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <p>
-              Décrivez l'arrière-plan professionnel où votre produit sera mis en valeur. L'AI va générer un environnement de luxe sur-mesure.
+              L'AI génère un {selectedVideoType?.name} personnalisé basé sur votre description.
             </p>
           </div>
         </div>
 
-        {/* === SECTION 3: Description du produit === */}
+        {/* TEXTE OVERLAY (nouveau) */}
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            4. Texte sur la vidéo (optionnel)
+          </Label>
+          <div className="grid gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Titre principal</Label>
+              <Input
+                placeholder="Ex: Nouveauté 2025"
+                value={textOverlay.title}
+                onChange={(e) => setTextOverlay({...textOverlay, title: e.target.value})}
+                disabled={isGenerating}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Sous-titre</Label>
+              <Input
+                placeholder="Ex: Élégance Intemporelle"
+                value={textOverlay.subtitle}
+                onChange={(e) => setTextOverlay({...textOverlay, subtitle: e.target.value})}
+                disabled={isGenerating}
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Call-to-action</Label>
+              <Input
+                placeholder="Ex: Découvrir Maintenant"
+                value={textOverlay.cta}
+                onChange={(e) => setTextOverlay({...textOverlay, cta: e.target.value})}
+                disabled={isGenerating}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* DESCRIPTION PRODUIT */}
         <div className="space-y-3">
           <Label className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold">3</span>
-            Description du produit
+            5. Description du produit
             <span className="text-xs text-muted-foreground font-normal">(optionnel)</span>
           </Label>
           <Input
@@ -311,13 +448,10 @@ export const AIVideography = () => {
           />
         </div>
 
-        {/* === SECTION 4 & 5: Effet de caméra et Style === */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* PARAMÈTRES */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-3">
-            <Label className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold">4</span>
-              Effet de caméra
-            </Label>
+            <Label>6. Effet de caméra</Label>
             <Select value={cameraEffect} onValueChange={setCameraEffect} disabled={isGenerating}>
               <SelectTrigger>
                 <SelectValue />
@@ -327,10 +461,7 @@ export const AIVideography = () => {
                   <SelectItem key={effect.id} value={effect.id}>
                     <div className="flex items-center gap-2">
                       <span>{effect.icon}</span>
-                      <div>
-                        <div className="font-medium">{effect.name}</div>
-                        <div className="text-xs text-muted-foreground">{effect.description}</div>
-                      </div>
+                      <span>{effect.name}</span>
                     </div>
                   </SelectItem>
                 ))}
@@ -339,10 +470,7 @@ export const AIVideography = () => {
           </div>
 
           <div className="space-y-3">
-            <Label className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold">5</span>
-              Style visuel
-            </Label>
+            <Label>7. Style visuel</Label>
             <Select value={videoStyle} onValueChange={setVideoStyle} disabled={isGenerating}>
               <SelectTrigger>
                 <SelectValue />
@@ -350,38 +478,72 @@ export const AIVideography = () => {
               <SelectContent>
                 {videoStyles.map((style) => (
                   <SelectItem key={style.id} value={style.id}>
-                    <div>
-                      <div className="font-medium">{style.name}</div>
-                      <div className="text-xs text-muted-foreground">{style.description}</div>
-                    </div>
+                    {style.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-3">
+            <Label>8. Durée</Label>
+            <Select value={duration} onValueChange={setDuration} disabled={isGenerating}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3 secondes</SelectItem>
+                <SelectItem value="5">5 secondes</SelectItem>
+                <SelectItem value="7">7 secondes</SelectItem>
+                <SelectItem value="10">10 secondes</SelectItem>
+                <SelectItem value="15">15 secondes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* === SECTION 6: Durée === */}
+        {/* FORMAT D'EXPORT (nouveau) */}
         <div className="space-y-3">
-          <Label className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-bold">6</span>
-            Durée
-          </Label>
-          <Select value={duration} onValueChange={setDuration} disabled={isGenerating}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="3">3 secondes</SelectItem>
-              <SelectItem value="5">5 secondes</SelectItem>
-              <SelectItem value="7">7 secondes</SelectItem>
-              <SelectItem value="10">10 secondes</SelectItem>
-              <SelectItem value="15">15 secondes</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label className="text-base font-semibold">9. Format d'export</Label>
+          <div className="grid grid-cols-3 gap-3">
+            {exportFormats.map((format) => (
+              <button
+                key={format.id}
+                onClick={() => setExportFormat(format.id)}
+                className={`p-3 rounded-lg border-2 transition-all hover:scale-105 ${
+                  exportFormat === format.id
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:border-primary/50'
+                }`}
+                disabled={isGenerating}
+              >
+                <div className="text-sm font-semibold">{format.name}</div>
+                <div className="text-xs text-muted-foreground">{format.ratio}</div>
+                <div className="text-xs text-muted-foreground mt-1">{format.description}</div>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* === BOUTON GÉNÉRATION === */}
+        {/* OPTIONS AVANCÉES */}
+        <div className="space-y-3 border rounded-lg p-4">
+          <Label className="text-base font-semibold">10. Options avancées</Label>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-sm">Ajouter des éléments visuels</p>
+              <p className="text-xs text-muted-foreground">
+                Particules, effets de lumière, décorations
+              </p>
+            </div>
+            <Switch
+              checked={generateElements}
+              onCheckedChange={setGenerateElements}
+              disabled={isGenerating}
+            />
+          </div>
+        </div>
+
+        {/* BOUTON GÉNÉRATION */}
         <div className="space-y-3 pt-2">
           <Button
             onClick={handleGenerate}
@@ -397,36 +559,45 @@ export const AIVideography = () => {
             ) : (
               <>
                 <Wand2 className="w-5 h-5" />
-                Créer mon Product Showcase
+                Créer ma vidéo {selectedVideoType?.name}
               </>
             )}
           </Button>
 
           {!image && (
             <p className="text-xs text-center text-muted-foreground">
-              Ajoutez une image de produit pour commencer
+              Ajoutez une image pour commencer
             </p>
           )}
 
           {image && !environmentPrompt.trim() && (
             <p className="text-xs text-center text-muted-foreground">
-              Décrivez l'environnement souhaité pour continuer
+              Décrivez l'environnement pour continuer
             </p>
           )}
         </div>
       </Card>
 
-      {/* === RÉSULTAT === */}
+      {/* RÉSULTAT */}
       {result && (
         <Card className="p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Votre Product Showcase</h3>
-            <div className="px-3 py-1 bg-primary/20 text-primary text-xs rounded-full font-medium">
-              Format: 1080x1080
+            <h3 className="text-lg font-semibold">Votre {selectedVideoType?.name}</h3>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1 bg-primary/20 text-primary text-xs rounded-full font-medium">
+                {selectedFormat?.name} - {selectedFormat?.ratio}
+              </div>
+              <div className="px-3 py-1 bg-muted text-muted-foreground text-xs rounded-full">
+                {result.metadata?.videoType}
+              </div>
             </div>
           </div>
           <div
-            className="relative aspect-square rounded-lg overflow-hidden border"
+            className={`relative rounded-lg overflow-hidden border ${
+              exportFormat === '1080x1920' ? 'aspect-[9/16]' : 
+              exportFormat === '1920x1080' ? 'aspect-video' : 
+              'aspect-square'
+            }`}
             style={{
               backgroundColor: result.metadata?.cameraEffect === '360-rotate' && backgroundColor
                 ? backgroundColor
@@ -435,7 +606,7 @@ export const AIVideography = () => {
           >
             <img
               src={result.image_url}
-              alt="Product Showcase généré"
+              alt="Vidéo générée"
               className={`relative w-full h-full object-contain ${
                 result.metadata?.cameraEffect === 'zoom-in' ? 'animate-[zoom-in_5s_ease-in-out_infinite]' :
                 result.metadata?.cameraEffect === 'zoom-out' ? 'animate-[zoom-out_5s_ease-in-out_infinite]' :
@@ -449,7 +620,7 @@ export const AIVideography = () => {
             />
             <div className="absolute top-2 right-2 px-3 py-1 bg-black/70 text-white text-xs rounded-full flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
-              {result.metadata?.cameraEffect || 'Animation'}
+              {result.metadata?.cameraEffect}
             </div>
           </div>
           <div className="flex gap-2">
@@ -463,7 +634,7 @@ export const AIVideography = () => {
             </Button>
             <Button
               className="flex-1 gap-2"
-              onClick={() => downloadMedia(result.image_url, `product-showcase-${result.id}.png`)}
+              onClick={() => downloadMedia(result.image_url, `${videoType}-${exportFormat}-${result.id}.png`)}
             >
               <Download className="w-4 h-4" />
               Télécharger
@@ -472,7 +643,7 @@ export const AIVideography = () => {
         </Card>
       )}
 
-      {/* === MODAL === */}
+      {/* MODAL */}
       <UniversalMediaModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

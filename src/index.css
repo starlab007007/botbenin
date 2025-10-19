@@ -218,3 +218,87 @@ h1, h2, h3, h4, h5, h6 {
   0% { transform: perspective(1000px) rotateY(0deg) scale(1.1); }
   100% { transform: perspective(1000px) rotateY(360deg) scale(1.1); }
 }
+
+/* Advanced animations for AI Videography Multi-Elements */
+@keyframes product-entrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes environment-parallax {
+  0%, 100% {
+    transform: scale(1.1) translateX(0);
+  }
+  50% {
+    transform: scale(1.15) translateX(-5%);
+  }
+}
+
+@keyframes particles-float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-20px) translateX(10px);
+    opacity: 1;
+  }
+}
+
+@keyframes text-slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cta-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+}
+
+/* Animation utility classes */
+.animate-product-entrance {
+  animation: product-entrance 1s ease-out;
+}
+
+.animate-environment-parallax {
+  animation: environment-parallax 10s ease-in-out infinite;
+}
+
+.animate-particles-float {
+  animation: particles-float 3s ease-in-out infinite;
+}
+
+.animate-text-slide-up {
+  animation: text-slide-up 0.8s ease-out;
+}
+
+.animate-cta-pulse {
+  animation: cta-pulse 2s ease-in-out infinite;
+}
+
+.animation-delay-200 {
+  animation-delay: 0.2s;
+}
+
+.animation-delay-400 {
+  animation-delay: 0.4s;
+}
+
