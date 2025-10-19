@@ -177,15 +177,29 @@ export const GenerationProgress = ({
                     <img 
                       src={step.result.image} 
                       alt={step.title}
-                      className="w-full h-40 sm:h-48 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                      className="w-full h-40 sm:h-48 object-contain cursor-pointer hover:opacity-90 transition-opacity bg-white"
                       onClick={() => setPreviewStep(step)}
+                      onLoad={(e) => {
+                        console.log(`✅ Image loaded for step ${step.id}:`, {
+                          width: e.currentTarget.naturalWidth,
+                          height: e.currentTarget.naturalHeight,
+                          srcLength: step.result.image?.length
+                        });
+                      }}
                       onError={(e) => {
-                        console.error('Image load error for step:', step.id, step.result?.image?.substring(0, 100));
+                        console.error('❌ Image load error for step:', step.id);
+                        console.error('Image source preview:', step.result.image?.substring(0, 100));
                         e.currentTarget.style.display = 'none';
-                        const errorDiv = document.createElement('div');
-                        errorDiv.className = 'text-destructive p-4 text-center text-sm';
-                        errorDiv.textContent = '⚠️ Impossible de charger l\'image de prévisualisation';
-                        e.currentTarget.parentElement?.appendChild(errorDiv);
+                        const parent = e.currentTarget.parentElement;
+                        if (parent && !parent.querySelector('.error-message')) {
+                          const errorDiv = document.createElement('div');
+                          errorDiv.className = 'error-message text-destructive p-4 text-center text-sm flex flex-col items-center gap-2';
+                          errorDiv.innerHTML = `
+                            <div>⚠️ Impossible de charger l'image</div>
+                            <div class="text-xs opacity-70">Format: ${step.result.image?.substring(0, 30)}...</div>
+                          `;
+                          parent.appendChild(errorDiv);
+                        }
                       }}
                       loading="lazy"
                     />
@@ -320,20 +334,34 @@ export const GenerationProgress = ({
           
           <div className="flex-1 overflow-auto bg-muted/30 p-4 md:p-6">
             {previewStep?.result?.image && previewStep.id !== 'animate-video' && (
-              <div className="flex items-center justify-center min-h-full">
+              <div className="flex items-center justify-center min-h-full bg-white p-4">
                 <img 
                   src={previewStep.result.image} 
                   alt={previewStep.title}
                   className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-                  onError={(e) => {
-                    console.error('Image load error in preview:', previewStep.result?.image?.substring(0, 100));
-                    e.currentTarget.style.display = 'none';
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'text-destructive p-6 text-center';
-                    errorDiv.textContent = '⚠️ Impossible de charger l\'image complète';
-                    e.currentTarget.parentElement?.appendChild(errorDiv);
+                  onLoad={(e) => {
+                    console.log(`✅ Modal image loaded for step ${previewStep.id}:`, {
+                      width: e.currentTarget.naturalWidth,
+                      height: e.currentTarget.naturalHeight
+                    });
                   }}
-                  loading="lazy"
+                  onError={(e) => {
+                    console.error('❌ Image load error in preview modal:', previewStep.id);
+                    console.error('Image source preview:', previewStep.result.image?.substring(0, 100));
+                    e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent && !parent.querySelector('.error-message')) {
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'error-message text-destructive p-6 text-center flex flex-col gap-2';
+                      errorDiv.innerHTML = `
+                        <div class="text-lg font-semibold">⚠️ Impossible de charger l'image complète</div>
+                        <div class="text-sm opacity-70">L'image peut être corrompue ou trop volumineuse</div>
+                        <div class="text-xs mt-2 p-2 bg-muted rounded font-mono">${previewStep.result.image?.substring(0, 50)}...</div>
+                      `;
+                      parent.appendChild(errorDiv);
+                    }
+                  }}
+                  loading="eager"
                 />
               </div>
             )}

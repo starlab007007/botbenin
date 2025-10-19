@@ -41,31 +41,56 @@ export class VideoGenerator {
   }
 
   async loadAssets(): Promise<void> {
-    const loadImage = (src: string): Promise<HTMLImageElement> => {
+    const loadImage = (src: string, label: string): Promise<HTMLImageElement> => {
       return new Promise((resolve, reject) => {
+        if (!src) {
+          reject(new Error(`Image source is empty for ${label}`));
+          return;
+        }
+        
+        console.log(`Loading ${label}, source length:`, src.length, 'type:', src.substring(0, 30));
+        
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        img.onload = () => resolve(img);
-        img.onerror = reject;
+        
+        img.onload = () => {
+          console.log(`✅ ${label} loaded successfully:`, img.width, 'x', img.height);
+          resolve(img);
+        };
+        
+        img.onerror = (error) => {
+          console.error(`❌ Failed to load ${label}:`, error);
+          reject(new Error(`Impossible de charger ${label}: image invalide ou corrompue`));
+        };
+        
         img.src = src;
       });
     };
 
-    // If already composed, load as single composed image
-    if (this.assets.isComposed) {
-      const composed = await loadImage(this.assets.productImage);
-      this.loadedImages.set('composed', composed);
-    } else {
-      const product = await loadImage(this.assets.productImage);
-      const environment = await loadImage(this.assets.environmentImage);
-      
-      this.loadedImages.set('product', product);
-      this.loadedImages.set('environment', environment);
-    }
+    try {
+      // If already composed, load as single composed image
+      if (this.assets.isComposed) {
+        const composed = await loadImage(this.assets.productImage, 'composed image');
+        this.loadedImages.set('composed', composed);
+      } else {
+        const [product, environment] = await Promise.all([
+          loadImage(this.assets.productImage, 'product image'),
+          loadImage(this.assets.environmentImage, 'environment image')
+        ]);
+        
+        this.loadedImages.set('product', product);
+        this.loadedImages.set('environment', environment);
+      }
 
-    if (this.assets.elementsImage) {
-      const elements = await loadImage(this.assets.elementsImage);
-      this.loadedImages.set('elements', elements);
+      if (this.assets.elementsImage) {
+        const elements = await loadImage(this.assets.elementsImage, 'elements image');
+        this.loadedImages.set('elements', elements);
+      }
+      
+      console.log('✅ All assets loaded successfully');
+    } catch (error) {
+      console.error('❌ Asset loading failed:', error);
+      throw error;
     }
   }
 

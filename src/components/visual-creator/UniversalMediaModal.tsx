@@ -118,18 +118,34 @@ export const UniversalMediaModal = ({
                 <img
                   src={media.image_url}
                   alt={media.title || 'Création'}
-                  className="max-w-full max-h-full rounded-lg shadow-lg transition-transform duration-200"
+                  className="max-w-full max-h-full rounded-lg shadow-lg transition-transform duration-200 bg-white"
                   style={{ transform: `scale(${zoom})` }}
                   draggable={false}
-                  onError={(e) => {
-                    console.error('Image load error in modal:', media.image_url?.substring(0, 100));
-                    e.currentTarget.style.display = 'none';
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'text-destructive p-6 text-center';
-                    errorDiv.innerHTML = '<div class="mb-2 text-2xl">⚠️</div><p class="font-semibold mb-1">Impossible de charger l\'image</p><p class="text-sm opacity-80">L\'image peut être en cours de génération ou le format n\'est pas supporté</p>';
-                    e.currentTarget.parentElement?.appendChild(errorDiv);
+                  onLoad={(e) => {
+                    console.log('✅ Modal image loaded:', {
+                      width: e.currentTarget.naturalWidth,
+                      height: e.currentTarget.naturalHeight,
+                      title: media.title
+                    });
                   }}
-                  loading="lazy"
+                  onError={(e) => {
+                    console.error('❌ Image load error in modal:', media.image_url?.substring(0, 100));
+                    console.error('Media type:', media.type, 'Title:', media.title);
+                    e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent && !parent.querySelector('.error-message')) {
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'error-message text-destructive p-6 text-center flex flex-col gap-2';
+                      errorDiv.innerHTML = `
+                        <div class="mb-2 text-4xl">⚠️</div>
+                        <p class="font-semibold text-lg">Impossible de charger l'image</p>
+                        <p class="text-sm opacity-80">L'image peut être en cours de génération ou le format n'est pas supporté</p>
+                        <div class="text-xs mt-2 p-2 bg-muted rounded font-mono max-w-md mx-auto break-all">${media.image_url?.substring(0, 80)}...</div>
+                      `;
+                      parent.appendChild(errorDiv);
+                    }
+                  }}
+                  loading="eager"
                 />
               )}
             </div>

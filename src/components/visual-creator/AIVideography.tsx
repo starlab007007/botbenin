@@ -214,6 +214,7 @@ export const AIVideography = () => {
   };
 
   const executeEnhanceProduct = async () => {
+    console.log('🎨 Enhancing product...');
     const enhanceResponse = await supabase.functions.invoke('generate-ai-video', {
       body: {
         step: 'enhance-product',
@@ -224,13 +225,23 @@ export const AIVideography = () => {
       }
     });
 
-    if (enhanceResponse.error) throw enhanceResponse.error;
-    const url = enhanceResponse.data.enhancedImage;
+    if (enhanceResponse.error) {
+      console.error('❌ Enhance product error:', enhanceResponse.error);
+      throw enhanceResponse.error;
+    }
+    
+    const url = enhanceResponse.data?.enhancedImage;
+    if (!url) {
+      throw new Error('Image améliorée non reçue du serveur');
+    }
+    
+    console.log('✅ Product enhanced, image length:', url.length);
     setEnhancedProductUrl(url);
     updateStepStatus('enhance-product', 'completed', { image: url });
   };
 
   const executeGenerateEnvironment = async () => {
+    console.log('🌍 Generating environment...');
     const envResponse = await supabase.functions.invoke('generate-ai-video', {
       body: {
         step: 'generate-environment',
@@ -241,8 +252,17 @@ export const AIVideography = () => {
       }
     });
 
-    if (envResponse.error) throw envResponse.error;
-    const url = envResponse.data.environmentImage;
+    if (envResponse.error) {
+      console.error('❌ Generate environment error:', envResponse.error);
+      throw envResponse.error;
+    }
+    
+    const url = envResponse.data?.environmentImage;
+    if (!url) {
+      throw new Error('Image environnement non reçue du serveur');
+    }
+    
+    console.log('✅ Environment generated, image length:', url.length);
     setEnvironmentUrl(url);
     updateStepStatus('generate-environment', 'completed', { image: url });
   };
@@ -252,6 +272,7 @@ export const AIVideography = () => {
       throw new Error('Images produit et environnement manquantes');
     }
 
+    console.log('🎨 Composing final image...');
     const composeResponse = await supabase.functions.invoke('generate-ai-video', {
       body: {
         step: 'compose-final',
@@ -265,133 +286,186 @@ export const AIVideography = () => {
       }
     });
 
-    if (composeResponse.error) throw composeResponse.error;
-    const url = composeResponse.data.composedImage;
+    if (composeResponse.error) {
+      console.error('❌ Compose final error:', composeResponse.error);
+      throw composeResponse.error;
+    }
+    
+    const url = composeResponse.data?.composedImage;
+    if (!url) {
+      throw new Error('Image composée non reçue du serveur');
+    }
+    
+    console.log('✅ Final composition complete, image length:', url.length);
     setComposedImageUrl(url);
     updateStepStatus('compose-final', 'completed', { image: url });
   };
 
   const executeAnimateVideo = async () => {
-    if (!canvasRef.current) {
-      throw new Error('Canvas non initialisé');
-    }
+    try {
+      if (!canvasRef.current) {
+        throw new Error('Canvas non initialisé');
+      }
 
-    // Use composed image if available, otherwise fall back to separate images
-    const hasComposedImage = !!composedImageUrl;
-    if (!hasComposedImage && (!enhancedProductUrl || !environmentUrl)) {
-      throw new Error('Images manquantes');
-    }
+      // Use composed image if available, otherwise fall back to separate images
+      const hasComposedImage = !!composedImageUrl;
+      if (!hasComposedImage && (!enhancedProductUrl || !environmentUrl)) {
+        throw new Error('Images manquantes pour l\'animation');
+      }
 
-    const selectedAnimation = animationTypes.find(a => a.id === animationType)!;
-    const [width, height] = exportFormat.split('x').map(Number);
-
-    const videoGenerator = new VideoGenerator(
-      canvasRef.current,
-      {
+      const selectedAnimation = animationTypes.find(a => a.id === animationType);
+      if (!selectedAnimation) {
+        throw new Error(`Type d'animation "${animationType}" non trouvé`);
+      }
+      
+      console.log('🎬 Starting video generation:', {
         animationType,
-        duration: selectedAnimation.duration,
-        width,
-        height,
-        fps: 30,
-        textOverlay: textOverlay.enabled ? textOverlay : undefined,
-      },
-      {
-        productImage: composedImageUrl || enhancedProductUrl!,
-        environmentImage: composedImageUrl || environmentUrl!,
-        elementsImage: elementsUrl || undefined,
-        isComposed: hasComposedImage,
-      }
-    );
-
-    await videoGenerator.loadAssets();
-    
-    const recordVideo = (): Promise<{ blob: Blob; url: string }> => {
-      return new Promise((resolve, reject) => {
-        videoRecorder.startRecording(
-          {
-            canvas: canvasRef.current!,
-            duration: selectedAnimation.duration,
-            fps: 30,
-          },
-          (blob, url) => resolve({ blob, url })
-        ).catch(reject);
-
-        videoGenerator.animate((progress) => {
-          setGenerationStep(`Animation: ${Math.round(progress * 100)}%`);
-        }).catch(reject);
-      });
-    };
-
-    const { blob: videoBlob, url: videoUrl } = await recordVideo();
-
-    // Get user ID for storage path
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Utilisateur non authentifié');
-
-    const fileName = `${user.id}/ai-videos/${Date.now()}.webm`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('media')
-      .upload(fileName, videoBlob, {
-        contentType: 'video/webm',
-        upsert: false,
+        hasComposedImage,
+        productImage: composedImageUrl?.substring(0, 50),
+        environmentImage: environmentUrl?.substring(0, 50),
+        format: exportFormat
       });
 
-    if (uploadError) throw uploadError;
+      const [width, height] = exportFormat.split('x').map(Number);
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('media')
-      .getPublicUrl(uploadData.path);
-
-    setResult({ 
-      url: videoUrl, 
-      type: 'video' as const, 
-      blob: videoBlob,
-      id: uploadData.path,
-      prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
-    });
-
-    // Vérifier la compatibilité vidéo
-    try {
-      const { checkVideoCompatibility } = await import('@/services/videoCompatibilityService');
-      const compatibilityResult = await checkVideoCompatibility(videoUrl);
-      
-      console.log('Video compatibility check:', compatibilityResult);
-      
-      if (!compatibilityResult.compatible || !compatibilityResult.canPlayH264) {
-        toast.warning('⚠️ Vidéo générée mais peut ne pas être compatible avec tous les appareils. Téléchargez la version MP4 pour une meilleure compatibilité.');
-      }
-    } catch (compatError) {
-      console.warn('Could not check video compatibility:', compatError);
-    }
-
-    // Sauvegarder automatiquement dans la galerie
-    try {
-      const savedMedia = await saveToGallery({
-        type: 'video',
-        title: `Vidéo ${videoType} - ${animationType}`,
-        prompt: environmentPrompt || description,
-        style: videoStyle,
-        format: exportFormat,
-        imageUrl: publicUrl,
-        metadata: {
+      const videoGenerator = new VideoGenerator(
+        canvasRef.current,
+        {
           animationType,
-          videoType,
           duration: selectedAnimation.duration,
-          exportFormat,
-          originalFormat: 'mp4'
+          width,
+          height,
+          fps: 30,
+          textOverlay: textOverlay.enabled ? textOverlay : undefined,
+        },
+        {
+          productImage: composedImageUrl || enhancedProductUrl!,
+          environmentImage: composedImageUrl || environmentUrl!,
+          elementsImage: elementsUrl || undefined,
+          isComposed: hasComposedImage,
         }
+      );
+
+      console.log('📦 Loading video assets...');
+      await videoGenerator.loadAssets();
+      console.log('✅ Assets loaded successfully');
+    
+      const recordVideo = (): Promise<{ blob: Blob; url: string }> => {
+        return new Promise((resolve, reject) => {
+          console.log('🎥 Starting video recording...');
+          
+          videoRecorder.startRecording(
+            {
+              canvas: canvasRef.current!,
+              duration: selectedAnimation.duration,
+              fps: 30,
+            },
+            (blob, url) => {
+              console.log('✅ Recording complete:', { 
+                size: blob.size, 
+                type: blob.type,
+                url: url.substring(0, 50)
+              });
+              resolve({ blob, url });
+            }
+          ).catch((error) => {
+            console.error('❌ Recording error:', error);
+            reject(new Error('Erreur d\'enregistrement vidéo: ' + (error?.message || String(error))));
+          });
+
+          videoGenerator.animate((progress) => {
+            setGenerationStep(`Animation: ${Math.round(progress * 100)}%`);
+          }).catch((error) => {
+            console.error('❌ Animation error:', error);
+            reject(new Error('Erreur d\'animation: ' + (error?.message || String(error))));
+          });
+        });
+      };
+
+      console.log('🎬 Recording video...');
+      const { blob: videoBlob, url: videoUrl } = await recordVideo();
+      console.log('✅ Video recorded successfully');
+
+      // Get user ID for storage path
+      console.log('💾 Uploading video to storage...');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Utilisateur non authentifié');
+
+      const fileName = `${user.id}/ai-videos/${Date.now()}.webm`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(fileName, videoBlob, {
+          contentType: videoBlob.type || 'video/webm',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('❌ Upload error:', uploadError);
+        throw new Error('Erreur de téléchargement: ' + uploadError.message);
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(uploadData.path);
+      
+      console.log('✅ Video uploaded:', publicUrl);
+
+      setResult({ 
+        url: videoUrl, 
+        type: 'video' as const, 
+        blob: videoBlob,
+        id: uploadData.path,
+        prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
       });
 
-      if (savedMedia) {
-        setResult(prev => prev ? { ...prev, url: publicUrl, savedMedia } : null);
-        toast.success('✅ Vidéo MP4 générée et sauvegardée !');
+      // Vérifier la compatibilité vidéo
+      try {
+        const { checkVideoCompatibility } = await import('@/services/videoCompatibilityService');
+        const compatibilityResult = await checkVideoCompatibility(videoUrl);
+        
+        console.log('Video compatibility check:', compatibilityResult);
+        
+        if (!compatibilityResult.compatible || !compatibilityResult.canPlayH264) {
+          toast.warning('⚠️ Vidéo générée mais peut ne pas être compatible avec tous les appareils. Téléchargez la version MP4 pour une meilleure compatibilité.');
+        }
+      } catch (compatError) {
+        console.warn('Could not check video compatibility:', compatError);
       }
-    } catch (saveError) {
-      console.error('Auto-save error:', saveError);
-      // Ne pas bloquer, l'utilisateur peut sauvegarder manuellement
+
+      // Sauvegarder automatiquement dans la galerie
+      try {
+        const savedMedia = await saveToGallery({
+          type: 'video',
+          title: `Vidéo ${videoType} - ${animationType}`,
+          prompt: environmentPrompt || description,
+          style: videoStyle,
+          format: exportFormat,
+          imageUrl: publicUrl,
+          metadata: {
+            animationType,
+            videoType,
+            duration: selectedAnimation.duration,
+            exportFormat,
+            originalFormat: videoBlob.type || 'webm'
+          }
+        });
+
+        if (savedMedia) {
+          setResult(prev => prev ? { ...prev, url: publicUrl, savedMedia } : null);
+          toast.success('✅ Vidéo MP4 générée et sauvegardée !');
+        }
+      } catch (saveError) {
+        console.error('Auto-save error:', saveError);
+        // Ne pas bloquer, l'utilisateur peut sauvegarder manuellement
+      }
+      
+      updateStepStatus('animate-video', 'completed', { image: videoUrl, data: { publicUrl } });
+      
+    } catch (error: any) {
+      console.error('❌ executeAnimateVideo error:', error);
+      const errorMessage = error?.message || error?.toString() || 'Erreur inconnue lors de l\'animation';
+      throw new Error(errorMessage);
     }
-    
-    updateStepStatus('animate-video', 'completed', { image: videoUrl, data: { publicUrl } });
   };
 
   const handleRegenerateStep = async (stepId: string) => {
@@ -439,8 +513,10 @@ export const AIVideography = () => {
         return;
         
       } catch (error: any) {
-        updateStepStatus(step.id, 'error', undefined, error.message);
-        toast.error(`${step.title}: ${error.message}`);
+        console.error(`❌ Step ${step.id} failed:`, error);
+        const errorMessage = error?.message || error?.toString() || 'Erreur inconnue';
+        updateStepStatus(step.id, 'error', undefined, errorMessage);
+        toast.error(`${step.title}: ${errorMessage}`);
         setIsGenerating(false);
         return;
       }
