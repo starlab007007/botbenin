@@ -467,10 +467,34 @@ OUTPUT: Seamless ${videoType} composition with product fully integrated into env
 
   } catch (error) {
     console.error('Error in generate-ai-video:', error);
+    
+    // Provide more detailed error messages
+    let errorMessage = 'Erreur inconnue';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Handle specific error types
+      if (errorMessage.includes('timeout') || errorMessage.includes('fetch')) {
+        errorMessage = 'Délai d\'attente dépassé. Veuillez réessayer.';
+        statusCode = 504;
+      } else if (errorMessage.includes('API key')) {
+        errorMessage = 'Erreur de configuration API';
+        statusCode = 500;
+      } else if (errorMessage.includes('Invalid')) {
+        errorMessage = 'Données invalides envoyées';
+        statusCode = 400;
+      }
+    }
+    
     return new Response(
-      JSON.stringify({ error: error.message || 'Erreur inconnue' }),
+      JSON.stringify({ 
+        error: errorMessage,
+        details: error instanceof Error ? error.message : String(error)
+      }),
       {
-        status: 500,
+        status: statusCode,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );

@@ -164,8 +164,11 @@ export const GenerationProgress = ({
 
                 {step.error && (
                   <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm text-destructive mb-3">
-                    <p className="font-medium mb-1">Erreur:</p>
-                    <p>{step.error}</p>
+                    <p className="font-medium mb-1">❌ Une erreur s'est produite. Cliquez sur "Réessayer" pour régénérer cette étape.</p>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer hover:underline text-xs">Détails de l'erreur</summary>
+                      <p className="mt-1 text-xs opacity-80">{step.error}</p>
+                    </details>
                   </div>
                 )}
 
