@@ -159,6 +159,7 @@ export const AIVideography = () => {
   const [composedImageUrl, setComposedImageUrl] = useState<string | null>(null);
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [previewStepMedia, setPreviewStepMedia] = useState<MediaItem | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -429,9 +430,12 @@ export const AIVideography = () => {
     await continueGeneration(0);
   };
 
-  const handleDownload = () => {
-    if (result) {
-      downloadMedia(result.url, `ai-video-${animationType}-${exportFormat}.mp4`);
+  const handleDownload = async () => {
+    if (result && result.blob) {
+      // Download with MP4 conversion (already handled by downloadMedia from useMediaManager)
+      await downloadMedia(result.url, `ai-video-${animationType}-${exportFormat}.mp4`);
+    } else if (result) {
+      toast.error('Impossible de télécharger: blob vidéo manquant');
     }
   };
 
@@ -856,9 +860,21 @@ export const AIVideography = () => {
           onViewResult={(stepId) => {
             const step = progressSteps.find(s => s.id === stepId);
             if (step?.result?.image) {
-              window.open(step.result.image, '_blank');
+              // Open in modal instead of new window
+              const isVideo = step.id === 'animate-video';
+              setPreviewStepMedia({
+                id: step.id,
+                type: isVideo ? 'video' : 'image',
+                title: step.title,
+                prompt: step.description,
+                style: videoStyle,
+                format: exportFormat,
+                image_url: step.result.image,
+                metadata: { stepId: step.id, videoType, animationType }
+              } as MediaItem);
             }
           }}
+          onSaveStep={handleSaveStep}
         />
       )}
 
@@ -972,7 +988,7 @@ export const AIVideography = () => {
         </Card>
       )}
 
-      {/* MODAL */}
+      {/* MODAL - Final Video */}
       <UniversalMediaModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -986,6 +1002,14 @@ export const AIVideography = () => {
           image_url: result.url,
           metadata: { animationType, videoType }
         } as MediaItem : null}
+        onDownload={downloadMedia}
+      />
+
+      {/* MODAL - Step Preview */}
+      <UniversalMediaModal
+        isOpen={!!previewStepMedia}
+        onClose={() => setPreviewStepMedia(null)}
+        media={previewStepMedia}
         onDownload={downloadMedia}
       />
       </TabsContent>
