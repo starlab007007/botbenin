@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useMediaManager } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from './UniversalMediaModal';
-import { shareOnWhatsApp, shareOnFacebook, shareOnTikTok } from '@/utils/socialShare';
+import { shareMediaFile, shareOnTikTok } from '@/utils/socialShare';
 import { FlyerHistory } from './FlyerHistory';
 
 const flyerTemplates = [
@@ -213,7 +213,7 @@ Ultra high quality, print-ready design.`;
           <Input
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            placeholder="Ex: 49.99€"
+            placeholder="Ex: 49.99 CFA"
           />
         </div>
 
@@ -279,7 +279,7 @@ Ultra high quality, print-ready design.`;
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => shareOnWhatsApp(generatedFlyer.image_url, generatedFlyer.title)}
+                onClick={() => shareMediaFile(generatedFlyer.image_url, generatedFlyer.title, false)}
                 className="gap-2"
               >
                 <MessageCircle className="w-4 h-4" />
@@ -288,7 +288,7 @@ Ultra high quality, print-ready design.`;
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => shareOnFacebook(generatedFlyer.image_url)}
+                onClick={() => shareMediaFile(generatedFlyer.image_url, generatedFlyer.title, false)}
                 className="gap-2"
               >
                 <Facebook className="w-4 h-4" />

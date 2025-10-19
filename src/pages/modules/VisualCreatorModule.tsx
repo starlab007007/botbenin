@@ -33,7 +33,7 @@ import { UniversalMediaModal } from '@/components/visual-creator/UniversalMediaM
 import { useNavigate } from 'react-router-dom';
 import { FlyerGenerator } from '@/components/visual-creator/FlyerGenerator';
 import { AIVideography } from '@/components/visual-creator/AIVideography';
-import { shareOnWhatsApp, shareOnFacebook } from '@/utils/socialShare';
+import { shareMediaFile } from '@/utils/socialShare';
 
 interface SocialFormat {
   id: string;
@@ -392,14 +392,14 @@ export const VisualCreatorModule: React.FC = () => {
                           <Button
                             size="sm"
                             variant="secondary"
-                            onClick={() => shareOnWhatsApp(media.image_url!, media.title)}
+                            onClick={() => shareMediaFile(media.image_url!, media.title, false)}
                           >
                             <MessageCircle className="w-4 h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="secondary"
-                            onClick={() => shareOnFacebook(media.image_url!)}
+                            onClick={() => shareMediaFile(media.image_url!, media.title, false)}
                           >
                             <Facebook className="w-4 h-4" />
                           </Button>

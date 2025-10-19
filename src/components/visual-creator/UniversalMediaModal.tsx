@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Download, X, ZoomIn, ZoomOut, Share2, Maximize2, MessageCircle, Facebook, Video as VideoIcon } from 'lucide-react';
 import { useState } from 'react';
 import { MediaItem } from '@/hooks/useMediaManager';
-import { shareOnWhatsApp, shareOnFacebook, shareOnTikTok, shareNative } from '@/utils/socialShare';
+import { shareMediaFile, shareOnTikTok, shareNative } from '@/utils/socialShare';
 import { isVideoFile } from '@/utils/videoConverter';
 
 interface UniversalMediaModalProps {
@@ -157,7 +157,7 @@ export const UniversalMediaModal = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => media.image_url && shareOnWhatsApp(media.image_url, media.title)}
+                onClick={() => media.image_url && shareMediaFile(media.image_url, media.title, isVideo)}
                 className="gap-1 text-xs md:text-sm px-2 md:px-3"
               >
                 <MessageCircle className="h-3 w-3 md:h-4 md:w-4" />
@@ -166,7 +166,7 @@ export const UniversalMediaModal = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => media.image_url && shareOnFacebook(media.image_url)}
+                onClick={() => media.image_url && shareMediaFile(media.image_url, media.title, isVideo)}
                 className="gap-1 text-xs md:text-sm px-2 md:px-3"
               >
                 <Facebook className="h-3 w-3 md:h-4 md:w-4" />
@@ -181,17 +181,15 @@ export const UniversalMediaModal = ({
                 <VideoIcon className="h-3 w-3 md:h-4 md:w-4" />
                 <span className="hidden sm:inline">TikTok</span>
               </Button>
-              {navigator.share && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleShareNative}
-                  className="gap-1 text-xs md:text-sm px-2 md:px-3"
-                >
-                  <Share2 className="h-3 w-3 md:h-4 md:w-4" />
-                  <span className="hidden sm:inline">Partager</span>
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => media.image_url && shareMediaFile(media.image_url, media.title, isVideo)}
+                className="gap-1 text-xs md:text-sm px-2 md:px-3"
+              >
+                <Share2 className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Partager</span>
+              </Button>
               <Button
                 variant="default"
                 size="sm"

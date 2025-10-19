@@ -23,7 +23,7 @@ import { VideoGenerator } from '@/utils/videoGenerator';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GenerationProgress } from './GenerationProgress';
-import { shareOnWhatsApp, shareOnFacebook, shareOnTikTok } from '@/utils/socialShare';
+import { shareMediaFile, shareOnTikTok } from '@/utils/socialShare';
 
 const animationTypes = [
   {
@@ -1013,38 +1013,38 @@ export const AIVideography = () => {
               </Button>
             </div>
             <div className="flex flex-wrap gap-2 justify-center border-t pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const shareUrl = result.savedMedia?.image_url || result.url;
-                  if (shareUrl.startsWith('blob:')) {
-                    toast.error('Veuillez patienter, sauvegarde en cours...');
-                    return;
-                  }
-                  shareOnWhatsApp(shareUrl, `Vidéo ${videoType}`);
-                }}
-                className="gap-2"
-              >
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const shareUrl = result.savedMedia?.image_url || result.url;
-                  if (shareUrl.startsWith('blob:')) {
-                    toast.error('Veuillez patienter, sauvegarde en cours...');
-                    return;
-                  }
-                  shareOnFacebook(shareUrl);
-                }}
-                className="gap-2"
-              >
-                <Facebook className="h-4 w-4" />
-                Facebook
-              </Button>
+               <Button
+                 variant="outline"
+                 size="sm"
+                 onClick={() => {
+                   const shareUrl = result.savedMedia?.image_url || result.url;
+                   if (shareUrl.startsWith('blob:')) {
+                     toast.error('Veuillez patienter, sauvegarde en cours...');
+                     return;
+                   }
+                   shareMediaFile(shareUrl, `Vidéo ${videoType}`, true);
+                 }}
+                 className="gap-2"
+               >
+                 <MessageCircle className="h-4 w-4" />
+                 WhatsApp
+               </Button>
+               <Button
+                 variant="outline"
+                 size="sm"
+                 onClick={() => {
+                   const shareUrl = result.savedMedia?.image_url || result.url;
+                   if (shareUrl.startsWith('blob:')) {
+                     toast.error('Veuillez patienter, sauvegarde en cours...');
+                     return;
+                   }
+                   shareMediaFile(shareUrl, `Vidéo ${videoType}`, true);
+                 }}
+                 className="gap-2"
+               >
+                 <Facebook className="h-4 w-4" />
+                 Facebook
+               </Button>
               <Button
                 variant="outline"
                 size="sm"
