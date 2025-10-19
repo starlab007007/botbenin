@@ -94,8 +94,23 @@ export const UniversalMediaModal = ({
                   autoPlay
                   loop
                   playsInline
+                  preload="metadata"
                   className="max-w-full max-h-full rounded-lg shadow-lg"
                   style={{ transform: `scale(${zoom})` }}
+                  onError={(e) => {
+                    console.error('Video load error in modal:', media.image_url?.substring(0, 100));
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-destructive p-6 text-center';
+                    errorDiv.innerHTML = '<div class="mb-2 text-2xl">⚠️</div><p class="font-semibold mb-1">Erreur de lecture vidéo</p><p class="text-sm opacity-80">Essayez de télécharger le fichier MP4</p>';
+                    e.currentTarget.parentElement?.appendChild(errorDiv);
+                  }}
+                  onLoadedMetadata={(e) => {
+                    console.log('Video metadata in modal:', {
+                      duration: e.currentTarget.duration,
+                      width: e.currentTarget.videoWidth,
+                      height: e.currentTarget.videoHeight
+                    });
+                  }}
                 >
                   Votre navigateur ne supporte pas la lecture vidéo.
                 </video>
@@ -107,8 +122,14 @@ export const UniversalMediaModal = ({
                   style={{ transform: `scale(${zoom})` }}
                   draggable={false}
                   onError={(e) => {
-                    console.error('Image load error:', e);
+                    console.error('Image load error in modal:', media.image_url?.substring(0, 100));
+                    e.currentTarget.style.display = 'none';
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-destructive p-6 text-center';
+                    errorDiv.innerHTML = '<div class="mb-2 text-2xl">⚠️</div><p class="font-semibold mb-1">Impossible de charger l\'image</p><p class="text-sm opacity-80">L\'image peut être en cours de génération ou le format n\'est pas supporté</p>';
+                    e.currentTarget.parentElement?.appendChild(errorDiv);
                   }}
+                  loading="lazy"
                 />
               )}
             </div>

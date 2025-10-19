@@ -179,6 +179,15 @@ export const GenerationProgress = ({
                       alt={step.title}
                       className="w-full h-40 sm:h-48 object-contain cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => setPreviewStep(step)}
+                      onError={(e) => {
+                        console.error('Image load error for step:', step.id, step.result?.image?.substring(0, 100));
+                        e.currentTarget.style.display = 'none';
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'text-destructive p-4 text-center text-sm';
+                        errorDiv.textContent = '⚠️ Impossible de charger l\'image de prévisualisation';
+                        e.currentTarget.parentElement?.appendChild(errorDiv);
+                      }}
+                      loading="lazy"
                     />
                   </div>
                 )}
@@ -316,6 +325,15 @@ export const GenerationProgress = ({
                   src={previewStep.result.image} 
                   alt={previewStep.title}
                   className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                  onError={(e) => {
+                    console.error('Image load error in preview:', previewStep.result?.image?.substring(0, 100));
+                    e.currentTarget.style.display = 'none';
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-destructive p-6 text-center';
+                    errorDiv.textContent = '⚠️ Impossible de charger l\'image complète';
+                    e.currentTarget.parentElement?.appendChild(errorDiv);
+                  }}
+                  loading="lazy"
                 />
               </div>
             )}
@@ -327,7 +345,23 @@ export const GenerationProgress = ({
                   controls
                   autoPlay
                   loop
+                  playsInline
+                  preload="metadata"
                   className="max-w-full max-h-full rounded-lg shadow-lg"
+                  onError={(e) => {
+                    console.error('Video load error in preview:', previewStep.result?.image?.substring(0, 100));
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-destructive p-6 text-center';
+                    errorDiv.innerHTML = '<p>⚠️ Erreur de lecture vidéo</p><p class="text-sm mt-2">Essayez de télécharger le fichier MP4</p>';
+                    e.currentTarget.parentElement?.appendChild(errorDiv);
+                  }}
+                  onLoadedMetadata={(e) => {
+                    console.log('Video metadata:', {
+                      duration: e.currentTarget.duration,
+                      width: e.currentTarget.videoWidth,
+                      height: e.currentTarget.videoHeight
+                    });
+                  }}
                 >
                   Votre navigateur ne supporte pas la lecture vidéo.
                 </video>

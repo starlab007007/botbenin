@@ -34,35 +34,46 @@ export async function convertWebMtoMP4(
 ): Promise<Blob> {
   const ffmpeg = await loadFFmpeg(onProgress);
 
-  // Write input file
-  await ffmpeg.writeFile('input.webm', await fetchFile(webmBlob));
+  try {
+    console.log('🎬 Starting WebM to MP4 conversion...', webmBlob.size, 'bytes');
+    
+    // Write input file
+    await ffmpeg.writeFile('input.webm', await fetchFile(webmBlob));
 
-  // Convert to MP4 with H.264 codec
-  await ffmpeg.exec([
-    '-i', 'input.webm',
-    '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '22',
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    'output.mp4'
-  ]);
+    // Convert to MP4 with maximum compatibility
+    await ffmpeg.exec([
+      '-i', 'input.webm',
+      '-c:v', 'libx264',           // Codec H.264
+      '-profile:v', 'baseline',    // Profil baseline (le plus compatible)
+      '-level', '3.0',             // Niveau compatible iOS/Android
+      '-preset', 'medium',         // Équilibre qualité/vitesse
+      '-crf', '23',                // Qualité constante (18-28, 23 = bon)
+      '-pix_fmt', 'yuv420p',       // Format couleur compatible
+      '-movflags', '+faststart',   // Optimisation streaming (metadata au début)
+      '-c:a', 'aac',               // Audio AAC
+      '-b:a', '128k',              // Bitrate audio
+      '-ar', '44100',              // Sample rate standard
+      'output.mp4'
+    ]);
 
-  // Read output file
-  const data = await ffmpeg.readFile('output.mp4');
-  
-  // Cleanup
-  await ffmpeg.deleteFile('input.webm');
-  await ffmpeg.deleteFile('output.mp4');
+    // Read output file
+    const data = await ffmpeg.readFile('output.mp4');
+    
+    // Cleanup
+    await ffmpeg.deleteFile('input.webm');
+    await ffmpeg.deleteFile('output.mp4');
 
-  // Convert FileData to proper format for Blob
-  if (typeof data === 'string') {
-    const encoder = new TextEncoder();
-    return new Blob([encoder.encode(data)], { type: 'video/mp4' });
+    // Convert to Blob with proper type
+    const videoData = data instanceof Uint8Array ? data : new Uint8Array(await (await fetch(data as string)).arrayBuffer());
+    const mp4Blob = new Blob([new Uint8Array(videoData)], { type: 'video/mp4' });
+    
+    console.log('✅ WebM → MP4 conversion successful:', mp4Blob.size, 'bytes');
+    return mp4Blob;
+    
+  } catch (error) {
+    console.error('❌ FFmpeg conversion error:', error);
+    throw new Error('Échec de la conversion vidéo: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
   }
-  
-  // For Uint8Array, convert to regular array to avoid SharedArrayBuffer issues
-  return new Blob([new Uint8Array(data)], { type: 'video/mp4' });
 }
 
 export function isVideoFile(url: string, mimeType?: string): boolean {

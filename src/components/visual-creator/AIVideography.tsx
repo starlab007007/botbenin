@@ -350,6 +350,20 @@ export const AIVideography = () => {
       prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
     });
 
+    // Vérifier la compatibilité vidéo
+    try {
+      const { checkVideoCompatibility } = await import('@/services/videoCompatibilityService');
+      const compatibilityResult = await checkVideoCompatibility(videoUrl);
+      
+      console.log('Video compatibility check:', compatibilityResult);
+      
+      if (!compatibilityResult.compatible || !compatibilityResult.canPlayH264) {
+        toast.warning('⚠️ Vidéo générée mais peut ne pas être compatible avec tous les appareils. Téléchargez la version MP4 pour une meilleure compatibilité.');
+      }
+    } catch (compatError) {
+      console.warn('Could not check video compatibility:', compatError);
+    }
+
     // Sauvegarder automatiquement dans la galerie
     try {
       const savedMedia = await saveToGallery({
@@ -364,13 +378,13 @@ export const AIVideography = () => {
           videoType,
           duration: selectedAnimation.duration,
           exportFormat,
-          originalFormat: 'webm'
+          originalFormat: 'mp4'
         }
       });
 
       if (savedMedia) {
         setResult(prev => prev ? { ...prev, url: publicUrl, savedMedia } : null);
-        toast.success('✅ Vidéo générée et sauvegardée !');
+        toast.success('✅ Vidéo MP4 générée et sauvegardée !');
       }
     } catch (saveError) {
       console.error('Auto-save error:', saveError);
@@ -465,34 +479,41 @@ export const AIVideography = () => {
     }
 
     try {
-      if (result.blob) {
-        const fileName = `ai-video-${animationType}-${exportFormat}-${Date.now()}.mp4`;
-        
-        // Si c'est du WebM, convertir en MP4
-        if (result.blob.type === 'video/webm') {
-          toast.info('Conversion en MP4...', { id: 'converting' });
-          const { convertWebMtoMP4 } = await import('@/utils/videoConverter');
-          const { downloadAsFile } = await import('@/utils/socialShare');
-          
-          const mp4Blob = await convertWebMtoMP4(result.blob, (progress) => {
-            toast.loading(`Conversion: ${progress}%`, { id: 'converting' });
-          });
-          toast.dismiss('converting');
-          
-          downloadAsFile(mp4Blob, fileName);
-          toast.success('Vidéo téléchargée en MP4 !');
-        } else {
-          // Téléchargement direct
-          const { downloadAsFile } = await import('@/utils/socialShare');
-          downloadAsFile(result.blob, fileName);
-          toast.success('Vidéo téléchargée !');
-        }
-      } else {
-        toast.error('Blob vidéo manquant');
+      if (!result.blob) {
+        toast.error('Vidéo non disponible pour le téléchargement');
+        return;
       }
+
+      const fileName = `ai-video-${animationType}-${exportFormat}-${Date.now()}.mp4`;
+      
+      // Toujours convertir en MP4 compatible
+      toast.info('Préparation du téléchargement MP4...', { id: 'downloading' });
+      
+      const { convertWebMtoMP4 } = await import('@/utils/videoConverter');
+      const { downloadAsFile } = await import('@/utils/socialShare');
+      
+      let mp4Blob: Blob;
+      
+      if (result.blob.type === 'video/webm' || result.blob.type.includes('webm')) {
+        // Convertir WebM → MP4
+        mp4Blob = await convertWebMtoMP4(result.blob, (progress) => {
+          toast.loading(`Conversion MP4: ${progress}%`, { id: 'downloading' });
+        });
+      } else if (result.blob.type === 'video/mp4') {
+        // Déjà en MP4, utiliser directement
+        mp4Blob = result.blob;
+      } else {
+        throw new Error(`Format vidéo non supporté: ${result.blob.type}`);
+      }
+      
+      toast.dismiss('downloading');
+      downloadAsFile(mp4Blob, fileName);
+      toast.success('✅ Vidéo MP4 téléchargée !');
+      
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Erreur lors du téléchargement');
+      toast.dismiss('downloading');
+      toast.error('❌ Erreur lors du téléchargement: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
     }
   };
 
@@ -952,7 +973,21 @@ export const AIVideography = () => {
                   controls
                   autoPlay
                   loop
+                  playsInline
+                  preload="metadata"
                   className="w-full h-auto"
+                  onError={(e) => {
+                    console.error('Video playback error:', e);
+                    toast.error('⚠️ Erreur de lecture vidéo. Essayez de télécharger le fichier MP4.');
+                  }}
+                  onLoadedMetadata={(e) => {
+                    console.log('✅ Video metadata loaded:', {
+                      duration: e.currentTarget.duration,
+                      videoWidth: e.currentTarget.videoWidth,
+                      videoHeight: e.currentTarget.videoHeight,
+                      src: result.url.substring(0, 100)
+                    });
+                  }}
                 >
                   Votre navigateur ne supporte pas la lecture vidéo.
                 </video>

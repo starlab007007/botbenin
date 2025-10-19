@@ -68,16 +68,18 @@ export const useVideoRecorder = () => {
         setRecordingProgress(progress);
       }
       
-      // Créer la vidéo MP4
+      // Créer la vidéo MP4 compatible universellement
       await ffmpeg.exec([
         '-framerate', fps.toString(),
         '-pattern_type', 'glob',
         '-i', 'frame*.png',
-        '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '23',
-        '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart',
+        '-c:v', 'libx264',           // Codec H.264
+        '-profile:v', 'baseline',    // Profil baseline (compatible iOS/Android)
+        '-level', '3.0',             // Niveau compatible mobile
+        '-preset', 'medium',         // Équilibre qualité/vitesse
+        '-crf', '23',                // Qualité constante (18-28, 23 = bon)
+        '-pix_fmt', 'yuv420p',       // Format couleur compatible
+        '-movflags', '+faststart',   // Optimisation streaming web
         'output.mp4'
       ]);
       
@@ -146,16 +148,33 @@ export const useVideoRecorder = () => {
         }
       };
 
-      // Handle recording stop
-      mediaRecorder.onstop = () => {
-        const videoBlob = new Blob(chunksRef.current, { 
+      // Handle recording stop - Convertir automatiquement en MP4
+      mediaRecorder.onstop = async () => {
+        const webmBlob = new Blob(chunksRef.current, { 
           type: mediaRecorder.mimeType 
         });
-        const videoUrl = URL.createObjectURL(videoBlob);
         
-        setIsRecording(false);
-        setRecordingProgress(0);
-        onComplete(videoBlob, videoUrl);
+        try {
+          // Convertir WebM → MP4 pour compatibilité universelle
+          console.log('Converting WebM to MP4 for compatibility...');
+          const { convertWebMtoMP4 } = await import('@/utils/videoConverter');
+          const mp4Blob = await convertWebMtoMP4(webmBlob, (progress) => {
+            console.log('Conversion MP4:', progress, '%');
+            setRecordingProgress(progress / 100);
+          });
+          
+          const videoUrl = URL.createObjectURL(mp4Blob);
+          setIsRecording(false);
+          setRecordingProgress(0);
+          onComplete(mp4Blob, videoUrl);
+        } catch (error) {
+          console.error('MP4 conversion failed, using WebM:', error);
+          // Fallback sur WebM si conversion échoue
+          const videoUrl = URL.createObjectURL(webmBlob);
+          setIsRecording(false);
+          setRecordingProgress(0);
+          onComplete(webmBlob, videoUrl);
+        }
       };
 
       // Handle errors
