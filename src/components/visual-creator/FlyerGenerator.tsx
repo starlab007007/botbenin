@@ -11,11 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FileText, Upload, Wand2, Download, Eye } from 'lucide-react';
+import { FileText, Upload, Wand2, Download, Eye, MessageCircle, Facebook, Video as VideoIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useMediaManager } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from './UniversalMediaModal';
+import { shareOnWhatsApp, shareOnFacebook, shareOnTikTok } from '@/utils/socialShare';
+import { FlyerHistory } from './FlyerHistory';
 
 const flyerTemplates = [
   { id: 'restaurant', name: 'Restaurant', emoji: '🍽️', sizes: ['A4', 'A5', 'Instagram'] },
@@ -269,6 +271,41 @@ Ultra high quality, print-ready design.`;
               Télécharger
             </Button>
           </div>
+          
+          {/* Section de partage */}
+          <div className="border-t pt-4">
+            <p className="text-sm text-muted-foreground mb-2">Partager sur les réseaux sociaux</p>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => shareOnWhatsApp(generatedFlyer.image_url, generatedFlyer.title)}
+                className="gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                WhatsApp
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => shareOnFacebook(generatedFlyer.image_url)}
+                className="gap-2"
+              >
+                <Facebook className="w-4 h-4" />
+                Facebook
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => shareOnTikTok(generatedFlyer.image_url, generatedFlyer.title)}
+                className="gap-2"
+              >
+                <VideoIcon className="w-4 h-4" />
+                TikTok
+              </Button>
+            </div>
+          </div>
+          
           <div className="text-xs text-muted-foreground text-center">
             Le flyer est enregistré dans votre galerie et peut être téléchargé à tout moment
           </div>
@@ -282,6 +319,20 @@ Ultra high quality, print-ready design.`;
         media={generatedFlyer}
         onDownload={downloadMedia}
       />
+
+      {/* Historique des flyers */}
+      <Card className="p-6 space-y-4">
+        <h3 className="text-lg font-semibold">Mes flyers créés</h3>
+        <FlyerHistory 
+          onReuseParameters={(flyer) => {
+            setTitle(flyer.title || '');
+            setDescription(flyer.metadata?.description || flyer.prompt);
+            setPrice(flyer.metadata?.price || '');
+            setTemplate(flyer.metadata?.template || 'restaurant');
+            toast.success('Paramètres du flyer restaurés !');
+          }} 
+        />
+      </Card>
     </div>
   );
 };

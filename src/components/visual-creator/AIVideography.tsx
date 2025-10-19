@@ -134,6 +134,7 @@ export const AIVideography = () => {
     blob?: Blob;
     id: string;
     prompt: string;
+    savedMedia?: MediaItem;
   }
   
   interface GenerationStep {
@@ -348,6 +349,33 @@ export const AIVideography = () => {
       id: uploadData.path,
       prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
     });
+
+    // Sauvegarder automatiquement dans la galerie
+    try {
+      const savedMedia = await saveToGallery({
+        type: 'video',
+        title: `Vidéo ${videoType} - ${animationType}`,
+        prompt: environmentPrompt || description,
+        style: videoStyle,
+        format: exportFormat,
+        imageUrl: publicUrl,
+        metadata: {
+          animationType,
+          videoType,
+          duration: selectedAnimation.duration,
+          exportFormat,
+          originalFormat: 'webm'
+        }
+      });
+
+      if (savedMedia) {
+        setResult(prev => prev ? { ...prev, url: publicUrl, savedMedia } : null);
+        toast.success('✅ Vidéo générée et sauvegardée !');
+      }
+    } catch (saveError) {
+      console.error('Auto-save error:', saveError);
+      // Ne pas bloquer, l'utilisateur peut sauvegarder manuellement
+    }
     
     updateStepStatus('animate-video', 'completed', { image: videoUrl, data: { publicUrl } });
   };
@@ -431,11 +459,40 @@ export const AIVideography = () => {
   };
 
   const handleDownload = async () => {
-    if (result && result.blob) {
-      // Download with MP4 conversion (already handled by downloadMedia from useMediaManager)
-      await downloadMedia(result.url, `ai-video-${animationType}-${exportFormat}.mp4`);
-    } else if (result) {
-      toast.error('Impossible de télécharger: blob vidéo manquant');
+    if (!result) {
+      toast.error('Aucun résultat à télécharger');
+      return;
+    }
+
+    try {
+      if (result.blob) {
+        const fileName = `ai-video-${animationType}-${exportFormat}-${Date.now()}.mp4`;
+        
+        // Si c'est du WebM, convertir en MP4
+        if (result.blob.type === 'video/webm') {
+          toast.info('Conversion en MP4...', { id: 'converting' });
+          const { convertWebMtoMP4 } = await import('@/utils/videoConverter');
+          const { downloadAsFile } = await import('@/utils/socialShare');
+          
+          const mp4Blob = await convertWebMtoMP4(result.blob, (progress) => {
+            toast.loading(`Conversion: ${progress}%`, { id: 'converting' });
+          });
+          toast.dismiss('converting');
+          
+          downloadAsFile(mp4Blob, fileName);
+          toast.success('Vidéo téléchargée en MP4 !');
+        } else {
+          // Téléchargement direct
+          const { downloadAsFile } = await import('@/utils/socialShare');
+          downloadAsFile(result.blob, fileName);
+          toast.success('Vidéo téléchargée !');
+        }
+      } else {
+        toast.error('Blob vidéo manquant');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Erreur lors du téléchargement');
     }
   };
 
@@ -959,7 +1016,14 @@ export const AIVideography = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => result.url && shareOnWhatsApp(result.url, `Vidéo ${videoType}`)}
+                onClick={() => {
+                  const shareUrl = result.savedMedia?.image_url || result.url;
+                  if (shareUrl.startsWith('blob:')) {
+                    toast.error('Veuillez patienter, sauvegarde en cours...');
+                    return;
+                  }
+                  shareOnWhatsApp(shareUrl, `Vidéo ${videoType}`);
+                }}
                 className="gap-2"
               >
                 <MessageCircle className="h-4 w-4" />
@@ -968,7 +1032,14 @@ export const AIVideography = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => result.url && shareOnFacebook(result.url)}
+                onClick={() => {
+                  const shareUrl = result.savedMedia?.image_url || result.url;
+                  if (shareUrl.startsWith('blob:')) {
+                    toast.error('Veuillez patienter, sauvegarde en cours...');
+                    return;
+                  }
+                  shareOnFacebook(shareUrl);
+                }}
                 className="gap-2"
               >
                 <Facebook className="h-4 w-4" />
@@ -977,7 +1048,14 @@ export const AIVideography = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => result.url && shareOnTikTok(result.url, `Vidéo ${videoType}`)}
+                onClick={() => {
+                  const shareUrl = result.savedMedia?.image_url || result.url;
+                  if (shareUrl.startsWith('blob:')) {
+                    toast.error('Veuillez patienter, sauvegarde en cours...');
+                    return;
+                  }
+                  shareOnTikTok(shareUrl, `Vidéo ${videoType}`);
+                }}
                 className="gap-2"
               >
                 <Video className="h-4 w-4" />

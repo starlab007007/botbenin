@@ -65,11 +65,34 @@ export async function convertWebMtoMP4(
   return new Blob([new Uint8Array(data)], { type: 'video/mp4' });
 }
 
-export function isVideoFile(url: string): boolean {
-  return /\.(webm|mp4|mov|avi|mkv)$/i.test(url);
+export function isVideoFile(url: string, mimeType?: string): boolean {
+  // Si on a le MIME type, l'utiliser en priorité
+  if (mimeType) {
+    return mimeType.startsWith('video/');
+  }
+  
+  // Pour les blob URLs, on ne peut pas se fier à l'extension
+  if (url.startsWith('blob:')) {
+    return true; // Assumer vidéo si blob (ou passer le type MIME)
+  }
+  
+  // Sinon, vérifier l'extension
+  const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'wmv'];
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+  return ext ? videoExtensions.includes(ext) : false;
 }
 
-export function getVideoFormat(url: string): string {
-  const match = url.match(/\.(\w+)$/i);
-  return match ? match[1].toLowerCase() : 'unknown';
+export function getVideoFormat(url: string, mimeType?: string): string {
+  // Priorité au MIME type
+  if (mimeType) {
+    return mimeType.split('/')[1]?.split(';')[0] || '';
+  }
+  
+  // Pour blob URLs, retourner 'webm' par défaut (format de MediaRecorder)
+  if (url.startsWith('blob:')) {
+    return 'webm';
+  }
+  
+  // Sinon extraire de l'URL
+  return url.split('?')[0].split('.').pop()?.toLowerCase() || '';
 }

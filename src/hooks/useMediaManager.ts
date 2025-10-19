@@ -211,8 +211,20 @@ export const useMediaManager = () => {
 
   const downloadMedia = async (mediaUrl: string, fileName: string) => {
     try {
+      // Déterminer le type MIME si c'est un blob URL
+      let mimeType: string | undefined;
+      if (mediaUrl.startsWith('blob:')) {
+        try {
+          const response = await fetch(mediaUrl);
+          const blob = await response.blob();
+          mimeType = blob.type;
+        } catch (e) {
+          console.warn('Could not determine blob MIME type', e);
+        }
+      }
+      
       // Check if it's a video file that needs conversion
-      if (isVideoFile(mediaUrl) && getVideoFormat(mediaUrl) === 'webm') {
+      if (isVideoFile(mediaUrl, mimeType) && getVideoFormat(mediaUrl, mimeType) === 'webm') {
         sonnerToast.info('Conversion en MP4 en cours...', { duration: Infinity, id: 'converting' });
         
         // Fetch the video

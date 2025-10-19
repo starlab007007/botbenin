@@ -22,7 +22,8 @@ import {
   Eye,
   Trash2,
   History,
-  FileText
+  FileText,
+  MessageCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +33,7 @@ import { UniversalMediaModal } from '@/components/visual-creator/UniversalMediaM
 import { useNavigate } from 'react-router-dom';
 import { FlyerGenerator } from '@/components/visual-creator/FlyerGenerator';
 import { AIVideography } from '@/components/visual-creator/AIVideography';
+import { shareOnWhatsApp, shareOnFacebook } from '@/utils/socialShare';
 
 interface SocialFormat {
   id: string;
@@ -386,6 +388,20 @@ export const VisualCreatorModule: React.FC = () => {
                             onClick={() => handleDownload(media.image_url!, `creation-${media.id}.png`)}
                           >
                             <Download className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => shareOnWhatsApp(media.image_url!, media.title)}
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => shareOnFacebook(media.image_url!)}
+                          >
+                            <Facebook className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
