@@ -25,22 +25,39 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY non configurée');
     }
 
-    console.log('Generating AI video with camera effect:', cameraEffect);
+    console.log('Processing image with AI enhancement for camera effect:', cameraEffect);
 
-    // Utiliser l'API Lovable pour générer une image améliorée avec effets visuels
-    const enhancedPrompt = `Create an enhanced version of this image with dramatic visual effects for a promotional video:
-    
-Camera motion style: ${cameraEffect}
-Visual style: ${videoStyle}
-${description ? `Product/Context: ${description}` : ''}
+    // Étape 1: Toujours améliorer l'image avec Lovable AI pour une qualité professionnelle
+    const enhancementPrompt = `Transform this image to professional marketing quality for a promotional video:
 
-Apply professional cinematic effects:
-- Add depth and dimension with subtle lighting
-- Enhance colors and contrast for ${videoStyle} style
-- Create a visually striking composition ready for ${cameraEffect} animation
-- Maintain the product focus while adding atmospheric effects
+Product/Subject: ${description || 'subject in image'}
+Target Use: Promotional video with ${cameraEffect} camera motion
+Visual Style: ${videoStyle}
 
-Output: High-quality enhanced image optimized for animated presentation.`;
+CRITICAL ENHANCEMENTS REQUIRED:
+1. Image Quality:
+   - Significantly increase sharpness and definition
+   - Remove any noise, blur, compression artifacts, or imperfections
+   - Ultra high resolution optimization for video use
+   
+2. Visual Enhancement:
+   - Optimize colors, contrast, and lighting for ${videoStyle} aesthetic
+   - Professional studio-quality color grading
+   - Make the subject/product stand out with clarity and impact
+   
+3. Composition:
+   - Maintain perfect aspect ratio and composition
+   - ${cameraEffect === '360-rotate' ? 'Ensure subject is perfectly centered for 360° rotation' : 'Optimize for ' + cameraEffect + ' camera movement'}
+   - Professional product photography standards
+   
+4. Style Adaptation:
+   - Apply ${videoStyle} visual treatment
+   - Cinematic quality suitable for ${cameraEffect} animation
+   - Marketing-grade professional output
+
+${cameraEffect === '360-rotate' ? '\n5. 360° Preparation:\n   - Center the product perfectly\n   - Maximize product detail and clarity\n   - Prepare for transparent background isolation\n   - Studio lighting for all-angle visibility' : ''}
+
+OUTPUT: Enhanced, professional-grade image ready for ${cameraEffect} animation with ${videoStyle} style. Ultra high resolution.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -54,14 +71,15 @@ Output: High-quality enhanced image optimized for animated presentation.`;
           {
             role: 'user',
             content: [
-              { type: 'text', text: enhancedPrompt },
+              { type: 'text', text: enhancementPrompt },
               {
                 type: 'image_url',
                 image_url: { url: image }
               }
             ]
           }
-        ]
+        ],
+        modalities: ['image', 'text']
       }),
     });
 
@@ -119,7 +137,11 @@ Output: High-quality enhanced image optimized for animated presentation.`;
         cameraEffect,
         videoStyle,
         duration,
-        isEnhancedImage: true
+        isEnhancedImage: true,
+        aiEnhanced: true,
+        enhancementPrompt: enhancementPrompt,
+        qualityLevel: 'professional',
+        processingSteps: ['ai_enhancement']
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
