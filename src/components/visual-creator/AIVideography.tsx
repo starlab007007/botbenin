@@ -122,7 +122,15 @@ export const AIVideography = () => {
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState('');
-  const [result, setResult] = useState<{ url: string; type: 'image' | 'video'; blob?: Blob; id?: string; prompt?: string } | null>(null);
+  interface VideoResult {
+    url: string;
+    type: 'image' | 'video';
+    blob?: Blob;
+    id: string;
+    prompt: string;
+  }
+  
+  const [result, setResult] = useState<VideoResult | null>(null);
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -285,7 +293,7 @@ export const AIVideography = () => {
 
       setResult({ 
         url: videoUrl, 
-        type: 'video', 
+        type: 'video' as const, 
         blob: videoBlob,
         id: uploadData.path,
         prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
