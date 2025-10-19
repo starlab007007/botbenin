@@ -225,9 +225,28 @@ export const AIVideography = () => {
     });
 
     if (enhanceResponse.error) throw enhanceResponse.error;
-    const url = enhanceResponse.data.enhancedImage;
-    setEnhancedProductUrl(url);
-    updateStepStatus('enhance-product', 'completed', { image: url });
+    const base64Url = enhanceResponse.data.enhancedImage;
+    
+    // Convert base64 to blob and upload to Supabase Storage
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Utilisateur non authentifié');
+    
+    const base64Data = base64Url.split(',')[1];
+    const blob = await fetch(base64Url).then(r => r.blob());
+    const fileName = `${user.id}/ai-video-steps/product-${Date.now()}.png`;
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('media')
+      .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+    
+    if (uploadError) throw uploadError;
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('media')
+      .getPublicUrl(uploadData.path);
+    
+    setEnhancedProductUrl(publicUrl);
+    updateStepStatus('enhance-product', 'completed', { image: publicUrl });
   };
 
   const executeGenerateEnvironment = async () => {
@@ -242,9 +261,27 @@ export const AIVideography = () => {
     });
 
     if (envResponse.error) throw envResponse.error;
-    const url = envResponse.data.environmentImage;
-    setEnvironmentUrl(url);
-    updateStepStatus('generate-environment', 'completed', { image: url });
+    const base64Url = envResponse.data.environmentImage;
+    
+    // Convert base64 to blob and upload to Supabase Storage
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Utilisateur non authentifié');
+    
+    const blob = await fetch(base64Url).then(r => r.blob());
+    const fileName = `${user.id}/ai-video-steps/environment-${Date.now()}.png`;
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('media')
+      .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+    
+    if (uploadError) throw uploadError;
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('media')
+      .getPublicUrl(uploadData.path);
+    
+    setEnvironmentUrl(publicUrl);
+    updateStepStatus('generate-environment', 'completed', { image: publicUrl });
   };
 
   const executeComposeFinal = async () => {
@@ -266,9 +303,27 @@ export const AIVideography = () => {
     });
 
     if (composeResponse.error) throw composeResponse.error;
-    const url = composeResponse.data.composedImage;
-    setComposedImageUrl(url);
-    updateStepStatus('compose-final', 'completed', { image: url });
+    const base64Url = composeResponse.data.composedImage;
+    
+    // Convert base64 to blob and upload to Supabase Storage
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Utilisateur non authentifié');
+    
+    const blob = await fetch(base64Url).then(r => r.blob());
+    const fileName = `${user.id}/ai-video-steps/composed-${Date.now()}.png`;
+    
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('media')
+      .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+    
+    if (uploadError) throw uploadError;
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from('media')
+      .getPublicUrl(uploadData.path);
+    
+    setComposedImageUrl(publicUrl);
+    updateStepStatus('compose-final', 'completed', { image: publicUrl });
   };
 
   const executeAnimateVideo = async () => {
@@ -325,13 +380,13 @@ export const AIVideography = () => {
     const { blob: videoBlob, url: videoUrl } = await recordVideo();
 
     // Déterminer le type MIME du blob
-    const videoType = videoBlob.type === 'video/mp4' ? 'mp4' : 'webm';
+    const videoFileType = videoBlob.type === 'video/mp4' ? 'mp4' : 'webm';
 
     // Get user ID for storage path
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Utilisateur non authentifié');
 
-    const fileName = `${user.id}/ai-videos/${Date.now()}.${videoType}`;
+    const fileName = `${user.id}/ai-videos/${Date.now()}.${videoFileType}`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('media')
       .upload(fileName, videoBlob, {
@@ -345,12 +400,13 @@ export const AIVideography = () => {
       .from('media')
       .getPublicUrl(uploadData.path);
 
+    // Utiliser l'URL publique pour le résultat
     setResult({ 
-      url: videoUrl, 
+      url: publicUrl, 
       type: 'video' as const, 
       blob: videoBlob,
       id: uploadData.path,
-      prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
+      prompt: `${videoFileType} - ${animationType} - ${environmentPrompt}`
     });
 
     // Sauvegarder automatiquement dans la galerie
@@ -373,7 +429,7 @@ export const AIVideography = () => {
       });
 
       if (savedMedia) {
-        setResult(prev => prev ? { ...prev, url: publicUrl, savedMedia } : null);
+        setResult(prev => prev ? { ...prev, savedMedia } : null);
         toast.success('✅ Vidéo générée et sauvegardée !');
       }
     } catch (saveError) {
@@ -381,7 +437,8 @@ export const AIVideography = () => {
       // Ne pas bloquer, l'utilisateur peut sauvegarder manuellement
     }
     
-    updateStepStatus('animate-video', 'completed', { image: videoUrl, data: { publicUrl } });
+    // Utiliser l'URL publique dans le step pour la visualisation
+    updateStepStatus('animate-video', 'completed', { image: publicUrl, data: { publicUrl } });
   };
 
   const handleRegenerateStep = async (stepId: string) => {
