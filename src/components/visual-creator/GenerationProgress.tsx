@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Check, X, RefreshCw, Play, Eye, Download, Loader2 } from 'lucide-react';
+import { Check, X, RefreshCw, Play, Eye, Download, Loader2, Save, Edit, Clock, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 interface GenerationStep {
@@ -23,6 +24,8 @@ interface GenerationProgressProps {
   onRegenerateStep: (stepId: string) => void;
   onContinue: () => void;
   onViewResult: (stepId: string) => void;
+  onSaveStep?: (stepId: string, imageUrl: string) => void;
+  onEditStep?: (stepId: string) => void;
 }
 
 export const GenerationProgress = ({
@@ -30,9 +33,12 @@ export const GenerationProgress = ({
   currentStepIndex,
   onRegenerateStep,
   onContinue,
-  onViewResult
+  onViewResult,
+  onSaveStep,
+  onEditStep
 }: GenerationProgressProps) => {
   const [previewStep, setPreviewStep] = useState<GenerationStep | null>(null);
+  const [savedSteps, setSavedSteps] = useState<Set<string>>(new Set());
 
   const handleDownloadImage = async (imageUrl: string, stepTitle: string) => {
     try {
@@ -57,11 +63,48 @@ export const GenerationProgress = ({
       case 'completed':
         return <Check className="w-5 h-5 text-green-500" />;
       case 'error':
-        return <X className="w-5 h-5 text-red-500" />;
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
       case 'processing':
-        return <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />;
+        return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
       default:
-        return <div className="w-5 h-5 rounded-full border-2 border-gray-300" />;
+        return <Clock className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const getStatusBadge = (status: GenerationStep['status']) => {
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-green-500">✓ Terminé</Badge>;
+      case 'error':
+        return <Badge variant="destructive">✗ Erreur</Badge>;
+      case 'processing':
+        return <Badge className="bg-blue-500"><Loader2 className="w-3 h-3 inline-block animate-spin mr-1" />En cours</Badge>;
+      default:
+        return <Badge variant="secondary"><Clock className="w-3 h-3 inline-block mr-1" />En attente</Badge>;
+    }
+  };
+
+  const getStepInstruction = (step: GenerationStep, index: number) => {
+    if (step.status === 'completed') {
+      if (index === steps.length - 1) {
+        return "✅ Vidéo terminée ! Vous pouvez la visualiser, télécharger ou partager.";
+      }
+      return "✅ Étape terminée ! Cliquez sur 'Continuer' pour passer à l'étape suivante.";
+    }
+    if (step.status === 'processing') {
+      return "⏳ Génération en cours, veuillez patienter...";
+    }
+    if (step.status === 'error') {
+      return "❌ Une erreur s'est produite. Cliquez sur 'Réessayer' pour régénérer cette étape.";
+    }
+    return "⏸️ Cette étape sera exécutée après les précédentes.";
+  };
+
+  const handleSaveStep = async (stepId: string, imageUrl: string) => {
+    if (onSaveStep) {
+      await onSaveStep(stepId, imageUrl);
+      setSavedSteps(prev => new Set(prev).add(stepId));
+      toast.success('Étape sauvegardée dans votre galerie !');
     }
   };
 
@@ -80,14 +123,14 @@ export const GenerationProgress = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-foreground">Progression de la génération</h3>
-        <div className="text-sm text-muted-foreground">
-          Étape {currentStepIndex + 1}/{steps.length}
-        </div>
+        <Badge variant="outline" className="text-base px-3 py-1">
+          Étape {currentStepIndex + 1} / {steps.length}
+        </Badge>
       </div>
       
-      <div className="space-y-3">
+      <div className="space-y-4">
         {steps.map((step, index) => (
           <Card key={step.id} className={`p-4 md:p-5 border-2 transition-all ${getStatusColor(step.status)}`}>
             <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -95,22 +138,29 @@ export const GenerationProgress = ({
                 {getStatusIcon(step.status)}
               </div>
               
-              <div className="flex-1 min-w-0 w-full">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
-                  <h4 className="font-medium text-foreground">
-                    {index + 1}. {step.title}
-                  </h4>
-                  <span className="text-xs text-muted-foreground capitalize px-2 py-1 bg-background rounded-md">
-                    {step.status === 'processing' && <Loader2 className="w-3 h-3 inline-block animate-spin mr-1" />}
-                    {step.status === 'processing' ? 'En cours...' : 
-                     step.status === 'completed' ? 'Completed' :
-                     step.status === 'error' ? 'Échoué' : 'En attente'}
-                  </span>
+              <div className="flex-1 min-w-0 w-full space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-foreground">
+                      {index + 1}. {step.title}
+                    </h4>
+                    {savedSteps.has(step.id) && (
+                      <Badge variant="outline" className="text-xs gap-1">
+                        <Save className="w-3 h-3" /> Sauvegardé
+                      </Badge>
+                    )}
+                  </div>
+                  {getStatusBadge(step.status)}
                 </div>
                 
-                <p className="text-sm text-muted-foreground mb-3">
+                <p className="text-sm text-muted-foreground">
                   {step.description}
                 </p>
+
+                {/* Instruction utilisateur */}
+                <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-sm">
+                  <p className="font-medium text-primary">{getStepInstruction(step, index)}</p>
+                </div>
 
                 {step.error && (
                   <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm text-destructive mb-3">
@@ -145,6 +195,18 @@ export const GenerationProgress = ({
                 {/* Actions */}
                 {step.status === 'completed' && (
                   <div className="flex flex-wrap gap-2">
+                    {step.result?.image && step.id !== 'animate-video' && !savedSteps.has(step.id) && onSaveStep && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleSaveStep(step.id, step.result.image!)}
+                        className="gap-2"
+                      >
+                        <Save className="w-4 h-4" />
+                        Sauvegarder
+                      </Button>
+                    )}
+                    
                     <Button
                       size="sm"
                       variant="outline"
@@ -155,7 +217,7 @@ export const GenerationProgress = ({
                       <span className="hidden sm:inline">Visualiser</span>
                     </Button>
                     
-                    {step.result?.image && step.id !== 'animate-video' && (
+                    {step.result?.image && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -177,14 +239,26 @@ export const GenerationProgress = ({
                       <span className="hidden sm:inline">Régénérer</span>
                     </Button>
 
+                    {onEditStep && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onEditStep(step.id)}
+                        className="gap-2"
+                      >
+                        <Edit className="w-4 h-4" />
+                        <span className="hidden sm:inline">Modifier</span>
+                      </Button>
+                    )}
+
                     {index === currentStepIndex && index < steps.length - 1 && (
                       <Button
                         size="sm"
                         onClick={onContinue}
-                        className="gap-2 ml-auto"
+                        className="gap-2 ml-auto bg-primary hover:bg-primary/90"
                       >
                         <Play className="w-4 h-4" />
-                        Continuer
+                        Continuer →
                       </Button>
                     )}
                   </div>

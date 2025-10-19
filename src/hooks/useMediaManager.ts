@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { convertWebMtoMP4, isVideoFile, getVideoFormat } from '@/utils/videoConverter';
+import { toast as sonnerToast } from 'sonner';
 
 export interface MediaItem {
   id: string;
@@ -209,23 +211,57 @@ export const useMediaManager = () => {
 
   const downloadMedia = async (mediaUrl: string, fileName: string) => {
     try {
-      const response = await fetch(mediaUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Check if it's a video file that needs conversion
+      if (isVideoFile(mediaUrl) && getVideoFormat(mediaUrl) === 'webm') {
+        sonnerToast.info('Conversion en MP4 en cours...', { duration: Infinity, id: 'converting' });
+        
+        // Fetch the video
+        const response = await fetch(mediaUrl);
+        const webmBlob = await response.blob();
+        
+        // Convert to MP4
+        const mp4Blob = await convertWebMtoMP4(webmBlob, (progress) => {
+          sonnerToast.loading(`Conversion: ${progress}%`, { id: 'converting' });
+        });
+        
+        sonnerToast.dismiss('converting');
+        sonnerToast.success('Conversion terminée !');
+        
+        // Download the converted file
+        const url = URL.createObjectURL(mp4Blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName.replace(/\.webm$/i, '.mp4');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        toast({
+          title: "Téléchargement réussi",
+          description: "Le fichier MP4 a été téléchargé"
+        });
+      } else {
+        // Direct download for non-video or already MP4 files
+        const response = await fetch(mediaUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
 
-      toast({
-        title: "Téléchargement réussi",
-        description: "Le fichier a été téléchargé"
-      });
+        toast({
+          title: "Téléchargement réussi",
+          description: "Le fichier a été téléchargé"
+        });
+      }
     } catch (error) {
       console.error('Download error:', error);
+      sonnerToast.dismiss('converting');
       toast({
         title: "Erreur",
         description: "Échec du téléchargement",

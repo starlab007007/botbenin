@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -12,15 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Upload, Wand2, X, Download, Eye, Video, Sparkles, Zap, BookOpen, Palette, Film, RotateCw, CheckCircle2, Clock, Loader2, Camera } from 'lucide-react';
+import { Upload, Wand2, X, Download, Eye, Video, Sparkles, Zap, BookOpen, Palette, Film, RotateCw, CheckCircle2, Clock, Loader2, Camera, Share2, MessageCircle, Facebook } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { useMediaManager } from '@/hooks/useMediaManager';
+import { useMediaManager, MediaItem } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from './UniversalMediaModal';
+import { VideoHistory } from './VideoHistory';
 import { VideoGenerator } from '@/utils/videoGenerator';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GenerationProgress } from './GenerationProgress';
+import { shareOnWhatsApp, shareOnFacebook, shareOnTikTok } from '@/utils/socialShare';
 
 const animationTypes = [
   {
@@ -428,16 +431,76 @@ export const AIVideography = () => {
 
   const handleDownload = () => {
     if (result) {
-      downloadMedia(result.url, `ai-video-${animationType}-${exportFormat}.webm`);
+      downloadMedia(result.url, `ai-video-${animationType}-${exportFormat}.mp4`);
     }
+  };
+
+  const handleSaveStep = async (stepId: string, imageUrl: string) => {
+    const step = progressSteps.find(s => s.id === stepId);
+    if (!step) return;
+
+    await saveToGallery({
+      type: 'image',
+      title: `${step.title} - ${videoType}`,
+      prompt: environmentPrompt || description,
+      style: videoStyle,
+      format: exportFormat,
+      imageUrl,
+      metadata: {
+        stepId,
+        animationType,
+        videoType,
+      }
+    });
+  };
+
+  const handleSaveVideo = async () => {
+    if (!result) return;
+
+    await saveToGallery({
+      type: 'video',
+      title: `Vidéo ${videoType} - ${animationType}`,
+      prompt: environmentPrompt || description,
+      style: videoStyle,
+      format: exportFormat,
+      imageUrl: result.url,
+      metadata: {
+        animationType,
+        videoType,
+        duration: animationTypes.find(a => a.id === animationType)?.duration,
+        exportFormat,
+      }
+    });
+
+    toast.success('Vidéo sauvegardée dans votre galerie !');
+  };
+
+  const handleReuseParameters = (media: MediaItem) => {
+    if (media.metadata) {
+      if (media.metadata.videoType) setVideoType(media.metadata.videoType);
+      if (media.metadata.animationType) setAnimationType(media.metadata.animationType);
+      if (media.metadata.exportFormat) setExportFormat(media.metadata.exportFormat);
+    }
+    if (media.style) setVideoStyle(media.style);
+    if (media.prompt) setEnvironmentPrompt(media.prompt);
+    
+    toast.success('Paramètres restaurés !');
+    // Scroll to top to see the restored parameters
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const selectedVideoType = videoTypes.find(t => t.id === videoType);
   const selectedFormat = exportFormats.find(f => f.id === exportFormat);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Guide d'utilisation */}
+    <Tabs defaultValue="create" className="space-y-6 max-w-5xl mx-auto">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="create">Créer une vidéo</TabsTrigger>
+        <TabsTrigger value="history">Historique</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="create" className="space-y-6">
+        {/* Guide d'utilisation */}
       <Card className="p-4 md:p-6 bg-gradient-to-br from-primary/5 via-primary/10 to-transparent border-primary/20">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
@@ -850,6 +913,15 @@ export const AIVideography = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
+                variant="default"
+                onClick={handleSaveVideo}
+                className="flex-1 gap-2"
+                size="lg"
+              >
+                <Download className="h-4 w-4" />
+                Sauvegarder dans la galerie
+              </Button>
+              <Button
                 variant="outline"
                 onClick={() => setIsModalOpen(true)}
                 className="flex-1 gap-2"
@@ -867,6 +939,35 @@ export const AIVideography = () => {
                 Télécharger MP4
               </Button>
             </div>
+            <div className="flex flex-wrap gap-2 justify-center border-t pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => result.url && shareOnWhatsApp(result.url, `Vidéo ${videoType}`)}
+                className="gap-2"
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => result.url && shareOnFacebook(result.url)}
+                className="gap-2"
+              >
+                <Facebook className="h-4 w-4" />
+                Facebook
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => result.url && shareOnTikTok(result.url, `Vidéo ${videoType}`)}
+                className="gap-2"
+              >
+                <Video className="h-4 w-4" />
+                TikTok
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -875,9 +976,23 @@ export const AIVideography = () => {
       <UniversalMediaModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        media={result}
+        media={result ? {
+          id: result.id,
+          type: 'video',
+          title: `Vidéo ${videoType}`,
+          prompt: environmentPrompt || description,
+          style: videoStyle,
+          format: exportFormat,
+          image_url: result.url,
+          metadata: { animationType, videoType }
+        } as MediaItem : null}
         onDownload={downloadMedia}
       />
-    </div>
+      </TabsContent>
+
+      <TabsContent value="history" className="space-y-4">
+        <VideoHistory onReuseParameters={handleReuseParameters} />
+      </TabsContent>
+    </Tabs>
   );
 };

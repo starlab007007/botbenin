@@ -1,8 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X, ZoomIn, ZoomOut, Share2, Maximize2 } from 'lucide-react';
+import { Download, X, ZoomIn, ZoomOut, Share2, Maximize2, MessageCircle, Facebook, Video as VideoIcon } from 'lucide-react';
 import { useState } from 'react';
 import { MediaItem } from '@/hooks/useMediaManager';
+import { shareOnWhatsApp, shareOnFacebook, shareOnTikTok, shareNative } from '@/utils/socialShare';
+import { isVideoFile } from '@/utils/videoConverter';
 
 interface UniversalMediaModalProps {
   isOpen: boolean;
@@ -26,21 +28,22 @@ export const UniversalMediaModal = ({
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
   const handleReset = () => setZoom(1);
 
+  const isVideo = media.type === 'video' || (media.image_url && isVideoFile(media.image_url));
+
   const handleDownload = () => {
     if (media.image_url && onDownload) {
-      const fileName = `${media.title || 'creation'}-${media.id}.png`;
+      const extension = isVideo ? 'mp4' : 'png';
+      const fileName = `${media.title || 'creation'}-${media.id}.${extension}`;
       onDownload(media.image_url, fileName);
     }
   };
 
-  const handleShare = async () => {
-    if (navigator.share && media.image_url) {
+  const handleShareNative = async () => {
+    if (media.image_url) {
       try {
-        await navigator.share({
-          title: media.title || 'Ma création',
-          text: media.prompt,
-          url: media.image_url
-        });
+        const response = await fetch(media.image_url);
+        const blob = await response.blob();
+        await shareNative(blob, media.title || 'Ma création', media.image_url);
       } catch (error) {
         console.error('Share error:', error);
       }
@@ -83,10 +86,12 @@ export const UniversalMediaModal = ({
           {/* Content */}
           <div className="flex-1 overflow-auto bg-muted/30 relative">
             <div className="flex items-center justify-center min-h-full p-6">
-              {media.type === 'video' ? (
+              {isVideo ? (
                 <video
                   src={media.image_url}
                   controls
+                  autoPlay
+                  loop
                   className="max-w-full max-h-full rounded-lg shadow-lg"
                   style={{ transform: `scale(${zoom})` }}
                 />
@@ -141,14 +146,42 @@ export const UniversalMediaModal = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => media.image_url && shareOnWhatsApp(media.image_url, media.title)}
+                className="gap-2"
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => media.image_url && shareOnFacebook(media.image_url)}
+                className="gap-2"
+              >
+                <Facebook className="h-4 w-4" />
+                Facebook
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => media.image_url && shareOnTikTok(media.image_url, media.title)}
+                className="gap-2"
+              >
+                <VideoIcon className="h-4 w-4" />
+                TikTok
+              </Button>
               {navigator.share && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleShare}
+                  onClick={handleShareNative}
+                  className="gap-2"
                 >
-                  <Share2 className="h-4 w-4 mr-2" />
+                  <Share2 className="h-4 w-4" />
                   Partager
                 </Button>
               )}
@@ -156,9 +189,10 @@ export const UniversalMediaModal = ({
                 variant="default"
                 size="sm"
                 onClick={handleDownload}
+                className="gap-2"
               >
-                <Download className="h-4 w-4 mr-2" />
-                Télécharger
+                <Download className="h-4 w-4" />
+                Télécharger {isVideo ? 'MP4' : 'Image'}
               </Button>
             </div>
           </div>
