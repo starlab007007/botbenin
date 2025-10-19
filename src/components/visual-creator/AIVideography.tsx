@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,22 +12,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Upload, Wand2, X, Download, Eye, Video, Sparkles, Zap, BookOpen, Palette } from 'lucide-react';
+import { Upload, Wand2, X, Download, Eye, Video, Sparkles, Zap, BookOpen, Palette, Film, RotateCw, CheckCircle2, Clock, Loader2, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useMediaManager } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from './UniversalMediaModal';
-import { removeBackground, loadImage, imageUrlToBlob, blobToDataUrl } from '@/utils/backgroundRemoval';
-import { detectBackgroundColor } from '@/utils/colorDetection';
+import { VideoGenerator } from '@/utils/videoGenerator';
+import { useVideoRecorder } from '@/hooks/useVideoRecorder';
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-const cameraEffects = [
-  { id: 'zoom-in', name: 'Zoom In', description: 'Zoom progressif', icon: '🔍' },
-  { id: 'zoom-out', name: 'Zoom Out', description: 'Zoom arrière', icon: '🔎' },
-  { id: 'pan-left', name: 'Pan Left', description: 'Droite à gauche', icon: '⬅️' },
-  { id: 'pan-right', name: 'Pan Right', description: 'Gauche à droite', icon: '➡️' },
-  { id: 'orbit', name: 'Orbit', description: 'Rotation autour', icon: '🔄' },
-  { id: 'parallax', name: 'Parallax', description: 'Profondeur 3D', icon: '🎬' },
-  { id: '360-rotate', name: '360° Rotation', description: 'Rotation complète', icon: '🌐' },
+const animationTypes = [
+  {
+    id: 'product-rotation',
+    name: 'Product Rotation',
+    description: 'Rotation 360° du produit dans son environnement',
+    duration: 8,
+    frames: 240,
+    icon: RotateCw,
+    color: 'from-purple-500 to-pink-500',
+  },
+  {
+    id: 'environment-story',
+    name: 'Environment Story',
+    description: 'Histoire cinématique : environnement → produit → éléments',
+    duration: 12,
+    frames: 360,
+    icon: Film,
+    color: 'from-blue-500 to-cyan-500',
+  },
+  {
+    id: 'dynamic-showcase',
+    name: 'Dynamic Showcase',
+    description: 'Présentation dynamique avec mouvements dramatiques',
+    duration: 10,
+    frames: 300,
+    icon: Sparkles,
+    color: 'from-orange-500 to-red-500',
+  },
+  {
+    id: 'minimal-motion',
+    name: 'Minimal Motion',
+    description: 'Mouvements subtils et élégants, style minimaliste',
+    duration: 6,
+    frames: 180,
+    icon: Camera,
+    color: 'from-gray-500 to-slate-500',
+  },
 ];
 
 const videoStyles = [
@@ -78,18 +108,24 @@ export const AIVideography = () => {
   const { saveToGallery, downloadMedia } = useMediaManager();
   const [image, setImage] = useState<string>('');
   const [videoType, setVideoType] = useState('product-showcase');
-  const [cameraEffect, setCameraEffect] = useState('zoom-in');
+  const [animationType, setAnimationType] = useState<'product-rotation' | 'environment-story' | 'dynamic-showcase' | 'minimal-motion'>('product-rotation');
   const [videoStyle, setVideoStyle] = useState('modern');
-  const [duration, setDuration] = useState('5');
   const [description, setDescription] = useState('');
   const [environmentPrompt, setEnvironmentPrompt] = useState('');
   const [generateElements, setGenerateElements] = useState(false);
   const [exportFormat, setExportFormat] = useState('1080x1080');
-  const [textOverlay, setTextOverlay] = useState({ title: '', subtitle: '', cta: '' });
+  const [textOverlay, setTextOverlay] = useState({
+    enabled: false,
+    title: '',
+    subtitle: '',
+    cta: ''
+  });
   const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [backgroundColor, setBackgroundColor] = useState<string>('');
+  const [generationStep, setGenerationStep] = useState('');
+  const [result, setResult] = useState<{ url: string; type: 'image' | 'video'; blob?: Blob; id?: string; prompt?: string } | null>(null);
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,7 +140,7 @@ export const AIVideography = () => {
 
   const handleGenerate = async () => {
     if (!image) {
-      toast.error('Veuillez ajouter une image de produit');
+      toast.error('Veuillez d\'abord uploader une image du produit');
       return;
     }
 
@@ -113,175 +149,161 @@ export const AIVideography = () => {
       return;
     }
 
+    if (!canvasRef.current) {
+      toast.error('Erreur d\'initialisation du canvas');
+      return;
+    }
+
     setIsGenerating(true);
     setResult(null);
 
     try {
-      // ÉTAPE 1: Amélioration AI du produit
-      toast.info('🎨 Amélioration AI du produit...', { duration: 3000 });
-      console.log('Étape 1/5: Traitement AI du produit...');
-      
-      const { data: enhancedData, error: enhanceError } = await supabase.functions.invoke('generate-ai-video', {
+      // Step 1: Enhance product
+      setGenerationStep('Étape 1/5: Amélioration du produit...');
+      toast.info('Étape 1/5: Amélioration du produit...');
+      const enhanceResponse = await supabase.functions.invoke('generate-ai-video', {
         body: {
+          step: 'enhance-product',
           image,
-          cameraEffect,
-          videoStyle,
           videoType,
-          duration: parseInt(duration),
-          description: description || 'Product promotional video',
-          exportFormat,
-          step: 'enhance-product'
+          format: exportFormat,
+          description: description || 'Professional product enhancement for video animation',
         }
       });
 
-      if (enhanceError) throw enhanceError;
+      if (enhanceResponse.error) throw enhanceResponse.error;
+      const enhancedProductUrl = enhanceResponse.data.imageUrl;
+      toast.success('✓ Produit amélioré');
 
-      const enhancedProductImage = enhancedData?.enhancedImage || image;
-      console.log('✓ Produit amélioré');
-
-      // ÉTAPE 2: Génération de l'environnement
-      toast.info('🌍 Création de l\'environnement...', { duration: 4000 });
-      console.log('Étape 2/5: Génération environnement...');
-      
-      const { data: environmentData, error: environmentError } = await supabase.functions.invoke('generate-ai-video', {
+      // Step 2: Generate environment
+      setGenerationStep('Étape 2/5: Création de l\'environnement...');
+      toast.info('Étape 2/5: Création de l\'environnement...');
+      const envResponse = await supabase.functions.invoke('generate-ai-video', {
         body: {
+          step: 'generate-environment',
           environmentPrompt,
-          videoStyle,
           videoType,
-          exportFormat,
-          step: 'generate-environment'
+          format: exportFormat,
+          videoStyle,
         }
       });
 
-      if (environmentError) throw environmentError;
+      if (envResponse.error) throw envResponse.error;
+      const environmentUrl = envResponse.data.imageUrl;
+      toast.success('✓ Environnement généré');
 
-      const environmentImage = environmentData?.environmentImage;
-      console.log('✓ Environnement généré');
-
-      if (!environmentImage) {
-        throw new Error('Échec de la génération de l\'environnement');
-      }
-
-      // ÉTAPE 3: Génération des éléments visuels (optionnel)
-      let elementsImage = null;
+      // Step 3: Generate visual elements (if enabled)
+      let elementsUrl = null;
       if (generateElements) {
-        toast.info('✨ Ajout des effets visuels...', { duration: 3000 });
-        console.log('Étape 3/5: Génération éléments visuels...');
-        
-        const { data: elementsData } = await supabase.functions.invoke('generate-ai-video', {
+        setGenerationStep('Étape 3/5: Génération des éléments visuels...');
+        toast.info('Étape 3/5: Génération des éléments visuels...');
+        const elementsResponse = await supabase.functions.invoke('generate-ai-video', {
           body: {
+            step: 'generate-elements',
             videoType,
-            videoStyle,
-            exportFormat,
-            generateElements: true,
-            step: 'generate-elements'
+            format: exportFormat,
           }
         });
 
-        if (elementsData && !elementsData.skipped) {
-          elementsImage = elementsData.elementsImage;
-          console.log('✓ Éléments visuels générés');
-        }
+        if (elementsResponse.error) throw elementsResponse.error;
+        elementsUrl = elementsResponse.data.imageUrl;
+        toast.success('✓ Éléments visuels créés');
+      } else {
+        toast.info('Étape 3/5: Éléments visuels ignorés');
       }
 
-      // ÉTAPE 4: Composition finale
-      toast.info('🎬 Composition finale...', { duration: 4000 });
-      console.log('Étape 4/5: Composition...');
-      
-      const { data: compositionData, error: compositionError } = await supabase.functions.invoke('generate-ai-video', {
-        body: {
-          productImage: enhancedProductImage,
-          environmentImage: environmentImage,
-          cameraEffect,
-          videoStyle,
-          videoType,
-          exportFormat,
-          textOverlay: textOverlay.title || textOverlay.subtitle || textOverlay.cta ? textOverlay : null,
-          step: 'compose-final'
+      // Step 4: Animate with Canvas
+      setGenerationStep('Étape 4/5: Animation du produit...');
+      toast.info('Étape 4/5: Animation du produit...');
+
+      const selectedAnimation = animationTypes.find(a => a.id === animationType)!;
+      const [width, height] = exportFormat.split('x').map(Number);
+
+      const videoGenerator = new VideoGenerator(
+        canvasRef.current,
+        {
+          animationType,
+          duration: selectedAnimation.duration,
+          width,
+          height,
+          fps: 30,
+          textOverlay: textOverlay.enabled ? textOverlay : undefined,
+        },
+        {
+          productImage: enhancedProductUrl,
+          environmentImage: environmentUrl,
+          elementsImage: elementsUrl || undefined,
         }
+      );
+
+      await videoGenerator.loadAssets();
+      toast.success('✓ Assets chargés');
+
+      // Step 5: Record video
+      setGenerationStep('Étape 5/5: Enregistrement vidéo...');
+      toast.info('Étape 5/5: Enregistrement vidéo MP4...');
+
+      const recorder = useVideoRecorder();
+
+      // Create a promise wrapper for the recording
+      const recordVideo = (): Promise<{ blob: Blob; url: string }> => {
+        return new Promise((resolve, reject) => {
+          recorder.startRecording(
+            {
+              canvas: canvasRef.current!,
+              duration: selectedAnimation.duration,
+              fps: 30,
+            },
+            (blob, url) => {
+              resolve({ blob, url });
+            }
+          ).catch(reject);
+
+          // Start animation simultaneously
+          videoGenerator.animate((progress) => {
+            setGenerationStep(`Enregistrement: ${Math.round(progress * 100)}%`);
+          }).catch(reject);
+        });
+      };
+
+      const { blob: videoBlob, url: videoUrl } = await recordVideo();
+      toast.success('✓ Vidéo enregistrée');
+
+      // Save to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('media')
+        .upload(`ai-videos/${Date.now()}.webm`, videoBlob, {
+          contentType: 'video/webm',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(uploadData.path);
+
+      setResult({ 
+        url: videoUrl, 
+        type: 'video', 
+        blob: videoBlob,
+        id: uploadData.path,
+        prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
       });
-
-      if (compositionError) throw compositionError;
-
-      const finalComposedImage = compositionData?.composedImage;
-      console.log('✓ Composition terminée');
-
-      if (!finalComposedImage) {
-        throw new Error('Échec de la composition finale');
-      }
-
-      // ÉTAPE 5: Traitement optionnel pour effet 360°
-      let processedImage = finalComposedImage;
-      let detectedBackgroundColor: string | null = null;
-
-      if (cameraEffect === '360-rotate') {
-        toast.info('🔍 Optimisation 360°...', { duration: 2000 });
-        console.log('Étape 5/5: Optimisation 360°...');
-        
-        try {
-          detectedBackgroundColor = await detectBackgroundColor(finalComposedImage);
-          setBackgroundColor(detectedBackgroundColor);
-
-          const imageBlob = await imageUrlToBlob(finalComposedImage);
-          const imageForProcessing = await loadImage(imageBlob);
-          const resultBlob = await removeBackground(imageForProcessing);
-          processedImage = await blobToDataUrl(resultBlob);
-          console.log('✓ Optimisation 360° terminée');
-        } catch (bgError) {
-          console.error('Erreur optimisation 360°:', bgError);
-          detectedBackgroundColor = 'rgb(255, 255, 255)';
-          setBackgroundColor(detectedBackgroundColor);
-        }
-      }
-
-      // SAUVEGARDE
-      toast.info('💾 Sauvegarde...', { duration: 2000 });
-      console.log('Sauvegarde...');
-
-      const savedMedia = await saveToGallery({
-        type: 'video',
-        title: `${videoTypes.find(t => t.id === videoType)?.name} - ${description || 'Sans titre'}`,
-        prompt: `Vidéo ${videoType} avec environnement généré: ${environmentPrompt}. Effet ${cameraEffect}, style ${videoStyle}. Format ${exportFormat}.`,
-        style: videoStyle,
-        format: `${duration}s - ${exportFormat}`,
-        imageUrl: processedImage,
-        metadata: {
-          videoType,
-          cameraEffect,
-          videoStyle,
-          duration: parseInt(duration),
-          description,
-          environmentPrompt,
-          hasGeneratedEnvironment: true,
-          hasVisualElements: generateElements && !!elementsImage,
-          textOverlay: textOverlay.title || textOverlay.subtitle || textOverlay.cta ? textOverlay : null,
-          exportFormat,
-          aiEnhanced: true,
-          enhancementPrompt: `Professional ${videoType} with generated environment: ${environmentPrompt}`,
-          hasTransparentBackground: cameraEffect === '360-rotate',
-          backgroundColor: detectedBackgroundColor,
-          qualityLevel: 'professional-complete',
-          processingSteps: [
-            'product_enhancement',
-            'environment_generation',
-            generateElements ? 'visual_elements_generation' : null,
-            'final_composition',
-            cameraEffect === '360-rotate' ? 'background_optimization' : null,
-            'camera_animation'
-          ].filter(Boolean)
-        }
-      });
-
-      if (savedMedia) {
-        setResult(savedMedia);
-        toast.success('🎉 Vidéo créée avec succès !', { duration: 4000 });
-        console.log('✓ Génération complète terminée !');
-      }
+      toast.success('🎬 Vidéo MP4 générée avec succès!');
+      setGenerationStep('');
     } catch (error) {
-      console.error('Video generation error:', error);
+      console.error('Erreur génération:', error);
       toast.error('Erreur lors de la génération');
+      setGenerationStep('');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (result) {
+      downloadMedia(result.url, `ai-video-${animationType}-${exportFormat}.webm`);
     }
   };
 
@@ -297,13 +319,13 @@ export const AIVideography = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold flex items-center gap-2">
-              AI Videography Pro
+              Studio de Production Vidéo AI
               <span className="text-xs px-2 py-0.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full">
-                Phases 1-3
+                MP4 Real-Time
               </span>
             </h2>
             <p className="text-sm text-muted-foreground">
-              Système complet de génération de vidéos promotionnelles professionnelles
+              Génération de vidéos MP4 professionnelles avec animations Canvas en temps réel
             </p>
           </div>
         </div>
@@ -381,7 +403,7 @@ export const AIVideography = () => {
             onChange={(e) => setEnvironmentPrompt(e.target.value)}
             placeholder={
               videoType === 'product-showcase' ? "Ex: Marbre blanc élégant avec éclairage doré, ambiance luxueuse" :
-              videoType === 'story-telling' ? "Ex: Bureau moderne lumineux avec vue sur la ville, professionnnel" :
+              videoType === 'story-telling' ? "Ex: Bureau moderne lumineux avec vue sur la ville, professionnel" :
               videoType === 'dynamic-ad' ? "Ex: Arrière-plan urbain dynamique avec néons et mouvement" :
               "Ex: Fond abstrait géométrique minimaliste, couleurs douces"
             }
@@ -397,41 +419,50 @@ export const AIVideography = () => {
           </div>
         </div>
 
-        {/* TEXTE OVERLAY (nouveau) */}
+        {/* TEXTE OVERLAY */}
         <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
-          <Label className="text-base font-semibold flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            4. Texte sur la vidéo (optionnel)
-          </Label>
-          <div className="grid gap-3">
-            <div>
-              <Label className="text-xs text-muted-foreground">Titre principal</Label>
-              <Input
-                placeholder="Ex: Nouveauté 2025"
-                value={textOverlay.title}
-                onChange={(e) => setTextOverlay({...textOverlay, title: e.target.value})}
-                disabled={isGenerating}
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Sous-titre</Label>
-              <Input
-                placeholder="Ex: Élégance Intemporelle"
-                value={textOverlay.subtitle}
-                onChange={(e) => setTextOverlay({...textOverlay, subtitle: e.target.value})}
-                disabled={isGenerating}
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Call-to-action</Label>
-              <Input
-                placeholder="Ex: Découvrir Maintenant"
-                value={textOverlay.cta}
-                onChange={(e) => setTextOverlay({...textOverlay, cta: e.target.value})}
-                disabled={isGenerating}
-              />
-            </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              4. Texte sur la vidéo
+            </Label>
+            <Switch
+              checked={textOverlay.enabled}
+              onCheckedChange={(checked) => setTextOverlay({...textOverlay, enabled: checked})}
+              disabled={isGenerating}
+            />
           </div>
+          {textOverlay.enabled && (
+            <div className="grid gap-3 pt-2">
+              <div>
+                <Label className="text-xs text-muted-foreground">Titre principal</Label>
+                <Input
+                  placeholder="Ex: Nouveauté 2025"
+                  value={textOverlay.title}
+                  onChange={(e) => setTextOverlay({...textOverlay, title: e.target.value})}
+                  disabled={isGenerating}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Sous-titre</Label>
+                <Input
+                  placeholder="Ex: Élégance Intemporelle"
+                  value={textOverlay.subtitle}
+                  onChange={(e) => setTextOverlay({...textOverlay, subtitle: e.target.value})}
+                  disabled={isGenerating}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Call-to-action</Label>
+                <Input
+                  placeholder="Ex: Découvrir Maintenant"
+                  value={textOverlay.cta}
+                  onChange={(e) => setTextOverlay({...textOverlay, cta: e.target.value})}
+                  disabled={isGenerating}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* DESCRIPTION PRODUIT */}
@@ -448,63 +479,70 @@ export const AIVideography = () => {
           />
         </div>
 
-        {/* PARAMÈTRES */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-3">
-            <Label>6. Effet de caméra</Label>
-            <Select value={cameraEffect} onValueChange={setCameraEffect} disabled={isGenerating}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {cameraEffects.map((effect) => (
-                  <SelectItem key={effect.id} value={effect.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{effect.icon}</span>
-                      <span>{effect.name}</span>
+        {/* ANIMATION TYPE */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Film className="h-4 w-4 text-primary" />
+            <Label className="text-base font-semibold">6. Type d'Animation Vidéo</Label>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {animationTypes.map((animation) => {
+              const Icon = animation.icon;
+              return (
+                <Card
+                  key={animation.id}
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    animationType === animation.id ? 'ring-2 ring-primary' : ''
+                  }`}
+                  onClick={() => setAnimationType(animation.id as typeof animationType)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-3 rounded-lg bg-gradient-to-br ${animation.color}`}>
+                        <Icon className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-base">{animation.name}</h4>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>{animation.duration}s</span>
+                            <span className="text-xs">•</span>
+                            <span>{animation.frames} frames</span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {animation.description}
+                        </p>
+                      </div>
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-3">
-            <Label>7. Style visuel</Label>
-            <Select value={videoStyle} onValueChange={setVideoStyle} disabled={isGenerating}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {videoStyles.map((style) => (
-                  <SelectItem key={style.id} value={style.id}>
-                    {style.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-3">
-            <Label>8. Durée</Label>
-            <Select value={duration} onValueChange={setDuration} disabled={isGenerating}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="3">3 secondes</SelectItem>
-                <SelectItem value="5">5 secondes</SelectItem>
-                <SelectItem value="7">7 secondes</SelectItem>
-                <SelectItem value="10">10 secondes</SelectItem>
-                <SelectItem value="15">15 secondes</SelectItem>
-              </SelectContent>
-            </Select>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
 
-        {/* FORMAT D'EXPORT (nouveau) */}
+        {/* STYLE VISUEL */}
         <div className="space-y-3">
-          <Label className="text-base font-semibold">9. Format d'export</Label>
+          <Label>7. Style visuel</Label>
+          <Select value={videoStyle} onValueChange={setVideoStyle} disabled={isGenerating}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {videoStyles.map((style) => (
+                <SelectItem key={style.id} value={style.id}>
+                  {style.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* FORMAT D'EXPORT */}
+        <div className="space-y-3">
+          <Label className="text-base font-semibold">8. Format d'export</Label>
           <div className="grid grid-cols-3 gap-3">
             {exportFormats.map((format) => (
               <button
@@ -527,7 +565,7 @@ export const AIVideography = () => {
 
         {/* OPTIONS AVANCÉES */}
         <div className="space-y-3 border rounded-lg p-4">
-          <Label className="text-base font-semibold">10. Options avancées</Label>
+          <Label className="text-base font-semibold">9. Options avancées</Label>
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium text-sm">Ajouter des éléments visuels</p>
@@ -546,23 +584,26 @@ export const AIVideography = () => {
         {/* BOUTON GÉNÉRATION */}
         <div className="space-y-3 pt-2">
           <Button
+            size="lg"
+            className="w-full"
             onClick={handleGenerate}
             disabled={isGenerating || !image || !environmentPrompt.trim()}
-            size="lg"
-            className="w-full gap-2"
           >
             {isGenerating ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Création en cours...
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                {generationStep || 'Génération en cours...'}
               </>
             ) : (
               <>
-                <Wand2 className="w-5 h-5" />
-                Créer ma vidéo {selectedVideoType?.name}
+                <Film className="mr-2 h-5 w-5" />
+                Générer Vidéo MP4
               </>
             )}
           </Button>
+
+          {/* Hidden canvas for video rendering */}
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
 
           {!image && (
             <p className="text-xs text-center text-muted-foreground">
@@ -580,66 +621,71 @@ export const AIVideography = () => {
 
       {/* RÉSULTAT */}
       {result && (
-        <Card className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Votre {selectedVideoType?.name}</h3>
-            <div className="flex items-center gap-2">
-              <div className="px-3 py-1 bg-primary/20 text-primary text-xs rounded-full font-medium">
-                {selectedFormat?.name} - {selectedFormat?.ratio}
-              </div>
-              <div className="px-3 py-1 bg-muted text-muted-foreground text-xs rounded-full">
-                {result.metadata?.videoType}
-              </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              Vidéo MP4 Générée
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative rounded-lg overflow-hidden border bg-black">
+              {result.type === 'video' ? (
+                <video
+                  src={result.url}
+                  controls
+                  autoPlay
+                  loop
+                  className="w-full h-auto"
+                >
+                  Votre navigateur ne supporte pas la lecture vidéo.
+                </video>
+              ) : (
+                <img
+                  src={result.url}
+                  alt="Generated preview"
+                  className="w-full h-auto"
+                />
+              )}
             </div>
-          </div>
-          <div
-            className={`relative rounded-lg overflow-hidden border ${
-              exportFormat === '1080x1920' ? 'aspect-[9/16]' : 
-              exportFormat === '1920x1080' ? 'aspect-video' : 
-              'aspect-square'
-            }`}
-            style={{
-              backgroundColor: result.metadata?.cameraEffect === '360-rotate' && backgroundColor
-                ? backgroundColor
-                : 'black'
-            }}
-          >
-            <img
-              src={result.image_url}
-              alt="Vidéo générée"
-              className={`relative w-full h-full object-contain ${
-                result.metadata?.cameraEffect === 'zoom-in' ? 'animate-[zoom-in_5s_ease-in-out_infinite]' :
-                result.metadata?.cameraEffect === 'zoom-out' ? 'animate-[zoom-out_5s_ease-in-out_infinite]' :
-                result.metadata?.cameraEffect === 'pan-left' ? 'animate-[pan-left_5s_ease-in-out_infinite]' :
-                result.metadata?.cameraEffect === 'pan-right' ? 'animate-[pan-right_5s_ease-in-out_infinite]' :
-                result.metadata?.cameraEffect === 'orbit' ? 'animate-[orbit_5s_ease-in-out_infinite]' :
-                result.metadata?.cameraEffect === 'parallax' ? 'animate-[parallax_5s_ease-in-out_infinite]' :
-                result.metadata?.cameraEffect === '360-rotate' ? 'animate-[rotate-360_8s_linear_infinite]' :
-                ''
-              }`}
-            />
-            <div className="absolute top-2 right-2 px-3 py-1 bg-black/70 text-white text-xs rounded-full flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              {result.metadata?.cameraEffect}
+            <div className="p-3 bg-muted rounded-lg">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Format:</span>
+                <span className="font-medium">{exportFormat} • 30 FPS • WebM</span>
+              </div>
+              <div className="flex items-center justify-between text-sm mt-2">
+                <span className="text-muted-foreground">Durée:</span>
+                <span className="font-medium">
+                  {animationTypes.find(a => a.id === animationType)?.duration}s
+                </span>
+              </div>
+              {result.blob && (
+                <div className="flex items-center justify-between text-sm mt-2">
+                  <span className="text-muted-foreground">Taille:</span>
+                  <span className="font-medium">
+                    {(result.blob.size / (1024 * 1024)).toFixed(2)} MB
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1 gap-2"
-              onClick={() => setIsModalOpen(true)}
-            >
-              <Eye className="w-4 h-4" />
-              Visualiser
-            </Button>
-            <Button
-              className="flex-1 gap-2"
-              onClick={() => downloadMedia(result.image_url, `${videoType}-${exportFormat}-${result.id}.png`)}
-            >
-              <Download className="w-4 h-4" />
-              Télécharger
-            </Button>
-          </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsModalOpen(true)}
+                className="flex-1"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Visualiser en grand
+              </Button>
+              <Button
+                onClick={handleDownload}
+                className="flex-1"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Télécharger MP4
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       )}
 
