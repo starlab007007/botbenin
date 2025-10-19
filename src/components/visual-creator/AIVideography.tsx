@@ -20,6 +20,7 @@ import { UniversalMediaModal } from './UniversalMediaModal';
 import { VideoGenerator } from '@/utils/videoGenerator';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { GenerationProgress } from './GenerationProgress';
 
 const animationTypes = [
   {
@@ -122,6 +123,7 @@ export const AIVideography = () => {
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState('');
+  
   interface VideoResult {
     url: string;
     type: 'image' | 'video';
@@ -130,7 +132,26 @@ export const AIVideography = () => {
     prompt: string;
   }
   
+  interface GenerationStep {
+    id: string;
+    title: string;
+    description: string;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    result?: {
+      image?: string;
+      data?: any;
+    };
+    error?: string;
+  }
+  
   const [result, setResult] = useState<VideoResult | null>(null);
+  const [progressSteps, setProgressSteps] = useState<GenerationStep[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [stepsPaused, setStepsPaused] = useState(false);
+  // Store intermediate results
+  const [enhancedProductUrl, setEnhancedProductUrl] = useState<string | null>(null);
+  const [environmentUrl, setEnvironmentUrl] = useState<string | null>(null);
+  const [elementsUrl, setElementsUrl] = useState<string | null>(null);
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -146,167 +167,219 @@ export const AIVideography = () => {
     reader.readAsDataURL(file);
   };
 
+  const initializeProgressSteps = () => {
+    const steps: GenerationStep[] = [
+      {
+        id: 'enhance-product',
+        title: 'Amélioration du produit',
+        description: 'Optimisation qualité et détails du produit',
+        status: 'pending'
+      },
+      {
+        id: 'generate-environment',
+        title: 'Génération environnement',
+        description: 'Création du décor et de l\'ambiance',
+        status: 'pending'
+      },
+      {
+        id: 'animate-video',
+        title: 'Animation vidéo',
+        description: 'Application animation et enregistrement',
+        status: 'pending'
+      }
+    ];
+    setProgressSteps(steps);
+    setCurrentStepIndex(0);
+  };
+
+  const updateStepStatus = (stepId: string, status: GenerationStep['status'], result?: any, error?: string) => {
+    setProgressSteps(prev => prev.map(step => 
+      step.id === stepId 
+        ? { ...step, status, result, error }
+        : step
+    ));
+  };
+
+  const executeEnhanceProduct = async () => {
+    const enhanceResponse = await supabase.functions.invoke('generate-ai-video', {
+      body: {
+        step: 'enhance-product',
+        image,
+        videoType,
+        format: exportFormat,
+        description: description || 'Professional product enhancement',
+      }
+    });
+
+    if (enhanceResponse.error) throw enhanceResponse.error;
+    const url = enhanceResponse.data.enhancedImage;
+    setEnhancedProductUrl(url);
+    updateStepStatus('enhance-product', 'completed', { image: url });
+  };
+
+  const executeGenerateEnvironment = async () => {
+    const envResponse = await supabase.functions.invoke('generate-ai-video', {
+      body: {
+        step: 'generate-environment',
+        environmentPrompt,
+        videoType,
+        format: exportFormat,
+        videoStyle,
+      }
+    });
+
+    if (envResponse.error) throw envResponse.error;
+    const url = envResponse.data.environmentImage;
+    setEnvironmentUrl(url);
+    updateStepStatus('generate-environment', 'completed', { image: url });
+  };
+
+  const executeAnimateVideo = async () => {
+    if (!canvasRef.current || !enhancedProductUrl || !environmentUrl) {
+      throw new Error('Missing required assets');
+    }
+
+    const selectedAnimation = animationTypes.find(a => a.id === animationType)!;
+    const [width, height] = exportFormat.split('x').map(Number);
+
+    const videoGenerator = new VideoGenerator(
+      canvasRef.current,
+      {
+        animationType,
+        duration: selectedAnimation.duration,
+        width,
+        height,
+        fps: 30,
+        textOverlay: textOverlay.enabled ? textOverlay : undefined,
+      },
+      {
+        productImage: enhancedProductUrl,
+        environmentImage: environmentUrl,
+        elementsImage: elementsUrl || undefined,
+      }
+    );
+
+    await videoGenerator.loadAssets();
+    
+    const recorder = useVideoRecorder();
+
+    const recordVideo = (): Promise<{ blob: Blob; url: string }> => {
+      return new Promise((resolve, reject) => {
+        recorder.startRecording(
+          {
+            canvas: canvasRef.current!,
+            duration: selectedAnimation.duration,
+            fps: 30,
+          },
+          (blob, url) => resolve({ blob, url })
+        ).catch(reject);
+
+        videoGenerator.animate((progress) => {
+          setGenerationStep(`Animation: ${Math.round(progress * 100)}%`);
+        }).catch(reject);
+      });
+    };
+
+    const { blob: videoBlob, url: videoUrl } = await recordVideo();
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('media')
+      .upload(`ai-videos/${Date.now()}.webm`, videoBlob, {
+        contentType: 'video/webm',
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('media')
+      .getPublicUrl(uploadData.path);
+
+    setResult({ 
+      url: videoUrl, 
+      type: 'video' as const, 
+      blob: videoBlob,
+      id: uploadData.path,
+      prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
+    });
+    
+    updateStepStatus('animate-video', 'completed', { image: videoUrl, data: { publicUrl } });
+  };
+
+  const handleRegenerateStep = async (stepId: string) => {
+    const stepIndex = progressSteps.findIndex(s => s.id === stepId);
+    if (stepIndex === -1) return;
+
+    setProgressSteps(prev => prev.map((step, idx) => 
+      idx >= stepIndex 
+        ? { ...step, status: 'pending' as const, result: undefined, error: undefined }
+        : step
+    ));
+
+    setCurrentStepIndex(stepIndex);
+    setStepsPaused(false);
+    await continueGeneration(stepIndex);
+  };
+
+  const handleContinueGeneration = () => {
+    setStepsPaused(false);
+    continueGeneration(currentStepIndex + 1);
+  };
+
+  const continueGeneration = async (fromStepIndex: number) => {
+    const steps = progressSteps;
+    
+    for (let i = fromStepIndex; i < steps.length && !stepsPaused; i++) {
+      setCurrentStepIndex(i);
+      const step = steps[i];
+      
+      try {
+        updateStepStatus(step.id, 'processing');
+        
+        if (step.id === 'enhance-product') {
+          await executeEnhanceProduct();
+        } else if (step.id === 'generate-environment') {
+          await executeGenerateEnvironment();
+        } else if (step.id === 'animate-video') {
+          await executeAnimateVideo();
+        }
+        
+        updateStepStatus(step.id, 'completed');
+        setStepsPaused(true);
+        return;
+        
+      } catch (error: any) {
+        updateStepStatus(step.id, 'error', undefined, error.message);
+        toast.error(`${step.title}: ${error.message}`);
+        setIsGenerating(false);
+        return;
+      }
+    }
+    
+    setIsGenerating(false);
+    toast.success("✓ Vidéo générée avec succès!");
+  };
+
   const handleGenerate = async () => {
     if (!image) {
-      toast.error('Veuillez d\'abord uploader une image du produit');
+      toast.error("Veuillez uploader une image du produit");
       return;
     }
 
     if (!environmentPrompt.trim()) {
-      toast.error('Veuillez décrire l\'environnement souhaité');
+      toast.error("Veuillez décrire l'environnement");
       return;
     }
 
     if (!canvasRef.current) {
-      toast.error('Erreur d\'initialisation du canvas');
+      toast.error("Canvas non initialisé");
       return;
     }
 
     setIsGenerating(true);
     setResult(null);
-
-    try {
-      // Step 1: Enhance product
-      setGenerationStep('Étape 1/5: Amélioration du produit...');
-      toast.info('Étape 1/5: Amélioration du produit...');
-      const enhanceResponse = await supabase.functions.invoke('generate-ai-video', {
-        body: {
-          step: 'enhance-product',
-          image,
-          videoType,
-          format: exportFormat,
-          description: description || 'Professional product enhancement for video animation',
-        }
-      });
-
-      if (enhanceResponse.error) throw enhanceResponse.error;
-      const enhancedProductUrl = enhanceResponse.data.imageUrl;
-      toast.success('✓ Produit amélioré');
-
-      // Step 2: Generate environment
-      setGenerationStep('Étape 2/5: Création de l\'environnement...');
-      toast.info('Étape 2/5: Création de l\'environnement...');
-      const envResponse = await supabase.functions.invoke('generate-ai-video', {
-        body: {
-          step: 'generate-environment',
-          environmentPrompt,
-          videoType,
-          format: exportFormat,
-          videoStyle,
-        }
-      });
-
-      if (envResponse.error) throw envResponse.error;
-      const environmentUrl = envResponse.data.imageUrl;
-      toast.success('✓ Environnement généré');
-
-      // Step 3: Generate visual elements (if enabled)
-      let elementsUrl = null;
-      if (generateElements) {
-        setGenerationStep('Étape 3/5: Génération des éléments visuels...');
-        toast.info('Étape 3/5: Génération des éléments visuels...');
-        const elementsResponse = await supabase.functions.invoke('generate-ai-video', {
-          body: {
-            step: 'generate-elements',
-            videoType,
-            format: exportFormat,
-          }
-        });
-
-        if (elementsResponse.error) throw elementsResponse.error;
-        elementsUrl = elementsResponse.data.imageUrl;
-        toast.success('✓ Éléments visuels créés');
-      } else {
-        toast.info('Étape 3/5: Éléments visuels ignorés');
-      }
-
-      // Step 4: Animate with Canvas
-      setGenerationStep('Étape 4/5: Animation du produit...');
-      toast.info('Étape 4/5: Animation du produit...');
-
-      const selectedAnimation = animationTypes.find(a => a.id === animationType)!;
-      const [width, height] = exportFormat.split('x').map(Number);
-
-      const videoGenerator = new VideoGenerator(
-        canvasRef.current,
-        {
-          animationType,
-          duration: selectedAnimation.duration,
-          width,
-          height,
-          fps: 30,
-          textOverlay: textOverlay.enabled ? textOverlay : undefined,
-        },
-        {
-          productImage: enhancedProductUrl,
-          environmentImage: environmentUrl,
-          elementsImage: elementsUrl || undefined,
-        }
-      );
-
-      await videoGenerator.loadAssets();
-      toast.success('✓ Assets chargés');
-
-      // Step 5: Record video
-      setGenerationStep('Étape 5/5: Enregistrement vidéo...');
-      toast.info('Étape 5/5: Enregistrement vidéo MP4...');
-
-      const recorder = useVideoRecorder();
-
-      // Create a promise wrapper for the recording
-      const recordVideo = (): Promise<{ blob: Blob; url: string }> => {
-        return new Promise((resolve, reject) => {
-          recorder.startRecording(
-            {
-              canvas: canvasRef.current!,
-              duration: selectedAnimation.duration,
-              fps: 30,
-            },
-            (blob, url) => {
-              resolve({ blob, url });
-            }
-          ).catch(reject);
-
-          // Start animation simultaneously
-          videoGenerator.animate((progress) => {
-            setGenerationStep(`Enregistrement: ${Math.round(progress * 100)}%`);
-          }).catch(reject);
-        });
-      };
-
-      const { blob: videoBlob, url: videoUrl } = await recordVideo();
-      toast.success('✓ Vidéo enregistrée');
-
-      // Save to storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(`ai-videos/${Date.now()}.webm`, videoBlob, {
-          contentType: 'video/webm',
-          upsert: false,
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(uploadData.path);
-
-      setResult({ 
-        url: videoUrl, 
-        type: 'video' as const, 
-        blob: videoBlob,
-        id: uploadData.path,
-        prompt: `${videoType} - ${animationType} - ${environmentPrompt}`
-      });
-      toast.success('🎬 Vidéo MP4 générée avec succès!');
-      setGenerationStep('');
-    } catch (error) {
-      console.error('Erreur génération:', error);
-      toast.error('Erreur lors de la génération');
-      setGenerationStep('');
-    } finally {
-      setIsGenerating(false);
-    }
+    initializeProgressSteps();
+    await continueGeneration(0);
   };
 
   const handleDownload = () => {
@@ -626,6 +699,22 @@ export const AIVideography = () => {
           )}
         </div>
       </Card>
+
+      {/* PROGRESSION DES ÉTAPES */}
+      {progressSteps.length > 0 && (
+        <GenerationProgress
+          steps={progressSteps}
+          currentStepIndex={currentStepIndex}
+          onRegenerateStep={handleRegenerateStep}
+          onContinue={handleContinueGeneration}
+          onViewResult={(stepId) => {
+            const step = progressSteps.find(s => s.id === stepId);
+            if (step?.result?.image) {
+              window.open(step.result.image, '_blank');
+            }
+          }}
+        />
+      )}
 
       {/* RÉSULTAT */}
       {result && (

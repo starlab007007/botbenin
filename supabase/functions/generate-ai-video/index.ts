@@ -11,6 +11,17 @@ serve(async (req) => {
   }
 
   try {
+    let body;
+    try {
+      body = await req.json();
+    } catch (jsonError) {
+      console.error('Invalid JSON body:', jsonError);
+      return new Response(
+        JSON.stringify({ error: 'Corps de requête JSON invalide' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { 
       image, 
       cameraEffect, 
@@ -26,7 +37,7 @@ serve(async (req) => {
       generateElements = false,
       textOverlay,
       exportFormat = '1080x1080'
-    } = await req.json();
+    } = body;
 
     // Validation selon l'étape
     if (step === 'enhance-product' && !image) {
@@ -249,7 +260,20 @@ OUTPUT: Professional ${videoType} background environment, ${format.width}x${form
     // ============================================================
     // ÉTAPE 3: Génération des éléments visuels (si demandé)
     // ============================================================
-    if (step === 'generate-elements' && generateElements) {
+    if (step === 'generate-elements') {
+      // Vérifier si les éléments sont vraiment demandés
+      if (!generateElements) {
+        return new Response(
+          JSON.stringify({
+            elementsImage: null,
+            step: 'generate-elements',
+            processed: true,
+            skipped: true,
+            message: 'Génération d\'éléments désactivée'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const videoTypeElements = {
         'product-showcase': 'Subtle luxury particles, elegant light rays, premium bokeh effects',
         'story-telling': 'Contextual decorative elements that enhance the narrative',
