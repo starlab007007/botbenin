@@ -240,7 +240,13 @@ export const AIVideography = () => {
     }
     
     try {
-      console.log('Calling enhance-product with URL:', imageUrl);
+      console.log('🚀 Calling enhance-product with URL:', imageUrl);
+      console.log('📦 Request body:', {
+        step: 'enhance-product',
+        image: imageUrl ? imageUrl.substring(0, 100) + '...' : 'null',
+        videoType,
+        format: exportFormat
+      });
       
       const enhanceResponse = await supabase.functions.invoke('generate-ai-video', {
         body: {
@@ -252,10 +258,17 @@ export const AIVideography = () => {
         }
       });
 
-      console.log('Enhance response:', enhanceResponse);
+      console.log('✅ Enhance response received:', enhanceResponse);
 
       if (enhanceResponse.error) {
-        console.error('Edge function error:', enhanceResponse.error);
+        console.error('❌ Edge function error:', enhanceResponse.error);
+        
+        // Détecter si c'est une erreur de fonction non déployée
+        if (enhanceResponse.error.message?.includes('FunctionsRelayError') || 
+            enhanceResponse.error.message?.includes('Failed to fetch')) {
+          throw new Error('La fonction de génération vidéo n\'est pas encore déployée. Veuillez attendre 2-3 minutes et réessayer, ou déployez manuellement avec: supabase functions deploy generate-ai-video');
+        }
+        
         throw new Error(enhanceResponse.error.message || 'Échec de l\'amélioration du produit');
       }
       
