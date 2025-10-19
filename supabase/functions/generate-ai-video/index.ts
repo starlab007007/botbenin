@@ -11,11 +11,37 @@ serve(async (req) => {
   }
 
   try {
-    const { image, cameraEffect, videoStyle, duration, description, prompt } = await req.json();
+    const { 
+      image, 
+      cameraEffect, 
+      videoStyle, 
+      duration, 
+      description, 
+      prompt,
+      step = 'enhance-product',
+      environmentPrompt,
+      productImage,
+      environmentImage
+    } = await req.json();
 
-    if (!image) {
+    // Validation selon l'étape
+    if (step === 'enhance-product' && !image) {
       return new Response(
-        JSON.stringify({ error: 'Image requise' }),
+        JSON.stringify({ error: 'Image requise pour amélioration produit' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (step === 'generate-environment' && !environmentPrompt) {
+      return new Response(
+        JSON.stringify({ error: 'Description d\'environnement requise' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (step === 'compose-final' && (!productImage || !environmentImage)) {
+      return new Response(
+        JSON.stringify({ error: 'Images produit et environnement requises pour composition' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -25,128 +51,258 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY non configurée');
     }
 
-    console.log('Processing image with AI enhancement for camera effect:', cameraEffect);
+    console.log(`Processing step: ${step}...`);
 
-    // Étape 1: Toujours améliorer l'image avec Lovable AI pour une qualité professionnelle
-    const enhancementPrompt = `Transform this image to professional marketing quality for a promotional video:
+    // ============================================================
+    // ÉTAPE 1: Amélioration du produit
+    // ============================================================
+    if (step === 'enhance-product') {
+      const enhancementPrompt = prompt || `Enhance this product image to professional marketing quality:
 
-Product/Subject: ${description || 'subject in image'}
-Target Use: Promotional video with ${cameraEffect} camera motion
+Product: ${description || 'product in image'}
+Target Use: Promotional Product Showcase video
 Visual Style: ${videoStyle}
+Camera Effect: ${cameraEffect}
 
-CRITICAL ENHANCEMENTS REQUIRED:
+CRITICAL ENHANCEMENTS:
 1. Image Quality:
-   - Significantly increase sharpness and definition
-   - Remove any noise, blur, compression artifacts, or imperfections
-   - Ultra high resolution optimization for video use
+   - Ultra high resolution and sharpness
+   - Remove noise, blur, and imperfections
+   - Professional product photography standards
    
 2. Visual Enhancement:
    - Optimize colors, contrast, and lighting for ${videoStyle} aesthetic
+   - Make product stand out with clarity and impact
    - Professional studio-quality color grading
-   - Make the subject/product stand out with clarity and impact
    
 3. Composition:
-   - Maintain perfect aspect ratio and composition
-   - ${cameraEffect === '360-rotate' ? 'Ensure subject is perfectly centered for 360° rotation' : 'Optimize for ' + cameraEffect + ' camera movement'}
-   - Professional product photography standards
-   
-4. Style Adaptation:
-   - Apply ${videoStyle} visual treatment
-   - Cinematic quality suitable for ${cameraEffect} animation
-   - Marketing-grade professional output
+   - Perfect aspect ratio and composition
+   - Center product perfectly for Product Showcase
+   - Maximize product detail visibility
 
-${cameraEffect === '360-rotate' ? '\n5. 360° Preparation:\n   - Center the product perfectly\n   - Maximize product detail and clarity\n   - Prepare for transparent background isolation\n   - Studio lighting for all-angle visibility' : ''}
+OUTPUT: Professional-grade enhanced product image, ready for luxury environment composition.`;
 
-OUTPUT: Enhanced, professional-grade image ready for ${cameraEffect} animation with ${videoStyle} style. Ultra high resolution.`;
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash-image-preview',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: enhancementPrompt },
+                { type: 'image_url', image_url: { url: image } }
+              ]
+            }
+          ],
+          modalities: ['image', 'text']
+        }),
+      });
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: enhancementPrompt },
-              {
-                type: 'image_url',
-                image_url: { url: image }
-              }
-            ]
-          }
-        ],
-        modalities: ['image', 'text']
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Limite de taux dépassée, veuillez réessayer plus tard' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Limite de taux dépassée, réessayez dans un moment' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: 'Crédits insuffisants, veuillez recharger' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const errorText = await response.text();
+        console.error('Product enhancement error:', response.status, errorText);
+        throw new Error(`Product enhancement failed: ${response.status}`);
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Crédits insuffisants, veuillez recharger votre compte' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+
+      const data = await response.json();
+      const enhancedImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url || image;
+
+      console.log('Product enhanced successfully');
+
+      return new Response(
+        JSON.stringify({
+          enhancedImage: enhancedImageUrl,
+          originalImage: image,
+          step: 'enhance-product',
+          processed: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ============================================================
+    // ÉTAPE 2: Génération de l'environnement
+    // ============================================================
+    if (step === 'generate-environment') {
+      const envPrompt = `Create a professional luxury Product Showcase background environment for social media:
+
+Environment Description: ${environmentPrompt}
+Visual Style: ${videoStyle}
+Format: Square 1080x1080 for Instagram/Social Media
+
+REQUIREMENTS:
+- Ultra high quality professional studio photography background
+- Luxury and premium aesthetic with sophisticated elegance
+- ${videoStyle} visual treatment and mood
+- Smooth gradients and professional studio lighting
+- Perfect for product overlay - complementary colors that enhance visibility
+- Clean, elegant composition without distracting elements
+- Subtle depth and dimension for visual interest
+- Commercial photography quality
+- 1080x1080 square format optimized
+
+OUTPUT: Professional luxury background environment, 1080x1080, ready for product composition.`;
+
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash-image-preview',
+          messages: [
+            { role: 'user', content: envPrompt }
+          ],
+          modalities: ['image', 'text'],
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Limite de taux dépassée, réessayez dans un moment' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: 'Crédits insuffisants, veuillez recharger' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const errorText = await response.text();
+        console.error('Environment generation error:', response.status, errorText);
+        throw new Error(`Environment generation failed: ${response.status}`);
       }
-      const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error(`AI API error: ${response.status}`);
-    }
 
-    const data = await response.json();
-    console.log('AI Response structure:', JSON.stringify(data).substring(0, 500));
-    
-    // Extraire l'image générée de la réponse
-    let generatedImage = null;
-    
-    if (data.choices?.[0]?.message?.content) {
-      // Le contenu peut être du texte avec l'URL de l'image
-      const content = data.choices[0].message.content;
-      const urlMatch = content.match(/https?:\/\/[^\s]+/);
-      if (urlMatch) {
-        generatedImage = urlMatch[0];
+      const data = await response.json();
+      const environmentImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+      if (!environmentImageUrl) {
+        throw new Error('No environment image generated');
       }
-    }
-    
-    // Vérifier aussi dans les images directes
-    if (!generatedImage && data.choices?.[0]?.message?.images?.[0]) {
-      const imageData = data.choices[0].message.images[0];
-      generatedImage = imageData.image_url?.url || imageData.url || imageData;
+
+      console.log('Environment generated successfully');
+
+      return new Response(
+        JSON.stringify({
+          environmentImage: environmentImageUrl,
+          step: 'generate-environment',
+          processed: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Si pas d'image générée, retourner l'image originale
-    if (!generatedImage) {
-      console.log('No enhanced image generated, using original');
-      generatedImage = image;
+    // ============================================================
+    // ÉTAPE 3: Composition finale
+    // ============================================================
+    if (step === 'compose-final') {
+      const compositionPrompt = `Compose a professional Product Showcase video frame by expertly combining these two images:
+
+IMAGE 1 (PRODUCT - Foreground): High-quality enhanced product photo
+IMAGE 2 (ENVIRONMENT - Background): Professional luxury background
+
+COMPOSITION REQUIREMENTS:
+- Product must be the clear focal point, perfectly centered and prominent
+- Product in foreground with sharp focus and perfect detail preservation
+- Environment as elegant backdrop that enhances without overpowering
+- Professional depth of field effect - product sharp, background subtle
+- Harmonious color integration and lighting coherence
+- Balance composition following rule of thirds
+- Natural placement - product appears professionally placed in luxury environment
+- Camera Effect: ${cameraEffect} - optimize composition for this animation
+- 1080x1080 square format for social media
+- Ultra high resolution, commercial quality
+- Ready for ${cameraEffect} camera animation overlay
+
+OUTPUT: Complete professional Product Showcase frame, 1080x1080, product + environment perfectly composed.`;
+
+      const messages = [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: compositionPrompt },
+            { type: 'image_url', image_url: { url: productImage } },
+            { type: 'image_url', image_url: { url: environmentImage } }
+          ]
+        }
+      ];
+
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash-image-preview',
+          messages: messages,
+          modalities: ['image', 'text'],
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Limite de taux dépassée, réessayez dans un moment' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: 'Crédits insuffisants, veuillez recharger' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const errorText = await response.text();
+        console.error('Composition error:', response.status, errorText);
+        throw new Error(`Composition failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const finalImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+      if (!finalImageUrl) {
+        throw new Error('No composed image generated');
+      }
+
+      console.log('Final composition completed successfully');
+
+      return new Response(
+        JSON.stringify({
+          composedImage: finalImageUrl,
+          step: 'compose-final',
+          processed: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.log('Image generated successfully');
-
+    // Fallback: retour d'erreur pour étape inconnue
     return new Response(
-      JSON.stringify({
-        success: true,
-        videoUrl: generatedImage,
-        cameraEffect,
-        videoStyle,
-        duration,
-        isEnhancedImage: true,
-        aiEnhanced: true,
-        enhancementPrompt: enhancementPrompt,
-        qualityLevel: 'professional',
-        processingSteps: ['ai_enhancement']
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: `Unknown step: ${step}` }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
     console.error('Error in generate-ai-video:', error);
     return new Response(
