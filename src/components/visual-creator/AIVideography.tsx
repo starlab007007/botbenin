@@ -107,6 +107,7 @@ const exportFormats = [
 
 export const AIVideography = () => {
   const { saveToGallery, downloadMedia } = useMediaManager();
+  const videoRecorder = useVideoRecorder();
   const [image, setImage] = useState<string>('');
   const [videoType, setVideoType] = useState('product-showcase');
   const [animationType, setAnimationType] = useState<'product-rotation' | 'environment-story' | 'dynamic-showcase' | 'minimal-motion'>('product-rotation');
@@ -261,11 +262,9 @@ export const AIVideography = () => {
 
     await videoGenerator.loadAssets();
     
-    const recorder = useVideoRecorder();
-
     const recordVideo = (): Promise<{ blob: Blob; url: string }> => {
       return new Promise((resolve, reject) => {
-        recorder.startRecording(
+        videoRecorder.startRecording(
           {
             canvas: canvasRef.current!,
             duration: selectedAnimation.duration,
