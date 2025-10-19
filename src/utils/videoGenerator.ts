@@ -7,6 +7,7 @@ export interface VideoAssets {
   productImage: string; // base64 or URL
   environmentImage: string;
   elementsImage?: string;
+  isComposed?: boolean; // If true, productImage is already composed with environment
 }
 
 export interface VideoConfig {
@@ -50,11 +51,17 @@ export class VideoGenerator {
       });
     };
 
-    const product = await loadImage(this.assets.productImage);
-    const environment = await loadImage(this.assets.environmentImage);
-    
-    this.loadedImages.set('product', product);
-    this.loadedImages.set('environment', environment);
+    // If already composed, load as single composed image
+    if (this.assets.isComposed) {
+      const composed = await loadImage(this.assets.productImage);
+      this.loadedImages.set('composed', composed);
+    } else {
+      const product = await loadImage(this.assets.productImage);
+      const environment = await loadImage(this.assets.environmentImage);
+      
+      this.loadedImages.set('product', product);
+      this.loadedImages.set('environment', environment);
+    }
 
     if (this.assets.elementsImage) {
       const elements = await loadImage(this.assets.elementsImage);
@@ -90,17 +97,41 @@ export class VideoGenerator {
   }
 
   private renderProductRotation(progress: number): void {
+    // If image is already composed, apply animation to the entire composed image
+    if (this.assets.isComposed) {
+      const composed = this.loadedImages.get('composed')!;
+      
+      // Calculate rotation and scale
+      const angle = progress * Math.PI * 2; // Full 360° rotation
+      const scale = 0.95 + Math.sin(progress * Math.PI * 2) * 0.05; // Subtle scale pulse
+      
+      const centerX = this.canvas.width / 2;
+      const centerY = this.canvas.height / 2;
+
+      this.ctx.save();
+      this.ctx.translate(centerX, centerY);
+      this.ctx.rotate(angle);
+      this.ctx.scale(scale, scale);
+      this.ctx.drawImage(
+        composed,
+        -this.canvas.width / 2,
+        -this.canvas.height / 2,
+        this.canvas.width,
+        this.canvas.height
+      );
+      this.ctx.restore();
+      return;
+    }
+
+    // Fallback: separate images
     const environment = this.loadedImages.get('environment')!;
     const product = this.loadedImages.get('product')!;
 
-    // Draw environment (static)
     this.ctx.drawImage(environment, 0, 0, this.canvas.width, this.canvas.height);
 
-    // Calculate rotation and scale
-    const angle = progress * Math.PI * 2; // Full 360° rotation
-    const scale = 0.8 + Math.sin(progress * Math.PI * 2) * 0.1; // Subtle scale pulse
+    const angle = progress * Math.PI * 2;
+    const scale = 0.8 + Math.sin(progress * Math.PI * 2) * 0.1;
     
-    // Draw rotating product in center
     const centerX = this.canvas.width / 2;
     const centerY = this.canvas.height / 2;
     const productSize = Math.min(this.canvas.width, this.canvas.height) * 0.6;
@@ -109,16 +140,9 @@ export class VideoGenerator {
     this.ctx.translate(centerX, centerY);
     this.ctx.rotate(angle);
     this.ctx.scale(scale, scale);
-    this.ctx.drawImage(
-      product,
-      -productSize / 2,
-      -productSize / 2,
-      productSize,
-      productSize
-    );
+    this.ctx.drawImage(product, -productSize / 2, -productSize / 2, productSize, productSize);
     this.ctx.restore();
 
-    // Add subtle shadow
     this.ctx.save();
     this.ctx.globalAlpha = 0.3;
     this.ctx.fillStyle = 'black';
@@ -129,6 +153,24 @@ export class VideoGenerator {
   }
 
   private renderEnvironmentStory(progress: number): void {
+    // If already composed, apply cinematic zoom
+    if (this.assets.isComposed) {
+      const composed = this.loadedImages.get('composed')!;
+      const scale = 1.3 - progress * 0.3; // Zoom from 1.3x to 1.0x
+      const offsetX = (this.canvas.width * scale - this.canvas.width) / 2;
+      const offsetY = (this.canvas.height * scale - this.canvas.height) / 2;
+      
+      this.ctx.drawImage(
+        composed,
+        -offsetX,
+        -offsetY,
+        this.canvas.width * scale,
+        this.canvas.height * scale
+      );
+      return;
+    }
+
+    // Fallback: separate images
     const environment = this.loadedImages.get('environment')!;
     const product = this.loadedImages.get('product')!;
     const elements = this.loadedImages.get('elements');
@@ -200,18 +242,29 @@ export class VideoGenerator {
   }
 
   private renderDynamicShowcase(progress: number): void {
+    // If already composed, apply dynamic movement
+    if (this.assets.isComposed) {
+      const composed = this.loadedImages.get('composed')!;
+      const offset = Math.sin(progress * Math.PI * 2) * 50;
+      const scale = 0.95 + Math.sin(progress * Math.PI * 4) * 0.1;
+      
+      const centerX = this.canvas.width / 2;
+      const centerY = this.canvas.height / 2;
+
+      this.ctx.save();
+      this.ctx.translate(centerX + offset, centerY);
+      this.ctx.scale(scale, scale);
+      this.ctx.drawImage(composed, -this.canvas.width / 2, -this.canvas.height / 2, this.canvas.width, this.canvas.height);
+      this.ctx.restore();
+      return;
+    }
+
+    // Fallback: separate images
     const environment = this.loadedImages.get('environment')!;
     const product = this.loadedImages.get('product')!;
 
-    // Parallax effect on environment
     const envOffset = Math.sin(progress * Math.PI * 2) * 50;
-    this.ctx.drawImage(
-      environment,
-      envOffset,
-      0,
-      this.canvas.width,
-      this.canvas.height
-    );
+    this.ctx.drawImage(environment, envOffset, 0, this.canvas.width, this.canvas.height);
 
     // Product with dramatic movement
     const centerX = this.canvas.width / 2;
@@ -258,21 +311,26 @@ export class VideoGenerator {
   }
 
   private renderMinimalMotion(progress: number): void {
+    // If already composed, apply subtle breathing effect
+    if (this.assets.isComposed) {
+      const composed = this.loadedImages.get('composed')!;
+      const breathe = 1 + Math.sin(progress * Math.PI * 2) * 0.02;
+      const size = this.canvas.width * breathe;
+      const offset = (size - this.canvas.width) / 2;
+
+      this.ctx.drawImage(composed, -offset, -offset, size, size);
+      return;
+    }
+
+    // Fallback: separate images
     const environment = this.loadedImages.get('environment')!;
     const product = this.loadedImages.get('product')!;
 
-    // Subtle environment breathing effect
     const breathe = 1 + Math.sin(progress * Math.PI * 2) * 0.02;
     const envSize = this.canvas.width * breathe;
     const envOffset = (envSize - this.canvas.width) / 2;
 
-    this.ctx.drawImage(
-      environment,
-      -envOffset,
-      -envOffset,
-      envSize,
-      envSize
-    );
+    this.ctx.drawImage(environment, -envOffset, -envOffset, envSize, envSize);
 
     // Product with minimal floating motion
     const centerX = this.canvas.width / 2;

@@ -153,6 +153,7 @@ export const AIVideography = () => {
   const [enhancedProductUrl, setEnhancedProductUrl] = useState<string | null>(null);
   const [environmentUrl, setEnvironmentUrl] = useState<string | null>(null);
   const [elementsUrl, setElementsUrl] = useState<string | null>(null);
+  const [composedImageUrl, setComposedImageUrl] = useState<string | null>(null);
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -180,6 +181,12 @@ export const AIVideography = () => {
         id: 'generate-environment',
         title: 'Génération environnement',
         description: 'Création du décor et de l\'ambiance',
+        status: 'pending'
+      },
+      {
+        id: 'compose-final',
+        title: 'Composition finale',
+        description: 'Intégration du produit dans l\'environnement',
         status: 'pending'
       },
       {
@@ -235,9 +242,39 @@ export const AIVideography = () => {
     updateStepStatus('generate-environment', 'completed', { image: url });
   };
 
+  const executeComposeFinal = async () => {
+    if (!enhancedProductUrl || !environmentUrl) {
+      throw new Error('Images produit et environnement manquantes');
+    }
+
+    const composeResponse = await supabase.functions.invoke('generate-ai-video', {
+      body: {
+        step: 'compose-final',
+        productImage: enhancedProductUrl,
+        environmentImage: environmentUrl,
+        videoType,
+        videoStyle,
+        cameraEffect: animationType,
+        exportFormat,
+        textOverlay: textOverlay.enabled ? textOverlay : undefined,
+      }
+    });
+
+    if (composeResponse.error) throw composeResponse.error;
+    const url = composeResponse.data.composedImage;
+    setComposedImageUrl(url);
+    updateStepStatus('compose-final', 'completed', { image: url });
+  };
+
   const executeAnimateVideo = async () => {
-    if (!canvasRef.current || !enhancedProductUrl || !environmentUrl) {
-      throw new Error('Missing required assets');
+    if (!canvasRef.current) {
+      throw new Error('Canvas non initialisé');
+    }
+
+    // Use composed image if available, otherwise fall back to separate images
+    const hasComposedImage = !!composedImageUrl;
+    if (!hasComposedImage && (!enhancedProductUrl || !environmentUrl)) {
+      throw new Error('Images manquantes');
     }
 
     const selectedAnimation = animationTypes.find(a => a.id === animationType)!;
@@ -254,9 +291,10 @@ export const AIVideography = () => {
         textOverlay: textOverlay.enabled ? textOverlay : undefined,
       },
       {
-        productImage: enhancedProductUrl,
-        environmentImage: environmentUrl,
+        productImage: composedImageUrl || enhancedProductUrl!,
+        environmentImage: composedImageUrl || environmentUrl!,
         elementsImage: elementsUrl || undefined,
+        isComposed: hasComposedImage,
       }
     );
 
@@ -344,6 +382,8 @@ export const AIVideography = () => {
           await executeEnhanceProduct();
         } else if (step.id === 'generate-environment') {
           await executeGenerateEnvironment();
+        } else if (step.id === 'compose-final') {
+          await executeComposeFinal();
         } else if (step.id === 'animate-video') {
           await executeAnimateVideo();
         }
