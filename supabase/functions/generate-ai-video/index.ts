@@ -360,32 +360,43 @@ OUTPUT: Transparent PNG layer with enhancement elements for ${videoType}.`;
         'minimal-elegant': 'Minimal Elegant design with sophisticated simplicity and product emphasis'
       };
 
-      const compositionPrompt = `Compose a professional ${videoType} video frame by expertly combining these images:
+      const compositionPrompt = `Compose a professional ${videoType} video frame by combining these TWO images:
 
-IMAGE 1 (PRODUCT - Foreground): High-quality enhanced product photo
-IMAGE 2 (ENVIRONMENT - Background): Professional ${videoType} background
+IMAGE 1 (PRODUCT with TRANSPARENT/WHITE BACKGROUND): Enhanced product cutout
+IMAGE 2 (ENVIRONMENT): Professional ${videoType} background scene
 
 Video Type: ${videoType}
 Composition Style: ${videoTypeComposition[videoType]}
 Camera Effect: ${cameraEffect}
 Format: ${exportFormat}
 
-COMPOSITION REQUIREMENTS FOR ${videoType.toUpperCase()}:
-- Product must be the clear focal point with perfect prominence
-${videoType === 'product-showcase' ? '- Luxury presentation - product perfectly centered with premium aesthetic' : ''}
-${videoType === 'story-telling' ? '- Natural contextual placement - product integrated seamlessly in scene' : ''}
-${videoType === 'dynamic-ad' ? '- Bold dynamic placement - energetic and eye-catching positioning' : ''}
-${videoType === 'minimal-elegant' ? '- Centered minimalist composition - clean and sophisticated' : ''}
-- Professional depth of field effect - product sharp, background complementary
-- Harmonious color integration and perfect lighting coherence
-- Balance composition following rule of thirds where appropriate
-- Product appears professionally placed in ${videoType} environment
-- Optimized for ${cameraEffect} camera animation
-- ${exportFormat} format for social media
-- Ultra high resolution, commercial quality
-${textOverlay ? `\n- Leave space for text overlay: ${textOverlay.title ? 'Title area' : ''} ${textOverlay.subtitle ? 'Subtitle area' : ''} ${textOverlay.cta ? 'CTA area' : ''}` : ''}
+CRITICAL COMPOSITION STEPS FOR ${videoType.toUpperCase()}:
 
-OUTPUT: Complete professional ${videoType} frame, ${exportFormat}, product + environment perfectly composed.`;
+1. BACKGROUND REPLACEMENT (HIGHEST PRIORITY):
+   - COMPLETELY REMOVE any white, transparent, or checkerboard background from the product image
+   - REPLACE 100% of the product's background with the environment image
+   - The product must be seamlessly integrated into the environment scene
+   - NO white squares, NO transparency artifacts, NO background remnants visible
+   - Product should appear as if photographed directly in this environment
+
+2. Product Placement:
+${videoType === 'product-showcase' ? '   - Center product perfectly for luxury presentation on the environment' : ''}
+${videoType === 'story-telling' ? '   - Place product naturally within the environmental scene context' : ''}
+${videoType === 'dynamic-ad' ? '   - Position product dynamically and prominently on the environment' : ''}
+${videoType === 'minimal-elegant' ? '   - Center product with minimalist sophistication on clean background' : ''}
+   - Product must be the clear focal point
+   - Professional depth of field - product sharp, environment complementary
+
+3. Visual Integration:
+   - Match lighting between product and environment perfectly
+   - Harmonious color grading and coherence
+   - Natural shadows and reflections where appropriate
+   - Professional commercial photography quality
+   - Optimized for ${cameraEffect} camera animation
+   - ${exportFormat} format for social media
+${textOverlay ? `\n   - Leave space for text overlay: ${textOverlay.title ? 'Title area' : ''} ${textOverlay.subtitle ? 'Subtitle area' : ''} ${textOverlay.cta ? 'CTA area' : ''}` : ''}
+
+OUTPUT: Seamless ${videoType} composition with product fully integrated into environment - ZERO white/transparent background visible, ${exportFormat} format.`;
 
       const messages = [
         {
