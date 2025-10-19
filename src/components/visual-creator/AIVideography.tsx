@@ -214,11 +214,10 @@ export const AIVideography = () => {
   };
 
   const executeEnhanceProduct = async () => {
-    // First upload the original image to Supabase Storage to avoid sending large base64 in body
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Utilisateur non authentifié');
     
-    // Convert base64 image to blob if needed
+    // Convert base64 image to blob if needed and upload to avoid large payloads
     let imageUrl = image;
     if (image.startsWith('data:')) {
       const blob = await fetch(image).then(r => r.blob());
@@ -228,7 +227,10 @@ export const AIVideography = () => {
         .from('media')
         .upload(uploadFileName, blob, { contentType: 'image/png', upsert: false });
       
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload original image error:', uploadError);
+        throw new Error(`Échec upload image: ${uploadError.message}`);
+      }
       
       const { data: { publicUrl } } = supabase.storage
         .from('media')
@@ -237,8 +239,9 @@ export const AIVideography = () => {
       imageUrl = publicUrl;
     }
     
-    // Now call edge function with URL instead of base64
     try {
+      console.log('Calling enhance-product with URL:', imageUrl);
+      
       const enhanceResponse = await supabase.functions.invoke('generate-ai-video', {
         body: {
           step: 'enhance-product',
@@ -249,29 +252,55 @@ export const AIVideography = () => {
         }
       });
 
+      console.log('Enhance response:', enhanceResponse);
+
       if (enhanceResponse.error) {
+        console.error('Edge function error:', enhanceResponse.error);
         throw new Error(enhanceResponse.error.message || 'Échec de l\'amélioration du produit');
       }
       
-      const base64Url = enhanceResponse.data.enhancedImage;
+      if (!enhanceResponse.data || !enhanceResponse.data.enhancedImage) {
+        console.error('Invalid response data:', enhanceResponse.data);
+        throw new Error('Réponse invalide: image améliorée manquante');
+      }
       
-      // Convert enhanced image to blob and upload to Supabase Storage
-      const blob = await fetch(base64Url).then(r => r.blob());
-      const fileName = `${user.id}/ai-video-steps/product-${Date.now()}.png`;
+      const enhancedImageUrl = enhanceResponse.data.enhancedImage;
+      console.log('Enhanced image URL type:', enhancedImageUrl.substring(0, 50));
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+      // Check if it's already a public URL or base64
+      let finalUrl = enhancedImageUrl;
       
-      if (uploadError) throw uploadError;
+      if (enhancedImageUrl.startsWith('data:')) {
+        // It's base64, convert and upload
+        console.log('Converting base64 to blob and uploading...');
+        const blob = await fetch(enhancedImageUrl).then(r => r.blob());
+        const fileName = `${user.id}/ai-video-steps/product-${Date.now()}.png`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+        
+        if (uploadError) {
+          console.error('Upload enhanced image error:', uploadError);
+          throw new Error(`Échec upload image améliorée: ${uploadError.message}`);
+        }
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(uploadData.path);
+        
+        finalUrl = publicUrl;
+        console.log('Uploaded enhanced image to:', finalUrl);
+      } else {
+        console.log('Enhanced image is already a public URL:', finalUrl);
+      }
       
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(uploadData.path);
-      
-      setEnhancedProductUrl(publicUrl);
-      updateStepStatus('enhance-product', 'completed', { image: publicUrl });
+      setEnhancedProductUrl(finalUrl);
+      updateStepStatus('enhance-product', 'completed', { image: finalUrl });
+      console.log('Product enhancement completed successfully');
     } catch (error: any) {
+      console.error('executeEnhanceProduct error:', error);
+      
       // Handle network errors specifically
       if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
         throw new Error('Erreur de connexion. Vérifiez votre connexion internet et réessayez.');
@@ -282,6 +311,8 @@ export const AIVideography = () => {
 
   const executeGenerateEnvironment = async () => {
     try {
+      console.log('Calling generate-environment...');
+      
       const envResponse = await supabase.functions.invoke('generate-ai-video', {
         body: {
           step: 'generate-environment',
@@ -292,33 +323,53 @@ export const AIVideography = () => {
         }
       });
 
+      console.log('Environment response:', envResponse);
+
       if (envResponse.error) {
+        console.error('Edge function error:', envResponse.error);
         throw new Error(envResponse.error.message || 'Échec de la génération d\'environnement');
       }
       
-      const base64Url = envResponse.data.environmentImage;
+      if (!envResponse.data || !envResponse.data.environmentImage) {
+        console.error('Invalid response data:', envResponse.data);
+        throw new Error('Réponse invalide: image environnement manquante');
+      }
       
-      // Convert base64 to blob and upload to Supabase Storage
+      const environmentImageUrl = envResponse.data.environmentImage;
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non authentifié');
       
-      const blob = await fetch(base64Url).then(r => r.blob());
-      const fileName = `${user.id}/ai-video-steps/environment-${Date.now()}.png`;
+      let finalUrl = environmentImageUrl;
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+      if (environmentImageUrl.startsWith('data:')) {
+        console.log('Converting base64 environment to blob and uploading...');
+        const blob = await fetch(environmentImageUrl).then(r => r.blob());
+        const fileName = `${user.id}/ai-video-steps/environment-${Date.now()}.png`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+        
+        if (uploadError) {
+          console.error('Upload environment error:', uploadError);
+          throw new Error(`Échec upload environnement: ${uploadError.message}`);
+        }
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(uploadData.path);
+        
+        finalUrl = publicUrl;
+        console.log('Uploaded environment to:', finalUrl);
+      }
       
-      if (uploadError) throw uploadError;
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(uploadData.path);
-      
-      setEnvironmentUrl(publicUrl);
-      updateStepStatus('generate-environment', 'completed', { image: publicUrl });
+      setEnvironmentUrl(finalUrl);
+      updateStepStatus('generate-environment', 'completed', { image: finalUrl });
+      console.log('Environment generation completed successfully');
     } catch (error: any) {
-      // Handle network errors specifically
+      console.error('executeGenerateEnvironment error:', error);
+      
       if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
         throw new Error('Erreur de connexion. Vérifiez votre connexion internet et réessayez.');
       }
@@ -332,6 +383,8 @@ export const AIVideography = () => {
     }
 
     try {
+      console.log('Calling compose-final with:', { enhancedProductUrl, environmentUrl });
+      
       const composeResponse = await supabase.functions.invoke('generate-ai-video', {
         body: {
           step: 'compose-final',
@@ -345,33 +398,53 @@ export const AIVideography = () => {
         }
       });
 
+      console.log('Compose response:', composeResponse);
+
       if (composeResponse.error) {
+        console.error('Edge function error:', composeResponse.error);
         throw new Error(composeResponse.error.message || 'Échec de la composition finale');
       }
       
-      const base64Url = composeResponse.data.composedImage;
+      if (!composeResponse.data || !composeResponse.data.composedImage) {
+        console.error('Invalid response data:', composeResponse.data);
+        throw new Error('Réponse invalide: image composée manquante');
+      }
       
-      // Convert base64 to blob and upload to Supabase Storage
+      const composedImageUrl = composeResponse.data.composedImage;
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Utilisateur non authentifié');
       
-      const blob = await fetch(base64Url).then(r => r.blob());
-      const fileName = `${user.id}/ai-video-steps/composed-${Date.now()}.png`;
+      let finalUrl = composedImageUrl;
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+      if (composedImageUrl.startsWith('data:')) {
+        console.log('Converting base64 composed image to blob and uploading...');
+        const blob = await fetch(composedImageUrl).then(r => r.blob());
+        const fileName = `${user.id}/ai-video-steps/composed-${Date.now()}.png`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(fileName, blob, { contentType: 'image/png', upsert: false });
+        
+        if (uploadError) {
+          console.error('Upload composed image error:', uploadError);
+          throw new Error(`Échec upload image composée: ${uploadError.message}`);
+        }
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(uploadData.path);
+        
+        finalUrl = publicUrl;
+        console.log('Uploaded composed image to:', finalUrl);
+      }
       
-      if (uploadError) throw uploadError;
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('media')
-        .getPublicUrl(uploadData.path);
-      
-      setComposedImageUrl(publicUrl);
-      updateStepStatus('compose-final', 'completed', { image: publicUrl });
+      setComposedImageUrl(finalUrl);
+      updateStepStatus('compose-final', 'completed', { image: finalUrl });
+      console.log('Composition completed successfully');
     } catch (error: any) {
-      // Handle network errors specifically
+      console.error('executeComposeFinal error:', error);
+      
       if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
         throw new Error('Erreur de connexion. Vérifiez votre connexion internet et réessayez.');
       }
