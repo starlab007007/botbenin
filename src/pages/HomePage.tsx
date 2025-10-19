@@ -16,9 +16,10 @@ export const HomePage: React.FC = () => {
   const isMobile = useIsMobile();
 
   return (
-    <div className={`w-full space-y-6 sm:space-y-8 ${isMobile ? 'px-[2.5%]' : ''}`}>
-      {/* Header de bienvenue - responsive */}
-      <WelcomeHeader userName={user?.name} />
+    <div className="w-full min-h-screen">
+      <div className={`max-w-7xl mx-auto space-y-6 sm:space-y-8 px-4 sm:px-6 lg:px-8 py-4 sm:py-6`}>
+        {/* Header de bienvenue - responsive */}
+        <WelcomeHeader userName={user?.name} />
 
       {/* Section WhatsApp Hero - Mise en avant */}
       <WhatsAppHero />
@@ -34,18 +35,19 @@ export const HomePage: React.FC = () => {
         <IABenefitsCards />
       </div>
 
-      {/* Section des plans tarifaires */}
-      <div className="-mx-[2.5%] sm:mx-0">
-        <PricingSection />
-      </div>
+        {/* Section des plans tarifaires */}
+        <div className="-mx-4 sm:mx-0">
+          <PricingSection />
+        </div>
 
-      {/* Tableau de comparaison des packs */}
-      <div className="-mx-[2.5%] sm:mx-0">
-        <PricingComparison />
-      </div>
+        {/* Tableau de comparaison des packs */}
+        <div className="-mx-4 sm:mx-0">
+          <PricingComparison />
+        </div>
 
-      {/* Bouton de chat en direct */}
-      <FloatingChatButton />
+        {/* Bouton de chat en direct */}
+        <FloatingChatButton />
+      </div>
     </div>
   );
 };

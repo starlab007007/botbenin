@@ -52,32 +52,32 @@ const iaBenefits = [
 export const IABenefitsCards: React.FC = () => {
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
+      <div className="text-center px-4 sm:px-6">
+        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
           L'IA est faite pour vous si :
         </h2>
-        <p className="text-gray-600 text-lg max-w-3xl mx-auto">
+        <p className="text-gray-600 text-base sm:text-lg max-w-3xl mx-auto">
           Découvrez comment notre intelligence artificielle peut transformer votre entreprise
         </p>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {iaBenefits.map((benefit, index) => (
           <Card 
             key={index}
-            className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2 bg-white border-0 overflow-hidden relative"
+            className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-2 bg-white border-0 overflow-hidden relative"
           >
             <div className={`absolute inset-0 bg-gradient-to-br ${benefit.color} opacity-5 group-hover:opacity-10 transition-opacity`}></div>
-            <CardHeader className="pb-4 relative">
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${benefit.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                <benefit.icon className="w-6 h-6 text-white" />
+            <CardHeader className="pb-3 sm:pb-4 relative px-4 sm:px-6">
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${benefit.color} flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 transition-transform`}>
+                <benefit.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors leading-tight">
+              <CardTitle className="text-base sm:text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors leading-tight">
                 {benefit.title}
               </CardTitle>
             </CardHeader>
-            <CardContent className="relative">
-              <CardDescription className="text-gray-600 leading-relaxed">
+            <CardContent className="relative px-4 sm:px-6">
+              <CardDescription className="text-gray-600 leading-relaxed text-sm sm:text-base">
                 {benefit.description}
               </CardDescription>
             </CardContent>
