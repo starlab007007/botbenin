@@ -324,15 +324,18 @@ export const AIVideography = () => {
 
     const { blob: videoBlob, url: videoUrl } = await recordVideo();
 
+    // Déterminer le type MIME du blob
+    const videoType = videoBlob.type === 'video/mp4' ? 'mp4' : 'webm';
+
     // Get user ID for storage path
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Utilisateur non authentifié');
 
-    const fileName = `${user.id}/ai-videos/${Date.now()}.webm`;
+    const fileName = `${user.id}/ai-videos/${Date.now()}.${videoType}`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('media')
       .upload(fileName, videoBlob, {
-        contentType: 'video/webm',
+        contentType: videoBlob.type,
         upsert: false,
       });
 
@@ -364,7 +367,8 @@ export const AIVideography = () => {
           videoType,
           duration: selectedAnimation.duration,
           exportFormat,
-          originalFormat: 'webm'
+          originalFormat: videoBlob.type === 'video/mp4' ? 'mp4' : 'webm',
+          compatible: 'all-devices' // MP4 compatible avec tous les appareils
         }
       });
 
@@ -967,12 +971,18 @@ export const AIVideography = () => {
             <div className="p-4 bg-muted rounded-lg space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Format:</span>
-                <span className="font-medium">{exportFormat} • 30 FPS • WebM</span>
+                <span className="font-medium">{exportFormat} • 30 FPS • {result.blob?.type === 'video/mp4' ? 'MP4' : 'WebM'}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Durée:</span>
                 <span className="font-medium">
                   {animationTypes.find(a => a.id === animationType)?.duration}s
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Compatibilité:</span>
+                <span className="font-medium text-green-600">
+                  ✓ Tous appareils {result.blob?.type === 'video/mp4' && '(MP4)'}
                 </span>
               </div>
               {result.blob && (
