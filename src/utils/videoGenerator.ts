@@ -48,31 +48,56 @@ export class VideoGenerator {
           return;
         }
         
-        console.log(`Loading ${label}, source length:`, src.length, 'type:', src.substring(0, 30));
+        console.log(`🖼️ Loading ${label}, source type:`, src.substring(0, 30), 'length:', src.length);
         
         const img = new Image();
         img.crossOrigin = 'anonymous';
         
+        const timeout = setTimeout(() => {
+          console.error(`⏱️ Timeout loading ${label}`);
+          reject(new Error(`Timeout lors du chargement de ${label}`));
+        }, 30000); // 30 second timeout
+        
         img.onload = () => {
-          console.log(`✅ ${label} loaded successfully:`, img.width, 'x', img.height);
+          clearTimeout(timeout);
+          console.log(`✅ ${label} loaded:`, img.width, 'x', img.height, 'naturalWidth:', img.naturalWidth);
+          
+          // Verify image has valid dimensions
+          if (img.width === 0 || img.height === 0 || img.naturalWidth === 0) {
+            reject(new Error(`${label} chargée mais dimensions invalides`));
+            return;
+          }
+          
           resolve(img);
         };
         
         img.onerror = (error) => {
-          console.error(`❌ Failed to load ${label}:`, error);
+          clearTimeout(timeout);
+          console.error(`❌ Failed to load ${label}:`, error, 'Source preview:', src.substring(0, 100));
           reject(new Error(`Impossible de charger ${label}: image invalide ou corrompue`));
         };
         
-        img.src = src;
+        // Add a small delay for base64 images to ensure proper decoding
+        if (src.startsWith('data:image')) {
+          setTimeout(() => {
+            img.src = src;
+          }, 100);
+        } else {
+          img.src = src;
+        }
       });
     };
 
     try {
+      console.log('📦 Starting asset loading...', { isComposed: this.assets.isComposed });
+      
       // If already composed, load as single composed image
       if (this.assets.isComposed) {
         const composed = await loadImage(this.assets.productImage, 'composed image');
         this.loadedImages.set('composed', composed);
+        console.log('✅ Composed image ready');
       } else {
+        console.log('Loading separate product and environment images...');
         const [product, environment] = await Promise.all([
           loadImage(this.assets.productImage, 'product image'),
           loadImage(this.assets.environmentImage, 'environment image')
@@ -80,16 +105,23 @@ export class VideoGenerator {
         
         this.loadedImages.set('product', product);
         this.loadedImages.set('environment', environment);
+        console.log('✅ Product and environment images ready');
       }
 
       if (this.assets.elementsImage) {
         const elements = await loadImage(this.assets.elementsImage, 'elements image');
         this.loadedImages.set('elements', elements);
+        console.log('✅ Elements image ready');
       }
       
-      console.log('✅ All assets loaded successfully');
+      console.log('✅✅✅ ALL ASSETS LOADED SUCCESSFULLY ✅✅✅', 'Total images:', this.loadedImages.size);
+      
+      // Test render one frame to ensure canvas works
+      this.renderFrame(0, 1);
+      console.log('✅ Test frame rendered successfully');
+      
     } catch (error) {
-      console.error('❌ Asset loading failed:', error);
+      console.error('❌❌❌ ASSET LOADING FAILED:', error);
       throw error;
     }
   }
@@ -97,8 +129,22 @@ export class VideoGenerator {
   renderFrame(frameNumber: number, totalFrames: number): void {
     const progress = frameNumber / totalFrames;
     
-    // Clear canvas
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // Clear canvas with white background to avoid black screen
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Verify images are loaded
+    if (this.assets.isComposed && !this.loadedImages.has('composed')) {
+      console.error('⚠️ Composed image not loaded yet for frame', frameNumber);
+      return;
+    }
+    
+    if (!this.assets.isComposed) {
+      if (!this.loadedImages.has('product') || !this.loadedImages.has('environment')) {
+        console.error('⚠️ Product or environment not loaded yet for frame', frameNumber);
+        return;
+      }
+    }
 
     switch (this.config.animationType) {
       case 'product-rotation':
@@ -124,7 +170,12 @@ export class VideoGenerator {
   private renderProductRotation(progress: number): void {
     // If image is already composed, apply animation to the entire composed image
     if (this.assets.isComposed) {
-      const composed = this.loadedImages.get('composed')!;
+      const composed = this.loadedImages.get('composed');
+      
+      if (!composed) {
+        console.error('⚠️ Composed image missing in renderProductRotation');
+        return;
+      }
       
       // Calculate rotation and scale
       const angle = progress * Math.PI * 2; // Full 360° rotation
@@ -137,50 +188,71 @@ export class VideoGenerator {
       this.ctx.translate(centerX, centerY);
       this.ctx.rotate(angle);
       this.ctx.scale(scale, scale);
-      this.ctx.drawImage(
-        composed,
-        -this.canvas.width / 2,
-        -this.canvas.height / 2,
-        this.canvas.width,
-        this.canvas.height
-      );
+      
+      try {
+        this.ctx.drawImage(
+          composed,
+          -this.canvas.width / 2,
+          -this.canvas.height / 2,
+          this.canvas.width,
+          this.canvas.height
+        );
+      } catch (error) {
+        console.error('❌ Error drawing composed image:', error);
+      }
+      
       this.ctx.restore();
       return;
     }
 
     // Fallback: separate images
-    const environment = this.loadedImages.get('environment')!;
-    const product = this.loadedImages.get('product')!;
-
-    this.ctx.drawImage(environment, 0, 0, this.canvas.width, this.canvas.height);
-
-    const angle = progress * Math.PI * 2;
-    const scale = 0.8 + Math.sin(progress * Math.PI * 2) * 0.1;
+    const environment = this.loadedImages.get('environment');
+    const product = this.loadedImages.get('product');
     
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
-    const productSize = Math.min(this.canvas.width, this.canvas.height) * 0.6;
+    if (!environment || !product) {
+      console.error('⚠️ Product or environment missing in renderProductRotation');
+      return;
+    }
 
-    this.ctx.save();
-    this.ctx.translate(centerX, centerY);
-    this.ctx.rotate(angle);
-    this.ctx.scale(scale, scale);
-    this.ctx.drawImage(product, -productSize / 2, -productSize / 2, productSize, productSize);
-    this.ctx.restore();
+    try {
+      this.ctx.drawImage(environment, 0, 0, this.canvas.width, this.canvas.height);
 
-    this.ctx.save();
-    this.ctx.globalAlpha = 0.3;
-    this.ctx.fillStyle = 'black';
-    this.ctx.beginPath();
-    this.ctx.ellipse(centerX, centerY + productSize * 0.4, productSize * 0.4, productSize * 0.1, 0, 0, Math.PI * 2);
-    this.ctx.fill();
-    this.ctx.restore();
+      const angle = progress * Math.PI * 2;
+      const scale = 0.8 + Math.sin(progress * Math.PI * 2) * 0.1;
+      
+      const centerX = this.canvas.width / 2;
+      const centerY = this.canvas.height / 2;
+      const productSize = Math.min(this.canvas.width, this.canvas.height) * 0.6;
+
+      this.ctx.save();
+      this.ctx.translate(centerX, centerY);
+      this.ctx.rotate(angle);
+      this.ctx.scale(scale, scale);
+      this.ctx.drawImage(product, -productSize / 2, -productSize / 2, productSize, productSize);
+      this.ctx.restore();
+      
+      // Add shadow effect
+      this.ctx.save();
+      this.ctx.globalAlpha = 0.3;
+      this.ctx.fillStyle = 'black';
+      this.ctx.beginPath();
+      this.ctx.ellipse(centerX, centerY + productSize * 0.4, productSize * 0.4, productSize * 0.1, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    } catch (error) {
+      console.error('❌ Error drawing images:', error);
+    }
   }
 
   private renderEnvironmentStory(progress: number): void {
     // If already composed, apply cinematic zoom
     if (this.assets.isComposed) {
-      const composed = this.loadedImages.get('composed')!;
+      const composed = this.loadedImages.get('composed');
+      if (!composed) {
+        console.error('⚠️ Composed image missing in renderEnvironmentStory');
+        return;
+      }
+      
       const scale = 1.3 - progress * 0.3; // Zoom from 1.3x to 1.0x
       const offsetX = (this.canvas.width * scale - this.canvas.width) / 2;
       const offsetY = (this.canvas.height * scale - this.canvas.height) / 2;
@@ -196,9 +268,14 @@ export class VideoGenerator {
     }
 
     // Fallback: separate images
-    const environment = this.loadedImages.get('environment')!;
-    const product = this.loadedImages.get('product')!;
+    const environment = this.loadedImages.get('environment');
+    const product = this.loadedImages.get('product');
     const elements = this.loadedImages.get('elements');
+    
+    if (!environment || !product) {
+      console.error('⚠️ Product or environment missing in renderEnvironmentStory');
+      return;
+    }
 
     // Phase 1: Environment zoom in (0-0.3)
     if (progress < 0.3) {
@@ -269,7 +346,12 @@ export class VideoGenerator {
   private renderDynamicShowcase(progress: number): void {
     // If already composed, apply dynamic movement
     if (this.assets.isComposed) {
-      const composed = this.loadedImages.get('composed')!;
+      const composed = this.loadedImages.get('composed');
+      if (!composed) {
+        console.error('⚠️ Composed image missing in renderDynamicShowcase');
+        return;
+      }
+      
       const offset = Math.sin(progress * Math.PI * 2) * 50;
       const scale = 0.95 + Math.sin(progress * Math.PI * 4) * 0.1;
       
@@ -285,8 +367,13 @@ export class VideoGenerator {
     }
 
     // Fallback: separate images
-    const environment = this.loadedImages.get('environment')!;
-    const product = this.loadedImages.get('product')!;
+    const environment = this.loadedImages.get('environment');
+    const product = this.loadedImages.get('product');
+    
+    if (!environment || !product) {
+      console.error('⚠️ Product or environment missing in renderDynamicShowcase');
+      return;
+    }
 
     const envOffset = Math.sin(progress * Math.PI * 2) * 50;
     this.ctx.drawImage(environment, envOffset, 0, this.canvas.width, this.canvas.height);
@@ -338,7 +425,12 @@ export class VideoGenerator {
   private renderMinimalMotion(progress: number): void {
     // If already composed, apply subtle breathing effect
     if (this.assets.isComposed) {
-      const composed = this.loadedImages.get('composed')!;
+      const composed = this.loadedImages.get('composed');
+      if (!composed) {
+        console.error('⚠️ Composed image missing in renderMinimalMotion');
+        return;
+      }
+      
       const breathe = 1 + Math.sin(progress * Math.PI * 2) * 0.02;
       const size = this.canvas.width * breathe;
       const offset = (size - this.canvas.width) / 2;
@@ -348,8 +440,13 @@ export class VideoGenerator {
     }
 
     // Fallback: separate images
-    const environment = this.loadedImages.get('environment')!;
-    const product = this.loadedImages.get('product')!;
+    const environment = this.loadedImages.get('environment');
+    const product = this.loadedImages.get('product');
+    
+    if (!environment || !product) {
+      console.error('⚠️ Product or environment missing in renderMinimalMotion');
+      return;
+    }
 
     const breathe = 1 + Math.sin(progress * Math.PI * 2) * 0.02;
     const envSize = this.canvas.width * breathe;

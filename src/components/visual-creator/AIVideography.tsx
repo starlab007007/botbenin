@@ -349,10 +349,23 @@ export const AIVideography = () => {
       console.log('📦 Loading video assets...');
       await videoGenerator.loadAssets();
       console.log('✅ Assets loaded successfully');
+      
+      // Wait additional time for canvas to stabilize
+      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('✅ Canvas stabilized');
     
       const recordVideo = (): Promise<{ blob: Blob; url: string }> => {
         return new Promise((resolve, reject) => {
           console.log('🎥 Starting video recording...');
+          
+          let recordingStarted = false;
+          let animationStarted = false;
+          
+          const checkBothStarted = () => {
+            if (recordingStarted && animationStarted) {
+              console.log('✅ Both recording and animation started successfully');
+            }
+          };
           
           videoRecorder.startRecording(
             {
@@ -366,25 +379,41 @@ export const AIVideography = () => {
                 type: blob.type,
                 url: url.substring(0, 50)
               });
+              
+              // Verify blob is not empty
+              if (blob.size < 1000) {
+                reject(new Error('Vidéo générée trop petite (probablement vide)'));
+                return;
+              }
+              
               resolve({ blob, url });
             }
-          ).catch((error) => {
+          ).then(() => {
+            recordingStarted = true;
+            checkBothStarted();
+          }).catch((error) => {
             console.error('❌ Recording error:', error);
             reject(new Error('Erreur d\'enregistrement vidéo: ' + (error?.message || String(error))));
           });
 
-          videoGenerator.animate((progress) => {
-            setGenerationStep(`Animation: ${Math.round(progress * 100)}%`);
-          }).catch((error) => {
-            console.error('❌ Animation error:', error);
-            reject(new Error('Erreur d\'animation: ' + (error?.message || String(error))));
-          });
+          // Start animation slightly after recording
+          setTimeout(() => {
+            videoGenerator.animate((progress) => {
+              setGenerationStep(`Animation: ${Math.round(progress * 100)}%`);
+            }).then(() => {
+              animationStarted = true;
+              checkBothStarted();
+            }).catch((error) => {
+              console.error('❌ Animation error:', error);
+              reject(new Error('Erreur d\'animation: ' + (error?.message || String(error))));
+            });
+          }, 100);
         });
       };
 
       console.log('🎬 Recording video...');
       const { blob: videoBlob, url: videoUrl } = await recordVideo();
-      console.log('✅ Video recorded successfully');
+      console.log('✅ Video recorded successfully, blob size:', videoBlob.size, 'type:', videoBlob.type);
 
       // Get user ID for storage path
       console.log('💾 Uploading video to storage...');
