@@ -56,27 +56,27 @@ export const UniversalMediaModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`${isFullscreen ? 'max-w-[95vw] h-[95vh]' : 'max-w-4xl'} p-0`}>
-        <div className="flex flex-col h-full">
+      <DialogContent className={`${isFullscreen ? 'max-w-[98vw] h-[98vh]' : 'max-w-[95vw] md:max-w-4xl w-full'} ${isFullscreen ? 'p-0' : 'p-0'} gap-0`}>
+        <div className="flex flex-col h-full max-h-[98vh]">
           {/* Header */}
-          <DialogHeader className="p-6 pb-4 border-b">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <DialogTitle className="text-xl font-bold mb-2">
+          <DialogHeader className="p-3 md:p-6 pb-3 md:pb-4 border-b flex-shrink-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-base md:text-xl font-bold mb-2 truncate">
                   {media.title}
                 </DialogTitle>
-                <div className="space-y-1 text-sm text-muted-foreground">
+                <div className="space-y-1 text-xs md:text-sm text-muted-foreground">
                   <p><span className="font-medium">Type:</span> {media.type}</p>
                   {media.style && <p><span className="font-medium">Style:</span> {media.style}</p>}
                   {media.format && <p><span className="font-medium">Format:</span> {media.format}</p>}
-                  <p className="text-xs italic">{media.prompt}</p>
+                  <p className="text-xs italic line-clamp-2">{media.prompt}</p>
                 </div>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={onClose}
-                className="ml-4"
+                className="ml-2 flex-shrink-0"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -84,33 +84,40 @@ export const UniversalMediaModal = ({
           </DialogHeader>
 
           {/* Content */}
-          <div className="flex-1 overflow-auto bg-muted/30 relative">
-            <div className="flex items-center justify-center min-h-full p-6">
+          <div className="flex-1 overflow-auto bg-muted/30 relative min-h-0">
+            <div className="flex items-center justify-center min-h-full p-3 md:p-6">
               {isVideo ? (
                 <video
+                  key={media.image_url}
                   src={media.image_url}
                   controls
                   autoPlay
                   loop
+                  playsInline
                   className="max-w-full max-h-full rounded-lg shadow-lg"
                   style={{ transform: `scale(${zoom})` }}
-                />
+                >
+                  Votre navigateur ne supporte pas la lecture vidéo.
+                </video>
               ) : (
                 <img
                   src={media.image_url}
                   alt={media.title || 'Création'}
-                  className="max-w-full max-h-full rounded-lg shadow-lg transition-transform duration-200 cursor-move"
+                  className="max-w-full max-h-full rounded-lg shadow-lg transition-transform duration-200"
                   style={{ transform: `scale(${zoom})` }}
                   draggable={false}
+                  onError={(e) => {
+                    console.error('Image load error:', e);
+                  }}
                 />
               )}
             </div>
           </div>
 
           {/* Actions Bar */}
-          <div className="p-4 border-t bg-background flex items-center justify-between gap-2 flex-wrap">
+          <div className="p-2 md:p-4 border-t bg-background flex items-center justify-between gap-2 flex-wrap flex-shrink-0">
             {/* Zoom Controls */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 order-1 w-full sm:w-auto justify-center sm:justify-start">
               <Button
                 variant="outline"
                 size="sm"
@@ -146,53 +153,53 @@ export const UniversalMediaModal = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 md:gap-2 flex-wrap order-2 w-full sm:w-auto justify-center sm:justify-end">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => media.image_url && shareOnWhatsApp(media.image_url, media.title)}
-                className="gap-2"
+                className="gap-1 text-xs md:text-sm px-2 md:px-3"
               >
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp
+                <MessageCircle className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">WhatsApp</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => media.image_url && shareOnFacebook(media.image_url)}
-                className="gap-2"
+                className="gap-1 text-xs md:text-sm px-2 md:px-3"
               >
-                <Facebook className="h-4 w-4" />
-                Facebook
+                <Facebook className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Facebook</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => media.image_url && shareOnTikTok(media.image_url, media.title)}
-                className="gap-2"
+                className="gap-1 text-xs md:text-sm px-2 md:px-3"
               >
-                <VideoIcon className="h-4 w-4" />
-                TikTok
+                <VideoIcon className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">TikTok</span>
               </Button>
               {navigator.share && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleShareNative}
-                  className="gap-2"
+                  className="gap-1 text-xs md:text-sm px-2 md:px-3"
                 >
-                  <Share2 className="h-4 w-4" />
-                  Partager
+                  <Share2 className="h-3 w-3 md:h-4 md:w-4" />
+                  <span className="hidden sm:inline">Partager</span>
                 </Button>
               )}
               <Button
                 variant="default"
                 size="sm"
                 onClick={handleDownload}
-                className="gap-2"
+                className="gap-1 text-xs md:text-sm px-2 md:px-3"
               >
-                <Download className="h-4 w-4" />
-                Télécharger {isVideo ? 'MP4' : 'Image'}
+                <Download className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden lg:inline">Télécharger</span> {isVideo ? 'MP4' : 'IMG'}
               </Button>
             </div>
           </div>

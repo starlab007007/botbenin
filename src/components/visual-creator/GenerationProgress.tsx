@@ -251,10 +251,14 @@ export const GenerationProgress = ({
                       </Button>
                     )}
 
-                    {index === currentStepIndex && index < steps.length - 1 && (
+                    {step.status === 'completed' && index === currentStepIndex && index < steps.length - 1 && (
                       <Button
                         size="sm"
-                        onClick={onContinue}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onContinue();
+                        }}
                         className="gap-2 ml-auto bg-primary hover:bg-primary/90"
                       >
                         <Play className="w-4 h-4" />
@@ -280,55 +284,59 @@ export const GenerationProgress = ({
         ))}
       </div>
 
-      {/* Preview Dialog */}
+      {/* Preview Dialog - Responsive and Full-Featured */}
       <Dialog open={!!previewStep} onOpenChange={(open) => !open && setPreviewStep(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>{previewStep?.title}</span>
-              {previewStep?.result?.image && previewStep.id !== 'animate-video' && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDownloadImage(previewStep.result.image!, previewStep.title)}
-                  className="gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Télécharger
-                </Button>
-              )}
-            </DialogTitle>
+        <DialogContent className="max-w-[95vw] w-full h-[95vh] md:max-w-5xl md:h-[90vh] p-0 gap-0">
+          <DialogHeader className="p-4 md:p-6 border-b">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <DialogTitle className="text-lg md:text-xl">{previewStep?.title}</DialogTitle>
+              <div className="flex gap-2 flex-wrap">
+                {previewStep?.result?.image && previewStep.id !== 'animate-video' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadImage(previewStep.result.image!, previewStep.title)}
+                    className="gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Télécharger</span>
+                  </Button>
+                )}
+              </div>
+            </div>
           </DialogHeader>
           
-          {previewStep?.result?.image && previewStep.id !== 'animate-video' && (
-            <div className="rounded-lg overflow-hidden bg-muted">
-              <img 
-                src={previewStep.result.image} 
-                alt={previewStep.title}
-                className="w-full h-auto object-contain"
-              />
-            </div>
-          )}
+          <div className="flex-1 overflow-auto bg-muted/30 p-4 md:p-6">
+            {previewStep?.result?.image && previewStep.id !== 'animate-video' && (
+              <div className="flex items-center justify-center min-h-full">
+                <img 
+                  src={previewStep.result.image} 
+                  alt={previewStep.title}
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                />
+              </div>
+            )}
 
-          {previewStep?.result?.image && previewStep.id === 'animate-video' && (
-            <div className="rounded-lg overflow-hidden bg-black">
-              <video
-                src={previewStep.result.image}
-                controls
-                autoPlay
-                loop
-                className="w-full h-auto"
-              >
-                Votre navigateur ne supporte pas la lecture vidéo.
-              </video>
-            </div>
-          )}
+            {previewStep?.result?.image && previewStep.id === 'animate-video' && (
+              <div className="flex items-center justify-center min-h-full">
+                <video
+                  src={previewStep.result.image}
+                  controls
+                  autoPlay
+                  loop
+                  className="max-w-full max-h-full rounded-lg shadow-lg"
+                >
+                  Votre navigateur ne supporte pas la lecture vidéo.
+                </video>
+              </div>
+            )}
 
-          {previewStep?.result?.data && (
-            <pre className="p-4 bg-muted rounded-lg text-sm overflow-auto max-h-96">
-              {JSON.stringify(previewStep.result.data, null, 2)}
-            </pre>
-          )}
+            {previewStep?.result?.data && (
+              <pre className="p-4 bg-background rounded-lg text-sm overflow-auto max-h-[70vh]">
+                {JSON.stringify(previewStep.result.data, null, 2)}
+              </pre>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
