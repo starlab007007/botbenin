@@ -7,6 +7,7 @@ import { QuickActions } from '@/components/home/QuickActions';
 import { WhatsAppHero } from '@/components/home/WhatsAppHero';
 import { AuditSection } from '@/components/home/AuditSection';
 import { PricingSection } from '@/components/home/PricingSection';
+import { PricingComparison } from '@/components/home/PricingComparison';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { FloatingChatButton } from '@/components/FloatingChatButton';
 
@@ -36,6 +37,11 @@ export const HomePage: React.FC = () => {
       {/* Section des plans tarifaires */}
       <div className="-mx-[2.5%] sm:mx-0">
         <PricingSection />
+      </div>
+
+      {/* Tableau de comparaison des packs */}
+      <div className="-mx-[2.5%] sm:mx-0">
+        <PricingComparison />
       </div>
 
       {/* Bouton de chat en direct */}
