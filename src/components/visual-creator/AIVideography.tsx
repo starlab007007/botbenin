@@ -281,9 +281,14 @@ export const AIVideography = () => {
 
     const { blob: videoBlob, url: videoUrl } = await recordVideo();
 
+    // Get user ID for storage path
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Utilisateur non authentifié');
+
+    const fileName = `${user.id}/ai-videos/${Date.now()}.webm`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('media')
-      .upload(`ai-videos/${Date.now()}.webm`, videoBlob, {
+      .upload(fileName, videoBlob, {
         contentType: 'video/webm',
         upsert: false,
       });
