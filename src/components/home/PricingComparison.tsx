@@ -3,18 +3,19 @@ import { Check, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-interface ComparisonFeature {
-  category: string;
-  features: {
-    name: string;
-    decouverte: boolean | string;
-    starter: boolean | string;
-    businessPro: boolean | string;
-    marketing: boolean | string;
-    serviceClient: boolean | string;
-    enterprise: boolean | string;
-  }[];
-}
+  interface ComparisonFeature {
+    category: string;
+    features: {
+      name: string;
+      decouverte: boolean | string;
+      starter: boolean | string;
+      businessPro: boolean | string;
+      marketing: boolean | string;
+      serviceClient: boolean | string;
+      iaCreateur: boolean | string;
+      enterprise: boolean | string;
+    }[];
+  }
 
 export const PricingComparison: React.FC = () => {
   const comparisonData: ComparisonFeature[] = [
@@ -23,38 +24,42 @@ export const PricingComparison: React.FC = () => {
       features: [
         {
           name: "Nombre de bots IA",
-          decouverte: "1",
+          decouverte: "3 (7j)",
           starter: "3",
           businessPro: "10",
           marketing: "20",
           serviceClient: "Illimité",
+          iaCreateur: "-",
           enterprise: "Illimité"
         },
         {
           name: "Messages par mois",
-          decouverte: "100",
+          decouverte: "500 (7j)",
           starter: "1 000",
           businessPro: "5 000",
           marketing: "10 000",
           serviceClient: "20 000",
+          iaCreateur: "-",
           enterprise: "Illimité"
         },
         {
           name: "ChatGPT intégré",
-          decouverte: true,
+          decouverte: "7 jours",
           starter: true,
           businessPro: true,
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         },
         {
           name: "Interface chat personnalisable",
-          decouverte: true,
+          decouverte: "7 jours",
           starter: true,
           businessPro: true,
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         }
       ]
@@ -64,29 +69,32 @@ export const PricingComparison: React.FC = () => {
       features: [
         {
           name: "Module IA Business",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: "Basique",
           businessPro: "Complet",
           marketing: "Complet",
           serviceClient: "Complet",
+          iaCreateur: false,
           enterprise: "Premium"
         },
         {
           name: "Module IA Marketing",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: "Complet",
           marketing: "Complet",
           serviceClient: "Complet",
+          iaCreateur: false,
           enterprise: "Premium"
         },
         {
           name: "Module IA Gestion",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: "Workflows",
           marketing: "Complet",
           serviceClient: "Complet",
+          iaCreateur: false,
           enterprise: "Premium"
         },
         {
@@ -96,16 +104,38 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: "Complet",
           serviceClient: "Complet",
+          iaCreateur: false,
           enterprise: "Premium"
         },
         {
-          name: "Visual Creator IA (Images/Vidéos)",
-          decouverte: false,
-          starter: false,
-          businessPro: false,
-          marketing: true,
-          serviceClient: false,
-          enterprise: "Premium"
+          name: "IA Créateur (Photos)",
+          decouverte: "2 photos",
+          starter: "Limité",
+          businessPro: "Standard",
+          marketing: "Avancé",
+          serviceClient: "Standard",
+          iaCreateur: "ILLIMITÉ ✨",
+          enterprise: "Illimité"
+        },
+        {
+          name: "IA Créateur (Flyers)",
+          decouverte: "2 flyers",
+          starter: "Limité",
+          businessPro: "Standard",
+          marketing: "Avancé",
+          serviceClient: "Standard",
+          iaCreateur: "ILLIMITÉ ✨",
+          enterprise: "Illimité"
+        },
+        {
+          name: "IA Créateur (Vidéos)",
+          decouverte: "2 vidéos",
+          starter: "Limité",
+          businessPro: "Standard",
+          marketing: "Avancé",
+          serviceClient: "Standard",
+          iaCreateur: "ILLIMITÉ ✨",
+          enterprise: "Illimité"
         }
       ]
     },
@@ -114,29 +144,32 @@ export const PricingComparison: React.FC = () => {
       features: [
         {
           name: "Import de prospects",
-          decouverte: false,
+          decouverte: "100 (7j)",
           starter: "100/mois",
           businessPro: "Illimité",
           marketing: "Illimité",
           serviceClient: "Illimité",
+          iaCreateur: false,
           enterprise: "Illimité"
         },
         {
           name: "Mapping automatique de données",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: true,
           businessPro: true,
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         },
         {
           name: "OCR Documents",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: true,
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         },
         {
@@ -146,24 +179,27 @@ export const PricingComparison: React.FC = () => {
           businessPro: "Avancée",
           marketing: "Illimitée",
           serviceClient: "Illimitée",
+          iaCreateur: false,
           enterprise: "Illimitée"
         },
         {
           name: "Scoring de leads par IA",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: true,
           marketing: "Avancé",
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         },
         {
           name: "Géolocalisation prospects",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: true,
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         }
       ]
@@ -173,29 +209,32 @@ export const PricingComparison: React.FC = () => {
       features: [
         {
           name: "Campagnes Email",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: "500/mois",
           businessPro: "Coordonnées",
           marketing: "Illimité",
           serviceClient: "Illimité",
+          iaCreateur: false,
           enterprise: "Illimité"
         },
         {
           name: "Campagnes WhatsApp",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: "Basique",
           businessPro: "API Premium",
           marketing: "API + Auto",
           serviceClient: "Multilingue",
+          iaCreateur: false,
           enterprise: "Premium"
         },
         {
           name: "Campagnes SMS",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: true,
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         },
         {
@@ -205,24 +244,27 @@ export const PricingComparison: React.FC = () => {
           businessPro: "3",
           marketing: "10",
           serviceClient: "10",
+          iaCreateur: false,
           enterprise: "Illimité"
         },
         {
           name: "A/B testing automatique",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: false,
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         },
         {
           name: "Segmentation d'audience",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: false,
           marketing: "Intelligente",
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         }
       ]
@@ -237,15 +279,17 @@ export const PricingComparison: React.FC = () => {
           businessPro: "5",
           marketing: "Illimité",
           serviceClient: "Illimité",
+          iaCreateur: false,
           enterprise: "Illimité"
         },
         {
           name: "Google Sheets",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: "Bidirect.",
           marketing: true,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         },
         {
@@ -255,6 +299,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: true,
           marketing: "Avancées",
           serviceClient: "Avancées",
+          iaCreateur: false,
           enterprise: "Illimité"
         },
         {
@@ -264,6 +309,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: false,
           serviceClient: true,
+          iaCreateur: false,
           enterprise: true
         }
       ]
@@ -273,11 +319,12 @@ export const PricingComparison: React.FC = () => {
       features: [
         {
           name: "Dashboard analytique",
-          decouverte: "Basique",
+          decouverte: "Complet (7j)",
           starter: "Détaillé",
           businessPro: "Avancé",
           marketing: "Prédictif",
           serviceClient: "Temps réel",
+          iaCreateur: "Création stats",
           enterprise: "Premium"
         },
         {
@@ -287,6 +334,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: "CSV",
           marketing: "Multi-format",
           serviceClient: "Multi-format",
+          iaCreateur: "HD/4K",
           enterprise: "Multi-format"
         },
         {
@@ -296,15 +344,17 @@ export const PricingComparison: React.FC = () => {
           businessPro: "Illimité",
           marketing: "Illimité",
           serviceClient: "Illimité",
+          iaCreateur: "Médias",
           enterprise: "Illimité"
         },
         {
           name: "Rapports automatisés",
-          decouverte: false,
+          decouverte: "7 jours",
           starter: false,
           businessPro: true,
           marketing: true,
           serviceClient: true,
+          iaCreateur: true,
           enterprise: true
         }
       ]
@@ -319,6 +369,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: "Email+Tel 24h",
           marketing: "Prioritaire 12h",
           serviceClient: "Dédié+Hotline",
+          iaCreateur: "Prioritaire",
           enterprise: "24/7/365"
         },
         {
@@ -328,6 +379,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: "2h",
           serviceClient: "4h",
+          iaCreateur: "2h création",
           enterprise: "Illimitée"
         },
         {
@@ -337,6 +389,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: false,
           serviceClient: false,
+          iaCreateur: false,
           enterprise: true
         }
       ]
@@ -351,6 +404,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: false,
           serviceClient: false,
+          iaCreateur: "1 compte",
           enterprise: "Illimité"
         },
         {
@@ -360,6 +414,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: false,
           serviceClient: false,
+          iaCreateur: "Sur créations",
           enterprise: true
         },
         {
@@ -369,6 +424,7 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: false,
           serviceClient: false,
+          iaCreateur: false,
           enterprise: true
         },
         {
@@ -378,27 +434,50 @@ export const PricingComparison: React.FC = () => {
           businessPro: false,
           marketing: false,
           serviceClient: false,
+          iaCreateur: "99%",
           enterprise: "99.9%"
         },
         {
-          name: "Développement personnalisé",
+          name: "Stockage médias",
+          decouverte: "100 MB",
+          starter: "1 GB",
+          businessPro: "5 GB",
+          marketing: "10 GB",
+          serviceClient: "10 GB",
+          iaCreateur: "50 GB",
+          enterprise: "Illimité"
+        },
+        {
+          name: "Export haute résolution",
           decouverte: false,
           starter: false,
           businessPro: false,
-          marketing: false,
+          marketing: "HD",
           serviceClient: false,
-          enterprise: true
+          iaCreateur: "4K",
+          enterprise: "4K"
+        },
+        {
+          name: "Templates premium",
+          decouverte: false,
+          starter: false,
+          businessPro: false,
+          marketing: "Standard",
+          serviceClient: false,
+          iaCreateur: "Exclusifs",
+          enterprise: "Sur mesure"
         }
       ]
     }
   ];
 
   const plans = [
-    { id: 'decouverte', name: 'Découverte', price: '0 CFA', color: 'bg-gray-50' },
+    { id: 'decouverte', name: 'Découverte', price: '0 CFA - 7j', color: 'bg-gray-50' },
     { id: 'starter', name: 'Starter', price: '2 500 CFA', color: 'bg-blue-50' },
     { id: 'businessPro', name: 'Business Pro', price: '7 500 CFA', color: 'bg-purple-50', popular: true },
     { id: 'marketing', name: 'Marketing', price: '12 500 CFA', color: 'bg-orange-50' },
     { id: 'serviceClient', name: 'Service Client', price: '15 000 CFA', color: 'bg-green-50' },
+    { id: 'iaCreateur', name: 'IA Créateur Pro', price: '25 000 CFA', color: 'bg-gradient-to-br from-pink-50 to-rose-50', popular: true },
     { id: 'enterprise', name: 'Enterprise', price: '25 000 CFA', color: 'bg-gradient-to-br from-yellow-50 to-amber-50' }
   ];
 
@@ -455,7 +534,7 @@ export const PricingComparison: React.FC = () => {
                   {comparisonData.map((category, catIndex) => (
                     <React.Fragment key={catIndex}>
                       <tr className="bg-muted/50">
-                        <td colSpan={7} className="p-3 font-semibold text-sm text-foreground">
+                        <td colSpan={8} className="p-3 font-semibold text-sm text-foreground">
                           {category.category}
                         </td>
                       </tr>
@@ -481,6 +560,9 @@ export const PricingComparison: React.FC = () => {
                           </td>
                           <td className="p-3 text-center bg-green-50/50">
                             {renderCell(feature.serviceClient)}
+                          </td>
+                          <td className="p-3 text-center bg-gradient-to-br from-pink-50/50 to-rose-50/50">
+                            {renderCell(feature.iaCreateur)}
                           </td>
                           <td className="p-3 text-center bg-gradient-to-br from-yellow-50/50 to-amber-50/50">
                             {renderCell(feature.enterprise)}
