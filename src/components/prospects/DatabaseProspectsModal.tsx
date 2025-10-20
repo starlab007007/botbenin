@@ -54,20 +54,71 @@ export const DatabaseProspectsModal: React.FC<DatabaseProspectsModalProps> = ({
 
     setIsLoading(true);
     try {
+      // Vérifier l'authentification d'abord
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.user) {
+        console.error('❌ Session error:', sessionError);
+        toast({
+          title: "🔐 Authentification requise",
+          description: "Veuillez vous reconnecter pour voir vos prospects.",
+          variant: "destructive"
+        });
+        setProspects([]);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('🔍 Fetching prospects for database:', {
+        databaseId: database.id,
+        userId: session.user.id,
+        databaseName: database.name
+      });
+
       const { data, error } = await supabase
         .from('prospects')
         .select('*')
         .eq('database_id', database.id)
+        .eq('user_id', session.user.id) // ✅ Filtrer explicitement par user_id
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error fetching prospects:', error);
+        
+        // Diagnostiquer le type d'erreur
+        if (error.code === 'PGRST116' || error.message?.includes('policy')) {
+          toast({
+            title: "🔐 Erreur de permissions",
+            description: "Vous n'avez pas accès à ces prospects. Vérifiez vos permissions.",
+            variant: "destructive"
+          });
+        } else {
+          throw error;
+        }
+        
+        setProspects([]);
+        return;
+      }
+
+      console.log('✅ Prospects loaded:', data?.length || 0);
       setProspects(data || []);
-    } catch (error) {
+      
+      // Si le count ne correspond pas, avertir
+      if (database.prospect_count && database.prospect_count > (data?.length || 0)) {
+        console.warn('⚠️ Count mismatch:', {
+          expected: database.prospect_count,
+          actual: data?.length || 0
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Unexpected error:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de charger les prospects.",
+        description: error.message || "Impossible de charger les prospects.",
         variant: "destructive"
       });
+      setProspects([]);
     } finally {
       setIsLoading(false);
     }

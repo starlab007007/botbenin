@@ -57,26 +57,38 @@ export function useProspectDatabases() {
 
       console.log('Récupération des bases pour user:', userData.user.id);
       
-      // Requête optimisée avec jointure pour récupérer le nombre de prospects
-      const { data, error } = await supabase
+      // Requête optimisée - récupérer les bases d'abord
+      const { data: databasesData, error: dbError } = await supabase
         .from("prospect_databases")
-        .select(`
-          *,
-          prospects:prospects(count)
-        `)
+        .select('*')
         .eq('user_id', userData.user.id)
         .order("updated_at", { ascending: false });
 
-      if (error) {
-        console.error('Erreur récupération bases de données:', error);
-        throw error;
+      if (dbError) {
+        console.error('Erreur récupération bases de données:', dbError);
+        throw dbError;
       }
 
-      // Transformation des données pour inclure prospect_count
-      const enrichedDatabases = (data || []).map(db => ({
-        ...db,
-        prospect_count: Array.isArray(db.prospects) ? db.prospects.length : 0
-      }));
+      // Pour chaque base, compter les prospects de l'utilisateur
+      const enrichedDatabases = await Promise.all(
+        (databasesData || []).map(async (db) => {
+          const { count, error: countError } = await supabase
+            .from('prospects')
+            .select('*', { count: 'exact', head: true })
+            .eq('database_id', db.id)
+            .eq('user_id', userData.user.id); // ✅ Compter uniquement les prospects de l'utilisateur
+
+          if (countError) {
+            console.error('Erreur count prospects pour', db.name, countError);
+            return { ...db, prospect_count: 0 };
+          }
+
+          return {
+            ...db,
+            prospect_count: count || 0
+          };
+        })
+      );
 
       console.log('Bases récupérées:', enrichedDatabases.length);
       setDatabases(enrichedDatabases);
