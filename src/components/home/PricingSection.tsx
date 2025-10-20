@@ -154,7 +154,7 @@ export const PricingSection: React.FC = () => {
       {
         id: 'ia-createur',
         name: 'IA Créateur Pro 🎨',
-        priceCFA: 25000,
+        priceCFA: -1,
         description: 'Spécialisé dans la création de contenu IA',
         features: [
           "🎨 CRÉATION ILLIMITÉE",
@@ -264,6 +264,8 @@ export const PricingSection: React.FC = () => {
                 <div className="mt-2">
                   {plan.priceCFA === 0 ? (
                     <span className="text-2xl font-bold text-green-600">Gratuit</span>
+                  ) : plan.priceCFA === -1 ? (
+                    <span className="text-2xl font-bold text-accent">Nous contacter</span>
                   ) : (
                     <>
                       <span className="text-2xl font-bold text-primary">{plan.priceCFA.toLocaleString()} CFA</span>
@@ -291,7 +293,7 @@ export const PricingSection: React.FC = () => {
                     size="sm"
                     className="w-full"
                     onClick={() => handleSubscribe(plan)}
-                    disabled={plan.priceCFA === 0}
+                    disabled={plan.priceCFA === 0 || plan.priceCFA === -1}
                   >
                     <CreditCard className="mr-2 h-4 w-4" /> S'abonner
                   </Button>

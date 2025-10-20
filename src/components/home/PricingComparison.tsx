@@ -477,7 +477,7 @@ export const PricingComparison: React.FC = () => {
     { id: 'businessPro', name: 'Business Pro', price: '7 500 CFA', color: 'bg-purple-50', popular: true },
     { id: 'marketing', name: 'Marketing', price: '12 500 CFA', color: 'bg-orange-50' },
     { id: 'serviceClient', name: 'Service Client', price: '15 000 CFA', color: 'bg-green-50' },
-    { id: 'iaCreateur', name: 'IA Créateur Pro', price: '25 000 CFA', color: 'bg-gradient-to-br from-pink-50 to-rose-50', popular: true },
+    { id: 'iaCreateur', name: 'IA Créateur Pro', price: 'Nous contacter', color: 'bg-gradient-to-br from-pink-50 to-rose-50', popular: true },
     { id: 'enterprise', name: 'Enterprise', price: '25 000 CFA', color: 'bg-gradient-to-br from-yellow-50 to-amber-50' }
   ];
 
