@@ -135,6 +135,13 @@ CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
       return;
     }
 
+    // Vérifier que la session existe
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error('Vous devez être connecté pour utiliser l\'IA Créateur');
+      return;
+    }
+
     // Vérifier les limites
     const { data: limitCheck, error: limitError } = await supabase.rpc('check_ia_creator_limit', {
       p_user_id: user.id,
@@ -162,6 +169,9 @@ CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
           prompt: customPrompt,
           format: 'instagram-story',
           style: 'professional'
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
         }
       });
 
@@ -175,8 +185,10 @@ CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
             video_id: video.id,
             frame_type: selectedFrameType,
             image_url: data.imageUrl,
-            prompt: customPrompt
-          } as any); // Type cast temporaire en attendant la génération des types
+            prompt: customPrompt,
+            storage_path: '',
+            user_id: user.id
+          });
 
         if (saveError) throw saveError;
 
