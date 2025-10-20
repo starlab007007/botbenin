@@ -2083,6 +2083,107 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_bases: {
+        Row: {
+          bot_id: string | null
+          completion_percentage: number | null
+          created_at: string | null
+          data: Json
+          description: string | null
+          id: string
+          is_active: boolean | null
+          last_trained_at: string | null
+          name: string
+          sector: string
+          structural_info: Json
+          template_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          bot_id?: string | null
+          completion_percentage?: number | null
+          created_at?: string | null
+          data?: Json
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_trained_at?: string | null
+          name: string
+          sector: string
+          structural_info?: Json
+          template_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          bot_id?: string | null
+          completion_percentage?: number | null
+          created_at?: string | null
+          data?: Json
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_trained_at?: string | null
+          name?: string
+          sector?: string
+          structural_info?: Json
+          template_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_bases_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owner_conversations"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "knowledge_bases_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_performance_metrics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "knowledge_bases_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "knowledge_bases_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bot_visitor_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "knowledge_bases_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "bots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_bases_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "complete_bot_analytics"
+            referencedColumns: ["bot_id"]
+          },
+          {
+            foreignKeyName: "knowledge_bases_bot_id_fkey"
+            columns: ["bot_id"]
+            isOneToOne: false
+            referencedRelation: "detailed_bot_stats"
+            referencedColumns: ["bot_id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           company: string | null

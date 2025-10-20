@@ -18,8 +18,10 @@ import { LeadQualificationWorkflow } from '@/components/business/LeadQualificati
 import { LeadQualificationMenu } from '@/components/business/LeadQualificationMenu';
 import { IntelligentProspectImporter } from '@/components/business/IntelligentProspectImporter';
 import { CampaignEngagementManager } from '@/components/business/CampaignEngagementManager';
+import { KnowledgeBaseCreator } from '@/components/business/knowledge-base/KnowledgeBaseCreator';
+import { KnowledgeBaseManager } from '@/components/business/knowledge-base/KnowledgeBaseManager';
 
-type ViewMode = 'menu' | 'ciblage-b2b-complet' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement';
+type ViewMode = 'menu' | 'ciblage-b2b-complet' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement' | 'bases-connaissances' | 'bases-connaissances-create';
 
 export const BusinessModule: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewMode>('menu');
@@ -64,6 +66,16 @@ export const BusinessModule: React.FC = () => {
       color: 'bg-gradient-to-br from-red-50 to-red-100',
       iconColor: 'text-red-600',
       badge: 'Nouveau'
+    },
+    {
+      id: 'bases-connaissances',
+      title: "Bases de Connaissances",
+      description: "Créez des bases de données structurées par secteur pour entraîner vos bots IA avec vos produits, services et informations métier. 7 secteurs prédéfinis avec templates intelligents.",
+      details: "7 secteurs • Templates prêts • Import/Export",
+      icon: Upload,
+      color: 'bg-gradient-to-br from-green-50 to-emerald-100',
+      iconColor: 'text-green-600',
+      badge: 'Nouveau'
     }
   ];
 
@@ -97,6 +109,19 @@ export const BusinessModule: React.FC = () => {
 
   if (currentView === 'campagnes-engagement') {
     return <CampaignEngagementManager onBack={handleBackToMenu} />;
+  }
+
+  if (currentView === 'bases-connaissances') {
+    return (
+      <KnowledgeBaseManager 
+        onBack={handleBackToMenu}
+        onCreateNew={() => setCurrentView('bases-connaissances-create')}
+      />
+    );
+  }
+
+  if (currentView === 'bases-connaissances-create') {
+    return <KnowledgeBaseCreator onBack={() => setCurrentView('bases-connaissances')} />;
   }
 
   // Default menu view
