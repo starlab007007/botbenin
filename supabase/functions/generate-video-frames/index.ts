@@ -138,8 +138,8 @@ serve(async (req) => {
 
     console.log('Public URL obtained, saving to database...');
 
-    // Save to database using admin client
-    const { data: frameData, error: dbError } = await supabaseAdmin
+    // Save to database using user's authenticated client (respects RLS)
+    const { data: frameData, error: dbError } = await supabaseClient
       .from('video_frames')
       .upsert({
         video_id: videoId,
