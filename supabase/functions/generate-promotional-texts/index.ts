@@ -14,13 +14,27 @@ serve(async (req) => {
     const body = await req.json()
     const { action } = body
     
+    // ✅ VALIDATION DES PARAMÈTRES
+    if (!action) {
+      console.error('❌ Missing action parameter')
+      return new Response(
+        JSON.stringify({ 
+          error: 'Missing required field: action',
+          code: 'MISSING_ACTION' 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
     if (!LOVABLE_API_KEY) {
+      console.error('❌ LOVABLE_API_KEY not configured')
       throw new Error('LOVABLE_API_KEY not configured')
     }
 
     // Health check endpoint
     if (action === 'health-check') {
+      console.log('✅ Health check OK')
       return new Response(
         JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -30,6 +44,21 @@ serve(async (req) => {
     // Generate frame promotional text
     if (action === 'generate-frame-text') {
       const { frameType, framePrompt, style = 'epic', africaContext } = body
+      
+      // ✅ VALIDATION DES PARAMÈTRES SPÉCIFIQUES
+      if (!frameType || !framePrompt) {
+        console.error('❌ Missing required fields', { frameType, framePromptLength: framePrompt?.length })
+        return new Response(
+          JSON.stringify({ 
+            error: 'Missing required fields: frameType, framePrompt',
+            code: 'MISSING_PARAMETERS',
+            received: { frameType: !!frameType, framePrompt: !!framePrompt }
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      
+      console.log('🎬 Generating frame text', { frameType, style, promptLength: framePrompt.length })
       
       const prompts: Record<string, string> = {
         hero: `Génère un texte promotionnel époustouflant de 20-30 mots pour une image d'accroche.
@@ -137,12 +166,55 @@ Génère UNIQUEMENT le texte promotionnel, sans commentaire.`
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Lovable AI error:', response.status, errorText)
-        throw new Error(`AI generation failed: ${response.status}`)
+        console.error('❌ Lovable AI error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+          frameType,
+          promptLength: framePrompt?.length
+        })
+        
+        // ✅ MESSAGES D'ERREUR SPÉCIFIQUES
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Limite de requêtes atteinte. Réessayez dans 1 minute.',
+              code: 'RATE_LIMIT_EXCEEDED',
+              retryAfter: 60
+            }),
+            { 
+              status: 429, 
+              headers: { 
+                ...corsHeaders, 
+                'Content-Type': 'application/json',
+                'Retry-After': '60'
+              } 
+            }
+          )
+        }
+        
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Crédits Lovable AI insuffisants. Rechargez votre compte.',
+              code: 'INSUFFICIENT_CREDITS',
+              details: 'Visitez https://lovable.dev/settings/billing pour recharger'
+            }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        throw new Error(`AI generation failed: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
       const promotionalText = data.choices[0].message.content.trim()
+
+      console.log('✅ Text generated successfully', {
+        frameType,
+        textLength: promotionalText.length,
+        wordCount: promotionalText.split(/\s+/).length
+      })
 
       return new Response(
         JSON.stringify({
@@ -160,6 +232,26 @@ Génère UNIQUEMENT le texte promotionnel, sans commentaire.`
     // Generate video summary
     if (action === 'generate-video-summary') {
       const { heroText, demoText, resultText, ctaText, duration = 30 } = body
+      
+      // ✅ VALIDATION DES PARAMÈTRES
+      if (!heroText || !demoText || !resultText || !ctaText) {
+        console.error('❌ Missing frame texts for summary')
+        return new Response(
+          JSON.stringify({ 
+            error: 'Missing required frame texts',
+            code: 'MISSING_FRAME_TEXTS',
+            received: { 
+              heroText: !!heroText, 
+              demoText: !!demoText, 
+              resultText: !!resultText, 
+              ctaText: !!ctaText 
+            }
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      
+      console.log('📹 Generating video summary', { duration, totalTextsLength: heroText.length + demoText.length + resultText.length + ctaText.length })
       
       const systemPrompt = `Génère un texte promotionnel narratif complet pour une vidéo de ${duration}s.
 
@@ -200,12 +292,47 @@ Génère un paragraphe fluide qui raconte l'histoire complète. UNIQUEMENT le te
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Lovable AI error:', response.status, errorText)
-        throw new Error(`AI generation failed: ${response.status}`)
+        console.error('❌ Lovable AI error (summary):', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        })
+        
+        // Mêmes gestions d'erreurs spécifiques
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Limite de requêtes atteinte. Réessayez dans 1 minute.',
+              code: 'RATE_LIMIT_EXCEEDED',
+              retryAfter: 60
+            }),
+            { 
+              status: 429, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } 
+            }
+          )
+        }
+        
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Crédits Lovable AI insuffisants.',
+              code: 'INSUFFICIENT_CREDITS'
+            }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        
+        throw new Error(`AI generation failed: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
       const promotionalSummary = data.choices[0].message.content.trim()
+
+      console.log('✅ Video summary generated', {
+        summaryLength: promotionalSummary.length,
+        wordCount: promotionalSummary.split(/\s+/).length
+      })
 
       return new Response(
         JSON.stringify({
@@ -218,11 +345,28 @@ Génère un paragraphe fluide qui raconte l'histoire complète. UNIQUEMENT le te
       )
     }
 
-    throw new Error('Invalid action')
-  } catch (error) {
-    console.error('Error in generate-promotional-texts:', error)
+    console.error('❌ Invalid action:', action)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: 'Invalid action',
+        code: 'INVALID_ACTION',
+        validActions: ['health-check', 'generate-frame-text', 'generate-video-summary']
+      }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    console.error('❌ Fatal error in generate-promotional-texts:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    })
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString()
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
