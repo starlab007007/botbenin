@@ -90,6 +90,7 @@ import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
 import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
 import { AdminUsersManagementPage } from "./pages/admin/AdminUsersManagementPage";
+import { IACreatorAdminPage } from "./pages/admin/IACreatorAdminPage";
 const SystemLogsPage = lazy(() => import("./pages/admin/SystemLogsPage"));
 import { AdminRoute } from "./components/auth/AdminRoute";
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
@@ -168,6 +169,7 @@ const AppContent = () => {
                     <Route path="/admin/permissions" element={<AdminRoute><AdminPermissionsPage /></AdminRoute>} />
                     <Route path="/admin/users" element={<AdminRoute><AdminUsersManagementPage /></AdminRoute>} />
           <Route path="/admin/logs" element={<AdminRoute><SystemLogsPage /></AdminRoute>} />
+          <Route path="/admin/ia-creator" element={<AdminRoute><IACreatorAdminPage /></AdminRoute>} />
           <Route path="/admin/notification-test" element={<AdminRoute><NotificationTestPage /></AdminRoute>} />
           <Route path="/admin/payment-tests" element={<AdminRoute><PaymentTestPage /></AdminRoute>} />
                     

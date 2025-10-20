@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useMediaManager, MediaItem } from '@/hooks/useMediaManager';
 import { UniversalMediaModal } from '@/components/visual-creator/UniversalMediaModal';
@@ -61,6 +62,7 @@ const styles = [
 
 export const VisualCreatorModule: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { saveToGallery, downloadMedia, loadUserGallery } = useMediaManager();
   const [prompt, setPrompt] = useState('');
   const [selectedFormat, setSelectedFormat] = useState<string>('instagram-post');
@@ -83,6 +85,28 @@ export const VisualCreatorModule: React.FC = () => {
     if (!prompt.trim()) {
       toast.error('Veuillez décrire votre création');
       return;
+    }
+
+    // Vérifier les limites avant de générer
+    if (user) {
+      const { data: limitCheck, error: limitError } = await supabase.rpc('check_ia_creator_limit', {
+        p_user_id: user.id,
+        p_creation_type: 'image',
+      }) as { data: { allowed: boolean; unlimited: boolean; used?: number; limit?: number; remaining?: number; } | null; error: any };
+
+      if (limitError) {
+        console.error('Erreur vérification limites:', limitError);
+        toast.error('Erreur lors de la vérification des limites');
+        return;
+      }
+
+      if (limitCheck && !limitCheck.allowed && !limitCheck.unlimited) {
+        toast.error(
+          `Limite atteinte : ${limitCheck.used}/${limitCheck.limit} images ce mois. Passez à un pack supérieur !`,
+          { duration: 5000 }
+        );
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -116,7 +140,14 @@ export const VisualCreatorModule: React.FC = () => {
           }
         });
 
-        if (savedMedia) {
+        if (savedMedia && user) {
+          // Incrémenter le compteur d'utilisation
+          await supabase.rpc('increment_ia_creator_usage', {
+            p_user_id: user.id,
+            p_creation_type: 'image',
+            p_file_size_mb: 0.5, // Estimation moyenne
+          });
+
           setGeneratedImages(prev => [savedMedia, ...prev]);
           toast.success('✅ Création générée et sauvegardée !');
         }

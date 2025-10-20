@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Shield, Key, Activity, Settings } from 'lucide-react';
+import { Users, Shield, Key, Activity, Settings, Palette } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -37,6 +37,13 @@ export const AdminDashboardPage: React.FC = () => {
       icon: Activity,
       path: '/admin/logs',
       color: 'text-orange-500',
+    },
+    {
+      title: 'IA Créateur Pro',
+      description: 'Gérer le module de création visuelle IA',
+      icon: Palette,
+      path: '/admin/ia-creator',
+      color: 'text-pink-500',
     },
   ];
 

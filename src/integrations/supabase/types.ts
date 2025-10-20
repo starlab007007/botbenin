@@ -1964,6 +1964,125 @@ export type Database = {
         }
         Relationships: []
       }
+      ia_creator_moderation: {
+        Row: {
+          auto_flagged: boolean | null
+          created_at: string | null
+          creation_id: string
+          flagged_reason: string | null
+          id: string
+          moderation_notes: string | null
+          moderator_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_flagged?: boolean | null
+          created_at?: string | null
+          creation_id: string
+          flagged_reason?: string | null
+          id?: string
+          moderation_notes?: string | null
+          moderator_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_flagged?: boolean | null
+          created_at?: string | null
+          creation_id?: string
+          flagged_reason?: string | null
+          id?: string
+          moderation_notes?: string | null
+          moderator_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ia_creator_moderation_creation_id_fkey"
+            columns: ["creation_id"]
+            isOneToOne: false
+            referencedRelation: "visual_creations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ia_creator_usage_limits: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_unlimited: boolean | null
+          monthly_flyers: number
+          monthly_images: number
+          monthly_videos: number
+          plan_name: string
+          storage_gb: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_unlimited?: boolean | null
+          monthly_flyers?: number
+          monthly_images?: number
+          monthly_videos?: number
+          plan_name: string
+          storage_gb?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_unlimited?: boolean | null
+          monthly_flyers?: number
+          monthly_images?: number
+          monthly_videos?: number
+          plan_name?: string
+          storage_gb?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      ia_creator_user_usage: {
+        Row: {
+          created_at: string | null
+          flyers_created: number | null
+          id: string
+          images_created: number | null
+          last_reset_at: string | null
+          storage_used_mb: number | null
+          updated_at: string | null
+          user_id: string
+          videos_created: number | null
+          year_month: string
+        }
+        Insert: {
+          created_at?: string | null
+          flyers_created?: number | null
+          id?: string
+          images_created?: number | null
+          last_reset_at?: string | null
+          storage_used_mb?: number | null
+          updated_at?: string | null
+          user_id: string
+          videos_created?: number | null
+          year_month: string
+        }
+        Update: {
+          created_at?: string | null
+          flyers_created?: number | null
+          id?: string
+          images_created?: number | null
+          last_reset_at?: string | null
+          storage_used_mb?: number | null
+          updated_at?: string | null
+          user_id?: string
+          videos_created?: number | null
+          year_month?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           company: string | null
@@ -5724,6 +5843,22 @@ export type Database = {
           },
         ]
       }
+      ia_creator_admin_stats: {
+        Row: {
+          active_users_24h: number | null
+          active_users_7d: number | null
+          creations_this_month: number | null
+          flagged_creations: number | null
+          pending_moderation: number | null
+          total_creations: number | null
+          total_flyers: number | null
+          total_images: number | null
+          total_storage_used_gb: number | null
+          total_users: number | null
+          total_videos: number | null
+        }
+        Relationships: []
+      }
       unified_conversation_history: {
         Row: {
           bot_id: string | null
@@ -5881,6 +6016,10 @@ export type Database = {
           bot_data: Json
           error_message: string
         }[]
+      }
+      check_ia_creator_limit: {
+        Args: { p_creation_type: string; p_user_id: string }
+        Returns: Json
       }
       cleanup_and_consolidate_chat_data: {
         Args: { p_bot_id?: string }
@@ -6337,6 +6476,14 @@ export type Database = {
       hide_demo_account_data: {
         Args: { data_value: string; user_id: string }
         Returns: string
+      }
+      increment_ia_creator_usage: {
+        Args: {
+          p_creation_type: string
+          p_file_size_mb?: number
+          p_user_id: string
+        }
+        Returns: undefined
       }
       is_admin: {
         Args: { user_uuid?: string }
