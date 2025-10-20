@@ -26,12 +26,16 @@ import {
   Trash2,
   Shield,
   Database,
-  Users
+  Users,
+  FileDown
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { KnowledgeBaseViewer } from '@/components/business/knowledge-base/KnowledgeBaseViewer';
+import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
+import { KnowledgeBase } from '@/types/knowledge-base';
 
 interface AdminKnowledgeBase {
   id: string;
@@ -52,7 +56,9 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
   const [knowledgeBases, setKnowledgeBases] = useState<AdminKnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewingKbId, setViewingKbId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { exportKnowledgeBase } = useKnowledgeBases();
 
   useEffect(() => {
     fetchAllKnowledgeBases();
@@ -128,6 +134,14 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
     }
   };
 
+  const handleExport = async (kb: AdminKnowledgeBase, format: 'json' | 'excel' | 'csv' | 'pdf') => {
+    await exportKnowledgeBase(kb as KnowledgeBase, format);
+  };
+
+  const handleView = (id: string) => {
+    setViewingKbId(id);
+  };
+
   const filteredKnowledgeBases = knowledgeBases.filter(kb =>
     kb.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     kb.sector.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -147,6 +161,16 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
     };
     return labels[sector] || sector;
   };
+
+  // Si on visualise une base de connaissances
+  if (viewingKbId) {
+    return (
+      <KnowledgeBaseViewer
+        knowledgeBaseId={viewingKbId}
+        onBack={() => setViewingKbId(null)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -282,13 +306,25 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleView(kb.id)}>
                               <Eye className="w-4 h-4 mr-2" />
-                              Voir détails
+                              Voir & Modifier
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Download className="w-4 h-4 mr-2" />
-                              Exporter
+                            <DropdownMenuItem onClick={() => handleExport(kb, 'excel')}>
+                              <FileDown className="w-4 h-4 mr-2" />
+                              Excel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExport(kb, 'csv')}>
+                              <FileDown className="w-4 h-4 mr-2" />
+                              CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExport(kb, 'pdf')}>
+                              <FileDown className="w-4 h-4 mr-2" />
+                              PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExport(kb, 'json')}>
+                              <FileDown className="w-4 h-4 mr-2" />
+                              JSON
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               className="text-destructive"
