@@ -79,8 +79,19 @@ export const useVideoGeneration = () => {
     }
     setIsGenerating(true);
     try {
+      // Get current session to pass auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error('Vous devez être connecté pour générer des frames');
+        return null;
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-video-frames', {
-        body: { videoId, prompt, frameType }
+        body: { videoId, prompt, frameType },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
       if (error) {
