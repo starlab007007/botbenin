@@ -81,9 +81,14 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
     try {
       setUploadingImage(true);
       
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `knowledge-base-images/${fileName}`;
+      // Include user ID in path to match RLS policy
+      const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('knowledge_bases')
