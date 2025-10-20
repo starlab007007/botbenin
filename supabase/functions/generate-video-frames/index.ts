@@ -147,7 +147,7 @@ serve(async (req) => {
         image_url: publicUrl,
         storage_path: fileName,
         prompt: prompt,
-        user_id: user.id
+        user_id: user.id  // ✅ Ajout explicite du user_id pour respecter les RLS
       }, {
         onConflict: 'video_id,frame_type,user_id'
       })

@@ -4547,7 +4547,7 @@ export type Database = {
           promotional_text_word_count: number | null
           prompt: string
           storage_path: string
-          user_id: string | null
+          user_id: string
           video_id: string
         }
         Insert: {
@@ -4562,7 +4562,7 @@ export type Database = {
           promotional_text_word_count?: number | null
           prompt: string
           storage_path: string
-          user_id?: string | null
+          user_id: string
           video_id: string
         }
         Update: {
@@ -4577,7 +4577,7 @@ export type Database = {
           promotional_text_word_count?: number | null
           prompt?: string
           storage_path?: string
-          user_id?: string | null
+          user_id?: string
           video_id?: string
         }
         Relationships: []
