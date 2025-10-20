@@ -176,7 +176,7 @@ CONTEXTE AFRICAIN/BÉNINOIS OBLIGATOIRE:
             frame_type: selectedFrameType,
             image_url: data.imageUrl,
             prompt: customPrompt
-          });
+          } as any); // Type cast temporaire en attendant la génération des types
 
         if (saveError) throw saveError;
 
