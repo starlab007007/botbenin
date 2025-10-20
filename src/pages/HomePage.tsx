@@ -17,7 +17,7 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen">
-      <div className={`max-w-7xl mx-auto space-y-6 sm:space-y-8 px-4 sm:px-6 lg:px-8 py-4 sm:py-6`}>
+      <div className={`max-w-7xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 xl:space-y-12 px-4 sm:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8 xl:py-10`}>
         {/* Header de bienvenue - responsive */}
         <WelcomeHeader userName={user?.name} />
 
