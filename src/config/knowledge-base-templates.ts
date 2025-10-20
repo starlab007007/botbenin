@@ -31,9 +31,10 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'nom', type: 'text', required: true, placeholder: 'Poulet DG' },
           { name: 'description', type: 'textarea', required: false, placeholder: 'Description du plat' },
           { name: 'allergenes', type: 'text', required: false, placeholder: 'Gluten, Lactose' },
-          { name: 'prix', type: 'price', required: true, placeholder: '3500' },
-          { name: 'disponible', type: 'select', required: true, options: ['Oui', 'Non'] }
-        ]
+        { name: 'prix', type: 'price', required: true, placeholder: '3500' },
+        { name: 'disponible', type: 'select', required: true, options: ['Oui', 'Non'] },
+        { name: 'image', type: 'image', required: false }
+      ]
       },
       {
         id: 'faq',
@@ -76,10 +77,11 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'type', type: 'select', required: true, options: ['Standard', 'Supérieure', 'Suite', 'Deluxe'], placeholder: 'Type de chambre' },
           { name: 'description', type: 'textarea', required: true, placeholder: 'Description de la chambre' },
           { name: 'capacite_max', type: 'number', required: true, placeholder: '2' },
-          { name: 'prix_nuit', type: 'price', required: true, placeholder: '25000' },
-          { name: 'equipements', type: 'text', required: false, placeholder: 'WiFi, TV, Climatisation' },
-          { name: 'statut', type: 'select', required: true, options: ['Disponible', 'Occupé', 'Maintenance'] }
-        ]
+        { name: 'prix_nuit', type: 'price', required: true, placeholder: '25000' },
+        { name: 'equipements', type: 'text', required: false, placeholder: 'WiFi, TV, Climatisation' },
+        { name: 'statut', type: 'select', required: true, options: ['Disponible', 'Occupé', 'Maintenance'] },
+        { name: 'image', type: 'image', required: false }
+      ]
       },
       {
         id: 'services',
@@ -229,15 +231,15 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
   {
     id: 'university',
     sector: 'university',
-    name: 'Université Privée',
-    description: 'Base de connaissances pour université privée',
+    name: 'Université & École & Centre de Formation',
+    description: 'Base de connaissances pour université, école et centre de formation',
     icon: 'School',
     color: 'from-cyan-400 to-blue-500',
     structuralInfo: [
-      { name: 'nom_universite', type: 'text', category: 'contact', required: true, description: 'Nom de l\'université', placeholder: 'Université Excellence' },
+      { name: 'nom_etablissement', type: 'text', category: 'contact', required: true, description: 'Nom de l\'établissement', placeholder: 'Université Excellence' },
       { name: 'telephone', type: 'phone', category: 'contact', required: true, description: 'Téléphone', placeholder: '+229 XX XX XX XX' },
       { name: 'email', type: 'email', category: 'contact', required: false, description: 'Email', placeholder: 'admissions@universite.com' },
-      { name: 'localisation_campus', type: 'text', category: 'location', required: true, description: 'Localisation du campus', placeholder: 'Campus principal' },
+      { name: 'localisation_campus', type: 'text', category: 'location', required: true, description: 'Localisation', placeholder: 'Campus principal' },
       { name: 'frais_inscription', type: 'text', category: 'policy', required: false, description: 'Frais d\'inscription', placeholder: '50 000 FCFA' },
       { name: 'date_limite_inscription', type: 'text', category: 'policy', required: false, description: 'Date limite', placeholder: '30 Septembre' },
       { name: 'aide_financiere', type: 'text', category: 'policy', required: false, description: 'Bourses disponibles', placeholder: 'Oui, selon mérite' }
@@ -314,6 +316,63 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'etages', type: 'text', required: false, placeholder: 'Rez-de-chaussée' },
           { name: 'horaires_ouverture', type: 'text', required: false, placeholder: '24/7' },
           { name: 'telephone_direct', type: 'phone', required: false, placeholder: '+229 XX XX XX XX' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'others',
+    sector: 'others',
+    name: 'Autres (Personnalisé)',
+    description: 'Créez votre propre base de connaissances personnalisée',
+    icon: 'Settings',
+    color: 'from-gray-400 to-slate-500',
+    structuralInfo: [
+      { name: 'nom_entreprise', type: 'text', category: 'contact', required: true, description: 'Nom de votre entreprise', placeholder: 'Ma Société' },
+      { name: 'telephone', type: 'phone', category: 'contact', required: true, description: 'Téléphone', placeholder: '+229 XX XX XX XX' },
+      { name: 'email', type: 'email', category: 'contact', required: false, description: 'Email', placeholder: 'contact@entreprise.com' },
+      { name: 'adresse', type: 'text', category: 'location', required: true, description: 'Adresse', placeholder: 'Votre adresse' },
+      { name: 'horaires', type: 'text', category: 'hours', required: false, description: 'Horaires d\'ouverture', placeholder: 'Lun-Ven: 8h-18h' },
+      { name: 'site_web', type: 'url', category: 'contact', required: false, description: 'Site web', placeholder: 'https://www.example.com' }
+    ],
+    tables: [
+      {
+        id: 'produits_services',
+        name: 'Produits / Services',
+        description: 'Liste de vos produits ou services',
+        required: true,
+        icon: 'Package',
+        fields: [
+          { name: 'nom', type: 'text', required: true, placeholder: 'Nom du produit/service' },
+          { name: 'description', type: 'textarea', required: true, placeholder: 'Description détaillée' },
+          { name: 'categorie', type: 'text', required: false, placeholder: 'Catégorie' },
+          { name: 'prix', type: 'price', required: false, placeholder: '10000' },
+          { name: 'disponible', type: 'select', required: true, options: ['Oui', 'Non'] },
+          { name: 'image', type: 'image', required: false }
+        ]
+      },
+      {
+        id: 'faq',
+        name: 'Questions Fréquentes',
+        description: 'Questions et réponses pour vos clients',
+        required: false,
+        icon: 'MessageCircleQuestion',
+        fields: [
+          { name: 'question', type: 'text', required: true, placeholder: 'Question fréquente' },
+          { name: 'reponse', type: 'textarea', required: true, placeholder: 'Réponse détaillée' },
+          { name: 'categorie', type: 'text', required: false, placeholder: 'Catégorie de la question' }
+        ]
+      },
+      {
+        id: 'informations_generales',
+        name: 'Informations Générales',
+        description: 'Autres informations importantes',
+        required: false,
+        icon: 'Info',
+        fields: [
+          { name: 'titre', type: 'text', required: true, placeholder: 'Titre de l\'information' },
+          { name: 'contenu', type: 'textarea', required: true, placeholder: 'Contenu de l\'information' },
+          { name: 'type', type: 'select', required: false, options: ['Politique', 'Procédure', 'Guide', 'Autre'] }
         ]
       }
     ]

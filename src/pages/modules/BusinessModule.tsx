@@ -9,7 +9,8 @@ import {
   Target, 
   Upload, 
   MessageSquare,
-  ArrowRight
+  ArrowRight,
+  Database
 } from 'lucide-react';
 import { B2BTargeting } from '@/components/business/B2BTargeting';
 import { LocalProspecting } from '@/components/business/LocalProspecting';
@@ -20,11 +21,14 @@ import { IntelligentProspectImporter } from '@/components/business/IntelligentPr
 import { CampaignEngagementManager } from '@/components/business/CampaignEngagementManager';
 import { KnowledgeBaseCreator } from '@/components/business/knowledge-base/KnowledgeBaseCreator';
 import { KnowledgeBaseManager } from '@/components/business/knowledge-base/KnowledgeBaseManager';
+import { KnowledgeBaseViewer } from '@/components/business/knowledge-base/KnowledgeBaseViewer';
+import { AdminKnowledgeBasesPage } from './AdminKnowledgeBasesPage';
 
-type ViewMode = 'menu' | 'ciblage-b2b-complet' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement' | 'bases-connaissances' | 'bases-connaissances-create';
+type ViewMode = 'menu' | 'ciblage-b2b-complet' | 'scoring-leads' | 'listes-prospects' | 'campagnes-engagement' | 'bases-connaissances' | 'bases-connaissances-create' | 'bases-connaissances-view' | 'admin-knowledge-bases';
 
 export const BusinessModule: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewMode>('menu');
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<string | null>(null);
 
   const businessOptions = [
     {
@@ -70,9 +74,9 @@ export const BusinessModule: React.FC = () => {
     {
       id: 'bases-connaissances',
       title: "Bases de Connaissances",
-      description: "Créez des bases de données structurées par secteur pour entraîner vos bots IA avec vos produits, services et informations métier. 7 secteurs prédéfinis avec templates intelligents.",
-      details: "7 secteurs • Templates prêts • Import/Export",
-      icon: Upload,
+      description: "Créez des bases de données structurées par secteur pour entraîner vos bots IA avec vos produits, services et informations métier. 8 secteurs prédéfinis avec templates intelligents.",
+      details: "8 secteurs • Templates prêts • Import/Export Excel/CSV/PDF • Images",
+      icon: Database,
       color: 'bg-gradient-to-br from-green-50 to-emerald-100',
       iconColor: 'text-green-600',
       badge: 'Nouveau'
@@ -86,6 +90,12 @@ export const BusinessModule: React.FC = () => {
 
   const handleBackToMenu = () => {
     setCurrentView('menu');
+    setSelectedKnowledgeBaseId(null);
+  };
+
+  const handleViewKnowledgeBase = (id: string) => {
+    setSelectedKnowledgeBaseId(id);
+    setCurrentView('bases-connaissances-view');
   };
 
   // Render different views based on current selection
@@ -116,12 +126,26 @@ export const BusinessModule: React.FC = () => {
       <KnowledgeBaseManager 
         onBack={handleBackToMenu}
         onCreateNew={() => setCurrentView('bases-connaissances-create')}
+        onView={handleViewKnowledgeBase}
       />
     );
   }
 
   if (currentView === 'bases-connaissances-create') {
     return <KnowledgeBaseCreator onBack={() => setCurrentView('bases-connaissances')} />;
+  }
+
+  if (currentView === 'bases-connaissances-view' && selectedKnowledgeBaseId) {
+    return (
+      <KnowledgeBaseViewer 
+        knowledgeBaseId={selectedKnowledgeBaseId}
+        onBack={() => setCurrentView('bases-connaissances')} 
+      />
+    );
+  }
+
+  if (currentView === 'admin-knowledge-bases') {
+    return <AdminKnowledgeBasesPage onBack={handleBackToMenu} />;
   }
 
   // Default menu view

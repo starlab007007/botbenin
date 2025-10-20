@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { KnowledgeBase } from '@/types/knowledge-base';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export const useKnowledgeBases = () => {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
@@ -126,22 +129,108 @@ export const useKnowledgeBases = () => {
     }
   }, [toast, fetchKnowledgeBases]);
 
-  const exportKnowledgeBase = useCallback(async (kb: KnowledgeBase, format: 'json' | 'csv' = 'json') => {
+  const exportKnowledgeBase = useCallback(async (kb: KnowledgeBase, format: 'json' | 'csv' | 'excel' | 'pdf' = 'json') => {
     try {
+      const fileName = `${kb.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
+      
       if (format === 'json') {
         const dataStr = JSON.stringify(kb, null, 2);
         const dataBlob = new Blob([dataStr], { type: 'application/json' });
         const url = URL.createObjectURL(dataBlob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${kb.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`;
+        link.download = `${fileName}.json`;
         link.click();
         URL.revokeObjectURL(url);
+      } else if (format === 'csv' || format === 'excel') {
+        // Create workbook with multiple sheets
+        const wb = XLSX.utils.book_new();
+        
+        // Structural info sheet
+        const structuralData = Object.entries(kb.structural_info).map(([key, value]) => ({
+          'Champ': key,
+          'Valeur': value
+        }));
+        const ws1 = XLSX.utils.json_to_sheet(structuralData);
+        XLSX.utils.book_append_sheet(wb, ws1, 'Informations');
+        
+        // Data tables sheets
+        Object.entries(kb.data).forEach(([tableName, tableData]) => {
+          if (Array.isArray(tableData) && tableData.length > 0) {
+            const ws = XLSX.utils.json_to_sheet(tableData);
+            XLSX.utils.book_append_sheet(wb, ws, tableName.substring(0, 31));
+          }
+        });
+        
+        if (format === 'excel') {
+          XLSX.writeFile(wb, `${fileName}.xlsx`);
+        } else {
+          XLSX.writeFile(wb, `${fileName}.csv`);
+        }
+      } else if (format === 'pdf') {
+        const doc = new jsPDF();
+        let yPosition = 20;
+        
+        // Title
+        doc.setFontSize(18);
+        doc.text(kb.name, 14, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(12);
+        doc.text(`Secteur: ${kb.sector}`, 14, yPosition);
+        yPosition += 7;
+        doc.text(`Complétion: ${kb.completion_percentage}%`, 14, yPosition);
+        yPosition += 10;
+        
+        // Structural info
+        doc.setFontSize(14);
+        doc.text('Informations Essentielles', 14, yPosition);
+        yPosition += 7;
+        
+        doc.setFontSize(10);
+        Object.entries(kb.structural_info).forEach(([key, value]) => {
+          if (yPosition > 270) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          doc.text(`${key}: ${value}`, 14, yPosition);
+          yPosition += 7;
+        });
+        
+        // Data tables
+        Object.entries(kb.data).forEach(([tableName, tableData]) => {
+          if (Array.isArray(tableData) && tableData.length > 0) {
+            if (yPosition > 250) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            
+            yPosition += 10;
+            doc.setFontSize(14);
+            doc.text(tableName, 14, yPosition);
+            yPosition += 7;
+            
+            const headers = Object.keys(tableData[0]);
+            const rows = tableData.map(row => headers.map(h => row[h] || ''));
+            
+            autoTable(doc, {
+              head: [headers],
+              body: rows,
+              startY: yPosition,
+              theme: 'grid',
+              styles: { fontSize: 8 }
+            });
+            
+            yPosition = (doc as any).lastAutoTable.finalY + 10;
+          }
+        });
+        
+        doc.save(`${fileName}.pdf`);
       }
 
       toast({
         title: 'Succès',
-        description: 'Base de connaissances exportée'
+        description: `Base de connaissances exportée en ${format.toUpperCase()}`
       });
     } catch (error) {
       console.error('Error exporting:', error);

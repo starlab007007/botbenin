@@ -27,8 +27,10 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Edit, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit, Upload, Image as ImageIcon } from 'lucide-react';
 import { KnowledgeTable } from '@/types/knowledge-base';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface DataTableEditorProps {
   table: KnowledgeTable;
@@ -44,6 +46,8 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const { toast } = useToast();
 
   const handleOpenDialog = (index: number | null = null) => {
     if (index !== null) {
@@ -73,7 +77,90 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
     onChange(newData);
   };
 
+  const handleImageUpload = async (fieldName: string, file: File) => {
+    try {
+      setUploadingImage(true);
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `knowledge-base-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('knowledge_bases')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('knowledge_bases')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, [fieldName]: publicUrl });
+      
+      toast({
+        title: 'Succès',
+        description: 'Image téléchargée avec succès'
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de télécharger l\'image',
+        variant: 'destructive'
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const renderField = (field: any) => {
+    if (field.type === 'image') {
+      return (
+        <div className="space-y-2">
+          {formData[field.name] && (
+            <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
+              <img 
+                src={formData[field.name]} 
+                alt="Preview" 
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploadingImage}
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = (e) => {
+                  const file = (e.target as HTMLInputElement).files?.[0];
+                  if (file) handleImageUpload(field.name, file);
+                };
+                input.click();
+              }}
+            >
+              <ImageIcon className="w-4 h-4 mr-2" />
+              {uploadingImage ? 'Téléchargement...' : 'Choisir une image'}
+            </Button>
+            {formData[field.name] && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setFormData({ ...formData, [field.name]: '' })}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
     if (field.type === 'select') {
       return (
         <Select

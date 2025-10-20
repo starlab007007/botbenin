@@ -29,7 +29,11 @@ import {
   Trash2, 
   Plus,
   Database,
-  Sparkles
+  Sparkles,
+  FileJson,
+  FileSpreadsheet,
+  FileText,
+  Eye
 } from 'lucide-react';
 import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
 import { format } from 'date-fns';
@@ -38,11 +42,13 @@ import { fr } from 'date-fns/locale';
 interface KnowledgeBaseManagerProps {
   onBack: () => void;
   onCreateNew: () => void;
+  onView?: (id: string) => void;
 }
 
 export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({ 
   onBack, 
-  onCreateNew 
+  onCreateNew,
+  onView
 }) => {
   const { knowledgeBases, loading, deleteKnowledgeBase, exportKnowledgeBase } = useKnowledgeBases();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -151,13 +157,30 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onView?.(kb.id)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Visualiser
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onView?.(kb.id)}>
                           <Edit className="w-4 h-4 mr-2" />
                           Modifier
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'json')}>
-                          <Download className="w-4 h-4 mr-2" />
-                          Exporter
+                          <FileJson className="w-4 h-4 mr-2" />
+                          Exporter JSON
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'excel')}>
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          Exporter Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'csv')}>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Exporter CSV
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'pdf')}>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Exporter PDF
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
