@@ -20,14 +20,19 @@ serve(async (req) => {
       throw new Error('No authorization header');
     }
 
-    // Create Supabase client with service role for backend operations
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Extract user from JWT (already verified by Supabase)
-    const jwt = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+    // Create client with user's auth token for authentication
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: authHeader }
+      }
+    });
+
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     
     if (userError || !user) {
       console.error('Auth error:', userError);
@@ -35,6 +40,9 @@ serve(async (req) => {
     }
 
     console.log('User authenticated:', user.id);
+
+    // Create service role client for storage/database operations
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     if (!prompt) {
       return new Response(
@@ -107,9 +115,9 @@ serve(async (req) => {
     const base64Data = base64Image.split(',')[1];
     const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage using admin client
     const fileName = `${user.id}/${videoId}/${frameType}_${Date.now()}.png`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('video-assets')
       .upload(fileName, binaryData, {
         contentType: 'image/png',
@@ -124,14 +132,14 @@ serve(async (req) => {
     console.log('Image uploaded, getting public URL...');
 
     // Get public URL
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = supabaseAdmin.storage
       .from('video-assets')
       .getPublicUrl(fileName);
 
     console.log('Public URL obtained, saving to database...');
 
-    // Save to database
-    const { data: frameData, error: dbError } = await supabase
+    // Save to database using admin client
+    const { data: frameData, error: dbError } = await supabaseAdmin
       .from('video_frames')
       .upsert({
         video_id: videoId,
