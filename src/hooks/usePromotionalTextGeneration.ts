@@ -81,9 +81,7 @@ export const usePromotionalTextGeneration = () => {
         .update({
           promotional_text: promotionalText,
           promotional_text_generated_at: new Date().toISOString(),
-          promotional_style: style,
-          promotional_text_word_count: promotionalText.split(/\s+/).length,
-          promotional_text_char_count: promotionalText.length
+          promotional_style: style
         })
         .eq('id', frameId);
 
