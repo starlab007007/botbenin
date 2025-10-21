@@ -31,10 +31,24 @@ export const FramesDownloadButton = ({ frames, videoTitle }: FramesDownloadButto
       // Télécharger chaque frame
       for (const frame of frames) {
         try {
-          const response = await fetch(frame.image_url);
-          if (!response.ok) throw new Error(`Erreur lors du téléchargement de ${frame.frame_type}`);
+          let blob: Blob;
           
-          const blob = await response.blob();
+          // Gérer les data URLs (base64)
+          if (frame.image_url.startsWith('data:')) {
+            const base64Response = await fetch(frame.image_url);
+            blob = await base64Response.blob();
+          } else {
+            // URL normale (storage Supabase)
+            const response = await fetch(frame.image_url);
+            if (!response.ok) throw new Error(`Erreur lors du téléchargement de ${frame.frame_type}`);
+            blob = await response.blob();
+          }
+          
+          // Vérifier que le blob n'est pas vide
+          if (blob.size === 0) {
+            throw new Error(`Frame ${frame.frame_type} vide`);
+          }
+          
           zip.file(`${frame.frame_type}.png`, blob);
         } catch (error) {
           console.error(`Erreur pour ${frame.frame_type}:`, error);
