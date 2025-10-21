@@ -6,8 +6,11 @@ interface IACreatorChartsProps {
     total_images: number;
     total_flyers: number;
     total_videos: number;
-    creations_this_month: number;
-    total_storage_used_gb: number;
+    total_creations: number;
+    active_users_24h: number;
+    active_users_7d: number;
+    active_users_30d: number;
+    avg_creations_per_user: number;
   } | undefined;
 }
 
@@ -51,22 +54,24 @@ export const IACreatorCharts: React.FC<IACreatorChartsProps> = ({ stats }) => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Statistiques du Mois</CardTitle>
+          <CardTitle>Statistiques Globales</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Créations ce mois</span>
-            <span className="text-2xl font-bold">{stats.creations_this_month}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Stockage utilisé</span>
-            <span className="text-2xl font-bold">{stats.total_storage_used_gb.toFixed(2)} GB</span>
-          </div>
-          <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">Total créations</span>
-            <span className="text-2xl font-bold">
-              {stats.total_images + stats.total_flyers + stats.total_videos}
-            </span>
+            <span className="text-2xl font-bold">{stats.total_creations}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Utilisateurs actifs (24h)</span>
+            <span className="text-2xl font-bold">{stats.active_users_24h}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Utilisateurs actifs (7j)</span>
+            <span className="text-2xl font-bold">{stats.active_users_7d}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Moyenne par utilisateur</span>
+            <span className="text-2xl font-bold">{stats.avg_creations_per_user.toFixed(1)}</span>
           </div>
         </CardContent>
       </Card>

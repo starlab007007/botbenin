@@ -7,13 +7,11 @@ interface IACreatorStatsProps {
     total_users: number;
     active_users_24h: number;
     active_users_7d: number;
+    active_users_30d: number;
+    avg_creations_per_user: number;
     total_images: number;
     total_flyers: number;
     total_videos: number;
-    creations_this_month: number;
-    total_storage_used_gb: number;
-    pending_moderation: number;
-    flagged_creations: number;
   } | undefined;
 }
 
@@ -24,28 +22,28 @@ export const IACreatorStats: React.FC<IACreatorStatsProps> = ({ stats }) => {
     {
       title: 'Créations Totales',
       value: stats.total_creations.toLocaleString(),
-      subtitle: `${stats.creations_this_month} ce mois`,
+      subtitle: `${stats.avg_creations_per_user.toFixed(1)} par utilisateur`,
       icon: Palette,
       color: 'text-pink-500',
     },
     {
       title: 'Utilisateurs Actifs',
       value: stats.active_users_24h.toLocaleString(),
-      subtitle: `${stats.active_users_7d} sur 7j`,
+      subtitle: `${stats.active_users_7d} sur 7j, ${stats.active_users_30d} sur 30j`,
       icon: Users,
       color: 'text-blue-500',
     },
     {
-      title: 'Stockage Utilisé',
-      value: `${stats.total_storage_used_gb.toFixed(2)} GB`,
-      subtitle: `Images: ${stats.total_images}, Flyers: ${stats.total_flyers}`,
+      title: 'Créations par Type',
+      value: stats.total_images.toLocaleString(),
+      subtitle: `Images: ${stats.total_images}, Flyers: ${stats.total_flyers}, Vidéos: ${stats.total_videos}`,
       icon: HardDrive,
       color: 'text-green-500',
     },
     {
-      title: 'Modération',
-      value: stats.pending_moderation.toLocaleString(),
-      subtitle: `${stats.flagged_creations} signalés`,
+      title: 'Total Utilisateurs',
+      value: stats.total_users.toLocaleString(),
+      subtitle: `${stats.total_creations} créations au total`,
       icon: AlertCircle,
       color: 'text-orange-500',
     },

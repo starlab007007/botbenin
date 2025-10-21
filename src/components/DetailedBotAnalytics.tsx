@@ -31,15 +31,12 @@ interface BotStats {
   bot_name: string;
   owner_id: string;
   is_active: boolean;
-  share_enabled: boolean;
-  bot_created_at: string;
   total_unique_users: number;
   total_sessions: number;
   total_messages: number;
   active_users_24h: number;
   sessions_24h: number;
   messages_24h: number;
-  active_users_7d: number;
   last_user_activity: string;
   last_message_at: string;
   avg_messages_per_session: number;
@@ -329,8 +326,8 @@ export const DetailedBotAnalytics: React.FC<DetailedBotAnalyticsProps> = ({
                         <span className="font-medium">{botStats.messages_24h}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Actifs 7 jours</span>
-                        <span className="font-medium">{botStats.active_users_7d}</span>
+                        <span className="text-gray-600">Messages totaux</span>
+                        <span className="font-medium">{botStats.total_messages}</span>
                       </div>
                     </div>
                   </div>
@@ -384,12 +381,6 @@ export const DetailedBotAnalytics: React.FC<DetailedBotAnalyticsProps> = ({
                         <span className="text-gray-600">Statut</span>
                         <Badge variant={botStats.is_active ? "default" : "secondary"}>
                           {botStats.is_active ? 'Actif' : 'Inactif'}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Partage public</span>
-                        <Badge variant={botStats.share_enabled ? "default" : "secondary"}>
-                          {botStats.share_enabled ? 'Activé' : 'Désactivé'}
                         </Badge>
                       </div>
                     </div>
