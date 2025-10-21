@@ -226,20 +226,67 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           </div>
         )}
 
-        <Card className="p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-0">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg shrink-0">
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+        <div className="space-y-4 sm:space-y-6">
+          <Card className="p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-0">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="p-2 sm:p-3 bg-primary/10 rounded-lg shrink-0">
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm sm:text-base mb-2">Conseil : Entraînement de bot IA</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Plus vous ajoutez d'informations dans vos bases de connaissances, plus vos bots IA seront précis et performants. 
+                  Pensez à ajouter des FAQ, des exemples concrets et toutes les informations utiles à vos clients.
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-sm sm:text-base mb-2">Conseil : Entraînement de bot IA</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Plus vous ajoutez d'informations dans vos bases de connaissances, plus vos bots IA seront précis et performants. 
-                Pensez à ajouter des FAQ, des exemples concrets et toutes les informations utiles à vos clients.
-              </p>
+          </Card>
+
+          <Card className="p-4 sm:p-6 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 border-2 border-emerald-200 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-200/30 to-teal-200/30 rounded-full -mr-16 -mt-16"></div>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-green-200/30 to-emerald-200/30 rounded-full -ml-12 -mb-12"></div>
+            
+            <div className="flex items-start gap-3 sm:gap-4 relative z-10">
+              <div className="p-2 sm:p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg shrink-0 shadow-lg">
+                <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+                  <h3 className="font-bold text-sm sm:text-base text-emerald-900">✨ Prochaine étape : Créez votre Bot IA</h3>
+                  <Badge className="bg-emerald-600 text-white border-0 w-fit">Automatique</Badge>
+                </div>
+                <div className="space-y-3">
+                  <p className="text-xs sm:text-sm text-emerald-800 leading-relaxed">
+                    Une fois votre base de connaissances complétée, vous recevrez <span className="font-semibold">un lien unique</span> que 
+                    vous pourrez utiliser pour :
+                  </p>
+                  <div className="grid gap-2 sm:gap-3">
+                    <div className="flex items-start gap-2 bg-white/50 backdrop-blur-sm rounded-lg p-2 sm:p-3 border border-emerald-200">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0">1</div>
+                      <div>
+                        <p className="text-xs sm:text-sm font-medium text-emerald-900">Créer votre Bot WhatsApp IA</p>
+                        <p className="text-xs text-emerald-700 mt-0.5">Intégration directe avec vos conversations WhatsApp</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 bg-white/50 backdrop-blur-sm rounded-lg p-2 sm:p-3 border border-emerald-200">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-teal-500 text-white flex items-center justify-center text-xs font-bold shrink-0">2</div>
+                      <div>
+                        <p className="text-xs sm:text-sm font-medium text-emerald-900">Configurer votre Bot Automatisé</p>
+                        <p className="text-xs text-emerald-700 mt-0.5">Réponses intelligentes 24/7 basées sur vos données</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg p-2 sm:p-3 mt-3">
+                    <Sparkles className="w-4 h-4 shrink-0" />
+                    <p className="text-xs sm:text-sm font-medium">
+                      Le lien sera généré automatiquement à 100% de complétion
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
