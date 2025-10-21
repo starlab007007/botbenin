@@ -99,10 +99,24 @@ export const UniversalMediaModal = ({
                   style={{ transform: `scale(${zoom})` }}
                   onError={(e) => {
                     console.error('Video load error in modal:', media.image_url?.substring(0, 100));
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'text-destructive p-6 text-center';
-                    errorDiv.innerHTML = '<div class="mb-2 text-2xl">⚠️</div><p class="font-semibold mb-1">Erreur de lecture vidéo</p><p class="text-sm opacity-80">Essayez de télécharger le fichier MP4</p>';
-                    e.currentTarget.parentElement?.appendChild(errorDiv);
+                    const parent = e.currentTarget.parentElement;
+                    if (parent && !parent.querySelector('.error-message')) {
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'error-message text-destructive p-6 text-center';
+                      const icon = document.createElement('div');
+                      icon.className = 'mb-2 text-2xl';
+                      icon.textContent = '⚠️';
+                      const title = document.createElement('p');
+                      title.className = 'font-semibold mb-1';
+                      title.textContent = 'Erreur de lecture vidéo';
+                      const desc = document.createElement('p');
+                      desc.className = 'text-sm opacity-80';
+                      desc.textContent = 'Essayez de télécharger le fichier MP4';
+                      errorDiv.appendChild(icon);
+                      errorDiv.appendChild(title);
+                      errorDiv.appendChild(desc);
+                      parent.appendChild(errorDiv);
+                    }
                   }}
                   onLoadedMetadata={(e) => {
                     console.log('Video metadata in modal:', {
@@ -136,12 +150,22 @@ export const UniversalMediaModal = ({
                     if (parent && !parent.querySelector('.error-message')) {
                       const errorDiv = document.createElement('div');
                       errorDiv.className = 'error-message text-destructive p-6 text-center flex flex-col gap-2';
-                      errorDiv.innerHTML = `
-                        <div class="mb-2 text-4xl">⚠️</div>
-                        <p class="font-semibold text-lg">Impossible de charger l'image</p>
-                        <p class="text-sm opacity-80">L'image peut être en cours de génération ou le format n'est pas supporté</p>
-                        <div class="text-xs mt-2 p-2 bg-muted rounded font-mono max-w-md mx-auto break-all">${media.image_url?.substring(0, 80)}...</div>
-                      `;
+                      const icon = document.createElement('div');
+                      icon.className = 'mb-2 text-4xl';
+                      icon.textContent = '⚠️';
+                      const title = document.createElement('p');
+                      title.className = 'font-semibold text-lg';
+                      title.textContent = 'Impossible de charger l\'image';
+                      const desc = document.createElement('p');
+                      desc.className = 'text-sm opacity-80';
+                      desc.textContent = 'L\'image peut être en cours de génération ou le format n\'est pas supporté';
+                      const debug = document.createElement('div');
+                      debug.className = 'text-xs mt-2 p-2 bg-muted rounded font-mono max-w-md mx-auto break-all';
+                      debug.textContent = `${media.image_url?.substring(0, 80)}...`;
+                      errorDiv.appendChild(icon);
+                      errorDiv.appendChild(title);
+                      errorDiv.appendChild(desc);
+                      errorDiv.appendChild(debug);
                       parent.appendChild(errorDiv);
                     }
                   }}

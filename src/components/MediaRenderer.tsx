@@ -1,5 +1,6 @@
 
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { UrlDetector, UrlInfo } from '@/utils/urlDetection';
 import { OptimizedImageDisplay } from '@/components/OptimizedImageDisplay';
 
@@ -302,14 +303,14 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content }) => {
       // Process for emails and WhatsApp
       const processedContent = processContent(formattedLine);
       
-      // If HTML formatted, use dangerouslySetInnerHTML
+      // If HTML formatted, sanitize and use dangerouslySetInnerHTML
       if (typeof processedContent[0] === 'string' && processedContent.length === 1 && 
           (formattedLine.includes('<') || formattedLine.includes('>'))) {
         return (
           <div 
             key={`formatted-${index}`}
             className="leading-relaxed mb-1"
-            dangerouslySetInnerHTML={{ __html: formattedLine }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formattedLine) }}
           />
         );
       }

@@ -194,10 +194,13 @@ export const GenerationProgress = ({
                         if (parent && !parent.querySelector('.error-message')) {
                           const errorDiv = document.createElement('div');
                           errorDiv.className = 'error-message text-destructive p-4 text-center text-sm flex flex-col items-center gap-2';
-                          errorDiv.innerHTML = `
-                            <div>⚠️ Impossible de charger l'image</div>
-                            <div class="text-xs opacity-70">Format: ${step.result.image?.substring(0, 30)}...</div>
-                          `;
+                          const warningIcon = document.createElement('div');
+                          warningIcon.textContent = '⚠️ Impossible de charger l\'image';
+                          const formatText = document.createElement('div');
+                          formatText.className = 'text-xs opacity-70';
+                          formatText.textContent = `Format: ${step.result.image?.substring(0, 30)}...`;
+                          errorDiv.appendChild(warningIcon);
+                          errorDiv.appendChild(formatText);
                           parent.appendChild(errorDiv);
                         }
                       }}
@@ -353,11 +356,18 @@ export const GenerationProgress = ({
                     if (parent && !parent.querySelector('.error-message')) {
                       const errorDiv = document.createElement('div');
                       errorDiv.className = 'error-message text-destructive p-6 text-center flex flex-col gap-2';
-                      errorDiv.innerHTML = `
-                        <div class="text-lg font-semibold">⚠️ Impossible de charger l'image complète</div>
-                        <div class="text-sm opacity-70">L'image peut être corrompue ou trop volumineuse</div>
-                        <div class="text-xs mt-2 p-2 bg-muted rounded font-mono">${previewStep.result.image?.substring(0, 50)}...</div>
-                      `;
+                      const titleDiv = document.createElement('div');
+                      titleDiv.className = 'text-lg font-semibold';
+                      titleDiv.textContent = '⚠️ Impossible de charger l\'image complète';
+                      const descDiv = document.createElement('div');
+                      descDiv.className = 'text-sm opacity-70';
+                      descDiv.textContent = 'L\'image peut être corrompue ou trop volumineuse';
+                      const debugDiv = document.createElement('div');
+                      debugDiv.className = 'text-xs mt-2 p-2 bg-muted rounded font-mono';
+                      debugDiv.textContent = `${previewStep.result.image?.substring(0, 50)}...`;
+                      errorDiv.appendChild(titleDiv);
+                      errorDiv.appendChild(descDiv);
+                      errorDiv.appendChild(debugDiv);
                       parent.appendChild(errorDiv);
                     }
                   }}
@@ -378,10 +388,19 @@ export const GenerationProgress = ({
                   className="max-w-full max-h-full rounded-lg shadow-lg"
                   onError={(e) => {
                     console.error('Video load error in preview:', previewStep.result?.image?.substring(0, 100));
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'text-destructive p-6 text-center';
-                    errorDiv.innerHTML = '<p>⚠️ Erreur de lecture vidéo</p><p class="text-sm mt-2">Essayez de télécharger le fichier MP4</p>';
-                    e.currentTarget.parentElement?.appendChild(errorDiv);
+                    const parent = e.currentTarget.parentElement;
+                    if (parent && !parent.querySelector('.error-message')) {
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'error-message text-destructive p-6 text-center';
+                      const errorTitle = document.createElement('p');
+                      errorTitle.textContent = '⚠️ Erreur de lecture vidéo';
+                      const errorDesc = document.createElement('p');
+                      errorDesc.className = 'text-sm mt-2';
+                      errorDesc.textContent = 'Essayez de télécharger le fichier MP4';
+                      errorDiv.appendChild(errorTitle);
+                      errorDiv.appendChild(errorDesc);
+                      parent.appendChild(errorDiv);
+                    }
                   }}
                   onLoadedMetadata={(e) => {
                     console.log('Video metadata:', {
