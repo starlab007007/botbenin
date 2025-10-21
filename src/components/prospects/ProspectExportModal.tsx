@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { Download, FileText, Table, Database } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Download, FileText, Table } from 'lucide-react';
+import { useProspectExport } from '@/hooks/useProspectExport';
 
 interface ProspectExportModalProps {
   isOpen: boolean;
@@ -21,32 +20,30 @@ export const ProspectExportModal: React.FC<ProspectExportModalProps> = ({
   selectedProspects,
   databaseId 
 }) => {
-  const [format, setFormat] = useState<'csv' | 'excel' | 'pdf'>('csv');
+  const [format, setFormat] = useState<'csv' | 'excel'>('excel');
   const [includeFields, setIncludeFields] = useState({
     basic: true,
     contact: true,
     company: true,
     notes: false,
     tags: false,
-    customFields: false,
+    customFields: true,
     analytics: false
   });
-  const [isExporting, setIsExporting] = useState(false);
-  const { toast } = useToast();
+  
+  const { exportProspects, isExporting } = useProspectExport();
 
   const handleExport = async () => {
-    setIsExporting(true);
-    
-    // Simuler l'export
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast({
-      title: "Export réussi",
-      description: `Les prospects ont été exportés au format ${format.toUpperCase()}.`,
+    const success = await exportProspects({
+      format,
+      includeFields,
+      selectedProspects,
+      databaseId
     });
     
-    setIsExporting(false);
-    onClose();
+    if (success) {
+      onClose();
+    }
   };
 
   const getExportDescription = () => {
@@ -76,12 +73,12 @@ export const ProspectExportModal: React.FC<ProspectExportModalProps> = ({
           {/* Format d'export */}
           <div>
             <Label className="text-base font-medium">Format d'export</Label>
-            <div className="grid grid-cols-3 gap-3 mt-3">
+            <div className="grid grid-cols-2 gap-3 mt-3">
               <Card className={`cursor-pointer transition-all ${format === 'csv' ? 'ring-2 ring-primary' : ''}`}>
                 <CardContent className="p-4 text-center" onClick={() => setFormat('csv')}>
                   <Table className="w-8 h-8 mx-auto mb-2" />
                   <div className="font-medium">CSV</div>
-                  <div className="text-xs text-muted-foreground">Tableur</div>
+                  <div className="text-xs text-muted-foreground">Tableur compatible</div>
                 </CardContent>
               </Card>
               
@@ -89,15 +86,7 @@ export const ProspectExportModal: React.FC<ProspectExportModalProps> = ({
                 <CardContent className="p-4 text-center" onClick={() => setFormat('excel')}>
                   <FileText className="w-8 h-8 mx-auto mb-2" />
                   <div className="font-medium">Excel</div>
-                  <div className="text-xs text-muted-foreground">XLSX</div>
-                </CardContent>
-              </Card>
-              
-              <Card className={`cursor-pointer transition-all ${format === 'pdf' ? 'ring-2 ring-primary' : ''}`}>
-                <CardContent className="p-4 text-center" onClick={() => setFormat('pdf')}>
-                  <Database className="w-8 h-8 mx-auto mb-2" />
-                  <div className="font-medium">PDF</div>
-                  <div className="text-xs text-muted-foreground">Rapport</div>
+                  <div className="text-xs text-muted-foreground">XLSX avec colonnes formatées</div>
                 </CardContent>
               </Card>
             </div>
