@@ -48,7 +48,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "access_logs_user_id_fkey"
@@ -96,7 +96,7 @@ export type Database = {
             columns: ["admin_user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "admin_logs_admin_user_id_fkey"
@@ -110,7 +110,7 @@ export type Database = {
             columns: ["target_user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "admin_logs_target_user_id_fkey"
@@ -196,7 +196,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "analytics_user_id_fkey"
@@ -379,7 +379,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "appointments_user_id_fkey"
@@ -531,7 +531,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "automations_user_id_fkey"
@@ -987,7 +987,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "campaigns_user_id_fkey"
@@ -1086,6 +1086,20 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_user_id_fkey"
             columns: ["bot_user_id"]
             isOneToOne: false
+            referencedRelation: "bot_conversation_history"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_message_history"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
             referencedRelation: "bot_owner_conversations"
             referencedColumns: ["bot_user_id"]
           },
@@ -1095,6 +1109,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bot_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "unified_conversation_history"
+            referencedColumns: ["bot_user_id"]
           },
         ]
       }
@@ -1183,6 +1204,20 @@ export type Database = {
             foreignKeyName: "chat_sessions_bot_user_id_fkey"
             columns: ["bot_user_id"]
             isOneToOne: false
+            referencedRelation: "bot_conversation_history"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_message_history"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
             referencedRelation: "bot_owner_conversations"
             referencedColumns: ["bot_user_id"]
           },
@@ -1192,6 +1227,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bot_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "unified_conversation_history"
+            referencedColumns: ["bot_user_id"]
           },
         ]
       }
@@ -1238,7 +1280,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "contacts_user_id_fkey"
@@ -1361,7 +1403,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "conversations_user_id_fkey"
@@ -1424,7 +1466,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "demo_accounts_user_id_fkey"
@@ -1633,6 +1675,20 @@ export type Database = {
             foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
             columns: ["bot_user_id"]
             isOneToOne: false
+            referencedRelation: "bot_conversation_history"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "bot_message_history"
+            referencedColumns: ["bot_user_id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
             referencedRelation: "bot_owner_conversations"
             referencedColumns: ["bot_user_id"]
           },
@@ -1642,6 +1698,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bot_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enhanced_chat_sessions_bot_user_id_fkey"
+            columns: ["bot_user_id"]
+            isOneToOne: false
+            referencedRelation: "unified_conversation_history"
+            referencedColumns: ["bot_user_id"]
           },
           {
             foreignKeyName: "enhanced_chat_sessions_shortened_link_id_fkey"
@@ -1773,7 +1836,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "file_folders_user_id_fkey"
@@ -1824,7 +1887,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "files_user_id_fkey"
@@ -2517,7 +2580,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "messages_user_id_fkey"
@@ -2625,7 +2688,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "notifications_user_id_fkey"
@@ -3645,7 +3708,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "subscriber_messages_user_id_fkey"
@@ -3711,7 +3774,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "subscribers_user_id_fkey"
@@ -3762,7 +3825,7 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "subscription_history_created_by_fkey"
@@ -3790,7 +3853,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "subscription_history_user_id_fkey"
@@ -3902,7 +3965,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "subscriptions_user_id_fkey"
@@ -4040,7 +4103,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_activities_user_id_fkey"
@@ -4113,7 +4176,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_files_user_id_fkey"
@@ -4198,7 +4261,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_module_access_user_id_fkey"
@@ -4240,7 +4303,7 @@ export type Database = {
             columns: ["granted_by"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_permissions_granted_by_fkey"
@@ -4261,7 +4324,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_permissions_user_id_fkey"
@@ -4309,7 +4372,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_profiles_user_id_fkey"
@@ -4352,7 +4415,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_roles_user_id_fkey"
@@ -4403,7 +4466,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_sessions_user_id_fkey"
@@ -4451,7 +4514,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "user_settings_user_id_fkey"
@@ -5043,7 +5106,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "whatsapp_automations_user_id_fkey"
@@ -5225,7 +5288,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "whatsapp_campaigns_user_id_fkey"
@@ -5295,7 +5358,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "whatsapp_contacts_user_id_fkey"
@@ -5366,7 +5429,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "whatsapp_conversations_user_id_fkey"
@@ -5423,7 +5486,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "whatsapp_integrations_user_id_fkey"
@@ -5555,7 +5618,7 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "user_stats"
-            referencedColumns: ["id"]
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "whatsapp_templates_user_id_fkey"
@@ -5580,6 +5643,7 @@ export type Database = {
           suspended_users: number | null
           total_bots: number | null
           total_link_clicks: number | null
+          total_users: number | null
         }
         Relationships: []
       }
@@ -5608,6 +5672,13 @@ export type Database = {
           user_name: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bots_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "bot_owners"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
@@ -5656,20 +5727,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owner_conversations"
-            referencedColumns: ["bot_user_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_users"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -5748,20 +5805,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owner_conversations"
-            referencedColumns: ["bot_user_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_users"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -5913,10 +5956,8 @@ export type Database = {
         Row: {
           active_sessions: number | null
           active_users_24h: number | null
-          active_users_7d: number | null
           avg_messages_per_session: number | null
           avg_session_duration_minutes: number | null
-          bot_created_at: string | null
           bot_id: string | null
           bot_messages: number | null
           bot_name: string | null
@@ -5926,7 +5967,6 @@ export type Database = {
           messages_24h: number | null
           owner_id: string | null
           sessions_24h: number | null
-          share_enabled: boolean | null
           total_link_clicks: number | null
           total_messages: number | null
           total_sessions: number | null
@@ -5947,14 +5987,12 @@ export type Database = {
       ia_creator_admin_stats: {
         Row: {
           active_users_24h: number | null
+          active_users_30d: number | null
           active_users_7d: number | null
-          creations_this_month: number | null
-          flagged_creations: number | null
-          pending_moderation: number | null
+          avg_creations_per_user: number | null
           total_creations: number | null
           total_flyers: number | null
           total_images: number | null
-          total_storage_used_gb: number | null
           total_users: number | null
           total_videos: number | null
         }
@@ -5965,23 +6003,13 @@ export type Database = {
           bot_id: string | null
           bot_name: string | null
           bot_user_id: string | null
-          enhanced_session_token: string | null
-          entry_point: string | null
-          ip_address: string | null
           message_content: string | null
           message_id: string | null
           message_timestamp: string | null
           message_type: string | null
-          metadata: Json | null
           owner_id: string | null
           session_id: string | null
-          session_last_activity: string | null
-          session_start: string | null
-          session_total_messages: number | null
-          user_agent: string | null
           user_email: string | null
-          user_first_seen: string | null
-          user_last_active: string | null
           user_name: string | null
         }
         Relationships: [
@@ -6041,50 +6069,30 @@ export type Database = {
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
-          {
-            foreignKeyName: "chat_messages_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owner_conversations"
-            referencedColumns: ["bot_user_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_user_id_fkey"
-            columns: ["bot_user_id"]
-            isOneToOne: false
-            referencedRelation: "bot_users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       user_permission_details: {
         Row: {
-          action: string | null
-          category: string | null
+          permission_category: string | null
           permission_description: string | null
           permission_name: string | null
-          resource: string | null
           role_name: string | null
-          source: string | null
           user_id: string | null
         }
         Relationships: []
       }
       user_stats: {
         Row: {
-          created_at: string | null
+          active_bots: number | null
+          active_campaigns: number | null
           email: string | null
           full_name: string | null
-          id: string | null
-          is_active: boolean | null
-          last_login: string | null
-          phone: string | null
-          role_name: string | null
-          subscription_tier: string | null
-          total_automations: number | null
+          last_activity: string | null
+          status: string | null
           total_bots: number | null
-          total_messages: number | null
-          unread_notifications: number | null
+          total_campaigns: number | null
+          user_created_at: string | null
+          user_id: string | null
         }
         Relationships: []
       }
