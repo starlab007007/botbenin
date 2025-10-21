@@ -67,6 +67,13 @@ const botManagementItems = [
     color: 'from-indigo-500 to-indigo-600',
     badge: 'Pro'
   },
+  { 
+    title: 'Création Bots', 
+    path: '/modules/business', 
+    icon: Database, 
+    color: 'from-cyan-500 to-cyan-600',
+    description: 'Bases de Connaissances'
+  },
 ];
 
 const marketingItems = [
