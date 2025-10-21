@@ -685,7 +685,7 @@ export type Database = {
       }
       bot_users: {
         Row: {
-          bot_id: string | null
+          bot_id: string
           created_at: string
           id: string
           is_authenticated: boolean | null
@@ -696,7 +696,7 @@ export type Database = {
           user_name: string | null
         }
         Insert: {
-          bot_id?: string | null
+          bot_id: string
           created_at?: string
           id?: string
           is_authenticated?: boolean | null
@@ -707,7 +707,7 @@ export type Database = {
           user_name?: string | null
         }
         Update: {
-          bot_id?: string | null
+          bot_id?: string
           created_at?: string
           id?: string
           is_authenticated?: boolean | null
@@ -1000,7 +1000,7 @@ export type Database = {
       }
       chat_messages: {
         Row: {
-          bot_id: string | null
+          bot_id: string
           bot_user_id: string | null
           created_at: string
           id: string
@@ -1011,7 +1011,7 @@ export type Database = {
           user_agent: string | null
         }
         Insert: {
-          bot_id?: string | null
+          bot_id: string
           bot_user_id?: string | null
           created_at?: string
           id?: string
@@ -1022,7 +1022,7 @@ export type Database = {
           user_agent?: string | null
         }
         Update: {
-          bot_id?: string | null
+          bot_id?: string
           bot_user_id?: string | null
           created_at?: string
           id?: string
