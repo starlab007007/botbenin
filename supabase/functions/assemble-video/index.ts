@@ -94,6 +94,8 @@ serve(async (req) => {
     // 2. Créer l'entrée dans la base de données
     console.log('📊 Saving to database...');
     
+    const videoFormat = useShotstack ? 'mp4' : 'png';
+    
     const { data: videoRecord, error: dbError } = await supabase
       .from('generated_videos')
       .insert({
@@ -102,6 +104,7 @@ serve(async (req) => {
         video_url: frames.hero,
         storage_path: fileName,
         size_bytes: JSON.stringify(videoData).length,
+        format: videoFormat,
         template_id: templateId,
         music_id: musicId,
         user_id: user.id,
@@ -176,7 +179,7 @@ serve(async (req) => {
         allFrames: frames,
         size: JSON.stringify(videoData).length,
         duration: 10,
-        format: useShotstack ? 'mp4' : 'frames',
+        format: videoFormat,
         useShotstack: useShotstack || false,
         renderStatus: useShotstack ? 'processing' : 'completed',
         message: useShotstack 

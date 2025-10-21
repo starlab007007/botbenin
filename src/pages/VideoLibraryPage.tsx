@@ -144,7 +144,7 @@ export const VideoLibraryPage = () => {
         a.click();
         document.body.removeChild(a);
 
-        toast.success(`Téléchargement de la vidéo ${video.video_title}`);
+        toast.success(`Téléchargement de la vidéo ${video.video_title} (MP4)`);
         return;
       }
 
@@ -155,7 +155,8 @@ export const VideoLibraryPage = () => {
         return;
       }
       
-      toast.info('Téléchargement des frames...');
+      const format = video.format || 'png';
+      toast.info(`Téléchargement des ${frames.length} frames (${format.toUpperCase()})...`);
       
       for (let i = 0; i < frames.length; i++) {
         const frame = frames[i];
@@ -164,7 +165,7 @@ export const VideoLibraryPage = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${video.video_title}_${frame.frame_type}.png`;
+        a.download = `${video.video_title}_${frame.frame_type}.${format}`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -175,7 +176,7 @@ export const VideoLibraryPage = () => {
         }
       }
       
-      toast.success(`${frames.length} frames téléchargées!`);
+      toast.success(`${frames.length} frames téléchargées (${format.toUpperCase()})!`);
     } catch (error) {
       console.error('Error downloading video:', error);
       toast.error('Erreur lors du téléchargement');
@@ -216,19 +217,19 @@ export const VideoLibraryPage = () => {
     }
   };
 
-  const downloadFrame = async (frame: VideoFrame) => {
+  const downloadFrame = async (frame: VideoFrame, format: string = 'png') => {
     try {
       const response = await fetch(frame.image_url);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${frame.video_id}_${frame.frame_type}.png`;
+      a.download = `${frame.video_id}_${frame.frame_type}.${format}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Frame téléchargée!');
+      toast.success(`Frame téléchargée (${format.toUpperCase()})!`);
     } catch (error) {
       console.error('Error downloading frame:', error);
       toast.error('Erreur lors du téléchargement');
@@ -372,7 +373,7 @@ export const VideoLibraryPage = () => {
                 <CardContent className="p-4 space-y-3">
                   <div>
                     <h3 className="font-semibold mb-2 truncate">{video.video_title}</h3>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                       <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         <span>{duration}s</span>
@@ -385,6 +386,11 @@ export const VideoLibraryPage = () => {
                         <Video className="h-3 w-3" />
                         <span>{frames.length} frames</span>
                       </div>
+                      {video.format && (
+                        <Badge variant="outline" className="text-xs uppercase">
+                          {video.format}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {new Date(video.created_at).toLocaleDateString('fr-FR', {
@@ -410,7 +416,7 @@ export const VideoLibraryPage = () => {
                             size="sm"
                             variant="ghost"
                             className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/60 rounded"
-                            onClick={() => downloadFrame(frame)}
+                            onClick={() => downloadFrame(frame, video.format || 'png')}
                           >
                             <Download className="h-3 w-3 text-white" />
                           </Button>

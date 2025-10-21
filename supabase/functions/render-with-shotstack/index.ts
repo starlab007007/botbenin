@@ -190,7 +190,8 @@ serve(async (req) => {
       .from('generated_videos')
       .update({
         shotstack_render_id: renderId,
-        render_status: 'processing'
+        render_status: 'processing',
+        format: 'mp4'
       })
       .eq('video_id', videoId);
 
