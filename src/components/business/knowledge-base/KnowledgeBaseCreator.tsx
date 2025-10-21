@@ -141,16 +141,16 @@ export const KnowledgeBaseCreator: React.FC<KnowledgeBaseCreatorProps> = ({ onBa
             </Badge>
           </div>
 
-          <Card className="p-6">
+          <Card className="p-4 sm:p-6">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="kb-name">Nom de votre base de connaissances *</Label>
+                <Label htmlFor="kb-name" className="text-sm sm:text-base">Nom de votre base de connaissances *</Label>
                 <Input
                   id="kb-name"
                   value={knowledgeBaseName}
                   onChange={(e) => setKnowledgeBaseName(e.target.value)}
                   placeholder="Ex: Restaurant Le Petit Bistrot"
-                  className="text-lg font-semibold mt-2"
+                  className="text-base sm:text-lg font-semibold mt-2"
                 />
               </div>
               <Progress value={completion} className="h-2" />
@@ -163,19 +163,21 @@ export const KnowledgeBaseCreator: React.FC<KnowledgeBaseCreatorProps> = ({ onBa
             onChange={handleStructuralInfoChange}
           />
 
-          <Accordion type="multiple" defaultValue={[selectedTemplate.tables[0]?.id || '']} className="space-y-4">
+          <Accordion type="multiple" defaultValue={[selectedTemplate.tables[0]?.id || '']} className="space-y-3 sm:space-y-4">
             {selectedTemplate.tables.map((table) => (
-              <AccordionItem key={table.id} value={table.id} className="border rounded-lg">
-                <AccordionTrigger className="px-6 hover:no-underline">
-                  <div className="flex items-center gap-3 text-left">
-                    <span className="font-semibold">{table.name}</span>
-                    <Badge variant="outline">
-                      {tablesData[table.id]?.length || 0} entrée{tablesData[table.id]?.length > 1 ? 's' : ''}
-                    </Badge>
-                    {table.required && <Badge>Requis</Badge>}
+              <AccordionItem key={table.id} value={table.id} className="border rounded-lg bg-white">
+                <AccordionTrigger className="px-3 sm:px-6 hover:no-underline">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-left w-full">
+                    <span className="font-semibold text-sm sm:text-base">{table.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {tablesData[table.id]?.length || 0} entrée{tablesData[table.id]?.length > 1 ? 's' : ''}
+                      </Badge>
+                      {table.required && <Badge className="text-xs">Requis</Badge>}
+                    </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-6 pb-6">
+                <AccordionContent className="px-3 sm:px-6 pb-4 sm:pb-6">
                   <DataTableEditor
                     table={table}
                     data={tablesData[table.id] || []}
@@ -221,15 +223,16 @@ export const KnowledgeBaseCreator: React.FC<KnowledgeBaseCreatorProps> = ({ onBa
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <Button 
                   size="lg" 
-                  className="flex-1 text-sm sm:text-base"
+                  className="flex-1 text-sm sm:text-base h-12 sm:h-14"
                   onClick={handleSave}
                   disabled={!knowledgeBaseName || saving || completion < 10}
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {saving ? 'Enregistrement...' : 'Enregistrer la base'}
+                  <span className="hidden sm:inline">{saving ? 'Enregistrement...' : 'Enregistrer la base'}</span>
+                  <span className="sm:hidden">{saving ? 'Enregistrement...' : 'Enregistrer'}</span>
                 </Button>
               </div>
             </div>

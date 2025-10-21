@@ -82,7 +82,7 @@ export const AddressField: React.FC<AddressFieldProps> = ({
   return (
     <div className="relative" ref={inputRef}>
       <div className="relative">
-        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
         <Input
           type="text"
           placeholder={placeholder}
@@ -93,7 +93,7 @@ export const AddressField: React.FC<AddressFieldProps> = ({
               setShowSuggestions(true);
             }
           }}
-          className="pl-9"
+          className="pl-9 text-xs sm:text-sm h-9 sm:h-10"
         />
       </div>
       {showSuggestions && suggestions.length > 0 && (
@@ -102,12 +102,12 @@ export const AddressField: React.FC<AddressFieldProps> = ({
             <button
               key={index}
               type="button"
-              className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground text-sm transition-colors"
+              className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground text-xs sm:text-sm transition-colors"
               onClick={() => handleSelectSuggestion(suggestion)}
             >
               <div className="flex items-center gap-2">
-                <MapPin className="h-3 w-3 text-muted-foreground" />
-                {suggestion}
+                <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="truncate">{suggestion}</span>
               </div>
             </button>
           ))}

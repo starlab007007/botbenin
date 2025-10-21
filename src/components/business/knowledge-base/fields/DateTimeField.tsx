@@ -46,17 +46,17 @@ export const DateTimeField: React.FC<DateTimeFieldProps> = ({
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-col sm:flex-row gap-2">
       <Popover>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             className={cn(
-              'flex-1 justify-start text-left font-normal',
+              'flex-1 justify-start text-left font-normal text-xs sm:text-sm h-9 sm:h-10',
               !date && 'text-muted-foreground'
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
+            <CalendarIcon className="mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
             {date ? format(date, 'PPP', { locale: fr }) : <span>{placeholder || 'Choisir une date'}</span>}
           </Button>
         </PopoverTrigger>
@@ -70,13 +70,13 @@ export const DateTimeField: React.FC<DateTimeFieldProps> = ({
           />
         </PopoverContent>
       </Popover>
-      <div className="relative w-32">
-        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="relative w-full sm:w-32">
+        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
         <Input
           type="time"
           value={time}
           onChange={(e) => handleTimeChange(e.target.value)}
-          className="pl-9"
+          className="pl-9 text-xs sm:text-sm h-9 sm:h-10"
         />
       </div>
     </div>

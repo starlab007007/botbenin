@@ -73,13 +73,13 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
   return (
     <div className="space-y-2">
       {value && (
-        <div className="flex items-center gap-2 p-2 border rounded-lg bg-muted/50">
-          <FileText className="w-4 h-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 p-2 sm:p-3 border rounded-lg bg-muted/50">
+          <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
           <a 
             href={value} 
             target="_blank" 
             rel="noopener noreferrer"
-            className="flex-1 text-sm truncate hover:underline"
+            className="flex-1 text-xs sm:text-sm truncate hover:underline"
           >
             {getFileName(value)}
           </a>
@@ -88,9 +88,9 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
             variant="ghost"
             size="sm"
             onClick={onClear}
-            className="h-8 w-8 p-0"
+            className="h-7 w-7 sm:h-8 sm:w-8 p-0 shrink-0"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
           </Button>
         </div>
       )}
@@ -109,10 +109,11 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
           };
           input.click();
         }}
-        className="w-full"
+        className="w-full text-xs sm:text-sm h-9 sm:h-10"
       >
-        <Upload className="w-4 h-4 mr-2" />
-        {uploading ? 'Téléchargement...' : value ? 'Remplacer le fichier' : 'Choisir un fichier'}
+        <Upload className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+        <span className="hidden sm:inline">{uploading ? 'Téléchargement...' : value ? 'Remplacer le fichier' : 'Choisir un fichier'}</span>
+        <span className="sm:hidden">{uploading ? 'Chargement...' : value ? 'Remplacer' : 'Choisir'}</span>
       </Button>
     </div>
   );
