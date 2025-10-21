@@ -1,6 +1,6 @@
 export interface KnowledgeField {
   name: string;
-  type: 'text' | 'number' | 'phone' | 'email' | 'url' | 'date' | 'time' | 'price' | 'image' | 'select' | 'multiselect' | 'textarea';
+  type: 'text' | 'number' | 'phone' | 'email' | 'url' | 'date' | 'time' | 'datetime' | 'price' | 'image' | 'file' | 'address' | 'select' | 'multiselect' | 'textarea';
   required: boolean;
   placeholder?: string;
   options?: string[];

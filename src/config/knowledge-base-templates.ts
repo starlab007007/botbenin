@@ -126,9 +126,13 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'prix', type: 'price', required: true, placeholder: '50000000' },
           { name: 'surface_m2', type: 'number', required: true, placeholder: '150' },
           { name: 'nb_pieces', type: 'number', required: false, placeholder: '4' },
+          { name: 'adresse_complete', type: 'address', required: true, placeholder: 'Adresse du bien' },
           { name: 'ville', type: 'text', required: true, placeholder: 'Cotonou' },
           { name: 'quartier', type: 'text', required: true, placeholder: 'Akpakpa' },
-          { name: 'statut', type: 'select', required: true, options: ['Disponible', 'Réservé', 'Vendu/Loué'] }
+          { name: 'description', type: 'textarea', required: false, placeholder: 'Description du bien' },
+          { name: 'statut', type: 'select', required: true, options: ['Disponible', 'Réservé', 'Vendu/Loué'] },
+          { name: 'image', type: 'image', required: false },
+          { name: 'documents', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       }
     ]
@@ -161,7 +165,9 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'categorie', type: 'text', required: true, placeholder: 'Vêtements, Électronique...' },
           { name: 'prix', type: 'price', required: true, placeholder: '15000' },
           { name: 'stock', type: 'number', required: true, placeholder: '50' },
-          { name: 'description', type: 'textarea', required: false, placeholder: 'Description détaillée' }
+          { name: 'description', type: 'textarea', required: false, placeholder: 'Description détaillée' },
+          { name: 'image', type: 'image', required: false },
+          { name: 'fiche_technique', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       },
       {
@@ -209,7 +215,10 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'duree_heures', type: 'number', required: true, placeholder: '120' },
           { name: 'niveau', type: 'select', required: true, options: ['Débutant', 'Intermédiaire', 'Avancé', 'Expert'] },
           { name: 'frais', type: 'price', required: true, placeholder: '250000' },
-          { name: 'certification_incluse', type: 'select', required: true, options: ['Oui', 'Non'] }
+          { name: 'date_debut', type: 'datetime', required: false, placeholder: 'Date et heure de début' },
+          { name: 'certification_incluse', type: 'select', required: true, options: ['Oui', 'Non'] },
+          { name: 'image', type: 'image', required: false },
+          { name: 'programme_detaille', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       },
       {
@@ -223,7 +232,9 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'description', type: 'textarea', required: true, placeholder: 'Description sommaire' },
           { name: 'competence_cle', type: 'text', required: true, placeholder: 'Cybersécurité' },
           { name: 'fourchette_prix', type: 'text', required: true, placeholder: '500 000 - 2 000 000 FCFA' },
-          { name: 'duree_typique', type: 'text', required: false, placeholder: '1-3 mois' }
+          { name: 'duree_typique', type: 'text', required: false, placeholder: '1-3 mois' },
+          { name: 'image', type: 'image', required: false },
+          { name: 'presentation', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       }
     ]
@@ -257,7 +268,10 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'domaine', type: 'text', required: true, placeholder: 'Sciences & Technologies' },
           { name: 'duree_ans', type: 'number', required: true, placeholder: '3' },
           { name: 'frais_scolarite_annuel', type: 'price', required: true, placeholder: '1500000' },
-          { name: 'statut', type: 'select', required: true, options: ['Ouvert', 'Complet', 'Bientôt'] }
+          { name: 'date_rentree', type: 'datetime', required: false, placeholder: 'Date et heure de rentrée' },
+          { name: 'statut', type: 'select', required: true, options: ['Ouvert', 'Complet', 'Bientôt'] },
+          { name: 'image', type: 'image', required: false },
+          { name: 'brochure', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       },
       {
@@ -270,7 +284,8 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'programme', type: 'text', required: true, placeholder: 'Nom du programme' },
           { name: 'nom_etape', type: 'text', required: true, placeholder: 'Dépôt du dossier en ligne' },
           { name: 'delai_typique_jours', type: 'number', required: false, placeholder: '7' },
-          { name: 'pieces_requises', type: 'textarea', required: false, placeholder: 'BAC, relevés de notes...' }
+          { name: 'pieces_requises', type: 'textarea', required: false, placeholder: 'BAC, relevés de notes...' },
+          { name: 'formulaires', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       }
     ]
@@ -302,7 +317,10 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
         fields: [
           { name: 'nom_specialite', type: 'text', required: true, placeholder: 'Cardiologie' },
           { name: 'description', type: 'textarea', required: true, placeholder: 'Description de la spécialité' },
-          { name: 'medecins', type: 'textarea', required: false, placeholder: 'Dr. Dupont, Dr. Martin' }
+          { name: 'medecins', type: 'textarea', required: false, placeholder: 'Dr. Dupont, Dr. Martin' },
+          { name: 'horaires_consultation', type: 'text', required: false, placeholder: 'Lun-Ven: 9h-17h' },
+          { name: 'image', type: 'image', required: false },
+          { name: 'documents_info', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       },
       {

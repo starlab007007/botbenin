@@ -31,6 +31,9 @@ import { Plus, Trash2, Edit, Upload, Image as ImageIcon } from 'lucide-react';
 import { KnowledgeTable } from '@/types/knowledge-base';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { FileUploadField } from './fields/FileUploadField';
+import { DateTimeField } from './fields/DateTimeField';
+import { AddressField } from './fields/AddressField';
 
 interface DataTableEditorProps {
   table: KnowledgeTable;
@@ -119,6 +122,37 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
   };
 
   const renderField = (field: any) => {
+    if (field.type === 'file') {
+      return (
+        <FileUploadField
+          fieldName={field.name}
+          value={formData[field.name] || null}
+          onChange={(url) => setFormData({ ...formData, [field.name]: url })}
+          onClear={() => setFormData({ ...formData, [field.name]: '' })}
+        />
+      );
+    }
+
+    if (field.type === 'datetime') {
+      return (
+        <DateTimeField
+          value={formData[field.name] || ''}
+          onChange={(value) => setFormData({ ...formData, [field.name]: value })}
+          placeholder={field.placeholder}
+        />
+      );
+    }
+
+    if (field.type === 'address') {
+      return (
+        <AddressField
+          value={formData[field.name] || ''}
+          onChange={(value) => setFormData({ ...formData, [field.name]: value })}
+          placeholder={field.placeholder}
+        />
+      );
+    }
+    
     if (field.type === 'image') {
       return (
         <div className="space-y-2">
@@ -201,7 +235,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
 
     return (
       <Input
-        type={field.type === 'price' ? 'number' : field.type}
+        type={field.type === 'price' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : field.type}
         placeholder={field.placeholder}
         value={formData[field.name] || ''}
         onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
@@ -300,7 +334,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 py-4">
             {table.fields.map(field => (
-              <div key={field.name} className={field.type === 'textarea' || field.type === 'image' ? 'md:col-span-2' : ''}>
+              <div key={field.name} className={field.type === 'textarea' || field.type === 'image' || field.type === 'file' || field.type === 'datetime' || field.type === 'address' ? 'md:col-span-2' : ''}>
                 <Label className="text-sm">
                   {field.name}
                   {field.required && <span className="text-destructive ml-1">*</span>}
