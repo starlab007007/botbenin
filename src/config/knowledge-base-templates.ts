@@ -366,7 +366,8 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
           { name: 'categorie', type: 'text', required: false, placeholder: 'Catégorie' },
           { name: 'prix', type: 'price', required: false, placeholder: '10000' },
           { name: 'disponible', type: 'select', required: true, options: ['Oui', 'Non'] },
-          { name: 'image', type: 'image', required: false }
+          { name: 'image', type: 'image', required: false },
+          { name: 'documents', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       },
       {
@@ -390,7 +391,8 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
         fields: [
           { name: 'titre', type: 'text', required: true, placeholder: 'Titre de l\'information' },
           { name: 'contenu', type: 'textarea', required: true, placeholder: 'Contenu de l\'information' },
-          { name: 'type', type: 'select', required: false, options: ['Politique', 'Procédure', 'Guide', 'Autre'] }
+          { name: 'type', type: 'select', required: false, options: ['Politique', 'Procédure', 'Guide', 'Autre'] },
+          { name: 'documents_joints', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
         ]
       }
     ]
