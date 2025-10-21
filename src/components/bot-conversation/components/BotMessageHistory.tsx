@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { MessageSquare, User, Bot, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BotMessageHistoryItem } from "../types";
+import { SafeText } from '@/components/security/SafeText';
 
 interface BotMessageHistoryProps {
   messages: BotMessageHistoryItem[];
@@ -77,7 +78,7 @@ export const BotMessageHistory: React.FC<BotMessageHistoryProps> = ({
               </div>
               
               <p className="text-sm text-gray-900 mb-2 break-words">
-                {message.message_content}
+                <SafeText>{message.message_content}</SafeText>
               </p>
               
               <div className="flex items-center gap-4 text-xs text-gray-500">

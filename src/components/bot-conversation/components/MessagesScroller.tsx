@@ -1,6 +1,7 @@
 
 import React from "react";
 import { User, Bot, MessageCircle } from "lucide-react";
+import { SafeText } from '@/components/security/SafeText';
 
 interface Message {
   id: string;
@@ -98,7 +99,7 @@ export const MessagesScroller: React.FC<MessagesScrollerProps> = ({ messages }) 
                 </div>
                 {/* Contenu du message */}
                 <div className="text-[15px] leading-relaxed whitespace-pre-wrap break-words font-normal">
-                  {message.message_content}
+                  <SafeText>{message.message_content}</SafeText>
                 </div>
               </div>
             </div>

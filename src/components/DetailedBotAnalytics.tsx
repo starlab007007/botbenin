@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SafeText } from '@/components/security/SafeText';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { 
@@ -473,7 +474,9 @@ export const DetailedBotAnalytics: React.FC<DetailedBotAnalyticsProps> = ({
                           </div>
                         </div>
                         
-                        <p className="text-gray-700 mb-2">{message.message_content}</p>
+                        <p className="text-gray-700 mb-2">
+                          <SafeText maxLength={200}>{message.message_content}</SafeText>
+                        </p>
                         
                         <div className="text-xs text-gray-500 space-y-1">
                           <div>Session: {message.session_id}</div>

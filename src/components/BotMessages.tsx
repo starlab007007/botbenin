@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { SafeText } from '@/components/security/SafeText';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   MessageSquare, 
@@ -277,7 +278,7 @@ export const BotMessages: React.FC<BotMessagesProps> = ({ botId, botName, onBack
                   </div>
                   
                   <div className="text-gray-900 leading-relaxed">
-                    {message.message_content}
+                    <SafeText maxLength={500}>{message.message_content}</SafeText>
                   </div>
 
                   {user && message.message_type === 'user' && (

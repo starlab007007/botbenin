@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { SafeText } from '@/components/security/SafeText';
 import { useToast } from '@/hooks/use-toast';
 import { SecureDataManager } from '@/services/dashboard/secureDataManager';
 import { 
@@ -398,7 +399,7 @@ export const MessagesOverview: React.FC = () => {
                   </div>
                   
                   <p className="text-gray-700 break-words">
-                    {message.message_content}
+                    <SafeText maxLength={500}>{message.message_content}</SafeText>
                   </p>
 
                   {message.ip_address && (

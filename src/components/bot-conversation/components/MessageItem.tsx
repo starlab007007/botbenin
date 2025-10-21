@@ -2,6 +2,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
+import { SafeText } from '@/components/security/SafeText';
 
 interface BotMessage {
   id: string;
@@ -46,7 +47,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
         </div>
         
         <div className="text-sm text-gray-800 leading-relaxed">
-          {message.message_content}
+          <SafeText>{message.message_content}</SafeText>
         </div>
         
         <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">

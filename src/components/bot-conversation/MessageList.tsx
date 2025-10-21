@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Loader } from "lucide-react";
 import { BotSession, Message } from './types';
+import { SafeText } from '@/components/security/SafeText';
 
 interface MessageListProps {
   selectedSession: BotSession | null;
@@ -48,7 +49,9 @@ export const MessageList: React.FC<MessageListProps> = ({
               <div className="text-xs text-gray-500 mb-1">
                 {msg.message_type === "user" ? "Visiteur/utilisateur" : "Bot"}
               </div>
-              <div className="text-sm">{msg.message_content}</div>
+              <div className="text-sm">
+                <SafeText>{msg.message_content}</SafeText>
+              </div>
               <div className="text-xs text-gray-400 text-right">
                 {new Date(msg.created_at).toLocaleTimeString()}
               </div>
