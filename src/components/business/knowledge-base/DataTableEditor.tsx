@@ -268,7 +268,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {table.fields.slice(0, 3).map(field => (
+                    {table.fields.slice(0, 5).map(field => (
                       <TableHead key={field.name} className="min-w-[100px] text-xs sm:text-sm">{field.name}</TableHead>
                     ))}
                     <TableHead className="text-right min-w-[80px] text-xs sm:text-sm">Actions</TableHead>
@@ -277,9 +277,13 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
                 <TableBody>
                   {data.map((row, index) => (
                     <TableRow key={index}>
-                      {table.fields.slice(0, 3).map(field => (
+                      {table.fields.slice(0, 5).map(field => (
                         <TableCell key={field.name} className="max-w-[150px] sm:max-w-[200px] truncate text-xs sm:text-sm">
-                          {row[field.name] || '-'}
+                          {field.type === 'image' && row[field.name] ? (
+                            <img src={row[field.name]} alt="" className="w-10 h-10 object-cover rounded" />
+                          ) : (
+                            row[field.name] || '-'
+                          )}
                         </TableCell>
                       ))}
                       <TableCell className="text-right">

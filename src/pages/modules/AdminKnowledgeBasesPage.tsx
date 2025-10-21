@@ -72,8 +72,7 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Non authentifié');
 
-      // TODO: Ajouter une vérification du rôle admin ici
-      // Pour l'instant, on récupère toutes les bases
+      // Récupération de toutes les bases de connaissance (RLS gère les permissions)
       const { data: kbData, error: kbError } = await supabase
         .from('knowledge_bases')
         .select('*')
