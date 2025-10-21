@@ -100,16 +100,16 @@ export const KnowledgeBaseCreator: React.FC<KnowledgeBaseCreatorProps> = ({ onBa
 
   if (step === 'select') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-6">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={onBack}>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-3 sm:p-6">
+        <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+            <Button variant="outline" onClick={onBack} className="shrink-0">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Créer une Base de Connaissances</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-xl sm:text-2xl font-bold">Créer une Base de Connaissances</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">
                 Entraînez votre bot IA avec vos données métier
               </p>
             </div>
@@ -128,14 +128,15 @@ export const KnowledgeBaseCreator: React.FC<KnowledgeBaseCreatorProps> = ({ onBa
     const completion = getCompletionPercentage();
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-6">
-        <div className="max-w-5xl mx-auto space-y-6">
-          <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={() => setStep('select')}>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-3 sm:p-6">
+        <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <Button variant="outline" onClick={() => setStep('select')} className="shrink-0">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Changer de template
+              <span className="hidden sm:inline">Changer de template</span>
+              <span className="sm:hidden">Retour</span>
             </Button>
-            <Badge variant="outline" className="text-lg py-2 px-4">
+            <Badge variant="outline" className="text-sm sm:text-lg py-1.5 sm:py-2 px-3 sm:px-4 whitespace-nowrap">
               Complétion : {completion}%
             </Badge>
           </div>
@@ -185,36 +186,36 @@ export const KnowledgeBaseCreator: React.FC<KnowledgeBaseCreatorProps> = ({ onBa
             ))}
           </Accordion>
 
-          <Card className="p-6 border-2 bg-gradient-to-br from-blue-50 to-purple-50">
+          <Card className="p-4 sm:p-6 border-2 bg-gradient-to-br from-blue-50 to-purple-50">
             <div className="space-y-4">
               <div className="flex items-start gap-3">
-                <Sparkles className="w-6 h-6 text-primary mt-1" />
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary mt-1 shrink-0" />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg mb-2">
+                  <h3 className="font-semibold text-base sm:text-lg mb-2">
                     {completion >= 70 ? 'Votre base est prête !' : 'Complétez votre base'}
                   </h3>
                   {completion >= 70 ? (
-                    <p className="text-muted-foreground mb-4">
+                    <p className="text-sm sm:text-base text-muted-foreground mb-4">
                       Vous avez renseigné suffisamment d'informations pour créer un bot intelligent. 
                       Le bot pourra répondre aux questions sur vos services, produits et informations pratiques.
                     </p>
                   ) : (
-                    <p className="text-muted-foreground mb-4">
+                    <p className="text-sm sm:text-base text-muted-foreground mb-4">
                       Complétez au moins 70% des informations pour créer une base de connaissances efficace pour votre bot IA.
                     </p>
                   )}
-                  <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
                     <div>
-                      <div className="text-2xl font-bold text-primary">{getFilledTables()}</div>
-                      <div className="text-muted-foreground">Tables remplies</div>
+                      <div className="text-xl sm:text-2xl font-bold text-primary">{getFilledTables()}</div>
+                      <div className="text-muted-foreground mt-1">Tables remplies</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-primary">{getTotalEntries()}</div>
-                      <div className="text-muted-foreground">Entrées totales</div>
+                      <div className="text-xl sm:text-2xl font-bold text-primary">{getTotalEntries()}</div>
+                      <div className="text-muted-foreground mt-1">Entrées totales</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-primary">{completion}%</div>
-                      <div className="text-muted-foreground">Complétion</div>
+                      <div className="text-xl sm:text-2xl font-bold text-primary">{completion}%</div>
+                      <div className="text-muted-foreground mt-1">Complétion</div>
                     </div>
                   </div>
                 </div>
@@ -223,7 +224,7 @@ export const KnowledgeBaseCreator: React.FC<KnowledgeBaseCreatorProps> = ({ onBa
               <div className="flex gap-3">
                 <Button 
                   size="lg" 
-                  className="flex-1"
+                  className="flex-1 text-sm sm:text-base"
                   onClick={handleSave}
                   disabled={!knowledgeBaseName || saving || completion < 10}
                 >

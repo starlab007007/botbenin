@@ -102,39 +102,39 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={onBack}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-3 sm:p-6">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+            <Button variant="outline" onClick={onBack} className="shrink-0">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Mes Bases de Connaissances</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-xl sm:text-2xl font-bold">Mes Bases de Connaissances</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">
                 Gérez vos bases de données pour l'entraînement de vos bots IA
               </p>
             </div>
           </div>
-          <Button onClick={onCreateNew} size="lg">
+          <Button onClick={onCreateNew} size="lg" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Nouvelle Base
           </Button>
         </div>
 
         {knowledgeBases.length === 0 ? (
-          <Card className="p-12">
+          <Card className="p-6 sm:p-12">
             <div className="text-center space-y-4">
-              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto">
-                <Database className="w-10 h-10 text-muted-foreground" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-muted rounded-full flex items-center justify-center mx-auto">
+                <Database className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">Aucune base de connaissances</h3>
-                <p className="text-muted-foreground mb-6">
+                <h3 className="text-lg sm:text-xl font-semibold mb-2">Aucune base de connaissances</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-6">
                   Créez votre première base de connaissances pour entraîner vos bots IA avec vos données métier
                 </p>
-                <Button onClick={onCreateNew} size="lg">
+                <Button onClick={onCreateNew} size="lg" className="w-full sm:w-auto">
                   <Plus className="w-4 h-4 mr-2" />
                   Créer ma première base
                 </Button>
@@ -142,7 +142,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
             </div>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {knowledgeBases.map((kb) => (
               <Card key={kb.id} className="hover:shadow-lg transition-all">
                 <CardHeader>
@@ -226,14 +226,14 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({
           </div>
         )}
 
-        <Card className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-0">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <Sparkles className="w-6 h-6 text-primary" />
+        <Card className="p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-0">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg shrink-0">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold mb-2">Conseil : Entraînement de bot IA</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className="font-semibold text-sm sm:text-base mb-2">Conseil : Entraînement de bot IA</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Plus vous ajoutez d'informations dans vos bases de connaissances, plus vos bots IA seront précis et performants. 
                 Pensez à ajouter des FAQ, des exemples concrets et toutes les informations utiles à vos clients.
               </p>

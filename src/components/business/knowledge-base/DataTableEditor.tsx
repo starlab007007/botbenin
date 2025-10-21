@@ -123,7 +123,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
       return (
         <div className="space-y-2">
           {formData[field.name] && (
-            <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
+            <div className="relative w-24 h-24 sm:w-32 sm:h-32 border rounded-lg overflow-hidden">
               <img 
                 src={formData[field.name]} 
                 alt="Preview" 
@@ -131,7 +131,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
               />
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Button
               type="button"
               variant="outline"
@@ -147,8 +147,9 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
                 };
                 input.click();
               }}
+              className="flex-1 sm:flex-initial text-xs sm:text-sm"
             >
-              <ImageIcon className="w-4 h-4 mr-2" />
+              <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
               {uploadingImage ? 'Téléchargement...' : 'Choisir une image'}
             </Button>
             {formData[field.name] && (
@@ -157,8 +158,9 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => setFormData({ ...formData, [field.name]: '' })}
+                className="flex-1 sm:flex-initial"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
               </Button>
             )}
           </div>
@@ -210,57 +212,59 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
   return (
     <>
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">{table.name}</CardTitle>
-              <CardDescription>{table.description}</CardDescription>
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex-1">
+              <CardTitle className="text-base sm:text-lg">{table.name}</CardTitle>
+              <CardDescription className="text-xs sm:text-sm mt-1">{table.description}</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={table.required ? 'default' : 'secondary'}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant={table.required ? 'default' : 'secondary'} className="text-xs">
                 {table.required ? 'Requis' : 'Optionnel'}
               </Badge>
-              <Badge variant="outline">
+              <Badge variant="outline" className="text-xs">
                 {data.length} entrée{data.length > 1 ? 's' : ''}
               </Badge>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           {data.length > 0 ? (
             <div className="border rounded-lg overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     {table.fields.slice(0, 3).map(field => (
-                      <TableHead key={field.name}>{field.name}</TableHead>
+                      <TableHead key={field.name} className="min-w-[100px] text-xs sm:text-sm">{field.name}</TableHead>
                     ))}
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right min-w-[80px] text-xs sm:text-sm">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.map((row, index) => (
                     <TableRow key={index}>
                       {table.fields.slice(0, 3).map(field => (
-                        <TableCell key={field.name} className="max-w-[200px] truncate">
+                        <TableCell key={field.name} className="max-w-[150px] sm:max-w-[200px] truncate text-xs sm:text-sm">
                           {row[field.name] || '-'}
                         </TableCell>
                       ))}
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1 sm:gap-2">
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleOpenDialog(index)}
+                            className="h-8 w-8 p-0"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDelete(index)}
+                            className="h-8 w-8 p-0"
                           >
-                            <Trash2 className="w-4 h-4 text-destructive" />
+                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
                           </Button>
                         </div>
                       </TableCell>
@@ -270,13 +274,13 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
               </Table>
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-6 sm:py-8 text-sm sm:text-base text-muted-foreground">
               Aucune donnée. Commencez par ajouter une entrée.
             </div>
           )}
 
           <div className="flex gap-2">
-            <Button onClick={() => handleOpenDialog()} className="flex-1">
+            <Button onClick={() => handleOpenDialog()} className="flex-1 text-sm sm:text-base">
               <Plus className="w-4 h-4 mr-2" />
               Ajouter une entrée
             </Button>
@@ -285,19 +289,19 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">
               {editingIndex !== null ? 'Modifier' : 'Ajouter'} - {table.name}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Remplissez les champs ci-dessous
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 py-4">
             {table.fields.map(field => (
-              <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-                <Label>
+              <div key={field.name} className={field.type === 'textarea' || field.type === 'image' ? 'md:col-span-2' : ''}>
+                <Label className="text-sm">
                   {field.name}
                   {field.required && <span className="text-destructive ml-1">*</span>}
                 </Label>
@@ -307,11 +311,11 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({
               </div>
             ))}
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">
               Annuler
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} className="w-full sm:w-auto">
               {editingIndex !== null ? 'Modifier' : 'Ajouter'}
             </Button>
           </div>

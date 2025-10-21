@@ -79,29 +79,29 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-3 sm:p-6">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={onBack}>
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full lg:w-auto">
+            <Button variant="outline" onClick={onBack} className="shrink-0">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour
             </Button>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold">{kb.name}</h1>
-                <Badge>{template.name}</Badge>
+            <div className="w-full sm:w-auto">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold break-words">{kb.name}</h1>
+                <Badge className="shrink-0">{template.name}</Badge>
               </div>
-              <p className="text-muted-foreground">{kb.description}</p>
+              <p className="text-sm text-muted-foreground mt-1">{kb.description}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" className="flex-1 sm:flex-initial">
                   <Download className="w-4 h-4 mr-2" />
-                  Exporter
+                  <span className="hidden sm:inline">Exporter</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -127,9 +127,11 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
             <Button 
               onClick={handleSave}
               disabled={!hasChanges}
+              className="flex-1 sm:flex-initial"
             >
               <Save className="w-4 h-4 mr-2" />
-              {hasChanges ? 'Enregistrer' : 'Enregistré'}
+              <span className="hidden sm:inline">{hasChanges ? 'Enregistrer' : 'Enregistré'}</span>
+              <span className="sm:hidden">{hasChanges ? 'Sauver' : 'OK'}</span>
             </Button>
           </div>
         </div>
@@ -148,15 +150,19 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
         </Card>
 
         {/* Content Tabs */}
-        <Tabs defaultValue="structural" className="space-y-6">
-          <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${template.tables.length + 1}, minmax(0, 1fr))` }}>
-            <TabsTrigger value="structural">Informations Essentielles</TabsTrigger>
-            {template.tables.map(table => (
-              <TabsTrigger key={table.id} value={table.id}>
-                {table.name}
+        <Tabs defaultValue="structural" className="space-y-4 sm:space-y-6">
+          <div className="overflow-x-auto">
+            <TabsList className="grid w-full min-w-max" style={{ gridTemplateColumns: `repeat(${template.tables.length + 1}, minmax(0, 1fr))` }}>
+              <TabsTrigger value="structural" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-4">
+                Informations Essentielles
               </TabsTrigger>
-            ))}
-          </TabsList>
+              {template.tables.map(table => (
+                <TabsTrigger key={table.id} value={table.id} className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-4">
+                  {table.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           <TabsContent value="structural" className="space-y-4">
             <StructuralInfoForm

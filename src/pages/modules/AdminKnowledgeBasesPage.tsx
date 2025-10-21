@@ -189,20 +189,20 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
             {onBack && (
-              <Button variant="outline" onClick={onBack}>
+              <Button variant="outline" onClick={onBack} className="shrink-0">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Retour
               </Button>
             )}
             <div>
-              <div className="flex items-center gap-2">
-                <Shield className="w-6 h-6 text-primary" />
-                <h1 className="text-2xl font-bold">Administration - Bases de Connaissances</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                <h1 className="text-xl sm:text-2xl font-bold">Administration - Bases de Connaissances</h1>
               </div>
-              <p className="text-muted-foreground">
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">
                 Gestion complète de toutes les bases de connaissances
               </p>
             </div>
@@ -210,7 +210,7 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Total des bases</CardDescription>
@@ -264,32 +264,34 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
         {/* Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Toutes les bases de connaissances</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-lg sm:text-xl">Toutes les bases de connaissances</CardTitle>
+            <CardDescription className="text-sm">
               {filteredKnowledgeBases.length} base(s) trouvée(s)
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0 sm:p-6">
             <div className="border rounded-lg overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Secteur</TableHead>
-                    <TableHead>Propriétaire</TableHead>
-                    <TableHead>Complétion</TableHead>
-                    <TableHead>Créée le</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="min-w-[150px]">Nom</TableHead>
+                    <TableHead className="min-w-[120px]">Secteur</TableHead>
+                    <TableHead className="hidden md:table-cell min-w-[150px]">Propriétaire</TableHead>
+                    <TableHead className="min-w-[100px]">Complétion</TableHead>
+                    <TableHead className="hidden lg:table-cell min-w-[120px]">Créée le</TableHead>
+                    <TableHead className="text-right min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredKnowledgeBases.map((kb) => (
                     <TableRow key={kb.id}>
-                      <TableCell className="font-medium">{kb.name}</TableCell>
+                      <TableCell className="font-medium text-sm sm:text-base">{kb.name}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{getSectorLabel(kb.sector)}</Badge>
+                        <Badge variant="outline" className="text-xs sm:text-sm whitespace-nowrap">
+                          {getSectorLabel(kb.sector)}
+                        </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground truncate max-w-[200px]">
                         {kb.user_email}
                       </TableCell>
                       <TableCell>
@@ -297,7 +299,7 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
                           <span className="text-sm">{kb.completion_percentage}%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="hidden lg:table-cell text-sm">
                         {format(new Date(kb.created_at), 'dd MMM yyyy', { locale: fr })}
                       </TableCell>
                       <TableCell className="text-right">

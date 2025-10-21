@@ -19,22 +19,22 @@ export const StructuralInfoForm: React.FC<StructuralInfoFormProps> = ({
 }) => {
   return (
     <Card className="border-2 border-primary">
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
+      <CardHeader className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg shrink-0">
             <Info className="w-5 h-5 text-primary" />
           </div>
-          <div className="flex-1">
-            <CardTitle className="text-lg">Informations Essentielles</CardTitle>
-            <CardDescription>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base sm:text-lg">Informations Essentielles</CardTitle>
+            <CardDescription className="text-xs sm:text-sm mt-1">
               Ces informations seront utilisées pour répondre automatiquement aux questions fréquentes
             </CardDescription>
           </div>
-          <Badge>Requis</Badge>
+          <Badge className="shrink-0">Requis</Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <CardContent className="p-4 sm:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
           {fields.map((field) => (
             <div key={field.name} className="space-y-2">
               <Label htmlFor={field.name}>
