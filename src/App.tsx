@@ -43,6 +43,7 @@ const UsersManagementPage = lazy(() => import("./pages/UsersManagementPage").the
 
 // Modules IA spécialisés
 const BusinessModule = lazy(() => import("./pages/modules/BusinessModule").then(module => ({ default: module.BusinessModule })));
+const KnowledgeBasesPage = lazy(() => import("./pages/modules/KnowledgeBasesPage").then(module => ({ default: module.KnowledgeBasesPage })));
 const MarketingModule = lazy(() => import("./pages/modules/MarketingModule").then(module => ({ default: module.MarketingModule })));
 const GestionModule = lazy(() => import("./pages/modules/GestionModule").then(module => ({ default: module.GestionModule })));
 const CitoyenModule = lazy(() => import("./pages/modules/CitoyenModule").then(module => ({ default: module.CitoyenModule })));
@@ -142,6 +143,7 @@ const AppContent = () => {
                     
                     {/* Modules IA */}
                     <Route path="/modules/business" element={<BusinessModule />} />
+                    <Route path="/knowledge-bases" element={<KnowledgeBasesPage />} />
                     <Route path="/modules/visual-creator" element={<VisualCreatorModule />} />
                     <Route path="/visual-gallery" element={<VisualGalleryPage />} />
                     

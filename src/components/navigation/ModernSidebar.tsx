@@ -69,7 +69,7 @@ const botManagementItems = [
   },
   { 
     title: 'Création Bots', 
-    path: '/modules/business', 
+    path: '/knowledge-bases', 
     icon: Database, 
     color: 'from-cyan-500 to-cyan-600',
     description: 'Bases de Connaissances'
