@@ -49,7 +49,7 @@ interface AdminKnowledgeBase {
 }
 
 interface AdminKnowledgeBasesPageProps {
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = ({ onBack }) => {
@@ -191,10 +191,12 @@ export const AdminKnowledgeBasesPage: React.FC<AdminKnowledgeBasesPageProps> = (
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={onBack}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour
-            </Button>
+            {onBack && (
+              <Button variant="outline" onClick={onBack}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Retour
+              </Button>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <Shield className="w-6 h-6 text-primary" />
