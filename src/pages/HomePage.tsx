@@ -10,6 +10,7 @@ import { PricingSection } from '@/components/home/PricingSection';
 import { PricingComparison } from '@/components/home/PricingComparison';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { FloatingChatButton } from '@/components/FloatingChatButton';
+import { WhatsAppShowcase } from '@/components/home/WhatsAppShowcase';
 
 export const HomePage: React.FC = () => {
   const { user } = useAuth();
@@ -23,6 +24,9 @@ export const HomePage: React.FC = () => {
 
       {/* Section WhatsApp Hero - Mise en avant */}
       <WhatsAppHero />
+
+      {/* Section WhatsApp Showcase - Écrans mobiles dynamiques */}
+      <WhatsAppShowcase />
 
       {/* Section Audit Offert */}
       <AuditSection />
