@@ -17,8 +17,8 @@ export const HomePage: React.FC = () => {
   const isMobile = useIsMobile();
 
   return (
-    <div className="w-full min-h-screen">
-      <div className={`max-w-7xl mx-auto space-y-6 sm:space-y-8 lg:space-y-10 xl:space-y-12 px-4 sm:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 lg:py-8 xl:py-10`}>
+    <div className="w-full min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto space-y-8 md:space-y-10 lg:space-y-12 px-4 md:px-6 lg:px-8 py-6 md:py-8 lg:py-10">
         {/* Header de bienvenue - responsive */}
         <WelcomeHeader userName={user?.name} />
 
@@ -35,19 +35,13 @@ export const HomePage: React.FC = () => {
       <QuickActions />
 
       {/* Section "L'IA est faite pour vous si" en bas */}
-      <div>
-        <IABenefitsCards />
-      </div>
+      <IABenefitsCards />
 
-        {/* Section des plans tarifaires */}
-        <div className="-mx-4 sm:mx-0">
-          <PricingSection />
-        </div>
+      {/* Section des plans tarifaires */}
+      <PricingSection />
 
-        {/* Tableau de comparaison des packs */}
-        <div className="-mx-4 sm:mx-0">
-          <PricingComparison />
-        </div>
+      {/* Tableau de comparaison des packs */}
+      <PricingComparison />
 
         {/* Bouton de chat en direct */}
         <FloatingChatButton />

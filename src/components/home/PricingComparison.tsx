@@ -493,13 +493,13 @@ export const PricingComparison: React.FC = () => {
   };
 
   return (
-    <section className="w-full py-16 bg-gradient-to-br from-muted/30 to-background">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+    <section className="w-full py-12 md:py-16 bg-gradient-to-br from-muted/30 to-background">
+      <div className="container mx-auto px-4 md:px-6 lg:px-8">
+        <div className="text-center mb-8 md:mb-12">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-3 md:mb-4">
             Comparaison Détaillée des Packs
           </h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto px-4">
             Trouvez le pack qui correspond parfaitement à vos besoins
           </p>
         </div>
@@ -578,29 +578,29 @@ export const PricingComparison: React.FC = () => {
         </div>
 
         {/* Mobile View - Cards */}
-        <div className="lg:hidden space-y-6">
+        <div className="lg:hidden space-y-4 md:space-y-6">
           {plans.map((plan) => (
-            <Card key={plan.id} className={`${plan.color} p-6`}>
-              <div className="text-center mb-6">
+            <Card key={plan.id} className={`${plan.color} p-4 md:p-6`}>
+              <div className="text-center mb-4 md:mb-6">
                 {plan.popular && (
-                  <Badge className="mb-2">Populaire</Badge>
+                  <Badge className="mb-2 text-xs">Populaire</Badge>
                 )}
-                <h3 className="text-xl font-bold text-foreground">{plan.name}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{plan.price}/mois</p>
+                <h3 className="text-lg md:text-xl font-bold text-foreground">{plan.name}</h3>
+                <p className="text-xs md:text-sm text-muted-foreground mt-1">{plan.price}/mois</p>
               </div>
               
               {comparisonData.map((category, catIndex) => (
-                <div key={catIndex} className="mb-6">
-                  <h4 className="font-semibold text-sm text-foreground mb-3 border-b border-border pb-2">
+                <div key={catIndex} className="mb-4 md:mb-6">
+                  <h4 className="font-semibold text-xs md:text-sm text-foreground mb-2 md:mb-3 border-b border-border pb-1.5 md:pb-2">
                     {category.category}
                   </h4>
-                  <div className="space-y-3">
+                  <div className="space-y-2 md:space-y-3">
                     {category.features.map((feature, featureIndex) => {
                       const value = feature[plan.id as keyof typeof feature];
                       return (
-                        <div key={featureIndex} className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">{feature.name}</span>
-                          <div className="flex items-center">
+                        <div key={featureIndex} className="flex justify-between items-center gap-2">
+                          <span className="text-[11px] md:text-xs text-muted-foreground flex-1">{feature.name}</span>
+                          <div className="flex items-center flex-shrink-0">
                             {renderCell(value as boolean | string)}
                           </div>
                         </div>
