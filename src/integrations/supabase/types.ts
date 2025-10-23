@@ -42,22 +42,7 @@ export type Database = {
           user_agent?: string
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "access_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "access_logs_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       admin_logs: {
         Row: {
@@ -66,7 +51,7 @@ export type Database = {
           created_at: string | null
           details: Json | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           target_user_id: string | null
           user_agent: string | null
         }
@@ -76,7 +61,7 @@ export type Database = {
           created_at?: string | null
           details?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           target_user_id?: string | null
           user_agent?: string | null
         }
@@ -86,40 +71,11 @@ export type Database = {
           created_at?: string | null
           details?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           target_user_id?: string | null
           user_agent?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "admin_logs_admin_user_id_fkey"
-            columns: ["admin_user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "admin_logs_admin_user_id_fkey"
-            columns: ["admin_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "admin_logs_target_user_id_fkey"
-            columns: ["target_user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "admin_logs_target_user_id_fkey"
-            columns: ["target_user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       ai_generated_assets: {
         Row: {
@@ -190,22 +146,7 @@ export type Database = {
           timestamp?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "analytics_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "analytics_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       anonymous_visitor_sessions: {
         Row: {
@@ -216,7 +157,7 @@ export type Database = {
           fingerprint_id: string | null
           geolocation: Json | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           is_active: boolean | null
           last_activity: string | null
           lead_info: Json | null
@@ -238,7 +179,7 @@ export type Database = {
           fingerprint_id?: string | null
           geolocation?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           lead_info?: Json | null
@@ -260,7 +201,7 @@ export type Database = {
           fingerprint_id?: string | null
           geolocation?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           lead_info?: Json | null
@@ -309,13 +250,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "anonymous_visitor_sessions_bot_id_fkey"
@@ -373,22 +307,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "appointments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "appointments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       audience_segments: {
         Row: {
@@ -525,22 +444,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "automations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "automations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       bot_domain_assignments: {
         Row: {
@@ -602,13 +506,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bot_domain_assignments_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "bot_domain_assignments_bot_id_fkey"
@@ -752,13 +649,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bot_users_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "bot_users_bot_id_fkey"
@@ -981,22 +871,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "campaigns_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "campaigns_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       chat_messages: {
         Row: {
@@ -1067,13 +942,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "chat_messages_bot_id_fkey"
@@ -1190,13 +1058,6 @@ export type Database = {
             foreignKeyName: "chat_sessions_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "chat_sessions_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -1274,22 +1135,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "contacts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       content_variations: {
         Row: {
@@ -1397,22 +1243,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "conversations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "conversations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       debug_session_logs: {
         Row: {
@@ -1460,22 +1291,7 @@ export type Database = {
           is_demo?: boolean | null
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "demo_accounts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "demo_accounts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       detailed_permissions: {
         Row: {
@@ -1568,7 +1384,7 @@ export type Database = {
           ended_at: string | null
           entry_point: string | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           is_active: boolean | null
           last_activity: string | null
           referrer_url: string | null
@@ -1588,7 +1404,7 @@ export type Database = {
           ended_at?: string | null
           entry_point?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           referrer_url?: string | null
@@ -1608,7 +1424,7 @@ export type Database = {
           ended_at?: string | null
           entry_point?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           referrer_url?: string | null
@@ -1656,13 +1472,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "enhanced_chat_sessions_bot_id_fkey"
@@ -1831,20 +1640,6 @@ export type Database = {
             referencedRelation: "file_folders"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "file_folders_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "file_folders_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       files: {
@@ -1881,22 +1676,7 @@ export type Database = {
           size?: number
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "files_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "files_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       final_videos: {
         Row: {
@@ -2235,13 +2015,6 @@ export type Database = {
             foreignKeyName: "knowledge_bases_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "knowledge_bases_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -2301,7 +2074,7 @@ export type Database = {
           clicked_at: string | null
           country: string | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           referrer: string | null
           shortened_link_id: string
           user_agent: string | null
@@ -2311,7 +2084,7 @@ export type Database = {
           clicked_at?: string | null
           country?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           referrer?: string | null
           shortened_link_id: string
           user_agent?: string | null
@@ -2321,7 +2094,7 @@ export type Database = {
           clicked_at?: string | null
           country?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           referrer?: string | null
           shortened_link_id?: string
           user_agent?: string | null
@@ -2575,20 +2348,6 @@ export type Database = {
             referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       modules: {
@@ -2682,22 +2441,7 @@ export type Database = {
           type?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "notifications_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "notifications_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       payment_transactions: {
         Row: {
@@ -3507,13 +3251,6 @@ export type Database = {
             foreignKeyName: "shortened_links_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "shortened_links_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -3633,13 +3370,6 @@ export type Database = {
             foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "social_sharing_campaigns_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -3703,20 +3433,6 @@ export type Database = {
             referencedRelation: "subscribers"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "subscriber_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "subscriber_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       subscribers: {
@@ -3768,22 +3484,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "subscribers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "subscribers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       subscription_history: {
         Row: {
@@ -3821,20 +3522,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "subscription_history_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "subscription_history_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "subscription_history_old_plan_id_fkey"
             columns: ["old_plan_id"]
             isOneToOne: false
@@ -3846,20 +3533,6 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "subscription_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_history_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "subscription_history_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -3960,20 +3633,6 @@ export type Database = {
             referencedRelation: "subscription_plans"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       suggestion_metrics: {
@@ -4047,13 +3706,6 @@ export type Database = {
             foreignKeyName: "suggestion_metrics_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "suggestion_metrics_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -4072,7 +3724,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           metadata: Json | null
           user_agent: string | null
           user_id: string
@@ -4082,7 +3734,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           user_agent?: string | null
           user_id: string
@@ -4092,27 +3744,12 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           user_agent?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_activities_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_activities_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_files: {
         Row: {
@@ -4169,20 +3806,6 @@ export type Database = {
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "file_folders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_files_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_files_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -4256,20 +3879,6 @@ export type Database = {
             referencedRelation: "modules"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_module_access_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_module_access_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       user_permissions: {
@@ -4299,38 +3908,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "user_permissions_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_permissions_granted_by_fkey"
-            columns: ["granted_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "user_permissions_permission_id_fkey"
             columns: ["permission_id"]
             isOneToOne: false
             referencedRelation: "detailed_permissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_permissions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_permissions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -4366,22 +3947,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -4410,20 +3976,6 @@ export type Database = {
             referencedRelation: "roles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       user_sessions: {
@@ -4431,7 +3983,7 @@ export type Database = {
           created_at: string | null
           expires_at: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           is_active: boolean | null
           last_activity: string | null
           session_token: string
@@ -4442,7 +3994,7 @@ export type Database = {
           created_at?: string | null
           expires_at: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           session_token: string
@@ -4453,29 +4005,14 @@ export type Database = {
           created_at?: string | null
           expires_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           session_token?: string
           user_agent?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_sessions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_settings: {
         Row: {
@@ -4507,102 +4044,6 @@ export type Database = {
           ui_preferences?: Json
           updated_at?: string
           user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "user_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      users: {
-        Row: {
-          admin_notes: string | null
-          auth_provider: string | null
-          avatar_url: string | null
-          bio: string | null
-          company: string | null
-          created_at: string
-          email: string
-          email_verified: boolean | null
-          email_verified_at: string | null
-          full_name: string
-          google_id: string | null
-          id: string
-          is_active: boolean | null
-          language: string | null
-          last_activity: string | null
-          last_login: string | null
-          locked_until: string | null
-          login_attempts: number | null
-          phone: string | null
-          status: string | null
-          subscription_tier: string | null
-          timezone: string | null
-          two_factor_enabled: boolean | null
-          updated_at: string
-        }
-        Insert: {
-          admin_notes?: string | null
-          auth_provider?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          company?: string | null
-          created_at?: string
-          email: string
-          email_verified?: boolean | null
-          email_verified_at?: string | null
-          full_name: string
-          google_id?: string | null
-          id: string
-          is_active?: boolean | null
-          language?: string | null
-          last_activity?: string | null
-          last_login?: string | null
-          locked_until?: string | null
-          login_attempts?: number | null
-          phone?: string | null
-          status?: string | null
-          subscription_tier?: string | null
-          timezone?: string | null
-          two_factor_enabled?: boolean | null
-          updated_at?: string
-        }
-        Update: {
-          admin_notes?: string | null
-          auth_provider?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          company?: string | null
-          created_at?: string
-          email?: string
-          email_verified?: boolean | null
-          email_verified_at?: string | null
-          full_name?: string
-          google_id?: string | null
-          id?: string
-          is_active?: boolean | null
-          language?: string | null
-          last_activity?: string | null
-          last_login?: string | null
-          locked_until?: string | null
-          login_attempts?: number | null
-          phone?: string | null
-          status?: string | null
-          subscription_tier?: string | null
-          timezone?: string | null
-          two_factor_enabled?: boolean | null
-          updated_at?: string
         }
         Relationships: []
       }
@@ -5101,20 +4542,6 @@ export type Database = {
             referencedRelation: "whatsapp_integrations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "whatsapp_automations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "whatsapp_automations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       whatsapp_bot_links: {
@@ -5186,13 +4613,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "whatsapp_bot_links_bot_id_fkey"
@@ -5283,20 +4703,6 @@ export type Database = {
             referencedRelation: "whatsapp_templates"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "whatsapp_campaigns_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "whatsapp_campaigns_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       whatsapp_contacts: {
@@ -5351,20 +4757,6 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_integrations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "whatsapp_contacts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "whatsapp_contacts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -5424,20 +4816,6 @@ export type Database = {
             referencedRelation: "whatsapp_integrations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "whatsapp_conversations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "whatsapp_conversations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
         ]
       }
       whatsapp_integrations: {
@@ -5480,22 +4858,7 @@ export type Database = {
           user_id?: string
           webhook_verify_token?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_integrations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "whatsapp_integrations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       whatsapp_messages: {
         Row: {
@@ -5612,41 +4975,10 @@ export type Database = {
           user_id?: string
           variables?: Json | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_templates_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "user_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "whatsapp_templates_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
-      admin_dashboard_stats: {
-        Row: {
-          active_chat_users_24h: number | null
-          active_subscriptions: number | null
-          active_users: number | null
-          inactive_users: number | null
-          messages_24h: number | null
-          new_bots_30d: number | null
-          new_users_30d: number | null
-          suspended_users: number | null
-          total_bots: number | null
-          total_link_clicks: number | null
-          total_users: number | null
-        }
-        Relationships: []
-      }
       bot_conversation_history: {
         Row: {
           bot_id: string | null
@@ -5718,13 +5050,6 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -5791,13 +5116,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bots"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
           },
           {
             foreignKeyName: "chat_messages_bot_id_fkey"
@@ -5903,44 +5221,6 @@ export type Database = {
           unique_visitors: number | null
           unique_visitors_24h: number | null
           unique_visitors_7d: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bots_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "bot_owners"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      complete_bot_analytics: {
-        Row: {
-          active_sessions: number | null
-          active_users_24h: number | null
-          active_users_30d: number | null
-          active_users_7d: number | null
-          avg_messages_per_session: number | null
-          avg_session_duration_minutes: number | null
-          bot_created_at: string | null
-          bot_id: string | null
-          bot_messages: number | null
-          bot_name: string | null
-          engagement_rate_7d: number | null
-          is_active: boolean | null
-          last_message_at: string | null
-          last_user_activity: string | null
-          messages_24h: number | null
-          owner_id: string | null
-          response_rate_percent: number | null
-          sessions_24h: number | null
-          share_enabled: boolean | null
-          total_link_clicks: number | null
-          total_messages: number | null
-          total_sessions: number | null
-          total_short_links: number | null
-          total_unique_users: number | null
-          user_messages: number | null
         }
         Relationships: [
           {
@@ -6059,13 +5339,6 @@ export type Database = {
             foreignKeyName: "chat_messages_bot_id_fkey"
             columns: ["bot_id"]
             isOneToOne: false
-            referencedRelation: "complete_bot_analytics"
-            referencedColumns: ["bot_id"]
-          },
-          {
-            foreignKeyName: "chat_messages_bot_id_fkey"
-            columns: ["bot_id"]
-            isOneToOne: false
             referencedRelation: "detailed_bot_stats"
             referencedColumns: ["bot_id"]
           },
@@ -6081,27 +5354,9 @@ export type Database = {
         }
         Relationships: []
       }
-      user_stats: {
-        Row: {
-          active_bots: number | null
-          active_campaigns: number | null
-          email: string | null
-          full_name: string | null
-          last_activity: string | null
-          status: string | null
-          total_bots: number | null
-          total_campaigns: number | null
-          user_created_at: string | null
-          user_id: string | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
-      assign_admin_role: {
-        Args: { user_email: string }
-        Returns: string
-      }
+      assign_admin_role: { Args: { user_email: string }; Returns: string }
       auto_fix_session_issues: {
         Args: { p_bot_id?: string }
         Returns: {
@@ -6114,10 +5369,7 @@ export type Database = {
         Args: { p_bot_id: string; p_session_token: string }
         Returns: string
       }
-      can_view_user_data: {
-        Args: { target_user_id: string }
-        Returns: boolean
-      }
+      can_view_user_data: { Args: { target_user_id: string }; Returns: boolean }
       check_bot_public_access: {
         Args: { bot_uuid: string }
         Returns: {
@@ -6139,7 +5391,7 @@ export type Database = {
         }[]
       }
       cleanup_orphaned_bot_data: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           cleaned_links: number
           cleaned_messages: number
@@ -6147,10 +5399,7 @@ export type Database = {
           details: Json
         }[]
       }
-      cleanup_orphaned_sessions: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
+      cleanup_orphaned_sessions: { Args: never; Returns: number }
       collect_visitor_data: {
         Args: {
           p_collection_method?: string
@@ -6229,7 +5478,7 @@ export type Database = {
         }[]
       }
       diagnose_all_session_ambiguities: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           fix_needed: string
           function_name: string
@@ -6247,7 +5496,7 @@ export type Database = {
         }[]
       }
       diagnose_session_issues: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           count: number
           issue_type: string
@@ -6255,7 +5504,7 @@ export type Database = {
         }[]
       }
       diagnose_session_token_ambiguities: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           issue_type: string
           message: string
@@ -6263,7 +5512,7 @@ export type Database = {
         }[]
       }
       diagnose_session_token_issues: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           count: number
           details: Json
@@ -6271,7 +5520,7 @@ export type Database = {
         }[]
       }
       fix_all_user_issues: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           affected_count: number
           details: string
@@ -6279,23 +5528,17 @@ export type Database = {
         }[]
       }
       fix_session_inconsistencies: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           action: string
           count: number
           details: string
         }[]
       }
-      generate_public_chat_url: {
-        Args: { p_bot_id: string }
-        Returns: string
-      }
-      generate_short_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_public_chat_url: { Args: { p_bot_id: string }; Returns: string }
+      generate_short_code: { Args: never; Returns: string }
       get_admin_dashboard_stats: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           active_bots: number
           active_campaigns: number
@@ -6431,7 +5674,7 @@ export type Database = {
         }[]
       }
       get_final_bot_policies: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           description: string
           is_active: boolean
@@ -6452,10 +5695,7 @@ export type Database = {
           title: string
         }[]
       }
-      get_or_create_bot_owner: {
-        Args: { user_uuid: string }
-        Returns: string
-      }
+      get_or_create_bot_owner: { Args: { user_uuid: string }; Returns: string }
       get_or_create_bot_user_for_session: {
         Args: {
           p_bot_id: string
@@ -6519,7 +5759,7 @@ export type Database = {
         }[]
       }
       get_owner_global_stats: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           active_bots: number
           active_users_today: number
@@ -6594,10 +5834,7 @@ export type Database = {
         }
         Returns: undefined
       }
-      is_admin: {
-        Args: { user_uuid?: string }
-        Returns: boolean
-      }
+      is_admin: { Args: { user_uuid?: string }; Returns: boolean }
       log_user_activity: {
         Args: {
           p_activity_type: string
@@ -6620,7 +5857,7 @@ export type Database = {
         Returns: string
       }
       repair_all_session_inconsistencies: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           action_taken: string
           count: number
@@ -6628,7 +5865,7 @@ export type Database = {
         }[]
       }
       repair_system_final: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           action_taken: string
           affected_count: number
@@ -6656,7 +5893,7 @@ export type Database = {
         Returns: string
       }
       system_health_check: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           metric_name: string
           metric_value: string
@@ -6664,7 +5901,7 @@ export type Database = {
         }[]
       }
       test_absolute_session_resolution: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           details: string
           test_category: string
@@ -6672,7 +5909,7 @@ export type Database = {
         }[]
       }
       test_bot_creation_fix: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           details: string
           status: string
@@ -6680,7 +5917,7 @@ export type Database = {
         }[]
       }
       test_bot_creation_fixed: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           details: string
           status: string
@@ -6696,7 +5933,7 @@ export type Database = {
         }[]
       }
       test_final_session_resolution: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           details: string
           test_category: string
@@ -6704,7 +5941,7 @@ export type Database = {
         }[]
       }
       test_owner_access_complete: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           data_preview: Json
           details: string
@@ -6713,7 +5950,7 @@ export type Database = {
         }[]
       }
       test_session_token_resolution: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           details: string
           status: string
@@ -6721,24 +5958,31 @@ export type Database = {
         }[]
       }
       test_system_final: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           details: string
           status: string
           test_name: string
         }[]
       }
-      track_link_click: {
-        Args:
-          | {
+      track_link_click:
+        | {
+            Args: {
               p_ip_address?: unknown
               p_referrer?: string
               p_short_code: string
               p_user_agent?: string
             }
-          | { p_referrer?: string; p_short_code: string; p_user_agent?: string }
-        Returns: string
-      }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_referrer?: string
+              p_short_code: string
+              p_user_agent?: string
+            }
+            Returns: string
+          }
       track_visitor_event: {
         Args: {
           p_element_class?: string
@@ -6762,34 +6006,19 @@ export type Database = {
         Args: { permission_name: string; user_uuid: string }
         Returns: boolean
       }
-      user_owns_bot: {
-        Args: { p_bot_id: string }
-        Returns: boolean
-      }
-      user_owns_campaign: {
-        Args: { p_campaign_id: string }
-        Returns: boolean
-      }
-      user_owns_prospect: {
-        Args: { p_prospect_id: string }
-        Returns: boolean
-      }
-      user_owns_whatsapp_account: {
-        Args: { acc_id: string }
-        Returns: boolean
-      }
+      user_owns_bot: { Args: { p_bot_id: string }; Returns: boolean }
+      user_owns_campaign: { Args: { p_campaign_id: string }; Returns: boolean }
+      user_owns_prospect: { Args: { p_prospect_id: string }; Returns: boolean }
+      user_owns_whatsapp_account: { Args: { acc_id: string }; Returns: boolean }
       validate_owner_complete_access: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           result_details: Json
           status: string
           validation_step: string
         }[]
       }
-      verify_bot_access_final: {
-        Args: { p_bot_id: string }
-        Returns: boolean
-      }
+      verify_bot_access_final: { Args: { p_bot_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
