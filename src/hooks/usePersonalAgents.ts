@@ -65,11 +65,10 @@ export const usePersonalAgents = () => {
 
       // Récupérer les agents personnels avec leurs statistiques (seulement ceux avec elevenlabs_agent_id)
       const { data, error: fetchError } = await supabase
-        .from('complete_bot_analytics')
-        .select('bot_id, bot_name, total_messages, total_sessions, avg_session_duration_minutes, messages_24h, active_users_24h, last_message_at, is_active')
+        .from('detailed_bot_stats')
+        .select('*')
         .eq('owner_id', botOwner.id)
-        .not('elevenlabs_agent_id', 'is', null)
-        .order('bot_created_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (fetchError) {
         // Fallback : récupérer les bots sans statistiques (seulement ceux avec elevenlabs_agent_id)
@@ -113,33 +112,38 @@ export const usePersonalAgents = () => {
         .eq('is_personal_agent', true)
         .not('elevenlabs_agent_id', 'is', null);
 
-      const personalAgents: PersonalAgent[] = (data || []).map(analytics => {
-        const botData = botsData?.find(bot => bot.id === analytics.bot_id);
-        return {
-          id: analytics.bot_id,
-          name: analytics.bot_name || 'Agent IA',
-          elevenlabs_agent_id: botData?.elevenlabs_agent_id || '',
-          widget_config: (botData?.widget_config as any) || {
-            actionText: 'Nouvel appel',
-            startCallText: 'Démarrer la conversation',
-            endCallText: 'Terminer la conversation',
-            listeningText: 'J\'écoute…',
-            speakingText: 'L\'agent vous parle',
-            variant: 'expanded'
-          },
-          created_at: new Date().toISOString(), // Placeholder
-          is_active: analytics.is_active,
-          description: botData?.description,
-          stats: {
-            total_messages: analytics.total_messages || 0,
-            total_sessions: analytics.total_sessions || 0,
-            avg_session_duration_minutes: analytics.avg_session_duration_minutes || 0,
-            messages_24h: analytics.messages_24h || 0,
-            active_users_24h: analytics.active_users_24h || 0,
-            last_activity: analytics.last_message_at
-          }
-        };
-      });
+      const personalAgents: PersonalAgent[] = (data || [])
+        .filter((analytics: any) => {
+          const botData = botsData?.find(bot => bot.id === analytics.bot_id);
+          return botData?.elevenlabs_agent_id; // Filtrer seulement ceux avec elevenlabs_agent_id
+        })
+        .map((analytics: any) => {
+          const botData = botsData?.find(bot => bot.id === analytics.bot_id);
+          return {
+            id: analytics.bot_id,
+            name: analytics.bot_name || 'Agent IA',
+            elevenlabs_agent_id: botData?.elevenlabs_agent_id || '',
+            widget_config: (botData?.widget_config as any) || {
+              actionText: 'Nouvel appel',
+              startCallText: 'Démarrer la conversation',
+              endCallText: 'Terminer la conversation',
+              listeningText: 'J\'écoute…',
+              speakingText: 'L\'agent vous parle',
+              variant: 'expanded'
+            },
+            created_at: analytics.created_at || new Date().toISOString(),
+            is_active: analytics.is_active ?? true,
+            description: botData?.description,
+            stats: {
+              total_messages: analytics.total_messages || 0,
+              total_sessions: analytics.total_sessions || 0,
+              avg_session_duration_minutes: analytics.avg_session_duration_minutes || 0,
+              messages_24h: analytics.messages_24h || 0,
+              active_users_24h: analytics.active_users_24h || 0,
+              last_activity: analytics.last_message_at
+            }
+          };
+        });
 
       setAgents(personalAgents);
       

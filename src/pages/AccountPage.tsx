@@ -78,18 +78,18 @@ export const AccountPage: React.FC = () => {
 
       // Récupérer le profil utilisateur
       const { data: profileData, error: profileError } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError && profileError.code !== 'PGRST116') {
+      if (profileError) {
         console.error('Erreur profil:', profileError);
       } else if (profileData) {
-        setProfile(profileData);
+        setProfile(profileData as any);
         setFormData({
-          full_name: profileData.full_name || '',
-          phone: profileData.phone || ''
+          full_name: (profileData as any).full_name || '',
+          phone: (profileData as any).phone || ''
         });
       }
 
@@ -152,14 +152,11 @@ export const AccountPage: React.FC = () => {
       if (!user) return;
 
       const { error } = await supabase
-        .from('users')
+        .from('profiles')
         .upsert({
           id: user.id,
-          email: user.email || '',
-          full_name: formData.full_name,
-          phone: formData.phone,
-          updated_at: new Date().toISOString()
-        });
+          email: user.email || ''
+        } as any);
 
       if (error) throw error;
 

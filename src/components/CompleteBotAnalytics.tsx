@@ -72,37 +72,21 @@ export const CompleteBotAnalytics: React.FC<CompleteBotAnalyticsProps> = ({
   const fetchAnalytics = async () => {
     try {
       setIsLoading(true);
-      // LOG: Requête analytics Supabase
       console.log(`[CompleteBotAnalytics] Requête Supabase pour bot_id: `, botId);
 
       const { data, error } = await supabase
-        .from('complete_bot_analytics')
+        .from('detailed_bot_stats')
         .select('*')
         .eq('bot_id', botId)
-        .single();
+        .maybeSingle();
 
-      // LOG: Résultat brut
       console.log(`[CompleteBotAnalytics] Résultat analytics récupéré:`, data, error);
 
       if (error) throw error;
 
-      setAnalytics(data);
-
-      // LOG: Statistiques principales (si data bien reçue)
       if (data) {
-        const msg = `
-[CompleteBotAnalytics] Statistiques clés:
-- Utilisateurs uniques: ${data.total_unique_users}
-- Utilisateurs actifs 24h: ${data.active_users_24h}
-- Utilisateurs actifs 7j: ${data.active_users_7d}
-- Messages totaux: ${data.total_messages}
-- Sessions: ${data.total_sessions}
-- Sessions actives: ${data.active_sessions}
-- Dernière activité: ${data.last_user_activity}
-- Taux d'engagement 7j: ${data.engagement_rate_7d}
-- Taux de réponse: ${data.response_rate_percent}
-        `;
-        console.log(msg);
+        setAnalytics(data as any);
+        console.log('[CompleteBotAnalytics] Statistiques chargées:', data);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des analytics:', error);

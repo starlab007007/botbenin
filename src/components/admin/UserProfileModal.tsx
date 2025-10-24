@@ -92,52 +92,40 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const fetchUserData = async () => {
     setLoading(true);
     try {
-      // Récupérer le profil depuis public.users
+      // Récupérer le profil depuis profiles
       const { data: profileData, error: profileError } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      // Si l'utilisateur n'existe pas dans public.users, essayer de le créer
+      // Si le profil n'existe pas, le créer
       if (!profileData) {
-        console.log('User not found in public.users, attempting to create...');
+        console.log('Profile not found, attempting to create...');
         
-        // Récupérer les données depuis auth.users via l'edge function
-        const { data: authUserData } = await supabase.functions.invoke('list-users-admin');
-        
-        if (authUserData?.users) {
-          const authUser = authUserData.users.find((u: any) => u.id === userId);
-          
-          if (authUser) {
-            // Créer l'utilisateur dans public.users
-            const { data: newProfile, error: insertError } = await supabase
-              .from('users')
-              .insert({
-                id: userId,
-                email: authUser.email || userEmail,
-                full_name: authUser.user_metadata?.full_name || 'Utilisateur',
-                status: 'active'
-              })
-              .select()
-              .single();
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: userEmail
+          })
+          .select()
+          .maybeSingle();
 
-            if (insertError) {
-              console.error('Error creating user profile:', insertError);
-              throw new Error('Impossible de créer le profil utilisateur');
-            }
-            
-            setProfile(newProfile);
-            setFullName(newProfile.full_name || '');
-            setStatus(newProfile.status || 'active');
-          } else {
-            throw new Error('Utilisateur non trouvé dans auth.users');
-          }
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+          throw new Error('Impossible de créer le profil');
+        }
+        
+        if (newProfile) {
+          setProfile(newProfile as any);
+          setFullName('');
+          setStatus('active');
         }
       } else {
-        setProfile(profileData);
-        setFullName(profileData.full_name || '');
-        setStatus(profileData.status || 'active');
+        setProfile(profileData as any);
+        setFullName((profileData as any).full_name || '');
+        setStatus((profileData as any).status || 'active');
       }
 
       // Récupérer l'abonnement
@@ -189,12 +177,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleSave = async () => {
     try {
       const { error } = await supabase
-        .from('users')
+        .from('profiles')
         .update({
-          full_name: fullName,
-          status: status,
-          updated_at: new Date().toISOString(),
-        })
+          email: profile?.email || userEmail
+        } as any)
         .eq('id', userId);
 
       if (error) throw error;
@@ -221,8 +207,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     const newStatus = status === 'active' ? 'inactive' : 'active';
     try {
       const { error } = await supabase
-        .from('users')
-        .update({ status: newStatus })
+        .from('profiles')
+        .update({ 
+          email: profile?.email || userEmail
+        } as any)
         .eq('id', userId);
 
       if (error) throw error;
