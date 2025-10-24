@@ -170,45 +170,80 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
   };
 
   const parseWebhookResponse = (responseText: string): B2BContact[] => {
-    console.log('Parsing webhook response:', responseText);
+    console.log('[Parser] Starting to parse webhook response');
+    console.log('[Parser] Response length:', responseText?.length);
     
     if (!responseText || typeof responseText !== 'string') {
-      console.warn('Invalid webhook response: empty or not string');
+      console.warn('[Parser] Invalid response: empty or not string');
       return [];
     }
+    
+    // Nettoyer la réponse
+    const cleanedResponse = responseText.trim();
+    console.log('[Parser] Cleaned response preview:', cleanedResponse.substring(0, 200));
     
     const contacts: B2BContact[] = [];
     
     try {
-      // Pattern amélioré pour capturer différents formats de réponse
+      // Patterns multiples pour gérer différents formats de réponse
       const patterns = [
-        // Format principal avec numérotation et markdown
-        /\d+\.\s*\*\*(.*?)\*\*\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g,
-        // Format alternatif sans markdown
-        /\d+\.\s*(.*?)\s*\n([\s\S]*?)(?=\n\n|\n\d+\.|\n\nCes entreprises|$)/g,
-        // Format simple avec tirets
-        /-\s*(.*?)\s*\n([\s\S]*?)(?=\n-|\n\n|$)/g
+        // Format 1: Numérotation avec markdown gras
+        /(\d+)\.\s*\*\*([^*\n]+)\*\*\s*\n([\s\S]*?)(?=\n\n\d+\.|\n\n[A-Z]|$)/g,
+        // Format 2: Numérotation sans markdown
+        /(\d+)\.\s*([^\n]+)\s*\n([\s\S]*?)(?=\n\n\d+\.|\n\n[A-Z]|$)/g,
+        // Format 3: Liste avec tirets
+        /-\s*\*\*([^*\n]+)\*\*\s*\n([\s\S]*?)(?=\n-|\n\n|$)/g,
+        // Format 4: Simple liste avec tirets sans markdown
+        /-\s*([^\n]+)\s*\n([\s\S]*?)(?=\n-|\n\n|$)/g,
+        // Format 5: Nom en majuscules ou capitales
+        /([A-ZÀÉÈÊËÎÏÔŒÙ][A-ZÀÉÈÊËÎÏÔŒÙa-zàéèêëîïôœùç\s&'-]{2,})\n([\s\S]*?)(?=\n[A-ZÀÉÈÊËÎÏÔŒÙ][A-ZÀÉÈÊËÎÏÔŒÙa-z]|\n\n|$)/g
       ];
 
       let totalMatches = 0;
+      let patternUsed = -1;
       
-      for (const pattern of patterns) {
+      for (let i = 0; i < patterns.length; i++) {
+        const pattern = patterns[i];
         let match;
         let contactIndex = 1;
         
-        // Reset du pattern pour chaque utilisation
         pattern.lastIndex = 0;
+        console.log(`[Parser] Trying pattern ${i + 1}/${patterns.length}`);
 
-        while ((match = pattern.exec(responseText)) !== null) {
-          const companyName = match[1].trim().replace(/\*\*/g, ''); // Nettoyer les ** markdown
-          const details = match[2];
+        while ((match = pattern.exec(cleanedResponse)) !== null) {
+          // Déterminer les groupes selon le pattern
+          let companyName: string;
+          let details: string;
           
-          // Éviter les doublons
-          if (contacts.some(c => c.companyName === companyName)) {
+          if (i === 0 || i === 1) {
+            // Patterns avec numérotation
+            companyName = match[2].trim().replace(/\*\*/g, '');
+            details = match[3];
+          } else {
+            // Autres patterns
+            companyName = match[1].trim().replace(/\*\*/g, '');
+            details = match[2] || match[1];
+          }
+          
+          // Validation du nom d'entreprise
+          if (!companyName || companyName.length < 2 || companyName.length > 200) {
+            console.log(`[Parser] Invalid company name: "${companyName}"`);
             continue;
           }
           
-          // Patterns de recherche plus flexibles
+          // Éviter les doublons
+          const isDuplicate = contacts.some(c => 
+            c.companyName.toLowerCase().trim() === companyName.toLowerCase().trim()
+          );
+          
+          if (isDuplicate) {
+            console.log(`[Parser] Duplicate found: ${companyName}`);
+            continue;
+          }
+          
+          console.log(`[Parser] Processing contact ${contactIndex}: ${companyName}`);
+          
+          // Patterns de recherche plus flexibles et robustes
           const addressPatterns = [
             /\*\*Adresse\s*:\*\*\s*(.*?)(?:\n|$)/i,
             /Adresse\s*:\s*(.*?)(?:\n|$)/i,
@@ -345,31 +380,25 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
             }
           }
 
-          // Validation et nettoyage des données
-          if (!companyName || companyName.length < 2) {
-            console.warn('Skipping invalid company name:', companyName);
-            continue;
-          }
-
           const coordinates = getCoordinatesFromLocation(address, searchCriteria);
 
           const contact: B2BContact = {
-            id: `webhook_${Date.now()}_${contactIndex}`,
-            name: '', // Nom du contact vide par défaut
+            id: `webhook_${Date.now()}_${contactIndex}_${Math.random().toString(36).substr(2, 9)}`,
+            name: '',
             companyName: companyName,
-            jobTitle: '', // Poste vide par défaut
+            jobTitle: '',
             location: address || 'Localisation non précisée',
             linkedinUrl: website || '',
             email: email || '',
             phone: phone || '',
             industry: category || 'Non spécifié',
-            companySize: '', // Taille d'entreprise vide par défaut
+            companySize: '',
             coordinates: coordinates,
             facebookUrl: facebook || '',
             instagramUrl: instagram || '',
             description: description || '',
             services: description || '',
-            rawData: details // Conserver les données brutes pour debug
+            rawData: details
           };
 
           contacts.push(contact);
@@ -377,22 +406,38 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
           totalMatches++;
         }
         
-        // Si on trouve des résultats avec ce pattern, on arrête d'essayer les autres
+        // Si on trouve des résultats avec ce pattern, arrêter
         if (totalMatches > 0) {
+          patternUsed = i;
+          console.log(`[Parser] Pattern ${i + 1} matched ${totalMatches} contacts`);
           break;
         }
       }
 
-      console.log(`Total webhook contacts extracted: ${contacts.length}`);
+      if (totalMatches === 0) {
+        console.warn('[Parser] No patterns matched. Response might be in unexpected format.');
+        console.log('[Parser] Full response for debugging:', cleanedResponse);
+      }
+
+      console.log(`[Parser] Total contacts extracted: ${contacts.length}`);
       
-      // Validation finale
-      const validContacts = contacts.filter(contact => 
-        contact.companyName && 
-        contact.companyName.trim().length > 0 &&
-        contact.companyName !== 'Non spécifié'
-      );
+      // Validation finale et dédoublonnage
+      const seenNames = new Set<string>();
+      const validContacts = contacts.filter(contact => {
+        if (!contact.companyName || contact.companyName.trim().length < 2) {
+          return false;
+        }
+        
+        const normalizedName = contact.companyName.toLowerCase().trim();
+        if (seenNames.has(normalizedName)) {
+          return false;
+        }
+        
+        seenNames.add(normalizedName);
+        return true;
+      });
       
-      console.log(`Valid contacts after filtering: ${validContacts.length}`);
+      console.log(`[Parser] Valid unique contacts: ${validContacts.length}`);
       return validContacts;
       
     } catch (error) {
@@ -540,16 +585,23 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
     };
   };
 
-  const executeSearch = async (criteria: SearchCriteria) => {
+  const executeSearch = async (criteria: SearchCriteria, retryCount = 0) => {
+    const MAX_RETRIES = 2;
+    const TIMEOUT_MS = 30000; // 30 secondes
+    
     setIsSearching(true);
     setSearchError(null);
     setCurrentStep(1);
 
-    console.log('Executing search with enhanced criteria:', criteria);
+    console.log(`[Search Attempt ${retryCount + 1}/${MAX_RETRIES + 1}] Executing search with criteria:`, criteria);
 
     try {
       const requestPayload = buildWebhookPayload(criteria);
-      console.log('Sending enhanced webhook payload:', requestPayload);
+      console.log('Webhook payload:', JSON.stringify(requestPayload, null, 2));
+
+      // Créer un AbortController pour le timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
       const response = await fetch('https://ia.bot.bj/webhook/lead', {
         method: 'POST',
@@ -560,7 +612,10 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
         },
         body: JSON.stringify(requestPayload),
         mode: 'cors',
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -568,57 +623,100 @@ export const CompleteB2BWorkflow: React.FC<CompleteB2BWorkflowProps> = ({ onBack
 
       const contentType = response.headers.get('content-type') || '';
       let responseData;
-      let processedContent;
+      let processedContent = '';
+
+      console.log('Response content-type:', contentType);
 
       if (contentType.includes('application/json')) {
         responseData = await response.json();
+        console.log('JSON response structure:', Object.keys(responseData));
+        
+        // Essayer toutes les propriétés possibles
         processedContent = responseData.output || 
                           responseData.message || 
                           responseData.response || 
                           responseData.text || 
                           responseData.content ||
                           responseData.reply ||
+                          responseData.data ||
                           (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
       } else {
-        responseData = await response.text();
-        processedContent = responseData;
+        processedContent = await response.text();
       }
 
-      console.log('Raw webhook response:', processedContent);
+      console.log('Processed content length:', processedContent.length);
+      console.log('Content preview:', processedContent.substring(0, 300));
+
+      if (!processedContent || processedContent.trim().length === 0) {
+        throw new Error('Réponse vide du webhook');
+      }
+
       const extractedContacts = parseWebhookResponse(processedContent);
+      console.log(`Extracted ${extractedContacts.length} contacts from response`);
       
       if (extractedContacts.length > 0) {
-        console.log('Setting search results:', extractedContacts);
         setSearchResults(extractedContacts);
         setCurrentStep(2);
+        setIsSearching(false);
         toast({
-          title: "Recherche terminée avec succès",
-          description: `${extractedContacts.length} contacts trouvés via webhook`,
+          title: "✅ Recherche terminée",
+          description: `${extractedContacts.length} contact${extractedContacts.length > 1 ? 's' : ''} trouvé${extractedContacts.length > 1 ? 's' : ''}`,
         });
+        return;
       } else {
-        // Aucun résultat trouvé
+        // Aucun contact trouvé - essayer de retry si possible
+        if (retryCount < MAX_RETRIES) {
+          console.log(`No contacts found, retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Attendre 2 secondes
+          return executeSearch(criteria, retryCount + 1);
+        }
+        
         setSearchResults([]);
-        setSearchError("Aucun contact trouvé dans la réponse webhook");
+        setSearchError("Aucun contact trouvé malgré plusieurs tentatives");
         setCurrentStep(2);
+        setIsSearching(false);
         toast({
-          title: "Aucun résultat",
-          description: "La recherche n'a retourné aucun contact. Vous pouvez modifier vos critères.",
+          title: "⚠️ Aucun résultat",
+          description: "La recherche n'a retourné aucun contact. Essayez avec des critères plus larges.",
           variant: "destructive",
         });
       }
 
     } catch (error) {
-      console.error('Search error:', error);
-      setSearchError(error instanceof Error ? error.message : 'Erreur inconnue');
-      setSearchResults([]);
-      setCurrentStep(2); // Aller à l'étape des résultats même en cas d'erreur
+      console.error(`[Search Error - Attempt ${retryCount + 1}]:`, error);
       
-      toast({
-        title: "Erreur de recherche",
-        description: "Impossible de se connecter au service de recherche. Vous pouvez réessayer.",
-        variant: "destructive",
-      });
-    } finally {
+      // Gérer le timeout spécifiquement
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (retryCount < MAX_RETRIES) {
+          console.log('Timeout - retrying...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return executeSearch(criteria, retryCount + 1);
+        }
+        
+        setSearchError('Délai d\'attente dépassé');
+        toast({
+          title: "⏱️ Timeout",
+          description: "La recherche a pris trop de temps. Veuillez réessayer.",
+          variant: "destructive",
+        });
+      } else {
+        // Autres erreurs
+        if (retryCount < MAX_RETRIES) {
+          console.log(`Error occurred, retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return executeSearch(criteria, retryCount + 1);
+        }
+        
+        setSearchError(error instanceof Error ? error.message : 'Erreur inconnue');
+        toast({
+          title: "❌ Erreur de recherche",
+          description: "Impossible de se connecter au service. Vérifiez votre connexion.",
+          variant: "destructive",
+        });
+      }
+      
+      setSearchResults([]);
+      setCurrentStep(2);
       setIsSearching(false);
     }
   };
