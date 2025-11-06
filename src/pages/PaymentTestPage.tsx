@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlayCircle } from "lucide-react";
+import { Loader2, PlayCircle, RefreshCw } from "lucide-react";
 import { PaymentStatusTracker } from "@/components/payments/PaymentStatusTracker";
 import { PaymentDiagnostic } from "@/components/payments/PaymentDiagnostic";
 
@@ -188,25 +188,66 @@ export const PaymentTestPage = () => {
             </div>
           </div>
 
-          {/* Test Button */}
-          <Button 
-            onClick={runTest} 
-            disabled={isLoading} 
-            className="w-full"
-            size="lg"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Test en cours...
-              </>
-            ) : (
-              <>
-                <PlayCircle className="mr-2 h-5 w-5" />
-                Lancer le test
-              </>
-            )}
-          </Button>
+          {/* Test Buttons */}
+          <div className="space-y-3">
+            <Button 
+              onClick={runTest} 
+              disabled={isLoading} 
+              className="w-full"
+              size="lg"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Test en cours...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="mr-2 h-5 w-5" />
+                  Lancer le test
+                </>
+              )}
+            </Button>
+
+            <Button 
+              onClick={async () => {
+                addLog('🔄 Vérification de toutes les transactions en attente...');
+                try {
+                  const { data, error } = await supabase.functions.invoke('qosic-check-status', {
+                    body: { checkAll: true }
+                  });
+                  
+                  if (error) throw error;
+                  
+                  addLog(`✅ Vérification terminée: ${data.checked} transaction(s) vérifiée(s)`);
+                  if (data.results) {
+                    data.results.forEach((result: any) => {
+                      if (result.updated) {
+                        addLog(`  → ${result.order_id}: ${result.old_status} → ${result.new_status}`);
+                      }
+                    });
+                  }
+                  
+                  toast({
+                    title: "Vérification terminée",
+                    description: `${data.checked} transaction(s) vérifiée(s)`,
+                  });
+                } catch (error: any) {
+                  addLog(`❌ Erreur de vérification: ${error.message}`);
+                  toast({
+                    title: "Erreur",
+                    description: error.message,
+                    variant: "destructive",
+                  });
+                }
+              }}
+              variant="outline"
+              className="w-full"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Vérifier toutes les transactions en attente
+            </Button>
+          </div>
 
           {/* Logs Display */}
           {logs.length > 0 && (

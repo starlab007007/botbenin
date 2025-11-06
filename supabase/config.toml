@@ -70,6 +70,9 @@ verify_jwt = false
 [functions.qosic-payment]
 verify_jwt = false
 
+[functions.qosic-check-status]
+verify_jwt = false
+
 [functions.qosic-webhook]
 verify_jwt = false
 

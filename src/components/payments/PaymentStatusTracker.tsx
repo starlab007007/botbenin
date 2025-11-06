@@ -31,6 +31,7 @@ export const PaymentStatusTracker = ({
     const TIMEOUT_MS = 180000; // 3 minutes
     let timeoutId: NodeJS.Timeout;
     let intervalId: NodeJS.Timeout;
+    let statusCheckInterval: NodeJS.Timeout | null = null;
 
     // Timer
     intervalId = setInterval(() => {
@@ -66,6 +67,7 @@ export const PaymentStatusTracker = ({
           if (newStatus === 'completed') {
             clearTimeout(timeoutId);
             clearInterval(intervalId);
+            if (statusCheckInterval) clearInterval(statusCheckInterval);
             toast({
               title: "✅ Paiement réussi!",
               description: `Votre paiement de ${amount} FCFA a été confirmé.`,
@@ -73,6 +75,7 @@ export const PaymentStatusTracker = ({
           } else if (newStatus === 'failed') {
             clearTimeout(timeoutId);
             clearInterval(intervalId);
+            if (statusCheckInterval) clearInterval(statusCheckInterval);
             toast({
               title: "❌ Paiement échoué",
               description: "Le paiement n'a pas pu être complété.",
@@ -92,8 +95,23 @@ export const PaymentStatusTracker = ({
         .single();
 
       if (data) {
-        setStatus(data.status as 'pending' | 'processing' | 'completed' | 'failed' | 'timeout');
+        const fetchedStatus = data.status as 'pending' | 'processing' | 'completed' | 'failed' | 'timeout';
+        setStatus(fetchedStatus);
         setTransactionData(data);
+
+        // Start polling if processing
+        if (fetchedStatus === 'processing') {
+          statusCheckInterval = setInterval(async () => {
+            try {
+              console.log('🔄 Auto-checking payment status...', orderId);
+              await supabase.functions.invoke('qosic-check-status', {
+                body: { transref: orderId }
+              });
+            } catch (error) {
+              console.error('Status check failed:', error);
+            }
+          }, 10000); // Every 10 seconds
+        }
       }
     };
 
@@ -102,6 +120,7 @@ export const PaymentStatusTracker = ({
     return () => {
       clearTimeout(timeoutId);
       clearInterval(intervalId);
+      if (statusCheckInterval) clearInterval(statusCheckInterval);
       supabase.removeChannel(channel);
     };
   }, [open, orderId, amount, toast]);
