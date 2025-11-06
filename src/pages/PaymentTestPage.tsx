@@ -14,7 +14,7 @@ import { PaymentDiagnostic } from "@/components/payments/PaymentDiagnostic";
 export const PaymentTestPage = () => {
   const { toast } = useToast();
   const [operator, setOperator] = useState<'MTN' | 'MOOV' | 'SBIN'>('MTN');
-  const [amount, setAmount] = useState('1000');
+  const [amount, setAmount] = useState('100');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
