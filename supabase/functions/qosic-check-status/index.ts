@@ -102,9 +102,29 @@ Deno.serve(async (req) => {
           clientId = Deno.env.get('QOSIC_SBIN_CLIENT_ID') || '';
         }
 
+        // Extract serviceref from metadata if available (preferred), otherwise use order_id
+        const transrefToUse = transaction.metadata?.qosic_response?.serviceref || transaction.order_id;
+        
         log('info', 'checking_transaction_status', {
           order_id: transaction.order_id,
           payment_method: transaction.payment_method,
+          using_serviceref: !!transaction.metadata?.qosic_response?.serviceref,
+          transref: transrefToUse,
+        });
+
+        // Detailed logging before API call
+        const requestBody = {
+          transref: transrefToUse,
+          clientid: clientId,
+        };
+        
+        log('info', 'qosic_api_call_details', {
+          url: `${qosicBaseUrl}/QosicBridge/user/gettransactionstatusV2`,
+          clientId: clientId,
+          transref: transrefToUse,
+          order_id: transaction.order_id,
+          has_auth: !!basicAuth,
+          request_body: requestBody,
         });
 
         // Call Qosic status check API
@@ -116,18 +136,31 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
               'Authorization': `Basic ${basicAuth}`,
             },
-            body: JSON.stringify({
-              transref: transaction.order_id,
-              clientid: clientId,
-            }),
+            body: JSON.stringify(requestBody),
           }
         );
 
+        // Capture full response for debugging
+        const responseText = await statusResponse.text();
+        
+        log('info', 'qosic_api_response_raw', {
+          status: statusResponse.status,
+          statusText: statusResponse.statusText,
+          body: responseText.substring(0, 500),
+          headers: Object.fromEntries(statusResponse.headers.entries()),
+        });
+
         if (!statusResponse.ok) {
+          log('error', 'qosic_api_error_details', {
+            status: statusResponse.status,
+            statusText: statusResponse.statusText,
+            response_body: responseText,
+            request_used: requestBody,
+          });
           throw new Error(`Qosic API error: ${statusResponse.status}`);
         }
 
-        const statusData: QosicStatusResponse = await statusResponse.json();
+        const statusData: QosicStatusResponse = JSON.parse(responseText);
         log('info', 'qosic_status_response', { 
           order_id: transaction.order_id,
           responsecode: statusData.responsecode,
