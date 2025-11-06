@@ -103,9 +103,12 @@ serve(async (req) => {
 
     log('info', 'config_loaded', { operator, clientId: clientId.substring(0, 8) + '***' });
 
-    // Generate unique order ID
-    const orderId = `PAY_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    log('info', 'order_id_generated', { orderId });
+    // Generate unique order ID (max 20 chars for Qosic transref)
+    // Format: PAY_timestamp_random = 18-19 chars
+    const timestamp = Date.now().toString().slice(-9); // Last 9 digits
+    const random = Math.random().toString(36).substring(2, 7); // 5 chars
+    const orderId = `PAY_${timestamp}_${random}`; // PAY_123456789_abc12 = 19 chars
+    log('info', 'order_id_generated', { orderId, length: orderId.length });
 
     // IMPORTANT: Map operator to payment_method matching DB CHECK constraint
     // - MTN → 'mtn_momo'
