@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, XCircle, Clock, Smartphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -143,7 +144,16 @@ export const PaymentStatusTracker = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog 
+      open={open} 
+      onOpenChange={(newOpen) => {
+        // Empêcher la fermeture si le paiement est en cours
+        if (!newOpen && (status === 'pending' || status === 'processing')) {
+          return;
+        }
+        onOpenChange(newOpen);
+      }}
+    >
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Suivi du paiement {operator}</DialogTitle>
@@ -233,20 +243,41 @@ export const PaymentStatusTracker = ({
           {/* Instructions */}
           {status === 'processing' && (
             <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
-              <div className="text-sm text-blue-900 dark:text-blue-100">
-                📱 Composez le code USSD sur votre téléphone {operator} pour confirmer le paiement
+              <div className="text-sm text-blue-900 dark:text-blue-100 space-y-2">
+                <div className="font-semibold">📱 Action requise sur votre téléphone</div>
+                <div>
+                  1. Composez le code USSD reçu sur votre téléphone {operator}<br/>
+                  2. Entrez votre code PIN pour confirmer<br/>
+                  3. Le paiement sera vérifié automatiquement toutes les 10 secondes
+                </div>
+                <div className="text-xs opacity-75 mt-2">
+                  ⏱️ Auto-vérification en cours... Ne fermez pas cette fenêtre.
+                </div>
               </div>
             </div>
           )}
         </div>
 
+        {/* Alert for pending/processing status */}
+        {(status === 'pending' || status === 'processing') && (
+          <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+            <AlertDescription className="text-amber-900 dark:text-amber-100 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>
+                <strong>Paiement en cours</strong> - Veuillez patienter jusqu'à la confirmation finale.
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
+            disabled={status === 'pending' || status === 'processing'}
             className="flex-1"
           >
-            Fermer
+            {status === 'pending' || status === 'processing' ? 'Paiement en cours...' : 'Fermer'}
           </Button>
           {(status === 'completed' || status === 'failed') && (
             <Button
