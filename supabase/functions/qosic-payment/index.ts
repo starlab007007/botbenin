@@ -227,7 +227,7 @@ serve(async (req) => {
     }
     
     // PRODUCTION MODE: Real API call
-    const qosicBaseUrl = 'https://qosic.net';
+    const qosicBaseUrl = Deno.env.get('QOSIC_BASE_URL') || 'http://staging.qosic.net:9010';
     
     // Map operator to correct endpoint
     const endpointMap = {
@@ -238,12 +238,23 @@ serve(async (req) => {
     
     const apiEndpoint = endpointMap[operator];
     
+    // Split fullName into firstname/lastname
+    let firstname = 'Client';
+    let lastname = 'Bot.BJ';
+
+    if (fullName && fullName.trim()) {
+      const nameParts = fullName.trim().split(' ');
+      firstname = nameParts[0] || 'Client';
+      lastname = nameParts.slice(1).join(' ') || 'Bot.BJ';
+    }
+
     const qosicPayload = {
-      clientId: clientId,
-      amount: amount,
       msisdn: cleanPhone,
-      orderId: orderId,
-      description: planName ? `Paiement ${planName}` : 'Paiement',
+      amount: amount.toString(), // Qosic expects string
+      firstname: firstname,
+      lastname: lastname,
+      transref: orderId,
+      clientid: clientId // Lowercase as per Qosic specs
     };
 
     log('info', 'qosic_api_call_start', { orderId, operator, endpoint: apiEndpoint });
@@ -274,9 +285,34 @@ serve(async (req) => {
 
       let qosicData;
       try {
-        qosicData = JSON.parse(responseText);
-      } catch {
-        log('error', 'qosic_response_parse_failed', { orderId, responseText: responseText.substring(0, 200) });
+        const rawResponse = JSON.parse(responseText);
+        
+        // Map Qosic response format to internal format
+        // Qosic returns: { responsecode: "01", responsemsg: "Succesfull", transref, serviceref, comment }
+        const isSuccess = rawResponse.responsecode === "01";
+        qosicData = {
+          success: isSuccess,
+          transactionId: rawResponse.serviceref, // Qosic's real transaction ID
+          transref: rawResponse.transref,         // Our reference echoed back
+          message: rawResponse.responsemsg,
+          status: isSuccess ? 'processing' : 'failed',
+          comment: rawResponse.comment,
+          rawResponse: rawResponse // Keep original for debugging
+        };
+        
+        log('info', 'qosic_response_mapped', { 
+          orderId, 
+          responsecode: rawResponse.responsecode,
+          success: qosicData.success,
+          serviceref: rawResponse.serviceref
+        });
+        
+      } catch (parseError: any) {
+        log('error', 'qosic_response_parse_failed', { 
+          orderId, 
+          responseText: responseText.substring(0, 200),
+          parseError: parseError.message 
+        });
         throw new Error('Réponse API invalide');
       }
 
@@ -289,12 +325,15 @@ serve(async (req) => {
       // Update transaction with Qosic response
       const updateData = {
         status: qosicResponse.ok && qosicData.success ? 'processing' : 'failed',
-        qosic_transaction_id: qosicData.transactionId || null,
-        qosic_response: qosicData,
+        qosic_transaction_id: qosicData.transactionId || null, // serviceref from Qosic
+        qosic_response: qosicData.rawResponse, // Store raw Qosic response
         metadata: {
           ...transaction.metadata,
+          qosic_responsecode: qosicData.rawResponse?.responsecode,
           qosic_status: qosicData.status,
           qosic_message: qosicData.message,
+          qosic_transref: qosicData.transref,
+          qosic_serviceref: qosicData.transactionId,
           updated_at: new Date().toISOString(),
         }
       };
