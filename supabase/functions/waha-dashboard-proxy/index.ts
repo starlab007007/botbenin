@@ -27,26 +27,23 @@ serve(async (req) => {
     // Sécurité: Vérifier l'origine de la requête (allowlist)
     const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
     
-    // Domaines autorisés avec patterns flexibles
-    const allowedDomainPatterns = [
-      '.lovableproject.com',
-      '.lovable.app',
-      '.lovable.dev',
-      'localhost:3000',
-      '127.0.0.1:3000',
-      'bot.bj',
-      '.supabase.co'
-    ];
+    // Autoriser tous les domaines Lovable en développement
+    const isLovableDomain = 
+      origin.includes('lovableproject.com') ||
+      origin.includes('lovable.app') ||
+      origin.includes('lovable.dev') ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.includes('bot.bj') ||
+      origin.includes('supabase.co') ||
+      !origin; // Autoriser les requêtes sans origin (appels directs)
     
-    const isAllowedOrigin = !origin || allowedDomainPatterns.some(pattern => 
-      origin.includes(pattern)
-    );
-    
-    if (!isAllowedOrigin) {
+    if (!isLovableDomain) {
       console.warn('🚫 Proxy - Accès refusé - Origine non autorisée:', origin);
       return new Response(JSON.stringify({ 
         error: 'Access denied',
-        message: 'Origin not allowed for proxy' 
+        message: 'Origin not allowed for proxy',
+        origin: origin 
       }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
