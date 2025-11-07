@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Webhook, Settings, CheckCircle2, AlertCircle, Plus, Trash2, Smartphone } from 'lucide-react';
+import { Loader2, Webhook, Settings, CheckCircle2, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useWAHADashboard } from '@/hooks/useWAHADashboard';
 
@@ -214,41 +214,6 @@ const WebhookConfigModal: React.FC<WebhookConfigModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Sélection de session */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Smartphone className="w-4 h-4" />
-                <span>Session WhatsApp</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="session-select">Session WhatsApp connectée</Label>
-                  <Select value={sessionSelected} onValueChange={setSessionSelected}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez une session WhatsApp..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sessions?.filter(s => s.status === 'WORKING').map((session) => (
-                        <SelectItem key={session.name} value={session.name}>
-                          <div className="flex items-center space-x-2">
-                            <span>{session.name}</span>
-                            <Badge variant="default" className="text-xs bg-green-600">Connectée</Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Seules les sessions WhatsApp connectées peuvent recevoir des webhooks
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Comment ça marche */}
           <Card>
             <CardHeader>
