@@ -26,25 +26,23 @@ serve(async (req) => {
 
     // Sécurité: Vérifier l'origine de la requête (allowlist)
     const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
-    const allowedOrigins = [
-      'https://mvynepqulhflxtyymtzs.lovableproject.com',
-      'https://preview--path-finding-ai-coach.lovable.app',
-      'https://e22c52ab-372c-49c8-ab35-fb1b4b55f0b1.sandbox.lovable.dev',
-      'https://id-preview--e22c52ab-372c-49c8-ab35-fb1b4b55f0b1.lovable.app',
-      'http://localhost:3000', 
-      'http://127.0.0.1:3000',
-      'https://localhost:3000',
-      // Production domain
-      'https://bot.bj',
-      // Autoriser aussi les appels depuis waha-dashboard-mirror
-      'https://mvynepqulhflxtyymtzs.functions.supabase.co'
+    
+    // Domaines autorisés avec patterns flexibles
+    const allowedDomainPatterns = [
+      '.lovableproject.com',
+      '.lovable.app',
+      '.lovable.dev',
+      'localhost:3000',
+      '127.0.0.1:3000',
+      'bot.bj',
+      '.supabase.co'
     ];
     
-    const isAllowedOrigin = allowedOrigins.some(allowed => 
-      origin.includes(allowed) || origin.startsWith(allowed)
+    const isAllowedOrigin = !origin || allowedDomainPatterns.some(pattern => 
+      origin.includes(pattern)
     );
     
-    if (!isAllowedOrigin && origin) {
+    if (!isAllowedOrigin) {
       console.warn('🚫 Proxy - Accès refusé - Origine non autorisée:', origin);
       return new Response(JSON.stringify({ 
         error: 'Access denied',
