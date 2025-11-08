@@ -5,6 +5,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { platformDocumentation, PlatformContent } from '@/data/platformDocumentation';
+import { ROICalculator } from '@/components/documentation/ROICalculator';
+import { CaseStudies } from '@/components/documentation/CaseStudies';
+import { InnovationShowcase } from '@/components/documentation/InnovationShowcase';
+import { CompetitorComparison } from '@/components/documentation/CompetitorComparison';
 import { 
   FileText, 
   Search, 
@@ -292,12 +296,36 @@ const DocumentationPortalPage = () => {
 
                 <Separator />
 
-                <div className="space-y-8">
+                <div className="space-y-12">
                   {currentSection.content.map((content, idx) => (
                     <div key={idx}>
                       {renderContent(content)}
                     </div>
                   ))}
+                  
+                  {/* Sections spéciales selon l'ID */}
+                  {selectedSection === 'features' && (
+                    <>
+                      <Separator className="my-12" />
+                      <InnovationShowcase />
+                    </>
+                  )}
+                  
+                  {selectedSection === 'advantages' && (
+                    <>
+                      <Separator className="my-12" />
+                      <CompetitorComparison />
+                    </>
+                  )}
+                  
+                  {selectedSection === 'pricing' && (
+                    <>
+                      <Separator className="my-12" />
+                      <ROICalculator />
+                      <Separator className="my-12" />
+                      <CaseStudies />
+                    </>
+                  )}
                 </div>
               </div>
             ) : (
