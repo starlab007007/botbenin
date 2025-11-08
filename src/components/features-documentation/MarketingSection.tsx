@@ -12,9 +12,15 @@ import {
   ArrowRight,
   Star
 } from 'lucide-react';
+import { generateROICalculator } from '@/utils/roiCalculator';
+import { generateClientCasesPDF } from '@/utils/clientCasesPDF';
+import { generatePresentationPPTX } from '@/utils/presentationPPTX';
+import { generateCompletePackZIP } from '@/utils/packCompleteZIP';
+import { toast } from 'sonner';
 
 interface MarketingSectionProps {
   onExportPDF: () => void;
+  onGeneratePDF: () => Promise<any>;
   isExporting: boolean;
   selectedModulesCount: number;
   totalModulesCount: number;
@@ -22,10 +28,56 @@ interface MarketingSectionProps {
 
 export const MarketingSection: React.FC<MarketingSectionProps> = ({
   onExportPDF,
+  onGeneratePDF,
   isExporting,
   selectedModulesCount,
   totalModulesCount
 }) => {
+  const [isDownloading, setIsDownloading] = React.useState(false);
+
+  const handleROIDownload = () => {
+    try {
+      toast.info('Génération du calculateur ROI...');
+      generateROICalculator();
+      toast.success('Calculateur ROI téléchargé !');
+    } catch (error) {
+      toast.error('Erreur lors de la génération');
+    }
+  };
+
+  const handleClientCasesDownload = () => {
+    try {
+      toast.info('Génération des cas clients...');
+      generateClientCasesPDF();
+      toast.success('Cas clients téléchargés !');
+    } catch (error) {
+      toast.error('Erreur lors de la génération');
+    }
+  };
+
+  const handlePresentationDownload = async () => {
+    try {
+      toast.info('Génération de la présentation...');
+      await generatePresentationPPTX();
+      toast.success('Présentation téléchargée !');
+    } catch (error) {
+      toast.error('Erreur lors de la génération');
+    }
+  };
+
+  const handleCompletePackDownload = async () => {
+    try {
+      setIsDownloading(true);
+      toast.info('Génération du pack complet... Cela peut prendre quelques secondes.');
+      await generateCompletePackZIP(onGeneratePDF);
+      toast.success('Pack complet téléchargé !');
+    } catch (error) {
+      toast.error('Erreur lors de la génération du pack');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-16">
       {/* Hero Section */}
@@ -337,7 +389,11 @@ export const MarketingSection: React.FC<MarketingSectionProps> = ({
               <p className="text-sm text-muted-foreground mb-4">
                 Estimez vos économies et gains avec Bot.bj en 2 minutes
               </p>
-              <Button variant="outline" className="w-full gap-2">
+              <Button 
+                variant="outline" 
+                className="w-full gap-2"
+                onClick={handleROIDownload}
+              >
                 <Download className="w-4 h-4" />
                 Télécharger Excel
               </Button>
@@ -353,7 +409,11 @@ export const MarketingSection: React.FC<MarketingSectionProps> = ({
               <p className="text-sm text-muted-foreground mb-4">
                 20+ études de cas détaillées avec métriques réelles
               </p>
-              <Button variant="outline" className="w-full gap-2">
+              <Button 
+                variant="outline" 
+                className="w-full gap-2"
+                onClick={handleClientCasesDownload}
+              >
                 <Download className="w-4 h-4" />
                 Télécharger PDF
               </Button>
@@ -369,7 +429,11 @@ export const MarketingSection: React.FC<MarketingSectionProps> = ({
               <p className="text-sm text-muted-foreground mb-4">
                 Deck PowerPoint prêt pour présenter à votre direction
               </p>
-              <Button variant="outline" className="w-full gap-2">
+              <Button 
+                variant="outline" 
+                className="w-full gap-2"
+                onClick={handlePresentationDownload}
+              >
                 <Download className="w-4 h-4" />
                 Télécharger PPTX
               </Button>
@@ -378,9 +442,15 @@ export const MarketingSection: React.FC<MarketingSectionProps> = ({
         </div>
 
         <div className="text-center">
-          <Button size="lg" variant="outline" className="gap-2">
+          <Button 
+            size="lg" 
+            variant="outline" 
+            className="gap-2"
+            onClick={handleCompletePackDownload}
+            disabled={isDownloading || isExporting}
+          >
             <Download className="w-5 h-5" />
-            Télécharger Tout (Pack Complet ZIP)
+            {isDownloading ? 'Génération en cours...' : 'Télécharger Tout (Pack Complet ZIP)'}
           </Button>
         </div>
       </section>

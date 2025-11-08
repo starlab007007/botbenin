@@ -59,6 +59,11 @@ const FeaturesPage: React.FC = () => {
     }
   };
 
+  const generatePDFForExport = async () => {
+    const generator = new ProfessionalPDFGenerator();
+    return generator;
+  };
+
   return (
     <div className="w-full min-h-screen bg-background">
       <DocumentationHeader onExportPDF={handleExportPDF} isExporting={isExporting} />
@@ -103,6 +108,7 @@ const FeaturesPage: React.FC = () => {
       <div className="container mx-auto px-4 md:px-6 py-16">
         <MarketingSection 
           onExportPDF={handleExportPDF}
+          onGeneratePDF={generatePDFForExport}
           isExporting={isExporting}
           selectedModulesCount={selectedModules.length}
           totalModulesCount={allModules.length}
