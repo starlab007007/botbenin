@@ -4,12 +4,24 @@ import { ModulePresentation } from '@/components/features-documentation/ModulePr
 import { ModuleFeaturesGrid } from '@/components/features-documentation/ModuleFeaturesGrid';
 import { ModuleWorkflowDiagram } from '@/components/features-documentation/ModuleWorkflowDiagram';
 import { ModuleStepByStep } from '@/components/features-documentation/ModuleStepByStep';
+import { ModuleSelector } from '@/components/features-documentation/ModuleSelector';
 import { allModules } from '@/data/modules';
 import { ProfessionalPDFGenerator } from '@/utils/pdfGenerator';
 import { toast } from 'sonner';
 
 const FeaturesPage: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedModules, setSelectedModules] = useState<string[]>(allModules.map(m => m.id));
+
+  const handleModuleToggle = (moduleId: string) => {
+    setSelectedModules(prev =>
+      prev.includes(moduleId)
+        ? prev.filter(id => id !== moduleId)
+        : [...prev, moduleId]
+    );
+  };
+
+  const filteredModules = allModules.filter(m => selectedModules.includes(m.id));
 
   const handleExportPDF = async () => {
     setIsExporting(true);
@@ -19,8 +31,8 @@ const FeaturesPage: React.FC = () => {
     
     try {
       const generator = new ProfessionalPDFGenerator();
-      const pdfBlob = await generator.generate(allModules, {
-        selectedModules: allModules.map(m => m.id),
+      const pdfBlob = await generator.generate(filteredModules, {
+        selectedModules: selectedModules,
         includeFAQ: true,
         includePricing: true,
         includeComparison: true
@@ -50,8 +62,15 @@ const FeaturesPage: React.FC = () => {
     <div className="w-full min-h-screen bg-background">
       <DocumentationHeader onExportPDF={handleExportPDF} isExporting={isExporting} />
       
+      <div className="container mx-auto px-4 md:px-6 py-8">
+        <ModuleSelector 
+          selectedModules={selectedModules}
+          onModuleToggle={handleModuleToggle}
+        />
+      </div>
+
       <div id="modules" className="container mx-auto px-4 md:px-6 py-16 space-y-24">
-        {allModules.map((module, index) => (
+        {filteredModules.map((module, index) => (
           <section key={module.id} id={module.id} className="space-y-12 scroll-mt-20">
             {/* Section divider */}
             {index > 0 && <div className="border-t pt-12" />}
