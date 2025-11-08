@@ -5,6 +5,7 @@ import { ModuleFeaturesGrid } from '@/components/features-documentation/ModuleFe
 import { ModuleWorkflowDiagram } from '@/components/features-documentation/ModuleWorkflowDiagram';
 import { ModuleStepByStep } from '@/components/features-documentation/ModuleStepByStep';
 import { ModuleSelector } from '@/components/features-documentation/ModuleSelector';
+import { MarketingSection } from '@/components/features-documentation/MarketingSection';
 import { allModules } from '@/data/modules';
 import { ProfessionalPDFGenerator } from '@/utils/pdfGenerator';
 import { toast } from 'sonner';
@@ -96,6 +97,16 @@ const FeaturesPage: React.FC = () => {
             />
           </section>
         ))}
+      </div>
+
+      {/* Marketing & Commercial Section */}
+      <div className="container mx-auto px-4 md:px-6 py-16">
+        <MarketingSection 
+          onExportPDF={handleExportPDF}
+          isExporting={isExporting}
+          selectedModulesCount={selectedModules.length}
+          totalModulesCount={allModules.length}
+        />
       </div>
     </div>
   );
