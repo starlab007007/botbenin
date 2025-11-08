@@ -82,7 +82,7 @@ const UseCaseEcommercePage = lazy(() => import("./pages/UseCaseEcommercePage").t
 const UseCaseSupportPage = lazy(() => import("./pages/UseCaseSupportPage").then(module => ({ default: module.UseCaseSupportPage })));
 
 // Documentation Portal
-const DocumentationPortalPage = lazy(() => import("./pages/DocumentationPortalPage").then(module => ({ default: module.DocumentationPortalPage })));
+const DocumentationPortalPage = lazy(() => import("./pages/DocumentationPortalPage"));
 
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));

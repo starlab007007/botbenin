@@ -1,165 +1,219 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { documentationIndex, categories } from '@/config/documentation';
-import { DocumentationService } from '@/services/documentationService';
-import { MarkdownViewer } from '@/components/documentation/MarkdownViewer';
-import { Input } from '@/components/ui/input';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import {
-  Search,
-  Share2,
+import { platformDocumentation, PlatformContent } from '@/data/platformDocumentation';
+import { 
+  FileText, 
+  Search, 
+  Home, 
+  Share2, 
   Download,
   Menu,
   X,
-  FileText,
   ChevronRight,
-  Home
+  CheckCircle2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useNavigate } from 'react-router-dom';
 
-export const DocumentationPortalPage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+const DocumentationPortalPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
-  const [documentContent, setDocumentContent] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedSection, setSelectedSection] = useState<string>('diagnostic');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
-  // Charger le document depuis l'URL au montage
-  useEffect(() => {
-    const docId = searchParams.get('doc');
-    if (docId) {
-      const doc = documentationIndex.find(d => d.id === docId);
-      if (doc) {
-        setSelectedDoc(doc.id);
-        loadDocument(doc.file);
-      }
-    } else if (documentationIndex.length > 0) {
-      // Charger le premier document par défaut
-      const firstDoc = documentationIndex[0];
-      setSelectedDoc(firstDoc.id);
-      setSearchParams({ doc: firstDoc.id });
-      loadDocument(firstDoc.file);
-    }
-  }, []);
-
-  const loadDocument = async (filePath: string) => {
-    setIsLoading(true);
-    try {
-      const content = await DocumentationService.loadDocument(filePath);
-      setDocumentContent(content);
-    } catch (error) {
-      toast({
-        title: 'Erreur',
-        description: 'Impossible de charger le document',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDocumentSelect = (docId: string) => {
-    const doc = documentationIndex.find(d => d.id === docId);
-    if (doc) {
-      setSelectedDoc(doc.id);
-      setSearchParams({ doc: doc.id });
-      loadDocument(doc.file);
-      if (isMobile) {
-        setSidebarOpen(false);
-      }
+  const handleSectionSelect = (sectionId: string) => {
+    setSelectedSection(sectionId);
+    if (isMobile) {
+      setIsSidebarOpen(false);
     }
   };
 
   const handleShare = () => {
-    const url = `${window.location.origin}/documentation?doc=${selectedDoc}`;
+    const url = window.location.href;
     navigator.clipboard.writeText(url);
     toast({
-      title: 'Lien copié !',
-      description: 'Le lien vers ce document a été copié dans le presse-papier',
+      title: "Lien copié",
+      description: "Le lien a été copié dans le presse-papier",
     });
   };
 
   const handleExportPDF = () => {
     toast({
-      title: 'Export PDF',
-      description: 'Fonctionnalité à venir : Export en PDF',
+      title: "Export en cours",
+      description: "La fonctionnalité d'export PDF sera bientôt disponible",
     });
   };
 
-  const filteredDocs = DocumentationService.searchDocuments(
-    selectedCategory
-      ? DocumentationService.filterByCategory(documentationIndex, selectedCategory)
-      : documentationIndex,
-    searchTerm
+  // Filter sections based on search
+  const filteredSections = platformDocumentation.filter(section =>
+    section.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    section.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const groupedDocs = DocumentationService.groupByCategory(filteredDocs);
+  const currentSection = platformDocumentation.find(s => s.id === selectedSection);
 
-  const currentDoc = documentationIndex.find(d => d.id === selectedDoc);
+  const renderContent = (content: PlatformContent) => {
+    switch (content.type) {
+      case 'text':
+        return <p className="text-muted-foreground leading-relaxed">{content.content}</p>;
+      
+      case 'subsection':
+        return (
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-foreground">{content.title}</h3>
+            <p className="text-muted-foreground leading-relaxed">{content.content}</p>
+          </div>
+        );
+      
+      case 'list':
+        return (
+          <div className="space-y-2">
+            {content.title && <h4 className="font-semibold text-foreground">{content.title}</h4>}
+            <ul className="space-y-2 ml-4">
+              {content.items?.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <ChevronRight className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <span className="text-muted-foreground">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      
+      case 'feature':
+        return (
+          <div className="space-y-8">
+            {content.features?.map((feature, idx) => (
+              <Card key={idx} className="p-6 space-y-4 hover:shadow-lg transition-shadow">
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-bold text-foreground">{feature.name}</h3>
+                  <p className="text-lg text-muted-foreground">{feature.description}</p>
+                </div>
+                
+                {feature.benefits && feature.benefits.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-primary" />
+                      Avantages
+                    </h4>
+                    <ul className="space-y-1 ml-7">
+                      {feature.benefits.map((benefit, bidx) => (
+                        <li key={bidx} className="text-muted-foreground">{benefit}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {feature.howItWorks && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-foreground">Comment ça marche ?</h4>
+                    <p className="text-muted-foreground">{feature.howItWorks}</p>
+                  </div>
+                )}
+                
+                {feature.useCases && feature.useCases.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-foreground">Cas d'usage</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {feature.useCases.map((useCase, uidx) => (
+                        <span key={uidx} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm">
+                          {useCase}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        );
+      
+      case 'problem-solution':
+        return (
+          <div className="space-y-6">
+            {content.problems?.map((prob, idx) => (
+              <Card key={idx} className="p-6 space-y-3 hover:shadow-lg transition-shadow">
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-foreground text-lg">{prob.problem}</h4>
+                  <div className="pl-4 border-l-4 border-primary space-y-2">
+                    <p className="text-muted-foreground"><strong className="text-foreground">Solution:</strong> {prob.solution}</p>
+                    <p className="text-sm text-primary"><strong>Impact:</strong> {prob.impact}</p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        );
+      
+      case 'advantage':
+        return (
+          <div className="grid sm:grid-cols-2 gap-6">
+            {content.advantages?.map((adv, idx) => (
+              <Card key={idx} className="p-6 space-y-3 hover:shadow-lg transition-all hover:-translate-y-1">
+                <h4 className="font-bold text-foreground text-lg">{adv.title}</h4>
+                <p className="text-muted-foreground">{adv.description}</p>
+                {adv.metrics && (
+                  <p className="text-sm text-primary font-semibold">{adv.metrics}</p>
+                )}
+              </Card>
+            ))}
+          </div>
+        );
+      
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-card border-b border-border shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-              <FileText className="w-6 h-6 text-primary" />
-              <h1 className="text-xl font-bold text-foreground hidden sm:block">
-                Documentation Bot BJ
-              </h1>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleShare}
-                className="hidden sm:flex"
-              >
-                <Share2 className="w-4 h-4 mr-2" />
-                Partager
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleExportPDF}
-                className="hidden sm:flex"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export PDF
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.location.href = '/'}
-              >
-                <Home className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Accueil</span>
-              </Button>
-            </div>
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between px-4 md:px-6">
+          <div className="flex items-center gap-4">
+            <FileText className="h-6 w-6 text-primary" />
+            <h1 className="text-xl font-bold">Documentation Bot BJ</h1>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleShare}
+              className="hidden md:flex"
+            >
+              <Share2 className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleExportPDF}
+              className="hidden md:flex"
+            >
+              <Download className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/')}
+            >
+              <Home className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
 
-          {/* Barre de recherche */}
-          <div className="mt-4 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        {/* Search Bar */}
+        <div className="container px-4 md:px-6 pb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              type="text"
               placeholder="Rechercher dans la documentation..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -169,131 +223,101 @@ export const DocumentationPortalPage: React.FC = () => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex gap-6">
+      <div className="container px-4 md:px-6 py-6">
+        <div className="grid lg:grid-cols-[280px_1fr] gap-6">
           {/* Sidebar */}
-          {(sidebarOpen || !isMobile) && (
-            <aside className={`${isMobile ? 'fixed inset-y-0 left-0 z-40 w-80 bg-card border-r border-border shadow-lg' : 'w-80 flex-shrink-0'}`}>
-              <ScrollArea className="h-[calc(100vh-180px)]">
-                <div className="p-4 space-y-4">
-                  {/* Filtres par catégorie */}
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-foreground mb-2">Catégories</h3>
-                    <Button
-                      variant={!selectedCategory ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setSelectedCategory(null)}
-                      className="w-full justify-start"
-                    >
-                      Toutes les catégories
-                    </Button>
-                    {categories.map(category => (
-                      <Button
-                        key={category}
-                        variant={selectedCategory === category ? "secondary" : "ghost"}
-                        size="sm"
-                        onClick={() => setSelectedCategory(category)}
-                        className="w-full justify-start"
-                      >
-                        {category}
-                      </Button>
-                    ))}
-                  </div>
+          <aside className={`
+            fixed lg:relative inset-0 z-40 bg-background lg:bg-transparent
+            ${isSidebarOpen ? 'block' : 'hidden lg:block'}
+          `}>
+            {isMobile && (
+              <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="font-semibold">Sections</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSidebarOpen(false)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
 
-                  <Separator />
-
-                  {/* Liste des documents */}
-                  <div className="space-y-1">
-                    {Object.entries(groupedDocs).map(([category, docs]) => (
-                      <div key={category} className="space-y-1">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                          {category}
-                        </h4>
-                        {docs.map(doc => (
-                          <button
-                            key={doc.id}
-                            onClick={() => handleDocumentSelect(doc.id)}
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                              selectedDoc === doc.id
-                                ? 'bg-primary text-primary-foreground'
-                                : 'hover:bg-muted text-foreground'
-                            }`}
-                          >
-                            <span className="text-lg">{doc.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium truncate">
-                                {doc.title}
-                              </div>
-                              <div className="text-xs opacity-80 truncate">
-                                {doc.description}
-                              </div>
-                            </div>
-                            <ChevronRight className="w-4 h-4 flex-shrink-0" />
-                          </button>
-                        ))}
+            <ScrollArea className="h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
+              <div className="space-y-2 p-4 lg:p-0">
+                {filteredSections.map((section) => (
+                  <Button
+                    key={section.id}
+                    variant={selectedSection === section.id ? "secondary" : "ghost"}
+                    className="w-full justify-start text-left h-auto py-3"
+                    onClick={() => handleSectionSelect(section.id)}
+                  >
+                    <div className="flex items-start gap-3 w-full">
+                      <span className="text-xl flex-shrink-0">{section.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">{section.title}</div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </ScrollArea>
-            </aside>
+                      {selectedSection === section.id && (
+                        <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                      )}
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            </ScrollArea>
+          </aside>
+
+          {/* Mobile Sidebar Toggle */}
+          {isMobile && !isSidebarOpen && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="fixed bottom-4 right-4 z-30 h-12 w-12 rounded-full shadow-lg lg:hidden"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <Menu className="h-6 w-6" />
+            </Button>
           )}
 
-          {/* Zone de contenu principale */}
-          <main className="flex-1 min-w-0">
-            <div className="bg-card rounded-lg shadow-sm border border-border p-6 lg:p-8">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                </div>
-              ) : currentDoc ? (
+          {/* Main Content */}
+          <main className="min-h-[calc(100vh-12rem)]">
+            {currentSection ? (
+              <div className="space-y-8">
                 <div>
-                  {/* En-tête du document */}
-                  <div className="mb-6 pb-6 border-b border-border">
-                    <div className="flex items-start gap-3 mb-2">
-                      <span className="text-3xl">{currentDoc.icon}</span>
-                      <div>
-                        <h2 className="text-2xl font-bold text-foreground">
-                          {currentDoc.title}
-                        </h2>
-                        <p className="text-muted-foreground mt-1">
-                          {currentDoc.description}
-                        </p>
-                        {currentDoc.lastUpdated && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Dernière mise à jour : {currentDoc.lastUpdated}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-4xl">{currentSection.icon}</span>
+                    <h1 className="text-3xl md:text-4xl font-bold">{currentSection.title}</h1>
                   </div>
+                </div>
 
-                  {/* Contenu du document */}
-                  <MarkdownViewer content={documentContent} />
+                <Separator />
+
+                <div className="space-y-8">
+                  {currentSection.content.map((content, idx) => (
+                    <div key={idx}>
+                      {renderContent(content)}
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <FileText className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
-                    Aucun document sélectionné
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Sélectionnez un document dans la barre latérale pour commencer
-                  </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center space-y-4">
+                  <FileText className="h-16 w-16 text-muted-foreground mx-auto" />
+                  <div>
+                    <h3 className="text-lg font-semibold">Aucune section trouvée</h3>
+                    <p className="text-muted-foreground">
+                      Essayez de modifier votre recherche
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </main>
         </div>
       </div>
-
-      {/* Overlay mobile */}
-      {isMobile && sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
     </div>
   );
 };
+
+export default DocumentationPortalPage;
