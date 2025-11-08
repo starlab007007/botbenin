@@ -66,6 +66,7 @@ const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
 
 // SEO Pages
 const PricingPage = lazy(() => import("./pages/PricingPage").then(module => ({ default: module.PricingPage })));
+const FeaturesPage = lazy(() => import("./pages/FeaturesPage"));
 
 // Payment Pages
 const PaymentHistoryPage = lazy(() => import("./pages/PaymentHistoryPage").then(module => ({ default: module.PaymentHistoryPage })));
@@ -135,6 +136,7 @@ const AppContent = () => {
                     <Route path="/whatsapp-connect" element={<WhatsAppConnectPage />} />
                     
                     {/* SEO Pages */}
+                    <Route path="/features" element={<FeaturesPage />} />
                     <Route path="/pricing" element={<PricingPage />} />
                     <Route path="/payment-history" element={<PaymentHistoryPage />} />
                     <Route path="/faq" element={<FAQPage />} />
