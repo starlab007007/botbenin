@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import rehypeRaw from 'rehype-raw';
 import { Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import 'highlight.js/styles/github-dark.css';
@@ -25,7 +24,7 @@ export const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content, classNa
     <div className={`markdown-viewer prose prose-slate dark:prose-invert max-w-none ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight, rehypeRaw]}
+        rehypePlugins={[rehypeHighlight]}
         components={{
           code: ({ className, children, ...props }: any) => {
             const match = /language-(\w+)/.exec(className || '');
