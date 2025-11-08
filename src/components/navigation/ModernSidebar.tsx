@@ -124,13 +124,31 @@ const aiModules = [
   },
 ];
 
-const bottomItems = [
+const resourceItems = [
+  { 
+    title: 'Fonctionnalités', 
+    path: '/features', 
+    icon: Zap, 
+    color: 'from-orange-500 to-orange-600',
+    description: 'Découvrir toutes les fonctionnalités'
+  },
+  { 
+    title: 'Documentation', 
+    path: '/documentation', 
+    icon: FileText, 
+    color: 'from-blue-500 to-blue-600',
+    description: 'Guides et documentations'
+  },
   { 
     title: 'Support', 
     path: '/support', 
     icon: HelpCircle, 
-    color: 'from-gray-500 to-gray-600' 
+    color: 'from-gray-500 to-gray-600',
+    description: 'Aide et assistance'
   },
+];
+
+const bottomItems = [
   { 
     title: 'Mon Compte', 
     path: '/account', 
@@ -296,8 +314,20 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           </div>
         )}
 
-        {/* Support & Compte */}
+        {/* Ressources */}
         <div className="border-t border-gray-200 pt-6">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+            Ressources & Aide
+          </h3>
+          <div className="space-y-2">
+            {resourceItems.map((item) => (
+              <NavItem key={item.path} item={item} showDescription />
+            ))}
+          </div>
+        </div>
+
+        {/* Mon Compte */}
+        <div className="pt-4">
           <div className="space-y-2">
             {bottomItems.map((item) => (
               <NavItem key={item.path} item={item} />
