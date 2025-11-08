@@ -132,20 +132,6 @@ const resourceItems = [
     color: 'from-orange-500 to-orange-600',
     description: 'Découvrir toutes les fonctionnalités'
   },
-  { 
-    title: 'Documentation', 
-    path: '/documentation', 
-    icon: FileText, 
-    color: 'from-blue-500 to-blue-600',
-    description: 'Guides et documentations'
-  },
-  { 
-    title: 'Support', 
-    path: '/support', 
-    icon: HelpCircle, 
-    color: 'from-gray-500 to-gray-600',
-    description: 'Aide et assistance'
-  },
 ];
 
 const bottomItems = [
