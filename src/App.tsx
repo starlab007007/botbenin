@@ -80,6 +80,9 @@ const TestimonialsPage = lazy(() => import("./pages/TestimonialsPage").then(modu
 const UseCaseEcommercePage = lazy(() => import("./pages/UseCaseEcommercePage").then(module => ({ default: module.UseCaseEcommercePage })));
 const UseCaseSupportPage = lazy(() => import("./pages/UseCaseSupportPage").then(module => ({ default: module.UseCaseSupportPage })));
 
+// Documentation Portal
+const DocumentationPortalPage = lazy(() => import("./pages/DocumentationPortalPage").then(module => ({ default: module.DocumentationPortalPage })));
+
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
 const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
@@ -191,6 +194,7 @@ const AppContent = () => {
                   <Route path="/s/:shortCode" element={<ShortLinkRedirectPage />} />
                   <Route path="/bot-test/:botId" element={<BotTestPage />} />
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
+                  <Route path="/documentation" element={<DocumentationPortalPage />} />
                   
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />

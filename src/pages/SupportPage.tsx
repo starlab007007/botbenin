@@ -249,6 +249,32 @@ export const SupportPage: React.FC = () => {
         </div>
       </Card>
 
+      {/* Documentation Portal Banner */}
+      <Card className="p-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 rounded-xl">
+        <div className="text-center">
+          <Book className="w-16 h-16 mx-auto mb-4 opacity-90" />
+          <h2 className="text-2xl font-bold mb-3">Documentation Technique Complète</h2>
+          <p className="text-white/90 mb-6 max-w-2xl mx-auto">
+            Accédez à tous les guides techniques, rapports d&apos;analyse, guides de sécurité et documentation de la plateforme en un seul endroit.
+          </p>
+          <Button 
+            onClick={() => window.location.href = '/documentation'}
+            className="bg-white text-purple-600 hover:bg-white/90 font-semibold"
+            size="lg"
+          >
+            <FileText className="w-5 h-5 mr-2" />
+            Accéder au Portail Documentation
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+          <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm text-white/80">
+            <div>📊 Analyses & Rapports</div>
+            <div>🔒 Guides de Sécurité</div>
+            <div>🚀 Marketing & SEO</div>
+            <div>💻 Optimisations Techniques</div>
+          </div>
+        </div>
+      </Card>
+
       {/* Success Stories */}
       <Card className="p-8 bg-white border border-gray-200 rounded-xl">
         <h2 className="text-2xl font-semibold text-black mb-6 text-center">Témoignages Clients</h2>
