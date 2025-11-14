@@ -34,6 +34,7 @@ import { UniversalMediaModal } from '@/components/visual-creator/UniversalMediaM
 import { useNavigate } from 'react-router-dom';
 import { FlyerGenerator } from '@/components/visual-creator/FlyerGenerator';
 import { AIVideography } from '@/components/visual-creator/AIVideography';
+import { VariantGenerator } from '@/components/visual-creator/VariantGenerator';
 import { shareMediaFile } from '@/utils/socialShare';
 
 interface SocialFormat {
@@ -212,10 +213,15 @@ export const VisualCreatorModule: React.FC = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Tabs defaultValue="images" className="space-y-6">
-          <TabsList className="grid w-full max-w-4xl mx-auto grid-cols-3 h-12">
+          <TabsList className="grid w-full max-w-4xl mx-auto grid-cols-4 h-12">
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="w-4 h-4" />
               Images
+            </TabsTrigger>
+            <TabsTrigger value="variants" className="gap-2">
+              <Palette className="w-4 h-4" />
+              Variantes BOT.BJ
+              <Badge className="ml-1 text-xs px-1" variant="secondary">NEW</Badge>
             </TabsTrigger>
             <TabsTrigger value="flyers" className="gap-2">
               <FileText className="w-4 h-4" />
@@ -441,6 +447,11 @@ export const VisualCreatorModule: React.FC = () => {
                 </ScrollArea>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Variantes BOT.BJ Tab */}
+          <TabsContent value="variants" className="space-y-6">
+            <VariantGenerator />
           </TabsContent>
 
           {/* Flyers Tab */}
