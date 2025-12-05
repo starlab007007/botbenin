@@ -84,6 +84,9 @@ const UseCaseSupportPage = lazy(() => import("./pages/UseCaseSupportPage").then(
 // Documentation Portal
 const DocumentationPortalPage = lazy(() => import("./pages/DocumentationPortalPage"));
 
+// YOVO Gallery
+const YovoGallery = lazy(() => import("./pages/YovoGallery"));
+
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
 const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
@@ -197,6 +200,7 @@ const AppContent = () => {
                   <Route path="/bot-test/:botId" element={<BotTestPage />} />
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
+                  <Route path="/yovo-gallery" element={<YovoGallery />} />
                   
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />
