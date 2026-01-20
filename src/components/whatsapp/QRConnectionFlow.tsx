@@ -28,46 +28,61 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
 
   const fetchQRCode = async () => {
     if (!sessionName) return;
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
-      // Utiliser l'Edge Function proxy sécurisé
-      const { data, error: proxyError } = await supabase.functions.invoke('waha-dashboard-proxy', {
-        body: {
-          path: `/api/${sessionName}/auth/qr`,
-          method: 'POST'
-        }
-      });
+      // Essayer plusieurs endpoints (compatibilité WAHA) via l'Edge Function proxy
+      const endpoints = [
+        { path: `/api/${sessionName}/auth/qr?format=image`, method: 'GET' as const },
+        { path: `/api/default/auth/qr?format=image`, method: 'GET' as const },
+        { path: `/api/screenshot?session=${sessionName}`, method: 'GET' as const },
+      ];
 
-      if (proxyError) {
-        throw new Error(`Erreur API: ${proxyError.message}`);
-      }
-
-      // Extraire le QR code de la réponse
       let qrCode: string | undefined;
-      
-      if (data?.qr) {
-        qrCode = data.qr;
-      } else if (data?.base64) {
-        qrCode = data.base64;
-      } else if (data?.image) {
-        qrCode = data.image;
-      } else if (typeof data === 'string' && data.includes('data:image')) {
-        qrCode = data;
+      let lastError: any = null;
+
+      for (const endpoint of endpoints) {
+        const { data, error: proxyError } = await supabase.functions.invoke('waha-dashboard-proxy', {
+          body: {
+            path: endpoint.path,
+            method: endpoint.method,
+          },
+        });
+
+        if (proxyError) {
+          lastError = proxyError;
+          continue;
+        }
+
+        // Extraire le QR code selon le format de réponse
+        if (data?.mimetype?.includes('image') && data?.data) {
+          qrCode = `data:${data.mimetype};base64,${data.data}`;
+        } else if (data?.qr) {
+          qrCode = data.qr;
+        } else if (data?.base64) {
+          qrCode = data.base64;
+        } else if (data?.image) {
+          qrCode = data.image;
+        } else if (typeof data === 'string' && data.includes('data:image')) {
+          qrCode = data;
+        }
+
+        if (qrCode) {
+          if (!qrCode.startsWith('data:image')) {
+            qrCode = `data:image/png;base64,${qrCode}`;
+          }
+          break;
+        }
       }
 
-      if (qrCode) {
-        if (!qrCode.startsWith('data:image')) {
-          qrCode = `data:image/png;base64,${qrCode}`;
-        }
-        setQrImageData(qrCode);
-        setTimeRemaining(90);
-      } else {
-        throw new Error('Aucun QR code trouvé');
+      if (!qrCode) {
+        throw new Error(lastError?.message || 'Aucun QR code trouvé');
       }
-      
+
+      setQrImageData(qrCode);
+      setTimeRemaining(90);
     } catch (error) {
       console.error('Erreur lors de la récupération du QR code:', error);
       setError(error instanceof Error ? error.message : 'Erreur inconnue');
