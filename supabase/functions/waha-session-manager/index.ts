@@ -33,8 +33,24 @@ serve(async (req) => {
     let wahaBaseUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
     const wahaApiKey = Deno.env.get('WAHA_API_KEY')?.trim();
     const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN')?.trim();
-    const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME') || 'admin';
-    const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
+    const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
+    const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
+
+    // Validate required secrets - NO hardcoded fallbacks
+    if (!wahaDashUser || !wahaDashPass) {
+      console.error('Missing WAHA dashboard credentials in Supabase secrets');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'WAHA dashboard credentials not configured',
+          details: {
+            WAHA_DASHBOARD_USERNAME: wahaDashUser ? 'SET' : 'MISSING',
+            WAHA_DASHBOARD_PASSWORD: wahaDashPass ? 'SET' : 'MISSING'
+          }
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Clean base URL (remove trailing slash and /dashboard path)
     if (wahaBaseUrl) {
@@ -46,8 +62,8 @@ serve(async (req) => {
     console.log('WAHA_BASE_URL:', wahaBaseUrl ? 'SET' : 'MISSING');
     console.log('WAHA_API_KEY (hash or plain):', wahaApiKey ? 'SET' : 'MISSING');
     console.log('WAHA_API_KEY_PLAIN:', wahaApiKeyPlain ? 'SET' : 'MISSING');
-    console.log('WAHA_DASHBOARD_USERNAME:', wahaDashUser ? 'SET' : 'MISSING');
-    console.log('WAHA_DASHBOARD_PASSWORD:', wahaDashPass ? 'SET' : 'MISSING');
+    console.log('WAHA_DASHBOARD_USERNAME:', 'SET (from secrets)');
+    console.log('WAHA_DASHBOARD_PASSWORD:', 'SET (from secrets)');
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -101,7 +117,7 @@ serve(async (req) => {
         // Create Basic Auth header
         const credentials = btoa(`${wahaDashUser}:${wahaDashPass}`);
         const authHeader = `Basic ${credentials}`;
-        console.log('Using Basic Auth for:', wahaDashUser);
+        console.log('Using Basic Auth for user from secrets');
         
         // First, try to access dashboard to get session cookie
         const dashboardUrl = `${wahaBaseUrl}/dashboard/`;

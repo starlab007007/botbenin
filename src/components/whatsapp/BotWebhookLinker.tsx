@@ -60,28 +60,22 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
 
       console.log('Ajout du webhook pour le bot:', selectedBot.name, 'URL:', webhookUrl);
 
-      // Authentification Basic + API Key comme requis par WAHA
-      const basicAuth = btoa('admin:Starlab2007');
-
-      // Étape 1: Récupérer la configuration actuelle de la session
-      const sessionResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${basicAuth}`,
-          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
+      // Utiliser l'Edge Function proxy pour l'API WAHA (sécurisé)
+      const { data, error } = await supabase.functions.invoke('waha-dashboard-proxy', {
+        body: {
+          path: `/api/sessions/${sessionName}`,
+          method: 'GET'
         }
       });
 
-      if (!sessionResponse.ok) {
-        throw new Error(`Impossible de récupérer la configuration de la session: ${sessionResponse.status}`);
+      if (error) {
+        throw new Error(`Impossible de récupérer la configuration de la session: ${error.message}`);
       }
 
-      const sessionConfig = await sessionResponse.json();
+      const sessionConfig = data;
       console.log('Configuration actuelle de la session:', sessionConfig);
 
-      // Étape 2: Préparer la nouvelle configuration avec le webhook
+      // Préparer la nouvelle configuration avec le webhook
       const webhookConfig = {
         url: webhookUrl,
         events: [
@@ -108,26 +102,21 @@ const BotWebhookLinker: React.FC<BotWebhookLinkerProps> = ({
 
       console.log('Configuration mise à jour:', updatedConfig);
 
-      // Étape 3: Mettre à jour la session avec la nouvelle configuration (méthode WAHA standard)
-      const updateResponse = await fetch(`https://waha.bot.bj/api/sessions/${sessionName}`, {
-        method: 'PUT',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${basicAuth}`,
-          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
-        },
-        body: JSON.stringify(updatedConfig)
+      // Mettre à jour la session via le proxy sécurisé
+      const { data: updateData, error: updateError } = await supabase.functions.invoke('waha-dashboard-proxy', {
+        body: {
+          path: `/api/sessions/${sessionName}`,
+          method: 'PUT',
+          body: updatedConfig
+        }
       });
 
-      if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        console.error('Erreur lors de la mise à jour de la session:', errorText);
-        throw new Error(`Erreur lors de la mise à jour: ${updateResponse.status} - ${errorText}`);
+      if (updateError) {
+        console.error('Erreur lors de la mise à jour de la session:', updateError);
+        throw new Error(`Erreur lors de la mise à jour: ${updateError.message}`);
       }
 
-      const updateResult = await updateResponse.json();
-      console.log('Session mise à jour avec succès:', updateResult);
+      console.log('Session mise à jour avec succès:', updateData);
 
       toast.success(`Bot "${selectedBot.name}" lié avec succès à la session WhatsApp!`);
       

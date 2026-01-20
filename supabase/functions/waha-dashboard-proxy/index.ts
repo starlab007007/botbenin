@@ -52,16 +52,32 @@ serve(async (req) => {
     
     console.log('✅ Proxy - Origine autorisée:', origin || 'No origin (direct access)');
 
-    // Configuration WAHA
+    // Configuration WAHA - SANS fallback hardcodé pour le password
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
-    const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME') || 'admin';
-    const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
+    const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME');
+    const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+
+    // Validate required secrets
+    if (!wahaUsername || !wahaPassword) {
+      console.error('Missing WAHA dashboard credentials in Supabase secrets');
+      return new Response(JSON.stringify({
+        error: 'Configuration error',
+        message: 'WAHA dashboard credentials not configured in Supabase secrets',
+        details: {
+          WAHA_DASHBOARD_USERNAME: wahaUsername ? 'SET' : 'MISSING',
+          WAHA_DASHBOARD_PASSWORD: wahaPassword ? 'SET' : 'MISSING'
+        }
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     console.log('WAHA Dashboard Proxy - Configuration:', {
       wahaUrl: wahaUrl ? 'SET' : 'NOT SET',
-      wahaUsername: wahaUsername ? 'SET' : 'NOT SET', 
-      wahaPassword: wahaPassword ? 'SET' : 'NOT SET',
+      wahaUsername: 'SET (from secrets)',
+      wahaPassword: 'SET (from secrets)',
       wahaApiKey: wahaApiKey ? 'SET' : 'NOT SET'
     });
 
@@ -123,7 +139,7 @@ serve(async (req) => {
     if (!wahaApiKey) {
       return new Response(JSON.stringify({
         error: 'API Key required',
-        message: 'WAHA_API_KEY must be configured'
+        message: 'WAHA_API_KEY must be configured in Supabase secrets'
       }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

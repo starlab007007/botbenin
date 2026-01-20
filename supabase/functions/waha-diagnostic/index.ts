@@ -31,15 +31,20 @@ serve(async (req) => {
     }
 
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
-    const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME') || 'admin';
-    const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD') || 'Starlab@007';
+    const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME');
+    const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
     
+    // Check if credentials are configured
+    const credentialsConfigured = !!(wahaUsername && wahaPassword);
+    const apiKeyConfigured = !!wahaApiKey;
+    
     console.log('🔧 Using WAHA URL:', wahaUrl);
+    console.log('🔧 Credentials configured:', credentialsConfigured);
+    console.log('🔧 API Key configured:', apiKeyConfigured);
+    
     if (wahaApiKey) {
       console.log('🔧 Using API Key (first 8 chars):', wahaApiKey.substring(0, 8) + '...');
-    } else {
-      console.log('🔧 No API Key configured');
     }
 
     console.log('🔍 WAHA Diagnostic - Starting comprehensive test...');
@@ -68,41 +73,49 @@ serve(async (req) => {
       });
     }
 
-    // Test 2: Dashboard authentication
-    try {
-      const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
-      const dashboardResponse = await fetch(`${wahaUrl}/dashboard`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Basic ${basicAuth}`,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
+    // Test 2: Dashboard authentication (only if credentials configured)
+    if (credentialsConfigured) {
+      try {
+        const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
+        const dashboardResponse = await fetch(`${wahaUrl}/dashboard`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${basicAuth}`,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
 
-      const cookies = dashboardResponse.headers.get('set-cookie') || '';
-      
-      diagnosticResults.push({
-        test: 'dashboard_auth',
-        success: dashboardResponse.ok,
-        status: dashboardResponse.status,
-        details: `Dashboard access: ${dashboardResponse.status}, Cookies: ${cookies ? 'Present' : 'None'}`,
-        cookies: cookies
-      });
-    } catch (error) {
+        const cookies = dashboardResponse.headers.get('set-cookie') || '';
+        
+        diagnosticResults.push({
+          test: 'dashboard_auth',
+          success: dashboardResponse.ok,
+          status: dashboardResponse.status,
+          details: `Dashboard access: ${dashboardResponse.status}, Cookies: ${cookies ? 'Present' : 'None'}`,
+          cookies: cookies
+        });
+      } catch (error) {
+        diagnosticResults.push({
+          test: 'dashboard_auth',
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    } else {
       diagnosticResults.push({
         test: 'dashboard_auth',
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        details: 'Dashboard credentials not configured in Supabase secrets'
       });
     }
 
     // Test 3: API Key authentication (if available)
-    if (wahaApiKey) {
+    if (apiKeyConfigured) {
       try {
         const apiKeyResponse = await fetch(`${wahaUrl}/api/sessions`, {
           method: 'GET',
           headers: {
-            'X-Api-Key': wahaApiKey,
+            'X-Api-Key': wahaApiKey!,
             'Accept': 'application/json'
           }
         });
@@ -125,12 +138,12 @@ serve(async (req) => {
       diagnosticResults.push({
         test: 'api_key_auth',
         success: false,
-        details: 'No API Key configured'
+        details: 'WAHA_API_KEY not configured in Supabase secrets'
       });
     }
 
     // Test 4: Bearer token authentication (if API key available)
-    if (wahaApiKey) {
+    if (apiKeyConfigured) {
       try {
         const bearerResponse = await fetch(`${wahaUrl}/api/sessions`, {
           method: 'GET',
@@ -155,32 +168,34 @@ serve(async (req) => {
       }
     }
 
-    // Test 5: Basic Auth direct API
-    try {
-      const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
-      const basicResponse = await fetch(`${wahaUrl}/api/sessions`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Basic ${basicAuth}`,
-          'Accept': 'application/json'
-        }
-      });
+    // Test 5: Basic Auth direct API (only if credentials configured)
+    if (credentialsConfigured) {
+      try {
+        const basicAuth = btoa(`${wahaUsername}:${wahaPassword}`);
+        const basicResponse = await fetch(`${wahaUrl}/api/sessions`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${basicAuth}`,
+            'Accept': 'application/json'
+          }
+        });
 
-      const responseText = await basicResponse.text();
-      
-      diagnosticResults.push({
-        test: 'basic_auth_api',
-        success: basicResponse.ok,
-        status: basicResponse.status,
-        details: `Basic auth API: ${basicResponse.status}`,
-        responseBody: basicResponse.ok ? responseText : responseText.substring(0, 200)
-      });
-    } catch (error) {
-      diagnosticResults.push({
-        test: 'basic_auth_api',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+        const responseText = await basicResponse.text();
+        
+        diagnosticResults.push({
+          test: 'basic_auth_api',
+          success: basicResponse.ok,
+          status: basicResponse.status,
+          details: `Basic auth API: ${basicResponse.status}`,
+          responseBody: basicResponse.ok ? responseText : responseText.substring(0, 200)
+        });
+      } catch (error) {
+        diagnosticResults.push({
+          test: 'basic_auth_api',
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     }
 
     // Test 6: Alternative endpoints
@@ -193,12 +208,19 @@ serve(async (req) => {
 
     for (const endpoint of alternativeEndpoints) {
       try {
+        const headers: Record<string, string> = {
+          'Accept': 'application/json'
+        };
+        
+        if (apiKeyConfigured) {
+          headers['X-Api-Key'] = wahaApiKey!;
+        } else if (credentialsConfigured) {
+          headers['Authorization'] = `Basic ${btoa(`${wahaUsername}:${wahaPassword}`)}`;
+        }
+        
         const testResponse = await fetch(`${wahaUrl}${endpoint}`, {
           method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            ...(wahaApiKey ? { 'X-Api-Key': wahaApiKey } : { 'Authorization': `Basic ${btoa(`${wahaUsername}:${wahaPassword}`)}` })
-          }
+          headers
         });
 
         diagnosticResults.push({
@@ -253,16 +275,16 @@ serve(async (req) => {
       summary.recommendations.push('🔴 WAHA server is not accessible. Check the WAHA_BASE_URL configuration.');
     }
 
-    if (!dashboardAuth) {
-      summary.recommendations.push('🔴 Dashboard authentication failed. Check WAHA_DASHBOARD_USERNAME and WAHA_DASHBOARD_PASSWORD.');
+    if (!credentialsConfigured) {
+      summary.recommendations.push('🔴 Dashboard credentials not configured. Add WAHA_DASHBOARD_USERNAME and WAHA_DASHBOARD_PASSWORD to Supabase secrets.');
+    } else if (!dashboardAuth) {
+      summary.recommendations.push('🔴 Dashboard authentication failed. Verify WAHA_DASHBOARD_USERNAME and WAHA_DASHBOARD_PASSWORD values.');
     }
 
-    if (!apiKeyAuth && wahaApiKey) {
-      summary.recommendations.push('🔴 API Key authentication failed. Verify the WAHA_API_KEY is valid.');
-    }
-
-    if (!wahaApiKey) {
-      summary.recommendations.push('🟡 No API Key configured. Consider adding WAHA_API_KEY for better authentication.');
+    if (!apiKeyConfigured) {
+      summary.recommendations.push('🟡 No API Key configured. Add WAHA_API_KEY to Supabase secrets for API authentication.');
+    } else if (!apiKeyAuth) {
+      summary.recommendations.push('🔴 API Key authentication failed. Verify the WAHA_API_KEY value is correct.');
     }
 
     if (summary.successful_tests === 0) {
@@ -275,9 +297,9 @@ serve(async (req) => {
       timestamp: new Date().toISOString(),
       waha_config: {
         url: wahaUrl,
-        username: wahaUsername ? 'SET' : 'NOT SET',
-        password: wahaPassword ? 'SET' : 'NOT SET',
-        api_key: wahaApiKey ? 'SET' : 'NOT SET'
+        username: credentialsConfigured ? 'SET (from secrets)' : 'NOT SET',
+        password: credentialsConfigured ? 'SET (from secrets)' : 'NOT SET',
+        api_key: apiKeyConfigured ? 'SET (from secrets)' : 'NOT SET'
       },
       diagnostic_results: diagnosticResults,
       summary: summary

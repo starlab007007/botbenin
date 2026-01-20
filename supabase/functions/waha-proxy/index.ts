@@ -73,9 +73,21 @@ serve(async (req) => {
     fwdParams.delete('path')
     const qs = fwdParams.toString()
     
-    // Récupérer les identifiants WAHA depuis les secrets
-    const wahaUsername = Deno.env.get('WAHA_USERNAME') || 'admin'
-    const wahaPassword = Deno.env.get('WAHA_PASSWORD') || 'Starlab@007'
+    // Récupérer les identifiants WAHA depuis les secrets - SANS fallback hardcodé
+    const wahaUsername = Deno.env.get('WAHA_USERNAME');
+    const wahaPassword = Deno.env.get('WAHA_PASSWORD');
+    
+    // Validate required secrets
+    if (!wahaUsername || !wahaPassword) {
+      console.error('Missing WAHA credentials in Supabase secrets');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Configuration error',
+          message: 'WAHA credentials not configured in Supabase secrets'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Construire l'URL WAHA
     const wahaBaseUrl = 'https://waha.bot.bj'
@@ -229,9 +241,9 @@ serve(async (req) => {
             const usernameField = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[id*="user"]');
             const passwordField = document.querySelector('input[type="password"], input[name*="pass"], input[id*="pass"]');
             
-            if (usernameField && passwordField) {
-              usernameField.value = event.data.username || '${wahaUsername}';
-              passwordField.value = event.data.password || '${wahaPassword}';
+            if (usernameField && passwordField && event.data.username && event.data.password) {
+              usernameField.value = event.data.username;
+              passwordField.value = event.data.password;
               
               // Déclencher les événements de changement
               usernameField.dispatchEvent(new Event('input', { bubbles: true }));

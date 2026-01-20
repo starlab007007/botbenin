@@ -13,10 +13,26 @@ serve(async (req) => {
 
   try {
     const wahaBaseUrl = 'https://waha.bot.bj';
-    const wahaDashUser = 'admin';
-    const wahaDashPass = 'Starlab@007';
+    const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
+    const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
 
-    console.log('Testing WAHA authentication...');
+    // Validate required secrets
+    if (!wahaDashUser || !wahaDashPass) {
+      console.error('Missing WAHA credentials in Supabase secrets');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'WAHA credentials not configured',
+        details: {
+          WAHA_DASHBOARD_USERNAME: wahaDashUser ? 'SET' : 'MISSING',
+          WAHA_DASHBOARD_PASSWORD: wahaDashPass ? 'SET' : 'MISSING'
+        }
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('Testing WAHA authentication with configured secrets...');
     
     // Test 1: Dashboard login with Basic Auth
     console.log('=== TEST 1: Dashboard Basic Auth ===');
@@ -65,16 +81,16 @@ serve(async (req) => {
       headers: apiHeaders
     });
       
-      console.log('API response status:', apiRes.status);
-      console.log('API response headers:', Object.fromEntries(apiRes.headers.entries()));
-      
-      if (apiRes.ok) {
-        const data = await apiRes.json();
-        console.log('API response data:', data);
-      } else {
-        const text = await apiRes.text();
-        console.log('API error response:', text.substring(0, 200));
-      }
+    console.log('API response status:', apiRes.status);
+    console.log('API response headers:', Object.fromEntries(apiRes.headers.entries()));
+    
+    if (apiRes.ok) {
+      const data = await apiRes.json();
+      console.log('API response data:', data);
+    } else {
+      const text = await apiRes.text();
+      console.log('API error response:', text.substring(0, 200));
+    }
     
     // Test 3: Direct dashboard access with Basic Auth
     console.log('=== TEST 3: Dashboard Access with Basic Auth ===');
@@ -106,6 +122,11 @@ serve(async (req) => {
         dashboard: {
           status: dashboardRes.status
         }
+      },
+      config: {
+        username: 'SET (from secrets)',
+        password: 'SET (from secrets)',
+        baseUrl: wahaBaseUrl
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

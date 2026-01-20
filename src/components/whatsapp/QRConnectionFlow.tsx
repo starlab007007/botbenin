@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, X, AlertTriangle, Clock, QrCode, CheckCircle } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface QRConnectionFlowProps {
   open: boolean;
@@ -19,7 +20,6 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
   sessionName
 }) => {
   const [currentStep, setCurrentStep] = useState<'warning' | 'qr'>('warning');
-  const [qrImageUrl, setQrImageUrl] = useState<string>('');
   const [qrImageData, setQrImageData] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -33,44 +33,45 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
     setError('');
     
     try {
-      const response = await fetch(`https://waha.bot.bj/api/${sessionName}/auth/qr?format=image`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'image/png',
-          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
+      // Utiliser l'Edge Function proxy sécurisé
+      const { data, error: proxyError } = await supabase.functions.invoke('waha-dashboard-proxy', {
+        body: {
+          path: `/api/${sessionName}/auth/qr`,
+          method: 'POST'
         }
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur API: ${response.status} - ${response.statusText}`);
+      if (proxyError) {
+        throw new Error(`Erreur API: ${proxyError.message}`);
       }
 
-      const contentType = response.headers.get('Content-Type');
-      if (!contentType || !contentType.startsWith('image/')) {
-        const textResponse = await response.text();
-        throw new Error(`Réponse inattendue: ${textResponse}`);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      setQrImageUrl(url);
+      // Extraire le QR code de la réponse
+      let qrCode: string | undefined;
       
-      // Convertir en base64 pour l'affichage
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setQrImageData(reader.result);
+      if (data?.qr) {
+        qrCode = data.qr;
+      } else if (data?.base64) {
+        qrCode = data.base64;
+      } else if (data?.image) {
+        qrCode = data.image;
+      } else if (typeof data === 'string' && data.includes('data:image')) {
+        qrCode = data;
+      }
+
+      if (qrCode) {
+        if (!qrCode.startsWith('data:image')) {
+          qrCode = `data:image/png;base64,${qrCode}`;
         }
-      };
-      reader.readAsDataURL(blob);
-      
-      setLoading(false);
-      setTimeRemaining(90);
+        setQrImageData(qrCode);
+        setTimeRemaining(90);
+      } else {
+        throw new Error('Aucun QR code trouvé');
+      }
       
     } catch (error) {
       console.error('Erreur lors de la récupération du QR code:', error);
       setError(error instanceof Error ? error.message : 'Erreur inconnue');
+    } finally {
       setLoading(false);
     }
   };
@@ -79,16 +80,15 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
     if (!sessionName) return;
     
     try {
-      const response = await fetch(`https://waha.bot.bj/api/${sessionName}/status`, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
+      const { data, error: proxyError } = await supabase.functions.invoke('waha-dashboard-proxy', {
+        body: {
+          path: `/api/sessions/${sessionName}`,
+          method: 'GET'
         }
       });
 
-      if (response.ok) {
-        const status = await response.json();
-        if (status.status === 'WORKING') {
+      if (!proxyError && data) {
+        if (data.status === 'WORKING' || data.status === 'AUTHENTICATED' || data.status === 'READY') {
           setSessionConnected(true);
           toast.success('WhatsApp connecté avec succès!');
           // Fermeture automatique après succès
@@ -104,7 +104,6 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
 
   const resetState = () => {
     setCurrentStep('warning');
-    setQrImageUrl('');
     setQrImageData('');
     setError('');
     setTimeRemaining(90);
