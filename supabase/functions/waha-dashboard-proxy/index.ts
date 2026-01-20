@@ -257,6 +257,21 @@ serve(async (req) => {
     if (contentType?.includes('application/json')) {
       responseData = await wahaResponse.json();
       console.log('✅ Successfully parsed JSON response');
+    } else if (contentType?.includes('image/')) {
+      // Gérer les réponses image - convertir en base64
+      const arrayBuffer = await wahaResponse.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64 = btoa(binary);
+      console.log('✅ Successfully converted image to base64');
+      responseData = { 
+        mimetype: contentType, 
+        data: base64, 
+        type: 'image' 
+      };
     } else {
       const textResponse = await wahaResponse.text();
       console.log('⚠️ Non-JSON response received:', textResponse.substring(0, 200));

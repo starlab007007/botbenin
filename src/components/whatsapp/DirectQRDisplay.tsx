@@ -32,43 +32,71 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
     try {
       console.log('Récupération du QR code pour la session:', sessionName);
       
-      // Utiliser l'Edge Function proxy sécurisé pour récupérer le QR code
-      const { data, error: proxyError } = await supabase.functions.invoke('waha-dashboard-proxy', {
-        body: {
-          path: `/api/${sessionName}/auth/qr`,
-          method: 'POST'
-        }
-      });
-
-      if (proxyError) {
-        console.error('Erreur proxy:', proxyError);
-        throw new Error(`Erreur API: ${proxyError.message}`);
-      }
-
-      console.log('Réponse QR:', data);
-
-      // Extraire le QR code de la réponse
-      let qrCode: string | undefined;
+      // Essayer plusieurs endpoints pour récupérer le QR code
+      const endpoints = [
+        { path: `/api/${sessionName}/auth/qr?format=image`, method: 'GET' },
+        { path: `/api/default/auth/qr?format=image`, method: 'GET' },
+        { path: `/api/screenshot?session=${sessionName}`, method: 'GET' },
+      ];
       
-      if (data?.qr) {
-        qrCode = data.qr;
-      } else if (data?.base64) {
-        qrCode = data.base64;
-      } else if (data?.image) {
-        qrCode = data.image;
-      } else if (typeof data === 'string' && data.includes('data:image')) {
-        qrCode = data;
+      let qrCode: string | undefined;
+      let lastError: any = null;
+      
+      for (const endpoint of endpoints) {
+        try {
+          console.log('Essai endpoint:', endpoint.path);
+          
+          const { data, error: proxyError } = await supabase.functions.invoke('waha-dashboard-proxy', {
+            body: {
+              path: endpoint.path,
+              method: endpoint.method
+            }
+          });
+
+          if (proxyError) {
+            console.warn('Erreur proxy pour', endpoint.path, ':', proxyError);
+            lastError = proxyError;
+            continue;
+          }
+
+          console.log('Réponse QR:', data);
+
+          // Extraire le QR code de la réponse selon le format
+          if (data?.mimetype?.includes('image') && data?.data) {
+            // Format base64 avec mimetype
+            qrCode = `data:${data.mimetype};base64,${data.data}`;
+          } else if (data?.qr) {
+            qrCode = data.qr;
+          } else if (data?.base64) {
+            qrCode = data.base64;
+          } else if (data?.image) {
+            qrCode = data.image;
+          } else if (typeof data === 'string' && data.includes('data:image')) {
+            qrCode = data;
+          } else if (data?.data && typeof data.data === 'string' && data.data.startsWith('\x89PNG')) {
+            // Données binaires PNG - ne peuvent pas être directement affichées
+            console.log('Données PNG binaires détectées, essai du prochain endpoint');
+            continue;
+          }
+
+          if (qrCode) {
+            // Normaliser en base64 avec préfixe si nécessaire
+            if (!qrCode.startsWith('data:image')) {
+              qrCode = `data:image/png;base64,${qrCode}`;
+            }
+            break;
+          }
+        } catch (endpointError) {
+          console.warn('Erreur pour endpoint', endpoint.path, ':', endpointError);
+          lastError = endpointError;
+        }
       }
 
       if (qrCode) {
-        // Normaliser en base64 avec préfixe
-        if (!qrCode.startsWith('data:image')) {
-          qrCode = `data:image/png;base64,${qrCode}`;
-        }
         setQrImageData(qrCode);
         toast.success('QR Code généré avec succès!');
       } else {
-        throw new Error('Aucun QR code trouvé dans la réponse');
+        throw new Error(lastError?.message || 'Aucun QR code trouvé dans les réponses WAHA');
       }
       
     } catch (error: any) {
