@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, RefreshCw, X, Copy, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DirectQRDisplayProps {
   open: boolean;
@@ -31,53 +32,45 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
     try {
       console.log('Récupération du QR code pour la session:', sessionName);
       
-      // Appel direct à l'API WAHA avec l'API key exactement comme dans la capture
-      const response = await fetch(`https://waha.bot.bj/api/${sessionName}/auth/qr?format=image`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'image/png',
-          'X-Api-Key': '278194d40f794430851ff923e9924a3a'
+      // Utiliser l'Edge Function proxy sécurisé pour récupérer le QR code
+      const { data, error: proxyError } = await supabase.functions.invoke('waha-dashboard-proxy', {
+        body: {
+          path: `/api/${sessionName}/auth/qr`,
+          method: 'POST'
         }
       });
 
-      console.log('Réponse API status:', response.status);
-      console.log('Réponse headers:', Object.fromEntries(response.headers.entries()));
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Erreur API response:', errorText);
-        throw new Error(`Erreur API: ${response.status} - ${response.statusText}`);
+      if (proxyError) {
+        console.error('Erreur proxy:', proxyError);
+        throw new Error(`Erreur API: ${proxyError.message}`);
       }
 
-      // Vérifier le type de contenu
-      const contentType = response.headers.get('Content-Type');
-      console.log('Content-Type:', contentType);
+      console.log('Réponse QR:', data);
+
+      // Extraire le QR code de la réponse
+      let qrCode: string | undefined;
       
-      if (!contentType || !contentType.startsWith('image/')) {
-        const textResponse = await response.text();
-        console.error('Réponse non-image:', textResponse);
-        throw new Error('La réponse n\'est pas une image');
+      if (data?.qr) {
+        qrCode = data.qr;
+      } else if (data?.base64) {
+        qrCode = data.base64;
+      } else if (data?.image) {
+        qrCode = data.image;
+      } else if (typeof data === 'string' && data.includes('data:image')) {
+        qrCode = data;
       }
 
-      // Essayer plusieurs méthodes d'affichage
-      const blob = await response.blob();
-      console.log('Blob créé, taille:', blob.size, 'type:', blob.type);
+      if (qrCode) {
+        // Normaliser en base64 avec préfixe
+        if (!qrCode.startsWith('data:image')) {
+          qrCode = `data:image/png;base64,${qrCode}`;
+        }
+        setQrImageData(qrCode);
+        toast.success('QR Code généré avec succès!');
+      } else {
+        throw new Error('Aucun QR code trouvé dans la réponse');
+      }
       
-      // Méthode 1: URL d'objet (original)
-      const imageUrl = URL.createObjectURL(blob);
-      console.log('URL d\'objet créée:', imageUrl);
-      setQrImageUrl(imageUrl);
-      
-      // Méthode 2: Convertir en base64 data URL
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64Data = reader.result as string;
-        console.log('Base64 data créé:', base64Data.substring(0, 50) + '...');
-        setQrImageData(base64Data);
-      };
-      reader.readAsDataURL(blob);
-      
-      toast.success('QR Code généré avec succès!');
     } catch (error: any) {
       console.error('Erreur lors de la récupération du QR code:', error);
       setError(error.message || 'Erreur lors de la récupération du QR code');
@@ -94,9 +87,9 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
   };
 
   const downloadQR = () => {
-    if (qrImageUrl) {
+    if (qrImageData) {
       const link = document.createElement('a');
-      link.href = qrImageUrl;
+      link.href = qrImageData;
       link.download = `whatsapp-qr-${sessionName}.png`;
       document.body.appendChild(link);
       link.click();
@@ -143,13 +136,13 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
             <CardContent className="pt-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-blue-50">GET</Badge>
+                  <Badge variant="outline" className="bg-blue-50">Sécurisé</Badge>
                   <span className="text-sm font-mono text-muted-foreground">
-                    /api/{sessionName}/auth/qr
+                    via Edge Function proxy
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Endpoint: https://waha.bot.bj/api/{sessionName}/auth/qr?format=image
+                  Session: {sessionName}
                 </div>
               </div>
             </CardContent>
@@ -185,49 +178,18 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
                   </div>
                 )}
 
-                {!loading && !error && (qrImageUrl || qrImageData) && (
+                {!loading && !error && qrImageData && (
                   <div className="space-y-4">
                     <div className="flex justify-center">
-                      {/* Essayer d'abord avec les données base64 */}
-                      {qrImageData ? (
-                        <img
-                          src={qrImageData}
-                          alt={`QR Code pour ${sessionName}`}
-                          className="max-w-full h-auto border border-border rounded-lg"
-                          style={{ maxHeight: '300px' }}
-                          onError={(e) => {
-                            console.error('Erreur affichage base64:', e);
-                          }}
-                        />
-                      ) : (
-                        /* Fallback sur l'URL d'objet */
-                        <img
-                          src={qrImageUrl}
-                          alt={`QR Code pour ${sessionName}`}
-                          className="max-w-full h-auto border border-border rounded-lg"
-                          style={{ maxHeight: '300px' }}
-                          onError={(e) => {
-                            console.error('Erreur affichage blob URL:', e);
-                          }}
-                        />
-                      )}
-                      
-                      {/* Fallback: Affichage direct de l'URL WAHA */}
-                      {!qrImageData && !qrImageUrl && (
-                        <div className="text-center p-4 border border-dashed border-border rounded-lg">
-                          <p className="mb-2">Affichage direct depuis l'API:</p>
-                          <img
-                            src={`https://waha.bot.bj/api/${sessionName}/auth/qr?format=image&_t=${Date.now()}`}
-                            alt={`QR Code pour ${sessionName}`}
-                            className="max-w-full h-auto border border-border rounded-lg"
-                            style={{ maxHeight: '300px' }}
-                            crossOrigin="anonymous"
-                            onError={(e) => {
-                              console.error('Erreur affichage direct:', e);
-                            }}
-                          />
-                        </div>
-                      )}
+                      <img
+                        src={qrImageData}
+                        alt={`QR Code pour ${sessionName}`}
+                        className="max-w-full h-auto border border-border rounded-lg"
+                        style={{ maxHeight: '300px' }}
+                        onError={(e) => {
+                          console.error('Erreur affichage QR:', e);
+                        }}
+                      />
                     </div>
                     
                     <div className="text-sm text-muted-foreground text-center">
@@ -262,7 +224,7 @@ const DirectQRDisplay: React.FC<DirectQRDisplayProps> = ({
               Copier URL
             </Button>
             
-            {qrImageUrl && (
+            {qrImageData && (
               <Button
                 onClick={downloadQR}
                 variant="outline"

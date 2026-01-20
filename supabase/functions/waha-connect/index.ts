@@ -36,19 +36,31 @@ serve(async (req) => {
 
     const wahaUrl = 'https://waha.bot.bj';
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
-    const wahaUsername = Deno.env.get('WAHA_USERNAME') || 'admin';
+    const wahaUsername = Deno.env.get('WAHA_USERNAME');
     const wahaPassword = Deno.env.get('WAHA_PASSWORD');
 
+    // Validate required secrets - NO hardcoded fallbacks
     if (!wahaApiKey && !wahaPassword) {
-      throw new Error('WAHA credentials not configured');
+      console.error('Missing WAHA credentials in Supabase secrets');
+      return new Response(
+        JSON.stringify({ 
+          error: 'WAHA credentials not configured',
+          details: {
+            WAHA_API_KEY: wahaApiKey ? 'SET' : 'MISSING',
+            WAHA_USERNAME: wahaUsername ? 'SET' : 'MISSING',
+            WAHA_PASSWORD: wahaPassword ? 'SET' : 'MISSING'
+          }
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log(`🔗 WAHA Connect - Action: ${action}, Session: ${sessionName || 'N/A'}`);
 
     if (action === 'start') {
-      return await handleStart(req, wahaUrl, wahaApiKey, wahaUsername, wahaPassword);
+      return await handleStart(req, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
     } else if (action === 'status' && sessionName) {
-      return await handleStatus(sessionName, wahaUrl, wahaApiKey, wahaUsername, wahaPassword);
+      return await handleStatus(sessionName, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
     } else {
       return new Response(
         JSON.stringify({ error: 'Invalid endpoint. Use /start or /status/{sessionName}' }),
