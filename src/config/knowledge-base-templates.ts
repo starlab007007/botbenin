@@ -144,30 +144,82 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
     description: 'Base de connaissances pour boutique en ligne',
     icon: 'ShoppingCart',
     color: 'from-purple-400 to-pink-500',
+    googleSheetConfig: {
+      spreadsheetId: '1uL2NymfNiZf57MI2b6nRcs2dVtCoiJ9rI-P3Qok2v40',
+      sheets: ['Produits', 'Commandes', 'Promotions', 'Infos_Boutique', 'Clients']
+    },
     structuralInfo: [
-      { name: 'nom_boutique', type: 'text', category: 'contact', required: true, description: 'Nom de la boutique', placeholder: 'Ma Boutique' },
-      { name: 'telephone', type: 'phone', category: 'contact', required: true, description: 'Téléphone', placeholder: '+229 XX XX XX XX' },
-      { name: 'email', type: 'email', category: 'contact', required: false, description: 'Email', placeholder: 'contact@boutique.com' },
-      { name: 'adresse', type: 'text', category: 'location', required: false, description: 'Adresse physique', placeholder: 'Optionnel si 100% en ligne' },
-      { name: 'horaires_service_client', type: 'text', category: 'hours', required: false, description: 'Horaires service client', placeholder: 'Lun-Ven: 9h-18h' },
-      { name: 'delai_livraison', type: 'text', category: 'policy', required: false, description: 'Délai de livraison', placeholder: '2-5 jours ouvrés' },
-      { name: 'frais_livraison', type: 'text', category: 'policy', required: false, description: 'Frais de livraison', placeholder: 'Gratuit > 50 000 FCFA' }
+      { name: 'nom_boutique', type: 'text', category: 'contact', required: true, description: 'Nom de la boutique', placeholder: 'Boutique Alafia' },
+      { name: 'nom_bot', type: 'text', category: 'contact', required: false, description: 'Nom de l\'assistante IA', placeholder: 'Awa' },
+      { name: 'slogan', type: 'text', category: 'contact', required: false, description: 'Slogan / Tagline', placeholder: 'La mode africaine accessible à tous' },
+      { name: 'adresse', type: 'text', category: 'location', required: false, description: 'Adresse complète', placeholder: 'Quartier Cadjehoun, Cotonou' },
+      { name: 'telephone_contact', type: 'phone', category: 'contact', required: true, description: 'Téléphone contact', placeholder: '+229 97 XX XX XX' },
+      { name: 'whatsapp_boutique', type: 'phone', category: 'contact', required: false, description: 'WhatsApp Business', placeholder: '+229 97 XX XX XX' },
+      { name: 'email', type: 'email', category: 'contact', required: false, description: 'Email de contact', placeholder: 'contact@boutique.bj' },
+      { name: 'localisation_gps', type: 'text', category: 'location', required: false, description: 'Coordonnées GPS', placeholder: '6.3654° N, 2.4183° E' },
+      { name: 'numero_momo', type: 'text', category: 'contact', required: false, description: 'Numéro MTN MoMo', placeholder: '22997XXXXXX' },
+      { name: 'numero_wave', type: 'text', category: 'contact', required: false, description: 'Numéro Wave', placeholder: '22997XXXXXX' },
+      { name: 'numero_moov', type: 'text', category: 'contact', required: false, description: 'Numéro Moov Money', placeholder: '22997XXXXXX' },
+      { name: 'numero_gestionnaire', type: 'text', category: 'contact', required: false, description: 'Numéro gestionnaire interne', placeholder: '22997XXXXXX' },
+      { name: 'horaires_semaine', type: 'text', category: 'hours', required: false, description: 'Horaires en semaine', placeholder: 'Lundi à Samedi : 8h00 – 20h00' },
+      { name: 'horaires_weekend', type: 'text', category: 'hours', required: false, description: 'Horaires week-end', placeholder: 'Dimanche : 10h00 – 18h00' },
+      { name: 'jours_feries', type: 'text', category: 'hours', required: false, description: 'Jours fériés', placeholder: 'Fermé les jours fériés nationaux' },
+      { name: 'delai_livraison', type: 'text', category: 'policy', required: false, description: 'Délai de livraison', placeholder: '2 à 4 heures' },
+      { name: 'heure_limite_livraison', type: 'text', category: 'policy', required: false, description: 'Heure limite livraison', placeholder: '17h00' },
+      { name: 'zone_cadjehoun', type: 'text', category: 'policy', required: false, description: 'Frais Cadjehoun', placeholder: '500 FCFA' },
+      { name: 'zone_akpakpa', type: 'text', category: 'policy', required: false, description: 'Frais Akpakpa', placeholder: '700 FCFA' },
+      { name: 'zone_fidjrosse', type: 'text', category: 'policy', required: false, description: 'Frais Fidjrossè', placeholder: '800 FCFA' },
+      { name: 'zone_agla', type: 'text', category: 'policy', required: false, description: 'Frais Agla', placeholder: '600 FCFA' },
+      { name: 'zone_abomey_calavi', type: 'text', category: 'policy', required: false, description: 'Frais Abomey-Calavi', placeholder: '1 000 FCFA' },
+      { name: 'zone_porto_novo', type: 'text', category: 'policy', required: false, description: 'Frais Porto-Novo', placeholder: '1 500 FCFA' },
+      { name: 'zone_hors_liste', type: 'text', category: 'policy', required: false, description: 'Hors liste', placeholder: 'Sur devis' },
+      { name: 'politique_retour', type: 'text', category: 'policy', required: false, description: 'Politique de retour', placeholder: 'Échange possible dans les 48h' },
+      { name: 'politique_remboursement', type: 'text', category: 'policy', required: false, description: 'Politique remboursement', placeholder: 'Remboursement si défaut constaté' },
+      { name: 'commande_minimum', type: 'text', category: 'policy', required: false, description: 'Commande minimum', placeholder: 'Aucun minimum' },
+      { name: 'paiement_livraison', type: 'text', category: 'policy', required: false, description: 'Paiement à la livraison', placeholder: 'Disponible dans un rayon de 10 km' },
+      { name: 'prefixe_commande', type: 'text', category: 'policy', required: false, description: 'Préfixe commande', placeholder: 'STY' },
+      { name: 'delai_reponse_humain', type: 'text', category: 'policy', required: false, description: 'Délai réponse humain', placeholder: 'Dans l\'heure' },
+      { name: 'message_hors_horaires', type: 'text', category: 'policy', required: false, description: 'Message hors horaires', placeholder: 'Nous vous répondrons dès l\'ouverture' }
     ],
     tables: [
       {
         id: 'produits',
         name: 'Produits',
-        description: 'Catalogue de produits',
+        description: 'Catalogue de produits (synchronisé Google Sheets)',
         required: true,
         icon: 'Package',
         fields: [
-          { name: 'nom', type: 'text', required: true, placeholder: 'Nom du produit' },
-          { name: 'categorie', type: 'text', required: true, placeholder: 'Vêtements, Électronique...' },
-          { name: 'prix', type: 'price', required: true, placeholder: '15000' },
-          { name: 'stock', type: 'number', required: true, placeholder: '50' },
-          { name: 'description', type: 'textarea', required: false, placeholder: 'Description détaillée' },
-          { name: 'image', type: 'image', required: false },
-          { name: 'fiche_technique', type: 'file', required: false, placeholder: 'PDF, Word, Excel' }
+          { name: 'categorie', type: 'text', required: true, placeholder: 'Mode & Vêtements' },
+          { name: 'nom', type: 'text', required: true, placeholder: 'Robe wax élégante' },
+          { name: 'prix_fcfa', type: 'price', required: true, placeholder: '15000' },
+          { name: 'tailles', type: 'text', required: false, placeholder: 'S,M,L,XL' },
+          { name: 'couleurs', type: 'text', required: false, placeholder: 'Rouge,Bleu,Vert' },
+          { name: 'stock', type: 'number', required: true, placeholder: '8' },
+          { name: 'description', type: 'textarea', required: false, placeholder: 'Description détaillée du produit' },
+          { name: 'url_image', type: 'image', required: false },
+          { name: 'disponible', type: 'select', required: true, options: ['OUI', 'NON'], placeholder: 'OUI' }
+        ]
+      },
+      {
+        id: 'commandes',
+        name: 'Commandes',
+        description: 'Suivi des commandes clients',
+        required: false,
+        icon: 'ShoppingCart',
+        fields: [
+          { name: 'id_commande', type: 'text', required: true, placeholder: '#STY-2024-0001' },
+          { name: 'telephone', type: 'phone', required: true, placeholder: '22997112233' },
+          { name: 'nom_whatsapp', type: 'text', required: true, placeholder: 'Adjoua Koffi' },
+          { name: 'produit', type: 'text', required: true, placeholder: 'Robe wax élégante' },
+          { name: 'taille', type: 'text', required: false, placeholder: 'M' },
+          { name: 'couleur', type: 'text', required: false, placeholder: 'Rouge' },
+          { name: 'montant_fcfa', type: 'price', required: true, placeholder: '15000' },
+          { name: 'frais_livraison', type: 'price', required: false, placeholder: '500' },
+          { name: 'total_fcfa', type: 'price', required: true, placeholder: '15500' },
+          { name: 'zone_livraison', type: 'text', required: false, placeholder: 'Cadjehoun' },
+          { name: 'mode_paiement', type: 'select', required: true, options: ['MTN MoMo', 'Wave', 'Moov Money', 'Paiement livraison', 'Espèces'], placeholder: 'MTN MoMo' },
+          { name: 'statut', type: 'select', required: true, options: ['🟢 Payé — en livraison', '✅ Livré', '🔵 En préparation', '🟡 En attente paiement', '🟠 En route', '❌ Annulé'], placeholder: '🔵 En préparation' },
+          { name: 'date_commande', type: 'text', required: true, placeholder: '15/01/2024 14:32' }
         ]
       },
       {
@@ -177,12 +229,36 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
         required: false,
         icon: 'Tag',
         fields: [
-          { name: 'nom_promo', type: 'text', required: true, placeholder: 'Soldes d\'été' },
-          { name: 'code_promo', type: 'text', required: false, placeholder: 'ETE2025' },
-          { name: 'type', type: 'select', required: true, options: ['Pourcentage', 'Montant fixe', 'Livraison gratuite'] },
-          { name: 'valeur', type: 'text', required: true, placeholder: '20% ou 5000 FCFA' },
-          { name: 'date_debut', type: 'date', required: true, placeholder: '2025-01-01' },
-          { name: 'date_fin', type: 'date', required: true, placeholder: '2025-01-31' }
+          { name: 'id_promo', type: 'text', required: true, placeholder: 'PROMO-001' },
+          { name: 'nom_offre', type: 'text', required: true, placeholder: 'Soldes janvier — Mode' },
+          { name: 'type', type: 'select', required: true, options: ['Remise pourcentage', 'Bundle produits', 'Frais livraison offerts', 'Prix fixe'] },
+          { name: 'produits_concernes', type: 'text', required: false, placeholder: 'ROB-001,ROB-002 ou Tous les produits' },
+          { name: 'remise_pourcent', type: 'number', required: false, placeholder: '20' },
+          { name: 'prix_promo_fcfa', type: 'price', required: false, placeholder: '18000' },
+          { name: 'date_debut', type: 'text', required: true, placeholder: '10/01/2024' },
+          { name: 'date_fin', type: 'text', required: true, placeholder: '31/01/2024' },
+          { name: 'code_promo', type: 'text', required: true, placeholder: 'JANVIER20' },
+          { name: 'active', type: 'select', required: true, options: ['OUI', 'NON'], placeholder: 'OUI' }
+        ]
+      },
+      {
+        id: 'clients',
+        name: 'Clients',
+        description: 'Base de données clients',
+        required: false,
+        icon: 'Users',
+        fields: [
+          { name: 'telephone', type: 'phone', required: true, placeholder: '22997112233' },
+          { name: 'nom_whatsapp', type: 'text', required: true, placeholder: 'Adjoua Koffi' },
+          { name: 'nb_commandes', type: 'number', required: false, placeholder: '2' },
+          { name: 'valeur_totale_fcfa', type: 'price', required: false, placeholder: '33000' },
+          { name: 'moyen_paiement_prefere', type: 'select', required: false, options: ['MTN MoMo', 'Wave', 'Moov Money', 'Paiement livraison', 'Espèces'] },
+          { name: 'zone_livraison', type: 'text', required: false, placeholder: 'Cadjehoun' },
+          { name: 'dernier_produit', type: 'text', required: false, placeholder: 'Robe wax élégante' },
+          { name: 'date_inscription', type: 'text', required: false, placeholder: '2024-01-10' },
+          { name: 'statut', type: 'select', required: false, options: ['ACTIF', 'INACTIF', 'VIP'] },
+          { name: 'relance_prevue', type: 'text', required: false, placeholder: '2024-01-22' },
+          { name: 'derniere_activite', type: 'text', required: false, placeholder: '2024-01-15 14:32' }
         ]
       }
     ]

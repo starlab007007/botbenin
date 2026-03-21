@@ -38,6 +38,10 @@ export interface KnowledgeBaseTemplate {
   description: string;
   icon: string;
   color: string;
+  googleSheetConfig?: {
+    spreadsheetId: string;
+    sheets: string[];
+  };
   structuralInfo: StructuralField[];
   tables: KnowledgeTable[];
 }
