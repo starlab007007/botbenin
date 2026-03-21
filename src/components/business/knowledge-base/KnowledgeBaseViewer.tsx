@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Save, Download, FileJson, FileSpreadsheet, FileText } from 'lucide-react';
+import { EcommerceSheetViewer } from './EcommerceSheetViewer';
 import { KnowledgeBase } from '@/types/knowledge-base';
 import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
 import { useKnowledgeBaseTemplates } from '@/hooks/useKnowledgeBaseTemplates';
