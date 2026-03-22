@@ -6,6 +6,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const normalizeHeaderKey = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+
+const findHeaderIndex = (headers: string[], expectedKey: string): number => {
+  const normalizedExpected = normalizeHeaderKey(expectedKey);
+  return headers.findIndex((header) => normalizeHeaderKey(String(header || '')) === normalizedExpected);
+};
+
+const normalizeRowForSheet = (item: Record<string, any>, userId?: string, index = 0): Record<string, string> => {
+  const normalized: Record<string, string> = {};
+
+  Object.entries(item || {}).forEach(([rawKey, rawValue]) => {
+    const normalizedKey = normalizeHeaderKey(rawKey);
+    if (!normalizedKey || normalizedKey === '_isorphan' || rawValue === undefined || rawValue === null) return;
+    normalized[normalizedKey] = String(rawValue);
+  });
+
+  if (!normalized.id) {
+    normalized.id = `row_${Date.now()}_${index}`;
+  }
+
+  normalized.user_id = String(normalized.user_id || userId || '');
+
+  return normalized;
+};
+
 // Fonction simplifiée pour générer un token d'accès Google avec JWT manuel
 async function getGoogleAccessToken(): Promise<string> {
   const GOOGLE_SERVICE_ACCOUNT_KEY = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
@@ -186,7 +217,7 @@ async function handleUpdateField(
 
     // 2. Trouver l'en-tête et l'index de la colonne à mettre à jour
     const headers = rows[0] || [];
-    const fieldIndex = headers.indexOf(fieldName);
+    const fieldIndex = findHeaderIndex(headers, fieldName);
     
     if (fieldIndex === -1) {
       return new Response(
@@ -197,9 +228,12 @@ async function handleUpdateField(
 
     // 3. Trouver le prospect par correspondance exacte des données
     let rowIndex = -1;
+    const idIndex = findHeaderIndex(headers, 'id');
+    const userIdIndex = findHeaderIndex(headers, 'user_id');
+
     for (let i = 1; i < rows.length; i++) { // Commencer à 1 pour ignorer l'en-tête
       const row = rows[i] || [];
-      const rowId = row[headers.indexOf('id')] || '';
+      const rowId = idIndex !== -1 ? (row[idIndex] || '') : '';
       if (rowId === prospectId) {
         rowIndex = i - 1; // Index 0-based dans les données (sans l'en-tête)
         break;
@@ -223,7 +257,6 @@ async function handleUpdateField(
     }
     // 5. Vérifier la propriété (si userId fourni)
     if (userId) {
-      const userIdIndex = headers.indexOf('user_id');
       if (userIdIndex !== -1) {
         const prospectRow = rows[rowIndex + 1] || []; // +1 car rowIndex est 0-based dans les données
         const rowUserId = prospectRow[userIdIndex];
@@ -356,8 +389,8 @@ async function handleDeleteById(
     }
 
     const headers = rows[0];
-    const idIndex = headers.indexOf('id');
-    const userIdIndex = headers.indexOf('user_id');
+    const idIndex = findHeaderIndex(headers, 'id');
+    const userIdIndex = findHeaderIndex(headers, 'user_id');
 
     if (idIndex === -1) {
       return new Response(
@@ -597,31 +630,21 @@ serve(async (req) => {
         );
       }
 
-      // Définir l'ordre des colonnes fixe pour correspondre au Google Sheet
-      const fixedHeaders = [
-        'user_id',
-        'id', 
-        '_isOrphan',
-        'contact_name',
-        'company_name', 
-        'company_website',
-        'Rôle',
-        'linkedin_contact_url',
-        'Pertinence du prospect par rapport à notre offre ? (sur 100)',
-        'Préparation de l\'appel',
-        'Run',
-        'Statut'
-      ];
-      
-      // Utiliser l'ordre fixe plutôt que l'ordre des clés de l'objet
-      const headers = fixedHeaders;
-      
-      // Convert data to rows using dynamic headers - Forcer user_id
-      const rows = data.map((item: any) => 
-        headers.map(header => {
-          if (header === 'user_id') {
-            return String(item[header] || userId || 'unknown');
-          }
+      const normalizedData = data.map((item: any, index: number) => normalizeRowForSheet(item, userId, index));
+
+      const dynamicHeaderSet = new Set<string>();
+      normalizedData.forEach((item) => {
+        Object.keys(item).forEach((key) => {
+          if (key && key !== 'user_id' && key !== 'id') dynamicHeaderSet.add(key);
+        });
+      });
+
+      const headers = ['user_id', 'id', ...Array.from(dynamicHeaderSet)];
+
+      const rows = normalizedData.map((item: Record<string, string>) =>
+        headers.map((header) => {
+          if (header === 'user_id') return String(item.user_id || userId || '');
+          if (header === 'id') return String(item.id || '');
           return String(item[header] || '');
         })
       );
@@ -690,7 +713,8 @@ serve(async (req) => {
           const existingHeaders = sheetInfo.values?.[0] || [];
           
           // Si pas d'en-têtes ou en-têtes incomplets, les créer d'abord
-          if (existingHeaders.length === 0 || !headers.every(h => existingHeaders.includes(h))) {
+           const existingNormalizedHeaders = existingHeaders.map((h: string) => normalizeHeaderKey(String(h || '')));
+           if (existingHeaders.length === 0 || !headers.every(h => existingNormalizedHeaders.includes(normalizeHeaderKey(h)))) {
             console.log('Création/mise à jour des en-têtes...');
             const headerUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!1:1?valueInputOption=USER_ENTERED`;
             await fetch(headerUrl, {
