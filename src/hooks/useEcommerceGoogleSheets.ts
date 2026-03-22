@@ -35,7 +35,10 @@ export const useEcommerceGoogleSheets = (userId?: string) => {
       });
 
       if (error) throw new Error(error.message);
-      if (result?.error) throw new Error(result.details || result.error);
+      if (result?.error) {
+        console.error(`Sheet ${sheetName} error:`, result);
+        throw new Error(result.suggestion || result.details || result.error);
+      }
 
       if (result?.data && Array.isArray(result.data)) {
         // Filter by user_id for data isolation
