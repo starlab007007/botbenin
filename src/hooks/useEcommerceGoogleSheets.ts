@@ -16,6 +16,26 @@ interface SheetConfig {
 
 const DEFAULT_SPREADSHEET_ID = '1uL2NymfNiZf57MI2b6nRcs2dVtCoiJ9rI-P3Qok2v40';
 
+const normalizeHeaderKey = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+
+const normalizeRowKeys = (row: Record<string, any>): Record<string, any> => {
+  const normalized: Record<string, any> = { ...row };
+
+  Object.entries(row).forEach(([key, value]) => {
+    const normalizedKey = normalizeHeaderKey(key);
+    if (!normalizedKey || normalizedKey in normalized) return;
+    normalized[normalizedKey] = value;
+  });
+
+  return normalized;
+};
+
 export const useEcommerceGoogleSheets = (userId?: string) => {
   const [data, setData] = useState<Record<string, EcommerceSheetRow[]>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -41,9 +61,9 @@ export const useEcommerceGoogleSheets = (userId?: string) => {
       }
 
       if (result?.data && Array.isArray(result.data)) {
-        // Filter by user_id for data isolation
         const userRows = result.data
-          .filter((item: any) => item.user_id === userId || !item.user_id || item.user_id === '')
+          .map((item: any) => normalizeRowKeys(item))
+          .filter((item: any) => item.user_id === userId)
           .map((item: any) => ({
             ...item,
             id: item.id || `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
