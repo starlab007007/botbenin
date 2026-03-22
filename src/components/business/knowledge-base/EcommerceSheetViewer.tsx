@@ -313,8 +313,18 @@ export const EcommerceSheetViewer: React.FC<EcommerceSheetViewerProps> = ({ know
                   </Table>
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  {searchTerm ? 'Aucun résultat trouvé' : 'Aucune donnée dans cette feuille. Cliquez sur "Ajouter" pour commencer.'}
+                <div className="text-center py-8 text-muted-foreground text-sm space-y-2">
+                  {searchTerm ? (
+                    <p>Aucun résultat trouvé</p>
+                  ) : connectionStatus === 'error' ? (
+                    <>
+                      <p className="text-destructive font-medium">❌ Impossible d'accéder au Google Sheet</p>
+                      <p>Partagez le Google Sheet avec le compte de service Google.</p>
+                      <p className="text-xs">Ouvrez le Sheet → Partager → Ajoutez l'email du service account en tant qu'éditeur</p>
+                    </>
+                  ) : (
+                    <p>Aucune donnée dans cette feuille. Cliquez sur "Ajouter" pour commencer.</p>
+                  )}
                 </div>
               )}
             </TabsContent>
