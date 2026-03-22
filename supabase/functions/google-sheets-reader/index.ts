@@ -6,6 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const normalizeHeaderKey = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+
 async function getGoogleAccessToken(): Promise<string> {
   const GOOGLE_SERVICE_ACCOUNT_KEY = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
   if (!GOOGLE_SERVICE_ACCOUNT_KEY) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY manquant');
@@ -50,20 +58,41 @@ async function getGoogleAccessToken(): Promise<string> {
 }
 
 function parseSheetData(headers: string[], rows: any[][]): { records: any[], hasUserIdColumn: boolean } {
-  const hasUserIdColumn = headers.some((h: string) => h?.trim()?.toLowerCase() === 'user_id');
+  const hasUserIdColumn = headers.some((h: string) => normalizeHeaderKey(h?.trim() || '') === 'user_id');
   const records = rows
     .filter((row: any[]) => row.length > 0 && row.some(cell => cell && cell.toString().trim()))
     .map((row: any[], index: number) => {
       const record: Record<string, any> = { id: `gs_${Date.now()}_${index}`, _isOrphan: !hasUserIdColumn };
       headers.forEach((header: string, colIndex: number) => {
         if (header?.trim()) {
-          record[header.trim()] = row[colIndex] || '';
-          if (header.trim().toLowerCase() === 'user_id' && !record[header.trim()]) record._isOrphan = true;
+          const rawKey = header.trim();
+          const normalizedKey = normalizeHeaderKey(rawKey);
+          const cellValue = row[colIndex] || '';
+
+          record[rawKey] = cellValue;
+          if (normalizedKey) {
+            record[normalizedKey] = cellValue;
+          }
+
+          if (normalizedKey === 'user_id' && !cellValue) record._isOrphan = true;
         }
       });
+      if (!record.id) record.id = `gs_${Date.now()}_${index}`;
       return record;
     });
   return { records, hasUserIdColumn };
+}
+
+function scopeRecordsForUser(records: any[], userId: string, hasUserIdColumn: boolean): any[] {
+  if (!hasUserIdColumn) {
+    return records.map((record) => ({
+      ...record,
+      user_id: userId,
+      _isOrphan: false,
+    }));
+  }
+
+  return records.filter((record) => String(record.user_id || '').trim() === userId);
 }
 
 function buildResponse(records: any[], headers: string[], hasUserIdColumn: boolean, source: string, spreadsheetId: string, sheetName: string) {
@@ -123,8 +152,9 @@ serve(async (req) => {
             if (sheetsData.values?.length > 0) {
               const [headers, ...rows] = sheetsData.values;
               const { records, hasUserIdColumn } = parseSheetData(headers, rows);
-              console.log(`✅ OAuth2 success: ${name} - ${records.length} rows`);
-              return buildResponse(records, headers.filter((h: string) => h?.trim()), hasUserIdColumn, 'Google Sheets API (OAuth2)', spreadsheetId, name);
+              const scopedRecords = scopeRecordsForUser(records, user.id, hasUserIdColumn);
+              console.log(`✅ OAuth2 success: ${name} - ${scopedRecords.length}/${records.length} rows for user`);
+              return buildResponse(scopedRecords, headers.filter((h: string) => h?.trim()), hasUserIdColumn, 'Google Sheets API (OAuth2)', spreadsheetId, name);
             }
           } else {
             const errBody = await response.text();
@@ -149,8 +179,9 @@ serve(async (req) => {
             if (sheetsData.values?.length > 0) {
               const [headers, ...rows] = sheetsData.values;
               const { records, hasUserIdColumn } = parseSheetData(headers, rows);
-              console.log(`✅ API Key success: ${name} - ${records.length} rows`);
-              return buildResponse(records, headers.filter((h: string) => h?.trim()), hasUserIdColumn, 'Google Sheets API (API Key)', spreadsheetId, name);
+              const scopedRecords = scopeRecordsForUser(records, user.id, hasUserIdColumn);
+              console.log(`✅ API Key success: ${name} - ${scopedRecords.length}/${records.length} rows for user`);
+              return buildResponse(scopedRecords, headers.filter((h: string) => h?.trim()), hasUserIdColumn, 'Google Sheets API (API Key)', spreadsheetId, name);
             }
           } else {
             console.log(`❌ API Key ${name}: ${response.status}`);
@@ -178,10 +209,11 @@ serve(async (req) => {
         const headers = cols.map((c: any) => (c?.label || c?.id || '').toString().trim()).filter((h: string) => !!h);
         const values = gvizRows.map((r: any) => (r?.c || []).map((c: any) => (c?.f ?? c?.v ?? '')));
         const { records, hasUserIdColumn } = parseSheetData(headers, values);
+        const scopedRecords = scopeRecordsForUser(records, user.id, hasUserIdColumn);
         
-        if (records.length > 0) {
-          console.log(`✅ GViz success: ${name} - ${records.length} rows`);
-          return buildResponse(records, headers, hasUserIdColumn, 'Google GViz (public)', spreadsheetId, name);
+        if (scopedRecords.length > 0) {
+          console.log(`✅ GViz success: ${name} - ${scopedRecords.length}/${records.length} rows for user`);
+          return buildResponse(scopedRecords, headers, hasUserIdColumn, 'Google GViz (public)', spreadsheetId, name);
         }
       } catch (e) {
         console.log(`GViz error for ${name}:`, e);
