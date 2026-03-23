@@ -5,6 +5,7 @@ import { useAdminRole } from '@/hooks/useAdminRole';
 import { 
   BarChart3, 
   Bot,
+  Database,
   Target,
   User, 
   Shield,
@@ -34,6 +35,13 @@ const mainMenuItems = [
     icon: Bot, 
     color: 'from-indigo-500 to-indigo-600',
     badge: 'Pro'
+  },
+  {
+    title: 'Création Bots',
+    path: '/knowledge-bases',
+    icon: Database,
+    color: 'from-cyan-500 to-cyan-600',
+    description: 'Bases de connaissances'
   },
   { 
     title: 'CRM', 
