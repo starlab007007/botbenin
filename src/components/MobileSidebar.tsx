@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { X, BarChart3, User, HelpCircle, Bot, Target } from 'lucide-react';
+import { X, BarChart3, User, HelpCircle, Bot, Target, Database, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MobileSidebarProps {
@@ -12,7 +12,9 @@ interface MobileSidebarProps {
 const menuItems = [
   { title: 'Dashboard', path: '/dashboard', icon: BarChart3 },
   { title: 'Mes Bots', path: '/bots', icon: Bot },
+  { title: 'Création Bots', path: '/knowledge-bases', icon: Database },
   { title: 'CRM', path: '/prospects', icon: Target },
+  { title: 'WhatsApp IA', path: '/whatsapp-connect', icon: MessageCircle },
 ];
 
 // HIDDEN - kept for future use
