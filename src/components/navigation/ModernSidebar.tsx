@@ -3,27 +3,12 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { 
-  Home, 
-  MessageCircle, 
-  Workflow, 
   BarChart3, 
-  Briefcase, 
-  Megaphone, 
-  FolderOpen, 
-  Users as UsersIcon, 
-  User, 
-  HelpCircle,
   Bot,
-  Database,
-  Settings,
-  Zap,
   Target,
-  Building,
+  User, 
   Shield,
   X,
-  Phone,
-  FileText,
-  Wand2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,29 +22,12 @@ interface ModernSidebarProps {
 
 const mainMenuItems = [
   { 
-    title: 'Accueil', 
-    path: '/home', 
-    icon: Home, 
-    color: 'from-blue-500 to-blue-600',
-    description: 'Vue d\'ensemble'
-  },
-  { 
-    title: 'Kpakpato', 
-    path: '/chat', 
-    icon: MessageCircle, 
-    color: 'from-green-500 to-green-600',
-    description: 'Messages vocaux interactifs'
-  },
-  { 
     title: 'Dashboard', 
     path: '/dashboard', 
     icon: BarChart3, 
     color: 'from-purple-500 to-purple-600',
     description: 'Tableaux de bord'
   },
-];
-
-const botManagementItems = [
   { 
     title: 'Mes Bots', 
     path: '/bots', 
@@ -68,19 +36,16 @@ const botManagementItems = [
     badge: 'Pro'
   },
   { 
-    title: 'Création Bots', 
-    path: '/knowledge-bases', 
-    icon: Database, 
-    color: 'from-cyan-500 to-cyan-600',
-    description: 'Bases de Connaissances'
+    title: 'CRM', 
+    path: '/prospects', 
+    icon: Target, 
+    color: 'from-pink-500 to-pink-600',
+    description: 'Prospects & Clients'
   },
-];
-
-const marketingItems = [
   { 
-    title: 'WhatsApp Connect', 
+    title: 'WhatsApp IA', 
     path: '/whatsapp-connect', 
-    icon: 'image',
+    icon: 'image' as any,
     iconImage: whatsappIcon,
     color: 'from-green-500 to-green-600',
     description: 'Connexion WhatsApp',
@@ -88,51 +53,24 @@ const marketingItems = [
   },
 ];
 
-const crmItems = [
-  { 
-    title: 'Prospects', 
-    path: '/prospects', 
-    icon: Target, 
-    color: 'from-pink-500 to-pink-600',
-    description: 'Gestion CRM'
-  },
-  { 
-    title: 'IA Prospect Rapport Pre-Call', 
-    path: '/ia-prospect-precall', 
-    icon: FileText, 
-    color: 'from-blue-500 to-purple-600',
-    description: 'Préparation d\'appels B2B',
-    badge: 'New'
-  },
-  { 
-    title: 'IA Business', 
-    path: '/modules/business', 
-    icon: Briefcase, 
-    color: 'from-blue-600 to-blue-700',
-    description: 'Solutions B2B'
-  },
-];
-
-const aiModules = [
-  { 
-    title: 'IA Créateur Visuel', 
-    path: '/modules/visual-creator', 
-    icon: Wand2, 
-    color: 'from-purple-600 to-pink-600',
-    description: 'Création de contenu visuel',
-    badge: 'New'
-  },
-];
-
-const resourceItems = [
-  { 
-    title: 'Fonctionnalités', 
-    path: '/features', 
-    icon: Zap, 
-    color: 'from-orange-500 to-orange-600',
-    description: 'Découvrir toutes les fonctionnalités'
-  },
-];
+// HIDDEN - kept for future use
+// const hiddenMenuItems = [
+//   { title: 'Accueil', path: '/home', icon: Home, color: 'from-blue-500 to-blue-600', description: 'Vue d\'ensemble' },
+//   { title: 'Kpakpato', path: '/chat', icon: MessageCircle, color: 'from-green-500 to-green-600', description: 'Messages vocaux interactifs' },
+// ];
+// const hiddenBotItems = [
+//   { title: 'Création Bots', path: '/knowledge-bases', icon: Database, color: 'from-cyan-500 to-cyan-600', description: 'Bases de Connaissances' },
+// ];
+// const hiddenCrmItems = [
+//   { title: 'IA Prospect Rapport Pre-Call', path: '/ia-prospect-precall', icon: FileText, color: 'from-blue-500 to-purple-600', description: 'Préparation d\'appels B2B', badge: 'New' },
+//   { title: 'IA Business', path: '/modules/business', icon: Briefcase, color: 'from-blue-600 to-blue-700', description: 'Solutions B2B' },
+// ];
+// const hiddenAiModules = [
+//   { title: 'IA Créateur Visuel', path: '/modules/visual-creator', icon: Wand2, color: 'from-purple-600 to-pink-600', description: 'Création de contenu visuel', badge: 'New' },
+// ];
+// const hiddenResourceItems = [
+//   { title: 'Fonctionnalités', path: '/features', icon: Zap, color: 'from-orange-500 to-orange-600', description: 'Découvrir toutes les fonctionnalités' },
+// ];
 
 const bottomItems = [
   { 
@@ -154,8 +92,6 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
     }
     return location.pathname.startsWith(path);
   };
-
-  const hasAdminAccess = user?.permissions.includes('manage_users');
 
   const NavItem = ({ item, showDescription = false }: { item: any; showDescription?: boolean }) => (
     <NavLink
@@ -211,61 +147,13 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
       </div>
 
       <nav className="p-4 space-y-8">
-        {/* Menu Principal */}
+        {/* Menu Principal - 4 modules uniquement */}
         <div>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
             Menu Principal
           </h3>
           <div className="space-y-2">
             {mainMenuItems.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
-
-        {/* Gestion des Bots */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Bots & Automatisation
-          </h3>
-          <div className="space-y-2">
-            {botManagementItems.map((item) => (
-              <NavItem key={item.path} item={item} />
-            ))}
-          </div>
-        </div>
-
-        {/* WhatsApp */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Communication
-          </h3>
-          <div className="space-y-2">
-            {marketingItems.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
-
-        {/* CRM */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            CRM & Prospects
-          </h3>
-          <div className="space-y-2">
-            {crmItems.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
-
-        {/* Modules IA */}
-        <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Modules IA Spécialisés
-          </h3>
-          <div className="space-y-2">
-            {aiModules.map((item) => (
               <NavItem key={item.path} item={item} showDescription />
             ))}
           </div>
@@ -299,18 +187,6 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
             </div>
           </div>
         )}
-
-        {/* Ressources */}
-        <div className="border-t border-gray-200 pt-6">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-            Ressources & Aide
-          </h3>
-          <div className="space-y-2">
-            {resourceItems.map((item) => (
-              <NavItem key={item.path} item={item} showDescription />
-            ))}
-          </div>
-        </div>
 
         {/* Mon Compte */}
         <div className="pt-4">
