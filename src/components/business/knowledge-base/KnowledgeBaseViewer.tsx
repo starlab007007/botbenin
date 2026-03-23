@@ -190,8 +190,13 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
         </Tabs>
 
         {/* Google Sheets sync for e-commerce */}
-        {template.googleSheetConfig && (
+        {template.googleSheetConfig && template.id === 'ecommerce' && (
           <EcommerceSheetViewer knowledgeBaseId={kb.id} />
+        )}
+
+        {/* Google Sheets sync for restauration */}
+        {template.googleSheetConfig && template.id === 'restaurant' && (
+          <RestaurationSheetViewer knowledgeBaseId={kb.id} />
         )}
       </div>
     </div>

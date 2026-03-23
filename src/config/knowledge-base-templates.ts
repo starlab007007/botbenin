@@ -8,6 +8,10 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
     description: 'Base de connaissances complète pour restaurant, café, fast-food',
     icon: 'UtensilsCrossed',
     color: 'from-orange-400 to-red-500',
+    googleSheetConfig: {
+      spreadsheetId: '1_vh93IuyO6VusOZEKYlj3TWpfLTpq4Yj231rwRwkcXM',
+      sheets: ['Menu', 'Commandes', 'Clients', 'Reservations', 'Infos_Restaurant']
+    },
     structuralInfo: [
       { name: 'nom_etablissement', type: 'text', category: 'contact', required: true, description: 'Nom de votre établissement', placeholder: 'Le Petit Bistrot' },
       { name: 'telephone', type: 'phone', category: 'contact', required: true, description: 'Numéro de téléphone', placeholder: '+229 XX XX XX XX' },
@@ -22,19 +26,71 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
       {
         id: 'menu',
         name: 'Menu',
-        description: 'Liste complète des plats et boissons',
+        description: 'Liste complète des plats et boissons (synchronisé Google Sheets)',
         required: true,
         icon: 'UtensilsCrossed',
         fields: [
-          { name: 'categorie', type: 'select', required: true, options: ['Entrées', 'Plats', 'Desserts', 'Boissons', 'Spécialités'], placeholder: 'Sélectionner une catégorie' },
+          { name: 'categorie', type: 'select', required: true, options: ['Entrées', 'Plats', 'Desserts', 'Boissons', 'Spécialités', 'Petit-déjeuner', 'Accompagnements'], placeholder: 'Sélectionner une catégorie' },
           { name: 'sous_categorie', type: 'text', required: false, placeholder: 'Ex: Plats africains' },
           { name: 'nom', type: 'text', required: true, placeholder: 'Poulet DG' },
           { name: 'description', type: 'textarea', required: false, placeholder: 'Description du plat' },
           { name: 'allergenes', type: 'text', required: false, placeholder: 'Gluten, Lactose' },
-        { name: 'prix', type: 'price', required: true, placeholder: '3500' },
-        { name: 'disponible', type: 'select', required: true, options: ['Oui', 'Non'] },
-        { name: 'image', type: 'image', required: false }
-      ]
+          { name: 'prix', type: 'price', required: true, placeholder: '3500' },
+          { name: 'disponible', type: 'select', required: true, options: ['Oui', 'Non'] },
+          { name: 'image', type: 'image', required: false }
+        ]
+      },
+      {
+        id: 'commandes',
+        name: 'Commandes',
+        description: 'Suivi des commandes restaurant',
+        required: false,
+        icon: 'ShoppingCart',
+        fields: [
+          { name: 'id_commande', type: 'text', required: true, placeholder: '#CMD-001' },
+          { name: 'telephone', type: 'phone', required: true, placeholder: '22997112233' },
+          { name: 'nom_client', type: 'text', required: true, placeholder: 'Adjoua Koffi' },
+          { name: 'plats', type: 'text', required: true, placeholder: 'Poulet DG x2, Jus de fruits x1' },
+          { name: 'montant_fcfa', type: 'price', required: true, placeholder: '8500' },
+          { name: 'type_commande', type: 'select', required: true, options: ['Sur place', 'À emporter', 'Livraison'] },
+          { name: 'mode_paiement', type: 'select', required: true, options: ['Espèces', 'MTN MoMo', 'Wave', 'Moov Money', 'CB'] },
+          { name: 'statut', type: 'select', required: true, options: ['🔵 En préparation', '🟢 Prêt', '🟠 En livraison', '✅ Servi/Livré', '❌ Annulé'] },
+          { name: 'date_commande', type: 'text', required: true, placeholder: '15/01/2024 14:32' }
+        ]
+      },
+      {
+        id: 'clients',
+        name: 'Clients',
+        description: 'Base de données clients du restaurant',
+        required: false,
+        icon: 'Users',
+        fields: [
+          { name: 'telephone', type: 'phone', required: true, placeholder: '22997112233' },
+          { name: 'nom_client', type: 'text', required: true, placeholder: 'Adjoua Koffi' },
+          { name: 'nb_visites', type: 'number', required: false, placeholder: '5' },
+          { name: 'montant_total_fcfa', type: 'price', required: false, placeholder: '45000' },
+          { name: 'plat_prefere', type: 'text', required: false, placeholder: 'Poulet DG' },
+          { name: 'date_derniere_visite', type: 'text', required: false, placeholder: '2024-01-15' },
+          { name: 'statut', type: 'select', required: false, options: ['ACTIF', 'INACTIF', 'VIP', 'FIDÈLE'] }
+        ]
+      },
+      {
+        id: 'reservations',
+        name: 'Réservations',
+        description: 'Gestion des réservations de table',
+        required: false,
+        icon: 'Calendar',
+        fields: [
+          { name: 'id_reservation', type: 'text', required: true, placeholder: '#RES-001' },
+          { name: 'nom_client', type: 'text', required: true, placeholder: 'Adjoua Koffi' },
+          { name: 'telephone', type: 'phone', required: true, placeholder: '22997112233' },
+          { name: 'date_reservation', type: 'text', required: true, placeholder: '2024-01-20' },
+          { name: 'heure', type: 'text', required: true, placeholder: '19:30' },
+          { name: 'nb_personnes', type: 'number', required: true, placeholder: '4' },
+          { name: 'zone', type: 'select', required: false, options: ['Intérieur', 'Terrasse', 'VIP', 'Privé'] },
+          { name: 'notes', type: 'textarea', required: false, placeholder: 'Anniversaire, menu spécial...' },
+          { name: 'statut', type: 'select', required: true, options: ['✅ Confirmée', '🟡 En attente', '❌ Annulée', '🟢 Terminée'] }
+        ]
       },
       {
         id: 'faq',
