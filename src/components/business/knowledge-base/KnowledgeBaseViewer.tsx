@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Save, Download, FileJson, FileSpreadsheet, FileText } from 'lucide-react';
 import { EcommerceSheetViewer } from './EcommerceSheetViewer';
+import { RestaurationSheetViewer } from './RestaurationSheetViewer';
 import { KnowledgeBase } from '@/types/knowledge-base';
 import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
 import { useKnowledgeBaseTemplates } from '@/hooks/useKnowledgeBaseTemplates';
@@ -189,8 +190,13 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
         </Tabs>
 
         {/* Google Sheets sync for e-commerce */}
-        {template.googleSheetConfig && (
+        {template.googleSheetConfig && template.id === 'ecommerce' && (
           <EcommerceSheetViewer knowledgeBaseId={kb.id} />
+        )}
+
+        {/* Google Sheets sync for restauration */}
+        {template.googleSheetConfig && template.id === 'restaurant' && (
+          <RestaurationSheetViewer knowledgeBaseId={kb.id} />
         )}
       </div>
     </div>
