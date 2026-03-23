@@ -3,6 +3,8 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
   BarChart3, 
+  Database,
+  MessageCircle,
   User, 
   HelpCircle
 } from 'lucide-react';
@@ -11,7 +13,9 @@ import { Bot, Target } from 'lucide-react';
 const menuItems = [
   { title: 'Dashboard', path: '/dashboard', icon: BarChart3, color: 'bg-purple-500' },
   { title: 'Mes Bots', path: '/bots', icon: Bot, color: 'bg-indigo-500' },
+  { title: 'Création Bots', path: '/knowledge-bases', icon: Database, color: 'bg-cyan-500' },
   { title: 'CRM', path: '/prospects', icon: Target, color: 'bg-pink-500' },
+  { title: 'WhatsApp IA', path: '/whatsapp-connect', icon: MessageCircle, color: 'bg-green-500' },
 ];
 
 // HIDDEN - kept for future use
