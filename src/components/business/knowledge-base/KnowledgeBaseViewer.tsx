@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -12,11 +12,9 @@ import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
 import { useKnowledgeBaseTemplates } from '@/hooks/useKnowledgeBaseTemplates';
 import { StructuralInfoForm } from './StructuralInfoForm';
 import { DataTableEditor } from './DataTableEditor';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 
 interface KnowledgeBaseViewerProps {
@@ -24,12 +22,10 @@ interface KnowledgeBaseViewerProps {
   onBack: () => void;
 }
 
-export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({ 
-  knowledgeBaseId, 
-  onBack 
-}) => {
+export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({ knowledgeBaseId, onBack }) => {
   const { knowledgeBases, updateKnowledgeBase, exportKnowledgeBase } = useKnowledgeBases();
   const { getTemplateById, calculateCompletion } = useKnowledgeBaseTemplates();
+  const isMobile = useIsMobile();
   
   const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [editedData, setEditedData] = useState<Record<string, any[]>>({});
@@ -47,12 +43,10 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
 
   if (!kb) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-4 text-muted-foreground">Chargement...</p>
-          </div>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-3 text-sm text-muted-foreground">Chargement...</p>
         </div>
       </div>
     );
@@ -63,16 +57,12 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
 
   const handleSave = async () => {
     const completion = calculateCompletion(editedData, editedStructuralInfo, template);
-    
     const success = await updateKnowledgeBase(kb.id, {
       data: editedData,
       structural_info: editedStructuralInfo,
       completion_percentage: completion
     });
-
-    if (success) {
-      setHasChanges(false);
-    }
+    if (success) setHasChanges(false);
   };
 
   const handleTableDataChange = (tableId: string, newData: Record<string, any>[]) => {
@@ -81,124 +71,100 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-3 sm:p-6">
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full lg:w-auto">
-            <Button variant="outline" onClick={onBack} className="shrink-0">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Retour
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Button variant="outline" size={isMobile ? 'sm' : 'default'} onClick={onBack} className="shrink-0">
+              <ArrowLeft className="w-4 h-4" />
+              {!isMobile && <span className="ml-1.5">Retour</span>}
             </Button>
-            <div className="w-full sm:w-auto">
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold break-words">{kb.name}</h1>
-                <Badge className="shrink-0">{template.name}</Badge>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-xl font-bold truncate">{kb.name}</h1>
+                <Badge className="shrink-0 text-[10px] sm:text-xs">{template.name}</Badge>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">{kb.description}</p>
+              {!isMobile && <p className="text-xs text-muted-foreground mt-0.5 truncate">{kb.description}</p>}
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex-1 sm:flex-initial">
-                  <Download className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Exporter</span>
+                <Button variant="outline" size={isMobile ? 'sm' : 'default'}>
+                  <Download className="w-4 h-4" />
+                  {!isMobile && <span className="ml-1.5">Exporter</span>}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'json')}>
-                  <FileJson className="w-4 h-4 mr-2" />
-                  Format JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'excel')}>
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
-                  Format Excel
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'csv')}>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Format CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'pdf')}>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Format PDF
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'json')}><FileJson className="w-4 h-4 mr-2" />JSON</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'excel')}><FileSpreadsheet className="w-4 h-4 mr-2" />Excel</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'csv')}><FileText className="w-4 h-4 mr-2" />CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportKnowledgeBase(kb, 'pdf')}><FileText className="w-4 h-4 mr-2" />PDF</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            
-            <Button 
-              onClick={handleSave}
-              disabled={!hasChanges}
-              className="flex-1 sm:flex-initial"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">{hasChanges ? 'Enregistrer' : 'Enregistré'}</span>
-              <span className="sm:hidden">{hasChanges ? 'Sauver' : 'OK'}</span>
+            <Button onClick={handleSave} disabled={!hasChanges} size={isMobile ? 'sm' : 'default'}>
+              <Save className="w-4 h-4" />
+              {!isMobile && <span className="ml-1.5">{hasChanges ? 'Enregistrer' : 'Enregistré'}</span>}
             </Button>
           </div>
         </div>
 
         {/* Progress */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Complétion de la base</span>
-                <span className="font-medium">{kb.completion_percentage}%</span>
-              </div>
-              <Progress value={kb.completion_percentage} className="h-2" />
+        <Card className="border-0 bg-gradient-to-r from-primary/5 to-transparent shadow-sm">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between text-xs sm:text-sm mb-1.5">
+              <span className="text-muted-foreground">Complétion de la base</span>
+              <span className="font-bold text-primary">{kb.completion_percentage}%</span>
             </div>
+            <Progress value={kb.completion_percentage} className="h-2" />
           </CardContent>
         </Card>
+      </div>
 
-        {/* Content Tabs */}
-        <Tabs defaultValue="structural" className="space-y-4 sm:space-y-6">
-          <div className="overflow-x-auto">
-            <TabsList className="grid w-full min-w-max" style={{ gridTemplateColumns: `repeat(${template.tables.length + 1}, minmax(0, 1fr))` }}>
-              <TabsTrigger value="structural" className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-4">
-                Informations Essentielles
+      {/* Content Tabs */}
+      <Tabs defaultValue="structural" className="space-y-4">
+        <div className="overflow-x-auto -mx-1 px-1">
+          <TabsList className={`${isMobile ? 'flex w-max gap-1' : 'grid w-full'}`} style={!isMobile ? { gridTemplateColumns: `repeat(${template.tables.length + 1}, minmax(0, 1fr))` } : undefined}>
+            <TabsTrigger value="structural" className="text-xs sm:text-sm whitespace-nowrap px-3">
+              Infos Essentielles
+            </TabsTrigger>
+            {template.tables.map(table => (
+              <TabsTrigger key={table.id} value={table.id} className="text-xs sm:text-sm whitespace-nowrap px-3">
+                {table.name}
               </TabsTrigger>
-              {template.tables.map(table => (
-                <TabsTrigger key={table.id} value={table.id} className="text-xs sm:text-sm whitespace-nowrap px-2 sm:px-4">
-                  {table.name}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
+            ))}
+          </TabsList>
+        </div>
 
-          <TabsContent value="structural" className="space-y-4">
-            <StructuralInfoForm
-              fields={template.structuralInfo}
-              values={editedStructuralInfo}
-              onChange={(fieldName, value) => {
-                const updated = { ...editedStructuralInfo, [fieldName]: value };
-                setEditedStructuralInfo(updated);
-                setHasChanges(true);
-              }}
+        <TabsContent value="structural" className="space-y-4">
+          <StructuralInfoForm
+            fields={template.structuralInfo}
+            values={editedStructuralInfo}
+            onChange={(fieldName, value) => {
+              setEditedStructuralInfo({ ...editedStructuralInfo, [fieldName]: value });
+              setHasChanges(true);
+            }}
+          />
+        </TabsContent>
+
+        {template.tables.map(table => (
+          <TabsContent key={table.id} value={table.id}>
+            <DataTableEditor
+              table={table}
+              data={editedData[table.id] || []}
+              onChange={(newData) => handleTableDataChange(table.id, newData)}
             />
           </TabsContent>
+        ))}
+      </Tabs>
 
-          {template.tables.map(table => (
-            <TabsContent key={table.id} value={table.id}>
-              <DataTableEditor
-                table={table}
-                data={editedData[table.id] || []}
-                onChange={(newData) => handleTableDataChange(table.id, newData)}
-              />
-            </TabsContent>
-          ))}
-        </Tabs>
-
-        {/* Google Sheets sync for e-commerce */}
-        {template.googleSheetConfig && template.id === 'ecommerce' && (
-          <EcommerceSheetViewer knowledgeBaseId={kb.id} />
-        )}
-
-        {/* Google Sheets sync for restauration */}
-        {template.googleSheetConfig && template.id === 'restaurant' && (
-          <RestaurationSheetViewer knowledgeBaseId={kb.id} />
-        )}
-      </div>
+      {template.googleSheetConfig && template.id === 'ecommerce' && (
+        <EcommerceSheetViewer knowledgeBaseId={kb.id} />
+      )}
+      {template.googleSheetConfig && template.id === 'restaurant' && (
+        <RestaurationSheetViewer knowledgeBaseId={kb.id} />
+      )}
     </div>
   );
 };

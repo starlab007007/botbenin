@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Info } from 'lucide-react';
 import { StructuralField } from '@/types/knowledge-base';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface StructuralInfoFormProps {
   fields: StructuralField[];
@@ -12,32 +13,32 @@ interface StructuralInfoFormProps {
   onChange: (fieldName: string, value: string) => void;
 }
 
-export const StructuralInfoForm: React.FC<StructuralInfoFormProps> = ({
-  fields,
-  values,
-  onChange
-}) => {
+export const StructuralInfoForm: React.FC<StructuralInfoFormProps> = ({ fields, values, onChange }) => {
+  const isMobile = useIsMobile();
+
   return (
-    <Card className="border-2 border-primary">
-      <CardHeader className="p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+    <Card className="border-2 border-primary/30 shadow-sm overflow-hidden">
+      <CardHeader className="p-3.5 sm:p-5 bg-gradient-to-r from-primary/5 to-transparent">
+        <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-            <Info className="w-5 h-5 text-primary" />
+            <Info className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base sm:text-lg">Informations Essentielles</CardTitle>
-            <CardDescription className="text-xs sm:text-sm mt-1">
-              Ces informations seront utilisées pour répondre automatiquement aux questions fréquentes
+            <div className="flex items-center gap-2 flex-wrap">
+              <CardTitle className="text-sm sm:text-base">Informations Essentielles</CardTitle>
+              <Badge className="shrink-0 text-[10px] h-5">Requis</Badge>
+            </div>
+            <CardDescription className="text-[10px] sm:text-xs mt-0.5">
+              Utilisées pour répondre aux questions fréquentes
             </CardDescription>
           </div>
-          <Badge className="shrink-0">Requis</Badge>
         </div>
       </CardHeader>
-      <CardContent className="p-4 sm:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+      <CardContent className="p-3.5 sm:p-5">
+        <div className={`grid gap-3 sm:gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
           {fields.map((field) => (
-            <div key={field.name} className="space-y-2">
-              <Label htmlFor={field.name}>
+            <div key={field.name} className="space-y-1.5">
+              <Label htmlFor={field.name} className="text-xs sm:text-sm">
                 {field.description || field.name}
                 {field.required && <span className="text-destructive ml-1">*</span>}
               </Label>
@@ -48,10 +49,10 @@ export const StructuralInfoForm: React.FC<StructuralInfoFormProps> = ({
                 value={values[field.name] || ''}
                 onChange={(e) => onChange(field.name, e.target.value)}
                 required={field.required}
-                className={field.required && !values[field.name] ? 'border-destructive' : ''}
+                className={`h-9 sm:h-10 text-sm ${field.required && !values[field.name] ? 'border-destructive/50 focus:border-destructive' : ''}`}
               />
               {field.required && !values[field.name] && (
-                <p className="text-xs text-destructive">Ce champ est requis</p>
+                <p className="text-[10px] text-destructive">Ce champ est requis</p>
               )}
             </div>
           ))}
