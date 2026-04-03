@@ -731,6 +731,11 @@ serve(async (req) => {
       console.log('Traitement delete_by_id pour:', prospectId);
       return await handleDeleteById(spreadsheetId, sheetName, prospectId, accessToken, corsHeaders, userId);
     }
+
+    if (operation === 'update_row') {
+      console.log('Traitement update_row pour:', prospectId);
+      return await handleUpdateRow(spreadsheetId, sheetName, prospectId, rowData, accessToken, corsHeaders, userId);
+    }
       
     // Traitement pour les autres opérations (append, overwrite, etc.)
     try {
