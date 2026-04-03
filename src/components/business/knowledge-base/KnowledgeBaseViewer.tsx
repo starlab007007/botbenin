@@ -55,6 +55,7 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({ knowle
   const template = getTemplateById(kb.template_id);
   if (!template) return null;
 
+  const isGoogleSheetMode = template.googleSheetConfig && (template.id === 'ecommerce' || template.id === 'restaurant');
   const handleSave = async () => {
     const completion = calculateCompletion(editedData, editedStructuralInfo, template);
     const success = await updateKnowledgeBase(kb.id, {
@@ -122,48 +123,52 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({ knowle
         </Card>
       </div>
 
-      {/* Content Tabs */}
-      <Tabs defaultValue="structural" className="space-y-4">
-        <div className="overflow-x-auto -mx-1 px-1">
-          <TabsList className={`${isMobile ? 'flex w-max gap-1' : 'grid w-full'}`} style={!isMobile ? { gridTemplateColumns: `repeat(${template.tables.length + 1}, minmax(0, 1fr))` } : undefined}>
-            <TabsTrigger value="structural" className="text-xs sm:text-sm whitespace-nowrap px-3">
-              Infos Essentielles
-            </TabsTrigger>
-            {template.tables.map(table => (
-              <TabsTrigger key={table.id} value={table.id} className="text-xs sm:text-sm whitespace-nowrap px-3">
-                {table.name}
+      {/* Content */}
+      {isGoogleSheetMode ? (
+        <>
+          {template.id === 'ecommerce' && (
+            <EcommerceSheetViewer knowledgeBaseId={kb.id} />
+          )}
+          {template.id === 'restaurant' && (
+            <RestaurationSheetViewer knowledgeBaseId={kb.id} />
+          )}
+        </>
+      ) : (
+        <Tabs defaultValue="structural" className="space-y-4">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className={`${isMobile ? 'flex w-max gap-1' : 'grid w-full'}`} style={!isMobile ? { gridTemplateColumns: `repeat(${template.tables.length + 1}, minmax(0, 1fr))` } : undefined}>
+              <TabsTrigger value="structural" className="text-xs sm:text-sm whitespace-nowrap px-3">
+                Infos Essentielles
               </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+              {template.tables.map(table => (
+                <TabsTrigger key={table.id} value={table.id} className="text-xs sm:text-sm whitespace-nowrap px-3">
+                  {table.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
-        <TabsContent value="structural" className="space-y-4">
-          <StructuralInfoForm
-            fields={template.structuralInfo}
-            values={editedStructuralInfo}
-            onChange={(fieldName, value) => {
-              setEditedStructuralInfo({ ...editedStructuralInfo, [fieldName]: value });
-              setHasChanges(true);
-            }}
-          />
-        </TabsContent>
-
-        {template.tables.map(table => (
-          <TabsContent key={table.id} value={table.id}>
-            <DataTableEditor
-              table={table}
-              data={editedData[table.id] || []}
-              onChange={(newData) => handleTableDataChange(table.id, newData)}
+          <TabsContent value="structural" className="space-y-4">
+            <StructuralInfoForm
+              fields={template.structuralInfo}
+              values={editedStructuralInfo}
+              onChange={(fieldName, value) => {
+                setEditedStructuralInfo({ ...editedStructuralInfo, [fieldName]: value });
+                setHasChanges(true);
+              }}
             />
           </TabsContent>
-        ))}
-      </Tabs>
 
-      {template.googleSheetConfig && template.id === 'ecommerce' && (
-        <EcommerceSheetViewer knowledgeBaseId={kb.id} />
-      )}
-      {template.googleSheetConfig && template.id === 'restaurant' && (
-        <RestaurationSheetViewer knowledgeBaseId={kb.id} />
+          {template.tables.map(table => (
+            <TabsContent key={table.id} value={table.id}>
+              <DataTableEditor
+                table={table}
+                data={editedData[table.id] || []}
+                onChange={(newData) => handleTableDataChange(table.id, newData)}
+              />
+            </TabsContent>
+          ))}
+        </Tabs>
       )}
     </div>
   );
