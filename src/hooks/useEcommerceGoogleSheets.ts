@@ -88,10 +88,11 @@ export const useEcommerceGoogleSheets = (userId?: string) => {
     setConnectionStatus('connecting');
 
     try {
+      const sheetResults = await Promise.all(
+        sheetNames.map(name => loadSheet(name).then(rows => ({ name, rows })))
+      );
       const results: Record<string, EcommerceSheetRow[]> = {};
-      for (const sheetName of sheetNames) {
-        results[sheetName] = await loadSheet(sheetName);
-      }
+      sheetResults.forEach(({ name, rows }) => { results[name] = rows; });
       setData(results);
       setConnectionStatus('connected');
       setLastSync(new Date());
