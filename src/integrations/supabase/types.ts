@@ -873,6 +873,27 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_memory: {
+        Row: {
+          created_at: string | null
+          id: number
+          message: Json
+          session_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          message: Json
+          session_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          message?: Json
+          session_id?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           bot_id: string
@@ -1320,6 +1341,27 @@ export type Database = {
           id?: string
           name?: string
           resource?: string
+        }
+        Relationships: []
+      }
+      documents: {
+        Row: {
+          content: string | null
+          embedding: string | null
+          id: number
+          metadata: Json | null
+        }
+        Insert: {
+          content?: string | null
+          embedding?: string | null
+          id?: number
+          metadata?: Json | null
+        }
+        Update: {
+          content?: string | null
+          embedding?: string | null
+          id?: number
+          metadata?: Json | null
         }
         Relationships: []
       }
@@ -2374,6 +2416,24 @@ export type Database = {
           id?: string
           name?: string
           required_subscription_tier?: string
+        }
+        Relationships: []
+      }
+      n8n_chat_histories: {
+        Row: {
+          id: number
+          message: Json
+          session_id: string
+        }
+        Insert: {
+          id?: number
+          message: Json
+          session_id: string
+        }
+        Update: {
+          id?: number
+          message?: Json
+          session_id?: string
         }
         Relationships: []
       }
