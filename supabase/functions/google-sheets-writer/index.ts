@@ -323,6 +323,120 @@ async function handleUpdateField(
   }
 }
 
+// Fonction pour mettre à jour une ligne entière par ID
+async function handleUpdateRow(
+  spreadsheetId: string,
+  sheetName: string,
+  prospectId: string,
+  rowData: Record<string, any>,
+  accessToken: string,
+  corsHeaders: any,
+  userId?: string
+): Promise<Response> {
+  try {
+    console.log(`Mise à jour de la ligne ${prospectId} dans ${sheetName}`);
+
+    const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}`;
+    const readResponse = await fetch(readUrl, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (!readResponse.ok) {
+      const error = await readResponse.text();
+      return new Response(
+        JSON.stringify({ error: 'Impossible de lire la feuille', details: error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const sheetData = await readResponse.json();
+    const rows = sheetData.values || [];
+
+    if (rows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Feuille vide' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const headers = rows[0] || [];
+    const idIndex = findHeaderIndex(headers, 'id');
+    const userIdIndex = findHeaderIndex(headers, 'user_id');
+
+    if (idIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: 'Colonne id non trouvée' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let targetRowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] || [];
+      if (row[idIndex] === prospectId) {
+        if (userId && userIdIndex !== -1 && row[userIdIndex] && row[userIdIndex] !== userId) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied: vous ne pouvez pas modifier cette ligne' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        targetRowIndex = i;
+        break;
+      }
+    }
+
+    if (targetRowIndex === -1) {
+      return new Response(
+        JSON.stringify({ error: 'Ligne non trouvée' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Build the updated row values based on headers
+    const normalizedData = normalizeRowForSheet(rowData, userId);
+    const updatedRowValues = headers.map((header: string) => {
+      const normalizedHeader = normalizeHeaderKey(String(header || ''));
+      if (normalizedHeader === 'user_id') return userId || '';
+      if (normalizedHeader === 'id') return prospectId;
+      return normalizedData[normalizedHeader] !== undefined ? String(normalizedData[normalizedHeader]) : (rows[targetRowIndex]?.[headers.indexOf(header)] || '');
+    });
+
+    const actualRowNumber = targetRowIndex + 1; // 1-based
+    const maxCol = String.fromCharCode(65 + Math.min(headers.length - 1, 25));
+    const range = `${sheetName}!A${actualRowNumber}:${maxCol}${actualRowNumber}`;
+
+    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ values: [updatedRowValues] })
+    });
+
+    if (!updateResponse.ok) {
+      const error = await updateResponse.text();
+      return new Response(
+        JSON.stringify({ error: 'Mise à jour échouée', details: error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Ligne mise à jour avec succès');
+    return new Response(
+      JSON.stringify({ success: true, message: 'Ligne mise à jour', prospectId }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    console.error('Erreur handleUpdateRow:', error);
+    return new Response(
+      JSON.stringify({ error: 'Erreur serveur', details: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
 // Fonction pour supprimer une ligne par ID
 async function handleDeleteById(
   spreadsheetId: string,
@@ -537,7 +651,7 @@ serve(async (req) => {
       );
     }
 
-    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId, prospectId, fieldName, fieldValue } = await req.json();
+    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId, prospectId, fieldName, fieldValue, rowData } = await req.json();
     console.log('Request params:', { spreadsheetId, sheetName, operation, dataLength: data?.length, userId: userId?.substring(0, 8) + '...' });
 
     if (!spreadsheetId) {
@@ -565,10 +679,14 @@ serve(async (req) => {
       if (!prospectId) {
         return new Response(
           JSON.stringify({ error: 'prospectId est requis pour delete_by_id' }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (operation === 'update_row') {
+      if (!prospectId || !rowData) {
+        return new Response(
+          JSON.stringify({ error: 'prospectId et rowData sont requis pour update_row' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } else {
@@ -612,6 +730,11 @@ serve(async (req) => {
     if (operation === 'delete_by_id') {
       console.log('Traitement delete_by_id pour:', prospectId);
       return await handleDeleteById(spreadsheetId, sheetName, prospectId, accessToken, corsHeaders, userId);
+    }
+
+    if (operation === 'update_row') {
+      console.log('Traitement update_row pour:', prospectId);
+      return await handleUpdateRow(spreadsheetId, sheetName, prospectId, rowData, accessToken, corsHeaders, userId);
     }
       
     // Traitement pour les autres opérations (append, overwrite, etc.)

@@ -122,15 +122,45 @@ export const useRestaurationGoogleSheets = (userId?: string) => {
       id: `row_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       user_id: userId!
     };
-    const currentRows = data[sheetName] || [];
-    return writeToSheet(sheetName, [...currentRows, newRow], 'overwrite');
-  }, [data, userId, writeToSheet]);
+    return writeToSheet(sheetName, [newRow], 'append');
+  }, [userId, writeToSheet]);
 
   const updateRow = useCallback(async (sheetName: string, rowId: string, updatedFields: Record<string, any>) => {
-    const currentRows = data[sheetName] || [];
-    const updatedRows = currentRows.map(row => row.id === rowId ? { ...row, ...updatedFields } : row);
-    return writeToSheet(sheetName, updatedRows, 'overwrite');
-  }, [data, writeToSheet]);
+    if (!isUserValid || isWriting) return false;
+    setIsWriting(true);
+    try {
+      const result = await queueGoogleSheetsOperation(async () => {
+        const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
+          body: {
+            spreadsheetId: DEFAULT_SPREADSHEET_ID,
+            sheetName,
+            operation: 'update_row',
+            prospectId: rowId,
+            rowData: updatedFields,
+            userId
+          }
+        });
+        if (error) throw new Error(error.message);
+        return res;
+      });
+      if (result?.success) {
+        setData(prev => ({
+          ...prev,
+          [sheetName]: (prev[sheetName] || []).map(r =>
+            r.id === rowId ? { ...r, ...updatedFields } : r
+          )
+        }));
+        toast({ title: "✅ Mis à jour", description: "Ligne mise à jour avec succès" });
+        return true;
+      }
+      return false;
+    } catch (err) {
+      toast({ title: "❌ Erreur", description: err instanceof Error ? err.message : 'Erreur', variant: "destructive" });
+      return false;
+    } finally {
+      setIsWriting(false);
+    }
+  }, [isUserValid, isWriting, userId, toast]);
 
   const deleteRow = useCallback(async (sheetName: string, rowId: string) => {
     if (!isUserValid) return false;
