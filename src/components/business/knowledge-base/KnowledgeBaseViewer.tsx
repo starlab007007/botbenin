@@ -55,6 +55,7 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({ knowle
   const template = getTemplateById(kb.template_id);
   if (!template) return null;
 
+  const isGoogleSheetMode = template.googleSheetConfig && (template.id === 'ecommerce' || template.id === 'restaurant');
   const handleSave = async () => {
     const completion = calculateCompletion(editedData, editedStructuralInfo, template);
     const success = await updateKnowledgeBase(kb.id, {
