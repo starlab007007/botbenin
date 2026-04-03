@@ -679,10 +679,14 @@ serve(async (req) => {
       if (!prospectId) {
         return new Response(
           JSON.stringify({ error: 'prospectId est requis pour delete_by_id' }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (operation === 'update_row') {
+      if (!prospectId || !rowData) {
+        return new Response(
+          JSON.stringify({ error: 'prospectId et rowData sont requis pour update_row' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } else {
