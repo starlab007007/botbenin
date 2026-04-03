@@ -651,7 +651,7 @@ serve(async (req) => {
       );
     }
 
-    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId, prospectId, fieldName, fieldValue } = await req.json();
+    const { spreadsheetId, sheetName = 'Feuille 1', data, operation = 'append', userId, prospectId, fieldName, fieldValue, rowData } = await req.json();
     console.log('Request params:', { spreadsheetId, sheetName, operation, dataLength: data?.length, userId: userId?.substring(0, 8) + '...' });
 
     if (!spreadsheetId) {
