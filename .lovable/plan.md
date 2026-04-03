@@ -1,40 +1,27 @@
 
 
-# Plan : Simplifier la navigation sidebar - 4 modules uniquement
+# Plan : Supprimer les doublons — afficher uniquement le contenu Google Sheets
 
-## Contexte
-La sidebar `ModernSidebar.tsx` contient actuellement 7 sections avec 12+ items. L'objectif est de n'afficher que 4 modules principaux, en masquant (commentant) les autres sans les supprimer.
+## Probleme identifie
 
-## 4 modules a garder
+Dans `KnowledgeBaseViewer.tsx`, quand un template a une config Google Sheets (E-commerce ou Restauration), le composant affiche **deux fois** les memes donnees :
+1. Les onglets du template (Infos Essentielles, Produits, Commandes, Clients, etc.) via `DataTableEditor` — donnees locales vides ou redondantes
+2. Le viewer Google Sheets (`EcommerceSheetViewer` / `RestaurationSheetViewer`) en dessous — les vraies donnees synchronisees
 
-| Module | Route | Icon | Description |
-|--------|-------|------|-------------|
-| Dashboard | `/dashboard` | BarChart3 | Tableaux de bord |
-| Mes Bots | `/bots` | Bot | Gestion des bots |
-| CRM | `/prospects` | Target | Fusion Création Bots + Prospects |
-| WhatsApp IA | `/whatsapp-connect` | WhatsApp icon | Connexion WhatsApp |
+Resultat : doublons visuels de Produits, Commandes, Promos, Clients, etc.
 
-## Fichiers a modifier
+## Solution
 
-### 1. `src/components/navigation/ModernSidebar.tsx`
-- Remplacer toutes les sections actuelles (Menu Principal, Bots & Automatisation, Communication, CRM & Prospects, Modules IA, Ressources) par une seule section "Menu Principal" contenant les 4 items
-- Masquer via commentaire les arrays : `mainMenuItems` (Accueil, Kpakpato), `botManagementItems` (Création Bots), `crmItems` (IA Prospect, IA Business), `aiModules` (IA Créateur), `resourceItems` (Fonctionnalités)
-- Conserver la section Administration (admin only) et Mon Compte en bas
-- Le CRM regroupera l'accès aux sous-pages Prospects + Knowledge Bases depuis sa page
+Quand un template a `googleSheetConfig` (E-commerce ou Restauration), afficher **uniquement** le Google Sheets viewer correspondant. Masquer les onglets template (`DataTableEditor` + `StructuralInfoForm`) qui ne servent pas puisque toutes les infos essentielles sont dans le Google Sheet.
 
-### 2. `src/components/Sidebar.tsx`
-- Mettre a jour les `menuItems` pour refléter les 4 modules : Dashboard, Mes Bots, CRM, WhatsApp IA
-- Supprimer la section `aiModules` (Agent IA Business)
+## Fichier a modifier
 
-### 3. `src/components/MobileSidebar.tsx`
-- Meme simplification : 4 items principaux uniquement
-- Supprimer la section `aiModules`
+### `src/components/business/knowledge-base/KnowledgeBaseViewer.tsx`
 
-### 4. `src/components/navigation/ModernTopHeader.tsx`
-- Mettre a jour les `navItems` pour correspondre aux 4 modules
+- Ajouter une condition : `const isGoogleSheetMode = template.googleSheetConfig && (template.id === 'ecommerce' || template.id === 'restaurant');`
+- Si `isGoogleSheetMode` est vrai : ne pas rendre le bloc `<Tabs>` (onglets Infos Essentielles + tables template), afficher uniquement le viewer Google Sheets
+- Conserver le header (bouton retour, nom, badge, progression, export, save)
+- Le bouton "Enregistrer" et l'export restent disponibles mais les onglets locaux disparaissent
 
-## Details techniques
-- Les routes existantes (`/modules/business`, `/knowledge-bases`, `/ia-prospect-precall`, etc.) restent dans `App.tsx` et accessibles par URL directe
-- Seule la navigation visible est simplifiée
-- Le code masqué sera commenté avec `// HIDDEN - kept for future use`
+Cela supprime tout doublon : un seul endroit pour gerer les donnees, le Google Sheet synchronise.
 
