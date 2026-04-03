@@ -151,9 +151,8 @@ export const useEcommerceGoogleSheets = (userId?: string) => {
       id: `row_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       user_id: userId!
     };
-    const currentRows = data[sheetName] || [];
-    return writeToSheet(sheetName, [...currentRows, newRow], 'overwrite');
-  }, [data, userId, writeToSheet]);
+    return writeToSheet(sheetName, [newRow], 'append');
+  }, [userId, writeToSheet]);
 
   const updateRow = useCallback(async (sheetName: string, rowId: string, updatedFields: Record<string, any>) => {
     const currentRows = data[sheetName] || [];
