@@ -94,16 +94,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-[95vw] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-center">Connexion / Inscription</DialogTitle>
+          <DialogTitle className="text-center text-lg sm:text-xl">Connexion / Inscription</DialogTitle>
         </DialogHeader>
         
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="login">Connexion</TabsTrigger>
-            <TabsTrigger value="register">Inscription</TabsTrigger>
-            <TabsTrigger value="reset">Mot de passe</TabsTrigger>
+            <TabsTrigger value="login" className="text-xs sm:text-sm">Connexion</TabsTrigger>
+            <TabsTrigger value="register" className="text-xs sm:text-sm">Inscription</TabsTrigger>
+            <TabsTrigger value="reset" className="text-xs sm:text-sm">Mot de passe</TabsTrigger>
           </TabsList>
           
           <TabsContent value="login">
