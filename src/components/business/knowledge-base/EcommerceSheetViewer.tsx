@@ -185,8 +185,8 @@ export const EcommerceSheetViewer: React.FC<EcommerceSheetViewerProps> = ({ know
               {Object.entries(SHEET_CONFIGS).map(([key, cfg]) => (
                 <TabsTrigger key={key} value={key} className="text-[10px] sm:text-xs whitespace-nowrap gap-1 px-2 sm:px-3">
                   {cfg.icon}
-                  <span className={isMobile ? 'hidden' : ''}>{cfg.label}</span>
-                  <Badge variant="outline" className="text-[9px] ml-0.5 h-4 px-1">{(data[key] || []).length}</Badge>
+                  <span className="text-[10px] sm:text-xs">{cfg.label}</span>
+                  <Badge variant="outline" className="text-[9px] ml-0.5 h-4 px-1 hidden sm:inline-flex">{(data[key] || []).length}</Badge>
                 </TabsTrigger>
               ))}
             </TabsList>
