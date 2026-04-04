@@ -272,17 +272,19 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({ table, data, o
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="fixed inset-auto left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] w-[90vw] sm:max-w-2xl h-[90dvh] sm:h-auto max-h-[90dvh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-xl sm:rounded-lg border">
-          <DialogHeader className="sticky top-0 bg-background z-10 pb-3 border-b sm:border-b-0 -mx-4 px-4 -mt-4 pt-4 sm:mx-0 sm:px-0 sm:mt-0 sm:pt-0 sm:pb-0 sm:relative">
-            <DialogTitle className="text-base sm:text-lg pr-8">
-              {editingIndex !== null ? 'Modifier' : 'Ajouter'} — {table.name}
-            </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              Remplissez les champs ci-dessous
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 py-3 sm:py-4">
+        <DialogContent className="flex flex-col w-[90vw] sm:max-w-2xl max-h-[85dvh] sm:max-h-[85vh] overflow-hidden p-0 rounded-xl sm:rounded-lg border">
+          <div className="shrink-0 p-4 sm:p-6 pb-3 border-b bg-background">
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg pr-8">
+                {editingIndex !== null ? 'Modifier' : 'Ajouter'} — {table.name}
+              </DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
+                Remplissez les champs ci-dessous
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 py-4">
               {table.fields.map(field => (
                 <div key={field.name} className={field.type === 'textarea' || field.type === 'image' || field.type === 'file' || field.type === 'datetime' || field.type === 'address' ? 'md:col-span-2' : ''}>
                   <Label className="text-xs sm:text-sm font-medium block mb-1.5">
@@ -294,7 +296,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({ table, data, o
               ))}
             </div>
           </div>
-          <div className="sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t -mx-4 px-4 -mb-4 pb-4 sm:mx-0 sm:px-0 sm:mb-0 sm:pb-0">
+          <div className="shrink-0 flex flex-col-reverse sm:flex-row justify-end gap-2 p-4 sm:px-6 border-t bg-background">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">Annuler</Button>
             <Button onClick={handleSave} className="w-full sm:w-auto h-11 sm:h-10">
               {editingIndex !== null ? 'Modifier' : 'Ajouter'}
