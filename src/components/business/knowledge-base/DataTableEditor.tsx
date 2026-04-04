@@ -272,29 +272,31 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({ table, data, o
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[100vw] sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto p-3 sm:p-6 rounded-none sm:rounded-lg inset-0 sm:inset-auto sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] w-full h-[100dvh] sm:h-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">
+        <DialogContent className="fixed inset-0 sm:inset-auto sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 w-full sm:max-w-2xl h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-none sm:rounded-lg border-0 sm:border">
+          <DialogHeader className="sticky top-0 bg-background z-10 pb-3 border-b sm:border-b-0 -mx-4 px-4 -mt-4 pt-4 sm:mx-0 sm:px-0 sm:mt-0 sm:pt-0 sm:pb-0 sm:relative">
+            <DialogTitle className="text-base sm:text-lg pr-8">
               {editingIndex !== null ? 'Modifier' : 'Ajouter'} — {table.name}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
               Remplissez les champs ci-dessous
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 py-4">
-            {table.fields.map(field => (
-              <div key={field.name} className={field.type === 'textarea' || field.type === 'image' || field.type === 'file' || field.type === 'datetime' || field.type === 'address' ? 'md:col-span-2' : ''}>
-                <Label className="text-xs sm:text-sm font-medium">
-                  {field.name}
-                  {field.required && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <div className="mt-1.5">{renderField(field)}</div>
-              </div>
-            ))}
+          <div className="flex-1 overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 py-3 sm:py-4">
+              {table.fields.map(field => (
+                <div key={field.name} className={field.type === 'textarea' || field.type === 'image' || field.type === 'file' || field.type === 'datetime' || field.type === 'address' ? 'md:col-span-2' : ''}>
+                  <Label className="text-xs sm:text-sm font-medium block mb-1.5">
+                    {field.name}
+                    {field.required && <span className="text-destructive ml-1">*</span>}
+                  </Label>
+                  <div>{renderField(field)}</div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">Annuler</Button>
-            <Button onClick={handleSave} className="w-full sm:w-auto">
+          <div className="sticky bottom-0 bg-background z-10 flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t -mx-4 px-4 -mb-4 pb-4 sm:mx-0 sm:px-0 sm:mb-0 sm:pb-0">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">Annuler</Button>
+            <Button onClick={handleSave} className="w-full sm:w-auto h-11 sm:h-10">
               {editingIndex !== null ? 'Modifier' : 'Ajouter'}
             </Button>
           </div>
