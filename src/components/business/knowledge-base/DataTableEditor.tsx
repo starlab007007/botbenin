@@ -272,7 +272,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({ table, data, o
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="fixed inset-0 sm:inset-auto sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] translate-x-0 translate-y-0 w-full sm:max-w-2xl h-[100dvh] sm:h-auto max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-none sm:rounded-lg border-0 sm:border">
+        <DialogContent className="fixed inset-auto left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] w-[90vw] sm:max-w-2xl h-[90dvh] sm:h-auto max-h-[90dvh] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-xl sm:rounded-lg border">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-3 border-b sm:border-b-0 -mx-4 px-4 -mt-4 pt-4 sm:mx-0 sm:px-0 sm:mt-0 sm:pt-0 sm:pb-0 sm:relative">
             <DialogTitle className="text-base sm:text-lg pr-8">
               {editingIndex !== null ? 'Modifier' : 'Ajouter'} — {table.name}
