@@ -131,16 +131,16 @@ const AuthPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <Dialog open={true} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-center text-2xl">Connexion / Inscription</DialogTitle>
+            <DialogTitle className="text-center text-xl sm:text-2xl">Connexion / Inscription</DialogTitle>
           </DialogHeader>
           
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="login">Connexion</TabsTrigger>
-              <TabsTrigger value="register">Inscription</TabsTrigger>
-              <TabsTrigger value="reset">Mot de passe</TabsTrigger>
+              <TabsTrigger value="login" className="text-xs sm:text-sm">Connexion</TabsTrigger>
+              <TabsTrigger value="register" className="text-xs sm:text-sm">Inscription</TabsTrigger>
+              <TabsTrigger value="reset" className="text-xs sm:text-sm">Mot de passe</TabsTrigger>
             </TabsList>
             
             {/* Login Tab */}

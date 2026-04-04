@@ -252,7 +252,7 @@ export const EcommerceSheetViewer: React.FC<EcommerceSheetViewerProps> = ({ know
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+        <DialogContent className="max-w-[100vw] sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto p-3 sm:p-6 rounded-none sm:rounded-lg inset-0 sm:inset-auto sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] w-full h-[100dvh] sm:h-auto">
           <DialogHeader>
             <DialogTitle className="text-base">{editingRow ? 'Modifier' : 'Ajouter'} — {currentConfig?.label}</DialogTitle>
             <DialogDescription className="text-xs">Synchronisé avec Google Sheets</DialogDescription>
