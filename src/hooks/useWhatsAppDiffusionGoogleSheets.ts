@@ -16,7 +16,15 @@ export interface WhatsAppDiffusionRow {
 
 const DEFAULT_SPREADSHEET_ID = '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k';
 // Try multiple sheet names (Google Sheets default is "Feuille 1" in French, "Sheet1" in English)
-const SHEET_NAME_CANDIDATES = ['Feuille 1', 'Sheet1', 'Feuil1', 'Feuille1'];
+const SHEET_NAME_CANDIDATES = [
+  'Diffusion Whatsapp',
+  'Diffusion WhatsApp',
+  'Contacts',
+  'Feuille 1',
+  'Feuil1',
+  'Feuille1',
+  'Sheet1',
+];
 
 const normalizeHeaderKey = (value: string) =>
   value
@@ -40,13 +48,23 @@ const normalizeRowKeys = (row: Record<string, any>): Record<string, any> => {
   return normalized;
 };
 
+// Only these fields are editable from the front. We never send business columns
+// like STATUT_ENVOI / DATE_ENVOI / ERREUR / TOTAL_CONTACT_TRAITE so they remain intact.
+const buildEditablePayload = (row: Record<string, any>) => ({
+  id_campagne: row.id_campagne ?? '',
+  nom_campagne: row.nom_campagne ?? '',
+  nom_contact: row.nom_contact ?? '',
+  contact_whatsapp: row.contact_whatsapp ?? '',
+  statut: row.statut ?? 'Actif',
+});
+
 export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
   const [data, setData] = useState<WhatsAppDiffusionRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [lastSync, setLastSync] = useState<Date | null>(null);
-  const [activeSheetName, setActiveSheetName] = useState<string>('Feuille 1');
+  const [activeSheetName, setActiveSheetName] = useState<string>('Diffusion Whatsapp');
   const { toast } = useToast();
 
   const isUserValid = !!userId && userId !== 'unknown' && userId.trim() !== '';
@@ -90,14 +108,22 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
       if (result?.data && Array.isArray(result.data)) {
         rows = result.data
           .map((item: any) => normalizeRowKeys(item))
-          // STRICT user isolation: only show rows where user_id EXACTLY matches the authenticated user.
-          // Reject orphan rows (no user_id) AND rows belonging to other users.
-          .filter((item: any) => String(item.user_id || '').trim() === userId)
+          // STRICT user isolation:
+          // - Reject orphan rows (reader marks them with _isOrphan = true) so users
+          //   never see legacy rows that don't belong to them.
+          // - Only show rows where the SHEET's user_id EXACTLY matches the auth user.
+          .filter((item: any) => {
+            if (item._isOrphan === true) return false;
+            return String(item.user_id || '').trim() === userId;
+          })
           .map((item: any) => ({
             ...item,
-            id: item.id || `row_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            // CRITICAL: keep the id provided by the reader (gs_<ts>_<idx> or real id).
+            // Regenerating it would break update/delete operations.
+            id: String(item.id || ''),
             user_id: userId!,
-          }));
+          }))
+          .filter((item: any) => !!item.id);
       }
       setData(rows);
       setConnectionStatus('connected');
@@ -117,10 +143,11 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
     if (!isUserValid || isWriting) return false;
     setIsWriting(true);
     try {
-      const newRow: WhatsAppDiffusionRow = {
-        ...row,
+      const editable = buildEditablePayload(row);
+      const newRow = {
+        ...editable,
         id: `row_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        user_id: userId!
+        user_id: userId!,
       };
       const result = await queueGoogleSheetsOperation(async () => {
         const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
@@ -158,6 +185,13 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
       // Optimistic UI update
       setData(prev => prev.map(r => (r.id === rowId ? { ...r, ...updatedFields } : r)));
 
+      // Send only editable fields so business columns (STATUT_ENVOI, DATE_ENVOI, …)
+      // are never overwritten by the writer.
+      const editable = buildEditablePayload({
+        ...(data.find(r => r.id === rowId) || {}),
+        ...updatedFields,
+      });
+
       const result = await queueGoogleSheetsOperation(async () => {
         const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
           body: {
@@ -165,7 +199,7 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
             sheetName: activeSheetName,
             operation: 'update_row',
             prospectId: rowId,
-            rowData: { ...updatedFields, user_id: userId },
+            rowData: { ...editable, user_id: userId },
             userId
           }
         });
@@ -188,7 +222,7 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
     } finally {
       setIsWriting(false);
     }
-  }, [isUserValid, isWriting, userId, toast, activeSheetName, loadSheet]);
+  }, [isUserValid, isWriting, userId, toast, activeSheetName, loadSheet, data]);
 
   const deleteRow = useCallback(async (rowId: string) => {
     if (!isUserValid) return false;

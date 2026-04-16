@@ -19,6 +19,13 @@ const findHeaderIndex = (headers: string[], expectedKey: string): number => {
   return headers.findIndex((header) => normalizeHeaderKey(String(header || '')) === normalizedExpected);
 };
 
+// Aliases: when payload uses a "short" key, also write to the actual sheet column with a different name.
+// Example: payload `statut` should also populate `STATUT(Actif/Inactif)` (normalized = `statut_actif_inactif`).
+const HEADER_ALIASES: Record<string, string[]> = {
+  statut: ['statut_actif_inactif'],
+  statut_actif_inactif: ['statut'],
+};
+
 const normalizeRowForSheet = (item: Record<string, any>, userId?: string, index = 0): Record<string, string> => {
   const normalized: Record<string, string> = {};
 
@@ -26,6 +33,11 @@ const normalizeRowForSheet = (item: Record<string, any>, userId?: string, index 
     const normalizedKey = normalizeHeaderKey(rawKey);
     if (!normalizedKey || normalizedKey === '_isorphan' || rawValue === undefined || rawValue === null) return;
     normalized[normalizedKey] = String(rawValue);
+    // Propagate aliases so writers find the value under the actual sheet column name
+    const aliases = HEADER_ALIASES[normalizedKey] || [];
+    aliases.forEach((alias) => {
+      if (!(alias in normalized)) normalized[alias] = String(rawValue);
+    });
   });
 
   if (!normalized.id) {
@@ -35,6 +47,17 @@ const normalizeRowForSheet = (item: Record<string, any>, userId?: string, index 
   normalized.user_id = String(normalized.user_id || userId || '');
 
   return normalized;
+};
+
+// Convert 0-based column index to A1 letter (supports >26: AA, AB, ...)
+const colIndexToLetter = (index: number): string => {
+  let n = index;
+  let result = '';
+  do {
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return result;
 };
 
 // Fonction simplifiée pour générer un token d'accès Google avec JWT manuel
@@ -402,7 +425,7 @@ async function handleUpdateRow(
     });
 
     const actualRowNumber = targetRowIndex + 1; // 1-based
-    const maxCol = String.fromCharCode(65 + Math.min(headers.length - 1, 25));
+    const maxCol = colIndexToLetter(headers.length - 1);
     const range = `${sheetName}!A${actualRowNumber}:${maxCol}${actualRowNumber}`;
 
     const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
@@ -824,33 +847,73 @@ serve(async (req) => {
       let method: string;
       
       if (operation === 'append') {
-        // S'assurer que les en-têtes existent d'abord
-        console.log('Vérification des en-têtes avant append...');
+        // NON-DESTRUCTIVE append: read existing headers, append missing columns AT THE END
+        // (without touching existing business columns), then realign rows to actual sheet header order.
+        console.log('Vérification des en-têtes avant append (mode non-destructif)...');
         const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!1:1`;
         const readResponse = await fetch(readUrl, {
           headers: { 'Authorization': `Bearer ${accessToken}` }
         });
-        
+
+        let existingHeaders: string[] = [];
         if (readResponse.ok) {
           const sheetInfo = await readResponse.json();
-          const existingHeaders = sheetInfo.values?.[0] || [];
-          
-          // Si pas d'en-têtes ou en-têtes incomplets, les créer d'abord
-           const existingNormalizedHeaders = existingHeaders.map((h: string) => normalizeHeaderKey(String(h || '')));
-           if (existingHeaders.length === 0 || !headers.every(h => existingNormalizedHeaders.includes(normalizeHeaderKey(h)))) {
-            console.log('Création/mise à jour des en-têtes...');
-            const headerUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}!1:1?valueInputOption=USER_ENTERED`;
-            await fetch(headerUrl, {
+          existingHeaders = sheetInfo.values?.[0] || [];
+        }
+
+        if (existingHeaders.length === 0) {
+          // Sheet vide : créer la ligne d'entêtes complète
+          console.log('Feuille vide - création des en-têtes initiaux:', headers);
+          const headerRange = `${sheetName}!A1:${colIndexToLetter(headers.length - 1)}1`;
+          const headerUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(headerRange)}?valueInputOption=USER_ENTERED`;
+          await fetch(headerUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+            body: JSON.stringify({ values: [headers] })
+          });
+          existingHeaders = [...headers];
+        } else {
+          // Identifier les colonnes manquantes parmi celles attendues (sans toucher aux existantes)
+          const existingNorm = existingHeaders.map((h: string) => normalizeHeaderKey(String(h || '')));
+          const missing: string[] = [];
+          headers.forEach((h) => {
+            const hn = normalizeHeaderKey(h);
+            const aliases = HEADER_ALIASES[hn] || [];
+            const isPresent = existingNorm.includes(hn) || aliases.some((a) => existingNorm.includes(a));
+            if (!isPresent && !missing.includes(h)) missing.push(h);
+          });
+
+          if (missing.length > 0) {
+            console.log('Ajout de colonnes manquantes (non-destructif):', missing);
+            const startCol = colIndexToLetter(existingHeaders.length);
+            const endCol = colIndexToLetter(existingHeaders.length + missing.length - 1);
+            const appendHeadersRange = `${sheetName}!${startCol}1:${endCol}1`;
+            const appendHeadersUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(appendHeadersRange)}?valueInputOption=USER_ENTERED`;
+            await fetch(appendHeadersUrl, {
               method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({ values: [headers] })
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+              body: JSON.stringify({ values: [missing] })
             });
+            existingHeaders = [...existingHeaders, ...missing];
           }
         }
-        
+
+        // Reconstruire `values` en respectant l'ordre RÉEL des en-têtes du sheet
+        values = normalizedData.map((item: Record<string, string>) =>
+          existingHeaders.map((header: string) => {
+            const hn = normalizeHeaderKey(String(header || ''));
+            if (hn === 'user_id') return String(item.user_id || userId || '');
+            if (hn === 'id') return String(item.id || '');
+            if (item[hn] !== undefined) return String(item[hn]);
+            // try aliases
+            const aliases = HEADER_ALIASES[hn] || [];
+            for (const a of aliases) {
+              if (item[a] !== undefined) return String(item[a]);
+            }
+            return '';
+          })
+        );
+
         // Utiliser l'API append qui gère automatiquement les ranges
         url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
         method = 'POST';
