@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Save, Download, FileJson, FileSpreadsheet, FileText } from 'lucide-react';
 import { EcommerceSheetViewer } from './EcommerceSheetViewer';
 import { RestaurationSheetViewer } from './RestaurationSheetViewer';
+import { WhatsAppDiffusionSheetViewer } from './WhatsAppDiffusionSheetViewer';
 import { KnowledgeBase } from '@/types/knowledge-base';
 import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
 import { useKnowledgeBaseTemplates } from '@/hooks/useKnowledgeBaseTemplates';
@@ -55,7 +56,7 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({ knowle
   const template = getTemplateById(kb.template_id);
   if (!template) return null;
 
-  const isGoogleSheetMode = template.googleSheetConfig && (template.id === 'ecommerce' || template.id === 'restaurant');
+  const isGoogleSheetMode = template.googleSheetConfig && (template.id === 'ecommerce' || template.id === 'restaurant' || template.id === 'whatsapp_diffusion');
   const handleSave = async () => {
     const completion = calculateCompletion(editedData, editedStructuralInfo, template);
     const success = await updateKnowledgeBase(kb.id, {
@@ -131,6 +132,9 @@ export const KnowledgeBaseViewer: React.FC<KnowledgeBaseViewerProps> = ({ knowle
           )}
           {template.id === 'restaurant' && (
             <RestaurationSheetViewer knowledgeBaseId={kb.id} />
+          )}
+          {template.id === 'whatsapp_diffusion' && (
+            <WhatsAppDiffusionSheetViewer knowledgeBaseId={kb.id} />
           )}
         </>
       ) : (

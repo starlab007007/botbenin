@@ -528,5 +528,34 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
         ]
       }
     ]
+  },
+  {
+    id: 'whatsapp_diffusion',
+    sector: 'whatsapp_diffusion',
+    name: 'Diffusion WhatsApp',
+    description: 'Gérez vos contacts pour les campagnes de diffusion WhatsApp',
+    icon: 'MessageCircle',
+    color: 'from-green-500 to-emerald-600',
+    googleSheetConfig: {
+      spreadsheetId: '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k',
+      sheets: ['Sheet1']
+    },
+    structuralInfo: [],
+    tables: [
+      {
+        id: 'contacts',
+        name: 'Contacts',
+        description: 'Liste des contacts WhatsApp pour campagnes (synchronisé Google Sheets)',
+        required: true,
+        icon: 'MessageCircle',
+        fields: [
+          { name: 'id_campagne', type: 'text', required: false, placeholder: 'Auto-généré' },
+          { name: 'nom_campagne', type: 'text', required: false, placeholder: 'Récupéré après création' },
+          { name: 'nom_contact', type: 'text', required: true, placeholder: 'Adjoua Koffi' },
+          { name: 'contact_whatsapp', type: 'phone', required: true, placeholder: '+22997XXXXXXX' },
+          { name: 'statut', type: 'select', required: true, options: ['Actif', 'Inactif'] }
+        ]
+      }
+    ]
   }
 ];

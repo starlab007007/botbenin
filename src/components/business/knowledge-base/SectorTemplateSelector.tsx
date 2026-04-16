@@ -9,6 +9,7 @@ import {
   GraduationCap, 
   School, 
   Hospital,
+  MessageCircle,
   ArrowRight
 } from 'lucide-react';
 import { KnowledgeBaseTemplate } from '@/types/knowledge-base';
@@ -26,7 +27,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   ShoppingCart,
   GraduationCap,
   School,
-  Hospital
+  Hospital,
+  MessageCircle
 };
 
 export const SectorTemplateSelector: React.FC<SectorTemplateSelectorProps> = ({ 

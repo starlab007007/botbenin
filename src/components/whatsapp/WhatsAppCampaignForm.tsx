@@ -149,6 +149,11 @@ export const WhatsAppCampaignForm: React.FC = () => {
 
       if (!res.ok) throw new Error(`Erreur ${res.status}`);
 
+      // Mémoriser le nom pour pré-remplir la base de connaissances "Diffusion WhatsApp"
+      try {
+        if (user?.id) localStorage.setItem(`last_campaign_name_${user.id}`, campaignName.trim());
+      } catch {}
+
       toast({ title: 'Campagne soumise ✅', description: 'Votre campagne a été envoyée avec succès.' });
       setCampaignName('');
       setCampaignType('');
