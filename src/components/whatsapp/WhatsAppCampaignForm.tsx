@@ -109,18 +109,9 @@ export const WhatsAppCampaignForm: React.FC = () => {
     return digits.length === 11 && digits.startsWith('229');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePreviewSubmit = async (contacts: { name: string; whatsapp: string }[]) => {
     if (!user) return;
-    if (!webhookUrl || !webhookLocked) {
-      toast({ title: 'Webhook requis', description: 'Configurez et verrouillez le webhook avant de soumettre.', variant: 'destructive' });
-      return;
-    }
-    if (!validateBeninPhone(reportNumber)) {
-      toast({ title: 'Numéro invalide', description: 'Format attendu : +229 suivi de 8 chiffres.', variant: 'destructive' });
-      return;
-    }
-
+    setShowPreview(false);
     setLoading(true);
     try {
       let mediaBase64: string | null = null;
@@ -145,6 +136,7 @@ export const WhatsAppCampaignForm: React.FC = () => {
         media: mediaBase64 ? { base64: mediaBase64, name: mediaName, mimeType: mediaMimeType } : null,
         sessionId: selectedSession,
         reportNumber: reportNumber.trim(),
+        contacts: contacts.map(c => ({ name: c.name, whatsapp: c.whatsapp })),
         userId: user.id,
         timestamp: new Date().toISOString(),
       };
@@ -169,6 +161,10 @@ export const WhatsAppCampaignForm: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
   };
 
   const showMediaField = campaignType === 'photo' || campaignType === 'video';
