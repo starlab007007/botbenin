@@ -230,24 +230,35 @@ serve(async (req) => {
 
     console.log(`Final WAHA response status: ${wahaResponse?.status || 'NO_RESPONSE'}`);
 
-    // Gestion d'erreur si aucune méthode d'auth n'a fonctionné
+    // Forward the actual WAHA error so the client sees the real reason
     if (!wahaResponse || !wahaResponse.ok) {
+      const status = wahaResponse?.status || 500;
+      let wahaBody: any = null;
+      try {
+        const text = await wahaResponse!.text();
+        try { wahaBody = JSON.parse(text); } catch { wahaBody = text; }
+      } catch { /* ignore */ }
+
+      const isAuthError = status === 401 || status === 403;
+      const errorLabel = isAuthError
+        ? 'X-Api-Key authentication failed'
+        : `WAHA request failed (${status})`;
+
       const errorDetails = {
-        error: 'X-Api-Key authentication failed',
-        wahaStatus: wahaResponse?.status || 'NO_RESPONSE',
+        error: errorLabel,
+        message: typeof wahaBody === 'object' ? (wahaBody?.message || wahaBody?.error || JSON.stringify(wahaBody)) : String(wahaBody || ''),
+        wahaStatus: status,
+        wahaBody,
         lastError,
         method: 'X-Api-Key',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-      
-      console.error('❌ X-Api-Key authentication failed:', errorDetails);
-      
+
+      console.error(`❌ ${errorLabel}:`, errorDetails);
+
       return new Response(JSON.stringify(errorDetails), {
-        status: wahaResponse?.status || 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
