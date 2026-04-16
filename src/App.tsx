@@ -63,6 +63,7 @@ const SocialSharingCampaignsPage = lazy(() => import("./pages/SocialSharingCampa
 
 // WhatsApp Connect
 const WhatsAppConnectPage = lazy(() => import("./pages/WhatsAppConnectPage"));
+const WhatsAppDiffusionPage = lazy(() => import("./pages/WhatsAppDiffusionPage"));
 
 // SEO Pages
 const PricingPage = lazy(() => import("./pages/PricingPage").then(module => ({ default: module.PricingPage })));
@@ -137,6 +138,7 @@ const AppContent = () => {
                     
                     {/* WhatsApp Connect */}
                     <Route path="/whatsapp-connect" element={<WhatsAppConnectPage />} />
+                    <Route path="/whatsapp-diffusion" element={<WhatsAppDiffusionPage />} />
                     
                     {/* SEO Pages */}
                     <Route path="/features" element={<FeaturesPage />} />
