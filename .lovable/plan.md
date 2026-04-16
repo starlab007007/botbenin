@@ -1,88 +1,84 @@
 
 
-# Plan : Template "Diffusion WhatsApp" dans Création Bots
+# Plan : Mapping correct entre le formulaire et le Google Sheet
 
-## Resume
+## Strategie
 
-Ajouter un nouveau template sectoriel **"Diffusion WhatsApp"** dans `Créer une Base de Connaissances`, synchronisé avec le Google Sheet `1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k` (feuille `Sheet1`, gid=215334820). Architecture identique à E-commerce/Restauration : isolation par `user_id` aux 3 niveaux (frontend, edge function reader, edge function writer).
+Adapter le **front + le hook** au schema **REEL** du Google Sheet sans toucher aux colonnes metier (`STATUT_ENVOI`, `DATE_ENVOI`, `ERREUR`, `TOTAL_CONTACT_TRAITE`). Ajouter `user_id` et `id` au sheet **de maniere additive** (sans ecraser les autres colonnes), pour que :
+- Le filtrage par utilisateur soit reel (chaque user voit uniquement ses lignes)
+- Update/delete par `id` fonctionne sur les lignes existantes
+- Le toggle `STATUT(Actif/Inactif)` ecrive dans la BONNE colonne
 
-## Colonnes du Google Sheet
+## Bugs identifies
 
-| Colonne | Generation | Editable utilisateur |
+| # | Bug | Cause |
 |---|---|---|
-| `ID_CAMPAGNE` | Auto (UUID/timestamp) | Non (lecture seule) |
-| `NOM_CAMPAGNE` | Recupere apres creation campagne (depuis WhatsApp Diffusion) | Non (lecture seule) |
-| `NOM_CONTACT` | Saisie utilisateur | Oui |
-| `CONTACT_WHATSAPP` | Saisie utilisateur | Oui |
-| `STATUT` | Choix utilisateur (Actif / Inactif) | Oui (toggle) |
-| `user_id` | Auto (auth) | Non (filtre RLS) |
+| 1 | Lignes existantes invisibles | Front re-genere un nouvel `id` a chaque refresh, casse update/delete |
+| 2 | Append ecrase la ligne d'entetes | Writer reecrit `headers` avec `[user_id,id,id_campagne,...,statut]` -> detruit STATUT_ENVOI/DATE_ENVOI/ERREUR |
+| 3 | Statut ecrit dans la mauvaise colonne | Front envoie `statut`, sheet a `STATUT(Actif/Inactif)` |
+| 4 | Update/delete impossible | Pas de colonne `id` dans le sheet -> writer renvoie 400 "Colonne id non trouvee" |
+| 5 | Tous les users voient toutes les lignes | Pas de colonne `user_id` -> reader injecte `user_id=currentUser` sur tout |
 
-## Fichiers a creer
+## Corrections
 
-### 1. `src/hooks/useWhatsAppDiffusionGoogleSheets.ts`
-Copie adaptee de `useRestaurationGoogleSheets.ts` :
-- `DEFAULT_SPREADSHEET_ID = '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k'`
-- Feuille unique : `Sheet1` (ou nom reel a confirmer cote Sheet)
-- Memes fonctions : `loadSheet`, `loadAllSheets`, `addRow`, `updateRow`, `deleteRow`
-- Filtrage `user_id` cote frontend + delegation a `google-sheets-reader`/`google-sheets-writer` (deja gerent l'isolation)
+### 1. `supabase/functions/google-sheets-writer/index.ts` — append non-destructif
 
-### 2. `src/components/business/knowledge-base/WhatsAppDiffusionSheetViewer.tsx`
-Inspire de `RestaurationSheetViewer.tsx` mais simplifie (1 seule feuille) :
-- Liste responsive (table desktop / cards stackees mobile) des contacts
-- Colonnes affichees : `ID_CAMPAGNE` (badge gris readonly), `NOM_CAMPAGNE` (badge readonly), `NOM_CONTACT` (editable), `CONTACT_WHATSAPP` (editable, format +229), `STATUT` (Switch Actif/Inactif inline)
-- Boutons : `Ajouter contact`, `Modifier`, `Supprimer`, `Rafraichir`
-- Dialog d'ajout/edition responsive (`max-h-[90dvh]`, scroll body) avec uniquement les champs editables (`NOM_CONTACT`, `CONTACT_WHATSAPP`, `STATUT`)
-- A l'ajout : `ID_CAMPAGNE` genere automatiquement (`CAMP_${userId}_${timestamp}`), `NOM_CAMPAGNE` laisse vide ou pre-rempli depuis le dernier nom de campagne envoye via WhatsApp Diffusion (lu depuis `localStorage` cle `last_campaign_name_{userId}`)
-- Recherche + filtre par STATUT
-- Toggle Switch direct dans la liste pour basculer Actif/Inactif sans ouvrir de dialog
+**Lignes 826-852** : Au lieu de comparer `headers.every(h => existing.includes(h))` et reecrire toute la ligne 1, faire :
+- Lire les entetes existants
+- Pour chaque header attendu manquant (`user_id`, `id`), **APPENDER** une nouvelle colonne a la fin (PUT sur `${sheetName}!{nextCol}1`) sans toucher aux colonnes existantes
+- Recharger les entetes apres ajout
+- Construire la ligne a appender en **respectant l'ordre des entetes reels du sheet** (les colonnes inconnues du payload restent vides)
 
-## Fichiers a modifier
+### 2. `supabase/functions/google-sheets-writer/index.ts` — mapping statut
 
-### 3. `src/config/knowledge-base-templates.ts`
-Ajouter un nouveau template a la suite :
+Dans `normalizeRowForSheet` (ligne 22) et dans `update_row` (ligne 396-401), ajouter un alias :
+- Si le payload contient `statut` ET que le sheet a `statut_actif_inactif` (apres normalisation), ecrire dans cette colonne reelle.
+- Mappage explicite : `statut` -> `STATUT(Actif/Inactif)`.
+
+### 3. `src/hooks/useWhatsAppDiffusionGoogleSheets.ts` — preserver l'id du sheet
+
+**Ligne 92-96** : NE PAS regenerer `id` si la ligne en a deja un (le reader fournit `gs_<ts>_<idx>` ou un vrai id). Garder l'id renvoye par le reader pour que update/delete fonctionnent.
+
 ```ts
-{
-  id: 'whatsapp_diffusion',
-  sector: 'whatsapp_diffusion',
-  name: 'Diffusion WhatsApp',
-  description: 'Gerez vos contacts pour les campagnes WhatsApp',
-  icon: 'MessageCircle',
-  color: 'from-green-500 to-emerald-600',
-  googleSheetConfig: {
-    spreadsheetId: '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k',
-    sheets: ['Sheet1']
-  },
-  structuralInfo: [],
-  tables: [{
-    id: 'contacts',
-    name: 'Contacts',
-    description: 'Liste des contacts WhatsApp pour campagnes',
-    required: true,
-    icon: 'MessageCircle',
-    fields: [
-      { name: 'nom_contact', type: 'text', required: true },
-      { name: 'contact_whatsapp', type: 'phone', required: true },
-      { name: 'statut', type: 'select', required: true, options: ['Actif', 'Inactif'] }
-    ]
-  }]
-}
+.map((item) => ({
+  ...item,
+  id: item.id, // garder l'id du reader, ne jamais regenerer
+  user_id: userId!,
+}))
 ```
 
-### 4. `src/components/business/knowledge-base/SectorTemplateSelector.tsx`
-Ajouter `MessageCircle` dans `ICON_MAP`.
+### 4. `src/hooks/useWhatsAppDiffusionGoogleSheets.ts` — sheet name correct
 
-### 5. `src/components/business/knowledge-base/KnowledgeBaseViewer.tsx`
-- Ligne 58 : etendre `isGoogleSheetMode` au template `whatsapp_diffusion`
-- Lignes 127-135 : ajouter le rendu conditionnel `{template.id === 'whatsapp_diffusion' && <WhatsAppDiffusionSheetViewer knowledgeBaseId={kb.id} />}`
+Le sheet reel s'appelle probablement la valeur indiquee par gid=215334820. Ajouter ce nom probable aux candidats (`Diffusion Whatsapp`, `Contacts`, etc.) ou recuperer dynamiquement via metadata API. Plus simple : essayer par `sheetId` (gid) en parallele de `sheetName`.
 
-### 6. `src/components/whatsapp/WhatsAppCampaignForm.tsx` (deja existant)
-Au moment de l'envoi reussi de la campagne, ecrire dans `localStorage` la cle `last_campaign_name_{userId}` = `campaignName`, pour que le template "Diffusion WhatsApp" puisse pre-remplir `NOM_CAMPAGNE` lors de l'ajout d'un nouveau contact.
+### 5. `src/hooks/useWhatsAppDiffusionGoogleSheets.ts` — payload addRow/updateRow
 
-## Points techniques
+Pour qu'aucune colonne metier ne soit ecrasee, n'envoyer QUE les champs editables :
+```ts
+const editablePayload = {
+  id_campagne, nom_campagne, nom_contact, contact_whatsapp, statut
+};
+```
+Les colonnes `STATUT_ENVOI`, `DATE_ENVOI`, etc. seront laissees telles quelles par le writer corrige (point 1).
 
-- **Isolation user_id** : geree automatiquement par les edge functions existantes `google-sheets-reader` (filtre via `scopeRecordsForUser`) et `google-sheets-writer` (verifie ownership avant `update_row`/`delete_by_id`). Aucun changement edge function necessaire.
-- **Pre-requis Google Sheet** : le sheet doit etre partage avec le service account Google (meme adresse que pour Restauration/E-commerce). La colonne `user_id` sera auto-creee par le reader si absente.
-- **Format telephone** : input `+229` par defaut, validation 8 chiffres (meme regex que `WhatsAppCampaignForm`).
-- **Responsive mobile** : pattern existant `max-h-[90dvh]` pour les dialogs, table -> cards stackees sur mobile (meme que `RestaurationSheetViewer`).
-- **STATUT toggle inline** : utilisation du composant `Switch` de `@/components/ui/switch` directement dans la ligne de la liste pour modification ultra-rapide Actif/Inactif.
+### 6. Migration douce des lignes existantes
+
+Au premier `loadSheet` post-correctif, les lignes legacy n'ont pas de `user_id`. Le reader les marque `_isOrphan=true` et les attribue a l'utilisateur courant. Pour eviter que TOUS les users voient ces lignes, modifier le frontend filter :
+- Si `_isOrphan === true`, ne PAS afficher (sauf si on ajoute un bouton "Reclamer ces contacts").
+- Strict : afficher uniquement les lignes ou le sheet contient un `user_id` egal a l'utilisateur.
+
+## Resume des fichiers modifies
+
+| Fichier | Changement |
+|---|---|
+| `supabase/functions/google-sheets-writer/index.ts` | Append non-destructif (ajoute colonnes manquantes sans toucher aux existantes) + alias `statut` -> `STATUT(Actif/Inactif)` |
+| `src/hooks/useWhatsAppDiffusionGoogleSheets.ts` | Preserver `id` du reader, filtrer les orphelins, n'envoyer que champs editables, essayer plusieurs noms de feuille |
+| `src/components/business/knowledge-base/WhatsAppDiffusionSheetViewer.tsx` | Aucun changement structurel necessaire |
+
+## Resultat attendu
+
+- Apres la 1re ecriture (ajout d'un contact), le sheet aura 2 nouvelles colonnes a la fin : `user_id` et `id`, **toutes les autres colonnes preservees** (STATUT_ENVOI, DATE_ENVOI, ERREUR, TOTAL_CONTACT_TRAITE intactes).
+- Chaque user ne voit QUE ses propres contacts (filtre strict `user_id`).
+- Toggle Actif/Inactif sur le front -> ecrit dans `STATUT(Actif/Inactif)` reel du sheet.
+- Edit/Delete fonctionnent (via colonne `id` ajoutee).
 
