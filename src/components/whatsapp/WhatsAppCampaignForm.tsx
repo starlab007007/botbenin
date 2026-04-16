@@ -9,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Lock, Unlock, Send, Upload, FileText, Image, Video, Settings, Phone } from 'lucide-react';
+import { Lock, Unlock, Send, Upload, FileText, Image, Video, Settings, Phone, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { WhatsAppCampaignPreview } from './WhatsAppCampaignPreview';
 
 const MAX_MESSAGE_LENGTH = 1024;
 const MAX_PHOTO_SIZE_MB = 16;
@@ -38,6 +39,7 @@ export const WhatsAppCampaignForm: React.FC = () => {
   const [sessions, setSessions] = useState<WASession[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Load webhook from localStorage
   useEffect(() => {
@@ -107,18 +109,9 @@ export const WhatsAppCampaignForm: React.FC = () => {
     return digits.length === 11 && digits.startsWith('229');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePreviewSubmit = async (contacts: { name: string; whatsapp: string }[]) => {
     if (!user) return;
-    if (!webhookUrl || !webhookLocked) {
-      toast({ title: 'Webhook requis', description: 'Configurez et verrouillez le webhook avant de soumettre.', variant: 'destructive' });
-      return;
-    }
-    if (!validateBeninPhone(reportNumber)) {
-      toast({ title: 'Numéro invalide', description: 'Format attendu : +229 suivi de 8 chiffres.', variant: 'destructive' });
-      return;
-    }
-
+    setShowPreview(false);
     setLoading(true);
     try {
       let mediaBase64: string | null = null;
@@ -143,6 +136,7 @@ export const WhatsAppCampaignForm: React.FC = () => {
         media: mediaBase64 ? { base64: mediaBase64, name: mediaName, mimeType: mediaMimeType } : null,
         sessionId: selectedSession,
         reportNumber: reportNumber.trim(),
+        contacts: contacts.map(c => ({ name: c.name, whatsapp: c.whatsapp })),
         userId: user.id,
         timestamp: new Date().toISOString(),
       };
@@ -167,6 +161,10 @@ export const WhatsAppCampaignForm: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
   };
 
   const showMediaField = campaignType === 'photo' || campaignType === 'video';
@@ -343,25 +341,47 @@ export const WhatsAppCampaignForm: React.FC = () => {
             )}
           </div>
 
-          {/* Submit */}
-          <Button
-            type="submit"
-            disabled={loading || !campaignName || !campaignType || !message || !selectedSession || !webhookLocked}
-            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-base font-semibold"
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                Envoi en cours...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Send className="w-5 h-5" />
-                Soumettre la campagne
-              </span>
-            )}
-          </Button>
+          {/* Preview + Submit */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                if (!webhookUrl || !webhookLocked) {
+                  toast({ title: 'Webhook requis', description: 'Configurez et verrouillez le webhook.', variant: 'destructive' });
+                  return;
+                }
+                if (!validateBeninPhone(reportNumber)) {
+                  toast({ title: 'Numéro invalide', description: 'Format attendu : +229 suivi de 8 chiffres.', variant: 'destructive' });
+                  return;
+                }
+                setShowPreview(true);
+              }}
+              disabled={loading || !campaignName || !campaignType || !message || !selectedSession || !webhookLocked}
+              className="flex-1 bg-[#075E54] hover:bg-[#064d44] text-white py-3 text-base font-semibold"
+            >
+              <Eye className="w-5 h-5 mr-2" />
+              Visualiser
+            </Button>
+          </div>
+
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <span className="animate-spin w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full" />
+              <span className="text-sm text-muted-foreground">Envoi en cours...</span>
+            </div>
+          )}
         </form>
+
+        {/* Preview Dialog */}
+        <WhatsAppCampaignPreview
+          open={showPreview}
+          onClose={() => setShowPreview(false)}
+          onSubmit={handlePreviewSubmit}
+          campaignName={campaignName}
+          campaignType={campaignType}
+          message={message}
+          mediaFile={mediaFile}
+        />
       </CardContent>
     </Card>
   );
