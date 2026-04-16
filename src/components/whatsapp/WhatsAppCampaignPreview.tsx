@@ -41,13 +41,13 @@ export const WhatsAppCampaignPreview: React.FC<PreviewProps> = ({
   const [loading, setLoading] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
 
-  // Load media preview
+  // Load media preview (regenerate when dialog opens to avoid revoked URLs)
   useEffect(() => {
-    if (!mediaFile) { setMediaPreview(null); return; }
-    const url = URL.createObjectURL(mediaFile);
-    setMediaPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [mediaFile]);
+    if (!mediaFile || !open) { setMediaPreview(null); return; }
+    const reader = new FileReader();
+    reader.onload = () => setMediaPreview(reader.result as string);
+    reader.readAsDataURL(mediaFile);
+  }, [mediaFile, open]);
 
   // Load contacts from Google Sheet
   useEffect(() => {
