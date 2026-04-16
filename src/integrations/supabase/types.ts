@@ -267,6 +267,48 @@ export type Database = {
           },
         ]
       }
+      ants_chat_memory: {
+        Row: {
+          created_at: string | null
+          id: number
+          message: Json
+          session_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          message: Json
+          session_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          message?: Json
+          session_id?: string
+        }
+        Relationships: []
+      }
+      ants_documents: {
+        Row: {
+          content: string | null
+          embedding: string | null
+          id: number
+          metadata: Json | null
+        }
+        Insert: {
+          content?: string | null
+          embedding?: string | null
+          id?: number
+          metadata?: Json | null
+        }
+        Update: {
+          content?: string | null
+          embedding?: string | null
+          id?: number
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           attendees: Json
