@@ -1,53 +1,60 @@
 
 
-# Plan : Module WhatsApp Diffusion
+# Plan : Preview WhatsApp + Selection des contacts Google Sheet
 
 ## Resume
 
-Creer un nouveau module "WhatsApp Diffusion" accessible depuis la navigation, avec une page dediee et un formulaire de campagne WhatsApp intuitif et responsive, inspire de la capture fournie.
+Ajouter un bouton "Visualiser" avant "Soumettre" qui ouvre un dialog en 2 parties :
+1. **Mockup WhatsApp** : apercu du message sur un ecran de telephone WhatsApp (bulle verte avec texte + media)
+2. **Liste de contacts** : chargee depuis le Google Sheet `1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k`, filtree par `user_id`, avec checkboxes pour selectionner les destinataires
 
 ## Fichiers a creer
 
-### 1. `src/pages/WhatsAppDiffusionPage.tsx`
-- Page complete avec la meme structure que `WhatsAppConnectPage` (landing non-connecte avec logo WhatsApp officiel + formulaire quand connecte)
-- Utilise le meme logo WhatsApp officiel (`whatsapp-icon-official.png`)
-- Quand connecte : affiche le composant formulaire de campagne
+### 1. `src/components/whatsapp/WhatsAppCampaignPreview.tsx`
+Dialog responsive (90vw/90dvh sur mobile) contenant :
 
-### 2. `src/components/whatsapp/WhatsAppCampaignForm.tsx`
-Formulaire responsive avec les champs suivants :
+**Partie haute — Mockup WhatsApp :**
+- Frame de telephone avec barre verte WhatsApp en haut (nom campagne)
+- Zone de chat avec bulle verte a droite affichant :
+  - Le media (photo en miniature, icone video, ou rien pour texte)
+  - Le texte du message
+  - Horodatage fictif + double check bleu
+- Design inspire du vrai WhatsApp (fond beige/clair, bulles vertes)
 
-- **Nom de la campagne** : input texte, requis
-- **Type de campagne** : select avec options Texte, Photo, Video
-- **Message** : textarea avec compteur de caracteres (max 1024 pour WhatsApp), requis
-- **Fichier media** : input file (affiche seulement si type = Photo ou Video), avec indication taille max (16Mo photo, 64Mo video)
-- **Session WAHA** : select dynamique charge depuis `whatsapp_accounts` filtre par `user_id` de l'utilisateur connecte
-- **Numero de rapport WhatsApp** : input tel avec prefixe +229 par defaut, validation format Benin (8 chiffres)
-- **Configuration Webhook** : champ URL webhook avec bouton "Verrouiller". Une fois enregistre, le champ devient readonly avec un cadenas. Stocke en localStorage par utilisateur
-- **Bouton Soumettre** : envoie les donnees au webhook configure via POST
+**Partie basse — Selection des contacts :**
+- Titre "Destinataires" avec compteur (X/total selectionnes)
+- Checkbox "Tout selectionner" en haut
+- Liste scrollable (`max-h-[40vh] overflow-y-auto`) de contacts avec :
+  - Checkbox
+  - Avatar placeholder avec initiale
+  - NOM_CONTACT en gras
+  - CONTACT_WHATSAPP en gris dessous
+- Barre de recherche pour filtrer par nom ou numero
 
-Layout mobile-first : `w-full max-w-2xl mx-auto`, padding `p-4 sm:p-6`, champs en `grid-cols-1`, gaps adaptes
+**Boutons d'action :**
+- "Fermer et modifier" (outline) — ferme le dialog, retour au formulaire
+- "Valider et soumettre" (vert) — declenche la soumission avec les contacts selectionnes
 
-## Fichiers a modifier
+### 2. Chargement des contacts
+- Utiliser `supabase.functions.invoke('google-sheets-reader', { body: { spreadsheetId: '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k', sheetName: 'Sheet1' } })`
+- Filtrer cote client par `user_id` (meme pattern que E-commerce/Restauration)
+- Extraire les colonnes `NOM_CONTACT` et `CONTACT_WHATSAPP`
+- Charger au moment de l'ouverture du preview
 
-### 3. `src/App.tsx`
-- Ajouter lazy import de `WhatsAppDiffusionPage`
-- Ajouter route `/whatsapp-diffusion`
+## Fichier a modifier
 
-### 4. `src/components/navigation/ModernSidebar.tsx`
-- Ajouter entree "WhatsApp Diffusion" avec icone WhatsApp officielle, path `/whatsapp-diffusion`
-
-### 5. `src/components/MobileSidebar.tsx`
-- Ajouter entree "WhatsApp Diffusion" dans le menu mobile
-
-### 6. `src/components/Sidebar.tsx`
-- Ajouter entree "WhatsApp Diffusion"
+### 3. `src/components/whatsapp/WhatsAppCampaignForm.tsx`
+- Ajouter un bouton "Visualiser" entre le webhook et le bouton "Soumettre"
+- Ajouter state `showPreview` et `selectedContacts`
+- Le bouton "Visualiser" est actif seulement si le formulaire est valide (memes conditions que Soumettre)
+- Passer les donnees du formulaire + contacts selectionnes au composant preview
+- Inclure `selectedContacts` dans le payload envoye au webhook
 
 ## Details techniques
 
-- Le webhook par defaut sera `https://ia.bot.bj/form/form-campagne-wa-v2`
-- Le verrouillage du webhook utilise `localStorage` avec cle `whatsapp_campaign_webhook_{userId}`
-- Les sessions WAHA sont chargees via `supabase.from('whatsapp_accounts').select('*').eq('user_id', user.id)`
-- Le formulaire envoie un POST JSON au webhook avec tous les champs + `userId` + `timestamp`
-- Pour le fichier media : conversion en base64 ou envoi en FormData selon la taille
-- Responsive : le formulaire occupe 90% de l'ecran mobile, inputs full-width, boutons empiles sur mobile
+- **Google Sheet ID** : `1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k`
+- **Colonnes utilisees** : `NOM_CONTACT`, `CONTACT_WHATSAPP`
+- **Filtrage user_id** : le `google-sheets-reader` filtre deja par `user_id` cote serveur via `scopeRecordsForUser()`
+- **Responsive** : le dialog utilise le pattern existant `w-[90vw] max-h-[90dvh]` avec flex-col header fixe / body scrollable / footer fixe
+- **Payload webhook enrichi** : ajouter `contacts: [{ name, whatsapp }]` dans le JSON envoye
 
