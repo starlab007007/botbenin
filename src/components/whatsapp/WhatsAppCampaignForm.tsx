@@ -341,25 +341,47 @@ export const WhatsAppCampaignForm: React.FC = () => {
             )}
           </div>
 
-          {/* Submit */}
-          <Button
-            type="submit"
-            disabled={loading || !campaignName || !campaignType || !message || !selectedSession || !webhookLocked}
-            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-base font-semibold"
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                Envoi en cours...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Send className="w-5 h-5" />
-                Soumettre la campagne
-              </span>
-            )}
-          </Button>
+          {/* Preview + Submit */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                if (!webhookUrl || !webhookLocked) {
+                  toast({ title: 'Webhook requis', description: 'Configurez et verrouillez le webhook.', variant: 'destructive' });
+                  return;
+                }
+                if (!validateBeninPhone(reportNumber)) {
+                  toast({ title: 'Numéro invalide', description: 'Format attendu : +229 suivi de 8 chiffres.', variant: 'destructive' });
+                  return;
+                }
+                setShowPreview(true);
+              }}
+              disabled={loading || !campaignName || !campaignType || !message || !selectedSession || !webhookLocked}
+              className="flex-1 bg-[#075E54] hover:bg-[#064d44] text-white py-3 text-base font-semibold"
+            >
+              <Eye className="w-5 h-5 mr-2" />
+              Visualiser
+            </Button>
+          </div>
+
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <span className="animate-spin w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full" />
+              <span className="text-sm text-muted-foreground">Envoi en cours...</span>
+            </div>
+          )}
         </form>
+
+        {/* Preview Dialog */}
+        <WhatsAppCampaignPreview
+          open={showPreview}
+          onClose={() => setShowPreview(false)}
+          onSubmit={handlePreviewSubmit}
+          campaignName={campaignName}
+          campaignType={campaignType}
+          message={message}
+          mediaFile={mediaFile}
+        />
       </CardContent>
     </Card>
   );
