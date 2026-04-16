@@ -9,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Lock, Unlock, Send, Upload, FileText, Image, Video, Settings, Phone } from 'lucide-react';
+import { Lock, Unlock, Send, Upload, FileText, Image, Video, Settings, Phone, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { WhatsAppCampaignPreview } from './WhatsAppCampaignPreview';
 
 const MAX_MESSAGE_LENGTH = 1024;
 const MAX_PHOTO_SIZE_MB = 16;
