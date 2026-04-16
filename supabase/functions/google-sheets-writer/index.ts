@@ -19,6 +19,13 @@ const findHeaderIndex = (headers: string[], expectedKey: string): number => {
   return headers.findIndex((header) => normalizeHeaderKey(String(header || '')) === normalizedExpected);
 };
 
+// Aliases: when payload uses a "short" key, also write to the actual sheet column with a different name.
+// Example: payload `statut` should also populate `STATUT(Actif/Inactif)` (normalized = `statut_actif_inactif`).
+const HEADER_ALIASES: Record<string, string[]> = {
+  statut: ['statut_actif_inactif'],
+  statut_actif_inactif: ['statut'],
+};
+
 const normalizeRowForSheet = (item: Record<string, any>, userId?: string, index = 0): Record<string, string> => {
   const normalized: Record<string, string> = {};
 
@@ -26,6 +33,11 @@ const normalizeRowForSheet = (item: Record<string, any>, userId?: string, index 
     const normalizedKey = normalizeHeaderKey(rawKey);
     if (!normalizedKey || normalizedKey === '_isorphan' || rawValue === undefined || rawValue === null) return;
     normalized[normalizedKey] = String(rawValue);
+    // Propagate aliases so writers find the value under the actual sheet column name
+    const aliases = HEADER_ALIASES[normalizedKey] || [];
+    aliases.forEach((alias) => {
+      if (!(alias in normalized)) normalized[alias] = String(rawValue);
+    });
   });
 
   if (!normalized.id) {
@@ -35,6 +47,17 @@ const normalizeRowForSheet = (item: Record<string, any>, userId?: string, index 
   normalized.user_id = String(normalized.user_id || userId || '');
 
   return normalized;
+};
+
+// Convert 0-based column index to A1 letter (supports >26: AA, AB, ...)
+const colIndexToLetter = (index: number): string => {
+  let n = index;
+  let result = '';
+  do {
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return result;
 };
 
 // Fonction simplifiée pour générer un token d'accès Google avec JWT manuel
