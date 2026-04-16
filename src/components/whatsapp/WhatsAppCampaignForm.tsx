@@ -39,6 +39,7 @@ export const WhatsAppCampaignForm: React.FC = () => {
   const [sessions, setSessions] = useState<WASession[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Load webhook from localStorage
   useEffect(() => {
