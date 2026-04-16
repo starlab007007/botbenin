@@ -1,60 +1,88 @@
 
 
-# Plan : Preview WhatsApp + Selection des contacts Google Sheet
+# Plan : Template "Diffusion WhatsApp" dans Création Bots
 
 ## Resume
 
-Ajouter un bouton "Visualiser" avant "Soumettre" qui ouvre un dialog en 2 parties :
-1. **Mockup WhatsApp** : apercu du message sur un ecran de telephone WhatsApp (bulle verte avec texte + media)
-2. **Liste de contacts** : chargee depuis le Google Sheet `1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k`, filtree par `user_id`, avec checkboxes pour selectionner les destinataires
+Ajouter un nouveau template sectoriel **"Diffusion WhatsApp"** dans `Créer une Base de Connaissances`, synchronisé avec le Google Sheet `1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k` (feuille `Sheet1`, gid=215334820). Architecture identique à E-commerce/Restauration : isolation par `user_id` aux 3 niveaux (frontend, edge function reader, edge function writer).
+
+## Colonnes du Google Sheet
+
+| Colonne | Generation | Editable utilisateur |
+|---|---|---|
+| `ID_CAMPAGNE` | Auto (UUID/timestamp) | Non (lecture seule) |
+| `NOM_CAMPAGNE` | Recupere apres creation campagne (depuis WhatsApp Diffusion) | Non (lecture seule) |
+| `NOM_CONTACT` | Saisie utilisateur | Oui |
+| `CONTACT_WHATSAPP` | Saisie utilisateur | Oui |
+| `STATUT` | Choix utilisateur (Actif / Inactif) | Oui (toggle) |
+| `user_id` | Auto (auth) | Non (filtre RLS) |
 
 ## Fichiers a creer
 
-### 1. `src/components/whatsapp/WhatsAppCampaignPreview.tsx`
-Dialog responsive (90vw/90dvh sur mobile) contenant :
+### 1. `src/hooks/useWhatsAppDiffusionGoogleSheets.ts`
+Copie adaptee de `useRestaurationGoogleSheets.ts` :
+- `DEFAULT_SPREADSHEET_ID = '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k'`
+- Feuille unique : `Sheet1` (ou nom reel a confirmer cote Sheet)
+- Memes fonctions : `loadSheet`, `loadAllSheets`, `addRow`, `updateRow`, `deleteRow`
+- Filtrage `user_id` cote frontend + delegation a `google-sheets-reader`/`google-sheets-writer` (deja gerent l'isolation)
 
-**Partie haute — Mockup WhatsApp :**
-- Frame de telephone avec barre verte WhatsApp en haut (nom campagne)
-- Zone de chat avec bulle verte a droite affichant :
-  - Le media (photo en miniature, icone video, ou rien pour texte)
-  - Le texte du message
-  - Horodatage fictif + double check bleu
-- Design inspire du vrai WhatsApp (fond beige/clair, bulles vertes)
+### 2. `src/components/business/knowledge-base/WhatsAppDiffusionSheetViewer.tsx`
+Inspire de `RestaurationSheetViewer.tsx` mais simplifie (1 seule feuille) :
+- Liste responsive (table desktop / cards stackees mobile) des contacts
+- Colonnes affichees : `ID_CAMPAGNE` (badge gris readonly), `NOM_CAMPAGNE` (badge readonly), `NOM_CONTACT` (editable), `CONTACT_WHATSAPP` (editable, format +229), `STATUT` (Switch Actif/Inactif inline)
+- Boutons : `Ajouter contact`, `Modifier`, `Supprimer`, `Rafraichir`
+- Dialog d'ajout/edition responsive (`max-h-[90dvh]`, scroll body) avec uniquement les champs editables (`NOM_CONTACT`, `CONTACT_WHATSAPP`, `STATUT`)
+- A l'ajout : `ID_CAMPAGNE` genere automatiquement (`CAMP_${userId}_${timestamp}`), `NOM_CAMPAGNE` laisse vide ou pre-rempli depuis le dernier nom de campagne envoye via WhatsApp Diffusion (lu depuis `localStorage` cle `last_campaign_name_{userId}`)
+- Recherche + filtre par STATUT
+- Toggle Switch direct dans la liste pour basculer Actif/Inactif sans ouvrir de dialog
 
-**Partie basse — Selection des contacts :**
-- Titre "Destinataires" avec compteur (X/total selectionnes)
-- Checkbox "Tout selectionner" en haut
-- Liste scrollable (`max-h-[40vh] overflow-y-auto`) de contacts avec :
-  - Checkbox
-  - Avatar placeholder avec initiale
-  - NOM_CONTACT en gras
-  - CONTACT_WHATSAPP en gris dessous
-- Barre de recherche pour filtrer par nom ou numero
+## Fichiers a modifier
 
-**Boutons d'action :**
-- "Fermer et modifier" (outline) — ferme le dialog, retour au formulaire
-- "Valider et soumettre" (vert) — declenche la soumission avec les contacts selectionnes
+### 3. `src/config/knowledge-base-templates.ts`
+Ajouter un nouveau template a la suite :
+```ts
+{
+  id: 'whatsapp_diffusion',
+  sector: 'whatsapp_diffusion',
+  name: 'Diffusion WhatsApp',
+  description: 'Gerez vos contacts pour les campagnes WhatsApp',
+  icon: 'MessageCircle',
+  color: 'from-green-500 to-emerald-600',
+  googleSheetConfig: {
+    spreadsheetId: '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k',
+    sheets: ['Sheet1']
+  },
+  structuralInfo: [],
+  tables: [{
+    id: 'contacts',
+    name: 'Contacts',
+    description: 'Liste des contacts WhatsApp pour campagnes',
+    required: true,
+    icon: 'MessageCircle',
+    fields: [
+      { name: 'nom_contact', type: 'text', required: true },
+      { name: 'contact_whatsapp', type: 'phone', required: true },
+      { name: 'statut', type: 'select', required: true, options: ['Actif', 'Inactif'] }
+    ]
+  }]
+}
+```
 
-### 2. Chargement des contacts
-- Utiliser `supabase.functions.invoke('google-sheets-reader', { body: { spreadsheetId: '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k', sheetName: 'Sheet1' } })`
-- Filtrer cote client par `user_id` (meme pattern que E-commerce/Restauration)
-- Extraire les colonnes `NOM_CONTACT` et `CONTACT_WHATSAPP`
-- Charger au moment de l'ouverture du preview
+### 4. `src/components/business/knowledge-base/SectorTemplateSelector.tsx`
+Ajouter `MessageCircle` dans `ICON_MAP`.
 
-## Fichier a modifier
+### 5. `src/components/business/knowledge-base/KnowledgeBaseViewer.tsx`
+- Ligne 58 : etendre `isGoogleSheetMode` au template `whatsapp_diffusion`
+- Lignes 127-135 : ajouter le rendu conditionnel `{template.id === 'whatsapp_diffusion' && <WhatsAppDiffusionSheetViewer knowledgeBaseId={kb.id} />}`
 
-### 3. `src/components/whatsapp/WhatsAppCampaignForm.tsx`
-- Ajouter un bouton "Visualiser" entre le webhook et le bouton "Soumettre"
-- Ajouter state `showPreview` et `selectedContacts`
-- Le bouton "Visualiser" est actif seulement si le formulaire est valide (memes conditions que Soumettre)
-- Passer les donnees du formulaire + contacts selectionnes au composant preview
-- Inclure `selectedContacts` dans le payload envoye au webhook
+### 6. `src/components/whatsapp/WhatsAppCampaignForm.tsx` (deja existant)
+Au moment de l'envoi reussi de la campagne, ecrire dans `localStorage` la cle `last_campaign_name_{userId}` = `campaignName`, pour que le template "Diffusion WhatsApp" puisse pre-remplir `NOM_CAMPAGNE` lors de l'ajout d'un nouveau contact.
 
-## Details techniques
+## Points techniques
 
-- **Google Sheet ID** : `1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k`
-- **Colonnes utilisees** : `NOM_CONTACT`, `CONTACT_WHATSAPP`
-- **Filtrage user_id** : le `google-sheets-reader` filtre deja par `user_id` cote serveur via `scopeRecordsForUser()`
-- **Responsive** : le dialog utilise le pattern existant `w-[90vw] max-h-[90dvh]` avec flex-col header fixe / body scrollable / footer fixe
-- **Payload webhook enrichi** : ajouter `contacts: [{ name, whatsapp }]` dans le JSON envoye
+- **Isolation user_id** : geree automatiquement par les edge functions existantes `google-sheets-reader` (filtre via `scopeRecordsForUser`) et `google-sheets-writer` (verifie ownership avant `update_row`/`delete_by_id`). Aucun changement edge function necessaire.
+- **Pre-requis Google Sheet** : le sheet doit etre partage avec le service account Google (meme adresse que pour Restauration/E-commerce). La colonne `user_id` sera auto-creee par le reader si absente.
+- **Format telephone** : input `+229` par defaut, validation 8 chiffres (meme regex que `WhatsAppCampaignForm`).
+- **Responsive mobile** : pattern existant `max-h-[90dvh]` pour les dialogs, table -> cards stackees sur mobile (meme que `RestaurationSheetViewer`).
+- **STATUT toggle inline** : utilisation du composant `Switch` de `@/components/ui/switch` directement dans la ligne de la liste pour modification ultra-rapide Actif/Inactif.
 
