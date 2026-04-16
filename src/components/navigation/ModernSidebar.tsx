@@ -59,6 +59,15 @@ const mainMenuItems = [
     description: 'Connexion WhatsApp',
     badge: 'New'
   },
+  { 
+    title: 'WhatsApp Diffusion', 
+    path: '/whatsapp-diffusion', 
+    icon: 'image' as any,
+    iconImage: whatsappIcon,
+    color: 'from-green-600 to-emerald-600',
+    description: 'Campagnes de diffusion',
+    badge: 'New'
+  },
 ];
 
 // HIDDEN - kept for future use

@@ -15,6 +15,7 @@ const menuItems = [
   { title: 'Création Bots', path: '/knowledge-bases', icon: Database },
   { title: 'CRM', path: '/prospects', icon: Target },
   { title: 'WhatsApp IA', path: '/whatsapp-connect', icon: MessageCircle },
+  { title: 'WhatsApp Diffusion', path: '/whatsapp-diffusion', icon: MessageCircle },
 ];
 
 // HIDDEN - kept for future use
