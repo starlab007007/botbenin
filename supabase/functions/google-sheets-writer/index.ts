@@ -425,7 +425,7 @@ async function handleUpdateRow(
     });
 
     const actualRowNumber = targetRowIndex + 1; // 1-based
-    const maxCol = String.fromCharCode(65 + Math.min(headers.length - 1, 25));
+    const maxCol = colIndexToLetter(headers.length - 1);
     const range = `${sheetName}!A${actualRowNumber}:${maxCol}${actualRowNumber}`;
 
     const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
