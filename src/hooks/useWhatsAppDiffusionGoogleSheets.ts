@@ -15,7 +15,8 @@ export interface WhatsAppDiffusionRow {
 }
 
 const DEFAULT_SPREADSHEET_ID = '1cXuo8Kot_ypgMaCoChjuf4ah4C2XlOMFyJLAjQ-lo1k';
-const DEFAULT_SHEET_NAME = 'Sheet1';
+// Try multiple sheet names (Google Sheets default is "Feuille 1" in French, "Sheet1" in English)
+const SHEET_NAME_CANDIDATES = ['Feuille 1', 'Sheet1', 'Feuil1', 'Feuille1'];
 
 const normalizeHeaderKey = (value: string) =>
   value
@@ -32,6 +33,10 @@ const normalizeRowKeys = (row: Record<string, any>): Record<string, any> => {
     if (!normalizedKey || normalizedKey in normalized) return;
     normalized[normalizedKey] = value;
   });
+  // Map "STATUT(Actif/Inactif)" → "statut" alias
+  if (!normalized.statut && normalized.statut_actif_inactif) {
+    normalized.statut = normalized.statut_actif_inactif;
+  }
   return normalized;
 };
 
@@ -41,30 +46,57 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
   const [isWriting, setIsWriting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [activeSheetName, setActiveSheetName] = useState<string>('Feuille 1');
   const { toast } = useToast();
 
   const isUserValid = !!userId && userId !== 'unknown' && userId.trim() !== '';
+
+  const tryLoadFromSheet = async (sheetName: string) => {
+    const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
+      body: { spreadsheetId: DEFAULT_SPREADSHEET_ID, sheetName }
+    });
+    if (error) throw new Error(error.message);
+    if (result?.error) throw new Error(result.suggestion || result.details || result.error);
+    return result;
+  };
 
   const loadSheet = useCallback(async (): Promise<WhatsAppDiffusionRow[]> => {
     if (!isUserValid) return [];
     setIsLoading(true);
     setConnectionStatus('connecting');
     try {
-      const { data: result, error } = await supabase.functions.invoke('google-sheets-reader', {
-        body: { spreadsheetId: DEFAULT_SPREADSHEET_ID, sheetName: DEFAULT_SHEET_NAME }
-      });
-      if (error) throw new Error(error.message);
-      if (result?.error) throw new Error(result.suggestion || result.details || result.error);
+      let result: any = null;
+      let usedSheetName = activeSheetName;
+
+      // Try the active sheet first, then fallbacks
+      const candidates = [activeSheetName, ...SHEET_NAME_CANDIDATES.filter(n => n !== activeSheetName)];
+      for (const name of candidates) {
+        try {
+          const r = await tryLoadFromSheet(name);
+          if (r && Array.isArray(r.data)) {
+            result = r;
+            usedSheetName = name;
+            break;
+          }
+        } catch (e) {
+          console.log(`⚠️ Sheet "${name}" not accessible, trying next...`);
+        }
+      }
+
+      if (!result) throw new Error('Aucune feuille accessible dans le Google Sheet');
+      setActiveSheetName(usedSheetName);
 
       let rows: WhatsAppDiffusionRow[] = [];
       if (result?.data && Array.isArray(result.data)) {
         rows = result.data
           .map((item: any) => normalizeRowKeys(item))
-          .filter((item: any) => item.user_id === userId)
+          // STRICT user isolation: only show rows where user_id EXACTLY matches the authenticated user.
+          // Reject orphan rows (no user_id) AND rows belonging to other users.
+          .filter((item: any) => String(item.user_id || '').trim() === userId)
           .map((item: any) => ({
             ...item,
-            id: item.id || `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            user_id: item.user_id || userId
+            id: item.id || `row_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            user_id: userId!,
           }));
       }
       setData(rows);
@@ -79,7 +111,7 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
     } finally {
       setIsLoading(false);
     }
-  }, [isUserValid, userId, toast]);
+  }, [isUserValid, userId, toast, activeSheetName]);
 
   const addRow = useCallback(async (row: Record<string, any>) => {
     if (!isUserValid || isWriting) return false;
@@ -94,13 +126,14 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
         const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
           body: {
             spreadsheetId: DEFAULT_SPREADSHEET_ID,
-            sheetName: DEFAULT_SHEET_NAME,
+            sheetName: activeSheetName,
             data: [newRow],
             operation: 'append',
             userId
           }
         });
         if (error) throw new Error(error.message);
+        if (res?.error) throw new Error(res.details || res.error);
         return res;
       });
       if (result?.success) {
@@ -110,44 +143,52 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
       }
       return false;
     } catch (err) {
+      console.error('❌ addRow error:', err);
       toast({ title: '❌ Erreur', description: err instanceof Error ? err.message : 'Erreur inconnue', variant: 'destructive' });
       return false;
     } finally {
       setIsWriting(false);
     }
-  }, [isUserValid, isWriting, userId, loadSheet, toast]);
+  }, [isUserValid, isWriting, userId, loadSheet, toast, activeSheetName]);
 
   const updateRow = useCallback(async (rowId: string, updatedFields: Record<string, any>) => {
     if (!isUserValid || isWriting) return false;
     setIsWriting(true);
     try {
+      // Optimistic UI update
+      setData(prev => prev.map(r => (r.id === rowId ? { ...r, ...updatedFields } : r)));
+
       const result = await queueGoogleSheetsOperation(async () => {
         const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
           body: {
             spreadsheetId: DEFAULT_SPREADSHEET_ID,
-            sheetName: DEFAULT_SHEET_NAME,
+            sheetName: activeSheetName,
             operation: 'update_row',
             prospectId: rowId,
-            rowData: updatedFields,
+            rowData: { ...updatedFields, user_id: userId },
             userId
           }
         });
         if (error) throw new Error(error.message);
+        if (res?.error) throw new Error(res.details || res.error);
         return res;
       });
       if (result?.success) {
-        setData(prev => prev.map(r => (r.id === rowId ? { ...r, ...updatedFields } : r)));
         toast({ title: '✅ Mis à jour', description: 'Contact mis à jour' });
         return true;
       }
+      // Rollback on failure
+      await loadSheet();
       return false;
     } catch (err) {
+      console.error('❌ updateRow error:', err);
       toast({ title: '❌ Erreur', description: err instanceof Error ? err.message : 'Erreur', variant: 'destructive' });
+      await loadSheet();
       return false;
     } finally {
       setIsWriting(false);
     }
-  }, [isUserValid, isWriting, userId, toast]);
+  }, [isUserValid, isWriting, userId, toast, activeSheetName, loadSheet]);
 
   const deleteRow = useCallback(async (rowId: string) => {
     if (!isUserValid) return false;
@@ -157,13 +198,14 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
         const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
           body: {
             spreadsheetId: DEFAULT_SPREADSHEET_ID,
-            sheetName: DEFAULT_SHEET_NAME,
+            sheetName: activeSheetName,
             operation: 'delete_by_id',
             prospectId: rowId,
             userId
           }
         });
         if (error) throw new Error(error.message);
+        if (res?.error) throw new Error(res.details || res.error);
         return res;
       });
       if (result?.success) {
@@ -173,12 +215,13 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
       }
       return false;
     } catch (err) {
+      console.error('❌ deleteRow error:', err);
       toast({ title: '❌ Erreur', description: err instanceof Error ? err.message : 'Erreur', variant: 'destructive' });
       return false;
     } finally {
       setIsWriting(false);
     }
-  }, [isUserValid, userId, toast]);
+  }, [isUserValid, userId, toast, activeSheetName]);
 
   return {
     data,
@@ -191,5 +234,6 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
     updateRow,
     deleteRow,
     spreadsheetId: DEFAULT_SPREADSHEET_ID,
+    activeSheetName,
   };
 };
