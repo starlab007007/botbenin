@@ -3820,6 +3820,252 @@ export type Database = {
           },
         ]
       }
+      support_chat_sessions: {
+        Row: {
+          category_detected: string | null
+          confidence_score: number | null
+          created_at: string
+          escalated_ticket_id: string | null
+          id: string
+          messages: Json
+          module_detected: string | null
+          resolved: boolean | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          category_detected?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          escalated_ticket_id?: string | null
+          id?: string
+          messages?: Json
+          module_detected?: string | null
+          resolved?: boolean | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          category_detected?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          escalated_ticket_id?: string | null
+          id?: string
+          messages?: Json
+          module_detected?: string | null
+          resolved?: boolean | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_chat_sessions_escalated_ticket_id_fkey"
+            columns: ["escalated_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_knowledge_articles: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string
+          created_by: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          keywords: string[] | null
+          module: string | null
+          source: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          keywords?: string[] | null
+          module?: string | null
+          source?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          keywords?: string[] | null
+          module?: string | null
+          source?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      support_sla_events: {
+        Row: {
+          breached: boolean | null
+          event_type: string
+          id: string
+          occurred_at: string
+          threshold_minutes: number | null
+          ticket_id: string
+        }
+        Insert: {
+          breached?: boolean | null
+          event_type: string
+          id?: string
+          occurred_at?: string
+          threshold_minutes?: number | null
+          ticket_id: string
+        }
+        Update: {
+          breached?: boolean | null
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          threshold_minutes?: number | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_sla_events_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_ticket_messages: {
+        Row: {
+          attachments: Json | null
+          author_id: string
+          author_role: string
+          created_at: string
+          id: string
+          is_internal_note: boolean | null
+          message: string
+          ticket_id: string
+        }
+        Insert: {
+          attachments?: Json | null
+          author_id: string
+          author_role?: string
+          created_at?: string
+          id?: string
+          is_internal_note?: boolean | null
+          message: string
+          ticket_id: string
+        }
+        Update: {
+          attachments?: Json | null
+          author_id?: string
+          author_role?: string
+          created_at?: string
+          id?: string
+          is_internal_note?: boolean | null
+          message?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          assigned_to: string | null
+          attachments: Json | null
+          category: string
+          chatbot_session_id: string | null
+          closed_at: string | null
+          created_at: string
+          description: string
+          id: string
+          module: string | null
+          origin: string
+          profile: string | null
+          reproduction_steps: string | null
+          resolution_summary: string | null
+          resolved_at: string | null
+          severity: string
+          site: string | null
+          sla_breached: boolean | null
+          sla_due_at: string | null
+          status: string
+          ticket_number: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachments?: Json | null
+          category?: string
+          chatbot_session_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          module?: string | null
+          origin?: string
+          profile?: string | null
+          reproduction_steps?: string | null
+          resolution_summary?: string | null
+          resolved_at?: string | null
+          severity?: string
+          site?: string | null
+          sla_breached?: boolean | null
+          sla_due_at?: string | null
+          status?: string
+          ticket_number?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          attachments?: Json | null
+          category?: string
+          chatbot_session_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          module?: string | null
+          origin?: string
+          profile?: string | null
+          reproduction_steps?: string | null
+          resolution_summary?: string | null
+          resolved_at?: string | null
+          severity?: string
+          site?: string | null
+          sla_breached?: boolean | null
+          sla_due_at?: string | null
+          status?: string
+          ticket_number?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_activities: {
         Row: {
           activity_type: string
@@ -5937,6 +6183,8 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: { user_uuid?: string }; Returns: boolean }
+      is_support_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_support_staff: { Args: { _user_id: string }; Returns: boolean }
       log_user_activity: {
         Args: {
           p_activity_type: string
