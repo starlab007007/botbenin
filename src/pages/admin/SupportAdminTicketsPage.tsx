@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { Helmet } from '@/components/SEO';
 import { useSupportTickets } from '@/hooks/useSupportTickets';
 import { TicketCard } from '@/components/support/TicketCard';
 import { Card } from '@/components/ui/card';
