@@ -1,5 +1,5 @@
 import React from 'react';
-import { Helmet } from 'react-helmet-async';
+import { Helmet } from '@/components/SEO';
 import { AdminDashboard } from '@/components/support/AdminDashboard';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';

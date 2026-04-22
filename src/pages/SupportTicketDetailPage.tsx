@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet-async';
+import { Helmet } from '@/components/SEO';
 import { useSupportTicket, useSupportTickets } from '@/hooks/useSupportTickets';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { Card } from '@/components/ui/card';
