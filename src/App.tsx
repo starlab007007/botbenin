@@ -88,6 +88,14 @@ const DocumentationPortalPage = lazy(() => import("./pages/DocumentationPortalPa
 // YOVO Gallery
 const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 
+// Module Support Technique SIGDSTS (isolé, sans layout principal)
+const SupportTechniquePage = lazy(() => import("./pages/SupportTechniquePage").then(m => ({ default: (m as any).default ?? (m as any).SupportTechniquePage })));
+const SupportTicketsPage = lazy(() => import("./pages/SupportTicketsPage").then(m => ({ default: (m as any).default ?? (m as any).SupportTicketsPage })));
+const SupportTicketDetailPage = lazy(() => import("./pages/SupportTicketDetailPage").then(m => ({ default: (m as any).default ?? (m as any).SupportTicketDetailPage })));
+const SupportAdminDashboardPage = lazy(() => import("./pages/admin/SupportAdminDashboardPage").then(m => ({ default: (m as any).default ?? (m as any).SupportAdminDashboardPage })));
+const SupportAdminTicketsPage = lazy(() => import("./pages/admin/SupportAdminTicketsPage").then(m => ({ default: (m as any).default ?? (m as any).SupportAdminTicketsPage })));
+const SupportKnowledgePage = lazy(() => import("./pages/admin/SupportKnowledgePage").then(m => ({ default: (m as any).default ?? (m as any).SupportKnowledgePage })));
+
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
 const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
@@ -203,7 +211,15 @@ const AppContent = () => {
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
                   <Route path="/yovo-gallery" element={<YovoGallery />} />
-                  
+
+                  {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
+                  <Route path="/sigdsts" element={<SupportTechniquePage />} />
+                  <Route path="/sigdsts/tickets" element={<SupportTicketsPage />} />
+                  <Route path="/sigdsts/tickets/:id" element={<SupportTicketDetailPage />} />
+                  <Route path="/sigdsts/admin" element={<AdminRoute><SupportAdminDashboardPage /></AdminRoute>} />
+                  <Route path="/sigdsts/admin/tickets" element={<AdminRoute><SupportAdminTicketsPage /></AdminRoute>} />
+                  <Route path="/sigdsts/admin/knowledge" element={<AdminRoute><SupportKnowledgePage /></AdminRoute>} />
+
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
