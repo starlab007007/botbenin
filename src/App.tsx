@@ -211,7 +211,15 @@ const AppContent = () => {
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
                   <Route path="/yovo-gallery" element={<YovoGallery />} />
-                  
+
+                  {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
+                  <Route path="/sigdsts" element={<SupportTechniquePage />} />
+                  <Route path="/sigdsts/tickets" element={<SupportTicketsPage />} />
+                  <Route path="/sigdsts/tickets/:id" element={<SupportTicketDetailPage />} />
+                  <Route path="/sigdsts/admin" element={<AdminRoute><SupportAdminDashboardPage /></AdminRoute>} />
+                  <Route path="/sigdsts/admin/tickets" element={<AdminRoute><SupportAdminTicketsPage /></AdminRoute>} />
+                  <Route path="/sigdsts/admin/knowledge" element={<AdminRoute><SupportKnowledgePage /></AdminRoute>} />
+
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
