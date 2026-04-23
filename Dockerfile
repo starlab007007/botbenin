@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copie des fichiers de dépendances
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --no-audit --no-fund || (echo "⚠️ npm ci failed (lockfile drift) — falling back to npm install" && npm install --legacy-peer-deps --no-audit --no-fund)
 
 # Copie du code source
 COPY . .
