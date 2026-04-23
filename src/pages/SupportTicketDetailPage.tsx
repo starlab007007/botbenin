@@ -21,10 +21,11 @@ const SupportTicketDetailPage: React.FC = () => {
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
   const { ticket, messages, loading, addMessage } = useSupportTicket(id);
-  const { updateTicketStatus } = useSupportTickets({ adminMode: true });
+  const { updateTicketStatus, assignTicket } = useSupportTickets({ adminMode: true });
   const [reply, setReply] = useState('');
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reopening, setReopening] = useState(false);
 
   if (loading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div>;
@@ -64,6 +65,29 @@ const SupportTicketDetailPage: React.FC = () => {
       toast.success('Statut mis à jour');
     } catch (e: any) {
       toast.error(e.message);
+    }
+  };
+
+  const assignToMe = async () => {
+    if (!user) return;
+    try {
+      await assignTicket(ticket.id, user.id);
+      toast.success('Ticket assigné — passé en cours');
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const reopen = async () => {
+    setReopening(true);
+    try {
+      await updateTicketStatus(ticket.id, 'ouvert' as any);
+      await addMessage('🔁 Ticket rouvert par l\'utilisateur — demande de réexamen.');
+      toast.success('Ticket rouvert. Le support a été notifié.');
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setReopening(false);
     }
   };
 
