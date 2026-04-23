@@ -146,7 +146,7 @@ const SupportTicketDetailPage: React.FC = () => {
                 {messages.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Aucun message</p>}
               </div>
 
-              {!resolved && (
+              {!resolved ? (
                 <div className="mt-4 space-y-2">
                   <Textarea
                     value={reply}
@@ -167,6 +167,17 @@ const SupportTicketDetailPage: React.FC = () => {
                     </Button>
                   </div>
                 </div>
+              ) : (
+                <div className="mt-4 p-3 rounded-md bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 flex items-center justify-between gap-3">
+                  <p className="text-sm text-emerald-800 dark:text-emerald-300">
+                    Ce ticket est <strong>{ticket.status === 'clos' ? 'clos' : 'résolu'}</strong>. Si le problème persiste, vous pouvez le rouvrir.
+                  </p>
+                  {ticket.user_id === user?.id && ticket.status === 'resolu' && (
+                    <Button onClick={reopen} disabled={reopening} size="sm" variant="outline">
+                      {reopening ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Rouvrir le ticket
+                    </Button>
+                  )}
+                </div>
               )}
             </Card>
           </div>
@@ -185,7 +196,7 @@ const SupportTicketDetailPage: React.FC = () => {
             {isAdmin && (
               <Card className="p-4">
                 <h3 className="font-semibold mb-3 text-sm">Actions admin</h3>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div>
                     <label className="text-xs text-muted-foreground">Statut</label>
                     <Select value={ticket.status} onValueChange={changeStatus}>
@@ -199,6 +210,14 @@ const SupportTicketDetailPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  {ticket.assigned_to !== user?.id && (
+                    <Button onClick={assignToMe} variant="outline" size="sm" className="w-full">
+                      M'assigner ce ticket
+                    </Button>
+                  )}
+                  {ticket.assigned_to === user?.id && (
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400">✓ Ticket assigné à vous</p>
+                  )}
                 </div>
               </Card>
             )}

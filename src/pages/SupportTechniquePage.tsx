@@ -31,6 +31,13 @@ const SupportTechniquePage: React.FC = () => {
       </Helmet>
 
       <div className="container mx-auto px-4 py-6 lg:py-10 max-w-7xl">
+        {/* Lien retour plateforme */}
+        <div className="mb-4">
+          <Link to="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors">
+            ← Retour à la plateforme Bot.bj
+          </Link>
+        </div>
+
         {/* Hero */}
         <div className="mb-8 lg:mb-10">
           <div className="flex items-center gap-2 mb-3">
