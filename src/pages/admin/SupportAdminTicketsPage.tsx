@@ -66,7 +66,7 @@ const SupportAdminTicketsPage: React.FC = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map((t) => <TicketCard key={t.id} ticket={t} basePath="/support/admin/tickets" />)}
+            {filtered.map((t) => <TicketCard key={t.id} ticket={t} basePath="/sigdsts/tickets" />)}
           </div>
         )}
       </div>

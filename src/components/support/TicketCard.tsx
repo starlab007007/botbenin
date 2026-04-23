@@ -10,7 +10,7 @@ import { ArrowRight, Hash } from 'lucide-react';
 
 interface Props { ticket: SupportTicket; basePath?: string }
 
-export const TicketCard: React.FC<Props> = ({ ticket, basePath = '/support/tickets' }) => {
+export const TicketCard: React.FC<Props> = ({ ticket, basePath = '/sigdsts/tickets' }) => {
   const sev = SEVERITY_LABELS[ticket.severity];
   const stat = STATUS_LABELS[ticket.status];
   const resolved = ticket.status === 'resolu' || ticket.status === 'clos';

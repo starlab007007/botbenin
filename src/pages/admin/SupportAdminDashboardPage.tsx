@@ -17,10 +17,10 @@ const SupportAdminDashboardPage: React.FC = () => {
           </div>
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm">
-              <Link to="/support/admin/tickets"><Tickets className="w-4 h-4 mr-2" /> Tous les tickets</Link>
+              <Link to="/sigdsts/admin/tickets"><Tickets className="w-4 h-4 mr-2" /> Tous les tickets</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/support/admin/knowledge"><BookOpen className="w-4 h-4 mr-2" /> Base de connaissances</Link>
+              <Link to="/sigdsts/admin/knowledge"><BookOpen className="w-4 h-4 mr-2" /> Base de connaissances</Link>
             </Button>
           </div>
         </div>

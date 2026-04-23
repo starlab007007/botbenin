@@ -21,10 +21,11 @@ const SupportTicketDetailPage: React.FC = () => {
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
   const { ticket, messages, loading, addMessage } = useSupportTicket(id);
-  const { updateTicketStatus } = useSupportTickets({ adminMode: true });
+  const { updateTicketStatus, assignTicket } = useSupportTickets({ adminMode: true });
   const [reply, setReply] = useState('');
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reopening, setReopening] = useState(false);
 
   if (loading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" /></div>;
@@ -34,7 +35,7 @@ const SupportTicketDetailPage: React.FC = () => {
       <div className="container mx-auto py-10 max-w-2xl">
         <Card className="p-8 text-center">
           <p className="mb-4">Ticket introuvable.</p>
-          <Button asChild variant="outline"><Link to="/support/tickets"><ArrowLeft className="w-4 h-4 mr-2" /> Retour</Link></Button>
+          <Button asChild variant="outline"><Link to="/sigdsts/tickets"><ArrowLeft className="w-4 h-4 mr-2" /> Retour</Link></Button>
         </Card>
       </div>
     );
@@ -67,13 +68,36 @@ const SupportTicketDetailPage: React.FC = () => {
     }
   };
 
+  const assignToMe = async () => {
+    if (!user) return;
+    try {
+      await assignTicket(ticket.id, user.id);
+      toast.success('Ticket assigné — passé en cours');
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const reopen = async () => {
+    setReopening(true);
+    try {
+      await updateTicketStatus(ticket.id, 'ouvert' as any);
+      await addMessage('🔁 Ticket rouvert par l\'utilisateur — demande de réexamen.');
+      toast.success('Ticket rouvert. Le support a été notifié.');
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setReopening(false);
+    }
+  };
+
   return (
     <>
       <Helmet><title>{ticket.ticket_number} — {ticket.title} | Support SIGDSTS</title></Helmet>
 
       <div className="container mx-auto px-4 py-6 max-w-5xl">
         <Button asChild variant="ghost" size="sm" className="mb-4">
-          <Link to={isAdmin ? '/support/admin/tickets' : '/support/tickets'}>
+          <Link to={isAdmin ? '/sigdsts/admin/tickets' : '/sigdsts/tickets'}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Retour
           </Link>
         </Button>
@@ -122,7 +146,7 @@ const SupportTicketDetailPage: React.FC = () => {
                 {messages.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Aucun message</p>}
               </div>
 
-              {!resolved && (
+              {!resolved ? (
                 <div className="mt-4 space-y-2">
                   <Textarea
                     value={reply}
@@ -143,6 +167,17 @@ const SupportTicketDetailPage: React.FC = () => {
                     </Button>
                   </div>
                 </div>
+              ) : (
+                <div className="mt-4 p-3 rounded-md bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 flex items-center justify-between gap-3">
+                  <p className="text-sm text-emerald-800 dark:text-emerald-300">
+                    Ce ticket est <strong>{ticket.status === 'clos' ? 'clos' : 'résolu'}</strong>. Si le problème persiste, vous pouvez le rouvrir.
+                  </p>
+                  {ticket.user_id === user?.id && ticket.status === 'resolu' && (
+                    <Button onClick={reopen} disabled={reopening} size="sm" variant="outline">
+                      {reopening ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Rouvrir le ticket
+                    </Button>
+                  )}
+                </div>
               )}
             </Card>
           </div>
@@ -161,7 +196,7 @@ const SupportTicketDetailPage: React.FC = () => {
             {isAdmin && (
               <Card className="p-4">
                 <h3 className="font-semibold mb-3 text-sm">Actions admin</h3>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div>
                     <label className="text-xs text-muted-foreground">Statut</label>
                     <Select value={ticket.status} onValueChange={changeStatus}>
@@ -175,6 +210,14 @@ const SupportTicketDetailPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  {ticket.assigned_to !== user?.id && (
+                    <Button onClick={assignToMe} variant="outline" size="sm" className="w-full">
+                      M'assigner ce ticket
+                    </Button>
+                  )}
+                  {ticket.assigned_to === user?.id && (
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400">✓ Ticket assigné à vous</p>
+                  )}
                 </div>
               </Card>
             )}
