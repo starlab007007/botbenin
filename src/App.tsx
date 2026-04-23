@@ -90,6 +90,7 @@ const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 
 // Module Support Technique SIGDSTS (isolé, sans layout principal)
 const SupportTechniquePage = lazy(() => import("./pages/SupportTechniquePage").then(m => ({ default: (m as any).default ?? (m as any).SupportTechniquePage })));
+const SupportGuidePage = lazy(() => import("./pages/SupportGuidePage"));
 const SupportTicketsPage = lazy(() => import("./pages/SupportTicketsPage").then(m => ({ default: (m as any).default ?? (m as any).SupportTicketsPage })));
 const SupportTicketDetailPage = lazy(() => import("./pages/SupportTicketDetailPage").then(m => ({ default: (m as any).default ?? (m as any).SupportTicketDetailPage })));
 const SupportAdminDashboardPage = lazy(() => import("./pages/admin/SupportAdminDashboardPage").then(m => ({ default: (m as any).default ?? (m as any).SupportAdminDashboardPage })));
@@ -214,6 +215,7 @@ const AppContent = () => {
 
                   {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
                   <Route path="/sigdsts" element={<SupportTechniquePage />} />
+                  <Route path="/sigdsts/guide" element={<SupportGuidePage />} />
                   <Route path="/sigdsts/tickets" element={<SupportTicketsPage />} />
                   <Route path="/sigdsts/tickets/:id" element={<SupportTicketDetailPage />} />
                   <Route path="/sigdsts/admin" element={<AdminRoute><SupportAdminDashboardPage /></AdminRoute>} />
