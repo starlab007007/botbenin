@@ -34,7 +34,7 @@ const SupportTicketDetailPage: React.FC = () => {
       <div className="container mx-auto py-10 max-w-2xl">
         <Card className="p-8 text-center">
           <p className="mb-4">Ticket introuvable.</p>
-          <Button asChild variant="outline"><Link to="/support/tickets"><ArrowLeft className="w-4 h-4 mr-2" /> Retour</Link></Button>
+          <Button asChild variant="outline"><Link to="/sigdsts/tickets"><ArrowLeft className="w-4 h-4 mr-2" /> Retour</Link></Button>
         </Card>
       </div>
     );
@@ -73,7 +73,7 @@ const SupportTicketDetailPage: React.FC = () => {
 
       <div className="container mx-auto px-4 py-6 max-w-5xl">
         <Button asChild variant="ghost" size="sm" className="mb-4">
-          <Link to={isAdmin ? '/support/admin/tickets' : '/support/tickets'}>
+          <Link to={isAdmin ? '/sigdsts/admin/tickets' : '/sigdsts/tickets'}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Retour
           </Link>
         </Button>

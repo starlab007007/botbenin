@@ -1,200 +1,46 @@
+## Diagnostic
 
+Le module SIGDSTS est monté sur `/sigdsts/*` dans `src/App.tsx`, mais **plusieurs composants utilisent encore l'ancien préfixe `/support/*`**, ce qui provoque des 404 (et la page `SupportPage` legacy s'ouvre quand on tombe sur `/support`).
 
-# Plan : Module Support Technique SIGDSTS — bot.bj/support
+### Liens incorrects identifiés
 
-## Vue d'ensemble
+| Fichier | Ligne | Lien actuel (KO) | Devrait être |
+|---|---|---|---|
+| `SupportTechniquePage.tsx` | 30 | `<link rel="canonical" href="https://bot.bj/support" />` | `https://bot.bj/sigdsts` |
+| `SupportTechniquePage.tsx` | 79 | `href="/support/tickets"` (carte "Mes tickets") | `/sigdsts/tickets` |
+| `TicketCard.tsx` | 13 | `basePath = '/support/tickets'` (défaut) | `/sigdsts/tickets` |
+| `SupportAdminTicketsPage.tsx` | 69 | `basePath="/support/admin/tickets"` | `/sigdsts/admin/tickets` |
+| `SupportTicketDetailPage.tsx` | 37 | `to="/support/tickets"` (404 ticket) | `/sigdsts/tickets` |
+| `SupportTicketDetailPage.tsx` | 76 | `to={isAdmin ? '/support/admin/tickets' : '/support/tickets'}` | `/sigdsts/admin/tickets` / `/sigdsts/tickets` |
+| `SupportAdminDashboardPage.tsx` | 20 | `to="/support/admin/tickets"` | `/sigdsts/admin/tickets` |
+| `SupportAdminDashboardPage.tsx` | 23 | `to="/support/admin/knowledge"` | `/sigdsts/admin/knowledge` |
+| `TicketForm.tsx` | 54 | `navigate(/support/tickets/${ticket.id})` après création | `/sigdsts/tickets/${ticket.id}` |
 
-Création d'un **module isolé et autonome** sur la route `/support`, dédié à la gestion des incidents, anomalies et demandes d'intervention selon le **circuit officiel SIGDSTS / ANTS** (3 niveaux : N1 Chatbot → N2 Support humain → N3 Escalade éditeur). Inclut un chatbot IA basé exclusivement sur le Guide SIGDSTS pour résoudre 70% des cas en N1, un système de tickets complet, un tableau de bord administrateur temps réel, et un suivi historique exhaustif.
+C'est ce dernier qui explique pourquoi **après création d'un ticket** l'utilisateur est redirigé vers une page inexistante (`/support/tickets/:id`) au lieu du détail du ticket.
 
-## Architecture du circuit incidents (extrait des documents)
+## Corrections à appliquer
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  N1 — CHATBOT IA (résolution immédiate, 24/7)              │
-│  Base : Guide_SIGDSTS_COMPLET.pdf + Section "Dépannage"    │
-│  → Si résolu → ticket clos automatiquement                 │
-│  → Si non résolu → escalade N2                             │
-├─────────────────────────────────────────────────────────────┤
-│  N2 — SUPPORT TECHNIQUE HUMAIN (Star Lab + Points Focaux)  │
-│  Diagnostic, qualification incident, action corrective     │
-│  SLA : Critique 2h | Majeure 4h | Mineure 1j ouvré         │
-├─────────────────────────────────────────────────────────────┤
-│  N3 — ESCALADE ÉDITEUR (bug logiciel / évolution)          │
-│  Correction code, déploiement patch                        │
-└─────────────────────────────────────────────────────────────┘
-```
+1. **`src/components/support/TicketForm.tsx`** — remplacer la redirection post-création par `/sigdsts/tickets/${ticket.id}`.
+2. **`src/components/support/TicketCard.tsx`** — `basePath` par défaut → `/sigdsts/tickets`.
+3. **`src/pages/SupportTechniquePage.tsx`** — `href="/sigdsts/tickets"` + canonical `https://bot.bj/sigdsts`.
+4. **`src/pages/SupportTicketsPage.tsx`** — déjà OK (utilise `TicketCard` par défaut), vérifier qu'aucun lien dur n'existe.
+5. **`src/pages/SupportTicketDetailPage.tsx`** — boutons "Retour" → `/sigdsts/tickets` et `/sigdsts/admin/tickets`.
+6. **`src/pages/admin/SupportAdminDashboardPage.tsx`** — liens vers tickets et knowledge sous `/sigdsts/admin/...`.
+7. **`src/pages/admin/SupportAdminTicketsPage.tsx`** — `basePath="/sigdsts/admin/tickets"`.
 
-## Pages et routes
+## Améliorations UX bonus (légères)
 
-| Route | Accès | Rôle |
-|---|---|---|
-| `/support` | Public + Authentifié | Page d'accueil support : chatbot N1, FAQ, ouverture ticket |
-| `/support/tickets` | Authentifié | Liste de mes tickets, statuts, historique |
-| `/support/tickets/:id` | Authentifié + assigné | Détail ticket : conversation, pièces jointes, timeline |
-| `/support/admin` | Admin uniquement | **Tableau de bord temps réel** : KPIs, file d'attente, monitoring |
-| `/support/admin/tickets` | Admin | Tous les tickets, filtres, assignation, escalade |
-| `/support/admin/knowledge` | Admin | Gestion base de connaissances du chatbot N1 |
-
-## Composants principaux à créer
-
-### 1. Page publique `/support` (`src/pages/SupportTechniquePage.tsx`)
-- **Hero** : "Support SIGDSTS — Réponse immédiate 24/7"
-- **Chatbot flottant N1** : conversationnel, basé sur le Guide. Boutons rapides : "Connexion impossible", "Problème prélèvement", "Erreur qualification biologique", "Problème distribution PSL"
-- **3 cartes d'action** : Discuter avec l'IA · Ouvrir un ticket · Consulter la documentation
-- **Indicateurs SLA visibles** : "Délai moyen actuel : 1h32" (live)
-- **Catégories d'incidents** (issues du Guide) : Connexion, Module Donneur, Sélection Médicale, Prélèvement, Préparation PSL, Qualification Biologique, Tri/Validation, Distribution, Administration
-
-### 2. Chatbot N1 (`src/components/support/SupportChatbot.tsx`)
-- Interface de chat streaming (markdown rendu)
-- **Edge function `support-chatbot-n1`** appelle Lovable AI Gateway (Gemini 2.5 Flash) avec le contenu du Guide injecté en system prompt + RAG
-- Détection automatique : si l'IA n'a pas la réponse OU si l'utilisateur dit "ça ne marche pas / parler à un agent", propose **création automatique de ticket N2** avec résumé conversationnel pré-rempli
-- Score de confiance affiché. Stockage des conversations dans `support_chat_sessions`
-
-### 3. Formulaire de ticket (`src/components/support/TicketForm.tsx`)
-Champs (alignés sur le Guide ch.15 "Soumission des demandes d'intervention") :
-- **Catégorie** : Incident technique / Anomalie fonctionnelle / Demande d'évolution / Question
-- **Sévérité** : Critique (bloquant) / Majeure / Mineure
-- **Module concerné** : dropdown des 13 modules SIGDSTS
-- **Site / Structure** : antenne ANTS, banque de sang, hôpital
-- **Description** + capture d'écran (upload Supabase Storage)
-- **Étapes de reproduction**
-- **Profil utilisateur** : Médecin, IDE, Technicien labo, Admin, Point Focal
-
-### 4. Espace utilisateur `/support/tickets` (`src/components/support/MyTicketsList.tsx`)
-- Liste responsive (table desktop / cards mobile)
-- Filtres : Statut (Ouvert/En cours/Résolu/Clos), Sévérité, Date
-- Badge SLA temps restant (vert/orange/rouge)
-- Vue détail avec **timeline** : création → assignation → diagnostic → résolution → clôture
-
-### 5. **Tableau de bord administrateur** `/support/admin` (`src/components/support/AdminDashboard.tsx`)
-
-Layout grid responsive avec **mise à jour temps réel** (Supabase Realtime) :
-
-```text
-┌──────────────────┬──────────────────┬──────────────────┬──────────────────┐
-│ Tickets ouverts  │ En cours N2      │ Résolus 24h      │ SLA respecté %   │
-│      24 ▲         │      12          │      47          │     94 %         │
-├──────────────────┴──────────────────┴──────────────────┴──────────────────┤
-│ Graphique : Tickets par jour (7j) — Line chart (recharts)                │
-├──────────────────────────────────────────┬───────────────────────────────┤
-│ Répartition par sévérité (PieChart)      │ Top modules problématiques   │
-├──────────────────────────────────────────┼───────────────────────────────┤
-│ File d'attente temps réel                │ Performance chatbot N1        │
-│ (liste live, polling 5s + Realtime)      │ Taux résolution sans escalade │
-├──────────────────────────────────────────┴───────────────────────────────┤
-│ Carte des incidents par site (antennes ANTS) — heatmap                  │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-Actions admin : assigner ticket, changer statut, escalader N3, fusionner doublons, ajouter note interne, exporter CSV.
-
-### 6. Gestion KB chatbot `/support/admin/knowledge` (`src/components/support/KnowledgeManager.tsx`)
-- Upload du Guide PDF (déjà parsé), ajout d'articles complémentaires (FAQ, fiches réflexes)
-- Stockés dans `support_knowledge_articles`. Le chatbot N1 les utilise via recherche sémantique simple (LIKE/full-text) ou injection directe en context.
-
-## Schéma base de données (5 nouvelles tables)
-
-```sql
--- Tickets de support
-support_tickets (
-  id uuid PK, ticket_number text unique (SUP-2026-00001),
-  user_id uuid, assigned_to uuid nullable,
-  category text, severity text, status text,
-  module text, site text, profile text,
-  title text, description text, reproduction_steps text,
-  attachments jsonb,
-  sla_due_at timestamptz, resolved_at timestamptz, closed_at timestamptz,
-  origin text -- 'chatbot_escalation' | 'manual'
-)
-
--- Messages/timeline d'un ticket
-support_ticket_messages (
-  id, ticket_id FK, author_id, author_role,
-  message text, attachments jsonb, is_internal_note bool, created_at
-)
-
--- Sessions chatbot N1
-support_chat_sessions (
-  id, user_id nullable, messages jsonb,
-  resolved bool, escalated_ticket_id FK nullable,
-  confidence_score numeric, created_at
-)
-
--- Base de connaissances chatbot
-support_knowledge_articles (
-  id, title, content text, module text,
-  category text, source text, is_active bool, created_at
-)
-
--- Logs SLA & monitoring
-support_sla_events (
-  id, ticket_id FK, event_type text,
-  threshold_minutes int, breached bool, occurred_at
-)
-```
-
-**RLS** : 
-- Utilisateurs : voient uniquement leurs propres tickets (`user_id = auth.uid()`)
-- Agents support (rôle `support_agent`) : voient tickets qui leur sont assignés
-- Admins (`has_role(uid, 'admin')`) : voient tout
-- Rôles ajoutés à l'enum `app_role` : `support_agent`
-
-## Edge Functions (3)
-
-1. **`support-chatbot-n1`** : Streaming SSE, system prompt = Guide SIGDSTS + articles KB, retourne réponse + score confiance + flag `needs_escalation`
-2. **`support-create-ticket`** : Génère ticket_number, calcule `sla_due_at` selon sévérité (2h/4h/1j), envoie notification email aux admins via fonction existante
-3. **`support-sla-monitor`** : Cron qui scrute les tickets approchant SLA et marque `breached`, déclenche notification
-
-## Détails techniques
-
-- **Realtime** : `supabase.channel('support_tickets').on('postgres_changes', ...)` pour le dashboard admin
-- **Charts** : `recharts` (déjà présent dans le projet)
-- **Markdown** : `react-markdown` pour les réponses chatbot
-- **File upload** : bucket Supabase Storage `support-attachments` (privé, RLS par user_id)
-- **Génération ticket_number** : trigger Postgres `SUP-YYYY-XXXXX` avec sequence
-- **SLA** : trigger BEFORE INSERT calcule `sla_due_at = now() + interval` selon sévérité (Critique=2h, Majeure=4h, Mineure=1j ouvré)
-- **Notifications** : intégration avec hook existant `useNotifications`
-- **Mobile-first** : breakpoints sm/md/lg, dashboard admin = grid responsive `grid-cols-1 md:grid-cols-2 lg:grid-cols-4`
-- **Sidebar** : ajout entrée "Support Technique" avec icône `LifeBuoy` pointant vers `/support`
-- **Navigation publique** : lien footer + accès direct depuis page d'accueil
-- **Le chatbot N1 utilise Lovable AI** (gratuit, déjà intégré) — modèle `google/gemini-2.5-flash`
-
-## Fichiers à créer / modifier
-
-**Nouveaux fichiers :**
-- `src/pages/SupportTechniquePage.tsx`
-- `src/pages/SupportTicketsPage.tsx`
-- `src/pages/SupportTicketDetailPage.tsx`
-- `src/pages/admin/SupportAdminDashboardPage.tsx`
-- `src/pages/admin/SupportAdminTicketsPage.tsx`
-- `src/pages/admin/SupportKnowledgePage.tsx`
-- `src/components/support/SupportChatbot.tsx`
-- `src/components/support/TicketForm.tsx`
-- `src/components/support/TicketCard.tsx`
-- `src/components/support/TicketTimeline.tsx`
-- `src/components/support/MyTicketsList.tsx`
-- `src/components/support/AdminDashboard.tsx`
-- `src/components/support/SLABadge.tsx`
-- `src/components/support/KnowledgeManager.tsx`
-- `src/hooks/useSupportTickets.ts`
-- `src/hooks/useSupportChatbot.ts`
-- `src/hooks/useSupportRealtimeStats.ts`
-- `supabase/functions/support-chatbot-n1/index.ts`
-- `supabase/functions/support-create-ticket/index.ts`
-- `supabase/functions/support-sla-monitor/index.ts`
-
-**Modifiés :**
-- `src/App.tsx` : ajout des 6 routes
-- `src/components/Sidebar.tsx` : entrée "Support Technique"
-- Migration DB : 5 tables + RLS + trigger ticket_number + trigger SLA + ajout rôle `support_agent` à l'enum
+- Sur la page **détail ticket admin**, ajouter un bouton « Assigner à moi » qui appelle `assignTicket(ticket.id, user.id)` (déjà disponible dans `useSupportTickets`) pour que l'admin puisse facilement prendre en charge un ticket et le passer en `en_cours`.
+- Sur la page **détail ticket utilisateur**, afficher un bandeau « Statut : En cours / Résolu » bien visible en haut + un bouton « Rouvrir » si statut = `resolu` (qui rappelle le support en passant `status='ouvert'` via l'edge function existante ou un message au lieu — pour rester simple : ajouter un message qui réveille le ticket côté admin via un toast).
+- Ajouter un lien retour discret en haut de `/sigdsts` vers `/dashboard` (« ← Retour à la plateforme ») pour que l'utilisateur puisse sortir du module isolé.
 
 ## Résultat attendu
 
-- Page `/support` accessible publiquement avec chatbot N1 fonctionnel basé sur le Guide SIGDSTS
-- Création de tickets fluide avec SLA automatique selon sévérité
-- Espace utilisateur pour suivre ses tickets en temps réel
-- **Dashboard admin temps réel** avec 4 KPIs principaux + 4 graphiques + file d'attente live
-- Isolation stricte par utilisateur via RLS, accès admin via `has_role`
-- 100% responsive (mobile/tablette/desktop)
-- Chatbot résout les cas N1 sans intervention humaine, escalade automatique vers N2 si nécessaire
+- `/sigdsts` → page d'accueil support (chatbot + actions)
+- `/sigdsts/tickets` → mes tickets (utilisateur)
+- `/sigdsts/tickets/:id` → détail ticket (utilisateur ou admin)
+- `/sigdsts/admin` → dashboard admin
+- `/sigdsts/admin/tickets` → tous les tickets (admin)
+- `/sigdsts/admin/tickets/:id` → ⚠️ cette route n'existe pas séparément, le détail admin réutilise `/sigdsts/tickets/:id` (les actions admin s'y affichent automatiquement via `useAdminRole`). C'est déjà le comportement attendu.
 
+Aucune modification de base de données ni d'edge function n'est requise — uniquement des corrections de routes côté client.

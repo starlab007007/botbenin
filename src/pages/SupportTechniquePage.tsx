@@ -27,7 +27,7 @@ const SupportTechniquePage: React.FC = () => {
       <Helmet>
         <title>Support Technique SIGDSTS — Réponse immédiate 24/7 | Bot.bj</title>
         <meta name="description" content="Support technique de la plateforme SIGDSTS : chatbot IA niveau 1, gestion des tickets, suivi des incidents en temps réel. Disponible 24/7." />
-        <link rel="canonical" href="https://bot.bj/support" />
+        <link rel="canonical" href="https://bot.bj/sigdsts" />
       </Helmet>
 
       <div className="container mx-auto px-4 py-6 lg:py-10 max-w-7xl">
@@ -76,7 +76,7 @@ const SupportTechniquePage: React.FC = () => {
             title="Mes tickets"
             description="Suivez l'état de vos demandes en temps réel"
             badge="Historique complet"
-            href="/support/tickets"
+            href="/sigdsts/tickets"
             cta="Voir mes tickets"
             requireAuth
             authed={!!user}

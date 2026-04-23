@@ -51,7 +51,7 @@ export const TicketForm: React.FC<Props> = ({ open, onOpenChange, prefilledDescr
       } as any);
       toast.success(`Ticket ${ticket?.ticket_number ?? ''} créé avec succès`);
       onOpenChange(false);
-      if (ticket?.id) navigate(`/support/tickets/${ticket.id}`);
+      if (ticket?.id) navigate(`/sigdsts/tickets/${ticket.id}`);
     } catch (e: any) {
       toast.error(e.message ?? 'Erreur lors de la création');
     } finally {
