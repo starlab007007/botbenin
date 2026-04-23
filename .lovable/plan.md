@@ -1,46 +1,44 @@
-## Diagnostic
 
-Le module SIGDSTS est monté sur `/sigdsts/*` dans `src/App.tsx`, mais **plusieurs composants utilisent encore l'ancien préfixe `/support/*`**, ce qui provoque des 404 (et la page `SupportPage` legacy s'ouvre quand on tombe sur `/support`).
 
-### Liens incorrects identifiés
+## Problem
 
-| Fichier | Ligne | Lien actuel (KO) | Devrait être |
-|---|---|---|---|
-| `SupportTechniquePage.tsx` | 30 | `<link rel="canonical" href="https://bot.bj/support" />` | `https://bot.bj/sigdsts` |
-| `SupportTechniquePage.tsx` | 79 | `href="/support/tickets"` (carte "Mes tickets") | `/sigdsts/tickets` |
-| `TicketCard.tsx` | 13 | `basePath = '/support/tickets'` (défaut) | `/sigdsts/tickets` |
-| `SupportAdminTicketsPage.tsx` | 69 | `basePath="/support/admin/tickets"` | `/sigdsts/admin/tickets` |
-| `SupportTicketDetailPage.tsx` | 37 | `to="/support/tickets"` (404 ticket) | `/sigdsts/tickets` |
-| `SupportTicketDetailPage.tsx` | 76 | `to={isAdmin ? '/support/admin/tickets' : '/support/tickets'}` | `/sigdsts/admin/tickets` / `/sigdsts/tickets` |
-| `SupportAdminDashboardPage.tsx` | 20 | `to="/support/admin/tickets"` | `/sigdsts/admin/tickets` |
-| `SupportAdminDashboardPage.tsx` | 23 | `to="/support/admin/knowledge"` | `/sigdsts/admin/knowledge` |
-| `TicketForm.tsx` | 54 | `navigate(/support/tickets/${ticket.id})` après création | `/sigdsts/tickets/${ticket.id}` |
+The VPS deployment runs `npm ci --legacy-peer-deps` inside the Dockerfile. `npm ci` requires `package.json` and `package-lock.json` to be perfectly in sync, and **fails (exit 1)** otherwise. Recently added dependencies (`react-pdf@9.1.1`, `pdfjs-dist@4.4.168` — for the SIGDSTS PDF guide reader) were registered by Bun in `bun.lock`/`bun.lockb` but **never written into `package-lock.json`**, which is what the Docker build uses. Hence the build error:
 
-C'est ce dernier qui explique pourquoi **après création d'un ticket** l'utilisateur est redirigé vers une page inexistante (`/support/tickets/:id`) au lieu du détail du ticket.
+```
+process "/bin/sh -c npm ci --legacy-peer-deps" did not complete successfully: exit code: 1
+```
 
-## Corrections à appliquer
+I cannot run `git push`/SSH deploy from this environment (no git/SSH credentials, deploy is triggered by GitHub Actions on push to `main`). What I can do is **fix the root cause in the repo** so the next push (which Lovable performs automatically when files change) triggers a successful CI/CD build on your VPS.
 
-1. **`src/components/support/TicketForm.tsx`** — remplacer la redirection post-création par `/sigdsts/tickets/${ticket.id}`.
-2. **`src/components/support/TicketCard.tsx`** — `basePath` par défaut → `/sigdsts/tickets`.
-3. **`src/pages/SupportTechniquePage.tsx`** — `href="/sigdsts/tickets"` + canonical `https://bot.bj/sigdsts`.
-4. **`src/pages/SupportTicketsPage.tsx`** — déjà OK (utilise `TicketCard` par défaut), vérifier qu'aucun lien dur n'existe.
-5. **`src/pages/SupportTicketDetailPage.tsx`** — boutons "Retour" → `/sigdsts/tickets` et `/sigdsts/admin/tickets`.
-6. **`src/pages/admin/SupportAdminDashboardPage.tsx`** — liens vers tickets et knowledge sous `/sigdsts/admin/...`.
-7. **`src/pages/admin/SupportAdminTicketsPage.tsx`** — `basePath="/sigdsts/admin/tickets"`.
+## Plan
 
-## Améliorations UX bonus (légères)
+### 1. Regenerate `package-lock.json` in sync with `package.json`
+- Run `npm install --legacy-peer-deps --package-lock-only` to rebuild `package-lock.json` including `react-pdf`, `pdfjs-dist` and their transitive deps.
+- Verify the new lockfile contains both packages.
 
-- Sur la page **détail ticket admin**, ajouter un bouton « Assigner à moi » qui appelle `assignTicket(ticket.id, user.id)` (déjà disponible dans `useSupportTickets`) pour que l'admin puisse facilement prendre en charge un ticket et le passer en `en_cours`.
-- Sur la page **détail ticket utilisateur**, afficher un bandeau « Statut : En cours / Résolu » bien visible en haut + un bouton « Rouvrir » si statut = `resolu` (qui rappelle le support en passant `status='ouvert'` via l'edge function existante ou un message au lieu — pour rester simple : ajouter un message qui réveille le ticket côté admin via un toast).
-- Ajouter un lien retour discret en haut de `/sigdsts` vers `/dashboard` (« ← Retour à la plateforme ») pour que l'utilisateur puisse sortir du module isolé.
+### 2. Make the Dockerfile resilient to future drift (defensive hardening)
+- Update `Dockerfile` step `RUN npm ci --legacy-peer-deps` to fallback automatically if the lockfile is out-of-sync:
+  ```
+  RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps --no-audit --no-fund
+  ```
+- This prevents the entire deployment pipeline from breaking again the next time a dependency is added via Bun/Lovable while CI uses npm.
 
-## Résultat attendu
+### 3. Local sanity check
+- Run `npm ci --legacy-peer-deps` locally in the sandbox (the same command Docker runs) to confirm it now succeeds before the change is committed.
+- Run `npm run build` to confirm the production bundle compiles end-to-end (catches any react-pdf/pdfjs build issues before they reach the VPS).
 
-- `/sigdsts` → page d'accueil support (chatbot + actions)
-- `/sigdsts/tickets` → mes tickets (utilisateur)
-- `/sigdsts/tickets/:id` → détail ticket (utilisateur ou admin)
-- `/sigdsts/admin` → dashboard admin
-- `/sigdsts/admin/tickets` → tous les tickets (admin)
-- `/sigdsts/admin/tickets/:id` → ⚠️ cette route n'existe pas séparément, le détail admin réutilise `/sigdsts/tickets/:id` (les actions admin s'y affichent automatiquement via `useAdminRole`). C'est déjà le comportement attendu.
+### 4. Commit & deploy
+- Saving the updated `package-lock.json` and `Dockerfile` in Lovable automatically pushes to the connected GitHub repo's `main` branch.
+- The existing GitHub Action `.github/workflows/deploy.yml` then SSHes into the VPS, runs `git pull`, rebuilds the Docker images (now successfully), and restarts the containers behind Traefik on `bot.bj`.
+- I'll monitor by inspecting the build logs the action prints; if anything else fails I'll iterate.
 
-Aucune modification de base de données ni d'edge function n'est requise — uniquement des corrections de routes côté client.
+## What I will NOT change
+- No application code changes. The PDF reader, ticket flows and `/sigdsts` routes already work — this is purely a build/dependency-sync issue.
+- No change to `bun.lock` (Lovable manages it).
+- No change to the VPS, Traefik or `docker-compose.yml`.
+
+## Technical details
+- Root cause: `npm ci` is intentionally strict — it errors if `package.json` declares a package not pinned in `package-lock.json`. Bun and npm maintain separate lockfiles; Lovable updates Bun's, the VPS Dockerfile uses npm's.
+- The `--package-lock-only` flag rewrites `package-lock.json` without touching `node_modules`, keeping the operation fast and side-effect free in the sandbox.
+- The `||` fallback in the Dockerfile preserves `npm ci`'s reproducibility benefits when the lockfile is good, but won't hard-fail the deployment when it isn't — a worthwhile trade-off for a Lovable + VPS hybrid workflow.
+
