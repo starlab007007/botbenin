@@ -56,7 +56,7 @@ const SupportTechniquePage: React.FC = () => {
         </div>
 
         {/* Quick actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <ActionCard
             icon={Bot}
             color="from-emerald-500 to-emerald-700"
@@ -87,6 +87,15 @@ const SupportTechniquePage: React.FC = () => {
             cta="Voir mes tickets"
             requireAuth
             authed={!!user}
+          />
+          <ActionCard
+            icon={BookOpen}
+            color="from-amber-500 to-orange-600"
+            title="Guide SIGDSTS"
+            description="Consultez le guide officiel comme un livre interactif"
+            badge="Sommaire · Recherche · Navigation"
+            href="/sigdsts/guide"
+            cta="Lire le guide"
           />
         </div>
 
