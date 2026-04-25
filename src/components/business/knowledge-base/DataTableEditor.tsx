@@ -272,7 +272,7 @@ export const DataTableEditor: React.FC<DataTableEditorProps> = ({ table, data, o
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="flex flex-col w-[90vw] sm:max-w-2xl max-h-[85dvh] sm:max-h-[85vh] overflow-hidden p-0 rounded-xl sm:rounded-lg border">
+        <DialogContent className="flex flex-col w-[95vw] max-w-[calc(100vw-1rem)] sm:max-w-2xl h-[90dvh] sm:h-auto max-h-[90dvh] sm:max-h-[85vh] overflow-hidden p-0 rounded-2xl sm:rounded-lg border">
           <div className="shrink-0 p-4 sm:p-6 pb-3 border-b bg-background">
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg pr-8">

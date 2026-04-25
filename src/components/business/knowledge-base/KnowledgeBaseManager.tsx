@@ -227,7 +227,7 @@ export const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({ onBa
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
+        <AlertDialogContent className="w-[95vw] max-w-[calc(100vw-1rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl sm:rounded-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm">
