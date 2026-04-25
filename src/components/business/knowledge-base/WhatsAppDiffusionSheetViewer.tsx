@@ -279,79 +279,83 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-green-600" />
-              {editingRow ? 'Modifier le contact' : 'Ajouter un contact'}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Synchronisé avec Google Sheets (vos données uniquement)
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="flex flex-col w-[95vw] max-w-[calc(100vw-1rem)] sm:max-w-md h-[90dvh] sm:h-auto max-h-[90dvh] sm:max-h-[85vh] overflow-hidden p-0 rounded-2xl sm:rounded-lg">
+          <div className="shrink-0 p-4 sm:p-6 pb-3 border-b bg-background">
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg flex items-center gap-2 pr-8">
+                <MessageCircle className="w-4 h-4 text-green-600" />
+                {editingRow ? 'Modifier le contact' : 'Ajouter un contact'}
+              </DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
+                Synchronisé avec Google Sheets (vos données uniquement)
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="space-y-3 py-2">
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground">ID Campagne (auto)</Label>
-              <Input
-                value={formData.id_campagne || ''}
-                disabled
-                className="mt-1 font-mono text-xs bg-muted/40"
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium text-muted-foreground">Nom Campagne (auto)</Label>
-              <Input
-                value={formData.nom_campagne || ''}
-                disabled
-                placeholder="Sera rempli après création de campagne"
-                className="mt-1 bg-muted/40"
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium">Nom du contact *</Label>
-              <Input
-                value={formData.nom_contact || ''}
-                onChange={(e) => setFormData({ ...formData, nom_contact: e.target.value })}
-                placeholder="Ex: Adjoua Koffi"
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium">WhatsApp * (format +229XXXXXXXX)</Label>
-              <Input
-                value={formData.contact_whatsapp || ''}
-                onChange={(e) => setFormData({ ...formData, contact_whatsapp: e.target.value })}
-                placeholder="+22997XXXXXXX"
-                className="mt-1 font-mono"
-              />
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3">
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6">
+            <div className="space-y-3 py-4">
               <div>
-                <Label className="text-xs font-medium">Statut</Label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {formData.statut === 'Actif' ? 'Recevra les campagnes' : 'Exclu des campagnes'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium">{formData.statut || 'Inactif'}</span>
-                <Switch
-                  checked={formData.statut === 'Actif'}
-                  onCheckedChange={(c) => setFormData({ ...formData, statut: c ? 'Actif' : 'Inactif' })}
+                <Label className="text-xs font-medium text-muted-foreground">ID Campagne (auto)</Label>
+                <Input
+                  value={formData.id_campagne || ''}
+                  disabled
+                  className="mt-1 font-mono text-xs bg-muted/40"
                 />
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-muted-foreground">Nom Campagne (auto)</Label>
+                <Input
+                  value={formData.nom_campagne || ''}
+                  disabled
+                  placeholder="Sera rempli après création de campagne"
+                  className="mt-1 bg-muted/40"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium">Nom du contact *</Label>
+                <Input
+                  value={formData.nom_contact || ''}
+                  onChange={(e) => setFormData({ ...formData, nom_contact: e.target.value })}
+                  placeholder="Ex: Adjoua Koffi"
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium">WhatsApp * (format +229XXXXXXXX)</Label>
+                <Input
+                  value={formData.contact_whatsapp || ''}
+                  onChange={(e) => setFormData({ ...formData, contact_whatsapp: e.target.value })}
+                  placeholder="+22997XXXXXXX"
+                  className="mt-1 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label className="text-xs font-medium">Statut</Label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {formData.statut === 'Actif' ? 'Recevra les campagnes' : 'Exclu des campagnes'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium">{formData.statut || 'Inactif'}</span>
+                  <Switch
+                    checked={formData.statut === 'Actif'}
+                    onCheckedChange={(c) => setFormData({ ...formData, statut: c ? 'Actif' : 'Inactif' })}
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">
+          <div className="shrink-0 flex flex-col-reverse sm:flex-row justify-end gap-2 p-4 sm:px-6 border-t bg-background">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">
               Annuler
             </Button>
-            <Button onClick={handleSave} disabled={isWriting} className="w-full sm:w-auto">
+            <Button onClick={handleSave} disabled={isWriting} className="w-full sm:w-auto h-11 sm:h-10">
               {isWriting && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
               {editingRow ? 'Modifier' : 'Ajouter'}
             </Button>

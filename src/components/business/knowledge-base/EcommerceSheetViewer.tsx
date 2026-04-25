@@ -252,22 +252,26 @@ export const EcommerceSheetViewer: React.FC<EcommerceSheetViewerProps> = ({ know
       </CardContent>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[100vw] sm:max-w-2xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto p-3 sm:p-6 rounded-none sm:rounded-lg inset-0 sm:inset-auto sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] w-full h-[100dvh] sm:h-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base">{editingRow ? 'Modifier' : 'Ajouter'} — {currentConfig?.label}</DialogTitle>
-            <DialogDescription className="text-xs">Synchronisé avec Google Sheets</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 py-3">
-            {currentConfig?.fields.map(field => (
-              <div key={field.key} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-                <Label className="text-xs font-medium">{field.label}</Label>
-                <div className="mt-1">{renderFormField(field)}</div>
-              </div>
-            ))}
+        <DialogContent className="flex flex-col w-[95vw] max-w-[calc(100vw-1rem)] sm:max-w-2xl h-[90dvh] sm:h-auto max-h-[90dvh] sm:max-h-[85vh] overflow-hidden p-0 rounded-2xl sm:rounded-lg">
+          <div className="shrink-0 p-4 sm:p-6 pb-3 border-b bg-background">
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg pr-8">{editingRow ? 'Modifier' : 'Ajouter'} — {currentConfig?.label}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">Synchronisé avec Google Sheets</DialogDescription>
+            </DialogHeader>
           </div>
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">Annuler</Button>
-            <Button onClick={handleSave} disabled={isWriting} className="w-full sm:w-auto">
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 py-4">
+              {currentConfig?.fields.map(field => (
+                <div key={field.key} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
+                  <Label className="text-xs font-medium">{field.label}</Label>
+                  <div className="mt-1">{renderFormField(field)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="shrink-0 flex flex-col-reverse sm:flex-row justify-end gap-2 p-4 sm:px-6 border-t bg-background">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">Annuler</Button>
+            <Button onClick={handleSave} disabled={isWriting} className="w-full sm:w-auto h-11 sm:h-10">
               {isWriting && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
               {editingRow ? 'Modifier' : 'Ajouter'}
             </Button>
