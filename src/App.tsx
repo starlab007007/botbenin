@@ -93,6 +93,8 @@ const SupportTechniquePage = lazy(() => import("./pages/SupportTechniquePage").t
 const SupportGuidePage = lazy(() => import("./pages/SupportGuidePage"));
 const SupportTicketsPage = lazy(() => import("./pages/SupportTicketsPage").then(m => ({ default: (m as any).default ?? (m as any).SupportTicketsPage })));
 const SupportTicketDetailPage = lazy(() => import("./pages/SupportTicketDetailPage").then(m => ({ default: (m as any).default ?? (m as any).SupportTicketDetailPage })));
+const SupportTicketExpressPage = lazy(() => import("./pages/SupportTicketExpressPage"));
+const SupportGuestTicketPage = lazy(() => import("./pages/SupportGuestTicketPage"));
 const SupportAdminDashboardPage = lazy(() => import("./pages/admin/SupportAdminDashboardPage").then(m => ({ default: (m as any).default ?? (m as any).SupportAdminDashboardPage })));
 const SupportAdminTicketsPage = lazy(() => import("./pages/admin/SupportAdminTicketsPage").then(m => ({ default: (m as any).default ?? (m as any).SupportAdminTicketsPage })));
 const SupportKnowledgePage = lazy(() => import("./pages/admin/SupportKnowledgePage").then(m => ({ default: (m as any).default ?? (m as any).SupportKnowledgePage })));
@@ -218,6 +220,9 @@ const AppContent = () => {
                   <Route path="/sigdsts/guide" element={<SupportGuidePage />} />
                   <Route path="/sigdsts/tickets" element={<SupportTicketsPage />} />
                   <Route path="/sigdsts/tickets/:id" element={<SupportTicketDetailPage />} />
+                  {/* Ticket Express : parcours public sans inscription */}
+                  <Route path="/sigdsts/ticket-express" element={<SupportTicketExpressPage />} />
+                  <Route path="/sigdsts/t/:token" element={<SupportGuestTicketPage />} />
                   <Route path="/sigdsts/admin" element={<AdminRoute><SupportAdminDashboardPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/tickets" element={<AdminRoute><SupportAdminTicketsPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/knowledge" element={<AdminRoute><SupportKnowledgePage /></AdminRoute>} />
