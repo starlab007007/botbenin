@@ -70,12 +70,11 @@ const SupportTechniquePage: React.FC = () => {
             icon={Ticket}
             color="from-blue-500 to-blue-700"
             title="Ouvrir un ticket N2"
-            description="Support humain avec SLA garanti selon sévérité"
+            description={user ? "Support humain avec SLA garanti selon sévérité" : "Sans inscription — suivi par email"}
             badge="Critique 2h · Majeure 4h · Mineure 24h"
-            onClick={() => { setPrefilledDescription(undefined); setTicketOpen(true); }}
-            cta="Créer un ticket"
-            requireAuth
-            authed={!!user}
+            onClick={user ? () => { setPrefilledDescription(undefined); setTicketOpen(true); } : undefined}
+            href={user ? undefined : "/sigdsts/ticket-express"}
+            cta={user ? "Créer un ticket" : "Ticket Express (sans compte)"}
           />
           <ActionCard
             icon={BookOpen}

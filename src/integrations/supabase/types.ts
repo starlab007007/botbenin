@@ -3912,6 +3912,27 @@ export type Database = {
         }
         Relationships: []
       }
+      support_public_rate_limit: {
+        Row: {
+          created_at: string
+          email_hash: string | null
+          id: string
+          ip_hash: string
+        }
+        Insert: {
+          created_at?: string
+          email_hash?: string | null
+          id?: string
+          ip_hash: string
+        }
+        Update: {
+          created_at?: string
+          email_hash?: string | null
+          id?: string
+          ip_hash?: string
+        }
+        Relationships: []
+      }
       support_sla_events: {
         Row: {
           breached: boolean | null
@@ -3997,7 +4018,13 @@ export type Database = {
           closed_at: string | null
           created_at: string
           description: string
+          guest_email: string | null
+          guest_full_name: string | null
+          guest_phone: string | null
+          guest_token_expires: string | null
+          guest_token_hash: string | null
           id: string
+          is_guest_ticket: boolean | null
           module: string | null
           origin: string
           profile: string | null
@@ -4012,7 +4039,7 @@ export type Database = {
           ticket_number: string | null
           title: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           assigned_to?: string | null
@@ -4022,7 +4049,13 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           description: string
+          guest_email?: string | null
+          guest_full_name?: string | null
+          guest_phone?: string | null
+          guest_token_expires?: string | null
+          guest_token_hash?: string | null
           id?: string
+          is_guest_ticket?: boolean | null
           module?: string | null
           origin?: string
           profile?: string | null
@@ -4037,7 +4070,7 @@ export type Database = {
           ticket_number?: string | null
           title: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           assigned_to?: string | null
@@ -4047,7 +4080,13 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           description?: string
+          guest_email?: string | null
+          guest_full_name?: string | null
+          guest_phone?: string | null
+          guest_token_expires?: string | null
+          guest_token_hash?: string | null
           id?: string
+          is_guest_ticket?: boolean | null
           module?: string | null
           origin?: string
           profile?: string | null
@@ -4062,7 +4101,7 @@ export type Database = {
           ticket_number?: string | null
           title?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -5730,6 +5769,7 @@ export type Database = {
         Args: { p_creation_type: string; p_user_id: string }
         Returns: Json
       }
+      claim_guest_tickets: { Args: { _email: string }; Returns: number }
       cleanup_and_consolidate_chat_data: {
         Args: { p_bot_id?: string }
         Returns: {
