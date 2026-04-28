@@ -1,181 +1,114 @@
+## Objectif
 
-# Quiz Interactif SIGDSTS — 200 questions basées sur le Guide Officiel
+Reproduire pour les **quiz SIGDSTS** le pattern « Ticket Express » déjà en place :
+- N'importe qui peut passer un quiz **sans créer de compte**
+- Le candidat peut **suivre ses tentatives, scores et attestations** via un lien magique personnel (token)
+- L'**administrateur** voit en un coup d'œil **toutes les tentatives de tous les candidats** (notes, modules, dates, mention)
 
-## Vision
-Ajouter un module de formation auto-évaluative à `/sigdsts/quiz` qui transforme le Guide SIGDSTS Complet (PDF officiel v11.0) en parcours pédagogique. **10 modules métier × 20 QCM = 200 questions**, difficulté progressive (facile → expert), correction immédiate avec citation de la page du guide.
+## Architecture (calquée sur les guest tickets)
 
-Accessible **sans connexion** (comme Ticket Express) — les agents ANTS/BDS sur le terrain peuvent s'auto-évaluer instantanément. Score local stocké dans `localStorage` (pas de backend requis pour la v1).
+### 1. Base de données (2 nouvelles tables + 1 vue admin)
 
----
+**`quiz_candidates`** — identité légère du candidat (sans auth)
+- `id` uuid PK
+- `email` text (lowercase, unique)
+- `full_name` text
+- `phone` text nullable
+- `organization` text nullable (BDS/site)
+- `guest_token_hash` text unique (SHA-256, jamais le clair)
+- `guest_token_expires` timestamptz (TTL 180 jours)
+- `created_at`, `last_activity_at`
+- RLS : aucun SELECT direct (`USING (false)`) — accès uniquement via edge function service-role + politique admin via `has_role`
 
-## Périmètre — 10 modules métier (200 questions)
+**`quiz_attempts`** — chaque passage de quiz
+- `id` uuid PK
+- `candidate_id` uuid FK → `quiz_candidates`
+- `module_id` text (ex `'accueil-donneur'`)
+- `module_title` text (snapshot)
+- `total_questions` int
+- `score` int (bonnes réponses)
+- `ratio` numeric généré (`score::numeric / total_questions`)
+- `mention` text (`excellent`/`good`/`review`)
+- `passed` bool (≥ 70%)
+- `duration_seconds` int nullable
+- `answers` jsonb (`[{questionId, selectedIndex, correct}]`)
+- `certificate_issued` bool default false
+- `ip_hash` text, `user_agent` text (analytics anti-abus)
+- `created_at`
+- RLS : aucun SELECT direct, accès via edge function
 
-Source unique : `public/docs/Guide_SIGDSTS_COMPLET.pdf` (v11.0, Mars 2026)
+**`quiz_public_rate_limit`** (réutilise le pattern existant) — 1 ligne par tentative, purge ≥ 24 h
+- 10 tentatives / IP / heure
+- 30 tentatives / email / jour
 
-| # | Module | Source guide | Thèmes 20 QCM |
-|---|--------|--------------|---------------|
-| 1 | **Accueil Donneur** | §4 (p.12-15) | Recherche donneur, Fiche Pré-Don, état civil, photo, validation |
-| 2 | **Sélection Médicale** | §5 (p.16-20) | Questionnaire, examen, critères d'ajournement, décision |
-| 3 | **Prélèvement** | §6 (p.21-24) | Numéros de poche, enregistrement, code-barres |
-| 4 | **Préparation des PSL** | §7 (p.25-26) | Produits dérivés, étiquetage, traçabilité |
-| 5 | **Qualification Biologique** | §8 (p.27-35) | Sérologie, Hématologie, Groupage Agent 1/2, finalisation |
-| 6 | **Tri & Validation** | §9 (p.36-38) | Analyse physique, statuts, fiche QR code |
-| 7 | **Destruction de Produit** | §10 (p.39-40) | Onglets, motifs, procédure |
-| 8 | **Stock & Transfert PSL** | §11 (p.41-44) | Stock production, fiche transfert, réception |
-| 9 | **Distribution des PSL** | §12 (p.45-52) | BDS, BS périphérique, FDN, transfusion, FEIR |
-| 10 | **Administration** | §13 (p.53-68) | Paramètres, banques, utilisateurs, rôles, rapports |
+**Vue `quiz_admin_attempts`** (`security_invoker=on`) — join lisible candidat + tentative pour le dashboard admin, protégée par RLS `has_role(auth.uid(),'admin')`.
 
-Chaque QCM = 4 options, 1 bonne réponse, justification + référence page.
+### 2. Edge functions (4 nouvelles, mêmes helpers `_shared/guestTicket.ts`)
 
----
+| Function | Rôle |
+|---|---|
+| `quiz-guest-start` | POST `{email, full_name, phone?, organization?, captcha_token?}` → crée/upsert le candidat, génère token clair (renvoyé 1 seule fois) + envoie email avec lien `/sigdsts/quiz/suivi/:token`. Rate-limit IP/email. |
+| `quiz-guest-submit` | POST `{token, module_id, score, total, answers, duration_seconds}` → valide token, insère `quiz_attempts`, met à jour `last_activity_at`, renvoie `attempt_id`. |
+| `quiz-guest-history` | POST `{token}` → renvoie le candidat (sans hash) + toutes ses tentatives (best-score par module, mentions, dates). |
+| `quiz-admin-list` | POST (JWT requis, vérif `has_role admin`) `{search?, module_id?, mention?, from?, to?}` → liste paginée toutes tentatives + candidat (email, nom). |
 
-## Expérience utilisateur
+Toutes utilisent `corsHeaders`, `sha256Hex`, `verifyCaptcha`, honeypot — code partagé existant.
 
-### Page d'accueil quiz `/sigdsts/quiz`
-- Hero : « Testez vos connaissances SIGDSTS — 100% basé sur le Guide officiel v11.0 »
-- Grille 10 cartes (1 par module) avec : icône, titre, nb questions, durée estimée (~10 min), badge difficulté
-- Bouton « Commencer » sur chaque carte
-- Statistiques personnelles (localStorage) : modules complétés, meilleur score
-- CTA secondaire : « Lire le Guide » (lien `/sigdsts/guide`)
+### 3. Frontend
 
-### Page de quiz `/sigdsts/quiz/:moduleId`
-- Barre de progression (1/20, 2/20, …)
-- Question + 4 options radio (mobile-friendly, gros boutons tactiles)
-- Bouton « Valider »
-- Après validation :
-  - ✅ vert si correcte / ❌ rouge si fausse + bonne réponse mise en évidence
-  - **Justification courte** + « 📖 Voir Guide §X.Y page Z »
-  - Bouton « Question suivante »
-- Difficulté progressive : Q1-7 facile, Q8-14 intermédiaire, Q15-20 expert
+**Pages publiques nouvelles**
+- `/sigdsts/quiz` (existante) → ajouter en haut un bandeau « Suivi de mes évaluations » + bouton « Démarrer / Récupérer mon lien » qui ouvre une `Dialog` (email + nom). À la soumission : appel `quiz-guest-start`, affichage du lien + email envoyé. Token aussi stocké en `localStorage` (`sigdsts_quiz_guest_token`) pour pré-remplissage.
+- `/sigdsts/quiz/suivi/:token` (**nouvelle**) `SigdstsQuizGuestHistoryPage` — affiche identité du candidat, **toutes ses tentatives** par module, meilleur score, mention, bouton « Refaire » et bouton « Re-télécharger l'attestation » pour chaque réussite.
 
-### Écran de résultats `/sigdsts/quiz/:moduleId/result`
-- Score X/20 avec barre circulaire
-- Mention : Excellent (≥18), Bien (≥14), À revoir (<14)
-- Liste des questions ratées avec rappel guide
-- Boutons : « Refaire », « Module suivant », « Télécharger attestation PDF » (génération côté client avec jsPDF)
+**Pages existantes adaptées**
+- `SigdstsQuizPlayerPage` : si un `guest_token` est en `localStorage`, l'envoyer à `quiz-guest-submit` à la fin du quiz (en plus du `localStorage` actuel — fallback offline conservé).
+- `SigdstsQuizResultPage` : appeler `quiz-guest-submit` au montage si pas encore fait, marquer `certificate_issued=true` quand l'utilisateur télécharge le PDF.
+- `SigdstsQuizIndexPage` : afficher un badge « Synchronisé ☁️ » si token présent, sinon « Local uniquement ».
 
-### Responsive mobile (rappel mémoire projet)
-- `max-h-[100dvh]` pour pleine hauteur
-- Cartes empilées verticalement <768px
-- Boutons tactiles ≥48px
+**Page admin nouvelle**
+- `/sigdsts/admin/quiz` `AdminQuizAttemptsPage` (sous `<AdminRoute>`) :
+  - Tableau responsive (cards stackées en mobile, tableau en desktop) : Date · Candidat (nom + email) · Module · Score · Mention · Durée · IP hash
+  - Filtres : recherche (nom/email/module), module, mention, plage de dates
+  - KPIs en haut : nb candidats, nb tentatives, taux de réussite global, top modules
+  - Export CSV côté client
+- Lien dans la nav admin SIGDSTS (`/sigdsts/admin` dashboard) vers la nouvelle page.
 
----
+### 4. Email transactionnel
 
-## Architecture technique
+Template `emailQuizAccess` ajouté à `_shared/guestTicket.ts` (ou `_shared/guestQuiz.ts`) :
+- Sujet : « Votre espace de formation SIGDSTS »
+- Bouton « Voir mes évaluations » → `${PUBLIC_APP_URL}/sigdsts/quiz/suivi/${token}`
+- Mention TTL 180 jours, lien personnel à ne pas partager
 
-### Banque de questions — fichiers TS statiques
-```
-src/data/sigdsts-quiz/
-├── index.ts                    // export consolidé + types
-├── types.ts                    // QuizQuestion, QuizModule, QuizResult
-├── module-01-accueil.ts        // 20 questions
-├── module-02-selection.ts
-├── module-03-prelevement.ts
-├── module-04-preparation.ts
-├── module-05-qualification.ts
-├── module-06-tri-validation.ts
-├── module-07-destruction.ts
-├── module-08-stock-transfert.ts
-├── module-09-distribution.ts
-└── module-10-administration.ts
-```
+## Sécurité
 
-Type :
-```ts
-export interface QuizQuestion {
-  id: string;                    // "M01-Q07"
-  difficulty: 'easy' | 'medium' | 'hard';
-  question: string;
-  options: [string, string, string, string];
-  correctIndex: 0 | 1 | 2 | 3;
-  explanation: string;           // 1-2 phrases
-  guideRef: { section: string; page: number };
-}
-```
+- Token jamais stocké en clair côté serveur (SHA-256), comparé via `quiz-guest-history`/`submit`
+- RLS strict : `quiz_candidates` et `quiz_attempts` inaccessibles via API publique sans token, accessibles à l'admin via `has_role`
+- Service-role utilisé uniquement côté edge functions
+- Honeypot + captcha optionnel + rate-limit (table partagée renommée ou dédiée `quiz_public_rate_limit`)
+- Aucun PII renvoyé hors contexte (l'historique d'un token ne renvoie que ce candidat)
 
-### Composants React
-```
-src/components/quiz/
-├── QuizModuleCard.tsx          // carte sur la page d'accueil
-├── QuizPlayer.tsx              // logique question/réponse
-├── QuizQuestion.tsx            // affichage 1 question
-├── QuizProgress.tsx            // barre de progression
-├── QuizResult.tsx              // écran de fin
-├── QuizScoreBadge.tsx          // mention Excellent/Bien/…
-└── QuizCertificatePDF.tsx      // génération attestation
-```
+## Compatibilité
 
-### Pages
-```
-src/pages/SupportQuizHomePage.tsx           // /sigdsts/quiz
-src/pages/SupportQuizPlayerPage.tsx         // /sigdsts/quiz/:moduleId
-src/pages/SupportQuizResultPage.tsx         // /sigdsts/quiz/:moduleId/result
-```
-
-### Routes ajoutées dans `App.tsx`
-```tsx
-<Route path="/sigdsts/quiz" element={<SupportQuizHomePage />} />
-<Route path="/sigdsts/quiz/:moduleId" element={<SupportQuizPlayerPage />} />
-<Route path="/sigdsts/quiz/:moduleId/result" element={<SupportQuizResultPage />} />
-```
-
-### Persistance — localStorage uniquement (v1, sans backend)
-```ts
-// clé : sigdsts_quiz_results
-{
-  "module-01": { bestScore: 18, attempts: 3, lastDate: "2026-04-27", completed: true },
-  ...
-}
-```
-
-Pas de migration Supabase nécessaire pour la v1. Si plus tard on veut un classement/badge officiel, on pourra ajouter une table `quiz_attempts` (à proposer en v2).
-
-### Intégration `/sigdsts`
-Ajout d'un nouveau bloc dans `SupportTechniquePage.tsx` :
-> 🎓 **Auto-évaluation** — Testez vos connaissances sur les 10 modules SIGDSTS — Sans inscription requise — [Commencer]
-
----
-
-## Génération du contenu (200 QCM)
-
-Étant donné la volumétrie (200 questions hautement spécialisées sur transfusion sanguine), je vais procéder en deux passes :
-
-1. **Re-parser le PDF en profondeur** (incluant pages 27-50 et au-delà) section par section pour extraire les éléments factuels précis (procédures, champs, codes, durées de péremption, rôles).
-2. **Rédiger les 20 QCM par module** en se basant strictement sur le contenu extrait — chaque question référence explicitement une section du guide. Aucune invention : si le guide ne couvre pas un aspect, je n'invente pas.
-
-Exemple de question typique (Module 6 — Prélèvement) :
-> **Q3 (facile)** — Avant d'enregistrer un prélèvement, quelle action préalable est obligatoire ?
-> - A) Imprimer le code-barres
-> - B) Générer des numéros de poche ✅
-> - C) Valider la fiche FEIR
-> - D) Activer le QR code donneur
->
-> *Justification : Le guide §6.1 indique que la génération des numéros de poche est un prérequis avant tout enregistrement.*
-> *📖 Guide SIGDSTS §6.1, page 21*
-
----
+- L'ancien `localStorage` (`quizStorage.ts`) reste comme **fallback** si l'utilisateur refuse l'email/captcha
+- Les attestations PDF actuelles continuent de fonctionner ; le drapeau `certificate_issued` est purement informatif côté admin
 
 ## Livrables
 
-1. 13 fichiers de données (`src/data/sigdsts-quiz/*.ts`)
-2. 7 composants React (`src/components/quiz/*.tsx`)
-3. 3 nouvelles pages
-4. 3 routes ajoutées
-5. 1 carte CTA ajoutée sur `SupportTechniquePage`
-6. Génération PDF d'attestation client-side (réutilise `jsPDF` déjà présent)
+**Migration SQL** (2 tables + vue + RLS + index `module_id`, `created_at`, `candidate_id`)
 
-## Hors scope (pour itérations futures)
-- Classement multi-utilisateurs / leaderboard
-- Mode examen chronométré avec lock
-- Intégration aux statistiques admin
-- Quiz adaptatif IA basé sur l'historique
-- Modules non-métier (Introduction, Interface, Dépannage, Support)
+**Edge functions** :
+- `supabase/functions/quiz-guest-start/index.ts`
+- `supabase/functions/quiz-guest-submit/index.ts`
+- `supabase/functions/quiz-guest-history/index.ts`
+- `supabase/functions/quiz-admin-list/index.ts`
+- `supabase/functions/_shared/guestQuiz.ts` (template email + helpers spécifiques)
 
----
+**Frontend** :
+- `src/pages/SigdstsQuizGuestHistoryPage.tsx` (nouveau)
+- `src/pages/admin/AdminQuizAttemptsPage.tsx` (nouveau)
+- `src/lib/quizGuestSync.ts` (wrapper appels edge + gestion token localStorage)
+- `src/components/quiz/QuizGuestStartDialog.tsx` (modal email/nom)
+- Édits : `SigdstsQuizIndexPage`, `SigdstsQuizPlayerPage`, `SigdstsQuizResultPage`, `App.tsx` (2 nouvelles routes), nav admin
 
-## Ce qui se passera après votre approbation
-1. Ré-extraction approfondie des sections 4 à 13 du PDF
-2. Rédaction des 200 QCM par lot (20/module), en commençant par les modules 1-5 puis 6-10
-3. Implémentation des composants et pages
-4. Test responsive mobile + correction visuelle
-5. Ajout du CTA sur `/sigdsts`
+Aucun changement aux 200 questions ni à la génération du certificat PDF.
