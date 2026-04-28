@@ -3,7 +3,7 @@ import { Helmet } from '@/components/SEO';
 import { AdminDashboard } from '@/components/support/AdminDashboard';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { Tickets, BookOpen } from 'lucide-react';
+import { Tickets, BookOpen, GraduationCap } from 'lucide-react';
 
 const SupportAdminDashboardPage: React.FC = () => {
   return (
@@ -18,6 +18,9 @@ const SupportAdminDashboardPage: React.FC = () => {
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm">
               <Link to="/sigdsts/admin/tickets"><Tickets className="w-4 h-4 mr-2" /> Tous les tickets</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/sigdsts/admin/quiz"><GraduationCap className="w-4 h-4 mr-2" /> Évaluations Quiz</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
               <Link to="/sigdsts/admin/knowledge"><BookOpen className="w-4 h-4 mr-2" /> Base de connaissances</Link>

@@ -5,19 +5,38 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { GraduationCap, BookOpen, Trophy, ArrowLeft } from 'lucide-react';
+import { GraduationCap, BookOpen, Trophy, ArrowLeft, Cloud, CloudOff, Mail, ExternalLink, LogOut } from 'lucide-react';
 import { QUIZ_MODULES, TOTAL_QUESTIONS } from '@/data/sigdsts-quiz';
 import { QuizModuleCard } from '@/components/quiz/QuizModuleCard';
 import { getAllResults } from '@/lib/quizStorage';
+import { getGuestToken, getGuestProfile, clearGuestToken } from '@/lib/quizGuestSync';
+import { QuizGuestStartDialog } from '@/components/quiz/QuizGuestStartDialog';
 
 const SigdstsQuizIndexPage: React.FC = () => {
   const [results, setResults] = useState(getAllResults());
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+  const [guestToken, setGuestTokenState] = useState<string | null>(getGuestToken());
+  const [guestProfile, setGuestProfileState] = useState(getGuestProfile());
 
   useEffect(() => {
-    const onStorage = () => setResults(getAllResults());
+    const onStorage = () => {
+      setResults(getAllResults());
+      setGuestTokenState(getGuestToken());
+      setGuestProfileState(getGuestProfile());
+    };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  const refreshGuest = () => {
+    setGuestTokenState(getGuestToken());
+    setGuestProfileState(getGuestProfile());
+  };
+
+  const handleSignOut = () => {
+    clearGuestToken();
+    refreshGuest();
+  };
 
   const completedCount = Object.values(results).filter((r) => r.completed).length;
   const globalBest = Object.values(results).reduce((sum, r) => sum + (r.bestScore ?? 0), 0);
@@ -53,6 +72,59 @@ const SigdstsQuizIndexPage: React.FC = () => {
             <strong> Guide SIGDSTS Complet v11.0</strong>.
           </p>
         </div>
+
+        {/* Bandeau session guest */}
+        {guestToken && guestProfile ? (
+          <Card className="p-4 mb-6 bg-gradient-to-r from-violet-50 to-blue-50 border-violet-200 dark:from-violet-950/30 dark:to-blue-950/30">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center font-bold shrink-0">
+                  {guestProfile.full_name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold truncate">{guestProfile.full_name}</p>
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">
+                      <Cloud className="w-3 h-3 mr-1" /> Synchronisé
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{guestProfile.email}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button asChild size="sm" variant="outline">
+                  <Link to={`/sigdsts/quiz/suivi/${guestToken}`}>
+                    <ExternalLink className="w-3.5 h-3.5 mr-1" /> Mes résultats
+                  </Link>
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleSignOut} title="Se déconnecter de cet appareil">
+                  <LogOut className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-4 mb-6 border-dashed">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <CloudOff className="w-8 h-8 text-muted-foreground" />
+                <div>
+                  <p className="font-semibold">Suivez vos évaluations sur tous vos appareils</p>
+                  <p className="text-xs text-muted-foreground">Sans mot de passe — un simple lien magique par email</p>
+                </div>
+              </div>
+              <Button onClick={() => setGuestDialogOpen(true)}>
+                <Mail className="w-4 h-4 mr-2" /> Activer le suivi
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        <QuizGuestStartDialog
+          open={guestDialogOpen}
+          onOpenChange={setGuestDialogOpen}
+          onSuccess={refreshGuest}
+        />
 
         {/* Stats globales */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

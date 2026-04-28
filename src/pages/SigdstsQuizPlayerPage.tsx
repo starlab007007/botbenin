@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Helmet } from '@/components/SEO';
 import { Card } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, ArrowRight, CheckCircle2, XCircle, BookOpen } from 'lucide-react';
 import { getQuizModule } from '@/data/sigdsts-quiz';
 import { saveResult } from '@/lib/quizStorage';
+import { getMention } from '@/data/sigdsts-quiz/types';
+import { submitGuestAttempt, getGuestToken } from '@/lib/quizGuestSync';
 import { cn } from '@/lib/utils';
 
 const SigdstsQuizPlayerPage: React.FC = () => {
@@ -21,6 +23,7 @@ const SigdstsQuizPlayerPage: React.FC = () => {
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [answers, setAnswers] = useState<Array<{ questionId: string; selectedIndex: number; correct: boolean }>>([]);
+  const startedAt = useRef<number>(Date.now());
 
   if (!module) return <Navigate to="/sigdsts/quiz" replace />;
 
@@ -38,17 +41,36 @@ const SigdstsQuizPlayerPage: React.FC = () => {
   const handleNext = () => {
     if (currentIdx + 1 >= total) {
       // Finalize
-      const score = answers.filter((a) => a.correct).length;
-      const result = saveResult({
+      const finalAnswers = answers;
+      const score = finalAnswers.filter((a) => a.correct).length;
+      const duration = Math.round((Date.now() - startedAt.current) / 1000);
+      const mention = getMention(score, total);
+
+      saveResult({
         moduleId: module.id,
         bestScore: score,
         totalQuestions: total,
         attempts: 1,
         lastDate: new Date().toISOString(),
         completed: score / total >= 0.7,
-        lastAnswers: answers,
+        lastAnswers: finalAnswers,
       });
-      navigate(`/sigdsts/quiz/${module.id}/result`, { state: { score, total, answers, result } });
+
+      // Sync cloud (best-effort, ne bloque pas la nav)
+      if (getGuestToken()) {
+        submitGuestAttempt({
+          module_id: module.id,
+          module_title: module.title,
+          total_questions: total,
+          score,
+          mention,
+          duration_seconds: duration,
+          answers: finalAnswers,
+          certificate_issued: false,
+        }).catch(() => {});
+      }
+
+      navigate(`/sigdsts/quiz/${module.id}/result`, { state: { score, total, answers: finalAnswers, duration } });
       return;
     }
     setCurrentIdx((i) => i + 1);
