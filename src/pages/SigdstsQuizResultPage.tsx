@@ -12,11 +12,14 @@ import { getQuizModule } from '@/data/sigdsts-quiz';
 import { getMention, MENTION_LABEL } from '@/data/sigdsts-quiz/types';
 import { generateCertificate } from '@/lib/quizCertificate';
 import { getUserName, setUserName } from '@/lib/quizStorage';
+import { getGuestProfile, getGuestToken, submitGuestAttempt } from '@/lib/quizGuestSync';
 import { toast } from '@/hooks/use-toast';
+import { Cloud } from 'lucide-react';
 
 interface LocationState {
   score: number;
   total: number;
+  duration?: number;
   answers: Array<{ questionId: string; selectedIndex: number; correct: boolean }>;
 }
 
