@@ -101,6 +101,8 @@ const SupportKnowledgePage = lazy(() => import("./pages/admin/SupportKnowledgePa
 const SigdstsQuizIndexPage = lazy(() => import("./pages/SigdstsQuizIndexPage"));
 const SigdstsQuizPlayerPage = lazy(() => import("./pages/SigdstsQuizPlayerPage"));
 const SigdstsQuizResultPage = lazy(() => import("./pages/SigdstsQuizResultPage"));
+const SigdstsQuizGuestHistoryPage = lazy(() => import("./pages/SigdstsQuizGuestHistoryPage"));
+const AdminQuizAttemptsPage = lazy(() => import("./pages/admin/AdminQuizAttemptsPage"));
 
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
@@ -230,8 +232,10 @@ const AppContent = () => {
                   <Route path="/sigdsts/quiz" element={<SigdstsQuizIndexPage />} />
                   <Route path="/sigdsts/quiz/:moduleId" element={<SigdstsQuizPlayerPage />} />
                   <Route path="/sigdsts/quiz/:moduleId/result" element={<SigdstsQuizResultPage />} />
+                  <Route path="/sigdsts/quiz/suivi/:token" element={<SigdstsQuizGuestHistoryPage />} />
                   <Route path="/sigdsts/admin" element={<AdminRoute><SupportAdminDashboardPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/tickets" element={<AdminRoute><SupportAdminTicketsPage /></AdminRoute>} />
+                  <Route path="/sigdsts/admin/quiz" element={<AdminRoute><AdminQuizAttemptsPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/knowledge" element={<AdminRoute><SupportKnowledgePage /></AdminRoute>} />
 
                   {/* Route 404 */}
