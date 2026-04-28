@@ -28,7 +28,9 @@ const SigdstsQuizResultPage: React.FC = () => {
   const location = useLocation();
   const state = location.state as LocationState | null;
   const module = moduleId ? getQuizModule(moduleId) : undefined;
-  const [name, setName] = useState(getUserName());
+  const guestProfile = getGuestProfile();
+  const hasGuestSync = !!getGuestToken();
+  const [name, setName] = useState(getUserName() || guestProfile?.full_name || '');
 
   if (!module || !state) return <Navigate to={`/sigdsts/quiz/${moduleId ?? ''}`} replace />;
 
@@ -50,6 +52,19 @@ const SigdstsQuizResultPage: React.FC = () => {
     }
     setUserName(name.trim());
     generateCertificate({ userName: name.trim(), module, score, total, date: new Date() });
+    // Marque l'attestation comme délivrée côté cloud
+    if (hasGuestSync) {
+      submitGuestAttempt({
+        module_id: module.id,
+        module_title: module.title,
+        total_questions: total,
+        score,
+        mention,
+        duration_seconds: state.duration,
+        answers,
+        certificate_issued: true,
+      }).catch(() => {});
+    }
     toast({ title: '🎓 Attestation générée', description: 'Téléchargement en cours…' });
   };
 
