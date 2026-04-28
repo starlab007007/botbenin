@@ -5,19 +5,38 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { GraduationCap, BookOpen, Trophy, ArrowLeft } from 'lucide-react';
+import { GraduationCap, BookOpen, Trophy, ArrowLeft, Cloud, CloudOff, Mail, ExternalLink, LogOut } from 'lucide-react';
 import { QUIZ_MODULES, TOTAL_QUESTIONS } from '@/data/sigdsts-quiz';
 import { QuizModuleCard } from '@/components/quiz/QuizModuleCard';
 import { getAllResults } from '@/lib/quizStorage';
+import { getGuestToken, getGuestProfile, clearGuestToken } from '@/lib/quizGuestSync';
+import { QuizGuestStartDialog } from '@/components/quiz/QuizGuestStartDialog';
 
 const SigdstsQuizIndexPage: React.FC = () => {
   const [results, setResults] = useState(getAllResults());
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+  const [guestToken, setGuestTokenState] = useState<string | null>(getGuestToken());
+  const [guestProfile, setGuestProfileState] = useState(getGuestProfile());
 
   useEffect(() => {
-    const onStorage = () => setResults(getAllResults());
+    const onStorage = () => {
+      setResults(getAllResults());
+      setGuestTokenState(getGuestToken());
+      setGuestProfileState(getGuestProfile());
+    };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  const refreshGuest = () => {
+    setGuestTokenState(getGuestToken());
+    setGuestProfileState(getGuestProfile());
+  };
+
+  const handleSignOut = () => {
+    clearGuestToken();
+    refreshGuest();
+  };
 
   const completedCount = Object.values(results).filter((r) => r.completed).length;
   const globalBest = Object.values(results).reduce((sum, r) => sum + (r.bestScore ?? 0), 0);
