@@ -3,7 +3,7 @@ import { Helmet } from '@/components/SEO';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LifeBuoy, Bot, Ticket, BookOpen, Shield, Zap, ArrowRight, Activity, Users, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { LifeBuoy, Bot, Ticket, BookOpen, Shield, Zap, ArrowRight, Activity, Users, AlertCircle, CheckCircle2, GraduationCap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SupportChatbot } from '@/components/support/SupportChatbot';
 import { TicketForm } from '@/components/support/TicketForm';
@@ -56,7 +56,7 @@ const SupportTechniquePage: React.FC = () => {
         </div>
 
         {/* Quick actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <ActionCard
             icon={Bot}
             color="from-emerald-500 to-emerald-700"
@@ -95,6 +95,15 @@ const SupportTechniquePage: React.FC = () => {
             badge="Sommaire · Recherche · Navigation"
             href="/sigdsts/guide"
             cta="Lire le guide"
+          />
+          <ActionCard
+            icon={GraduationCap}
+            color="from-emerald-500 to-teal-600"
+            title="Quiz de formation"
+            description="200 QCM par modules pour valider vos connaissances"
+            badge="10 modules · Attestation PDF"
+            href="/sigdsts/quiz"
+            cta="Commencer un quiz"
           />
         </div>
 
