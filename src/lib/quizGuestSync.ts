@@ -1,0 +1,86 @@
+// Wrapper pour la synchronisation cloud du quiz guest SIGDSTS
+import { supabase } from '@/integrations/supabase/client';
+
+const TOKEN_KEY = 'sigdsts_quiz_guest_token';
+const PROFILE_KEY = 'sigdsts_quiz_guest_profile';
+
+export interface GuestProfile {
+  email: string;
+  full_name: string;
+  organization?: string | null;
+}
+
+export const getGuestToken = (): string | null => localStorage.getItem(TOKEN_KEY);
+export const setGuestToken = (token: string) => localStorage.setItem(TOKEN_KEY, token);
+export const clearGuestToken = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(PROFILE_KEY);
+};
+
+export const getGuestProfile = (): GuestProfile | null => {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch { return null; }
+};
+export const setGuestProfile = (p: GuestProfile) => localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+
+export interface StartGuestPayload {
+  email: string;
+  full_name: string;
+  phone?: string;
+  organization?: string;
+}
+
+export const startGuestSession = async (payload: StartGuestPayload) => {
+  const { data, error } = await supabase.functions.invoke('quiz-guest-start', { body: payload });
+  if (error) throw error;
+  if ((data as any)?.error) throw new Error((data as any).error);
+  const token = (data as any).token as string;
+  setGuestToken(token);
+  setGuestProfile({ email: payload.email, full_name: payload.full_name, organization: payload.organization });
+  return data as { token: string; tracking_url: string; email_sent: boolean };
+};
+
+export interface SubmitAttemptPayload {
+  module_id: string;
+  module_title: string;
+  total_questions: number;
+  score: number;
+  mention: 'excellent' | 'good' | 'review';
+  duration_seconds?: number;
+  answers: Array<{ questionId: string; selectedIndex: number; correct: boolean }>;
+  certificate_issued?: boolean;
+}
+
+export const submitGuestAttempt = async (payload: SubmitAttemptPayload): Promise<string | null> => {
+  const token = getGuestToken();
+  if (!token) return null;
+  try {
+    const { data, error } = await supabase.functions.invoke('quiz-guest-submit', {
+      body: { token, ...payload },
+    });
+    if (error) throw error;
+    if ((data as any)?.error) throw new Error((data as any).error);
+    return (data as any).attempt_id as string;
+  } catch (e) {
+    console.warn('[quiz guest sync] submit failed', e);
+    return null;
+  }
+};
+
+export const fetchGuestHistory = async (token: string) => {
+  const { data, error } = await supabase.functions.invoke('quiz-guest-history', { body: { token } });
+  if (error) throw error;
+  if ((data as any)?.error) throw new Error((data as any).error);
+  return data as {
+    candidate: {
+      id: string; email: string; full_name: string; phone: string | null;
+      organization: string | null; guest_token_expires: string;
+      created_at: string; last_activity_at: string;
+    };
+    attempts: Array<{
+      id: string; module_id: string; module_title: string; total_questions: number;
+      score: number; ratio: number; mention: 'excellent' | 'good' | 'review';
+      passed: boolean; duration_seconds: number | null; certificate_issued: boolean;
+      created_at: string;
+    }>;
+  };
+};
