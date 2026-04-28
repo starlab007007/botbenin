@@ -3146,6 +3146,125 @@ export type Database = {
           },
         ]
       }
+      quiz_attempts: {
+        Row: {
+          answers: Json
+          candidate_id: string
+          certificate_issued: boolean
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          ip_hash: string | null
+          mention: string
+          module_id: string
+          module_title: string
+          passed: boolean
+          ratio: number | null
+          score: number
+          total_questions: number
+          user_agent: string | null
+        }
+        Insert: {
+          answers?: Json
+          candidate_id: string
+          certificate_issued?: boolean
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          ip_hash?: string | null
+          mention: string
+          module_id: string
+          module_title: string
+          passed?: boolean
+          ratio?: number | null
+          score: number
+          total_questions: number
+          user_agent?: string | null
+        }
+        Update: {
+          answers?: Json
+          candidate_id?: string
+          certificate_issued?: boolean
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          ip_hash?: string | null
+          mention?: string
+          module_id?: string
+          module_title?: string
+          passed?: boolean
+          ratio?: number | null
+          score?: number
+          total_questions?: number
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_candidates: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          guest_token_expires: string
+          guest_token_hash: string
+          id: string
+          last_activity_at: string
+          organization: string | null
+          phone: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          guest_token_expires?: string
+          guest_token_hash: string
+          id?: string
+          last_activity_at?: string
+          organization?: string | null
+          phone?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          guest_token_expires?: string
+          guest_token_hash?: string
+          id?: string
+          last_activity_at?: string
+          organization?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      quiz_public_rate_limit: {
+        Row: {
+          created_at: string
+          email_hash: string
+          id: string
+          ip_hash: string
+        }
+        Insert: {
+          created_at?: string
+          email_hash: string
+          id?: string
+          ip_hash: string
+        }
+        Update: {
+          created_at?: string
+          email_hash?: string
+          id?: string
+          ip_hash?: string
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
           created_at: string | null
@@ -5664,6 +5783,35 @@ export type Database = {
           total_videos: number | null
         }
         Relationships: []
+      }
+      quiz_admin_attempts: {
+        Row: {
+          candidate_email: string | null
+          candidate_id: string | null
+          candidate_name: string | null
+          candidate_organization: string | null
+          certificate_issued: boolean | null
+          created_at: string | null
+          duration_seconds: number | null
+          id: string | null
+          ip_hash: string | null
+          mention: string | null
+          module_id: string | null
+          module_title: string | null
+          passed: boolean | null
+          ratio: number | null
+          score: number | null
+          total_questions: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       unified_conversation_history: {
         Row: {
