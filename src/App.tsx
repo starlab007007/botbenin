@@ -98,6 +98,9 @@ const SupportGuestTicketPage = lazy(() => import("./pages/SupportGuestTicketPage
 const SupportAdminDashboardPage = lazy(() => import("./pages/admin/SupportAdminDashboardPage").then(m => ({ default: (m as any).default ?? (m as any).SupportAdminDashboardPage })));
 const SupportAdminTicketsPage = lazy(() => import("./pages/admin/SupportAdminTicketsPage").then(m => ({ default: (m as any).default ?? (m as any).SupportAdminTicketsPage })));
 const SupportKnowledgePage = lazy(() => import("./pages/admin/SupportKnowledgePage").then(m => ({ default: (m as any).default ?? (m as any).SupportKnowledgePage })));
+const SigdstsQuizIndexPage = lazy(() => import("./pages/SigdstsQuizIndexPage"));
+const SigdstsQuizPlayerPage = lazy(() => import("./pages/SigdstsQuizPlayerPage"));
+const SigdstsQuizResultPage = lazy(() => import("./pages/SigdstsQuizResultPage"));
 
 // CRM & Prospects
 const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage").then(module => ({ default: module.IAProspectPreCallPage })));
@@ -223,6 +226,10 @@ const AppContent = () => {
                   {/* Ticket Express : parcours public sans inscription */}
                   <Route path="/sigdsts/ticket-express" element={<SupportTicketExpressPage />} />
                   <Route path="/sigdsts/t/:token" element={<SupportGuestTicketPage />} />
+                  {/* Quiz formation SIGDSTS — public, sans inscription */}
+                  <Route path="/sigdsts/quiz" element={<SigdstsQuizIndexPage />} />
+                  <Route path="/sigdsts/quiz/:moduleId" element={<SigdstsQuizPlayerPage />} />
+                  <Route path="/sigdsts/quiz/:moduleId/result" element={<SigdstsQuizResultPage />} />
                   <Route path="/sigdsts/admin" element={<AdminRoute><SupportAdminDashboardPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/tickets" element={<AdminRoute><SupportAdminTicketsPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/knowledge" element={<AdminRoute><SupportKnowledgePage /></AdminRoute>} />
