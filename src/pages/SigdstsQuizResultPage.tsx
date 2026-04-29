@@ -7,14 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Trophy, RotateCw, ArrowLeft, Download, CheckCircle2, XCircle, BookOpen } from 'lucide-react';
+import { Trophy, RotateCw, ArrowLeft, Download, CheckCircle2, XCircle, BookOpen, Copy, ShieldCheck, Loader2 } from 'lucide-react';
 import { getQuizModule } from '@/data/sigdsts-quiz';
 import { getMention, MENTION_LABEL } from '@/data/sigdsts-quiz/types';
 import { generateCertificate } from '@/lib/quizCertificate';
 import { getUserName, setUserName } from '@/lib/quizStorage';
 import { getGuestProfile, getGuestToken, submitGuestAttempt } from '@/lib/quizGuestSync';
-import { toast } from '@/hooks/use-toast';
-import { Cloud } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface LocationState {
   score: number;
@@ -31,6 +30,8 @@ const SigdstsQuizResultPage: React.FC = () => {
   const guestProfile = getGuestProfile();
   const hasGuestSync = !!getGuestToken();
   const [name, setName] = useState(getUserName() || guestProfile?.full_name || '');
+  const [generating, setGenerating] = useState(false);
+  const [issued, setIssued] = useState<{ code: string; verifyUrl: string } | null>(null);
 
   if (!module || !state) return <Navigate to={`/sigdsts/quiz/${moduleId ?? ''}`} replace />;
 
@@ -45,27 +46,73 @@ const SigdstsQuizResultPage: React.FC = () => {
     review: 'from-amber-500 to-orange-600',
   };
 
-  const handleDownload = () => {
-    if (!name.trim()) {
-      toast({ title: 'Nom requis', description: 'Indiquez votre nom pour générer l\'attestation.', variant: 'destructive' });
+  const handleDownload = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error('Nom requis', { description: "Indiquez votre nom pour générer l'attestation." });
       return;
     }
-    setUserName(name.trim());
-    generateCertificate({ userName: name.trim(), module, score, total, date: new Date() });
-    // Marque l'attestation comme délivrée côté cloud
-    if (hasGuestSync) {
-      submitGuestAttempt({
-        module_id: module.id,
-        module_title: module.title,
-        total_questions: total,
+    setUserName(trimmed);
+    setGenerating(true);
+    try {
+      let certificateCode: string | null = null;
+      let verifyUrl: string | null = null;
+
+      if (hasGuestSync) {
+        const result = await submitGuestAttempt({
+          module_id: module.id,
+          module_title: module.title,
+          total_questions: total,
+          score,
+          mention,
+          duration_seconds: state.duration,
+          answers,
+          certificate_issued: true,
+          holder_name: trimmed,
+        });
+        if (result?.certificate_code) {
+          certificateCode = result.certificate_code;
+          verifyUrl = result.verify_url;
+          setIssued({ code: result.certificate_code, verifyUrl: result.verify_url ?? '' });
+        }
+      } else {
+        // Local fallback (non vérifiable officiellement)
+        const year = new Date().getFullYear();
+        const rand = Math.random().toString(36).slice(2, 10).toUpperCase();
+        certificateCode = `LOCAL-${year}-${rand}`;
+      }
+
+      await generateCertificate({
+        userName: trimmed,
+        module,
         score,
-        mention,
-        duration_seconds: state.duration,
-        answers,
-        certificate_issued: true,
-      }).catch(() => {});
+        total,
+        date: new Date(),
+        certificateCode,
+        verifyUrl,
+      });
+
+      toast.success('🎓 Attestation générée', {
+        description: hasGuestSync
+          ? `N° ${certificateCode} — vérifiable en ligne`
+          : 'Attestation locale (créez un espace pour la rendre vérifiable)',
+      });
+    } catch (e: any) {
+      toast.error('Échec de la génération', { description: e?.message ?? 'Erreur inconnue' });
+    } finally {
+      setGenerating(false);
     }
-    toast({ title: '🎓 Attestation générée', description: 'Téléchargement en cours…' });
+  };
+
+  const copyCode = () => {
+    if (!issued) return;
+    navigator.clipboard.writeText(issued.code);
+    toast.success('Code copié');
+  };
+  const copyVerifyUrl = () => {
+    if (!issued?.verifyUrl) return;
+    navigator.clipboard.writeText(issued.verifyUrl);
+    toast.success('Lien de vérification copié');
   };
 
   return (
@@ -101,7 +148,7 @@ const SigdstsQuizResultPage: React.FC = () => {
               🎓 Attestation de formation disponible
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Indiquez votre nom complet pour générer votre attestation PDF officielle.
+              Indiquez votre nom complet pour générer votre attestation PDF officielle{hasGuestSync ? ' avec QR code de vérification' : ''}.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
@@ -113,10 +160,49 @@ const SigdstsQuizResultPage: React.FC = () => {
                   placeholder="Ex: KOUASSI Marie-Joséphine"
                 />
               </div>
-              <Button onClick={handleDownload} size="lg" className="bg-emerald-600 hover:bg-emerald-700">
-                <Download className="w-4 h-4 mr-2" /> Télécharger PDF
+              <Button onClick={handleDownload} disabled={generating} size="lg" className="bg-emerald-600 hover:bg-emerald-700">
+                {generating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                Télécharger PDF
               </Button>
             </div>
+
+            {issued && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4 space-y-3">
+                <div className="flex items-center gap-2 text-emerald-700">
+                  <ShieldCheck className="w-5 h-5" />
+                  <span className="font-semibold text-sm">Attestation officielle vérifiable</span>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">N° d'attestation</Label>
+                  <div className="flex gap-2">
+                    <Input readOnly value={issued.code} className="font-mono text-sm" />
+                    <Button type="button" variant="outline" size="icon" onClick={copyCode}>
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                {issued.verifyUrl && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Lien de vérification</Label>
+                    <div className="flex gap-2">
+                      <Input readOnly value={issued.verifyUrl} className="font-mono text-xs" />
+                      <Button type="button" variant="outline" size="icon" onClick={copyVerifyUrl}>
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Toute personne (RH, recruteur) peut vérifier l'authenticité via ce lien ou en scannant le QR code du PDF.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!hasGuestSync && (
+              <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                ⚠️ Sans espace de formation, l'attestation est générée localement et n'est pas vérifiable en ligne. Créez un espace depuis la page d'accueil du quiz pour obtenir une attestation officielle.
+              </p>
+            )}
           </Card>
         ) : (
           <Card className="p-5 mb-6 border-amber-300 bg-amber-50/50">
@@ -137,16 +223,18 @@ const SigdstsQuizResultPage: React.FC = () => {
             {answers.map((a, idx) => {
               const q = module.questions.find((q) => q.id === a.questionId);
               if (!q) return null;
+              const unanswered = a.selectedIndex < 0;
               return (
                 <div key={a.questionId} className="flex items-start gap-3 p-3 rounded-lg border bg-card">
                   {a.correct ? (
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   ) : (
-                    <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <XCircle className={`w-5 h-5 shrink-0 mt-0.5 ${unanswered ? 'text-amber-600' : 'text-rose-600'}`} />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium mb-1">
                       Q{idx + 1}. {q.question}
+                      {unanswered && <span className="ml-2 text-xs text-amber-700">(non répondue)</span>}
                     </p>
                     {!a.correct && (
                       <p className="text-xs text-emerald-700">
