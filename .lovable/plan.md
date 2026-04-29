@@ -1,114 +1,109 @@
-## Objectif
+# Finalisation du système Quiz SIGDSTS
 
-Reproduire pour les **quiz SIGDSTS** le pattern « Ticket Express » déjà en place :
-- N'importe qui peut passer un quiz **sans créer de compte**
-- Le candidat peut **suivre ses tentatives, scores et attestations** via un lien magique personnel (token)
-- L'**administrateur** voit en un coup d'œil **toutes les tentatives de tous les candidats** (notes, modules, dates, mention)
+## 1. Correction de l'erreur "Failed to send a request to the Edge Function"
 
-## Architecture (calquée sur les guest tickets)
+**Cause racine** : les fonctions `quiz-guest-*` ne sont pas configurées avec `verify_jwt = false` dans `supabase/config.toml`. Lorsqu'un visiteur non connecté tente d'appeler `quiz-guest-start`, Supabase rejette la requête avant qu'elle n'atteigne la fonction (d'où "Failed to send a request").
 
-### 1. Base de données (2 nouvelles tables + 1 vue admin)
+**Action** : ajouter dans `supabase/config.toml` :
+```toml
+[functions.quiz-guest-start]
+verify_jwt = false
+[functions.quiz-guest-submit]
+verify_jwt = false
+[functions.quiz-guest-history]
+verify_jwt = false
+[functions.quiz-verify-certificate]   # nouvelle (voir §3)
+verify_jwt = false
+```
+(`quiz-admin-list` reste protégée — vérification admin en interne.)
 
-**`quiz_candidates`** — identité légère du candidat (sans auth)
-- `id` uuid PK
-- `email` text (lowercase, unique)
-- `full_name` text
-- `phone` text nullable
-- `organization` text nullable (BDS/site)
-- `guest_token_hash` text unique (SHA-256, jamais le clair)
-- `guest_token_expires` timestamptz (TTL 180 jours)
-- `created_at`, `last_activity_at`
-- RLS : aucun SELECT direct (`USING (false)`) — accès uniquement via edge function service-role + politique admin via `has_role`
+## 2. Configuration du secret Resend
 
-**`quiz_attempts`** — chaque passage de quiz
-- `id` uuid PK
-- `candidate_id` uuid FK → `quiz_candidates`
-- `module_id` text (ex `'accueil-donneur'`)
-- `module_title` text (snapshot)
-- `total_questions` int
-- `score` int (bonnes réponses)
-- `ratio` numeric généré (`score::numeric / total_questions`)
-- `mention` text (`excellent`/`good`/`review`)
-- `passed` bool (≥ 70%)
-- `duration_seconds` int nullable
-- `answers` jsonb (`[{questionId, selectedIndex, correct}]`)
-- `certificate_issued` bool default false
-- `ip_hash` text, `user_agent` text (analytics anti-abus)
-- `created_at`
-- RLS : aucun SELECT direct, accès via edge function
+Ajouter `RESEND_API_KEY = re_YbjMYtSX_E9Q4cK4Jo1ni8z5SiTLm19Sv` aux secrets Supabase via le tool `add_secret` (jamais en clair dans le code). Ajouter aussi `SUPPORT_EMAIL_FROM` (optionnel, défaut `onboarding@resend.dev` — fonctionne immédiatement, le client pourra ensuite vérifier son propre domaine sur Resend).
 
-**`quiz_public_rate_limit`** (réutilise le pattern existant) — 1 ligne par tentative, purge ≥ 24 h
-- 10 tentatives / IP / heure
-- 30 tentatives / email / jour
+## 3. Génération de certificat PDF avec lien de vérification
 
-**Vue `quiz_admin_attempts`** (`security_invoker=on`) — join lisible candidat + tentative pour le dashboard admin, protégée par RLS `has_role(auth.uid(),'admin')`.
+### Base de données (migration)
+Ajouter à la table `quiz_attempts` :
+- `certificate_code text unique` — code public court (ex : `SIG-2026-A1B2C3D4`)
+- `certificate_issued_at timestamptz`
+- `holder_name text` — nom imprimé sur l'attestation (gelé au moment de l'émission)
 
-### 2. Edge functions (4 nouvelles, mêmes helpers `_shared/guestTicket.ts`)
+Créer une **vue publique en lecture seule** `quiz_certificate_public` exposant uniquement : `certificate_code`, `holder_name`, `module_title`, `score`, `total_questions`, `ratio`, `mention`, `certificate_issued_at`. Aucun email/PII.
 
-| Function | Rôle |
-|---|---|
-| `quiz-guest-start` | POST `{email, full_name, phone?, organization?, captcha_token?}` → crée/upsert le candidat, génère token clair (renvoyé 1 seule fois) + envoie email avec lien `/sigdsts/quiz/suivi/:token`. Rate-limit IP/email. |
-| `quiz-guest-submit` | POST `{token, module_id, score, total, answers, duration_seconds}` → valide token, insère `quiz_attempts`, met à jour `last_activity_at`, renvoie `attempt_id`. |
-| `quiz-guest-history` | POST `{token}` → renvoie le candidat (sans hash) + toutes ses tentatives (best-score par module, mentions, dates). |
-| `quiz-admin-list` | POST (JWT requis, vérif `has_role admin`) `{search?, module_id?, mention?, from?, to?}` → liste paginée toutes tentatives + candidat (email, nom). |
+### Edge function `quiz-verify-certificate` (publique, GET)
+- Input : `?code=SIG-2026-XXXXXX`
+- Output : données de la vue ci-dessus + statut `valid|not_found|revoked`
+- Rate-limit léger (10 req/min/IP via `quiz_public_rate_limit`)
 
-Toutes utilisent `corsHeaders`, `sha256Hex`, `verifyCaptcha`, honeypot — code partagé existant.
+### Edge function `quiz-guest-submit` (étendue)
+Quand `certificate_issued: true` est envoyé, génère le `certificate_code` (8 chars base32 + préfixe année) si absent, persiste `holder_name` et `certificate_issued_at`, et renvoie `{ certificate_code, verify_url }` au client.
 
-### 3. Frontend
+### Frontend — `src/lib/quizCertificate.ts`
+Mise à jour `generateCertificate()` pour accepter `certificateCode` + `verifyUrl` et imprimer en bas du PDF :
+- Numéro d'attestation : `SIG-2026-XXXXXXXX`
+- URL de vérification : `https://.../sigdsts/quiz/verify/SIG-2026-XXXXXXXX`
+- Un QR code (lib `qrcode` déjà installable) pointant vers cette URL
 
-**Pages publiques nouvelles**
-- `/sigdsts/quiz` (existante) → ajouter en haut un bandeau « Suivi de mes évaluations » + bouton « Démarrer / Récupérer mon lien » qui ouvre une `Dialog` (email + nom). À la soumission : appel `quiz-guest-start`, affichage du lien + email envoyé. Token aussi stocké en `localStorage` (`sigdsts_quiz_guest_token`) pour pré-remplissage.
-- `/sigdsts/quiz/suivi/:token` (**nouvelle**) `SigdstsQuizGuestHistoryPage` — affiche identité du candidat, **toutes ses tentatives** par module, meilleur score, mention, bouton « Refaire » et bouton « Re-télécharger l'attestation » pour chaque réussite.
+### Frontend — `src/pages/SigdstsQuizResultPage.tsx`
+Refactor du bouton "Télécharger PDF" :
+1. Appel `submitGuestAttempt({ ...certificate_issued: true, holder_name })` → récupère `certificate_code` + `verify_url`
+2. Génère le PDF avec ces métadonnées
+3. Affiche le code visible avec bouton "Copier"
+4. Si pas de session guest active → fallback : génère un PDF avec `certificate_code` local (préfixe `LOCAL-`) et invite à créer un espace pour validation officielle
 
-**Pages existantes adaptées**
-- `SigdstsQuizPlayerPage` : si un `guest_token` est en `localStorage`, l'envoyer à `quiz-guest-submit` à la fin du quiz (en plus du `localStorage` actuel — fallback offline conservé).
-- `SigdstsQuizResultPage` : appeler `quiz-guest-submit` au montage si pas encore fait, marquer `certificate_issued=true` quand l'utilisateur télécharge le PDF.
-- `SigdstsQuizIndexPage` : afficher un badge « Synchronisé ☁️ » si token présent, sinon « Local uniquement ».
+### Nouvelle page `src/pages/SigdstsCertificateVerifyPage.tsx`
+Route : `/sigdsts/quiz/verify/:code`
+- Appelle `quiz-verify-certificate`
+- Affiche : vert/rouge selon validité, nom, module, score, mention, date, lien vers le module
+- Sans connexion requise — accessible aux RH/recruteurs
 
-**Page admin nouvelle**
-- `/sigdsts/admin/quiz` `AdminQuizAttemptsPage` (sous `<AdminRoute>`) :
-  - Tableau responsive (cards stackées en mobile, tableau en desktop) : Date · Candidat (nom + email) · Module · Score · Mention · Durée · IP hash
-  - Filtres : recherche (nom/email/module), module, mention, plage de dates
-  - KPIs en haut : nb candidats, nb tentatives, taux de réussite global, top modules
-  - Export CSV côté client
-- Lien dans la nav admin SIGDSTS (`/sigdsts/admin` dashboard) vers la nouvelle page.
+Mise à jour `App.tsx` : ajouter la route lazy.
 
-### 4. Email transactionnel
+## 4. Timer par question avec progression automatique
 
-Template `emailQuizAccess` ajouté à `_shared/guestTicket.ts` (ou `_shared/guestQuiz.ts`) :
-- Sujet : « Votre espace de formation SIGDSTS »
-- Bouton « Voir mes évaluations » → `${PUBLIC_APP_URL}/sigdsts/quiz/suivi/${token}`
-- Mention TTL 180 jours, lien personnel à ne pas partager
+### Logique (dans `SigdstsQuizPlayerPage.tsx`)
+- Délai par question selon difficulté :
+  - `easy` → 30 s
+  - `medium` → 45 s
+  - `hard` → 60 s
+- Affichage : barre de progression circulaire **dans le header** + secondes restantes
+- À 0 :
+  - Si `selected !== null` → comportement = clic sur "Valider"
+  - Sinon → réponse considérée incorrecte (`selectedIndex: -1`), révèle la bonne réponse pendant 4 s, puis avance automatiquement
+- Pause du timer dès que `revealed = true` (l'utilisateur lit l'explication librement)
+- Reset à chaque nouvelle question
+- Toast discret "⏱️ Temps écoulé" quand auto-skip
 
-## Sécurité
+### Composant `QuestionTimer.tsx` (nouveau)
+- Props : `seconds`, `paused`, `onExpire`
+- Utilise `useEffect` + `setInterval` (1 s)
+- Affichage : cercle SVG + texte `MM:SS` + couleur progressive (vert > orange < 10s > rouge < 5s)
+- Accessible (`aria-live="polite"`)
 
-- Token jamais stocké en clair côté serveur (SHA-256), comparé via `quiz-guest-history`/`submit`
-- RLS strict : `quiz_candidates` et `quiz_attempts` inaccessibles via API publique sans token, accessibles à l'admin via `has_role`
-- Service-role utilisé uniquement côté edge functions
-- Honeypot + captcha optionnel + rate-limit (table partagée renommée ou dédiée `quiz_public_rate_limit`)
-- Aucun PII renvoyé hors contexte (l'historique d'un token ne renvoie que ce candidat)
+### Persistance des réponses non-répondues
+Le payload `answers` accepte déjà `selectedIndex: number` ; on utilise `-1` pour "non répondue". `quiz-guest-submit` ne valide que `score <= total`, pas de changement de schéma nécessaire.
 
-## Compatibilité
+## 5. Ordre d'exécution
 
-- L'ancien `localStorage` (`quizStorage.ts`) reste comme **fallback** si l'utilisateur refuse l'email/captcha
-- Les attestations PDF actuelles continuent de fonctionner ; le drapeau `certificate_issued` est purement informatif côté admin
+1. **Secrets** : ajouter `RESEND_API_KEY` (bloquant)
+2. **Migration DB** : champs certificat + vue publique
+3. **Edge functions** : config.toml + nouvelle `quiz-verify-certificate` + extension de `quiz-guest-submit`
+4. **Frontend** : `QuestionTimer`, refactor `SigdstsQuizPlayerPage`, `SigdstsQuizResultPage`, certificate.ts, nouvelle page verify, route App.tsx
 
-## Livrables
+## Aperçu visuel du timer
 
-**Migration SQL** (2 tables + vue + RLS + index `module_id`, `created_at`, `candidate_id`)
+```text
+┌─────────────────────────────────────────┐
+│ Module 3   [Expert]      Q 4 / 15       │
+│                              ⏱  00:42   │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+└─────────────────────────────────────────┘
+```
 
-**Edge functions** :
-- `supabase/functions/quiz-guest-start/index.ts`
-- `supabase/functions/quiz-guest-submit/index.ts`
-- `supabase/functions/quiz-guest-history/index.ts`
-- `supabase/functions/quiz-admin-list/index.ts`
-- `supabase/functions/_shared/guestQuiz.ts` (template email + helpers spécifiques)
+## Détails techniques
 
-**Frontend** :
-- `src/pages/SigdstsQuizGuestHistoryPage.tsx` (nouveau)
-- `src/pages/admin/AdminQuizAttemptsPage.tsx` (nouveau)
-- `src/lib/quizGuestSync.ts` (wrapper appels edge + gestion token localStorage)
-- `src/components/quiz/QuizGuestStartDialog.tsx` (modal email/nom)
-- Édits : `SigdstsQuizIndexPage`, `SigdstsQuizPlayerPage`, `SigdstsQuizResultPage`, `App.tsx` (2 nouvelles routes), nav admin
-
-Aucun changement aux 200 questions ni à la génération du certificat PDF.
+- Génération de QR : ajout de `qrcode` (npm) — léger, génère un dataURL inséré dans jsPDF via `doc.addImage`.
+- `certificate_code` : `SIG-${year}-${crypto.randomUUID().slice(0,8).toUpperCase()}` côté edge function (jamais côté client → unicité garantie).
+- La vue `quiz_certificate_public` est exposée uniquement en lecture via la fonction edge (pas de policy SELECT directe pour préserver l'anonymat).
+- Aucun changement requis pour l'admin dashboard (les nouveaux champs apparaîtront automatiquement via la jointure existante).
