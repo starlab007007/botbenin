@@ -168,3 +168,15 @@ verify_jwt = false
 
 [functions.get-ia-creator-usage]
 verify_jwt = true
+
+[functions.quiz-guest-start]
+verify_jwt = false
+
+[functions.quiz-guest-submit]
+verify_jwt = false
+
+[functions.quiz-guest-history]
+verify_jwt = false
+
+[functions.quiz-verify-certificate]
+verify_jwt = false
