@@ -3150,9 +3150,12 @@ export type Database = {
         Row: {
           answers: Json
           candidate_id: string
+          certificate_code: string | null
           certificate_issued: boolean
+          certificate_issued_at: string | null
           created_at: string
           duration_seconds: number | null
+          holder_name: string | null
           id: string
           ip_hash: string | null
           mention: string
@@ -3167,9 +3170,12 @@ export type Database = {
         Insert: {
           answers?: Json
           candidate_id: string
+          certificate_code?: string | null
           certificate_issued?: boolean
+          certificate_issued_at?: string | null
           created_at?: string
           duration_seconds?: number | null
+          holder_name?: string | null
           id?: string
           ip_hash?: string | null
           mention: string
@@ -3184,9 +3190,12 @@ export type Database = {
         Update: {
           answers?: Json
           candidate_id?: string
+          certificate_code?: string | null
           certificate_issued?: boolean
+          certificate_issued_at?: string | null
           created_at?: string
           duration_seconds?: number | null
+          holder_name?: string | null
           id?: string
           ip_hash?: string | null
           mention?: string
@@ -5812,6 +5821,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quiz_certificate_public: {
+        Row: {
+          certificate_code: string | null
+          certificate_issued_at: string | null
+          holder_name: string | null
+          mention: string | null
+          module_id: string | null
+          module_title: string | null
+          ratio: number | null
+          score: number | null
+          total_questions: number | null
+        }
+        Insert: {
+          certificate_code?: string | null
+          certificate_issued_at?: string | null
+          holder_name?: string | null
+          mention?: string | null
+          module_id?: string | null
+          module_title?: string | null
+          ratio?: number | null
+          score?: number | null
+          total_questions?: number | null
+        }
+        Update: {
+          certificate_code?: string | null
+          certificate_issued_at?: string | null
+          holder_name?: string | null
+          mention?: string | null
+          module_id?: string | null
+          module_title?: string | null
+          ratio?: number | null
+          score?: number | null
+          total_questions?: number | null
+        }
+        Relationships: []
       }
       unified_conversation_history: {
         Row: {
