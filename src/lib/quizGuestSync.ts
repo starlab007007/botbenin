@@ -93,7 +93,24 @@ export const fetchGuestHistory = async (token: string) => {
       id: string; module_id: string; module_title: string; total_questions: number;
       score: number; ratio: number; mention: 'excellent' | 'good' | 'review';
       passed: boolean; duration_seconds: number | null; certificate_issued: boolean;
+      certificate_code: string | null; certificate_issued_at: string | null;
+      holder_name: string | null;
       created_at: string;
     }>;
   };
+};
+
+export const verifyCertificate = async (code: string) => {
+  const { data, error } = await supabase.functions.invoke('quiz-verify-certificate', {
+    body: { code },
+  });
+  if (error) throw error;
+  return data as
+    | { status: 'valid'; certificate: {
+        certificate_code: string; holder_name: string | null; module_id: string;
+        module_title: string; score: number; total_questions: number;
+        ratio: number; mention: 'excellent' | 'good' | 'review';
+        certificate_issued_at: string;
+      } }
+    | { status: 'not_found' | 'invalid_format' | 'rate_limited' | 'error'; error?: string };
 };
