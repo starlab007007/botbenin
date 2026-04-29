@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { Helmet } from '@/components/SEO';
 import { Card } from '@/components/ui/card';
@@ -12,7 +12,14 @@ import { getQuizModule } from '@/data/sigdsts-quiz';
 import { saveResult } from '@/lib/quizStorage';
 import { getMention } from '@/data/sigdsts-quiz/types';
 import { submitGuestAttempt, getGuestToken } from '@/lib/quizGuestSync';
+import { QuestionTimer } from '@/components/quiz/QuestionTimer';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+const TIME_PER_DIFFICULTY: Record<string, number> = { easy: 30, medium: 45, hard: 60 };
+const REVEAL_DURATION_MS = 4500;
+
+type AnswerLog = { questionId: string; selectedIndex: number; correct: boolean };
 
 const SigdstsQuizPlayerPage: React.FC = () => {
   const { moduleId } = useParams<{ moduleId: string }>();
@@ -22,26 +29,21 @@ const SigdstsQuizPlayerPage: React.FC = () => {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
-  const [answers, setAnswers] = useState<Array<{ questionId: string; selectedIndex: number; correct: boolean }>>([]);
+  const [answers, setAnswers] = useState<AnswerLog[]>([]);
   const startedAt = useRef<number>(Date.now());
+  const autoAdvanceRef = useRef<number | null>(null);
+  const answersRef = useRef<AnswerLog[]>([]);
+  answersRef.current = answers;
 
   if (!module) return <Navigate to="/sigdsts/quiz" replace />;
 
   const total = module.questions.length;
   const question = module.questions[currentIdx];
   const progress = ((currentIdx + (revealed ? 1 : 0)) / total) * 100;
+  const timeLimit = TIME_PER_DIFFICULTY[question.difficulty] ?? 45;
 
-  const handleValidate = () => {
-    if (selected === null) return;
-    setRevealed(true);
-    const correct = selected === question.correctIndex;
-    setAnswers((prev) => [...prev, { questionId: question.id, selectedIndex: selected, correct }]);
-  };
-
-  const handleNext = () => {
-    if (currentIdx + 1 >= total) {
-      // Finalize
-      const finalAnswers = answers;
+  const finalize = useCallback(
+    (finalAnswers: AnswerLog[]) => {
       const score = finalAnswers.filter((a) => a.correct).length;
       const duration = Math.round((Date.now() - startedAt.current) / 1000);
       const mention = getMention(score, total);
@@ -56,7 +58,6 @@ const SigdstsQuizPlayerPage: React.FC = () => {
         lastAnswers: finalAnswers,
       });
 
-      // Sync cloud (best-effort, ne bloque pas la nav)
       if (getGuestToken()) {
         submitGuestAttempt({
           module_id: module.id,
@@ -70,13 +71,78 @@ const SigdstsQuizPlayerPage: React.FC = () => {
         }).catch(() => {});
       }
 
-      navigate(`/sigdsts/quiz/${module.id}/result`, { state: { score, total, answers: finalAnswers, duration } });
-      return;
-    }
-    setCurrentIdx((i) => i + 1);
-    setSelected(null);
-    setRevealed(false);
+      navigate(`/sigdsts/quiz/${module.id}/result`, {
+        state: { score, total, answers: finalAnswers, duration },
+      });
+    },
+    [module, navigate, total],
+  );
+
+  const advance = useCallback(
+    (newAnswers: AnswerLog[]) => {
+      if (currentIdx + 1 >= total) {
+        finalize(newAnswers);
+        return;
+      }
+      setCurrentIdx((i) => i + 1);
+      setSelected(null);
+      setRevealed(false);
+    },
+    [currentIdx, finalize, total],
+  );
+
+  const recordAnswer = useCallback(
+    (idx: number | null): AnswerLog[] => {
+      const correct = idx !== null && idx === question.correctIndex;
+      const log: AnswerLog = {
+        questionId: question.id,
+        selectedIndex: idx ?? -1,
+        correct,
+      };
+      const next = [...answersRef.current, log];
+      setAnswers(next);
+      return next;
+    },
+    [question],
+  );
+
+  const handleValidate = () => {
+    if (selected === null || revealed) return;
+    setRevealed(true);
+    recordAnswer(selected);
   };
+
+  const handleNext = () => {
+    advance(answersRef.current);
+  };
+
+  const handleExpire = useCallback(() => {
+    if (revealed) return;
+    if (selected !== null) {
+      // Auto-validate user's selection
+      setRevealed(true);
+      recordAnswer(selected);
+      toast('⏱️ Temps écoulé', { description: 'Réponse validée automatiquement.' });
+    } else {
+      // No answer chosen → mark unanswered, briefly reveal correct answer
+      setRevealed(true);
+      const newAnswers = recordAnswer(null);
+      toast('⏱️ Temps écoulé', { description: 'Aucune réponse sélectionnée.' });
+      autoAdvanceRef.current = window.setTimeout(() => {
+        advance(newAnswers);
+      }, REVEAL_DURATION_MS);
+    }
+  }, [revealed, selected, recordAnswer, advance]);
+
+  // Cleanup auto-advance timer on unmount / question change
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceRef.current) {
+        window.clearTimeout(autoAdvanceRef.current);
+        autoAdvanceRef.current = null;
+      }
+    };
+  }, [currentIdx]);
 
   const difficultyLabel = { easy: 'Facile', medium: 'Intermédiaire', hard: 'Expert' }[question.difficulty];
   const difficultyColor = {
@@ -103,9 +169,17 @@ const SigdstsQuizPlayerPage: React.FC = () => {
               <Badge variant="outline">Module {module.order}</Badge>
               <Badge className={cn('border', difficultyColor)} variant="outline">{difficultyLabel}</Badge>
             </div>
-            <span className="text-sm text-muted-foreground">
-              Question <strong className="text-foreground">{currentIdx + 1}</strong> / {total}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                Question <strong className="text-foreground">{currentIdx + 1}</strong> / {total}
+              </span>
+              <QuestionTimer
+                seconds={timeLimit}
+                paused={revealed}
+                resetKey={`${currentIdx}-${question.id}`}
+                onExpire={handleExpire}
+              />
+            </div>
           </div>
           <h1 className="text-xl lg:text-2xl font-bold mb-3">{module.title}</h1>
           <Progress value={progress} className="h-2" />
@@ -153,7 +227,11 @@ const SigdstsQuizPlayerPage: React.FC = () => {
                 <BookOpen className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold mb-1">
-                    {selected === question.correctIndex ? '✅ Bonne réponse' : '❌ Réponse incorrecte'}
+                    {selected === null
+                      ? '⏱️ Question non répondue'
+                      : selected === question.correctIndex
+                      ? '✅ Bonne réponse'
+                      : '❌ Réponse incorrecte'}
                   </p>
                   <p className="text-sm text-muted-foreground">{question.explanation}</p>
                   <p className="text-xs text-muted-foreground mt-2">

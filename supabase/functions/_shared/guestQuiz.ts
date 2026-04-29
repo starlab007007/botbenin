@@ -3,11 +3,19 @@ import { sendGuestEmail } from "./guestTicket.ts";
 
 export { sendGuestEmail };
 
-export function buildQuizTrackingUrl(token: string): string {
+function getBaseUrl(): string {
   const base =
     Deno.env.get("PUBLIC_APP_URL") ??
     "https://id-preview--e22c52ab-372c-49c8-ab35-fb1b4b55f0b1.lovable.app";
-  return `${base.replace(/\/+$/, "")}/sigdsts/quiz/suivi/${token}`;
+  return base.replace(/\/+$/, "");
+}
+
+export function buildQuizTrackingUrl(token: string): string {
+  return `${getBaseUrl()}/sigdsts/quiz/suivi/${token}`;
+}
+
+export function buildQuizVerifyUrl(code: string): string {
+  return `${getBaseUrl()}/sigdsts/quiz/verify/${code}`;
 }
 
 function escapeHtml(s: string): string {
