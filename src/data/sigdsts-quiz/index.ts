@@ -81,7 +81,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Microscope',
     gradient: 'from-emerald-500 to-teal-600',
     estimatedMinutes: 12,
-    questions: module05Questions,
+    questions: firstFifteen(module05Questions),
   },
   {
     id: 'tri-validation',
@@ -94,7 +94,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'CheckSquare',
     gradient: 'from-amber-500 to-yellow-600',
     estimatedMinutes: 10,
-    questions: module06Questions,
+    questions: firstFifteen(module06Questions),
   },
   {
     id: 'destruction',
@@ -107,7 +107,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Trash2',
     gradient: 'from-slate-600 to-zinc-700',
     estimatedMinutes: 10,
-    questions: module07Questions,
+    questions: firstFifteen(module07Questions),
   },
   {
     id: 'stock-transfert',
