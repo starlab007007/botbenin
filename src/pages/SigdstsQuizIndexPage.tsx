@@ -38,8 +38,9 @@ const SigdstsQuizIndexPage: React.FC = () => {
     refreshGuest();
   };
 
-  const completedCount = Object.values(results).filter((r) => r.completed).length;
-  const globalBest = Object.values(results).reduce((sum, r) => sum + (r.bestScore ?? 0), 0);
+  const visibleResults = QUIZ_MODULES.map((m) => results[m.id]).filter(Boolean);
+  const completedCount = visibleResults.filter((r) => r.completed).length;
+  const globalBest = visibleResults.reduce((sum, r) => sum + (r.bestScore ?? 0), 0);
   const globalRatio = Math.round((globalBest / TOTAL_QUESTIONS) * 100);
 
   return (
