@@ -121,7 +121,7 @@ export async function sendGuestEmail(opts: {
   try {
     await client.connectTLS({
       hostname: "smtp.gmail.com",
-      port: 587,
+      port: 465,
       username: gmailEmail,
       password: gmailPassword,
     });
