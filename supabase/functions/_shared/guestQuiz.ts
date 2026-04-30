@@ -4,10 +4,15 @@ import { sendGuestEmail } from "./guestTicket.ts";
 export { sendGuestEmail };
 
 function getBaseUrl(): string {
-  const base =
-    Deno.env.get("PUBLIC_APP_URL") ??
-    "https://id-preview--e22c52ab-372c-49c8-ab35-fb1b4b55f0b1.lovable.app";
-  return base.replace(/\/+$/, "");
+  // Toujours utiliser le domaine officiel bot.bj pour les liens publics
+  // (jamais lovable.app, même en preview)
+  const raw = Deno.env.get("PUBLIC_APP_URL") ?? "https://bot.bj";
+  let base = raw.replace(/\/+$/, "");
+  // Sécurité : si jamais une URL lovable.* est configurée par erreur, on la remplace
+  if (/lovable\.(app|dev|project)/i.test(base)) {
+    base = "https://bot.bj";
+  }
+  return base;
 }
 
 export function buildQuizTrackingUrl(token: string): string {
