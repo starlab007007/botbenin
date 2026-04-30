@@ -45,8 +45,8 @@ const SigdstsQuizIndexPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>Quiz SIGDSTS — 200 QCM par modules | Bot.bj</title>
-        <meta name="description" content="Formez-vous au SIGDSTS avec 200 QCM répartis sur 10 modules métier. Quiz progressif basé sur le Guide officiel v11.0. Sans inscription." />
+        <title>Quiz SIGDSTS — 135 QCM par modules | Bot.bj</title>
+        <meta name="description" content="Formez-vous au SIGDSTS avec 135 QCM répartis sur 9 modules métier. Quiz progressif basé sur le Guide officiel v11.0. Sans inscription." />
         <link rel="canonical" href="https://bot.bj/sigdsts/quiz" />
       </Helmet>
 
@@ -178,7 +178,7 @@ const SigdstsQuizIndexPage: React.FC = () => {
           <p className="font-semibold mb-1 text-foreground">💡 Comment ça marche ?</p>
           <ul className="list-disc list-inside space-y-1">
             <li>Choisissez un module ci-dessus</li>
-            <li>Répondez aux 20 questions (vous voyez la correction immédiatement)</li>
+            <li>Répondez aux 15 questions (vous voyez la correction immédiatement)</li>
             <li>Obtenez votre score et téléchargez votre attestation PDF si ≥ 70%</li>
             <li>Vos scores sont sauvegardés sur cet appareil — aucun compte requis</li>
           </ul>
