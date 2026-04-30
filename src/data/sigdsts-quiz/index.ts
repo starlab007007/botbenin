@@ -8,12 +8,13 @@ import { module06Questions } from './module-06-tri-validation';
 import { module07Questions } from './module-07-destruction';
 import { module08Questions } from './module-08-stock-transfert';
 import { module09Questions } from './module-09-distribution';
-import { module10Questions } from './module-10-administration';
 
 export * from './types';
 
+const firstFifteen = (questions: QuizModule['questions']) => questions.slice(0, 15);
+
 /**
- * Tous les modules de quiz SIGDSTS — 10 modules × 20 questions = 200 QCM
+ * Modules de quiz SIGDSTS — 9 modules × 15 questions = 135 QCM
  * Source unique : Guide SIGDSTS Complet v11.0 (Mars 2026)
  */
 export const QUIZ_MODULES: QuizModule[] = [
@@ -28,7 +29,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'UserPlus',
     gradient: 'from-rose-500 to-orange-500',
     estimatedMinutes: 10,
-    questions: module01Questions,
+    questions: firstFifteen(module01Questions),
   },
   {
     id: 'selection-medicale',
@@ -41,7 +42,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Stethoscope',
     gradient: 'from-blue-500 to-cyan-500',
     estimatedMinutes: 10,
-    questions: module02Questions,
+    questions: firstFifteen(module02Questions),
   },
   {
     id: 'prelevement',
@@ -54,7 +55,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Syringe',
     gradient: 'from-red-500 to-pink-600',
     estimatedMinutes: 10,
-    questions: module03Questions,
+    questions: firstFifteen(module03Questions),
   },
   {
     id: 'preparation-psl',
@@ -67,7 +68,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'FlaskConical',
     gradient: 'from-purple-500 to-indigo-600',
     estimatedMinutes: 10,
-    questions: module04Questions,
+    questions: firstFifteen(module04Questions),
   },
   {
     id: 'qualification-biologique',
@@ -80,7 +81,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Microscope',
     gradient: 'from-emerald-500 to-teal-600',
     estimatedMinutes: 12,
-    questions: module05Questions,
+    questions: firstFifteen(module05Questions),
   },
   {
     id: 'tri-validation',
@@ -93,7 +94,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'CheckSquare',
     gradient: 'from-amber-500 to-yellow-600',
     estimatedMinutes: 10,
-    questions: module06Questions,
+    questions: firstFifteen(module06Questions),
   },
   {
     id: 'destruction',
@@ -106,7 +107,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Trash2',
     gradient: 'from-slate-600 to-zinc-700',
     estimatedMinutes: 10,
-    questions: module07Questions,
+    questions: firstFifteen(module07Questions),
   },
   {
     id: 'stock-transfert',
@@ -119,7 +120,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Truck',
     gradient: 'from-sky-500 to-blue-600',
     estimatedMinutes: 10,
-    questions: module08Questions,
+    questions: firstFifteen(module08Questions),
   },
   {
     id: 'distribution',
@@ -132,20 +133,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Hospital',
     gradient: 'from-fuchsia-500 to-pink-600',
     estimatedMinutes: 12,
-    questions: module09Questions,
-  },
-  {
-    id: 'administration',
-    order: 10,
-    title: 'Administration',
-    shortTitle: 'Admin',
-    description: "Référentiels, profils, rôles RBAC, sécurité, rapports et bonnes pratiques.",
-    guideSection: '§1.6-1.8 / §13',
-    guidePages: '5-7, 53-68',
-    icon: 'Settings',
-    gradient: 'from-violet-600 to-purple-700',
-    estimatedMinutes: 10,
-    questions: module10Questions,
+    questions: firstFifteen(module09Questions),
   },
 ];
 

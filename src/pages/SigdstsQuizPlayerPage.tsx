@@ -32,6 +32,7 @@ const SigdstsQuizPlayerPage: React.FC = () => {
   const [answers, setAnswers] = useState<AnswerLog[]>([]);
   const startedAt = useRef<number>(Date.now());
   const autoAdvanceRef = useRef<number | null>(null);
+  const lockedQuestionRef = useRef<string | null>(null);
   const answersRef = useRef<AnswerLog[]>([]);
   answersRef.current = answers;
 
@@ -80,6 +81,11 @@ const SigdstsQuizPlayerPage: React.FC = () => {
 
   const advance = useCallback(
     (newAnswers: AnswerLog[]) => {
+      if (autoAdvanceRef.current) {
+        window.clearTimeout(autoAdvanceRef.current);
+        autoAdvanceRef.current = null;
+      }
+      lockedQuestionRef.current = null;
       if (currentIdx + 1 >= total) {
         finalize(newAnswers);
         return;
@@ -93,6 +99,8 @@ const SigdstsQuizPlayerPage: React.FC = () => {
 
   const recordAnswer = useCallback(
     (idx: number | null): AnswerLog[] => {
+      if (lockedQuestionRef.current === question.id) return answersRef.current;
+      lockedQuestionRef.current = question.id;
       const correct = idx !== null && idx === question.correctIndex;
       const log: AnswerLog = {
         questionId: question.id,
@@ -118,6 +126,7 @@ const SigdstsQuizPlayerPage: React.FC = () => {
 
   const handleExpire = useCallback(() => {
     if (revealed) return;
+    const questionId = question.id;
     if (selected !== null) {
       // Auto-validate user's selection
       setRevealed(true);
@@ -129,10 +138,10 @@ const SigdstsQuizPlayerPage: React.FC = () => {
       const newAnswers = recordAnswer(null);
       toast('⏱️ Temps écoulé', { description: 'Aucune réponse sélectionnée.' });
       autoAdvanceRef.current = window.setTimeout(() => {
-        advance(newAnswers);
+        if (lockedQuestionRef.current === questionId) advance(newAnswers);
       }, REVEAL_DURATION_MS);
     }
-  }, [revealed, selected, recordAnswer, advance]);
+  }, [revealed, selected, question.id, recordAnswer, advance]);
 
   // Cleanup auto-advance timer on unmount / question change
   useEffect(() => {

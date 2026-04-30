@@ -19,17 +19,22 @@ export const QuestionTimer: React.FC<Props> = ({ seconds, paused, resetKey, onEx
   }, [resetKey, seconds]);
 
   useEffect(() => {
-    if (paused || expired.current) return;
-    if (remaining <= 0) {
-      if (!expired.current) {
-        expired.current = true;
-        onExpire();
-      }
-      return;
-    }
-    const id = setTimeout(() => setRemaining((r) => Math.max(0, r - 1)), 1000);
-    return () => clearTimeout(id);
-  }, [remaining, paused, onExpire]);
+    if (paused) return;
+    const id = window.setInterval(() => {
+      setRemaining((current) => {
+        if (current <= 1) {
+          window.clearInterval(id);
+          if (!expired.current) {
+            expired.current = true;
+            onExpire();
+          }
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [paused, resetKey, seconds, onExpire]);
 
   const ratio = Math.max(0, remaining) / seconds;
   const colorClass =
