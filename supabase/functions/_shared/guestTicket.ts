@@ -1,4 +1,5 @@
 // Helpers partagés pour le système Ticket Express (guest tickets)
+import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -90,24 +91,50 @@ export async function sendGuestEmail(opts: {
   html: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
-  if (!apiKey) return { ok: false, error: "RESEND_API_KEY not configured" };
   const from = Deno.env.get("SUPPORT_EMAIL_FROM") ?? "Support SIGDSTS <onboarding@resend.dev>";
-  try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from, to: [opts.to], subject: opts.subject, html: opts.html }),
-    });
-    if (!r.ok) {
+  let resendError: string | undefined;
+  if (!apiKey) resendError = "RESEND_API_KEY not configured";
+
+  if (apiKey) {
+    try {
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from, to: [opts.to], subject: opts.subject, html: opts.html }),
+      });
+      if (r.ok) return { ok: true };
       const text = await r.text();
-      return { ok: false, error: `Resend ${r.status}: ${text}` };
+      resendError = `Resend ${r.status}: ${text}`;
+    } catch (e) {
+      resendError = e instanceof Error ? e.message : "unknown";
     }
+  }
+
+  const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+  const gmailEmail = Deno.env.get("GMAIL_EMAIL") ?? "bot.bjdata@gmail.com";
+  if (!gmailPassword) return { ok: false, error: resendError ?? "No email provider configured" };
+
+  const client = new SmtpClient();
+  try {
+    await client.connectTLS({
+      hostname: "smtp.gmail.com",
+      port: 587,
+      username: gmailEmail,
+      password: gmailPassword,
+    });
+    await client.send({ from: `SIGDSTS <${gmailEmail}>`, to: opts.to, subject: opts.subject, html: opts.html });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "unknown" };
+    return { ok: false, error: `Resend: ${resendError ?? "skipped"}; Gmail SMTP: ${e instanceof Error ? e.message : "unknown"}` };
+  } finally {
+    try {
+      await client.close();
+    } catch {
+      // ignore close errors
+    }
   }
 }
 
