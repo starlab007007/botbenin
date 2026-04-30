@@ -120,7 +120,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Truck',
     gradient: 'from-sky-500 to-blue-600',
     estimatedMinutes: 10,
-    questions: module08Questions,
+    questions: firstFifteen(module08Questions),
   },
   {
     id: 'distribution',
@@ -133,20 +133,7 @@ export const QUIZ_MODULES: QuizModule[] = [
     icon: 'Hospital',
     gradient: 'from-fuchsia-500 to-pink-600',
     estimatedMinutes: 12,
-    questions: module09Questions,
-  },
-  {
-    id: 'administration',
-    order: 10,
-    title: 'Administration',
-    shortTitle: 'Admin',
-    description: "Référentiels, profils, rôles RBAC, sécurité, rapports et bonnes pratiques.",
-    guideSection: '§1.6-1.8 / §13',
-    guidePages: '5-7, 53-68',
-    icon: 'Settings',
-    gradient: 'from-violet-600 to-purple-700',
-    estimatedMinutes: 10,
-    questions: module10Questions,
+    questions: firstFifteen(module09Questions),
   },
 ];
 
