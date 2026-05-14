@@ -1,122 +1,188 @@
+# Sprint 3 — Finalisation WAOUH : Paiement Qosic + Radar IA Vendeurs/Acheteurs
 
-# Sprint 3 — Finalisation WAOUH (chat public end-to-end)
+## Partie A — Qosic (paiement Mobile Money escrow)
 
-Objectif : rendre le chat WAOUH 100% fonctionnel pour visiteurs anonymes, avec upload photo, géolocalisation enrichie (ville réelle), résumé transaction live et demande d'authentification uniquement au moment de payer.
+Objectif : finaliser le flow paiement déclenché depuis la `WaouhTransactionCard` (bouton "💳 Payer maintenant").
 
----
+### A.1 Edge function `waouh-payment-init`
+- Input : `{ transaction_id, msisdn, operator: 'mtn'|'moov' }` + JWT user.
+- Vérifie `waouh_transactions.buyer_id = auth.uid()` et `status = pending`.
+- Appelle Qosic `/QosicBridge/user/requestpayment` (HTTPS, ref ≤ 19 chars — réutilise la mémoire `qosic-payment-fixes`).
+- Insère `waouh_payments` (status `initiated`, `qosic_transref`).
+- Lance polling côté client (10s × 18 tentatives — pattern `payment-status-verification`).
 
-## 1. Diagnostic & fix « le chat n'envoie pas de message »
+### A.2 Edge function `waouh-payment-status`
+- Input : `{ transaction_id }`.
+- Appelle Qosic `/transactionStatus`, mappe `00 → success`, `01/02 → pending`, autre → `failed`.
+- Si `success` :
+  - `waouh_transactions.status = paid` (escrow), `paid_at = now()`.
+  - Trigger `waouh_log_tx_status` push automatique l'entrée `status_history`.
+  - Insère message système dans le chat : "✅ Paiement reçu. Fonds bloqués en escrow."
+- Si `failed` : `status = pending` + message "❌ Paiement échoué, réessayez."
 
-Causes probables (à vérifier dans cet ordre via logs edge function + console) :
-- `waouh-channel-in` reçoit l'appel mais `waouh-webhook` rejette `phone_number = "web:xxx"` (le webhook exige un `phone` réel et n'a pas de branche `channel === "web"`).
-- Le client insère via `supabase.functions.invoke` mais l'utilisateur anon n'a pas le droit de **lire** ses propres messages en realtime (policy actuelle filtre sur `web_session_id` — OK), mais le SELECT initial peut échouer si la policy n'autorise pas anon.
+### A.3 Edge function `waouh-payment-release`
+- Déclenché quand l'acheteur clique "✅ J'ai reçu mon article" dans `WaouhTransactionCard`.
+- Appelle Qosic `/depositpayment` vers le MSISDN du vendeur.
+- `status = released`, message système, notification vendeur.
 
-Fix :
-- Adapter `waouh-webhook` pour accepter un identifiant générique (`phone_number` OU `web_session_id`) et faire l'upsert user en conséquence — OU mieux : déplacer toute la logique IA appelée depuis `waouh-channel-in` (qui gère déjà l'upsert) et ne plus rappeler `waouh-webhook` en interne pour le canal web.
-- Ajouter logs explicites dans `waouh-channel-in` (étapes : payload reçu, user upsert, IA, reply persisté, WAHA send) pour diagnostic rapide.
-- Vérifier policy SELECT anon sur `waouh_messages` filtrée par `web_session_id` (déjà créée — confirmer).
+### A.4 Frontend
+- `WaouhPaymentDialog.tsx` (nouveau) : input MSISDN + select opérateur, bouton Payer, spinner pendant polling, toasts succès/échec.
+- `WaouhTransactionCard` : 3 actions selon statut (Payer / J'ai reçu / Litige).
+- `WaouhAuthGate` reste devant si user non connecté.
 
----
-
-## 2. Géolocalisation enrichie (GPS → ville réelle)
-
-- Au montage du chat (`WaouhWebChat`), appeler `navigator.geolocation` puis **reverse geocoding** via une nouvelle edge function `waouh-geocode` qui appelle Nominatim (OpenStreetMap, gratuit, pas de clé) et renvoie `{ city, country, display_name }`.
-- Stocker `{ lat, lng, city }` dans state local + envoyer à chaque message.
-- Afficher sous le header du chat : `📍 {city}` (badge cliquable « Modifier ») au lieu des coordonnées brutes.
-- Permettre changement manuel via un petit Popover (input ville → géocodage direct via la même fonction).
-
----
-
-## 3. Upload de photos dans le chat
-
-Stockage :
-- Nouveau bucket Supabase Storage **`waouh-uploads`** (public, accès anon en INSERT, SELECT public).
-- Ajouter colonne `attachments jsonb` (array de `{url, type}`) à `waouh_messages`.
-
-Frontend (`WaouhWebChat`) :
-- Bouton 📎 à côté de l'input → `<input type="file" accept="image/*" capture="environment">` (déclenche caméra mobile).
-- Upload direct vers Storage (chemin `web/{sessionId}/{uuid}.jpg`), récupération de `publicUrl`.
-- Aperçu miniature avant envoi, suppression possible.
-- Envoi : passe `attachments: [{url, type}]` à `waouh-channel-in`.
-- Rendu des messages : si `attachments`, afficher images dans la bulle (`<img>` lazy, max-h-48).
-
-Backend :
-- `waouh-channel-in` propage `attachments` dans l'INSERT et passe les URLs au moteur IA pour analyse multimodale (Gemini 2.5 Flash supporte les images via le AI Gateway).
-- Si WhatsApp : envoi via WAHA `sendImage` au lieu de `sendText`.
+### A.5 Secrets
+Vérifier présence : `QOSIC_USERNAME`, `QOSIC_PASSWORD`, `QOSIC_CLIENTID_MTN`, `QOSIC_CLIENTID_MOOV`. Demander via `add_secret` si manquants.
 
 ---
 
-## 4. Résumé automatique de transaction dans le chat
+## Partie B — SerpAPI (sourcing public)
 
-État actuel : `waouh_transactions` existe (statuts probables : `pending`, `paid`, `released`, `disputed`, `cancelled`).
+Objectif : moissonner périodiquement les annonces publiques pour enrichir l'inventaire WAOUH et déclencher des matchs acheteurs.
 
-Frontend : nouveau composant `WaouhTransactionCard` rendu **inline dans le chat** dès qu'un message a `meta.transaction_id`.
+### B.1 Edge function `waouh-serpapi-scout` (cron 6h)
+- Pour chaque catégorie active (smartphone, vehicule, electromenager…) :
+  - Query SerpAPI Google : `"à vendre" {category} site:jumia.com.bj OR site:expat.com OR site:tonaton.com OR site:jiji.bj OR site:cocolib.com`.
+  - Filtre `tbs=qdr:w` (7 derniers jours).
+- Pour chaque résultat :
+  - Extraction IA (Gemini 2.5 Flash, JSON) : `{title, price_fcfa, condition, city, seller_contact, source_url}`.
+  - Déduplication par `source_url` (nouvelle table `waouh_external_listings`).
+  - Insert si nouveau, lien optionnel vers `waouh_articles` (status `external`).
+- Trigger `waouh-notify-buyers` sur chaque insert.
 
-```text
-┌─────────────────────────────────────┐
-│ 🛒 Transaction #A8F3                │
-│ iPhone 14 Pro · 580 000 FCFA        │
-│ ─────────────────────────────────── │
-│ ● En attente paiement   [10:42]     │
-│ ○ Payé (escrow)         —           │
-│ ○ Libéré au vendeur     —           │
-│ ─────────────────────────────────── │
-│ [💳 Payer maintenant]               │
-└─────────────────────────────────────┘
+### B.2 Migration DB
+```sql
+create table waouh_external_listings (
+  id uuid pk, source text, source_url text unique, title text,
+  price numeric, currency text default 'XOF', city text, condition text,
+  seller_phone text, seller_name text, raw_html text, scraped_at timestamptz,
+  matched_buyer_ids uuid[], status text default 'new'
+);
 ```
 
-- Stepper vertical 3 étapes (En cours → Payé → Libéré) avec timestamps.
-- Souscription realtime sur `waouh_transactions` filtrée sur les IDs présents dans le chat → MAJ live.
-- Helper `formatTransactionStatus()` partagé.
-
-Backend :
-- `waouh-payment-handler` et `waouh-webhook` doivent insérer dans `meta.transaction_id` à chaque message lié à une transaction.
-- Ajout colonne `status_history jsonb` (array de `{status, at, by}`) sur `waouh_transactions` + trigger qui appende à chaque update du `status`.
+### B.3 Secret
+`SERPAPI_KEY` via `add_secret`.
 
 ---
 
-## 5. Auth différée — connexion uniquement au paiement
+## Partie C — Radar IA Vendeurs/Acheteurs (innovation)
 
-Comportement :
-- Visiteur anonyme : peut chatter, vendre, négocier sans compte (déjà OK via `web_session_id`).
-- Au clic « 💳 Payer maintenant » sur la `WaouhTransactionCard` :
-  - Si `user` connecté → ouvre directement le flow Mobile Money.
-  - Si non connecté → modal `WaouhAuthGate` : « Pour sécuriser votre paiement, créez un compte en 10 secondes » avec :
-    - Champ téléphone (Mobile Money) → OTP via Supabase Auth (sms) OU magic link email.
-    - Après auth, le `web_session_id` est rattaché au `user_id` (mise à jour `waouh_users` et `waouh_messages` via fonction RPC `waouh_link_session(session_id, user_id)`).
-    - Reprend automatiquement le flow paiement.
+Objectif : détecter en temps réel ou J-7 les vendeurs/acheteurs partout (sites, Facebook, groupes Facebook, WhatsApp, groupes WhatsApp) et constituer des profils IA notifiables.
+
+### C.1 Architecture multi-source
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│  SOURCES                          COLLECTEUR              │
+├──────────────────────────────────────────────────────────┤
+│  Sites BJ (jumia, jiji,           waouh-serpapi-scout    │
+│  tonaton, cocolib, expat)         (Partie B)              │
+│                                                            │
+│  Facebook Marketplace BJ          waouh-fb-scout          │
+│  + Pages publiques                (Apify actor            │
+│                                    facebook-marketplace)  │
+│                                                            │
+│  Groupes Facebook publics         waouh-fb-groups-scout   │
+│  ("Vente Cotonou", etc.)          (Apify facebook-groups) │
+│                                                            │
+│  WhatsApp groupes opt-in          WAHA bot membre du      │
+│  (l'admin invite @WaouhBot)       groupe → webhook        │
+│                                    waouh-whatsapp-radar   │
+│                                                            │
+│  Telegram canaux BJ               Bot membre + getUpdates │
+│                                                            │
+│  Numéros perso (opt-in            User active "partage    │
+│  vendeur)                         conv WA" → forward IA   │
+└──────────────────────────────────────────────────────────┘
+                       ↓
+            ┌────────────────────────┐
+            │  IA EXTRACTOR          │
+            │  Gemini 2.5 Flash      │
+            │  → {intent: SELL|BUY,  │
+            │     product, price,    │
+            │     city, contact,     │
+            │     confidence}        │
+            └────────────────────────┘
+                       ↓
+            ┌────────────────────────┐
+            │  PROFIL IA             │
+            │  waouh_radar_profiles  │
+            │  + scoring fiabilité   │
+            └────────────────────────┘
+                       ↓
+            ┌────────────────────────┐
+            │  MATCH ENGINE          │
+            │  pgvector + règles     │
+            │  prix/ville/cat        │
+            └────────────────────────┘
+                       ↓
+            ┌────────────────────────┐
+            │  NOTIFY                │
+            │  → Acheteur (WA/web)   │
+            │  → Vendeur (WA/web)    │
+            │  Message pré-rédigé IA │
+            │  + lien chat WAOUH     │
+            └────────────────────────┘
+```
+
+### C.2 Tables nouvelles
+
+- `waouh_radar_sources` : `{id, type: 'site'|'fb_page'|'fb_group'|'wa_group'|'telegram', identifier, label, active, last_scan_at, scan_freq_min}`.
+- `waouh_radar_signals` : `{id, source_id, raw_text, raw_url, captured_at, intent, product_jsonb, price, city, contact_phone, contact_handle, confidence, embedding vector(384), status}`.
+- `waouh_radar_profiles` : `{id, contact_phone, contact_handle, role: 'seller'|'buyer'|'both', categories text[], avg_price_range, cities text[], signals_count, reliability_score (0-1), last_seen_at, opt_in bool}`.
+- `waouh_radar_matches` : `{id, signal_id, target_user_id, score, notified_at, response}`.
+
+### C.3 Edge functions
+
+1. `waouh-radar-fb-marketplace` (cron 30 min) — Apify actor `apify/facebook-marketplace-scraper` filtré Bénin.
+2. `waouh-radar-fb-groups` (cron 1h) — actor `apify/facebook-groups-scraper` sur liste de groupes publics.
+3. `waouh-radar-wa-ingest` (webhook WAHA) — branche le bot WAOUH dans les groupes WA opt-in, parse chaque message.
+4. `waouh-radar-extract` (queue) — pour chaque signal brut → IA extraction + embedding (`text-embedding-004`).
+5. `waouh-radar-match` (trigger insert) — recherche profils opposés (BUY ↔ SELL) via similarité cosinus + filtres prix/ville.
+6. `waouh-radar-notify` — envoie message WhatsApp pré-rédigé OU notif web realtime.
+
+### C.4 Frontend (admin)
+
+- Page `/admin/waouh/radar` :
+  - Tableau sources (add/pause/scan now).
+  - Feed live des signaux (realtime supabase) avec badges intent / confidence.
+  - Profils détectés + bouton "Inviter sur WAOUH" (envoie WA template).
+  - Stats : signaux/jour, taux match, taux conversion.
+
+### C.5 Conformité & opt-in
+
+- WhatsApp : bot ajouté **uniquement** par admin de groupe (consentement). Footer message "Détecté par WAOUH IA — répondez STOP pour exclure".
+- Facebook : seules pages/groupes **publics**, respect ToS Apify.
+- RGPD-like : profils anonymisables sur demande, suppression via RPC `waouh_radar_forget(phone)`.
+
+### C.6 Secrets nécessaires
+
+`APIFY_TOKEN`, `SERPAPI_KEY` (déjà), `TELEGRAM_BOT_TOKEN` (optionnel). WAHA déjà configuré.
 
 ---
 
-## 6. Fichiers touchés
+## Partie D — Critères de réussite
 
-**Migration SQL** :
-- bucket `waouh-uploads` + policies (anon insert/select).
-- `waouh_messages.attachments jsonb`.
-- `waouh_transactions.status_history jsonb` + trigger.
-- RPC `waouh_link_session(session_id text, user_id uuid)` security definer.
-
-**Edge functions** :
-- `waouh-geocode` (nouveau, public, Nominatim).
-- `waouh-channel-in` : support `attachments`, propagation `transaction_id`, logs.
-- `waouh-webhook` : branche `channel === "web"` pour accepter `web_session_id`, push `transaction_id` dans `meta`, image multimodale.
-- `waouh-payment-handler` : exige `user_id`, append `status_history`.
-
-**Frontend** :
-- `src/components/waouh/WaouhWebChat.tsx` : upload photo, ville affichée, rendu attachments + `WaouhTransactionCard`.
-- `src/components/waouh/WaouhTransactionCard.tsx` (nouveau).
-- `src/components/waouh/WaouhAuthGate.tsx` (nouveau, modal OTP/magic link).
-- `src/components/waouh/WaouhCityBadge.tsx` (nouveau, badge ville + popover édition).
-- `src/hooks/useWaouhGeolocation.ts` (nouveau, GPS + reverse geocode + cache localStorage).
-- `src/pages/waouh/WaouhChatPage.tsx` : retire les coordonnées du header, intègre `WaouhCityBadge`.
+- [ ] Paiement Qosic end-to-end depuis la card chat → escrow → release, status_history complet.
+- [ ] SerpAPI cron tourne, `waouh_external_listings` se remplit, acheteurs notifiés.
+- [ ] Radar : au moins 3 sources actives (Marketplace, 1 groupe FB, 1 groupe WA), feed admin live.
+- [ ] Match auto : un acheteur recevant une notif < 60s après détection d'une annonce compatible.
+- [ ] Aucune fuite RLS, secrets stockés via `add_secret`.
 
 ---
 
-## 7. Critères de réussite
+## Partie E — Ordre d'exécution proposé
 
-- [ ] Visiteur anonyme tape un message → réponse IA reçue en < 5s, persistée, realtime OK.
-- [ ] Ville réelle (« Cotonou », « Calavi »…) affichée sous le header dès l'autorisation GPS.
-- [ ] Upload photo fonctionne (mobile = caméra, desktop = fichier), photo visible dans la bulle, IA peut la décrire.
-- [ ] Transaction créée → carte affichée dans le chat avec stepper, MAJ live au passage `paid` puis `released`.
-- [ ] Clic « Payer » sans compte → modal auth (OTP), après auth la transaction continue sans perte de contexte.
-- [ ] Aucun blocage RLS dans la console réseau, aucun 401/403 sur les invocations edge functions.
+1. Migration DB (Qosic columns + radar tables + external_listings).
+2. Secrets (`SERPAPI_KEY`, `APIFY_TOKEN`, vérif Qosic).
+3. Edge functions Qosic (init/status/release) + UI `WaouhPaymentDialog`.
+4. Edge function `waouh-serpapi-scout` + cron pg_cron.
+5. Radar : tables + extract/match/notify + page admin.
+6. Activation progressive sources (Marketplace → groupes FB → WA opt-in).
+
+---
+
+## Questions ouvertes (à confirmer avant build)
+
+1. **Apify** : OK pour ajouter `APIFY_TOKEN` (sourcing Facebook) ? Sinon je limite Partie C à SerpAPI + WA bot.
+2. **WhatsApp groupes** : on assume opt-in admin ? (sinon risque ban WAHA).
+3. **Périmètre Sprint 3** : tout ci-dessus, ou seulement Qosic + SerpAPI + tables Radar (UI radar repoussée Sprint 4) ?
