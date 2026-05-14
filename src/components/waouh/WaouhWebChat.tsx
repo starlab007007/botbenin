@@ -35,7 +35,7 @@ function getSessionId() {
   return id;
 }
 
-export const WaouhWebChat: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }> = ({ embedded = false, fullscreen = false }) => {
   const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
