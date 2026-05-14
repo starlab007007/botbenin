@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { X, BarChart3, User, HelpCircle, Bot, Target, Database, MessageCircle } from 'lucide-react';
+import { X, BarChart3, User, HelpCircle, Bot, Target, Database, MessageCircle, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MobileSidebarProps {
@@ -16,6 +16,7 @@ const menuItems = [
   { title: 'CRM', path: '/prospects', icon: Target },
   { title: 'WhatsApp IA', path: '/whatsapp-connect', icon: MessageCircle },
   { title: 'WhatsApp Diffusion', path: '/whatsapp-diffusion', icon: MessageCircle },
+  { title: 'WAOUH', path: '/waouh', icon: ShoppingBag, badge: 'NOUVEAU' },
 ];
 
 // HIDDEN - kept for future use
