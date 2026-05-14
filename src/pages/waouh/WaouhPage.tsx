@@ -14,6 +14,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import WaouhWebChat from "@/components/waouh/WaouhWebChat";
+import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
 
 type Stats = {
   total_articles: number;
