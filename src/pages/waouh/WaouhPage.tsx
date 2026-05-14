@@ -9,10 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play } from "lucide-react";
+import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import WaouhWebChat from "@/components/waouh/WaouhWebChat";
+import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
 
 type Stats = {
   total_articles: number;
@@ -136,6 +138,8 @@ export default function WaouhPage() {
             <TabsTrigger value="articles">Annonces</TabsTrigger>
             <TabsTrigger value="buyers">Acheteurs</TabsTrigger>
             <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="webchat">Web Chat</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp (WAHA)</TabsTrigger>
             <TabsTrigger value="settings">Paramètres</TabsTrigger>
           </TabsList>
 
@@ -316,6 +320,39 @@ export default function WaouhPage() {
                 </table>
               </div>
             </Card>
+          </TabsContent>
+
+          {/* WEB CHAT */}
+          <TabsContent value="webchat" className="space-y-4 mt-4">
+            <Card className="p-4 bg-card border-[hsl(var(--waouh-border))]">
+              <div className="flex items-center gap-2 mb-3">
+                <MessageCircle className="w-5 h-5 text-cyan-500" />
+                <h3 className="font-semibold">Widget Web Chat</h3>
+                <Badge variant="secondary">Live</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Porte d'entrée web : testez ici le même cerveau IA que WhatsApp. Les messages sont stockés dans <code>waouh_messages</code> et streamés en temps réel.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-2 block">Aperçu live</Label>
+                  <WaouhWebChat embedded />
+                </div>
+                <div className="space-y-3">
+                  <Label className="block">Intégration site externe</Label>
+                  <p className="text-xs text-muted-foreground">Ajoutez ce composant dans n'importe quelle page :</p>
+                  <pre className="text-xs bg-muted p-3 rounded overflow-x-auto"><code>{`import WaouhWebChat from "@/components/waouh/WaouhWebChat";
+
+<WaouhWebChat />`}</code></pre>
+                  <p className="text-xs text-muted-foreground">Le widget gère sa propre session (uuid en localStorage), la géolocalisation navigateur et la réception temps réel via Supabase Realtime.</p>
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
+
+          {/* WHATSAPP WAHA */}
+          <TabsContent value="whatsapp" className="space-y-4 mt-4">
+            <WaouhWhatsAppPanel />
           </TabsContent>
 
           {/* SETTINGS */}

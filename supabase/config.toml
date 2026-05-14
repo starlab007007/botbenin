@@ -180,3 +180,15 @@ verify_jwt = false
 
 [functions.quiz-verify-certificate]
 verify_jwt = false
+
+[functions.waouh-channel-in]
+verify_jwt = false
+
+[functions.waouh-webhook]
+verify_jwt = false
+
+[functions.waouh-admin-stats]
+verify_jwt = true
+
+[functions.waouh-waha-control]
+verify_jwt = true
