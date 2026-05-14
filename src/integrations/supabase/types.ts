@@ -4993,6 +4993,8 @@ export type Database = {
           market_price_max: number | null
           market_price_min: number | null
           model: string | null
+          origin: string
+          origin_signal_id: string | null
           photos: string[]
           price: number
           radius_km: number
@@ -5018,6 +5020,8 @@ export type Database = {
           market_price_max?: number | null
           market_price_min?: number | null
           model?: string | null
+          origin?: string
+          origin_signal_id?: string | null
           photos?: string[]
           price: number
           radius_km?: number
@@ -5043,6 +5047,8 @@ export type Database = {
           market_price_max?: number | null
           market_price_min?: number | null
           model?: string | null
+          origin?: string
+          origin_signal_id?: string | null
           photos?: string[]
           price?: number
           radius_km?: number
@@ -5053,6 +5059,13 @@ export type Database = {
           views_count?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "waouh_articles_origin_signal_fk"
+            columns: ["origin_signal_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_signals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "waouh_articles_seller_id_fkey"
             columns: ["seller_id"]
@@ -5072,6 +5085,8 @@ export type Database = {
           location: unknown
           min_condition: string | null
           notified_article_ids: string[]
+          origin: string
+          origin_signal_id: string | null
           price_max: number | null
           price_min: number | null
           query_text: string
@@ -5087,6 +5102,8 @@ export type Database = {
           location?: unknown
           min_condition?: string | null
           notified_article_ids?: string[]
+          origin?: string
+          origin_signal_id?: string | null
           price_max?: number | null
           price_min?: number | null
           query_text: string
@@ -5102,6 +5119,8 @@ export type Database = {
           location?: unknown
           min_condition?: string | null
           notified_article_ids?: string[]
+          origin?: string
+          origin_signal_id?: string | null
           price_max?: number | null
           price_min?: number | null
           query_text?: string
@@ -5109,6 +5128,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "waouh_buyer_profiles_origin_signal_fk"
+            columns: ["origin_signal_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_signals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "waouh_buyer_profiles_user_id_fkey"
             columns: ["user_id"]
@@ -5200,10 +5226,12 @@ export type Database = {
           image_url: string | null
           matched_buyer_ids: string[] | null
           price: number | null
+          promoted_article_id: string | null
           raw: Json | null
           scraped_at: string
           seller_name: string | null
           seller_phone: string | null
+          seller_user_id: string | null
           source: string
           source_url: string
           status: string
@@ -5219,10 +5247,12 @@ export type Database = {
           image_url?: string | null
           matched_buyer_ids?: string[] | null
           price?: number | null
+          promoted_article_id?: string | null
           raw?: Json | null
           scraped_at?: string
           seller_name?: string | null
           seller_phone?: string | null
+          seller_user_id?: string | null
           source: string
           source_url: string
           status?: string
@@ -5238,16 +5268,33 @@ export type Database = {
           image_url?: string | null
           matched_buyer_ids?: string[] | null
           price?: number | null
+          promoted_article_id?: string | null
           raw?: Json | null
           scraped_at?: string
           seller_name?: string | null
           seller_phone?: string | null
+          seller_user_id?: string | null
           source?: string
           source_url?: string
           status?: string
           title?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waouh_external_listings_promoted_article_id_fkey"
+            columns: ["promoted_article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_external_listings_seller_user_id_fkey"
+            columns: ["seller_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_messages: {
         Row: {
@@ -5472,6 +5519,7 @@ export type Database = {
           reliability_score: number | null
           role: string
           signals_count: number | null
+          waouh_user_id: string | null
         }
         Insert: {
           avg_price?: number | null
@@ -5489,6 +5537,7 @@ export type Database = {
           reliability_score?: number | null
           role?: string
           signals_count?: number | null
+          waouh_user_id?: string | null
         }
         Update: {
           avg_price?: number | null
@@ -5506,8 +5555,17 @@ export type Database = {
           reliability_score?: number | null
           role?: string
           signals_count?: number | null
+          waouh_user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waouh_radar_profiles_waouh_user_id_fkey"
+            columns: ["waouh_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_radar_signals: {
         Row: {
@@ -5522,12 +5580,15 @@ export type Database = {
           intent: string | null
           price: number | null
           product: Json | null
+          promoted_article_id: string | null
+          promoted_buyer_profile_id: string | null
           raw_payload: Json | null
           raw_text: string | null
           raw_url: string | null
           source_id: string | null
           source_type: string | null
           status: string
+          waouh_user_id: string | null
         }
         Insert: {
           captured_at?: string
@@ -5541,12 +5602,15 @@ export type Database = {
           intent?: string | null
           price?: number | null
           product?: Json | null
+          promoted_article_id?: string | null
+          promoted_buyer_profile_id?: string | null
           raw_payload?: Json | null
           raw_text?: string | null
           raw_url?: string | null
           source_id?: string | null
           source_type?: string | null
           status?: string
+          waouh_user_id?: string | null
         }
         Update: {
           captured_at?: string
@@ -5560,19 +5624,43 @@ export type Database = {
           intent?: string | null
           price?: number | null
           product?: Json | null
+          promoted_article_id?: string | null
+          promoted_buyer_profile_id?: string | null
           raw_payload?: Json | null
           raw_text?: string | null
           raw_url?: string | null
           source_id?: string | null
           source_type?: string | null
           status?: string
+          waouh_user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "waouh_radar_signals_promoted_article_id_fkey"
+            columns: ["promoted_article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_signals_promoted_buyer_profile_id_fkey"
+            columns: ["promoted_buyer_profile_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_buyer_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "waouh_radar_signals_source_id_fkey"
             columns: ["source_id"]
             isOneToOne: false
             referencedRelation: "waouh_radar_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_signals_waouh_user_id_fkey"
+            columns: ["waouh_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
             referencedColumns: ["id"]
           },
         ]
@@ -6852,6 +6940,43 @@ export type Database = {
           permission_name: string | null
           role_name: string | null
           user_id: string | null
+        }
+        Relationships: []
+      }
+      waouh_unified_demands: {
+        Row: {
+          active: boolean | null
+          captured_at: string | null
+          category: string | null
+          city: string | null
+          contact_phone: string | null
+          id: string | null
+          origin: string | null
+          price_max: number | null
+          source_kind: string | null
+          title: string | null
+          waouh_user_id: string | null
+        }
+        Relationships: []
+      }
+      waouh_unified_offers: {
+        Row: {
+          captured_at: string | null
+          category: string | null
+          city: string | null
+          condition: string | null
+          contact_phone: string | null
+          currency: string | null
+          description: string | null
+          id: string | null
+          image_url: string | null
+          origin: string | null
+          price: number | null
+          source_kind: string | null
+          source_url: string | null
+          status: string | null
+          title: string | null
+          waouh_user_id: string | null
         }
         Relationships: []
       }
@@ -8419,6 +8544,8 @@ export type Database = {
         Args: { p_session_id: string; p_user_id: string }
         Returns: undefined
       }
+      waouh_match_signal: { Args: { p_signal_id: string }; Returns: Json }
+      waouh_promote_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
     }
     Enums: {
