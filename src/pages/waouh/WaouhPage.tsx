@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw } from "lucide-react";
+import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw, Radar, ArrowLeft } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
+import WaouhRadarTab from "@/components/waouh/WaouhRadarTab";
 
 type Stats = {
   total_articles: number;
@@ -42,6 +43,11 @@ function fmtXOF(n: number) {
 }
 
 export default function WaouhPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const activeTab = searchParams.get("tab") || "dashboard";
+  const setActiveTab = (v: string) => setSearchParams((prev) => { prev.set("tab", v); return prev; }, { replace: true });
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [articles, setArticles] = useState<any[]>([]);
   const [buyers, setBuyers] = useState<any[]>([]);
@@ -50,6 +56,7 @@ export default function WaouhPage() {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterOrigin, setFilterOrigin] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [settings, setSettings] = useState<Record<string, any>>({});
 
