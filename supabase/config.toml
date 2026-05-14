@@ -192,3 +192,6 @@ verify_jwt = true
 
 [functions.waouh-waha-control]
 verify_jwt = true
+
+[functions.waouh-geocode]
+verify_jwt = false

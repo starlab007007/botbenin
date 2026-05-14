@@ -14,10 +14,13 @@ const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "default";
 
+function log(step: string, data: any = {}) {
+  console.log(`[waouh-channel-in] ${step}`, JSON.stringify(data));
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // WAHA / Meta verification GET
   if (req.method === "GET") {
     const url = new URL(req.url);
     const challenge = url.searchParams.get("hub.challenge");
@@ -28,17 +31,19 @@ serve(async (req) => {
   try {
     const sb = createClient(SUPABASE_URL, SERVICE);
     const raw = await req.json().catch(() => ({}));
+    log("payload", raw);
 
-    // Normalize payload — supports web widget AND WAHA webhook
     let channel: "web" | "whatsapp" = raw.channel ?? "whatsapp";
-    let text = raw.text ?? "";
+    let text: string = raw.text ?? "";
     let phone: string | null = raw.phone ?? null;
     let sessionId: string | null = raw.sessionId ?? null;
+    let attachments: Array<{ url: string; type: string }> = Array.isArray(raw.attachments) ? raw.attachments : [];
     const lat = raw.lat ?? 6.36;
     const lng = raw.lng ?? 2.42;
     const city = raw.city ?? "Cotonou";
+    const authUserId: string | null = raw.authUserId ?? null;
 
-    // WAHA shape: { event:"message", session, payload:{ from, body, fromMe } }
+    // WAHA: { event:"message", session, payload:{ from, body, fromMe, hasMedia, mediaUrl, mimetype } }
     if (raw.event && raw.payload) {
       if (raw.event !== "message" || raw.payload.fromMe) {
         return new Response(JSON.stringify({ ok: true, skipped: true }), {
@@ -48,10 +53,11 @@ serve(async (req) => {
       channel = "whatsapp";
       phone = (raw.payload.from || "").replace("@c.us", "");
       text = raw.payload.body || "";
+      if (raw.payload.mediaUrl) attachments.push({ url: raw.payload.mediaUrl, type: raw.payload.mimetype || "image/jpeg" });
     }
 
-    if (!text || (!phone && !sessionId)) {
-      return new Response(JSON.stringify({ ok: false, error: "missing text or identifier" }), {
+    if ((!text && attachments.length === 0) || (!phone && !sessionId)) {
+      return new Response(JSON.stringify({ ok: false, error: "missing text/attachments or identifier" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -62,11 +68,17 @@ serve(async (req) => {
       const { data: existing } = await sb.from("waouh_users").select("*").eq("web_session_id", sessionId).maybeSingle();
       user = existing;
       if (!user) {
-        const { data: created } = await sb.from("waouh_users").insert({
+        const { data: created, error } = await sb.from("waouh_users").insert({
           web_session_id: sessionId, channel: "web", city,
+          auth_user_id: authUserId,
           location: `SRID=4326;POINT(${lng} ${lat})` as any,
         }).select().single();
+        if (error) log("user insert error", error);
         user = created;
+      } else if (authUserId && !user.auth_user_id) {
+        await sb.from("waouh_users").update({ auth_user_id: authUserId, city }).eq("id", user.id);
+      } else if (city && city !== user.city) {
+        await sb.from("waouh_users").update({ city }).eq("id", user.id);
       }
     } else {
       const { data: existing } = await sb.from("waouh_users").select("*").eq("phone_number", phone).maybeSingle();
@@ -79,54 +91,57 @@ serve(async (req) => {
         user = created;
       }
     }
+    log("user", { id: user?.id });
 
-    // Persist incoming message
+    // Persist incoming
     await sb.from("waouh_messages").insert({
-      user_id: user.id, channel, direction: "in", text,
+      user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
+      attachments,
     });
 
-    // Call core engine (waouh-webhook) to get a reply
+    // Call core engine
     const coreRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-webhook`, {
       method: "POST",
       headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ phone_number: phone || `web:${sessionId}`, text, lat, lng, city, channel }),
+      body: JSON.stringify({
+        phone_number: phone || `web:${sessionId}`,
+        web_session_id: sessionId,
+        text, lat, lng, city, channel, attachments,
+        user_id: user.id, auth_user_id: user.auth_user_id ?? authUserId,
+      }),
     });
     const core = await coreRes.json().catch(() => ({}));
-    const reply: string = core.reply ?? "…";
+    log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
+    const reply: string = core.reply ?? "Désolé, une erreur est survenue. Réessayez.";
 
-    // Persist outgoing message
+    // Persist outgoing
     await sb.from("waouh_messages").insert({
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
-      meta: { intent: core.intent ?? null },
+      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null },
     });
 
-    // Route to WAHA if WhatsApp
+    // WAHA send
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
       try {
         await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
-          },
+          headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
           body: JSON.stringify({
             session: WAHA_SESSION,
             chatId: phone.includes("@") ? phone : `${phone}@c.us`,
             text: reply,
           }),
         });
-      } catch (e) {
-        console.error("WAHA send failed", e);
-      }
+      } catch (e) { console.error("WAHA send failed", e); }
     }
 
     return new Response(JSON.stringify({ ok: true, reply, intent: core.intent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    console.error(e);
+    console.error("[waouh-channel-in] error", e);
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
