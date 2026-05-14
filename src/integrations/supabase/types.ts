@@ -5189,6 +5189,66 @@ export type Database = {
           },
         ]
       }
+      waouh_external_listings: {
+        Row: {
+          category: string | null
+          city: string | null
+          condition: string | null
+          currency: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          matched_buyer_ids: string[] | null
+          price: number | null
+          raw: Json | null
+          scraped_at: string
+          seller_name: string | null
+          seller_phone: string | null
+          source: string
+          source_url: string
+          status: string
+          title: string | null
+        }
+        Insert: {
+          category?: string | null
+          city?: string | null
+          condition?: string | null
+          currency?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          matched_buyer_ids?: string[] | null
+          price?: number | null
+          raw?: Json | null
+          scraped_at?: string
+          seller_name?: string | null
+          seller_phone?: string | null
+          source: string
+          source_url: string
+          status?: string
+          title?: string | null
+        }
+        Update: {
+          category?: string | null
+          city?: string | null
+          condition?: string | null
+          currency?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          matched_buyer_ids?: string[] | null
+          price?: number | null
+          raw?: Json | null
+          scraped_at?: string
+          seller_name?: string | null
+          seller_phone?: string | null
+          source?: string
+          source_url?: string
+          status?: string
+          title?: string | null
+        }
+        Relationships: []
+      }
       waouh_messages: {
         Row: {
           attachments: Json | null
@@ -5287,6 +5347,274 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waouh_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          error_message: string | null
+          id: string
+          msisdn: string
+          operator: string
+          payment_type: string
+          qosic_response: Json | null
+          qosic_transref: string | null
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          msisdn: string
+          operator: string
+          payment_type?: string
+          qosic_response?: Json | null
+          qosic_transref?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          msisdn?: string
+          operator?: string
+          payment_type?: string
+          qosic_response?: Json | null
+          qosic_transref?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_payments_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_radar_matches: {
+        Row: {
+          created_at: string
+          id: string
+          notification_channel: string | null
+          notified_at: string | null
+          response: string | null
+          score: number
+          signal_id: string | null
+          target_buyer_profile_id: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notification_channel?: string | null
+          notified_at?: string | null
+          response?: string | null
+          score: number
+          signal_id?: string | null
+          target_buyer_profile_id?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notification_channel?: string | null
+          notified_at?: string | null
+          response?: string | null
+          score?: number
+          signal_id?: string | null
+          target_buyer_profile_id?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_radar_matches_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_matches_target_buyer_profile_id_fkey"
+            columns: ["target_buyer_profile_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_buyer_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_radar_profiles: {
+        Row: {
+          avg_price: number | null
+          categories: string[] | null
+          cities: string[] | null
+          contact_handle: string | null
+          contact_phone: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          invited_at: string | null
+          joined_user_id: string | null
+          last_seen_at: string | null
+          opt_in: boolean | null
+          reliability_score: number | null
+          role: string
+          signals_count: number | null
+        }
+        Insert: {
+          avg_price?: number | null
+          categories?: string[] | null
+          cities?: string[] | null
+          contact_handle?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          invited_at?: string | null
+          joined_user_id?: string | null
+          last_seen_at?: string | null
+          opt_in?: boolean | null
+          reliability_score?: number | null
+          role?: string
+          signals_count?: number | null
+        }
+        Update: {
+          avg_price?: number | null
+          categories?: string[] | null
+          cities?: string[] | null
+          contact_handle?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          invited_at?: string | null
+          joined_user_id?: string | null
+          last_seen_at?: string | null
+          opt_in?: boolean | null
+          reliability_score?: number | null
+          role?: string
+          signals_count?: number | null
+        }
+        Relationships: []
+      }
+      waouh_radar_signals: {
+        Row: {
+          captured_at: string
+          category: string | null
+          city: string | null
+          confidence: number | null
+          contact_handle: string | null
+          contact_phone: string | null
+          embedding: string | null
+          id: string
+          intent: string | null
+          price: number | null
+          product: Json | null
+          raw_payload: Json | null
+          raw_text: string | null
+          raw_url: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string
+        }
+        Insert: {
+          captured_at?: string
+          category?: string | null
+          city?: string | null
+          confidence?: number | null
+          contact_handle?: string | null
+          contact_phone?: string | null
+          embedding?: string | null
+          id?: string
+          intent?: string | null
+          price?: number | null
+          product?: Json | null
+          raw_payload?: Json | null
+          raw_text?: string | null
+          raw_url?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+        }
+        Update: {
+          captured_at?: string
+          category?: string | null
+          city?: string | null
+          confidence?: number | null
+          contact_handle?: string | null
+          contact_phone?: string | null
+          embedding?: string | null
+          id?: string
+          intent?: string | null
+          price?: number | null
+          product?: Json | null
+          raw_payload?: Json | null
+          raw_text?: string | null
+          raw_url?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_radar_signals_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_radar_sources: {
+        Row: {
+          active: boolean
+          config: Json | null
+          created_at: string
+          id: string
+          identifier: string
+          label: string | null
+          last_scan_at: string | null
+          last_signal_count: number | null
+          scan_freq_min: number
+          type: string
+        }
+        Insert: {
+          active?: boolean
+          config?: Json | null
+          created_at?: string
+          id?: string
+          identifier: string
+          label?: string | null
+          last_scan_at?: string | null
+          last_signal_count?: number | null
+          scan_freq_min?: number
+          type: string
+        }
+        Update: {
+          active?: boolean
+          config?: Json | null
+          created_at?: string
+          id?: string
+          identifier?: string
+          label?: string | null
+          last_scan_at?: string | null
+          last_signal_count?: number | null
+          scan_freq_min?: number
+          type?: string
+        }
+        Relationships: []
       }
       waouh_ratings: {
         Row: {
@@ -8091,6 +8419,7 @@ export type Database = {
         Args: { p_session_id: string; p_user_id: string }
         Returns: undefined
       }
+      waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
