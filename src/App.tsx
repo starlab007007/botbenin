@@ -213,6 +213,8 @@ const AppContent = () => {
                      <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
                      <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
                      <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
+                     <Route path="/waouh" element={<WaouhPage />} />
+                     <Route path="/waouh/demo" element={<WaouhDemoPage />} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
