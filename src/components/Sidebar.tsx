@@ -55,9 +55,14 @@ export const Sidebar: React.FC = () => {
                   <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                     <item.icon className="w-4 h-4 text-white" />
                   </div>
-                  <span className={`font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
+                  <span className={`font-medium flex-1 ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
                     {item.title}
                   </span>
+                  {(item as any).badge && (
+                    <span className="waouh-badge-new text-[10px] font-bold px-1.5 py-0.5 rounded bg-waouh-primary text-white">
+                      {(item as any).badge}
+                    </span>
+                  )}
                 </NavLink>
               </li>
             ))}
