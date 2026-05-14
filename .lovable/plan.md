@@ -1,94 +1,67 @@
-# Sprint 2 — WAOUH : Web Chat + WAHA WhatsApp
+## Réorganisation du module WAOUH — design bot.bj + séparation Admin/Public
 
-Objectif : offrir à l'utilisateur **deux portes d'entrée/sortie** vers le moteur WAOUH déjà construit au Sprint 1 — un **chatbot web embarqué** (sur bot.bj) et **WhatsApp via WAHA** (HTTP API self-hosted) — tout en gardant un seul cerveau IA et une seule base de données.
+### Objectif
+- **Tableau de bord WAOUH = admin uniquement** (avec onglets articles, acheteurs, transactions, paramètres, WhatsApp WAHA, etc.).
+- **Module public WAOUH Chat** accessible à tous (auth ou non) via le menu latéral, ouvrant directement la page chatbot pour vendre / acheter / négocier / payer.
+- **Charte graphique unifiée bot.bj** : sortir des tokens custom `--waouh-*` partout où la cohérence avec la plateforme l'impose, et adopter les composants/cartes/typo de la plateforme principale (gradients indigo/cyan, `from-cyan-500 to-blue-500`, cartes blanches arrondies, `MainLayout`).
 
-## 1. Architecture cible
+### 1. Routes & accès
 
-```text
-┌──────────────┐         ┌──────────────────┐
-│ 📱 WhatsApp  │         │ 🌐 Web Chatbot   │
-│  (mobile)    │         │  (widget bot.bj) │
-└──────┬───────┘         └────────┬─────────┘
-       │ msg                      │ msg + geoloc navigateur
-       ▼                          ▼
-┌──────────────┐         ┌──────────────────┐
-│ 🟢 WAHA API  │ webhook │ Edge Function    │
-│ (self-host)  ├────────►│ waouh-channel-in │◄── POST direct du widget
-└──────▲───────┘         └────────┬─────────┘
-       │ send-text                │ normalise → {channel, phone|sessionId, text, lat, lng}
-       │                          ▼
-       │                ┌──────────────────────┐
-       │                │ waouh-webhook (core) │  intent + IA + DB
-       │                │  (Sprint 1, étendu)  │
-       │                └────────┬─────────────┘
-       │                         │ reply text
-       │   ┌─────────────────────┴──────────────────────┐
-       │   ▼                                            ▼
-       │ ┌────────────────────┐              ┌────────────────────┐
-       └─┤ waouh-channel-out  │              │ Realtime broadcast │
-         │ (route WAHA / web) │              │ (waouh_messages)   │
-         └────────────────────┘              └─────────┬──────────┘
-                                                       ▼
-                                              Widget web (live)
-```
+| Route | Page | Accès |
+|---|---|---|
+| `/waouh-chat` | `WaouhChatPage` (chat plein écran) | **Public** (auth ou non) |
+| `/waouh` | `WaouhPage` (dashboard admin réorganisé) | **Admin uniquement** (`AdminRoute`) |
+| `/waouh/demo` | `WaouhDemoPage` | Admin uniquement |
 
-Un **canal** est ajouté à chaque conversation/utilisateur (`whatsapp` | `web`) pour router la réponse vers la bonne porte de sortie.
+- Modifier `src/App.tsx` :
+  - Ajouter route publique `/waouh-chat` (hors `MainLayout` ou dans `MainLayout` selon préférence — voir Q1).
+  - Wrapper `/waouh` et `/waouh/demo` avec `<AdminRoute>`.
 
-## 2. Livrables
+### 2. Menu latéral (`ModernSidebar.tsx`)
 
-### A. Base de données (1 migration)
-- `waouh_users`: ajouter `channel text default 'whatsapp'`, `web_session_id text unique nullable`.
-- `waouh_conversations`: ajouter `channel text not null default 'whatsapp'`.
-- Nouvelle table `waouh_messages` (historique unifié pour le widget web et l'admin) :
-  - `conversation_id`, `direction` (`in`|`out`), `channel`, `text`, `meta jsonb`.
-  - RLS: lecture publique par `web_session_id` (anon) pour le widget ; admin full read.
-  - Ajoutée à `supabase_realtime`.
+- Ajouter une entrée **« WAOUH Chat »** visible pour tous, pointant vers `/waouh-chat`, icône `ShoppingBag`, gradient cyan→blue, badge « New ».
+- Déplacer **« WAOUH Admin »** sous la section **Administration** (visible seulement si `isAdmin`), pointant vers `/waouh`.
+- Respecter la mémoire « Core Modules Navigation » (5 modules + WAOUH Chat ajouté en cohérence avec la mention « WhatsApp IA »).
 
-### B. Edge Functions
-1. **`waouh-channel-in`** (nouveau) — point d'entrée unique :
-   - `POST {channel, text, sessionId?, phone?, lat?, lng?, city?}` depuis le widget web (anon key).
-   - `POST` depuis WAHA (webhook "message") → normalise payload WAHA `{from, body}` → format unifié.
-   - GET de vérification ne sert qu'à WAHA (déjà géré, on garde).
-   - Insère le message `in` dans `waouh_messages`, appelle `waouh-webhook` (logique IA Sprint 1), insère le `out`, puis appelle `waouh-channel-out`.
-2. **`waouh-channel-out`** (nouveau) :
-   - Si `channel='whatsapp'` → `POST {WAHA_BASE_URL}/api/sendText` avec `X-Api-Key`.
-   - Si `channel='web'` → no-op (le widget reçoit via Supabase Realtime sur `waouh_messages`).
-3. **`waouh-webhook`** (existant) : refacto léger pour accepter `channel` et **renvoyer** la réponse plutôt que de l'envoyer (déjà presque le cas) ; garder la compatibilité demo.
-4. `config.toml` : `verify_jwt = false` pour `waouh-channel-in` (appelé par WAHA externe et widget anon).
+### 3. Nouvelle page publique `WaouhChatPage`
 
-### C. Frontend (widget Web Chat)
-- Nouveau composant `src/components/waouh/WaouhWebChat.tsx` :
-  - Bulle flottante en bas-droite (toggle), responsive mobile (`max-h-[100dvh]`).
-  - Génère un `web_session_id` (uuid stocké en `localStorage`).
-  - Demande la géoloc navigateur à la 1re ouverture (fallback Cotonou 6.36, 2.42).
-  - Envoie via `supabase.functions.invoke('waouh-channel-in', { body: { channel: 'web', sessionId, text, lat, lng } })`.
-  - S'abonne à `waouh_messages` (filter `web_session_id`) en Realtime pour afficher les réponses.
-  - Markdown via `react-markdown` (déjà dans le projet).
-- Intégration sur `src/pages/waouh/WaouhPage.tsx` : nouvel onglet **"Web Chat"** + montage du widget pour test.
-- Intégration globale optionnelle (toggle admin) : monter `<WaouhWebChat />` dans `App.tsx` derrière une feature flag dans `waouh_settings.web_widget_enabled`.
+Fichier : `src/pages/waouh/WaouhChatPage.tsx`
 
-### D. WAHA (porte WhatsApp)
-- Pas de Docker dans le repo (le user a déjà WAHA déployé sur VPS, cf. mémoire). On configure :
-  - Secrets : `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION` (par défaut `default`).
-  - Onglet **"Connexion WhatsApp"** dans `WaouhPage` : bouton "Démarrer la session" + affichage QR (`GET /api/{session}/auth/qr`), statut session (`GET /api/sessions/{session}`), bouton "Configurer le webhook" qui POST `{events: ["message"], url: "<edge-fn url>/waouh-channel-in"}` sur WAHA.
-  - Réutilise le pattern existant `useWAHADashboard` / `useWAHADiagnostic`.
+- Layout plein écran avec **header bot.bj** (logo, titre « WAOUH — Achetez · Vendez · Négociez · Payez », sous-titre).
+- 4 cartes d'action rapides en haut (Vendre / Acheter / Négocier / Payer) qui pré-remplissent le champ de saisie.
+- Chat principal central reprenant `WaouhWebChat` en mode `embedded`, hauteur `calc(100dvh - header)`.
+- Sidebar droite (desktop) avec aide rapide + exemples de phrases en français/Fon/Yoruba.
+- Si utilisateur authentifié → afficher prénom dans le header et lier `web_session_id` à son `user_id` (best effort).
+- Mobile-first : cartes empilées, chat occupe 100dvh, conformément à la mémoire « Mobile Dialog Responsive Pattern ».
 
-### E. Tests & QA
-- Onglet Démo (`WaouhDemoPage`) : ajouter switch **"Canal : Web | WhatsApp"** pour simuler les 2 flux.
-- Vérifier 3 scénarios end-to-end : Vendre, Acheter, Payer (Qosic déjà branché Sprint 1).
-- Logs edge functions visibles dans l'admin.
+### 4. Refonte visuelle dashboard admin (`WaouhPage.tsx`)
 
-## 3. Hors-scope (reporté Sprint 3)
-- Workers/queues Bull+Redis (le matching est fait inline par `waouh-notify-buyers`, suffisant à ce stade).
-- Object Store (pas de gestion image dans Sprint 2 ; texte seul).
-- Multi-langue Fon/Yoruba via Hugging Face NLLB (déjà dispo dans le projet, à brancher au Sprint 3).
+- Remplacer le fond `bg-[hsl(var(--waouh-bg))]` par le fond standard `bg-gray-50` du `MainLayout`.
+- Cartes KPI : style identique à `DashboardPage` (cartes blanches, gradient d'icône `from-* to-*`, ombre douce).
+- Header : bandeau avec gradient cyan→blue, icône `ShoppingBag` blanche, titre + sous-titre, badge système, bouton démo.
+- Onglets : style `TabsList` blanc/gris cohérent avec le reste de la plateforme (pas de `bg-card border-[hsl(var(--waouh-border))]`).
+- Tableaux : adopter le style des tableaux existants (header gris clair, hover indigo léger, badges arrondis pleins).
+- Graphiques Recharts : palette indigo/cyan/emerald de la plateforme.
+- Onglets « Web Chat » et « WhatsApp (WAHA) » conservés mais restylés.
+- Réorganiser l'ordre des onglets : **Vue d'ensemble · Annonces · Acheteurs · Transactions · WhatsApp · Paramètres** (suppression de l'onglet « Web Chat » qui n'a plus de sens côté admin — remplacé par un lien direct vers `/waouh-chat`).
 
-## 4. Secrets requis
-- `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION` (à demander avant déploiement WAHA).
-- Tous les autres (LOVABLE_API_KEY, Qosic) déjà présents.
+### 5. Sécurité / DB
 
-## 5. Critères de réussite
-- Un utilisateur web peut publier/chercher/payer une annonce sans quitter le widget.
-- Un utilisateur WhatsApp peut faire la même chose via WAHA.
-- Les deux flux écrivent dans la même base, l'admin voit toutes les conversations dans `WaouhPage`.
-- Realtime : le widget web reçoit les réponses sans refresh.
+Aucune migration nécessaire. Les RLS de `waouh_messages` (web_session_id anon + admin full) couvrent déjà le besoin. Si l'utilisateur est authentifié, on remplit `user_id` dans `waouh-channel-in` (déjà supporté).
+
+### 6. Suppression du `WaouhPage`-tab `webchat`
+
+Le panneau « Web Chat » dans le dashboard admin devient un simple lien « Ouvrir le chat public ↗ » → cohérence avec la séparation des rôles.
+
+### Points techniques
+
+- Pas de nouvelle edge function.
+- Pas de nouvelle table.
+- Réutilise `WaouhWebChat` (mode `embedded`) dans la nouvelle page publique.
+- `AdminRoute` déjà existant (`src/components/auth/AdminRoute.tsx`).
+- Tokens HSL bot.bj (déjà dans `index.css`/`tailwind.config.ts`) utilisés en priorité ; les tokens `--waouh-*` ne servent plus qu'aux accents secondaires.
+
+### Questions
+
+1. Voulez-vous la page publique `/waouh-chat` **dans le `MainLayout`** (avec sidebar de la plateforme à gauche pour utilisateurs connectés, masquée pour anonymes) ou en **plein écran indépendant** (style landing focalisé chatbot, sans sidebar) ?
+2. Confirmer le **libellé exact** dans la sidebar : `WAOUH Chat`, `Marketplace WAOUH`, ou autre ?

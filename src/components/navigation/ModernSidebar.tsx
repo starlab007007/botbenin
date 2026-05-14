@@ -7,6 +7,7 @@ import {
   Bot,
   Database,
   Target,
+  ShoppingBag,
   User, 
   Shield,
   X,
@@ -66,6 +67,14 @@ const mainMenuItems = [
     iconImage: whatsappIcon,
     color: 'from-green-600 to-emerald-600',
     description: 'Campagnes de diffusion',
+    badge: 'New'
+  },
+  {
+    title: 'WAOUH Chat',
+    path: '/waouh-chat',
+    icon: ShoppingBag,
+    color: 'from-cyan-500 to-blue-500',
+    description: 'Acheter · Vendre · Négocier · Payer',
     badge: 'New'
   },
 ];
@@ -201,6 +210,7 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
                   Administration
                 </span>
               </NavLink>
+              <NavItem item={{ title: 'WAOUH Admin', path: '/waouh', icon: ShoppingBag, color: 'from-cyan-600 to-blue-700', description: 'Tableau de bord marketplace' }} showDescription />
             </div>
           </div>
         )}

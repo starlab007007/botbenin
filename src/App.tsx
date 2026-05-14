@@ -91,6 +91,7 @@ const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 // WAOUH module
 const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
+const WaouhChatPage = lazy(() => import("./pages/waouh/WaouhChatPage"));
 
 // Module Support Technique SIGDSTS (isolé, sans layout principal)
 const SupportTechniquePage = lazy(() => import("./pages/SupportTechniquePage").then(m => ({ default: (m as any).default ?? (m as any).SupportTechniquePage })));
@@ -213,8 +214,8 @@ const AppContent = () => {
                      <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
                      <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
                      <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
-                     <Route path="/waouh" element={<WaouhPage />} />
-                     <Route path="/waouh/demo" element={<WaouhDemoPage />} />
+                     <Route path="/waouh" element={<AdminRoute><WaouhPage /></AdminRoute>} />
+                     <Route path="/waouh/demo" element={<AdminRoute><WaouhDemoPage /></AdminRoute>} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
@@ -226,6 +227,7 @@ const AppContent = () => {
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
                   <Route path="/yovo-gallery" element={<YovoGallery />} />
+                  <Route path="/waouh-chat" element={<WaouhChatPage />} />
 
                   {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
                   <Route path="/sigdsts" element={<SupportTechniquePage />} />
