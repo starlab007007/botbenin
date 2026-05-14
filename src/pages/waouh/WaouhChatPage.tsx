@@ -24,12 +24,12 @@ const EXAMPLES = [
 export default function WaouhChatPage() {
   const { user } = useAuth();
 
+  useEffect(() => {
+    document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-blue-50/40">
-      <Helmet>
-        <title>WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj</title>
-        <meta name="description" content="Marketplace IA géolocalisée du Bénin. Vendez, achetez, négociez et payez en Mobile Money directement depuis le chat." />
-      </Helmet>
 
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200">
