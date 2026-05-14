@@ -13,7 +13,7 @@ import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Cloc
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import WaouhWebChat from "@/components/waouh/WaouhWebChat";
+import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
 import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
 
 type Stats = {
