@@ -107,38 +107,44 @@ export default function WaouhPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--waouh-bg))] text-foreground p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-waouh-primary/20 flex items-center justify-center border border-waouh-primary/30">
-              <ShoppingBag className="w-6 h-6 text-waouh-primary" />
+    <div className="min-h-screen bg-gray-50 text-foreground">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        {/* Header bot.bj style */}
+        <div className="rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 p-5 md:p-6 text-white shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center border border-white/30">
+                <ShoppingBag className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold">WAOUH — Administration</h1>
+                <p className="text-sm text-white/85">World AI Open Universal Hub · Commerce IA géolocalisé</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">WAOUH</h1>
-              <p className="text-sm text-muted-foreground">World AI Open Universal Hub — Commerce IA géolocalisé</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link to="/waouh-chat" target="_blank">
+                <Button variant="secondary" className="bg-white/15 hover:bg-white/25 text-white border-white/30">
+                  <MessageCircle className="w-4 h-4 mr-2" /> Ouvrir le chat public
+                </Button>
+              </Link>
+              <Link to="/waouh/demo">
+                <Button variant="secondary" className="bg-white text-blue-600 hover:bg-white/90">
+                  <Play className="w-4 h-4 mr-2" /> Démo conversation
+                </Button>
+              </Link>
+              <Badge className="bg-emerald-400/20 text-white border-emerald-300/40">
+                <span className="w-2 h-2 rounded-full bg-emerald-300 mr-2 animate-pulse" /> Système actif
+              </Badge>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/waouh/demo">
-              <Button variant="outline" className="border-waouh-primary/40 text-waouh-primary hover:bg-waouh-primary/10">
-                <Play className="w-4 h-4 mr-2" /> Démo conversation
-              </Button>
-            </Link>
-            <Badge className="bg-waouh-success/20 text-waouh-success border-waouh-success/40">
-              <span className="w-2 h-2 rounded-full bg-waouh-success mr-2 animate-pulse" /> Système actif
-            </Badge>
           </div>
         </div>
 
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="bg-card border border-[hsl(var(--waouh-border))] flex-wrap h-auto">
-            <TabsTrigger value="dashboard">Tableau de bord</TabsTrigger>
+          <TabsList className="bg-white border border-gray-200 flex-wrap h-auto p-1 shadow-sm">
+            <TabsTrigger value="dashboard">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="articles">Annonces</TabsTrigger>
             <TabsTrigger value="buyers">Acheteurs</TabsTrigger>
             <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="webchat">Web Chat</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp (WAHA)</TabsTrigger>
             <TabsTrigger value="settings">Paramètres</TabsTrigger>
           </TabsList>
