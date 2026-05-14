@@ -195,3 +195,18 @@ verify_jwt = true
 
 [functions.waouh-geocode]
 verify_jwt = false
+
+[functions.waouh-payment]
+verify_jwt = false
+
+[functions.waouh-serpapi-scout]
+verify_jwt = false
+
+[functions.waouh-radar-apify]
+verify_jwt = false
+
+[functions.waouh-radar-process]
+verify_jwt = false
+
+[functions.waouh-radar-wa-webhook]
+verify_jwt = false

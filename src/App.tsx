@@ -92,6 +92,7 @@ const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhChatPage = lazy(() => import("./pages/waouh/WaouhChatPage"));
+const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 
 // Module Support Technique SIGDSTS (isolé, sans layout principal)
 const SupportTechniquePage = lazy(() => import("./pages/SupportTechniquePage").then(m => ({ default: (m as any).default ?? (m as any).SupportTechniquePage })));
@@ -215,7 +216,8 @@ const AppContent = () => {
                      <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
                      <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
                      <Route path="/waouh" element={<AdminRoute><WaouhPage /></AdminRoute>} />
-                     <Route path="/waouh/demo" element={<AdminRoute><WaouhDemoPage /></AdminRoute>} />
+                      <Route path="/waouh/demo" element={<AdminRoute><WaouhDemoPage /></AdminRoute>} />
+                      <Route path="/admin/waouh/radar" element={<AdminRoute><WaouhRadarPage /></AdminRoute>} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
