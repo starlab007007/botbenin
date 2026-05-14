@@ -215,9 +215,11 @@ const AppContent = () => {
                      <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
                      <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
                      <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
-                     <Route path="/waouh" element={<AdminRoute><WaouhPage /></AdminRoute>} />
-                      <Route path="/waouh/demo" element={<AdminRoute><WaouhDemoPage /></AdminRoute>} />
-                      <Route path="/admin/waouh/radar" element={<AdminRoute><WaouhRadarPage /></AdminRoute>} />
+                     <Route path="/admin/waouh" element={<AdminRoute><WaouhPage /></AdminRoute>} />
+                     <Route path="/waouh" element={<Navigate to="/admin/waouh" replace />} />
+                     <Route path="/admin/waouh/demo" element={<AdminRoute><WaouhDemoPage /></AdminRoute>} />
+                     <Route path="/waouh/demo" element={<Navigate to="/admin/waouh/demo" replace />} />
+                     <Route path="/admin/waouh/radar" element={<AdminRoute><WaouhRadarPage /></AdminRoute>} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}

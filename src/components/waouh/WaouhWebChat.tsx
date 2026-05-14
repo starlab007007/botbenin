@@ -35,7 +35,7 @@ function getSessionId() {
   return id;
 }
 
-export const WaouhWebChat: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }> = ({ embedded = false, fullscreen = false }) => {
   const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -142,10 +142,12 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean }> = ({ embedded = fals
   const Panel = (
     <Card
       className={cn(
-        "flex flex-col bg-background border shadow-2xl overflow-hidden",
-        embedded
-          ? "w-full h-[70vh] max-h-[100dvh] rounded-lg"
-          : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50"
+        "flex flex-col bg-background overflow-hidden",
+        fullscreen
+          ? "w-full h-[100dvh] rounded-none border-0 shadow-none pb-[env(safe-area-inset-bottom)]"
+          : embedded
+            ? "w-full h-[70vh] max-h-[100dvh] rounded-lg border shadow-2xl"
+            : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
       )}
     >
       <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
@@ -270,7 +272,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean }> = ({ embedded = fals
     </Card>
   );
 
-  if (embedded) return Panel;
+  if (embedded || fullscreen) return Panel;
 
   return (
     <>

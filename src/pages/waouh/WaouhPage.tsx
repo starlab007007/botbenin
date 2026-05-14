@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw } from "lucide-react";
+import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw, Radar, ArrowLeft } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
+import WaouhRadarTab from "@/components/waouh/WaouhRadarTab";
 
 type Stats = {
   total_articles: number;
@@ -42,6 +43,11 @@ function fmtXOF(n: number) {
 }
 
 export default function WaouhPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const activeTab = searchParams.get("tab") || "dashboard";
+  const setActiveTab = (v: string) => setSearchParams((prev) => { prev.set("tab", v); return prev; }, { replace: true });
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [articles, setArticles] = useState<any[]>([]);
   const [buyers, setBuyers] = useState<any[]>([]);
@@ -50,6 +56,7 @@ export default function WaouhPage() {
   const [selectedArticle, setSelectedArticle] = useState<any | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterOrigin, setFilterOrigin] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [settings, setSettings] = useState<Record<string, any>>({});
 
@@ -89,8 +96,20 @@ export default function WaouhPage() {
   const filteredArticles = articles.filter((a) =>
     (filterCategory === "all" || a.category === filterCategory) &&
     (filterStatus === "all" || a.status === filterStatus) &&
+    (filterOrigin === "all" || (a.origin || "chat") === filterOrigin) &&
     (!search || a.title?.toLowerCase().includes(search.toLowerCase()) || a.brand?.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const originBadge: Record<string, string> = {
+    chat: "bg-cyan-500/20 text-cyan-700 border-cyan-500/40",
+    radar: "bg-purple-500/20 text-purple-700 border-purple-500/40",
+    serpapi: "bg-amber-500/20 text-amber-700 border-amber-500/40",
+    apify: "bg-fuchsia-500/20 text-fuchsia-700 border-fuchsia-500/40",
+    fb_marketplace: "bg-blue-500/20 text-blue-700 border-blue-500/40",
+    fb_group: "bg-blue-500/20 text-blue-700 border-blue-500/40",
+    wa_group: "bg-emerald-500/20 text-emerald-700 border-emerald-500/40",
+    manual: "bg-slate-500/20 text-slate-700 border-slate-500/40",
+  };
 
   const statusColor: Record<string, string> = {
     active: "bg-waouh-success/20 text-waouh-success border-waouh-success/40",
@@ -112,12 +131,15 @@ export default function WaouhPage() {
         <div className="rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 p-5 md:p-6 text-white shadow-lg">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="text-white hover:bg-white/20 -ml-2" aria-label="Retour Dashboard">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
               <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center border border-white/30">
                 <ShoppingBag className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold">WAOUH — Administration</h1>
-                <p className="text-sm text-white/85">World AI Open Universal Hub · Commerce IA géolocalisé</p>
+                <p className="text-sm text-white/85">World AI Open Universal Hub · Base unifiée chat + radar IA</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -126,7 +148,7 @@ export default function WaouhPage() {
                   <MessageCircle className="w-4 h-4 mr-2" /> Ouvrir le chat public
                 </Button>
               </Link>
-              <Link to="/waouh/demo">
+              <Link to="/admin/waouh/demo">
                 <Button variant="secondary" className="bg-white text-blue-600 hover:bg-white/90">
                   <Play className="w-4 h-4 mr-2" /> Démo conversation
                 </Button>
@@ -138,12 +160,13 @@ export default function WaouhPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="bg-white border border-gray-200 flex-wrap h-auto p-1 shadow-sm">
             <TabsTrigger value="dashboard">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="articles">Annonces</TabsTrigger>
             <TabsTrigger value="buyers">Acheteurs</TabsTrigger>
             <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="radar"><Radar className="w-3.5 h-3.5 mr-1" /> Radar IA</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp (WAHA)</TabsTrigger>
             <TabsTrigger value="settings">Paramètres</TabsTrigger>
           </TabsList>
@@ -241,16 +264,24 @@ export default function WaouhPage() {
                     {["active","reserved","sold","expired","paused"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Select value={filterOrigin} onValueChange={setFilterOrigin}>
+                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toutes origines</SelectItem>
+                    {["chat","radar","serpapi","apify","fb_marketplace","fb_group","wa_group","manual"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-muted-foreground border-b border-[hsl(var(--waouh-border))]">
-                    <tr><th className="p-2">Titre</th><th className="p-2">Vendeur</th><th className="p-2">Prix</th><th className="p-2">Catégorie</th><th className="p-2">Statut</th><th className="p-2">Ville</th><th className="p-2">Date</th></tr>
+                    <tr><th className="p-2">Titre</th><th className="p-2">Origine</th><th className="p-2">Vendeur</th><th className="p-2">Prix</th><th className="p-2">Catégorie</th><th className="p-2">Statut</th><th className="p-2">Ville</th><th className="p-2">Date</th></tr>
                   </thead>
                   <tbody>
                     {filteredArticles.map((a) => (
                       <tr key={a.id} onClick={() => setSelectedArticle(a)} className="border-b border-[hsl(var(--waouh-border))] hover:bg-waouh-primary/5 cursor-pointer">
                         <td className="p-2 font-medium">{a.title}</td>
+                        <td className="p-2"><Badge variant="outline" className={originBadge[a.origin || "chat"]}>{a.origin || "chat"}</Badge></td>
                         <td className="p-2 text-muted-foreground">{a.waouh_users?.phone_number ?? "—"}</td>
                         <td className="p-2 font-semibold text-waouh-success">{fmtXOF(Number(a.price))}</td>
                         <td className="p-2">{a.category}</td>
@@ -259,7 +290,7 @@ export default function WaouhPage() {
                         <td className="p-2 text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}
-                    {filteredArticles.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Aucune annonce</td></tr>}
+                    {filteredArticles.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Aucune annonce</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -327,6 +358,11 @@ export default function WaouhPage() {
             </Card>
           </TabsContent>
 
+
+          {/* RADAR IA */}
+          <TabsContent value="radar" className="space-y-4 mt-4">
+            <WaouhRadarTab />
+          </TabsContent>
 
           {/* WHATSAPP WAHA */}
           <TabsContent value="whatsapp" className="space-y-4 mt-4">
