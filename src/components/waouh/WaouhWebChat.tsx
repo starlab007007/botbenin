@@ -3,11 +3,25 @@ import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, X, Loader2, MapPin } from "lucide-react";
+import { MessageCircle, Send, X, Loader2, Paperclip, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
+import { WaouhCityBadge } from "./WaouhCityBadge";
+import { WaouhTransactionCard } from "./WaouhTransactionCard";
+import { WaouhAuthGate } from "./WaouhAuthGate";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
-type Msg = { id: string; direction: "in" | "out"; text: string; created_at: string };
+type Att = { url: string; type: string };
+type Msg = {
+  id: string;
+  direction: "in" | "out";
+  text: string;
+  created_at: string;
+  attachments?: Att[] | null;
+  meta?: { transaction_id?: string | null; intent?: string | null } | null;
+};
 
 const SESSION_KEY = "waouh_web_session_id";
 
@@ -20,29 +34,20 @@ function getSessionId() {
   return id;
 }
 
-interface Props {
-  embedded?: boolean; // si true, rendu inline (pas de bulle flottante)
-}
-
-export const WaouhWebChat: React.FC<Props> = ({ embedded = false }) => {
+export const WaouhWebChat: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pendingAtts, setPendingAtts] = useState<Att[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
   const sessionId = useRef(getSessionId()).current;
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Geoloc
-  useEffect(() => {
-    if (!open || coords) return;
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setCoords({ lat: 6.36, lng: 2.42 }),
-      { timeout: 5000 }
-    );
-  }, [open, coords]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   // Load history + realtime
   useEffect(() => {
@@ -51,11 +56,11 @@ export const WaouhWebChat: React.FC<Props> = ({ embedded = false }) => {
     (async () => {
       const { data } = await supabase
         .from("waouh_messages")
-        .select("id,direction,text,created_at")
+        .select("id,direction,text,created_at,attachments,meta")
         .eq("web_session_id", sessionId)
         .order("created_at", { ascending: true })
         .limit(100);
-      if (active && data) setMessages(data as Msg[]);
+      if (active && data) setMessages(data as any);
     })();
 
     const ch = supabase
@@ -70,34 +75,66 @@ export const WaouhWebChat: React.FC<Props> = ({ embedded = false }) => {
       )
       .subscribe();
 
-    return () => {
-      active = false;
-      supabase.removeChannel(ch);
-    };
+    return () => { active = false; supabase.removeChannel(ch); };
   }, [open, sessionId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `web/${sessionId}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("waouh-uploads").upload(path, file, { contentType: file.type });
+      if (error) throw error;
+      const { data: pub } = supabase.storage.from("waouh-uploads").getPublicUrl(path);
+      setPendingAtts((prev) => [...prev, { url: pub.publicUrl, type: file.type }]);
+    } catch (err: any) {
+      toast({ title: "Upload échoué", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
   const send = async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if ((!text && pendingAtts.length === 0) || sending) return;
     setInput("");
+    const atts = pendingAtts;
+    setPendingAtts([]);
     setSending(true);
     try {
-      await supabase.functions.invoke("waouh-channel-in", {
+      const { error } = await supabase.functions.invoke("waouh-channel-in", {
         body: {
           channel: "web",
           sessionId,
           text,
-          lat: coords?.lat ?? 6.36,
-          lng: coords?.lng ?? 2.42,
-          city: "Cotonou",
+          attachments: atts,
+          lat: geo.lat,
+          lng: geo.lng,
+          city: geo.city,
+          authUserId: user?.id ?? null,
         },
       });
+      if (error) throw error;
+    } catch (e: any) {
+      toast({ title: "Envoi échoué", description: e.message, variant: "destructive" });
     } finally {
       setSending(false);
+    }
+  };
+
+  const onPay = (_tx: any) => {
+    if (!user) {
+      setAuthOpen(true);
+    } else {
+      toast({ title: "Paiement", description: "Initialisation Mobile Money…" });
+      // Future: trigger waouh-payment-handler
     }
   };
 
@@ -115,37 +152,52 @@ export const WaouhWebChat: React.FC<Props> = ({ embedded = false }) => {
           <MessageCircle className="w-5 h-5" />
           <div>
             <div className="font-semibold leading-tight">WAOUH</div>
-            <div className="text-xs opacity-80 flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {coords ? `${coords.lat.toFixed(2)}, ${coords.lng.toFixed(2)}` : "Cotonou"}
-            </div>
+            <div className="text-xs opacity-90">Achetez · Vendez · Négociez · Payez</div>
           </div>
         </div>
-        {!embedded && (
-          <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => setOpen(false)}>
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
+          {!embedded && (
+            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => setOpen(false)}>
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/30">
         {messages.length === 0 && (
-          <div className="text-center text-sm text-muted-foreground py-8">
-            👋 Bonjour ! Tapez "Je vends ..." ou "Je cherche ..." pour démarrer.
+          <div className="text-center text-sm text-muted-foreground py-8 px-4">
+            👋 Bonjour ! Tapez « Je vends ... » ou « Je cherche ... » pour démarrer.
+            <br />📍 Annonces proposées autour de <strong>{geo.city}</strong>.
           </div>
         )}
         {messages.map((m) => (
-          <div key={m.id} className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
-            <div
-              className={cn(
-                "max-w-[85%] rounded-2xl px-3 py-2 text-sm prose prose-sm dark:prose-invert prose-p:my-1",
-                m.direction === "in"
-                  ? "bg-primary text-primary-foreground rounded-br-sm"
-                  : "bg-card border rounded-bl-sm"
-              )}
-            >
-              <ReactMarkdown>{m.text}</ReactMarkdown>
+          <div key={m.id}>
+            <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
+              <div
+                className={cn(
+                  "max-w-[85%] rounded-2xl px-3 py-2 text-sm prose prose-sm dark:prose-invert prose-p:my-1",
+                  m.direction === "in"
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-card border rounded-bl-sm"
+                )}
+              >
+                {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1 mb-1 not-prose">
+                    {m.attachments.map((a, i) => (
+                      <img key={i} src={a.url} alt="" loading="lazy" className="rounded-md max-h-40 object-cover w-full" />
+                    ))}
+                  </div>
+                )}
+                {m.text && m.text !== "(image)" && <ReactMarkdown>{m.text}</ReactMarkdown>}
+              </div>
             </div>
+            {m.meta?.transaction_id && (
+              <div className="flex justify-start mt-1">
+                <WaouhTransactionCard transactionId={m.meta.transaction_id} onPay={onPay} />
+              </div>
+            )}
           </div>
         ))}
         {sending && (
@@ -157,20 +209,55 @@ export const WaouhWebChat: React.FC<Props> = ({ embedded = false }) => {
         )}
       </div>
 
+      {pendingAtts.length > 0 && (
+        <div className="px-2 pt-2 flex gap-2 border-t bg-muted/20">
+          {pendingAtts.map((a, i) => (
+            <div key={i} className="relative">
+              <img src={a.url} className="w-14 h-14 rounded-md object-cover border" alt="" />
+              <button
+                type="button"
+                onClick={() => setPendingAtts((p) => p.filter((_, j) => j !== i))}
+                className="absolute -top-1 -right-1 bg-destructive text-white rounded-full w-4 h-4 text-[10px] leading-none"
+              >×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
         className="flex items-center gap-2 p-2 border-t bg-background"
       >
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleFile}
+        />
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading || sending}
+          aria-label="Ajouter une photo"
+        >
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+        </Button>
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Votre message…"
           disabled={sending}
         />
-        <Button type="submit" size="icon" disabled={sending || !input.trim()}>
+        <Button type="submit" size="icon" disabled={sending || (!input.trim() && pendingAtts.length === 0)}>
           <Send className="w-4 h-4" />
         </Button>
       </form>
+
+      <WaouhAuthGate open={authOpen} onOpenChange={setAuthOpen} sessionId={sessionId} />
     </Card>
   );
 
