@@ -10,6 +10,7 @@ import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
 import { WaouhCityBadge } from "./WaouhCityBadge";
 import { WaouhTransactionCard } from "./WaouhTransactionCard";
 import { WaouhAuthGate } from "./WaouhAuthGate";
+import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -258,6 +259,14 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean }> = ({ embedded = fals
       </form>
 
       <WaouhAuthGate open={authOpen} onOpenChange={setAuthOpen} sessionId={sessionId} />
+      {paymentTx && (
+        <WaouhPaymentDialog
+          open={!!paymentTx}
+          onOpenChange={(v) => !v && setPaymentTx(null)}
+          transactionId={paymentTx.id}
+          amount={paymentTx.amount}
+        />
+      )}
     </Card>
   );
 
