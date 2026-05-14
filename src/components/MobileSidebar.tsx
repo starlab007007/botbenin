@@ -63,7 +63,12 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose })
                     }
                   >
                     <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.title}</span>
+                    <span className="font-medium flex-1">{item.title}</span>
+                    {(item as any).badge && (
+                      <span className="waouh-badge-new text-[10px] font-bold px-1.5 py-0.5 rounded bg-waouh-primary text-white">
+                        {(item as any).badge}
+                      </span>
+                    )}
                   </NavLink>
                 </li>
               ))}
