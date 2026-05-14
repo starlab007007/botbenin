@@ -210,6 +210,7 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
                   Administration
                 </span>
               </NavLink>
+              <NavItem item={{ title: 'WAOUH Admin', path: '/waouh', icon: ShoppingBag, color: 'from-cyan-600 to-blue-700', description: 'Tableau de bord marketplace' }} showDescription />
             </div>
           </div>
         )}
