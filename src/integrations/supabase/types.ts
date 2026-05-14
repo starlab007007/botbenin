@@ -5191,6 +5191,7 @@ export type Database = {
       }
       waouh_messages: {
         Row: {
+          attachments: Json | null
           channel: string
           conversation_id: string | null
           created_at: string
@@ -5203,6 +5204,7 @@ export type Database = {
           web_session_id: string | null
         }
         Insert: {
+          attachments?: Json | null
           channel?: string
           conversation_id?: string | null
           created_at?: string
@@ -5215,6 +5217,7 @@ export type Database = {
           web_session_id?: string | null
         }
         Update: {
+          attachments?: Json | null
           channel?: string
           conversation_id?: string | null
           created_at?: string
@@ -5375,6 +5378,7 @@ export type Database = {
           seller_confirmed: boolean
           seller_id: string
           status: string
+          status_history: Json | null
         }
         Insert: {
           amount: number
@@ -5395,6 +5399,7 @@ export type Database = {
           seller_confirmed?: boolean
           seller_id: string
           status?: string
+          status_history?: Json | null
         }
         Update: {
           amount?: number
@@ -5415,6 +5420,7 @@ export type Database = {
           seller_confirmed?: boolean
           seller_id?: string
           status?: string
+          status_history?: Json | null
         }
         Relationships: [
           {
@@ -8081,6 +8087,10 @@ export type Database = {
         }[]
       }
       verify_bot_access_final: { Args: { p_bot_id: string }; Returns: boolean }
+      waouh_link_session: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
