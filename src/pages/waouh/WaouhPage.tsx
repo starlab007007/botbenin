@@ -264,16 +264,24 @@ export default function WaouhPage() {
                     {["active","reserved","sold","expired","paused"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Select value={filterOrigin} onValueChange={setFilterOrigin}>
+                  <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Toutes origines</SelectItem>
+                    {["chat","radar","serpapi","apify","fb_marketplace","fb_group","wa_group","manual"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-left text-muted-foreground border-b border-[hsl(var(--waouh-border))]">
-                    <tr><th className="p-2">Titre</th><th className="p-2">Vendeur</th><th className="p-2">Prix</th><th className="p-2">Catégorie</th><th className="p-2">Statut</th><th className="p-2">Ville</th><th className="p-2">Date</th></tr>
+                    <tr><th className="p-2">Titre</th><th className="p-2">Origine</th><th className="p-2">Vendeur</th><th className="p-2">Prix</th><th className="p-2">Catégorie</th><th className="p-2">Statut</th><th className="p-2">Ville</th><th className="p-2">Date</th></tr>
                   </thead>
                   <tbody>
                     {filteredArticles.map((a) => (
                       <tr key={a.id} onClick={() => setSelectedArticle(a)} className="border-b border-[hsl(var(--waouh-border))] hover:bg-waouh-primary/5 cursor-pointer">
                         <td className="p-2 font-medium">{a.title}</td>
+                        <td className="p-2"><Badge variant="outline" className={originBadge[a.origin || "chat"]}>{a.origin || "chat"}</Badge></td>
                         <td className="p-2 text-muted-foreground">{a.waouh_users?.phone_number ?? "—"}</td>
                         <td className="p-2 font-semibold text-waouh-success">{fmtXOF(Number(a.price))}</td>
                         <td className="p-2">{a.category}</td>
@@ -282,7 +290,7 @@ export default function WaouhPage() {
                         <td className="p-2 text-xs text-muted-foreground">{new Date(a.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}
-                    {filteredArticles.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Aucune annonce</td></tr>}
+                    {filteredArticles.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">Aucune annonce</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -350,6 +358,11 @@ export default function WaouhPage() {
             </Card>
           </TabsContent>
 
+
+          {/* RADAR IA */}
+          <TabsContent value="radar" className="space-y-4 mt-4">
+            <WaouhRadarTab />
+          </TabsContent>
 
           {/* WHATSAPP WAHA */}
           <TabsContent value="whatsapp" className="space-y-4 mt-4">
