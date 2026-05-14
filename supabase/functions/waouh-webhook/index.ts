@@ -45,22 +45,39 @@ serve(async (req) => {
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json();
 
-    // Demo mode (called from /waouh/demo)
     const phone = body.phone_number || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
+    const webSessionId = body.web_session_id || null;
     const text = body.text || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.text?.body || "";
     const lat = body.lat ?? 6.36;
     const lng = body.lng ?? 2.42;
     const city = body.city ?? "Cotonou";
+    const channel = body.channel ?? (webSessionId ? "web" : "whatsapp");
+    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+    const passedUserId = body.user_id || null;
 
-    if (!phone || !text) {
+    if ((!phone && !webSessionId) || (!text && attachments.length === 0)) {
       return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Upsert user
-    let { data: user } = await sb.from("waouh_users").select("*").eq("phone_number", phone).maybeSingle();
+    // Find/upsert user (prefer passed id, then web_session_id, then phone)
+    let user: any = null;
+    if (passedUserId) {
+      const { data } = await sb.from("waouh_users").select("*").eq("id", passedUserId).maybeSingle();
+      user = data;
+    }
+    if (!user && webSessionId) {
+      const { data } = await sb.from("waouh_users").select("*").eq("web_session_id", webSessionId).maybeSingle();
+      user = data;
+    }
+    if (!user && phone && !phone.startsWith("web:")) {
+      const { data } = await sb.from("waouh_users").select("*").eq("phone_number", phone).maybeSingle();
+      user = data;
+    }
     if (!user) {
       const { data: created } = await sb.from("waouh_users").insert({
-        phone_number: phone, city,
+        phone_number: phone && !phone.startsWith("web:") ? phone : null,
+        web_session_id: webSessionId,
+        channel, city,
         location: `SRID=4326;POINT(${lng} ${lat})` as any,
       }).select().single();
       user = created;
