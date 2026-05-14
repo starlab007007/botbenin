@@ -20,7 +20,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   const callWaha = async (action: string, payload?: any) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("waha-proxy", {
+      const { data, error } = await supabase.functions.invoke("waouh-waha-control", {
         body: { action, session, ...payload },
       });
       if (error) throw error;
