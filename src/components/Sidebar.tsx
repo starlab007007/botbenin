@@ -8,7 +8,7 @@ import {
   User, 
   HelpCircle
 } from 'lucide-react';
-import { Bot, Target } from 'lucide-react';
+import { Bot, Target, ShoppingBag } from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', path: '/dashboard', icon: BarChart3, color: 'bg-purple-500' },
@@ -17,6 +17,7 @@ const menuItems = [
   { title: 'CRM', path: '/prospects', icon: Target, color: 'bg-pink-500' },
   { title: 'WhatsApp IA', path: '/whatsapp-connect', icon: MessageCircle, color: 'bg-green-500' },
   { title: 'WhatsApp Diffusion', path: '/whatsapp-diffusion', icon: MessageCircle, color: 'bg-emerald-600' },
+  { title: 'WAOUH', path: '/waouh', icon: ShoppingBag, color: 'bg-cyan-400', badge: 'NOUVEAU' },
 ];
 
 // HIDDEN - kept for future use
