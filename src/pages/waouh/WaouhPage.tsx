@@ -136,6 +136,8 @@ export default function WaouhPage() {
             <TabsTrigger value="articles">Annonces</TabsTrigger>
             <TabsTrigger value="buyers">Acheteurs</TabsTrigger>
             <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="webchat">Web Chat</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp (WAHA)</TabsTrigger>
             <TabsTrigger value="settings">Paramètres</TabsTrigger>
           </TabsList>
 
