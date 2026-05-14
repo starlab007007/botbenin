@@ -1,138 +1,113 @@
-# Unification WAOUH — Base, Admin, Chat
+# Plan : Automatisation totale WAOUH (Radar → Annonces → Matching → Notifications → Négociation chat)
 
-Aujourd'hui le système est fragmenté :
+## Objectif
+Zéro intervention manuelle. Tout passe par le chat (web/WhatsApp). Les signaux Radar (SerpAPI, Apify Facebook, WhatsApp groupes) alimentent automatiquement la base unifiée d'annonces et de demandes acheteurs, déclenchent matching + notifications WhatsApp aux deux parties, et la négociation/paiement se poursuit en chat.
 
-- **/waouh** (admin chat-bot) lit `waouh_articles`, `waouh_buyer_profiles`, `waouh_transactions`, `waouh_users`
-- **/admin/waouh/radar** (radar IA) lit `waouh_radar_signals`, `waouh_radar_profiles`, `waouh_radar_sources`, `waouh_external_listings`
-- Les deux ne se parlent pas → un vendeur détecté sur Facebook n'apparaît jamais dans l'onglet "Annonces", un acheteur radar ne croise jamais les annonces du chat.
-- **/admin/waouh** n'existe pas (404), les liens "retour" sont incohérents.
-- Le chat `/waouh-chat` n'est pas plein écran sur mobile : header bot.bj + hero + cartes + asides poussent le chat hors-écran.
+---
 
-## 1 · Unification de la base de données (1 migration)
+## 1. Base de données — extensions et automatisations
 
-Objectif : **une seule source de vérité** pour vendeur / acheteur / annonce / transaction, avec le radar comme **canal d'ingestion** plutôt que silo parallèle.
+### 1.1 Triggers d'auto-promotion (cœur de l'automatisation)
+- **`trg_radar_signal_autopromote`** sur `waouh_radar_signals` AFTER INSERT/UPDATE quand `status = 'extracted'` :
+  - Si `intent = 'SELL'` + qualité minimale (titre OU catégorie + (prix OU contact)) → appelle `waouh_promote_signal()` qui crée une `waouh_articles` avec `origin = source_type`, `origin_signal_id`, `seller_id` lié via `waouh_radar_profiles.waouh_user_id`.
+  - Si `intent = 'BUY'` → crée `waouh_buyer_profiles` actif.
+  - Met `signal.status = 'promoted'` et stocke `promoted_article_id` / `promoted_buyer_profile_id`.
+- **`trg_radar_signal_automatch`** AFTER UPDATE → `status = 'promoted'` :
+  - Appelle `waouh_match_signal()` qui croise contre `waouh_unified_offers` / `waouh_unified_demands` et insère dans `waouh_radar_matches` (score ≥ 0.5).
+- **`trg_radar_match_autonotify`** AFTER INSERT sur `waouh_radar_matches` :
+  - Insère dans `waouh_notifications` (in_app)
+  - Insère dans nouvelle table `waouh_outbound_queue` (canal `whatsapp`) un message pour acheteur ET vendeur si numéro disponible.
 
-Schéma cible (ajouts/liens, aucune table supprimée) :
+### 1.2 Nouvelle table `waouh_outbound_queue`
+Champs : `id`, `to_phone`, `to_user_id`, `channel` (whatsapp|web), `template` (match_buyer|match_seller|negotiation_open), `payload jsonb`, `status` (pending|sent|failed), `attempts`, `sent_at`, `error`, `created_at`. RLS admin only.
 
-```text
-                       waouh_users  (compte canonique : phone unique)
-                              ▲
-                              │ user_id
-            ┌─────────────────┼──────────────────┐
-            │                 │                  │
-   waouh_articles      waouh_buyer_profiles  waouh_transactions
-        ▲                     ▲                  ▲
-        │ origin_signal_id    │ origin_signal_id │
-        │                     │                  │
-   waouh_radar_signals ──► waouh_radar_profiles ──► waouh_users (joined_user_id)
-        ▲
-        │ source_id
-   waouh_radar_sources
+### 1.3 Nouvelle table `waouh_negotiations`
+Suit chaque conversation acheteur↔vendeur initiée par un match : `id`, `match_id`, `article_id`, `buyer_user_id`, `seller_user_id`, `state` (proposed|countered|accepted|paid|closed), `last_offer_price`, `last_actor`, `transaction_id`, timestamps. RLS : participants seulement.
+
+### 1.4 Nouveaux triggers utilitaires
+- Auto-création `waouh_users` à partir de `waouh_radar_signals.contact_phone` (déjà partiel via `waouh_radar_profiles`) — étendre pour qu'un signal sans profil crée quand même l'user.
+- `updated_at` triggers standards.
+
+### 1.5 Cron pg_cron (toutes les 5 min)
+- `waouh-radar-tick` : appelle séquentiellement edge functions `waouh-serpapi-scout`, `waouh-radar-apify`, `waouh-radar-process` (re-traite signaux `extracted` orphelins en backup des triggers), `waouh-outbound-dispatch`.
+
+---
+
+## 2. Edge functions — pipeline automatisé
+
+### 2.1 Modifications existantes
+- **`waouh-serpapi-scout`** et **`waouh-radar-apify`** : à la fin, **PAS** d'appel manuel — les triggers SQL prennent le relais. Ajout d'un `status='extracted'` propre + qualité (filtrer junk).
+- **`waouh-radar-process`** : devient un **fallback batch** (lance promote + match pour signaux `extracted` non encore traités, en cas de trigger raté). Reste idempotent.
+- **`waouh-radar-wa-webhook`** : signaux WhatsApp groupes opt-in → insère `waouh_radar_signals` + ouvre une session si l'expéditeur veut acheter/vendre directement.
+
+### 2.2 Nouvelles edge functions
+
+**`waouh-outbound-dispatch`** (cron 5 min + trigger HTTP)
+- Lit `waouh_outbound_queue` status='pending', limite 50.
+- Pour chaque item : compose le texte (template fr) et envoie via WAHA `sendText`. Marque sent/failed avec backoff (3 tentatives).
+- Templates :
+  - `match_buyer` : « 🎯 On a trouvé : {titre} — {prix} FCFA à {ville}. Réponds OUI pour contacter le vendeur, ou propose ton prix. »
+  - `match_seller` : « 📩 Un acheteur cherche {catégorie} ({budget}). Réponds OUI pour qu'on le mette en relation. »
+  - `negotiation_open` : envoie au vendeur le contact acheteur masqué + price proposé.
+
+**`waouh-negotiation-router`** (appelée depuis `waouh-channel-in` quand l'utilisateur répond OUI / propose un prix)
+- Détecte intent `negotiate` via Gemini sur message libre.
+- Crée/MAJ `waouh_negotiations`, transmet la contre-offre au vendeur via WhatsApp, idem côté acheteur jusqu'à `accepted`.
+- À l'acceptation : appelle `waouh-payment` (Qosic) pour générer demande paiement, envoie le lien aux deux parties.
+
+### 2.3 Modification `waouh-channel-in`
+- Si message entrant correspond à un `waouh_negotiations` ouvert → route vers `waouh-negotiation-router`.
+- Sinon flow normal (intent SELL/BUY/SEARCH).
+- Tous les SELL/BUY déjà traités côté chat alimentent `waouh_articles` / `waouh_buyer_profiles` avec `origin = 'chat'` (déjà le cas), donc partagent la même base que Radar.
+
+---
+
+## 3. Admin `/admin/waouh` — visualisation read-only de l'auto
+
+L'admin n'agit plus manuellement (boutons « Promouvoir » et « Matcher » deviennent **optionnels secours**). Ajouts :
+- **Onglet « Pipeline »** : graphe Signaux → Promus → Matchés → Notifiés → Négociations → Payés (KPIs 24h).
+- **Onglet « File d'envoi »** (`waouh_outbound_queue`) : statut, retry manuel.
+- **Onglet « Négociations »** : liste live des `waouh_negotiations` avec état.
+- Conserver onglets Annonces / Acheteurs / Radar avec filtre `origin`.
+
+---
+
+## 4. Sécurité & qualité
+
+- Anti-doublons : unique partial index `waouh_articles(origin_signal_id) WHERE origin_signal_id IS NOT NULL`.
+- Opt-in WhatsApp : ne contacter un numéro que si présent dans `waouh_radar_profiles.opt_in = true` OU déjà `waouh_users` actif. Sinon le signal reste promu en annonce mais pas de message sortant.
+- Rate-limit WAHA : max 1 message / numéro / 30 s côté `waouh-outbound-dispatch`.
+- Logs : table `waouh_pipeline_events` (signal_id, step, status, error) pour debug.
+
+---
+
+## 5. Détails techniques
+
+### Fichiers
+- **Migration** : `supabase/migrations/<ts>_waouh_full_automation.sql` (triggers, tables, cron, RPC update).
+- **Edge functions nouvelles** : `waouh-outbound-dispatch/`, `waouh-negotiation-router/`.
+- **Edge functions modifiées** : `waouh-serpapi-scout`, `waouh-radar-apify`, `waouh-radar-process`, `waouh-channel-in`, `waouh-radar-wa-webhook`.
+- **Frontend** : `src/pages/waouh/WaouhPage.tsx` (+ 2 nouveaux tabs `WaouhPipelineTab.tsx`, `WaouhOutboundTab.tsx`, `WaouhNegotiationsTab.tsx`).
+
+### RPC mises à jour
+- `waouh_promote_signal(p_signal_id)` : étend pour fixer `seller_id`/`user_id` via `waouh_radar_profiles → waouh_users`, créer user si absent.
+- `waouh_match_signal(p_signal_id)` : retourne tableau de matches insérés.
+- Nouvelle `waouh_enqueue_outbound(p_to_phone, p_template, p_payload)` SECURITY DEFINER.
+
+### Cron
+```sql
+select cron.schedule('waouh-radar-tick', '*/5 * * * *',
+  $$ select net.http_post(
+       url:='https://mvynepqulhflxtyymtzs.supabase.co/functions/v1/waouh-radar-process',
+       headers:='{"Content-Type":"application/json","Authorization":"Bearer <SERVICE>"}'::jsonb,
+       body:='{}'::jsonb) $$);
 ```
+(idem pour `waouh-outbound-dispatch`, `waouh-serpapi-scout`, `waouh-radar-apify`)
 
-**Migration SQL :**
+### Secrets requis (déjà présents normalement)
+`SERPAPI_KEY`, `APIFY_TOKEN`, `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION`, `LOVABLE_API_KEY`, `QOSIC_*`. À vérifier au moment de l'implémentation.
 
-- `waouh_radar_profiles` : ajouter `waouh_user_id uuid REFERENCES waouh_users(id)` + trigger `radar_profile_link_user()` qui, à l'INSERT/UPDATE, fait un `UPSERT` dans `waouh_users` par `phone_number` et renseigne `waouh_user_id`. (Les profils radar deviennent de vrais utilisateurs WAOUH dès détection.)
-- `waouh_radar_signals` : ajouter `waouh_user_id uuid` (rempli par le même trigger via le profil), `promoted_article_id uuid REFERENCES waouh_articles(id)`, `promoted_buyer_profile_id uuid REFERENCES waouh_buyer_profiles(id)`. Ces colonnes tracent qu'un signal radar a été "promu" en annonce/recherche officielle.
-- `waouh_articles` : ajouter `origin text DEFAULT 'chat'` (`chat | radar | serpapi | apify | wa_group | manual`) + `origin_signal_id uuid REFERENCES waouh_radar_signals(id)`.
-- `waouh_buyer_profiles` : ajouter `origin text DEFAULT 'chat'` + `origin_signal_id uuid`.
-- `waouh_external_listings` : ajouter `promoted_article_id uuid REFERENCES waouh_articles(id)` + `seller_user_id uuid REFERENCES waouh_users(id)`.
-- **Vue unifiée** `waouh_unified_offers` (UNION ALL article + radar SELL + external_listing avec colonnes communes : `id, title, price, city, category, contact, source, origin_kind, captured_at`) — utilisée par les chatbots et le matching.
-- **Vue unifiée** `waouh_unified_demands` (UNION ALL `waouh_buyer_profiles` + radar BUY signals).
-- **Fonction RPC** `waouh_promote_signal(signal_id)` : convertit un signal radar SELL → ligne dans `waouh_articles` (status=`active`, origin=`radar`), ou BUY → `waouh_buyer_profiles`. Sécurité : admin only via `has_role`.
-- **Fonction RPC** `waouh_match_signal(signal_id)` : pour un SELL, matche les `waouh_buyer_profiles` (chat + radar) ; pour un BUY, matche `waouh_articles` + `waouh_external_listings`. Renvoie une liste, met à jour `waouh_radar_matches`.
-- Index : `waouh_articles(origin)`, `waouh_radar_signals(waouh_user_id, status)`, `waouh_users(phone_number)` unique si pas déjà.
-- RLS : inchangé pour les tables existantes ; nouvelles colonnes héritent. Les vues sont `SECURITY INVOKER`, accessibles aux admins.
+---
 
-**Édition des Edge Functions** pour utiliser la base unifiée :
-- `waouh-buy-handler` / `waouh-sell-handler` / `waouh-negotiate-handler` / `waouh-notify-buyers` : remplacer les requêtes sur `waouh_articles` seul par la vue `waouh_unified_offers` ; matching acheteur ↔ vendeur via `waouh_match_signal`.
-- `waouh-radar-process` : à la fin, appeler `waouh_match_signal` pour générer notifications cross-canal.
-- `waouh-channel-in` : pas de changement de surface, mais bénéficie automatiquement des nouvelles sources.
-
-## 2 · Unification de l'administration
-
-**Routes (src/App.tsx) :**
-
-| Avant | Après |
-|---|---|
-| `/waouh` → WaouhPage | `/admin/waouh` → WaouhPage (alias `/waouh` redirige vers `/admin/waouh`) |
-| `/admin/waouh/radar` → WaouhRadarPage | **supprimée** — devient un onglet de WaouhPage |
-| `/waouh/demo` → WaouhDemoPage | `/admin/waouh/demo` (alias `/waouh/demo` redirige) |
-| `/waouh-chat` (public) | inchangé |
-
-**WaouhPage (refonte des onglets) :**
-
-```text
-┌─ Vue d'ensemble ──────── KPIs unifiés (chat + radar) ─┐
-│  + nouveau KPI "Signaux radar 24h" et "Profils radar" │
-├─ Annonces ────────────── articles + external_listings │
-│  (filtre origin: chat/radar/serpapi/apify/manual)     │
-├─ Acheteurs ───────────── buyer_profiles + radar BUY   │
-├─ Transactions ────────── inchangé                     │
-├─ Radar IA ◀── nouveau ── (composant <RadarTab/>       │
-│  contenu actuel de WaouhRadarPage : Signaux, Sources, │
-│  Profils, boutons "Promouvoir vers annonce/acheteur") │
-├─ WhatsApp (WAHA) ─────── inchangé                     │
-└─ Paramètres ──────────── inchangé                     │
-```
-
-- Extraire le contenu de `src/pages/admin/WaouhRadarPage.tsx` en composant `src/components/waouh/WaouhRadarTab.tsx` (mêmes états, même realtime, même UI).
-- Ajouter dans la liste signaux deux boutons : **"Promouvoir → annonce"** (RPC `waouh_promote_signal`) et **"Matcher maintenant"** (RPC `waouh_match_signal`).
-- L'onglet "Annonces" gagne un filtre `origin` et un badge couleur par origine.
-- L'onglet "Acheteurs" affiche aussi les BUY radar avec badge.
-- Garder `WaouhRadarPage.tsx` comme simple `<Navigate to="/admin/waouh?tab=radar" replace />` pour ne pas casser les liens existants.
-
-**Header WaouhPage :** ajouter bouton **« ← Retour Dashboard »** (vers `/dashboard`) à gauche du titre. Le bouton « Ouvrir le chat public » reste, plus visible (variant outline blanc).
-
-## 3 · UX mobile-first sur /waouh-chat
-
-Refonte de `src/pages/waouh/WaouhChatPage.tsx` :
-
-- **Mobile (< md)** : layout plein écran, pas de scroll body.
-  ```text
-  [Header compact 48px : ← logo + badge IA + bouton "≡"]
-  [Chat WaouhWebChat — flex-1 h-[calc(100dvh-48px)]]
-  ```
-  Hero, quick-actions, exemples et asides sont **masqués sur mobile** et accessibles via un drawer/Sheet déclenché par le bouton "≡" (icône `Info`).
-- **Desktop (≥ lg)** : conserve le layout actuel hero + grille 2/3 chat + 1/3 aides.
-- `WaouhWebChat` en mode `embedded` reçoit un nouveau prop `fullscreen?: boolean` qui :
-  - retire `rounded-lg`, `border`, `max-h-[100dvh]`
-  - utilise `h-[100dvh]` au lieu de `h-[70vh]`
-  - garde la safe-area bottom (`pb-[env(safe-area-inset-bottom)]`) pour iOS
-  - input fixe, scroll messages = seul scroll de la page.
-- Ajouter `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">` (déjà présent dans index.html à vérifier).
-- Bouton **« ← »** dans le header chat retourne :
-  - vers `/admin/waouh` si `user` admin
-  - vers `/` sinon
-- Réduire le texte du `Card` "exemples" → 2 lignes max sur mobile (déplacé dans le drawer).
-
-## 4 · Détails techniques
-
-- **Aucune suppression de table** ; uniquement ajouts de colonnes nullables, FKs, vues, RPC, triggers.
-- Triggers utilisent `SECURITY DEFINER` + `SET search_path = public` (convention projet).
-- Realtime activé pour `waouh_radar_signals` (déjà OK) et ajouté pour la vue ? → non, on s'abonne aux tables sources.
-- TypeScript : `src/integrations/supabase/types.ts` se régénère après migration ; pas d'édition manuelle.
-- Vérifications post-déploiement :
-  1. `/waouh` charge l'admin avec onglet Radar visible
-  2. `/admin/waouh/radar` redirige vers `/admin/waouh?tab=radar`
-  3. Promouvoir un signal SELL crée une ligne dans Annonces avec badge "radar"
-  4. `/waouh-chat` sur viewport 375×812 : chat occupe 100dvh, input visible, scroll fluide
-
-## Fichiers impactés
-
-**Migration :**
-- `supabase/migrations/<ts>_waouh_unified.sql`
-
-**Edge Functions modifiées :**
-- `supabase/functions/waouh-buy-handler/index.ts`
-- `supabase/functions/waouh-sell-handler/index.ts`
-- `supabase/functions/waouh-notify-buyers/index.ts`
-- `supabase/functions/waouh-radar-process/index.ts`
-
-**Frontend :**
-- `src/App.tsx` (routes + redirects)
-- `src/pages/waouh/WaouhPage.tsx` (nouvel onglet Radar, KPIs unifiés, filtre origin, bouton retour)
-- `src/pages/admin/WaouhRadarPage.tsx` (devient un `<Navigate>`)
-- `src/components/waouh/WaouhRadarTab.tsx` (nouveau, extrait)
-- `src/pages/waouh/WaouhChatPage.tsx` (mobile fullscreen + drawer aides)
-- `src/components/waouh/WaouhWebChat.tsx` (prop `fullscreen`)
+## Résultat attendu
+Un signal capté (SerpAPI / Apify Facebook / WA groupe / chat) → en < 5 min : annonce ou demande créée, matchée, acheteur **et** vendeur reçoivent un WhatsApp, peuvent négocier en répondant simplement, et le paiement Qosic se déclenche à l'accord. Admin = supervision uniquement.
