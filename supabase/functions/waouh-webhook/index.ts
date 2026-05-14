@@ -152,9 +152,12 @@ serve(async (req) => {
 
     // Save conversation
     await sb.from("waouh_conversations").upsert({
-      user_id: user!.id, phone_number: phone,
+    await sb.from("waouh_conversations").upsert({
+      user_id: user!.id,
+      phone_number: phone || `web:${webSessionId}`,
       state: intent.intent?.toLowerCase() ?? "idle",
       last_message: text, last_intent: intent.intent,
+      channel,
     }, { onConflict: "phone_number" } as any);
 
     return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply }), {
