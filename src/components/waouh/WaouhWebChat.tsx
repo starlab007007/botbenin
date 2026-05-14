@@ -129,12 +129,12 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean }> = ({ embedded = fals
     }
   };
 
-  const onPay = (_tx: any) => {
+  const [paymentTx, setPaymentTx] = useState<{ id: string; amount: number } | null>(null);
+  const onPay = (tx: any) => {
     if (!user) {
       setAuthOpen(true);
     } else {
-      toast({ title: "Paiement", description: "Initialisation Mobile Money…" });
-      // Future: trigger waouh-payment-handler
+      setPaymentTx({ id: tx.id, amount: tx.amount });
     }
   };
 
