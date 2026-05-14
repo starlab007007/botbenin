@@ -5141,6 +5141,7 @@ export type Database = {
       }
       waouh_conversations: {
         Row: {
+          channel: string
           context: Json
           current_article_id: string | null
           current_transaction_id: string | null
@@ -5153,6 +5154,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          channel?: string
           context?: Json
           current_article_id?: string | null
           current_transaction_id?: string | null
@@ -5165,6 +5167,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          channel?: string
           context?: Json
           current_article_id?: string | null
           current_transaction_id?: string | null
@@ -5179,6 +5182,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "waouh_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_messages: {
+        Row: {
+          channel: string
+          conversation_id: string | null
+          created_at: string
+          direction: string
+          id: string
+          meta: Json | null
+          phone_number: string | null
+          text: string
+          user_id: string | null
+          web_session_id: string | null
+        }
+        Insert: {
+          channel?: string
+          conversation_id?: string | null
+          created_at?: string
+          direction: string
+          id?: string
+          meta?: Json | null
+          phone_number?: string | null
+          text: string
+          user_id?: string | null
+          web_session_id?: string | null
+        }
+        Update: {
+          channel?: string
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          meta?: Json | null
+          phone_number?: string | null
+          text?: string
+          user_id?: string | null
+          web_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "waouh_users"
@@ -5386,6 +5443,7 @@ export type Database = {
       waouh_users: {
         Row: {
           auth_user_id: string | null
+          channel: string
           city: string | null
           country: string
           created_at: string
@@ -5393,15 +5451,17 @@ export type Database = {
           id: string
           is_verified: boolean
           location: unknown
-          phone_number: string
+          phone_number: string | null
           preferred_payment: string
           purchases_count: number
           reputation: number
           sales_count: number
           updated_at: string
+          web_session_id: string | null
         }
         Insert: {
           auth_user_id?: string | null
+          channel?: string
           city?: string | null
           country?: string
           created_at?: string
@@ -5409,15 +5469,17 @@ export type Database = {
           id?: string
           is_verified?: boolean
           location?: unknown
-          phone_number: string
+          phone_number?: string | null
           preferred_payment?: string
           purchases_count?: number
           reputation?: number
           sales_count?: number
           updated_at?: string
+          web_session_id?: string | null
         }
         Update: {
           auth_user_id?: string | null
+          channel?: string
           city?: string | null
           country?: string
           created_at?: string
@@ -5425,12 +5487,13 @@ export type Database = {
           id?: string
           is_verified?: boolean
           location?: unknown
-          phone_number?: string
+          phone_number?: string | null
           preferred_payment?: string
           purchases_count?: number
           reputation?: number
           sales_count?: number
           updated_at?: string
+          web_session_id?: string | null
         }
         Relationships: []
       }
