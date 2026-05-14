@@ -98,6 +98,15 @@ export default {
 						900: '#e65100',
 					},
 				},
+				waouh: {
+					primary: 'hsl(var(--waouh-primary))',
+					success: 'hsl(var(--waouh-success))',
+					warning: 'hsl(var(--waouh-warning))',
+					ai: 'hsl(var(--waouh-ai))',
+					payment: 'hsl(var(--waouh-payment))',
+					bg: 'hsl(var(--waouh-bg))',
+					border: 'hsl(var(--waouh-border))',
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
