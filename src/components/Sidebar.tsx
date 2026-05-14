@@ -8,7 +8,7 @@ import {
   User, 
   HelpCircle
 } from 'lucide-react';
-import { Bot, Target } from 'lucide-react';
+import { Bot, Target, ShoppingBag } from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', path: '/dashboard', icon: BarChart3, color: 'bg-purple-500' },
@@ -17,6 +17,7 @@ const menuItems = [
   { title: 'CRM', path: '/prospects', icon: Target, color: 'bg-pink-500' },
   { title: 'WhatsApp IA', path: '/whatsapp-connect', icon: MessageCircle, color: 'bg-green-500' },
   { title: 'WhatsApp Diffusion', path: '/whatsapp-diffusion', icon: MessageCircle, color: 'bg-emerald-600' },
+  { title: 'WAOUH', path: '/waouh', icon: ShoppingBag, color: 'bg-cyan-400', badge: 'NOUVEAU' },
 ];
 
 // HIDDEN - kept for future use
@@ -54,9 +55,14 @@ export const Sidebar: React.FC = () => {
                   <div className={`w-8 h-8 ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
                     <item.icon className="w-4 h-4 text-white" />
                   </div>
-                  <span className={`font-medium ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
+                  <span className={`font-medium flex-1 ${isActive(item.path) ? 'text-gray-900' : 'text-gray-700'}`}>
                     {item.title}
                   </span>
+                  {(item as any).badge && (
+                    <span className="waouh-badge-new text-[10px] font-bold px-1.5 py-0.5 rounded bg-waouh-primary text-white">
+                      {(item as any).badge}
+                    </span>
+                  )}
                 </NavLink>
               </li>
             ))}

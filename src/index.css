@@ -353,3 +353,32 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 
+
+/* WAOUH Module Design Tokens */
+:root {
+  --waouh-primary: 190 100% 50%;        /* #00D4FF cyan */
+  --waouh-success: 152 100% 50%;         /* #00FF9D green */
+  --waouh-warning: 18 100% 62%;          /* #FF7A3D orange */
+  --waouh-ai: 271 91% 65%;               /* #A855F7 violet */
+  --waouh-payment: 43 96% 56%;           /* #FBBF24 yellow */
+  --waouh-bg: 226 39% 8%;                /* #0C0F1C card bg */
+  --waouh-border: 226 38% 18%;           /* #1C2340 border */
+}
+
+@keyframes waouh-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--waouh-primary) / 0.7); }
+  50% { box-shadow: 0 0 0 10px hsl(var(--waouh-primary) / 0); }
+}
+.waouh-badge-new {
+  animation: waouh-pulse 2s infinite;
+}
+
+@keyframes waouh-typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.waouh-typing-dot {
+  animation: waouh-typing 1.2s infinite;
+}
+.waouh-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.waouh-typing-dot:nth-child(3) { animation-delay: 0.3s; }

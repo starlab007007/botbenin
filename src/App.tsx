@@ -88,6 +88,10 @@ const DocumentationPortalPage = lazy(() => import("./pages/DocumentationPortalPa
 // YOVO Gallery
 const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 
+// WAOUH module
+const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
+const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
+
 // Module Support Technique SIGDSTS (isolé, sans layout principal)
 const SupportTechniquePage = lazy(() => import("./pages/SupportTechniquePage").then(m => ({ default: (m as any).default ?? (m as any).SupportTechniquePage })));
 const SupportGuidePage = lazy(() => import("./pages/SupportGuidePage"));
@@ -209,6 +213,8 @@ const AppContent = () => {
                      <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
                      <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
                      <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
+                     <Route path="/waouh" element={<WaouhPage />} />
+                     <Route path="/waouh/demo" element={<WaouhDemoPage />} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}

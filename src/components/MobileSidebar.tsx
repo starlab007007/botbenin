@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { X, BarChart3, User, HelpCircle, Bot, Target, Database, MessageCircle } from 'lucide-react';
+import { X, BarChart3, User, HelpCircle, Bot, Target, Database, MessageCircle, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MobileSidebarProps {
@@ -16,6 +16,7 @@ const menuItems = [
   { title: 'CRM', path: '/prospects', icon: Target },
   { title: 'WhatsApp IA', path: '/whatsapp-connect', icon: MessageCircle },
   { title: 'WhatsApp Diffusion', path: '/whatsapp-diffusion', icon: MessageCircle },
+  { title: 'WAOUH', path: '/waouh', icon: ShoppingBag, badge: 'NOUVEAU' },
 ];
 
 // HIDDEN - kept for future use
@@ -62,7 +63,12 @@ export const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose })
                     }
                   >
                     <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.title}</span>
+                    <span className="font-medium flex-1">{item.title}</span>
+                    {(item as any).badge && (
+                      <span className="waouh-badge-new text-[10px] font-bold px-1.5 py-0.5 rounded bg-waouh-primary text-white">
+                        {(item as any).badge}
+                      </span>
+                    )}
                   </NavLink>
                 </li>
               ))}
