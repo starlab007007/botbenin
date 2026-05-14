@@ -152,7 +152,6 @@ serve(async (req) => {
 
     // Save conversation
     await sb.from("waouh_conversations").upsert({
-    await sb.from("waouh_conversations").upsert({
       user_id: user!.id,
       phone_number: phone || `web:${webSessionId}`,
       state: intent.intent?.toLowerCase() ?? "idle",
