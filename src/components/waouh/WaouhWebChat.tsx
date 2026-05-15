@@ -122,8 +122,21 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
     const atts = pendingAtts;
     setPendingAtts([]);
     setSending(true);
+    const now = new Date().toISOString();
+    const tempInId = `temp-in-${Date.now()}`;
+    const tempOutId = `temp-out-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempInId,
+        direction: "in",
+        text: text || "(image)",
+        created_at: now,
+        attachments: atts,
+      },
+    ]);
     try {
-      const { error } = await supabase.functions.invoke("waouh-channel-in", {
+      const { data, error } = await supabase.functions.invoke("waouh-channel-in", {
         body: {
           channel: "web",
           sessionId,
@@ -136,7 +149,36 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
         },
       });
       if (error) throw error;
+
+      const { data: fresh } = await supabase
+        .from("waouh_messages")
+        .select("id,direction,text,created_at,attachments,meta")
+        .eq("web_session_id", sessionId)
+        .order("created_at", { ascending: true })
+        .limit(100);
+
+      if (fresh && fresh.length > 0) {
+        setMessages(fresh as any);
+      } else if ((data as any)?.reply) {
+        setMessages((prev) => [
+          ...prev.filter((m) => m.id !== tempOutId),
+          {
+            id: tempOutId,
+            direction: "out",
+            text: (data as any).reply,
+            created_at: new Date().toISOString(),
+            attachments: null,
+            meta: {
+              intent: (data as any).intent ?? null,
+              transaction_id: (data as any).transaction_id ?? null,
+            },
+          },
+        ]);
+      }
     } catch (e: any) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempInId && m.id !== tempOutId));
+      setInput(text);
+      setPendingAtts(atts);
       toast({ title: "Envoi échoué", description: e.message, variant: "destructive" });
     } finally {
       setSending(false);
