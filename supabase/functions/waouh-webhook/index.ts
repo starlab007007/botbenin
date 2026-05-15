@@ -121,6 +121,7 @@ serve(async (req) => {
       if ((product.confidence ?? 0) < 0.5 || !product.price) {
         reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
       } else {
+        const photoUrls = attachments.map((a: any) => a?.url).filter((u: any) => typeof u === "string");
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
           title: product.title || "Annonce",
@@ -131,12 +132,14 @@ serve(async (req) => {
           price: product.price, currency: "XOF",
           city: user!.city,
           location: `SRID=4326;POINT(${lng} ${lat})` as any,
+          photos: photoUrls,
           market_price_min: product.market_price_min,
           market_price_max: product.market_price_max,
           origin: channel === "whatsapp" ? "whatsapp" : "chat",
         }).select().single();
         returnedArticleId = art?.id ?? null;
-        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}\n\n📊 Prix marché estimé: ${fmt(product.market_price_min || product.price * 0.8)} – ${fmt(product.market_price_max || product.price * 1.2)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo(s) jointe(s)` : "";
+        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(product.market_price_min || product.price * 0.8)} – ${fmt(product.market_price_max || product.price * 1.2)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
       }
     } else if (intent.intent === "BUY") {
       const criteria = await ai(
@@ -179,8 +182,11 @@ serve(async (req) => {
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
-        // Récupère vendeur (phone)
-        const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name").eq("id", pick.seller_id).maybeSingle();
+        // Récupère vendeur (phone + web session)
+        const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
+        // Récupère 1ère photo de l'article pour la notification
+        const { data: artPhoto } = await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle();
+        const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : null;
         // Crée la négociation
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
@@ -188,13 +194,16 @@ serve(async (req) => {
           meta: { source: "chat" },
         }).select().single();
         returnedArticleId = pick.id;
-        // Notifie le vendeur (WhatsApp si numéro)
-        if (seller?.phone_number) {
-          await sb.rpc("waouh_enqueue_outbound", {
+        // Notifie le vendeur (WhatsApp + Web)
+        if (seller?.phone_number || seller?.web_session_id) {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
             p_to_phone: seller.phone_number,
             p_to_user_id: seller.id,
             p_template: "match_seller",
-            p_payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id },
+            p_payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto },
+            p_web_session_id: seller.web_session_id,
+            p_image_url: firstPhoto,
+            p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
         reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n\nLe vendeur va être contacté. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, écrivez « Je paye ».`;
@@ -215,13 +224,16 @@ serve(async (req) => {
         await sb.from("waouh_negotiations").update({
           state: "countered", last_offer_price: amount, last_actor: "buyer",
         }).eq("id", neg.id);
-        const { data: seller } = await sb.from("waouh_users").select("phone_number,id").eq("id", neg.seller_user_id).maybeSingle();
-        if (seller?.phone_number) {
-          await sb.rpc("waouh_enqueue_outbound", {
+        const { data: seller } = await sb.from("waouh_users").select("phone_number,id,web_session_id").eq("id", neg.seller_user_id).maybeSingle();
+        if (seller?.phone_number || seller?.web_session_id) {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
             p_to_phone: seller.phone_number,
             p_to_user_id: seller.id,
             p_template: "negotiation_open",
             p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount },
+            p_web_session_id: seller.web_session_id,
+            p_image_url: null,
+            p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
         reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse.`;
@@ -279,6 +291,13 @@ serve(async (req) => {
       current_article_id: returnedArticleId ?? conv?.current_article_id ?? null,
       current_transaction_id: returnedTransactionId ?? conv?.current_transaction_id ?? null,
     }, { onConflict: "phone_number" } as any);
+
+    // Fire-and-forget: déclenche l'envoi immédiat des notifications en attente (WhatsApp)
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-outbound-dispatch`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: 20 }),
+    }).catch(() => {});
 
     return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, article_id: returnedArticleId, transaction_id: returnedTransactionId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

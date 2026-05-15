@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, Search, Handshake, CreditCard, ArrowLeft, Sparkles, Info } from "lucide-react";
+import { ShoppingBag, Search, Handshake, CreditCard, ArrowLeft, Sparkles, Info, Bell, BellOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,9 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import WaouhWebChat from "@/components/waouh/WaouhWebChat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
+
+const SESSION_KEY = "waouh_web_session_id";
 
 const QUICK_ACTIONS = [
   { icon: ShoppingBag, title: "Vendre", desc: "Publiez un article en 30s", gradient: "from-emerald-500 to-teal-500" },
@@ -56,10 +59,25 @@ export default function WaouhChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const sessionId = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
+  const { permission, requestPermission } = useWaouhMatchNotifications(sessionId);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
   }, []);
+
+  const NotifButton = (
+    <Button
+      size="sm"
+      variant={permission === "granted" ? "ghost" : "outline"}
+      onClick={requestPermission}
+      className="gap-1.5"
+      title={permission === "granted" ? "Notifications activées" : "Activer les notifications de matching"}
+    >
+      {permission === "granted" ? <Bell className="w-4 h-4 text-emerald-600" /> : <BellOff className="w-4 h-4" />}
+      <span className="hidden sm:inline text-xs">{permission === "granted" ? "Notif. ON" : "Activer notif."}</span>
+    </Button>
+  );
 
   // === MOBILE: full-screen, no scroll, drawer for help ===
   if (isMobile) {
@@ -83,19 +101,22 @@ export default function WaouhChatPage() {
               IA
             </Badge>
           </Link>
-          <Sheet>
-            <SheetTrigger asChild>
-              <button className="p-2 -mr-2 rounded-lg hover:bg-gray-100 active:bg-gray-200" aria-label="Aide">
-                <Info className="w-5 h-5 text-gray-700" />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
-              <SheetHeader>
-                <SheetTitle>Comment utiliser WAOUH</SheetTitle>
-              </SheetHeader>
-              <div className="mt-3"><HelpContent /></div>
-            </SheetContent>
-          </Sheet>
+          <div className="flex items-center gap-1">
+            {NotifButton}
+            <Sheet>
+              <SheetTrigger asChild>
+                <button className="p-2 -mr-1 rounded-lg hover:bg-gray-100 active:bg-gray-200" aria-label="Aide">
+                  <Info className="w-5 h-5 text-gray-700" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
+                <SheetHeader>
+                  <SheetTitle>Comment utiliser WAOUH</SheetTitle>
+                </SheetHeader>
+                <div className="mt-3"><HelpContent /></div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </header>
         <div className="flex-1 min-h-0">
           <WaouhWebChat fullscreen />
@@ -123,6 +144,7 @@ export default function WaouhChatPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
               IA en ligne
             </Badge>
+            {NotifButton}
             {user ? (
               <Link to="/admin/waouh">
                 <Button variant="ghost" size="sm">

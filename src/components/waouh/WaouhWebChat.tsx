@@ -83,17 +83,30 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  const MAX_PHOTOS = 2;
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    const remaining = MAX_PHOTOS - pendingAtts.length;
+    if (remaining <= 0) {
+      toast({ title: "Limite atteinte", description: `Maximum ${MAX_PHOTOS} photos par annonce.`, variant: "destructive" });
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    const toUpload = files.slice(0, remaining);
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `web/${sessionId}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("waouh-uploads").upload(path, file, { contentType: file.type });
-      if (error) throw error;
-      const { data: pub } = supabase.storage.from("waouh-uploads").getPublicUrl(path);
-      setPendingAtts((prev) => [...prev, { url: pub.publicUrl, type: file.type }]);
+      for (const file of toUpload) {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `web/${sessionId}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from("waouh-uploads").upload(path, file, { contentType: file.type });
+        if (error) throw error;
+        const { data: pub } = supabase.storage.from("waouh-uploads").getPublicUrl(path);
+        setPendingAtts((prev) => [...prev, { url: pub.publicUrl, type: file.type }]);
+      }
+      if (files.length > remaining) {
+        toast({ title: "Photos limitées", description: `Seules ${remaining} photo(s) ajoutées (max ${MAX_PHOTOS}).` });
+      }
     } catch (err: any) {
       toast({ title: "Upload échoué", description: err.message, variant: "destructive" });
     } finally {
@@ -144,7 +157,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
       className={cn(
         "flex flex-col bg-background overflow-hidden",
         fullscreen
-          ? "w-full h-[100dvh] rounded-none border-0 shadow-none pb-[env(safe-area-inset-bottom)]"
+          ? "w-full h-full rounded-none border-0 shadow-none pb-[env(safe-area-inset-bottom)]"
           : embedded
             ? "w-full h-[70vh] max-h-[100dvh] rounded-lg border shadow-2xl"
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
@@ -235,6 +248,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           capture="environment"
           className="hidden"
           onChange={handleFile}
@@ -244,8 +258,9 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           size="icon"
           variant="ghost"
           onClick={() => fileRef.current?.click()}
-          disabled={uploading || sending}
-          aria-label="Ajouter une photo"
+          disabled={uploading || sending || pendingAtts.length >= MAX_PHOTOS}
+          aria-label={`Ajouter une photo (${pendingAtts.length}/${MAX_PHOTOS})`}
+          title={`${pendingAtts.length}/${MAX_PHOTOS} photos`}
         >
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
         </Button>
