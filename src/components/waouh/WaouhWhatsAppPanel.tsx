@@ -101,6 +101,9 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Input value={session} onChange={(e) => setSession(e.target.value)} />
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={createSession} disabled={loading}>
+              <Plus className="w-4 h-4 mr-1" /> Créer
+            </Button>
             <Button onClick={startSession} disabled={loading}>
               <Power className="w-4 h-4 mr-1" /> Démarrer
             </Button>
