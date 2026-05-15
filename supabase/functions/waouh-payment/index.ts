@@ -180,15 +180,22 @@ Deno.serve(async (req) => {
         return json({ status: pay.status, payment: pay });
       }
 
-      // Poll Qosic
-      const r = await fetch(`${QOSIC_BASE}/QosicBridge/user/gettransactionstatus`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth() },
-        body: JSON.stringify({ transref: pay.qosic_transref, clientid: CLIENT_IDS[pay.operator] }),
-      }).catch(() => null);
-
+      // Demo: status follows the payments row directly (no Qosic poll)
       let raw: any = {};
-      if (r) { try { raw = await r.json(); } catch { raw = {}; } }
+      if (PAYMENT_MODE === "live") {
+        const r = await fetch(`${QOSIC_BASE}/QosicBridge/user/gettransactionstatus`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Basic " + btoa(`${QOSIC_USER}:${QOSIC_PASS}`) },
+          body: JSON.stringify({ transref: pay.qosic_transref, clientid: CLIENT_IDS[pay.operator] }),
+        }).catch(() => null);
+        if (r) { try { raw = await r.json(); } catch { raw = {}; } }
+      } else {
+        // Re-read payments row (it may have been updated by the demo finalize)
+        const { data: fresh } = await sb.from("waouh_payments").select("status").eq("id", pay.id).maybeSingle();
+        if (fresh?.status === "success") raw = { responsecode: "00" };
+        else if (fresh?.status === "failed") raw = { responsecode: "99" };
+        else raw = { responsecode: "01" };
+      }
 
       let newStatus: string = pay.status;
       if (raw.responsecode === "00") newStatus = "success";
