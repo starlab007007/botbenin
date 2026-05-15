@@ -314,10 +314,10 @@ serve(async (req) => {
       }
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
       const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
-      // Trouver la négociation ouverte
+      // Trouver la négociation ouverte (acheteur OU vendeur)
       const { data: neg } = await sb.from("waouh_negotiations")
         .select("*")
-        .eq("buyer_user_id", user!.id)
+        .or(`buyer_user_id.eq.${user!.id},seller_user_id.eq.${user!.id}`)
         .in("state", ["proposed", "countered"])
         .order("created_at", { ascending: false })
         .limit(1)
@@ -325,31 +325,29 @@ serve(async (req) => {
       if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites « intéressé N°X ».";
       } else if (amount) {
+        const isBuyer = neg.buyer_user_id === user!.id;
+        const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
         await sb.from("waouh_negotiations").update({
-          state: "countered", last_offer_price: amount, last_actor: "buyer",
+          state: "countered", last_offer_price: amount, last_actor: isBuyer ? "buyer" : "seller",
         }).eq("id", neg.id);
         if (neg.transaction_id) {
           await sb.from("waouh_transactions").update({
-            amount,
-            negotiated_price: amount,
+            amount, negotiated_price: amount,
             commission: Math.round(amount * 0.05),
             status: "payment_pending",
           }).eq("id", neg.transaction_id);
         }
         returnedTransactionId = neg.transaction_id ?? null;
-        const { data: seller } = await sb.from("waouh_users").select("phone_number,id,web_session_id").eq("id", neg.seller_user_id).maybeSingle();
-        if (seller?.phone_number || seller?.web_session_id) {
-          await sb.rpc("waouh_enqueue_outbound_v2", {
-            p_to_phone: seller.phone_number,
-            p_to_user_id: seller.id,
-            p_template: "negotiation_open",
-        p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount },
-            p_web_session_id: seller.web_session_id,
-            p_image_url: null,
-            p_channel: seller.phone_number ? "whatsapp" : "web",
+        if (otherId) {
+          await pushToOther({
+            to_user_id: otherId,
+            template: "negotiation_open",
+            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, transaction_id: returnedTransactionId },
+            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"} : ${fmt(amount)}*\n\nRépondez « OUI » pour accepter, « NON » pour refuser, ou proposez un autre montant.`,
+            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
           });
         }
-        reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse. Si le vendeur accepte, vous pourrez payer directement avec la carte ci-dessous.`;
+        reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de ${fmt(amount)} transmise. Vous serez notifié de la réponse.`;
       } else {
         reply = "💬 Indiquez votre prix : « Je propose 250 000 FCFA »";
       }
