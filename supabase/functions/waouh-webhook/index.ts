@@ -135,6 +135,49 @@ serve(async (req) => {
     const sourceLines = (min: number, max: number) =>
       `\n\n🔎 *Références comparatives*\n• Facebook Marketplace / groupes WhatsApp locaux : ${fmt(min)} – ${fmt(max)}\n• Plateformes petites annonces (Jiji, CoinAfrique) : fourchette similaire selon état, mémoire et ville\n• Analyse WAOUH : prix, état, marque/modèle et zone de vente comparés pour sécuriser la confiance.`;
 
+    // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie
+    async function pushToOther(opts: {
+      to_user_id: string;
+      template: string;
+      payload: any;
+      image_url?: string | null;
+      directText: string;
+      directAtts?: Array<{ url: string; type: string }>;
+      directMeta?: any;
+    }) {
+      const { data: target } = await sb.from("waouh_users")
+        .select("id, phone_number, web_session_id, channel")
+        .eq("id", opts.to_user_id).maybeSingle();
+      if (!target) return;
+      // 1) Notification (cloche + WhatsApp si phone)
+      try {
+        await sb.rpc("waouh_enqueue_outbound_v2", {
+          p_to_phone: target.phone_number,
+          p_to_user_id: target.id,
+          p_template: opts.template,
+          p_payload: opts.payload || {},
+          p_web_session_id: target.web_session_id,
+          p_image_url: opts.image_url ?? null,
+          p_channel: target.phone_number ? "whatsapp" : "web",
+        });
+      } catch (e) { console.warn("[pushToOther] enqueue", e); }
+      // 2) Message direct dans son thread chatbot (si web_session_id)
+      if (target.web_session_id) {
+        try {
+          await sb.from("waouh_messages").insert({
+            user_id: target.id,
+            channel: "web",
+            direction: "out",
+            text: opts.directText,
+            web_session_id: target.web_session_id,
+            attachments: opts.directAtts ?? [],
+            meta: opts.directMeta ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] msg", e); }
+      }
+    }
+
+
     if (intent.intent === "SELL") {
       const product = await ai(
         `Tu es WAOUH. Extrais d'un message vendeur la fiche produit en JSON: {title, category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), brand, model, condition (new/like_new/good/fair/poor), price (number, FCFA), description, market_price_min, market_price_max, confidence (0-1)}.`,
