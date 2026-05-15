@@ -293,10 +293,79 @@ Deno.serve(async (req) => {
       return json({ success: ok, message: ok ? "Fonds libérés au vendeur" : "Échec libération", raw });
     }
 
+    // ---------------- CONFIRM RECEIVED (buyer) → release escrow ----------------
+    if (action === "confirm_received") {
+      const { transaction_id } = body;
+      if (!transaction_id) return json({ error: "transaction_id requis" }, 400);
+      const { data: tx } = await sb.from("waouh_transactions").select("*").eq("id", transaction_id).maybeSingle();
+      if (!tx) return json({ error: "Transaction introuvable" }, 404);
+      if (tx.status !== "paid") return json({ error: "La transaction doit être au statut 'payé' pour être libérée" }, 400);
+
+      // Authorize: buyer (auth user OR matching web session)
+      let allowed = false;
+      if (userId) {
+        const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).maybeSingle();
+        if (wu?.id === tx.buyer_id) allowed = true;
+      }
+      const sessionHeader = req.headers.get("x-waouh-session");
+      if (!allowed && sessionHeader) {
+        const { data: wu } = await sb.from("waouh_users").select("id").eq("web_session_id", sessionHeader).maybeSingle();
+        if (wu?.id === tx.buyer_id) allowed = true;
+      }
+      if (!allowed) return json({ error: "Seul l'acheteur peut confirmer la réception" }, 403);
+
+      if (PAYMENT_MODE === "demo") {
+        await sb.from("waouh_transactions").update({
+          status: "released",
+          escrow_status: "released",
+          buyer_confirmed: true,
+          completed_at: new Date().toISOString(),
+        }).eq("id", transaction_id);
+        await pushSystemMessage(sb, tx.buyer_id, transaction_id, "🎉 Félicitations ! Transaction terminée. Notez le vendeur de 1 à 5 ⭐ ci-dessous.");
+        await pushSystemMessage(sb, tx.seller_id, transaction_id, "🎉 L'acheteur a confirmé la réception. Les fonds sont libérés sur votre compte (mode démo).");
+        return json({ success: true, demo: true, message: "Réception confirmée — fonds libérés (démo)." });
+      }
+
+      // LIVE: trigger release flow (reuse existing 'release' code path would require Qosic deposit)
+      await sb.from("waouh_transactions").update({ buyer_confirmed: true }).eq("id", transaction_id);
+      return json({ success: true, message: "Confirmation enregistrée. Libération en cours." });
+    }
+
     return json({ error: "Action inconnue" }, 400);
   } catch (e: any) {
     console.error("[waouh-payment]", e);
     return json({ error: e.message || String(e) }, 500);
+  }
+});
+
+async function pushSystemMessage(sb: any, waouhUserId: string | null, transaction_id: string, text: string) {
+  if (!waouhUserId) return;
+  const { data: wu } = await sb.from("waouh_users").select("id, web_session_id, phone_number").eq("id", waouhUserId).maybeSingle();
+  if (!wu) return;
+  const { data: conv } = await sb.from("waouh_conversations").select("id").eq("user_id", wu.id).limit(1).maybeSingle();
+  const { data: msg } = await sb.from("waouh_messages").insert({
+    conversation_id: conv?.id ?? null,
+    user_id: wu.id,
+    web_session_id: wu.web_session_id,
+    channel: wu.web_session_id ? "web" : "system",
+    direction: "out",
+    text,
+    meta: { transaction_id, event: "post_payment_flow" },
+  }).select("id").maybeSingle();
+  try {
+    await sb.rpc("waouh_enqueue_outbound_v2", {
+      p_to_phone: wu.phone_number,
+      p_to_user_id: wu.id,
+      p_template: "transaction_update",
+      p_payload: { text, transaction_id },
+      p_web_session_id: wu.web_session_id,
+      p_image_url: null,
+      p_channel: wu.phone_number ? "whatsapp" : "web",
+      p_message_id: msg?.id ?? null,
+      p_transaction_id: transaction_id,
+    });
+  } catch (e) { console.warn("[waouh-payment] enqueue", e); }
+}
   }
 });
 
