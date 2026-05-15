@@ -213,6 +213,40 @@ serve(async (req) => {
         const min = product.market_price_min || product.price * 0.8;
         const max = product.market_price_max || product.price * 1.2;
         reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(min)} – ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+
+        // 🛰️ Radar IA: contacter les acheteurs (signaux BUY) qui correspondent
+        try {
+          let bq = sb.from("waouh_radar_signals")
+            .select("id,product,category,price,city,contact_phone,raw_text")
+            .eq("intent", "BUY")
+            .not("contact_phone", "is", null);
+          if (product.category) bq = bq.eq("category", product.category);
+          const { data: buyerSignals } = await bq.order("captured_at", { ascending: false }).limit: 10 as any;
+          for (const b of (buyerSignals || [])) {
+            const rawPhone = (b.contact_phone || "").replace(/\D/g, "");
+            if (!rawPhone) continue;
+            let e164 = rawPhone;
+            if (rawPhone.length === 8) e164 = `229${rawPhone}`;
+            else if (!rawPhone.startsWith("229")) e164 = `229${rawPhone.slice(-8)}`;
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const { data: recent } = await sb.from("waouh_outbound_queue")
+              .select("id").eq("to_phone", e164).eq("template", "radar_buyer_outreach")
+              .gte("created_at", since).limit(1).maybeSingle();
+            if (recent) continue;
+            await sb.rpc("waouh_enqueue_outbound_v2", {
+              p_to_phone: e164,
+              p_to_user_id: null,
+              p_template: "radar_buyer_outreach",
+              p_payload: {
+                text: `🎯 WAOUH a trouvé pour vous : *${product.title}* à ${fmt(product.price)} (${user!.city}). Répondez « OUI » pour être mis en relation avec le vendeur (paiement sécurisé escrow).`,
+                article_id: art?.id,
+                radar_signal_id: b.id,
+              },
+              p_image_url: photoUrls[0] || null,
+              p_channel: "whatsapp",
+            });
+          }
+        } catch (e) { console.warn("[radar buyer outreach]", e); }
       }
     } else if (intent.intent === "BUY") {
       const criteria = await ai(
