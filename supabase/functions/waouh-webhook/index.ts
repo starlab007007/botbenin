@@ -85,13 +85,15 @@ serve(async (req) => {
 
     // Pré-détection règles déterministes (avant AI)
     const lower = (text || "").toLowerCase();
-    const numMatch = lower.match(/n[°o]?\s*(\d+)/i);
+    const numMatch = lower.match(/(?:n[°o]?\s*|#)(\d+)/i) || lower.match(/(?:int[ée]ress[ée]|interesse|choix|article)\s*(\d+)/i);
+    const literalInterest = /int[ée]ress[ée]\s*n[°o]?\s*x/i.test(lower);
     const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
     const payKw = /(payer|paiement|payement|mtn|moov|momo|paie|j'ach[èe]te maintenant)/i.test(lower);
     const offerMatch = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{4,})\s*(?:f|fcfa|cfa)?/);
 
     let intent: any = {};
     if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
     else if (payKw) intent = { intent: "PAY" };
     else {
       intent = await ai(
@@ -109,9 +111,12 @@ serve(async (req) => {
     let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
     let returnedArticleId: string | null = null;
     let returnedTransactionId: string | null = null;
+    let replyAttachments: Array<{ url: string; type: string }> = [];
     let nextContext: any = conv?.context ?? {};
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
+    const sourceLines = (min: number, max: number) =>
+      `\n\n🔎 *Références comparatives*\n• Facebook Marketplace / groupes WhatsApp locaux : ${fmt(min)} – ${fmt(max)}\n• Plateformes petites annonces (Jiji, CoinAfrique) : fourchette similaire selon état, mémoire et ville\n• Analyse WAOUH : prix, état, marque/modèle et zone de vente comparés pour sécuriser la confiance.`;
 
     if (intent.intent === "SELL") {
       const product = await ai(
@@ -138,8 +143,11 @@ serve(async (req) => {
           origin: channel === "whatsapp" ? "whatsapp" : "chat",
         }).select().single();
         returnedArticleId = art?.id ?? null;
+        replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
         const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo(s) jointe(s)` : "";
-        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(product.market_price_min || product.price * 0.8)} – ${fmt(product.market_price_max || product.price * 1.2)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        const min = product.market_price_min || product.price * 0.8;
+        const max = product.market_price_max || product.price * 1.2;
+        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(min)} – ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
       }
     } else if (intent.intent === "BUY") {
       const criteria = await ai(
@@ -148,7 +156,7 @@ serve(async (req) => {
       );
       // Recherche filtrée
       let q = sb.from("waouh_articles")
-        .select("id,title,price,city,brand,condition,category,seller_id")
+        .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
       if (criteria.category) q = q.eq("category", criteria.category);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
@@ -171,9 +179,19 @@ serve(async (req) => {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
         nextContext = { ...nextContext, last_matches: [] };
       } else {
-        const list = matches.map((m: any, i: number) => `${i + 1}. *${m.title}* — ${fmt(m.price)} (${m.city ?? "?"}, ${m.condition})`).join("\n");
-        reply = `🎯 *${matches.length} annonces trouvées :*\n\n${list}\n\n💡 Répondez par "intéressé N°X" pour contacter le vendeur, ou proposez votre prix.`;
-        nextContext = { ...nextContext, last_matches: matches.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id })) };
+        const list = matches.map((m: any, i: number) => {
+          const photo = Array.isArray(m.photos) && m.photos.length > 0 ? `\n   📸 Photo disponible` : "";
+          const min = m.market_price_min || m.price * 0.8;
+          const max = m.market_price_max || m.price * 1.2;
+          return `${i + 1}. *${m.title}* — ${fmt(m.price)} (${m.city ?? "?"}, ${m.condition})${photo}\n   📊 Marché: ${fmt(min)} – ${fmt(max)}`;
+        }).join("\n");
+        replyAttachments = matches
+          .flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 1) : [])
+          .filter((url: any) => typeof url === "string")
+          .slice(0, 5)
+          .map((url: string) => ({ url, type: "image/jpeg" }));
+        reply = `🎯 *${matches.length} annonce${matches.length > 1 ? "s" : ""} trouvée${matches.length > 1 ? "s" : ""} :*\n\n${list}\n\n💡 Pour contacter le vendeur, répondez avec le numéro exact : *intéressé N°1*${matches.length > 1 ? `, *intéressé N°2* … *intéressé N°${matches.length}*` : ""}. Vous pouvez aussi proposer un prix.`;
+        nextContext = { ...nextContext, last_matches: matches.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })) };
       }
     } else if (intent.intent === "CONFIRM" && intent.article_index) {
       const idx = intent.article_index - 1;
@@ -182,6 +200,13 @@ serve(async (req) => {
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
+        const existingTxId = nextContext?.current_transaction_id || conv?.current_transaction_id || null;
+        const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
+        if (alreadyOnArticle && existingTxId) {
+          returnedArticleId = pick.id;
+          returnedTransactionId = existingTxId;
+          reply = `✅ Vous êtes déjà mis en relation pour *${pick.title}*.\n\nVous pouvez écrire « Je propose 250 000 FCFA » pour négocier ou cliquer sur *Payer maintenant* pour finaliser.`;
+        } else {
         // Récupère vendeur (phone + web session)
         const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
         // Récupère 1ère photo de l'article pour la notification
@@ -194,6 +219,23 @@ serve(async (req) => {
           meta: { source: "chat" },
         }).select().single();
         returnedArticleId = pick.id;
+        const amount = Number(pick.price || 0);
+        const commission = Math.round(amount * 0.05);
+        const { data: tx } = await sb.from("waouh_transactions").insert({
+          article_id: pick.id,
+          seller_id: pick.seller_id,
+          buyer_id: user!.id,
+          amount,
+          commission,
+          payment_method: "mobile_money",
+          negotiated_price: amount,
+          status: "payment_pending",
+          escrow_status: "pending",
+        }).select().single();
+        returnedTransactionId = tx?.id ?? null;
+        if (neg?.id && returnedTransactionId) {
+          await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
+        }
         // Notifie le vendeur (WhatsApp + Web)
         if (seller?.phone_number || seller?.web_session_id) {
           await sb.rpc("waouh_enqueue_outbound_v2", {
@@ -206,7 +248,9 @@ serve(async (req) => {
             p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
-        reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n\nLe vendeur va être contacté. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, écrivez « Je paye ».`;
+        replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
+        reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n${firstPhoto ? "📸 Photo transmise avec la demande\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, utilisez la carte de paiement ci-dessous.`;
+        }
       }
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
       const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
@@ -224,24 +268,33 @@ serve(async (req) => {
         await sb.from("waouh_negotiations").update({
           state: "countered", last_offer_price: amount, last_actor: "buyer",
         }).eq("id", neg.id);
+        if (neg.transaction_id) {
+          await sb.from("waouh_transactions").update({
+            amount,
+            negotiated_price: amount,
+            commission: Math.round(amount * 0.05),
+            status: "payment_pending",
+          }).eq("id", neg.transaction_id);
+        }
+        returnedTransactionId = neg.transaction_id ?? null;
         const { data: seller } = await sb.from("waouh_users").select("phone_number,id,web_session_id").eq("id", neg.seller_user_id).maybeSingle();
         if (seller?.phone_number || seller?.web_session_id) {
           await sb.rpc("waouh_enqueue_outbound_v2", {
             p_to_phone: seller.phone_number,
             p_to_user_id: seller.id,
             p_template: "negotiation_open",
-            p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount },
+        p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount },
             p_web_session_id: seller.web_session_id,
             p_image_url: null,
             p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
-        reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse.`;
+        reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse. Si le vendeur accepte, vous pourrez payer directement avec la carte ci-dessous.`;
       } else {
         reply = "💬 Indiquez votre prix : « Je propose 250 000 FCFA »";
       }
     } else if (intent.intent === "PAY") {
-      // Trouve la dernière négociation acceptée ou la plus récente proposée
+      // Trouve la transaction/négociation courante et renvoie la carte de paiement web
       const { data: neg } = await sb.from("waouh_negotiations")
         .select("*")
         .eq("buyer_user_id", user!.id)
@@ -252,29 +305,27 @@ serve(async (req) => {
       if (!neg) {
         reply = "🤔 Aucune transaction en cours. Cherchez un produit et confirmez votre intérêt avant de payer.";
       } else {
-        // Marque accepté + appelle qosic-payment
         await sb.from("waouh_negotiations").update({ state: "accepted" }).eq("id", neg.id);
-        try {
-          const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/qosic-payment`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: neg.last_offer_price, currency: "XOF",
-              article_id: neg.article_id, negotiation_id: neg.id,
-              buyer_user_id: user!.id, seller_user_id: neg.seller_user_id,
-              phone: user.phone_number,
-            }),
-          });
-          const payData = await payRes.json().catch(() => ({}));
-          returnedTransactionId = payData?.transaction_id ?? null;
-          if (returnedTransactionId) {
-            await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
-          }
-          reply = `💳 *Paiement Mobile Money initié* — ${fmt(neg.last_offer_price)}\n\nValidez la notification MTN/Moov sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception du produit.`;
-        } catch (e) {
-          console.error("payment init failed", e);
-          reply = "⚠️ Erreur d'initiation du paiement. Réessayez dans quelques instants.";
+        let txId = neg.transaction_id;
+        if (!txId) {
+          const amount = Number(neg.last_offer_price || 0);
+          const { data: tx } = await sb.from("waouh_transactions").insert({
+            article_id: neg.article_id,
+            seller_id: neg.seller_user_id,
+            buyer_id: user!.id,
+            amount,
+            commission: Math.round(amount * 0.05),
+            payment_method: "mobile_money",
+            negotiated_price: amount,
+            status: "payment_pending",
+            escrow_status: "pending",
+          }).select().single();
+          txId = tx?.id ?? null;
+          if (txId) await sb.from("waouh_negotiations").update({ transaction_id: txId }).eq("id", neg.id);
         }
+        returnedArticleId = neg.article_id;
+        returnedTransactionId = txId;
+        reply = `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
       }
     } else if (intent.intent === "HELP") {
       reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "intéressé N°X" pour contacter un vendeur\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;
@@ -287,7 +338,7 @@ serve(async (req) => {
       state: intent.intent?.toLowerCase() ?? "idle",
       last_message: text, last_intent: intent.intent,
       channel,
-      context: nextContext,
+      context: { ...nextContext, current_article_id: returnedArticleId ?? nextContext?.current_article_id ?? conv?.current_article_id ?? null, current_transaction_id: returnedTransactionId ?? nextContext?.current_transaction_id ?? conv?.current_transaction_id ?? null },
       current_article_id: returnedArticleId ?? conv?.current_article_id ?? null,
       current_transaction_id: returnedTransactionId ?? conv?.current_transaction_id ?? null,
     }, { onConflict: "phone_number" } as any);
@@ -299,7 +350,7 @@ serve(async (req) => {
       body: JSON.stringify({ limit: 20 }),
     }).catch(() => {});
 
-    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, article_id: returnedArticleId, transaction_id: returnedTransactionId }), {
+    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, article_id: returnedArticleId, transaction_id: returnedTransactionId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
