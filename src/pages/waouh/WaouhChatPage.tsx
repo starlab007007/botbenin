@@ -12,6 +12,16 @@ import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 
 const SESSION_KEY = "waouh_web_session_id";
 
+function getSessionId() {
+  if (typeof window === "undefined") return null;
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID?.() ?? `web_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
+
 const QUICK_ACTIONS = [
   { icon: ShoppingBag, title: "Vendre", desc: "Publiez un article en 30s", gradient: "from-emerald-500 to-teal-500" },
   { icon: Search, title: "Acheter", desc: "Trouvez près de vous", gradient: "from-cyan-500 to-blue-500" },
@@ -59,7 +69,7 @@ export default function WaouhChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const sessionId = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
+  const sessionId = getSessionId();
   const { permission, requestPermission } = useWaouhMatchNotifications(sessionId);
 
   useEffect(() => {
