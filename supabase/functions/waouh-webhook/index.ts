@@ -182,8 +182,11 @@ serve(async (req) => {
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
-        // Récupère vendeur (phone)
-        const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name").eq("id", pick.seller_id).maybeSingle();
+        // Récupère vendeur (phone + web session)
+        const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
+        // Récupère 1ère photo de l'article pour la notification
+        const { data: artPhoto } = await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle();
+        const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : null;
         // Crée la négociation
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
@@ -191,13 +194,16 @@ serve(async (req) => {
           meta: { source: "chat" },
         }).select().single();
         returnedArticleId = pick.id;
-        // Notifie le vendeur (WhatsApp si numéro)
-        if (seller?.phone_number) {
-          await sb.rpc("waouh_enqueue_outbound", {
+        // Notifie le vendeur (WhatsApp + Web)
+        if (seller?.phone_number || seller?.web_session_id) {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
             p_to_phone: seller.phone_number,
             p_to_user_id: seller.id,
             p_template: "match_seller",
-            p_payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id },
+            p_payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto },
+            p_web_session_id: seller.web_session_id,
+            p_image_url: firstPhoto,
+            p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
         reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n\nLe vendeur va être contacté. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, écrivez « Je paye ».`;
