@@ -200,6 +200,13 @@ serve(async (req) => {
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
+        const existingTxId = nextContext?.current_transaction_id || conv?.current_transaction_id || null;
+        const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
+        if (alreadyOnArticle && existingTxId) {
+          returnedArticleId = pick.id;
+          returnedTransactionId = existingTxId;
+          reply = `✅ Vous êtes déjà mis en relation pour *${pick.title}*.\n\nVous pouvez écrire « Je propose 250 000 FCFA » pour négocier ou cliquer sur *Payer maintenant* pour finaliser.`;
+        } else {
         // Récupère vendeur (phone + web session)
         const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
         // Récupère 1ère photo de l'article pour la notification
@@ -212,6 +219,20 @@ serve(async (req) => {
           meta: { source: "chat" },
         }).select().single();
         returnedArticleId = pick.id;
+        const amount = Number(pick.price || 0);
+        const commission = Math.round(amount * 0.05);
+        const { data: tx } = await sb.from("waouh_transactions").insert({
+          article_id: pick.id,
+          seller_id: pick.seller_id,
+          buyer_id: user!.id,
+          amount,
+          commission,
+          payment_method: "mobile_money",
+          negotiated_price: amount,
+          status: "payment_pending",
+          escrow_status: "pending",
+        }).select().single();
+        returnedTransactionId = tx?.id ?? null;
         // Notifie le vendeur (WhatsApp + Web)
         if (seller?.phone_number || seller?.web_session_id) {
           await sb.rpc("waouh_enqueue_outbound_v2", {
@@ -224,7 +245,9 @@ serve(async (req) => {
             p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
-        reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n\nLe vendeur va être contacté. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, écrivez « Je paye ».`;
+        replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
+        reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n${firstPhoto ? "📸 Photo transmise avec la demande\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, utilisez la carte de paiement ci-dessous.`;
+        }
       }
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
       const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
