@@ -41,13 +41,25 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const action = body.action as "init" | "status" | "release";
 
-    // Try authenticated user (optional for init via web-session – but required for paying)
+    // Try authenticated user (optional in demo mode – falls back to x-waouh-session)
     const authHeader = req.headers.get("Authorization");
+    const sessionHeader = req.headers.get("x-waouh-session");
     let userId: string | null = null;
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.replace("Bearer ", "");
       const { data } = await sb.auth.getUser(token);
       userId = data?.user?.id ?? null;
+    }
+
+    // Resolve waouh_users.id from auth user OR web session
+    let waouhBuyerId: string | null = null;
+    if (userId) {
+      const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).maybeSingle();
+      waouhBuyerId = wu?.id ?? null;
+    }
+    if (!waouhBuyerId && sessionHeader) {
+      const { data: wu } = await sb.from("waouh_users").select("id").eq("web_session_id", sessionHeader).maybeSingle();
+      waouhBuyerId = wu?.id ?? null;
     }
 
     // ---------------- INIT ----------------
@@ -60,14 +72,16 @@ Deno.serve(async (req) => {
       if (PAYMENT_MODE === "live" && !CLIENT_IDS[op]) {
         return json({ error: "Opérateur non configuré" }, 400);
       }
-      if (!userId) return json({ error: "Authentification requise" }, 401);
+      // In LIVE mode auth is mandatory; in DEMO mode we accept web session for testing
+      if (PAYMENT_MODE === "live" && !userId) return json({ error: "Authentification requise" }, 401);
+      if (PAYMENT_MODE === "demo" && !userId && !waouhBuyerId) {
+        return json({ error: "Session introuvable. Rechargez la page." }, 401);
+      }
 
       const { data: tx, error: txErr } = await sb.from("waouh_transactions").select("*").eq("id", transaction_id).single();
       if (txErr || !tx) return json({ error: "Transaction introuvable" }, 404);
-      const { data: waouhBuyer } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).maybeSingle();
-      const allowedBuyerId = waouhBuyer?.id ?? userId;
-      if (tx.buyer_id && tx.buyer_id !== allowedBuyerId) {
-        // Allow link if buyer_id is null
+      const allowedBuyerId = waouhBuyerId ?? userId;
+      if (tx.buyer_id && allowedBuyerId && tx.buyer_id !== allowedBuyerId && PAYMENT_MODE === "live") {
         return json({ error: "Vous n'êtes pas l'acheteur de cette transaction" }, 403);
       }
       if (["paid", "released", "completed"].includes(tx.status)) {

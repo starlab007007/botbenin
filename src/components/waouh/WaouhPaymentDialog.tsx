@@ -39,15 +39,23 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
     cancelRef.current = false;
     setStep("polling");
     setErrMsg("");
+    const sessionId = (typeof window !== "undefined" && localStorage.getItem("waouh_web_session_id")) || "";
+    const headers = sessionId ? { "x-waouh-session": sessionId } : undefined;
     const { data, error } = await supabase.functions.invoke("waouh-payment", {
       body: { action: "init", transaction_id: transactionId, msisdn: clean, operator },
+      headers,
     });
-    if (error || !data?.success) {
-      setErrMsg(data?.error || error?.message || "Échec de l'initialisation. Vérifiez votre connexion.");
+    let errBody: any = null;
+    if (error && (error as any).context?.json) {
+      try { errBody = await (error as any).context.json(); } catch { /* ignore */ }
+    }
+    if (error || (data && data.success === false)) {
+      setErrMsg(errBody?.error || data?.error || error?.message || "Échec de l'initialisation. Vérifiez votre connexion.");
       setStep("failed");
       return;
     }
-    toast.success("Validez sur votre téléphone Mobile Money");
+    const isDemo = !!data?.demo;
+    toast.success(isDemo ? "Mode démo : confirmation automatique en cours…" : "Validez sur votre téléphone Mobile Money");
 
     let attempts = 0;
     const poll = async () => {
@@ -55,14 +63,17 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
       attempts++;
       const { data: s } = await supabase.functions.invoke("waouh-payment", {
         body: { action: "status", transaction_id: transactionId },
+        headers,
       });
       if (cancelRef.current) return;
       if (s?.status === "success") { setStep("success"); return; }
-      if (s?.status === "failed") { setErrMsg("Paiement refusé par l'opérateur."); setStep("failed"); return; }
-      if (attempts < 18) setTimeout(poll, 6000);
-      else { setErrMsg("Délai dépassé. Vérifiez votre solde puis réessayez."); setStep("failed"); }
+      if (s?.status === "failed") { setErrMsg("Paiement refusé."); setStep("failed"); return; }
+      const delay = isDemo ? 1500 : 6000;
+      const max = isDemo ? 12 : 18;
+      if (attempts < max) setTimeout(poll, delay);
+      else { setErrMsg("Délai dépassé."); setStep("failed"); }
     };
-    setTimeout(poll, 5000);
+    setTimeout(poll, isDemo ? 1500 : 5000);
   };
 
   const cancel = () => {
