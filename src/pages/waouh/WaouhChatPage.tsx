@@ -59,10 +59,25 @@ export default function WaouhChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const sessionId = typeof window !== "undefined" ? localStorage.getItem(SESSION_KEY) : null;
+  const { permission, requestPermission } = useWaouhMatchNotifications(sessionId);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
   }, []);
+
+  const NotifButton = (
+    <Button
+      size="sm"
+      variant={permission === "granted" ? "ghost" : "outline"}
+      onClick={requestPermission}
+      className="gap-1.5"
+      title={permission === "granted" ? "Notifications activées" : "Activer les notifications de matching"}
+    >
+      {permission === "granted" ? <Bell className="w-4 h-4 text-emerald-600" /> : <BellOff className="w-4 h-4" />}
+      <span className="hidden sm:inline text-xs">{permission === "granted" ? "Notif. ON" : "Activer notif."}</span>
+    </Button>
+  );
 
   // === MOBILE: full-screen, no scroll, drawer for help ===
   if (isMobile) {
