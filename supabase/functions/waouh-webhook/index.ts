@@ -224,13 +224,16 @@ serve(async (req) => {
         await sb.from("waouh_negotiations").update({
           state: "countered", last_offer_price: amount, last_actor: "buyer",
         }).eq("id", neg.id);
-        const { data: seller } = await sb.from("waouh_users").select("phone_number,id").eq("id", neg.seller_user_id).maybeSingle();
-        if (seller?.phone_number) {
-          await sb.rpc("waouh_enqueue_outbound", {
+        const { data: seller } = await sb.from("waouh_users").select("phone_number,id,web_session_id").eq("id", neg.seller_user_id).maybeSingle();
+        if (seller?.phone_number || seller?.web_session_id) {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
             p_to_phone: seller.phone_number,
             p_to_user_id: seller.id,
             p_template: "negotiation_open",
             p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount },
+            p_web_session_id: seller.web_session_id,
+            p_image_url: null,
+            p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
         reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse.`;
