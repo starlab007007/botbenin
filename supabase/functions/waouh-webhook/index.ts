@@ -83,13 +83,35 @@ serve(async (req) => {
       user = created;
     }
 
-    // Detect intent
-    const intent = await ai(
-      "Tu es WAOUH, assistant commerce IA. Détecte l'intention parmi: SELL, BUY, NEGOTIATE, PAY, CONFIRM, RATE, HELP, UNKNOWN. Retourne JSON {intent}.",
-      text
-    );
+    // Pré-détection règles déterministes (avant AI)
+    const lower = (text || "").toLowerCase();
+    const numMatch = lower.match(/n[°o]?\s*(\d+)/i);
+    const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
+    const payKw = /(payer|paiement|payement|mtn|moov|momo|paie|j'ach[èe]te maintenant)/i.test(lower);
+    const offerMatch = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{4,})\s*(?:f|fcfa|cfa)?/);
+
+    let intent: any = {};
+    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    else if (payKw) intent = { intent: "PAY" };
+    else {
+      intent = await ai(
+        "Tu es WAOUH, assistant commerce IA. Détecte l'intention parmi: SELL, BUY, NEGOTIATE, PAY, CONFIRM, RATE, HELP, UNKNOWN. Retourne JSON {intent}.",
+        text
+      );
+    }
+
+    // Charge la conversation existante (pour récupérer le contexte des matches)
+    const { data: conv } = await sb.from("waouh_conversations")
+      .select("*")
+      .eq("phone_number", phone || `web:${webSessionId}`)
+      .maybeSingle();
 
     let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
+    let returnedArticleId: string | null = null;
+    let returnedTransactionId: string | null = null;
+    let nextContext: any = conv?.context ?? {};
+
+    const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 
     if (intent.intent === "SELL") {
       const product = await ai(
@@ -111,55 +133,154 @@ serve(async (req) => {
           location: `SRID=4326;POINT(${lng} ${lat})` as any,
           market_price_min: product.market_price_min,
           market_price_max: product.market_price_max,
+          origin: channel === "whatsapp" ? "whatsapp" : "chat",
         }).select().single();
-
-        const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
+        returnedArticleId = art?.id ?? null;
         reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}\n\n📊 Prix marché estimé: ${fmt(product.market_price_min || product.price * 0.8)} – ${fmt(product.market_price_max || product.price * 1.2)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
       }
     } else if (intent.intent === "BUY") {
       const criteria = await ai(
-        "Extrais les critères d'achat en JSON: {keywords (array), category, price_max, condition_min, radius_km}.",
+        "Extrais les critères d'achat en JSON: {keywords (array de mots-clés produit, ex: ['lenovo','ordinateur']), category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), price_max (number FCFA), condition_min, radius_km}.",
         text
       );
-      const { data: matches } = await sb.from("waouh_articles")
-        .select("id,title,price,city,brand,condition")
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .limit(5);
+      // Recherche filtrée
+      let q = sb.from("waouh_articles")
+        .select("id,title,price,city,brand,condition,category,seller_id")
+        .eq("status", "active");
+      if (criteria.category) q = q.eq("category", criteria.category);
+      if (criteria.price_max) q = q.lte("price", criteria.price_max);
+      const kws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
+      if (kws.length > 0) {
+        const orFilter = kws.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+        q = q.or(orFilter);
+      }
+      const { data: matches } = await q.order("created_at", { ascending: false }).limit(5);
 
       await sb.from("waouh_buyer_profiles").insert({
         user_id: user!.id, query_text: text,
-        category: criteria.category, keywords: criteria.keywords ?? [],
+        category: criteria.category, keywords: kws,
         price_max: criteria.price_max, radius_km: criteria.radius_km ?? 30,
         location: `SRID=4326;POINT(${lng} ${lat})` as any,
+        origin: channel === "whatsapp" ? "whatsapp" : "chat",
       });
 
-      const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
       if (!matches || matches.length === 0) {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
+        nextContext = { ...nextContext, last_matches: [] };
       } else {
         const list = matches.map((m: any, i: number) => `${i + 1}. *${m.title}* — ${fmt(m.price)} (${m.city ?? "?"}, ${m.condition})`).join("\n");
-        reply = `🎯 *${matches.length} annonces trouvées :*\n\n${list}\n\n💡 Répondez par "intéressé N°X" pour démarrer.`;
+        reply = `🎯 *${matches.length} annonces trouvées :*\n\n${list}\n\n💡 Répondez par "intéressé N°X" pour contacter le vendeur, ou proposez votre prix.`;
+        nextContext = { ...nextContext, last_matches: matches.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id })) };
       }
-    } else if (intent.intent === "NEGOTIATE") {
-      const offer = await ai("Extrais le montant en FCFA en JSON {amount}.", text);
-      reply = `💬 Offre reçue : ${offer.amount} FCFA. Je transmets au vendeur. Réponse dans quelques instants...`;
+    } else if (intent.intent === "CONFIRM" && intent.article_index) {
+      const idx = intent.article_index - 1;
+      const last = Array.isArray(nextContext?.last_matches) ? nextContext.last_matches : [];
+      const pick = last[idx];
+      if (!pick) {
+        reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
+      } else {
+        // Récupère vendeur (phone)
+        const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name").eq("id", pick.seller_id).maybeSingle();
+        // Crée la négociation
+        const { data: neg } = await sb.from("waouh_negotiations").insert({
+          article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
+          state: "proposed", last_offer_price: pick.price, last_actor: "buyer",
+          meta: { source: "chat" },
+        }).select().single();
+        returnedArticleId = pick.id;
+        // Notifie le vendeur (WhatsApp si numéro)
+        if (seller?.phone_number) {
+          await sb.rpc("waouh_enqueue_outbound", {
+            p_to_phone: seller.phone_number,
+            p_to_user_id: seller.id,
+            p_template: "match_seller",
+            p_payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id },
+          });
+        }
+        reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n\nLe vendeur va être contacté. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, écrivez « Je paye ».`;
+      }
+    } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
+      const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
+      // Trouver la négociation ouverte
+      const { data: neg } = await sb.from("waouh_negotiations")
+        .select("*")
+        .eq("buyer_user_id", user!.id)
+        .in("state", ["proposed", "countered"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!neg) {
+        reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites « intéressé N°X ».";
+      } else if (amount) {
+        await sb.from("waouh_negotiations").update({
+          state: "countered", last_offer_price: amount, last_actor: "buyer",
+        }).eq("id", neg.id);
+        const { data: seller } = await sb.from("waouh_users").select("phone_number,id").eq("id", neg.seller_user_id).maybeSingle();
+        if (seller?.phone_number) {
+          await sb.rpc("waouh_enqueue_outbound", {
+            p_to_phone: seller.phone_number,
+            p_to_user_id: seller.id,
+            p_template: "negotiation_open",
+            p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount },
+          });
+        }
+        reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse.`;
+      } else {
+        reply = "💬 Indiquez votre prix : « Je propose 250 000 FCFA »";
+      }
     } else if (intent.intent === "PAY") {
-      reply = `💳 Paiement Mobile Money initié. Vous allez recevoir une notification MTN/Moov pour valider. Les fonds seront bloqués en escrow et libérés au vendeur après confirmation de réception.`;
+      // Trouve la dernière négociation acceptée ou la plus récente proposée
+      const { data: neg } = await sb.from("waouh_negotiations")
+        .select("*")
+        .eq("buyer_user_id", user!.id)
+        .in("state", ["proposed", "countered", "accepted"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!neg) {
+        reply = "🤔 Aucune transaction en cours. Cherchez un produit et confirmez votre intérêt avant de payer.";
+      } else {
+        // Marque accepté + appelle qosic-payment
+        await sb.from("waouh_negotiations").update({ state: "accepted" }).eq("id", neg.id);
+        try {
+          const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/qosic-payment`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: neg.last_offer_price, currency: "XOF",
+              article_id: neg.article_id, negotiation_id: neg.id,
+              buyer_user_id: user!.id, seller_user_id: neg.seller_user_id,
+              phone: user.phone_number,
+            }),
+          });
+          const payData = await payRes.json().catch(() => ({}));
+          returnedTransactionId = payData?.transaction_id ?? null;
+          if (returnedTransactionId) {
+            await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
+          }
+          reply = `💳 *Paiement Mobile Money initié* — ${fmt(neg.last_offer_price)}\n\nValidez la notification MTN/Moov sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception du produit.`;
+        } catch (e) {
+          console.error("payment init failed", e);
+          reply = "⚠️ Erreur d'initiation du paiement. Réessayez dans quelques instants.";
+        }
+      }
     } else if (intent.intent === "HELP") {
-      reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;
+      reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "intéressé N°X" pour contacter un vendeur\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;
     }
 
-    // Save conversation
+    // Save conversation (avec contexte)
     await sb.from("waouh_conversations").upsert({
       user_id: user!.id,
       phone_number: phone || `web:${webSessionId}`,
       state: intent.intent?.toLowerCase() ?? "idle",
       last_message: text, last_intent: intent.intent,
       channel,
+      context: nextContext,
+      current_article_id: returnedArticleId ?? conv?.current_article_id ?? null,
+      current_transaction_id: returnedTransactionId ?? conv?.current_transaction_id ?? null,
     }, { onConflict: "phone_number" } as any);
 
-    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply }), {
+    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, article_id: returnedArticleId, transaction_id: returnedTransactionId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
