@@ -100,7 +100,12 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
           <div className="text-center py-8 space-y-3">
             <Loader2 className="w-10 h-10 animate-spin mx-auto text-cyan-500" />
             <p className="font-medium">En attente de validation…</p>
-            <p className="text-sm text-muted-foreground">Vous allez recevoir une notification {operator.toUpperCase()} sur votre téléphone. Saisissez votre code PIN pour confirmer.</p>
+            <p className="text-sm text-muted-foreground">
+              Vous allez recevoir une notification {operator.toUpperCase()} sur votre téléphone. Saisissez votre code PIN pour confirmer.
+            </p>
+            <p className="text-[11px] text-amber-600 bg-amber-50 rounded-md py-1 px-2 inline-block">
+              ⚙️ Mode démo activé — confirmation automatique en quelques secondes, aucun débit réel.
+            </p>
           </div>
         )}
 

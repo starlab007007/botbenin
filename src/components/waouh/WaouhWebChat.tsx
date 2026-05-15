@@ -224,10 +224,25 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
   };
 
   const [paymentTx, setPaymentTx] = useState<{ id: string; amount: number } | null>(null);
+  const [pendingPaymentTx, setPendingPaymentTx] = useState<{ id: string; amount: number } | null>(null);
   const onPay = (tx: any) => {
-    if (!user) setAuthOpen(true);
-    else setPaymentTx({ id: tx.id, amount: tx.amount });
+    if (!user) {
+      setPendingPaymentTx({ id: tx.id, amount: tx.amount });
+      toast({ title: "Authentification requise", description: "Connectez-vous pour finaliser le paiement en toute sécurité." });
+      setAuthOpen(true);
+    } else {
+      setPaymentTx({ id: tx.id, amount: tx.amount });
+    }
   };
+
+  // Resume payment after successful login
+  useEffect(() => {
+    if (user && pendingPaymentTx) {
+      setPaymentTx(pendingPaymentTx);
+      setPendingPaymentTx(null);
+      setAuthOpen(false);
+    }
+  }, [user, pendingPaymentTx]);
 
   const Panel = (
     <Card

@@ -6,8 +6,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const QOSIC_BASE = (Deno.env.get("QOSIC_BASE_URL") || "https://staging.qosic.net:9010").replace(/^http:\/\//, "https://");
-const QOSIC_USER = Deno.env.get("QOSIC_USERNAME")!;
-const QOSIC_PASS = Deno.env.get("QOSIC_PASSWORD")!;
+const QOSIC_USER = Deno.env.get("QOSIC_USERNAME") || "";
+const QOSIC_PASS = Deno.env.get("QOSIC_PASSWORD") || "";
+const PAYMENT_MODE = (Deno.env.get("WAOUH_PAYMENT_MODE") || "demo").toLowerCase(); // "demo" | "live"
+const DEMO_DELAY_MS = Number(Deno.env.get("WAOUH_DEMO_DELAY_MS") || "3000");
 const CLIENT_IDS: Record<string, string | undefined> = {
   mtn: Deno.env.get("QOSIC_MTN_CLIENT_ID"),
   moov: Deno.env.get("QOSIC_MOOV_CLIENT_ID"),
@@ -52,8 +54,11 @@ Deno.serve(async (req) => {
     if (action === "init") {
       const { transaction_id, msisdn, operator } = body as { transaction_id: string; msisdn: string; operator: string };
       const op = (operator || "mtn").toLowerCase();
-      if (!transaction_id || !msisdn || !CLIENT_IDS[op]) {
+      if (!transaction_id || !msisdn) {
         return json({ error: "Paramètres invalides" }, 400);
+      }
+      if (PAYMENT_MODE === "live" && !CLIENT_IDS[op]) {
+        return json({ error: "Opérateur non configuré" }, 400);
       }
       if (!userId) return json({ error: "Authentification requise" }, 401);
 
@@ -94,6 +99,40 @@ Deno.serve(async (req) => {
         await sb.from("waouh_transactions").update({ buyer_id: allowedBuyerId }).eq("id", transaction_id);
       }
 
+      // ---- DEMO MODE: skip Qosic, simulate success after a short delay ----
+      if (PAYMENT_MODE === "demo") {
+        await sb.from("waouh_payments").update({
+          status: "pending",
+          qosic_response: { demo: true, simulated: true },
+        }).eq("id", pay.id);
+        await sb.from("waouh_transactions").update({ status: "payment_pending" }).eq("id", transaction_id);
+        // Schedule (best-effort) auto-confirmation after delay
+        const finalize = async () => {
+          await sb.from("waouh_payments").update({ status: "success", qosic_response: { demo: true, simulated: true, finalized_at: new Date().toISOString() } }).eq("id", pay.id);
+          await sb.from("waouh_transactions").update({ status: "paid", escrow_status: "held" }).eq("id", transaction_id);
+          // Push system messages to both buyer and seller
+          const { data: txAfter } = await sb.from("waouh_transactions").select("buyer_id, seller_id, article_id, amount").eq("id", transaction_id).single();
+          if (txAfter) {
+            await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA. Le vendeur va vous contacter pour la livraison.`);
+            await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison et contactez-le. Cliquez sur « J'ai bien reçu » côté acheteur pour libérer les fonds.`);
+          }
+        };
+        // Fire and forget
+        // @ts-ignore EdgeRuntime is available in Supabase functions
+        const wait = new Promise<void>((resolve) => setTimeout(resolve, DEMO_DELAY_MS));
+        try {
+          // @ts-ignore
+          if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
+            // @ts-ignore
+            EdgeRuntime.waitUntil(wait.then(finalize));
+          } else {
+            wait.then(finalize);
+          }
+        } catch { wait.then(finalize); }
+        return json({ success: true, payment_id: pay.id, transref, demo: true, message: "Mode démo : paiement simulé. Confirmation automatique dans quelques secondes." });
+      }
+
+      // ---- LIVE MODE: call Qosic ----
       const payload = {
         msisdn: cleanPhone,
         amount: String(tx.amount),
@@ -105,7 +144,7 @@ Deno.serve(async (req) => {
 
       const r = await fetch(reqEndpoint(op), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth() },
+        headers: { "Content-Type": "application/json", Authorization: "Basic " + btoa(`${QOSIC_USER}:${QOSIC_PASS}`) },
         body: JSON.stringify(payload),
       });
       const txt = await r.text();
@@ -141,15 +180,22 @@ Deno.serve(async (req) => {
         return json({ status: pay.status, payment: pay });
       }
 
-      // Poll Qosic
-      const r = await fetch(`${QOSIC_BASE}/QosicBridge/user/gettransactionstatus`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth() },
-        body: JSON.stringify({ transref: pay.qosic_transref, clientid: CLIENT_IDS[pay.operator] }),
-      }).catch(() => null);
-
+      // Demo: status follows the payments row directly (no Qosic poll)
       let raw: any = {};
-      if (r) { try { raw = await r.json(); } catch { raw = {}; } }
+      if (PAYMENT_MODE === "live") {
+        const r = await fetch(`${QOSIC_BASE}/QosicBridge/user/gettransactionstatus`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Basic " + btoa(`${QOSIC_USER}:${QOSIC_PASS}`) },
+          body: JSON.stringify({ transref: pay.qosic_transref, clientid: CLIENT_IDS[pay.operator] }),
+        }).catch(() => null);
+        if (r) { try { raw = await r.json(); } catch { raw = {}; } }
+      } else {
+        // Re-read payments row (it may have been updated by the demo finalize)
+        const { data: fresh } = await sb.from("waouh_payments").select("status").eq("id", pay.id).maybeSingle();
+        if (fresh?.status === "success") raw = { responsecode: "00" };
+        else if (fresh?.status === "failed") raw = { responsecode: "99" };
+        else raw = { responsecode: "01" };
+      }
 
       let newStatus: string = pay.status;
       if (raw.responsecode === "00") newStatus = "success";
@@ -247,12 +293,80 @@ Deno.serve(async (req) => {
       return json({ success: ok, message: ok ? "Fonds libérés au vendeur" : "Échec libération", raw });
     }
 
+    // ---------------- CONFIRM RECEIVED (buyer) → release escrow ----------------
+    if (action === "confirm_received") {
+      const { transaction_id } = body;
+      if (!transaction_id) return json({ error: "transaction_id requis" }, 400);
+      const { data: tx } = await sb.from("waouh_transactions").select("*").eq("id", transaction_id).maybeSingle();
+      if (!tx) return json({ error: "Transaction introuvable" }, 404);
+      if (tx.status !== "paid") return json({ error: "La transaction doit être au statut 'payé' pour être libérée" }, 400);
+
+      // Authorize: buyer (auth user OR matching web session)
+      let allowed = false;
+      if (userId) {
+        const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).maybeSingle();
+        if (wu?.id === tx.buyer_id) allowed = true;
+      }
+      const sessionHeader = req.headers.get("x-waouh-session");
+      if (!allowed && sessionHeader) {
+        const { data: wu } = await sb.from("waouh_users").select("id").eq("web_session_id", sessionHeader).maybeSingle();
+        if (wu?.id === tx.buyer_id) allowed = true;
+      }
+      if (!allowed) return json({ error: "Seul l'acheteur peut confirmer la réception" }, 403);
+
+      if (PAYMENT_MODE === "demo") {
+        await sb.from("waouh_transactions").update({
+          status: "released",
+          escrow_status: "released",
+          buyer_confirmed: true,
+          completed_at: new Date().toISOString(),
+        }).eq("id", transaction_id);
+        await pushSystemMessage(sb, tx.buyer_id, transaction_id, "🎉 Félicitations ! Transaction terminée. Notez le vendeur de 1 à 5 ⭐ ci-dessous.");
+        await pushSystemMessage(sb, tx.seller_id, transaction_id, "🎉 L'acheteur a confirmé la réception. Les fonds sont libérés sur votre compte (mode démo).");
+        return json({ success: true, demo: true, message: "Réception confirmée — fonds libérés (démo)." });
+      }
+
+      // LIVE: trigger release flow (reuse existing 'release' code path would require Qosic deposit)
+      await sb.from("waouh_transactions").update({ buyer_confirmed: true }).eq("id", transaction_id);
+      return json({ success: true, message: "Confirmation enregistrée. Libération en cours." });
+    }
+
     return json({ error: "Action inconnue" }, 400);
   } catch (e: any) {
     console.error("[waouh-payment]", e);
     return json({ error: e.message || String(e) }, 500);
   }
 });
+
+async function pushSystemMessage(sb: any, waouhUserId: string | null, transaction_id: string, text: string) {
+  if (!waouhUserId) return;
+  const { data: wu } = await sb.from("waouh_users").select("id, web_session_id, phone_number").eq("id", waouhUserId).maybeSingle();
+  if (!wu) return;
+  const { data: conv } = await sb.from("waouh_conversations").select("id").eq("user_id", wu.id).limit(1).maybeSingle();
+  const { data: msg } = await sb.from("waouh_messages").insert({
+    conversation_id: conv?.id ?? null,
+    user_id: wu.id,
+    web_session_id: wu.web_session_id,
+    channel: wu.web_session_id ? "web" : "system",
+    direction: "out",
+    text,
+    meta: { transaction_id, event: "post_payment_flow" },
+  }).select("id").maybeSingle();
+  try {
+    await sb.rpc("waouh_enqueue_outbound_v2", {
+      p_to_phone: wu.phone_number,
+      p_to_user_id: wu.id,
+      p_template: "transaction_update",
+      p_payload: { text, transaction_id },
+      p_web_session_id: wu.web_session_id,
+      p_image_url: null,
+      p_channel: wu.phone_number ? "whatsapp" : "web",
+      p_message_id: msg?.id ?? null,
+      p_transaction_id: transaction_id,
+    });
+  } catch (e) { console.warn("[waouh-payment] enqueue", e); }
+}
+
 
 function json(b: any, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
