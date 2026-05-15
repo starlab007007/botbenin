@@ -292,6 +292,13 @@ serve(async (req) => {
       current_transaction_id: returnedTransactionId ?? conv?.current_transaction_id ?? null,
     }, { onConflict: "phone_number" } as any);
 
+    // Fire-and-forget: déclenche l'envoi immédiat des notifications en attente (WhatsApp)
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-outbound-dispatch`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: 20 }),
+    }).catch(() => {});
+
     return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, article_id: returnedArticleId, transaction_id: returnedTransactionId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
