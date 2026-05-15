@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, X, Loader2, Paperclip, Image as ImageIcon } from "lucide-react";
+import { MessageCircle, Send, X, Loader2, Camera, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
@@ -11,6 +11,8 @@ import { WaouhCityBadge } from "./WaouhCityBadge";
 import { WaouhTransactionCard } from "./WaouhTransactionCard";
 import { WaouhAuthGate } from "./WaouhAuthGate";
 import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
+import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
+import { WaouhSellWizard } from "./WaouhSellWizard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,6 +37,12 @@ function getSessionId() {
   return id;
 }
 
+const QUICK_PROMPTS: Record<Exclude<QuickAction, "sell">, string> = {
+  buy: "Je cherche ",
+  negotiate: "Je propose  FCFA pour ",
+  pay: "Je paye en Mobile Money MTN, mon numéro ",
+};
+
 export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }> = ({ embedded = false, fullscreen = false }) => {
   const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -43,14 +51,16 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
   const [pendingAtts, setPendingAtts] = useState<Att[]>([]);
   const [uploading, setUploading] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [sellOpen, setSellOpen] = useState(false);
   const sessionId = useRef(getSessionId()).current;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Load history + realtime
   useEffect(() => {
     if (!open) return;
     let active = true;
@@ -84,16 +94,15 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
   }, [messages]);
 
   const MAX_PHOTOS = 2;
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+  const handleFiles = async (files: FileList | null) => {
+    const list = Array.from(files ?? []);
+    if (list.length === 0) return;
     const remaining = MAX_PHOTOS - pendingAtts.length;
     if (remaining <= 0) {
       toast({ title: "Limite atteinte", description: `Maximum ${MAX_PHOTOS} photos par annonce.`, variant: "destructive" });
-      if (fileRef.current) fileRef.current.value = "";
       return;
     }
-    const toUpload = files.slice(0, remaining);
+    const toUpload = list.slice(0, remaining);
     setUploading(true);
     try {
       for (const file of toUpload) {
@@ -104,36 +113,23 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
         const { data: pub } = supabase.storage.from("waouh-uploads").getPublicUrl(path);
         setPendingAtts((prev) => [...prev, { url: pub.publicUrl, type: file.type }]);
       }
-      if (files.length > remaining) {
-        toast({ title: "Photos limitées", description: `Seules ${remaining} photo(s) ajoutées (max ${MAX_PHOTOS}).` });
-      }
     } catch (err: any) {
       toast({ title: "Upload échoué", description: err.message, variant: "destructive" });
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
+      if (galleryRef.current) galleryRef.current.value = "";
     }
   };
 
-  const send = async () => {
-    const text = input.trim();
-    if ((!text && pendingAtts.length === 0) || sending) return;
-    setInput("");
-    const atts = pendingAtts;
-    setPendingAtts([]);
+  const sendCore = async (text: string, atts: Att[]) => {
+    if (!text && atts.length === 0) return;
     setSending(true);
     const now = new Date().toISOString();
     const tempInId = `temp-in-${Date.now()}`;
-    const tempOutId = `temp-out-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
-      {
-        id: tempInId,
-        direction: "in",
-        text: text || "(image)",
-        created_at: now,
-        attachments: atts,
-      },
+      { id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts },
     ]);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-channel-in", {
@@ -149,49 +145,64 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
         },
       });
       if (error) throw error;
-
       const { data: fresh } = await supabase
         .from("waouh_messages")
         .select("id,direction,text,created_at,attachments,meta")
         .eq("web_session_id", sessionId)
         .order("created_at", { ascending: true })
         .limit(100);
-
       if (fresh && fresh.length > 0) {
         setMessages(fresh as any);
       } else if ((data as any)?.reply) {
         setMessages((prev) => [
-          ...prev.filter((m) => m.id !== tempOutId),
+          ...prev,
           {
-            id: tempOutId,
+            id: `temp-out-${Date.now()}`,
             direction: "out",
             text: (data as any).reply,
             created_at: new Date().toISOString(),
             attachments: null,
-            meta: {
-              intent: (data as any).intent ?? null,
-              transaction_id: (data as any).transaction_id ?? null,
-            },
+            meta: { intent: (data as any).intent ?? null, transaction_id: (data as any).transaction_id ?? null },
           },
         ]);
       }
     } catch (e: any) {
-      setMessages((prev) => prev.filter((m) => m.id !== tempInId && m.id !== tempOutId));
-      setInput(text);
-      setPendingAtts(atts);
+      setMessages((prev) => prev.filter((m) => m.id !== tempInId));
       toast({ title: "Envoi échoué", description: e.message, variant: "destructive" });
+      throw e;
     } finally {
       setSending(false);
     }
   };
 
+  const send = async () => {
+    const text = input.trim();
+    if ((!text && pendingAtts.length === 0) || sending) return;
+    const atts = pendingAtts;
+    setInput("");
+    setPendingAtts([]);
+    try {
+      await sendCore(text, atts);
+    } catch {
+      setInput(text);
+      setPendingAtts(atts);
+    }
+  };
+
+  const handleQuickAction = (a: QuickAction) => {
+    if (a === "sell") {
+      setSellOpen(true);
+      return;
+    }
+    const prompt = QUICK_PROMPTS[a];
+    setInput((cur) => (cur ? cur : prompt));
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
   const [paymentTx, setPaymentTx] = useState<{ id: string; amount: number } | null>(null);
   const onPay = (tx: any) => {
-    if (!user) {
-      setAuthOpen(true);
-    } else {
-      setPaymentTx({ id: tx.id, amount: tx.amount });
-    }
+    if (!user) setAuthOpen(true);
+    else setPaymentTx({ id: tx.id, amount: tx.amount });
   };
 
   const Panel = (
@@ -205,17 +216,17 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
       )}
     >
-      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="w-5 h-5" />
-          <div>
-            <div className="font-semibold leading-tight">WAOUH</div>
-            <div className="text-xs opacity-90">Achetez · Vendez · Négociez · Payez</div>
+      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <MessageCircle className="w-5 h-5 shrink-0" />
+          <div className="min-w-0">
+            <div className="font-semibold leading-tight truncate">WAOUH</div>
+            <div className="text-xs opacity-90 truncate">Achetez · Vendez · Négociez · Payez</div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
-          {!embedded && (
+          {!embedded && !fullscreen && (
             <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => setOpen(false)}>
               <X className="w-4 h-4" />
             </Button>
@@ -223,11 +234,11 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/30">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/30 min-h-0">
         {messages.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-8 px-4">
-            👋 Bonjour ! Tapez « Je vends ... » ou « Je cherche ... » pour démarrer.
-            <br />📍 Annonces proposées autour de <strong>{geo.city}</strong>.
+            👋 Bonjour ! Utilisez les boutons ci-dessous, ou tapez « Je vends … » / « Je cherche … ».
+            <br />📍 Annonces autour de <strong>{geo.city}</strong>.
           </div>
         )}
         {messages.map((m) => (
@@ -235,16 +246,16 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
             <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
-                  "max-w-[85%] rounded-2xl px-3 py-2 text-sm prose prose-sm dark:prose-invert prose-p:my-1",
+                  "max-w-[80%] rounded-2xl px-3 py-2 text-sm prose prose-sm dark:prose-invert prose-p:my-1 break-words",
                   m.direction === "in"
                     ? "bg-primary text-primary-foreground rounded-br-sm"
                     : "bg-card border rounded-bl-sm"
                 )}
               >
                 {Array.isArray(m.attachments) && m.attachments.length > 0 && (
-                  <div className="grid grid-cols-2 gap-1 mb-1 not-prose">
+                  <div className={cn("grid gap-1 mb-1 not-prose", m.attachments.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
                     {m.attachments.map((a, i) => (
-                      <img key={i} src={a.url} alt="" loading="lazy" className="rounded-md max-h-40 object-cover w-full" />
+                      <img key={i} src={a.url} alt="" loading="lazy" className="rounded-md aspect-square object-cover w-full" />
                     ))}
                   </div>
                 )}
@@ -268,7 +279,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
       </div>
 
       {pendingAtts.length > 0 && (
-        <div className="px-2 pt-2 flex gap-2 border-t bg-muted/20">
+        <div className="px-2 pt-2 flex gap-2 border-t bg-muted/20 shrink-0">
           {pendingAtts.map((a, i) => (
             <div key={i} className="relative">
               <img src={a.url} className="w-14 h-14 rounded-md object-cover border" alt="" />
@@ -282,35 +293,46 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
         </div>
       )}
 
+      <WaouhQuickActions onAction={handleQuickAction} disabled={sending} />
+
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
-        className="flex items-center gap-2 p-2 border-t bg-background"
+        className="flex items-end gap-2 p-2 border-t bg-background shrink-0"
       >
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          capture="environment"
-          className="hidden"
-          onChange={handleFile}
-        />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+        <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={() => fileRef.current?.click()}
+          type="button" size="icon" variant="ghost"
+          onClick={() => cameraRef.current?.click()}
           disabled={uploading || sending || pendingAtts.length >= MAX_PHOTOS}
-          aria-label={`Ajouter une photo (${pendingAtts.length}/${MAX_PHOTOS})`}
-          title={`${pendingAtts.length}/${MAX_PHOTOS} photos`}
+          aria-label="Prendre une photo"
+          title="Prendre une photo"
         >
-          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
         </Button>
-        <Input
+        <Button
+          type="button" size="icon" variant="ghost"
+          onClick={() => galleryRef.current?.click()}
+          disabled={uploading || sending || pendingAtts.length >= MAX_PHOTOS}
+          aria-label="Choisir depuis la galerie"
+          title={`Galerie (${pendingAtts.length}/${MAX_PHOTOS})`}
+        >
+          <ImageIcon className="w-4 h-4" />
+        </Button>
+        <Textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              send();
+            }
+          }}
           placeholder="Votre message…"
           disabled={sending}
+          rows={1}
+          className="flex-1 resize-none min-h-[40px] max-h-32 text-base sm:text-sm"
         />
         <Button type="submit" size="icon" disabled={sending || (!input.trim() && pendingAtts.length === 0)}>
           <Send className="w-4 h-4" />
@@ -326,6 +348,13 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           amount={paymentTx.amount}
         />
       )}
+      <WaouhSellWizard
+        open={sellOpen}
+        onOpenChange={setSellOpen}
+        sessionId={sessionId}
+        defaultCity={geo.city}
+        onSubmit={async (text, atts) => { await sendCore(text, atts); }}
+      />
     </Card>
   );
 
