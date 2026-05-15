@@ -59,7 +59,9 @@ Deno.serve(async (req) => {
 
       const { data: tx, error: txErr } = await sb.from("waouh_transactions").select("*").eq("id", transaction_id).single();
       if (txErr || !tx) return json({ error: "Transaction introuvable" }, 404);
-      if (tx.buyer_id && tx.buyer_id !== userId) {
+      const { data: waouhBuyer } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).maybeSingle();
+      const allowedBuyerId = waouhBuyer?.id ?? userId;
+      if (tx.buyer_id && tx.buyer_id !== allowedBuyerId) {
         // Allow link if buyer_id is null
         return json({ error: "Vous n'êtes pas l'acheteur de cette transaction" }, 403);
       }
@@ -89,7 +91,7 @@ Deno.serve(async (req) => {
 
       // Ensure buyer_id is set
       if (!tx.buyer_id) {
-        await sb.from("waouh_transactions").update({ buyer_id: userId }).eq("id", transaction_id);
+        await sb.from("waouh_transactions").update({ buyer_id: allowedBuyerId }).eq("id", transaction_id);
       }
 
       const payload = {
