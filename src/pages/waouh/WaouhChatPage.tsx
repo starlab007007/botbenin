@@ -94,11 +94,11 @@ export default function WaouhChatPage() {
       <div className="fixed inset-0 flex flex-col bg-background overflow-hidden">
         <header className="flex items-center justify-between gap-2 px-3 h-12 border-b bg-white/95 backdrop-blur shrink-0">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/")}
             className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
-            aria-label="Retour"
+            aria-label="Fermer"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
+            <X className="w-5 h-5 text-gray-700" />
           </button>
           <Link to="/" className="flex items-center gap-2 flex-1 min-w-0">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shrink-0">
