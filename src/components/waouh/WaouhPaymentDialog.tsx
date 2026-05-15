@@ -20,11 +20,13 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
   const [operator, setOperator] = useState<"mtn" | "moov">("mtn");
   const [step, setStep] = useState<"form" | "polling" | "success" | "failed">("form");
   const [errMsg, setErrMsg] = useState("");
+  const cancelRef = React.useRef(false);
 
   useEffect(() => {
     if (!open) {
       setStep("form");
       setErrMsg("");
+      cancelRef.current = false;
     }
   }, [open]);
 
@@ -34,30 +36,38 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
       toast.error("Numéro invalide. Format: 229XXXXXXXX");
       return;
     }
+    cancelRef.current = false;
     setStep("polling");
+    setErrMsg("");
     const { data, error } = await supabase.functions.invoke("waouh-payment", {
       body: { action: "init", transaction_id: transactionId, msisdn: clean, operator },
     });
     if (error || !data?.success) {
-      setErrMsg(data?.error || error?.message || "Échec");
+      setErrMsg(data?.error || error?.message || "Échec de l'initialisation. Vérifiez votre connexion.");
       setStep("failed");
       return;
     }
     toast.success("Validez sur votre téléphone Mobile Money");
 
-    // Poll status every 6s up to 18 times
     let attempts = 0;
     const poll = async () => {
+      if (cancelRef.current) return;
       attempts++;
       const { data: s } = await supabase.functions.invoke("waouh-payment", {
         body: { action: "status", transaction_id: transactionId },
       });
+      if (cancelRef.current) return;
       if (s?.status === "success") { setStep("success"); return; }
-      if (s?.status === "failed") { setErrMsg("Paiement refusé"); setStep("failed"); return; }
+      if (s?.status === "failed") { setErrMsg("Paiement refusé par l'opérateur."); setStep("failed"); return; }
       if (attempts < 18) setTimeout(poll, 6000);
-      else { setErrMsg("Délai dépassé. Vérifiez votre solde et réessayez."); setStep("failed"); }
+      else { setErrMsg("Délai dépassé. Vérifiez votre solde puis réessayez."); setStep("failed"); }
     };
     setTimeout(poll, 5000);
+  };
+
+  const cancel = () => {
+    cancelRef.current = true;
+    setStep("form");
   };
 
   return (
