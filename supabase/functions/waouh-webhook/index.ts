@@ -156,7 +156,7 @@ serve(async (req) => {
       );
       // Recherche filtrée
       let q = sb.from("waouh_articles")
-        .select("id,title,price,city,brand,condition,category,seller_id")
+        .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
       if (criteria.category) q = q.eq("category", criteria.category);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
@@ -179,9 +179,19 @@ serve(async (req) => {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
         nextContext = { ...nextContext, last_matches: [] };
       } else {
-        const list = matches.map((m: any, i: number) => `${i + 1}. *${m.title}* — ${fmt(m.price)} (${m.city ?? "?"}, ${m.condition})`).join("\n");
-        reply = `🎯 *${matches.length} annonces trouvées :*\n\n${list}\n\n💡 Répondez par "intéressé N°X" pour contacter le vendeur, ou proposez votre prix.`;
-        nextContext = { ...nextContext, last_matches: matches.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id })) };
+        const list = matches.map((m: any, i: number) => {
+          const photo = Array.isArray(m.photos) && m.photos.length > 0 ? `\n   📸 Photo disponible` : "";
+          const min = m.market_price_min || m.price * 0.8;
+          const max = m.market_price_max || m.price * 1.2;
+          return `${i + 1}. *${m.title}* — ${fmt(m.price)} (${m.city ?? "?"}, ${m.condition})${photo}\n   📊 Marché: ${fmt(min)} – ${fmt(max)}`;
+        }).join("\n");
+        replyAttachments = matches
+          .flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 1) : [])
+          .filter((url: any) => typeof url === "string")
+          .slice(0, 5)
+          .map((url: string) => ({ url, type: "image/jpeg" }));
+        reply = `🎯 *${matches.length} annonce${matches.length > 1 ? "s" : ""} trouvée${matches.length > 1 ? "s" : ""} :*\n\n${list}\n\n💡 Pour contacter le vendeur, répondez avec le numéro exact : *intéressé N°1*${matches.length > 1 ? `, *intéressé N°2* … *intéressé N°${matches.length}*` : ""}. Vous pouvez aussi proposer un prix.`;
+        nextContext = { ...nextContext, last_matches: matches.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })) };
       }
     } else if (intent.intent === "CONFIRM" && intent.article_index) {
       const idx = intent.article_index - 1;
