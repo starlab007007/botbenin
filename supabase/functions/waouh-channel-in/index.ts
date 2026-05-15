@@ -155,13 +155,22 @@ serve(async (req) => {
     await sb.from("waouh_messages").insert({
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
+      attachments: Array.isArray(core.attachments) ? core.attachments : [],
       meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null },
     });
 
     // WAHA send
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
       try {
-        await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
+        const firstImage = Array.isArray(core.attachments) ? core.attachments.find((a: any) => a?.url)?.url : null;
+        if (firstImage) {
+          await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendImage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
+            body: JSON.stringify({ session: WAHA_SESSION, chatId: phone.includes("@") ? phone : `${phone}@c.us`, file: { url: firstImage }, caption: reply }),
+          });
+        } else {
+          await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
           body: JSON.stringify({
@@ -169,7 +178,8 @@ serve(async (req) => {
             chatId: phone.includes("@") ? phone : `${phone}@c.us`,
             text: reply,
           }),
-        });
+          });
+        }
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
