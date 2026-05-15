@@ -6,8 +6,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const QOSIC_BASE = (Deno.env.get("QOSIC_BASE_URL") || "https://staging.qosic.net:9010").replace(/^http:\/\//, "https://");
-const QOSIC_USER = Deno.env.get("QOSIC_USERNAME")!;
-const QOSIC_PASS = Deno.env.get("QOSIC_PASSWORD")!;
+const QOSIC_USER = Deno.env.get("QOSIC_USERNAME") || "";
+const QOSIC_PASS = Deno.env.get("QOSIC_PASSWORD") || "";
+const PAYMENT_MODE = (Deno.env.get("WAOUH_PAYMENT_MODE") || "demo").toLowerCase(); // "demo" | "live"
+const DEMO_DELAY_MS = Number(Deno.env.get("WAOUH_DEMO_DELAY_MS") || "3000");
 const CLIENT_IDS: Record<string, string | undefined> = {
   mtn: Deno.env.get("QOSIC_MTN_CLIENT_ID"),
   moov: Deno.env.get("QOSIC_MOOV_CLIENT_ID"),
