@@ -109,7 +109,10 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    if (openNeg) {
+    const lowerText = (text || "").toLowerCase();
+    const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*n[°o]?\s*(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends|paye|payer|paiement|payement)\b/i.test(lowerText);
+
+    if (openNeg && !shouldStayInCore) {
       const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
