@@ -144,7 +144,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
       className={cn(
         "flex flex-col bg-background overflow-hidden",
         fullscreen
-          ? "w-full h-[100dvh] rounded-none border-0 shadow-none pb-[env(safe-area-inset-bottom)]"
+          ? "w-full h-full rounded-none border-0 shadow-none pb-[env(safe-area-inset-bottom)]"
           : embedded
             ? "w-full h-[70vh] max-h-[100dvh] rounded-lg border shadow-2xl"
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
