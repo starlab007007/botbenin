@@ -271,7 +271,7 @@ serve(async (req) => {
             p_to_phone: seller.phone_number,
             p_to_user_id: seller.id,
             p_template: "negotiation_open",
-            p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount },
+        p_payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount },
             p_web_session_id: seller.web_session_id,
             p_image_url: null,
             p_channel: seller.phone_number ? "whatsapp" : "web",
@@ -300,7 +300,7 @@ serve(async (req) => {
             method: "POST",
             headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              amount: neg.last_offer_price, currency: "XOF",
+              amount: neg.last_offer_price,
               article_id: neg.article_id, negotiation_id: neg.id,
               buyer_user_id: user!.id, seller_user_id: neg.seller_user_id,
               phone: user.phone_number,
@@ -328,7 +328,7 @@ serve(async (req) => {
       state: intent.intent?.toLowerCase() ?? "idle",
       last_message: text, last_intent: intent.intent,
       channel,
-      context: nextContext,
+      context: { ...nextContext, current_article_id: returnedArticleId ?? nextContext?.current_article_id ?? conv?.current_article_id ?? null, current_transaction_id: returnedTransactionId ?? nextContext?.current_transaction_id ?? conv?.current_transaction_id ?? null },
       current_article_id: returnedArticleId ?? conv?.current_article_id ?? null,
       current_transaction_id: returnedTransactionId ?? conv?.current_transaction_id ?? null,
     }, { onConflict: "phone_number" } as any);
@@ -340,7 +340,7 @@ serve(async (req) => {
       body: JSON.stringify({ limit: 20 }),
     }).catch(() => {});
 
-    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, article_id: returnedArticleId, transaction_id: returnedTransactionId }), {
+    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, article_id: returnedArticleId, transaction_id: returnedTransactionId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
