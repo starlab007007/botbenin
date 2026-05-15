@@ -144,37 +144,42 @@ serve(async (req) => {
       directText: string;
       directAtts?: Array<{ url: string; type: string }>;
       directMeta?: any;
+      transaction_id?: string | null;
     }) {
       const { data: target } = await sb.from("waouh_users")
         .select("id, phone_number, web_session_id, channel")
         .eq("id", opts.to_user_id).maybeSingle();
       if (!target) return;
-      // 1) Notification (cloche + WhatsApp si phone)
-      try {
-        await sb.rpc("waouh_enqueue_outbound_v2", {
-          p_to_phone: target.phone_number,
-          p_to_user_id: target.id,
-          p_template: opts.template,
-          p_payload: opts.payload || {},
-          p_web_session_id: target.web_session_id,
-          p_image_url: opts.image_url ?? null,
-          p_channel: target.phone_number ? "whatsapp" : "web",
-        });
-      } catch (e) { console.warn("[pushToOther] enqueue", e); }
-      // 2) Message direct dans son thread chatbot (si web_session_id)
+      // 1) Insert direct chat message first to capture its id
+      let insertedMsgId: string | null = null;
       if (target.web_session_id) {
         try {
-          await sb.from("waouh_messages").insert({
+          const { data: msg } = await sb.from("waouh_messages").insert({
             user_id: target.id,
             channel: "web",
             direction: "out",
             text: opts.directText,
             web_session_id: target.web_session_id,
             attachments: opts.directAtts ?? [],
-            meta: opts.directMeta ?? null,
-          });
+            meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null },
+          }).select("id").maybeSingle();
+          insertedMsgId = msg?.id ?? null;
         } catch (e) { console.warn("[pushToOther] msg", e); }
       }
+      // 2) Notification (cloche + WhatsApp si phone) avec deep-link
+      try {
+        await sb.rpc("waouh_enqueue_outbound_v2", {
+          p_to_phone: target.phone_number,
+          p_to_user_id: target.id,
+          p_template: opts.template,
+          p_payload: { ...(opts.payload || {}), message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null },
+          p_web_session_id: target.web_session_id,
+          p_image_url: opts.image_url ?? null,
+          p_channel: target.phone_number ? "whatsapp" : "web",
+          p_message_id: insertedMsgId,
+          p_transaction_id: opts.transaction_id ?? null,
+        });
+      } catch (e) { console.warn("[pushToOther] enqueue", e); }
     }
 
 

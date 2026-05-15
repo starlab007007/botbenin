@@ -52,11 +52,13 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
   const [uploading, setUploading] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
+  const [focusMsgId, setFocusMsgId] = useState<string | null>(null);
   const sessionId = useRef(getSessionId()).current;
   const scrollRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -92,6 +94,28 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
+
+  // Listen to notification clicks → scroll & highlight target message/transaction
+  useEffect(() => {
+    const onFocus = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (!open) setOpen(true);
+      const targetId: string | undefined =
+        detail.message_id ||
+        (detail.transaction_id
+          ? messages.find((m) => m.meta?.transaction_id === detail.transaction_id)?.id
+          : undefined);
+      if (!targetId) return;
+      setFocusMsgId(targetId);
+      setTimeout(() => {
+        const el = msgRefs.current[targetId];
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      setTimeout(() => setFocusMsgId(null), 2400);
+    };
+    window.addEventListener("waouh:focus-message", onFocus as EventListener);
+    return () => window.removeEventListener("waouh:focus-message", onFocus as EventListener);
+  }, [messages, open]);
 
   const MAX_PHOTOS = 2;
   const handleFiles = async (files: FileList | null) => {
@@ -242,7 +266,14 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           </div>
         )}
         {messages.map((m) => (
-          <div key={m.id}>
+          <div
+            key={m.id}
+            ref={(el) => { msgRefs.current[m.id] = el; }}
+            className={cn(
+              "transition-all rounded-xl",
+              focusMsgId === m.id && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background bg-emerald-50/40"
+            )}
+          >
             <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
               <div
                 className={cn(

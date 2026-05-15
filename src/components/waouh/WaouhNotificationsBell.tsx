@@ -67,22 +67,42 @@ export const WaouhNotificationsBell: React.FC<{
             </div>
           ) : (
             <ul className="divide-y">
-              {notifications.map((n) => (
-                <li key={n.id} className={cn("p-3 text-sm", !n.read && "bg-emerald-50/60")}>
-                  <div className="flex items-start gap-2">
-                    {n.image_url && (
-                      <img src={n.image_url} alt="" className="w-10 h-10 rounded object-cover border" />
+              {notifications.map((n) => {
+                const clickable = !!(n.message_id || n.transaction_id);
+                const handleClick = () => {
+                  if (!clickable) return;
+                  window.dispatchEvent(new CustomEvent("waouh:focus-message", {
+                    detail: { message_id: n.message_id, transaction_id: n.transaction_id }
+                  }));
+                  setOpen(false);
+                };
+                return (
+                  <li
+                    key={n.id}
+                    onClick={handleClick}
+                    className={cn(
+                      "p-3 text-sm",
+                      !n.read && "bg-emerald-50/60",
+                      clickable && "cursor-pointer hover:bg-muted/60 active:bg-muted"
                     )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{n.title}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">{n.body}</div>
-                      <div className="text-[10px] text-muted-foreground mt-1">
-                        {new Date(n.created_at).toLocaleString("fr-FR")}
+                    role={clickable ? "button" : undefined}
+                  >
+                    <div className="flex items-start gap-2">
+                      {n.image_url && (
+                        <img src={n.image_url} alt="" className="w-10 h-10 rounded object-cover border" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{n.title}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-2">{n.body}</div>
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          {new Date(n.created_at).toLocaleString("fr-FR")}
+                          {clickable && <span className="ml-2 text-emerald-600">↗ Ouvrir</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </ScrollArea>

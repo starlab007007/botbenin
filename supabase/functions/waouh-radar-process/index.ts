@@ -84,15 +84,47 @@ Deno.serve(async (req) => {
           }).select().single();
           matched++;
 
-          // Insert notification
+          // Insert in-app notification + push to WAOUH chat bus (cloche + message direct)
           if (b.user_id) {
+            const title = `🎯 Annonce détectée : ${sig.product?.title || sig.category}`;
+            const body = `${sig.price ? Number(sig.price).toLocaleString("fr-FR") + " FCFA" : "Prix non précisé"} · ${sig.city || "?"} · source: ${sig.source_type}`;
             await sb.from("waouh_notifications").insert({
               user_id: b.user_id,
               notification_type: "radar_match",
-              title: `🎯 Annonce détectée : ${sig.product?.title || sig.category}`,
-              body: `${sig.price ? Number(sig.price).toLocaleString("fr-FR") + " FCFA" : "Prix non précisé"} · ${sig.city || "?"} · source: ${sig.source_type}`,
+              title, body,
               meta: { signal_id: sig.id, raw_url: sig.raw_url, match_id: m?.id },
-            }).select();
+            });
+
+            // Look up WAOUH user (web_session_id / phone) to push into chatbot bus
+            const { data: wu } = await sb.from("waouh_users")
+              .select("id, phone_number, web_session_id")
+              .eq("auth_user_id", b.user_id).maybeSingle();
+            if (wu) {
+              const directText = `🎯 *Annonce détectée par le Radar IA*\n${title}\n${body}\n${sig.raw_url ? `🔗 ${sig.raw_url}\n` : ""}Répondez « intéressé » pour entrer en contact.`;
+              let msgId: string | null = null;
+              if (wu.web_session_id) {
+                const { data: msg } = await sb.from("waouh_messages").insert({
+                  user_id: wu.id, channel: "web", direction: "out",
+                  text: directText, web_session_id: wu.web_session_id,
+                  attachments: sig.product?.image_url ? [{ url: sig.product.image_url, type: "image/jpeg" }] : [],
+                  meta: { intent: "RADAR_MATCH", signal_id: sig.id, match_id: m?.id },
+                }).select("id").maybeSingle();
+                msgId = msg?.id ?? null;
+              }
+              try {
+                await sb.rpc("waouh_enqueue_outbound_v2", {
+                  p_to_phone: wu.phone_number,
+                  p_to_user_id: wu.id,
+                  p_template: "match_buyer",
+                  p_payload: { title: sig.product?.title || sig.category, price: sig.price, city: sig.city, signal_id: sig.id, match_id: m?.id, message_id: msgId },
+                  p_web_session_id: wu.web_session_id,
+                  p_image_url: sig.product?.image_url ?? null,
+                  p_channel: wu.phone_number ? "whatsapp" : "web",
+                  p_message_id: msgId,
+                  p_transaction_id: null,
+                });
+              } catch (e) { console.warn("[radar-process] enqueue", e); }
+            }
             notified++;
           }
         }

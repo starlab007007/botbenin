@@ -37,6 +37,8 @@ export type WaouhNotification = {
   created_at: string;
   read: boolean;
   image_url?: string | null;
+  message_id?: string | null;
+  transaction_id?: string | null;
 };
 
 const STORAGE_PREFIX = "waouh_notifs_";
@@ -110,6 +112,8 @@ export function useWaouhMatchNotifications(sessionId: string | null) {
             created_at: row.created_at ?? new Date().toISOString(),
             read: false,
             image_url: row.image_url ?? null,
+            message_id: row.message_id ?? row.payload?.message_id ?? null,
+            transaction_id: row.transaction_id ?? row.payload?.transaction_id ?? null,
           };
           setNotifications((prev) => {
             if (prev.find((n) => n.id === notif.id)) return prev;
