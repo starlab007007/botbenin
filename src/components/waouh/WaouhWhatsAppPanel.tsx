@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, QrCode, RefreshCw, Webhook, Power } from "lucide-react";
+import { Loader2, QrCode, RefreshCw, Webhook, Power, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -15,7 +15,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   const [status, setStatus] = useState<string>("unknown");
   const [qr, setQr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [session, setSession] = useState("default");
+  const [session, setSession] = useState("WaouhApp");
 
   const callWaha = async (action: string, payload?: any) => {
     setLoading(true);
