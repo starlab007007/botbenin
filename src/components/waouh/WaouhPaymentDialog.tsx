@@ -39,15 +39,17 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
     cancelRef.current = false;
     setStep("polling");
     setErrMsg("");
+    const sessionId = (typeof window !== "undefined" && localStorage.getItem("waouh_web_session_id")) || "";
     const { data, error } = await supabase.functions.invoke("waouh-payment", {
       body: { action: "init", transaction_id: transactionId, msisdn: clean, operator },
+      headers: sessionId ? { "x-waouh-session": sessionId } : undefined,
     });
-    if (error || !data?.success) {
+    if (error || (data && data.success === false)) {
       setErrMsg(data?.error || error?.message || "Échec de l'initialisation. Vérifiez votre connexion.");
       setStep("failed");
       return;
     }
-    toast.success("Validez sur votre téléphone Mobile Money");
+    toast.success(data?.demo ? "Mode démo : confirmation automatique en cours…" : "Validez sur votre téléphone Mobile Money");
 
     let attempts = 0;
     const poll = async () => {
