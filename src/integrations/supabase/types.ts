@@ -5353,6 +5353,80 @@ export type Database = {
           },
         ]
       }
+      waouh_negotiations: {
+        Row: {
+          article_id: string | null
+          buyer_user_id: string | null
+          created_at: string
+          id: string
+          last_actor: string | null
+          last_offer_price: number | null
+          match_id: string | null
+          meta: Json
+          seller_user_id: string | null
+          state: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          article_id?: string | null
+          buyer_user_id?: string | null
+          created_at?: string
+          id?: string
+          last_actor?: string | null
+          last_offer_price?: number | null
+          match_id?: string | null
+          meta?: Json
+          seller_user_id?: string | null
+          state?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string | null
+          buyer_user_id?: string | null
+          created_at?: string
+          id?: string
+          last_actor?: string | null
+          last_offer_price?: number | null
+          match_id?: string | null
+          meta?: Json
+          seller_user_id?: string | null
+          state?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_negotiations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_negotiations_buyer_user_id_fkey"
+            columns: ["buyer_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_negotiations_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_negotiations_seller_user_id_fkey"
+            columns: ["seller_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_notifications: {
         Row: {
           article_id: string | null
@@ -5394,6 +5468,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waouh_outbound_queue: {
+        Row: {
+          attempts: number
+          channel: string
+          created_at: string
+          id: string
+          last_error: string | null
+          payload: Json
+          sent_at: string | null
+          status: string
+          template: string
+          to_phone: string | null
+          to_user_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          channel?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          template: string
+          to_phone?: string | null
+          to_user_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          template?: string
+          to_phone?: string | null
+          to_user_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       waouh_payments: {
         Row: {
@@ -5450,6 +5569,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waouh_pipeline_events: {
+        Row: {
+          created_at: string
+          details: Json | null
+          id: string
+          signal_id: string | null
+          status: string
+          step: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          id?: string
+          signal_id?: string | null
+          status: string
+          step: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          id?: string
+          signal_id?: string | null
+          status?: string
+          step?: string
+        }
+        Relationships: []
       }
       waouh_radar_matches: {
         Row: {
@@ -8540,6 +8686,15 @@ export type Database = {
         }[]
       }
       verify_bot_access_final: { Args: { p_bot_id: string }; Returns: boolean }
+      waouh_enqueue_outbound: {
+        Args: {
+          p_payload: Json
+          p_template: string
+          p_to_phone: string
+          p_to_user_id: string
+        }
+        Returns: string
+      }
       waouh_link_session: {
         Args: { p_session_id: string; p_user_id: string }
         Returns: undefined
