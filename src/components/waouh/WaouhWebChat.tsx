@@ -248,6 +248,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           ref={fileRef}
           type="file"
           accept="image/*"
+          multiple
           capture="environment"
           className="hidden"
           onChange={handleFile}
@@ -257,8 +258,9 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           size="icon"
           variant="ghost"
           onClick={() => fileRef.current?.click()}
-          disabled={uploading || sending}
-          aria-label="Ajouter une photo"
+          disabled={uploading || sending || pendingAtts.length >= MAX_PHOTOS}
+          aria-label={`Ajouter une photo (${pendingAtts.length}/${MAX_PHOTOS})`}
+          title={`${pendingAtts.length}/${MAX_PHOTOS} photos`}
         >
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
         </Button>
