@@ -29,20 +29,60 @@ function buildBody(template: string, p: any): string {
   }
 }
 
+export type WaouhNotification = {
+  id: string;
+  title: string;
+  body: string;
+  template: string;
+  created_at: string;
+  read: boolean;
+  image_url?: string | null;
+};
+
+const STORAGE_PREFIX = "waouh_notifs_";
+
+function loadNotifs(sessionId: string): WaouhNotification[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + sessionId);
+    if (!raw) return [];
+    return JSON.parse(raw).slice(0, 50);
+  } catch { return []; }
+}
+
+function saveNotifs(sessionId: string, list: WaouhNotification[]) {
+  try { localStorage.setItem(STORAGE_PREFIX + sessionId, JSON.stringify(list.slice(0, 50))); } catch {}
+}
+
 export function useWaouhMatchNotifications(sessionId: string | null) {
   const [permission, setPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
+  );
+  const [notifications, setNotifications] = useState<WaouhNotification[]>(() =>
+    sessionId ? loadNotifs(sessionId) : []
   );
 
   const requestPermission = useCallback(async () => {
     if (typeof Notification === "undefined") return "denied";
     const p = await Notification.requestPermission();
     setPermission(p);
-    if (p === "granted") {
-      toast.success("Notifications activées");
-    }
+    if (p === "granted") toast.success("Notifications activées");
     return p;
   }, []);
+
+  const markAllRead = useCallback(() => {
+    if (!sessionId) return;
+    setNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, read: true }));
+      saveNotifs(sessionId, updated);
+      return updated;
+    });
+  }, [sessionId]);
+
+  const clearAll = useCallback(() => {
+    if (!sessionId) return;
+    setNotifications([]);
+    saveNotifs(sessionId, []);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -62,19 +102,30 @@ export function useWaouhMatchNotifications(sessionId: string | null) {
           const title = TEMPLATE_TITLES[row.template] || "WAOUH";
           const body = buildBody(row.template, row.payload || {});
 
-          // In-app toast
+          const notif: WaouhNotification = {
+            id: row.id,
+            title,
+            body,
+            template: row.template,
+            created_at: row.created_at ?? new Date().toISOString(),
+            read: false,
+            image_url: row.image_url ?? null,
+          };
+          setNotifications((prev) => {
+            if (prev.find((n) => n.id === notif.id)) return prev;
+            const updated = [notif, ...prev].slice(0, 50);
+            saveNotifs(sessionId, updated);
+            return updated;
+          });
+
           toast(title, { description: body, duration: 6000 });
 
-          // System notification via Service Worker
           try {
             if (typeof Notification !== "undefined" && Notification.permission === "granted") {
               const reg = await navigator.serviceWorker?.getRegistration();
               const opts: NotificationOptions = {
-                body,
-                icon: "/favicon.ico",
-                badge: "/favicon.ico",
-                tag: `waouh-${row.id}`,
-                data: { url: "/waouh-chat" },
+                body, icon: "/favicon.ico", badge: "/favicon.ico",
+                tag: `waouh-${row.id}`, data: { url: "/waouh-chat" },
               };
               if (reg) await reg.showNotification(title, opts);
               else new Notification(title, opts);
@@ -83,7 +134,6 @@ export function useWaouhMatchNotifications(sessionId: string | null) {
             console.warn("[waouh] showNotification failed", e);
           }
 
-          // Mark as sent (web is delivered via realtime, no WAHA needed)
           if (!row.to_phone) {
             await supabase
               .from("waouh_outbound_queue")
@@ -94,10 +144,10 @@ export function useWaouhMatchNotifications(sessionId: string | null) {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(ch);
-    };
+    return () => { supabase.removeChannel(ch); };
   }, [sessionId]);
 
-  return { permission, requestPermission };
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  return { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll };
 }

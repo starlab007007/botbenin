@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, Search, Handshake, CreditCard, ArrowLeft, Sparkles, Info, Bell, BellOff } from "lucide-react";
+import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import WaouhWebChat from "@/components/waouh/WaouhWebChat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
+import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 
 const SESSION_KEY = "waouh_web_session_id";
 
@@ -70,23 +71,21 @@ export default function WaouhChatPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
-  const { permission, requestPermission } = useWaouhMatchNotifications(sessionId);
+  const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } = useWaouhMatchNotifications(sessionId);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
   }, []);
 
   const NotifButton = (
-    <Button
-      size="sm"
-      variant={permission === "granted" ? "ghost" : "outline"}
-      onClick={requestPermission}
-      className="gap-1.5"
-      title={permission === "granted" ? "Notifications activées" : "Activer les notifications de matching"}
-    >
-      {permission === "granted" ? <Bell className="w-4 h-4 text-emerald-600" /> : <BellOff className="w-4 h-4" />}
-      <span className="hidden sm:inline text-xs">{permission === "granted" ? "Notif. ON" : "Activer notif."}</span>
-    </Button>
+    <WaouhNotificationsBell
+      permission={permission}
+      notifications={notifications}
+      unreadCount={unreadCount}
+      onRequestPermission={requestPermission}
+      onMarkAllRead={markAllRead}
+      onClearAll={clearAll}
+    />
   );
 
   // === MOBILE: full-screen, no scroll, drawer for help ===
@@ -95,11 +94,11 @@ export default function WaouhChatPage() {
       <div className="fixed inset-0 flex flex-col bg-background overflow-hidden">
         <header className="flex items-center justify-between gap-2 px-3 h-12 border-b bg-white/95 backdrop-blur shrink-0">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/")}
             className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
-            aria-label="Retour"
+            aria-label="Fermer"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
+            <X className="w-5 h-5 text-gray-700" />
           </button>
           <Link to="/" className="flex items-center gap-2 flex-1 min-w-0">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shrink-0">
@@ -155,13 +154,12 @@ export default function WaouhChatPage() {
               IA en ligne
             </Badge>
             {NotifButton}
-            {user ? (
-              <Link to="/admin/waouh">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-1.5" /> Administration
-                </Button>
-              </Link>
-            ) : (
+            <Link to="/">
+              <Button variant="ghost" size="sm">
+                <X className="w-4 h-4 mr-1.5" /> Fermer
+              </Button>
+            </Link>
+            {!user && (
               <Link to="/auth">
                 <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90">
                   Se connecter
