@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
             }
           }
         } else if (newStatus === "failed") {
-          await sb.from("waouh_transactions").update({ status: "pending" }).eq("id", transaction_id);
+          await sb.from("waouh_transactions").update({ status: "payment_pending" }).eq("id", transaction_id);
         }
       }
 
