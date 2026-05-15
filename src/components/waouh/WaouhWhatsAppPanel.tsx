@@ -38,9 +38,23 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     if (data?.status) setStatus(data.status);
   };
 
+  const createSession = async () => {
+    const data = await callWaha("session-create", {
+      config: { webhooks: [{ url: CHANNEL_IN_URL, events: ["message"] }] },
+    });
+    if (data) {
+      toast.success(`Session « ${session} » créée et webhook lié.`);
+      setTimeout(loadQr, 1500);
+      refreshStatus();
+    }
+  };
+
   const startSession = async () => {
+    await callWaha("session-create", {
+      config: { webhooks: [{ url: CHANNEL_IN_URL, events: ["message"] }] },
+    });
     await callWaha("session-start");
-    toast.success("Session démarrée. Récupération du QR…");
+    toast.success(`Session « ${session} » démarrée. Récupération du QR…`);
     setTimeout(loadQr, 1500);
     refreshStatus();
   };
