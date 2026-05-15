@@ -366,8 +366,7 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
     });
   } catch (e) { console.warn("[waouh-payment] enqueue", e); }
 }
-  }
-});
+
 
 function json(b: any, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
