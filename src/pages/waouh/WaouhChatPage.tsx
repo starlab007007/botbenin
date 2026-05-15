@@ -101,19 +101,22 @@ export default function WaouhChatPage() {
               IA
             </Badge>
           </Link>
-          <Sheet>
-            <SheetTrigger asChild>
-              <button className="p-2 -mr-2 rounded-lg hover:bg-gray-100 active:bg-gray-200" aria-label="Aide">
-                <Info className="w-5 h-5 text-gray-700" />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
-              <SheetHeader>
-                <SheetTitle>Comment utiliser WAOUH</SheetTitle>
-              </SheetHeader>
-              <div className="mt-3"><HelpContent /></div>
-            </SheetContent>
-          </Sheet>
+          <div className="flex items-center gap-1">
+            {NotifButton}
+            <Sheet>
+              <SheetTrigger asChild>
+                <button className="p-2 -mr-1 rounded-lg hover:bg-gray-100 active:bg-gray-200" aria-label="Aide">
+                  <Info className="w-5 h-5 text-gray-700" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
+                <SheetHeader>
+                  <SheetTitle>Comment utiliser WAOUH</SheetTitle>
+                </SheetHeader>
+                <div className="mt-3"><HelpContent /></div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </header>
         <div className="flex-1 min-h-0">
           <WaouhWebChat fullscreen />
