@@ -120,10 +120,12 @@ serve(async (req) => {
       });
       const negData = await negRes.json().catch(() => ({}));
       const negReply = negData?.reply || "OK";
+      const negTxId = negData?.transaction_id || null;
+      const negIntent = negData?.intent || "negotiation";
       await sb.from("waouh_messages").insert({
         user_id: user.id, channel, direction: "out", text: negReply,
         web_session_id: sessionId, phone_number: phone,
-        meta: { intent: "negotiation" },
+        meta: { intent: negIntent, transaction_id: negTxId },
       });
       if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
         try {
@@ -134,7 +136,7 @@ serve(async (req) => {
           });
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: "negotiation" }), {
+      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
