@@ -233,6 +233,9 @@ serve(async (req) => {
           escrow_status: "pending",
         }).select().single();
         returnedTransactionId = tx?.id ?? null;
+        if (neg?.id && returnedTransactionId) {
+          await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
+        }
         // Notifie le vendeur (WhatsApp + Web)
         if (seller?.phone_number || seller?.web_session_id) {
           await sb.rpc("waouh_enqueue_outbound_v2", {
