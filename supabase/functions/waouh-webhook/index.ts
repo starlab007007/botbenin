@@ -296,16 +296,16 @@ serve(async (req) => {
         if (neg?.id && returnedTransactionId) {
           await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
         }
-        // Notifie le vendeur (WhatsApp + Web)
-        if (seller?.phone_number || seller?.web_session_id) {
-          await sb.rpc("waouh_enqueue_outbound_v2", {
-            p_to_phone: seller.phone_number,
-            p_to_user_id: seller.id,
-            p_template: "match_seller",
-            p_payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto },
-            p_web_session_id: seller.web_session_id,
-            p_image_url: firstPhoto,
-            p_channel: seller.phone_number ? "whatsapp" : "web",
+        // Notifie le vendeur (cloche + WhatsApp + message direct dans son chatbot)
+        if (seller?.id) {
+          await pushToOther({
+            to_user_id: seller.id,
+            template: "match_seller",
+            payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto, transaction_id: returnedTransactionId },
+            image_url: firstPhoto,
+            directText: `📩 *Nouvel acheteur intéressé !*\n\n📦 ${pick.title}\n💰 ${fmt(pick.price)}\n\nUn acheteur souhaite acquérir votre annonce. Répondez « OUI » pour accepter au prix demandé, « NON » pour refuser, ou proposez votre contre-offre (ex: « Je propose 18000 FCFA »).`,
+            directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
+            directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
           });
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
