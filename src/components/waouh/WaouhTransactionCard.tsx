@@ -111,8 +111,10 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
     if (!tx) return;
     setConfirming(true);
     try {
+      const sessionId = localStorage.getItem(SESSION_KEY) || "";
       const { data, error } = await supabase.functions.invoke("waouh-payment", {
         body: { action: "confirm_received", transaction_id: tx.id },
+        headers: sessionId ? { "x-waouh-session": sessionId } : undefined,
       });
       if (error || !data?.success) {
         toast.error(data?.error || error?.message || "Échec de la confirmation");
