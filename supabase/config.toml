@@ -210,3 +210,9 @@ verify_jwt = false
 
 [functions.waouh-radar-wa-webhook]
 verify_jwt = false
+
+[functions.waouh-outbound-dispatch]
+verify_jwt = false
+
+[functions.waouh-negotiation-router]
+verify_jwt = false

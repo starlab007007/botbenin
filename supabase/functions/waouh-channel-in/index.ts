@@ -100,6 +100,46 @@ serve(async (req) => {
       attachments,
     });
 
+    // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router
+    const { data: openNeg } = await sb
+      .from("waouh_negotiations")
+      .select("id")
+      .or(`buyer_user_id.eq.${user.id},seller_user_id.eq.${user.id}`)
+      .in("state", ["proposed", "countered"])
+      .limit(1)
+      .maybeSingle();
+
+    if (openNeg) {
+      const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, text, user_id: user.id }),
+      });
+      const negData = await negRes.json().catch(() => ({}));
+      const negReply = negData?.reply || "OK";
+      await sb.from("waouh_messages").insert({
+        user_id: user.id, channel, direction: "out", text: negReply,
+        web_session_id: sessionId, phone_number: phone,
+        meta: { intent: "negotiation" },
+      });
+      if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
+        try {
+          await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
+            body: JSON.stringify({ session: WAHA_SESSION, chatId: phone.includes("@") ? phone : `${phone}@c.us`, text: negReply }),
+          });
+        } catch (e) { console.error("WAHA send failed", e); }
+      }
+      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: "negotiation" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+      web_session_id: sessionId, phone_number: phone,
+      attachments,
+    });
+
     // Call core engine
     const coreRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-webhook`, {
       method: "POST",
