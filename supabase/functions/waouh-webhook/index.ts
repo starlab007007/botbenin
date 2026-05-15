@@ -121,6 +121,7 @@ serve(async (req) => {
       if ((product.confidence ?? 0) < 0.5 || !product.price) {
         reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
       } else {
+        const photoUrls = attachments.map((a: any) => a?.url).filter((u: any) => typeof u === "string");
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
           title: product.title || "Annonce",
@@ -131,12 +132,14 @@ serve(async (req) => {
           price: product.price, currency: "XOF",
           city: user!.city,
           location: `SRID=4326;POINT(${lng} ${lat})` as any,
+          photos: photoUrls,
           market_price_min: product.market_price_min,
           market_price_max: product.market_price_max,
           origin: channel === "whatsapp" ? "whatsapp" : "chat",
         }).select().single();
         returnedArticleId = art?.id ?? null;
-        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}\n\n📊 Prix marché estimé: ${fmt(product.market_price_min || product.price * 0.8)} – ${fmt(product.market_price_max || product.price * 1.2)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo(s) jointe(s)` : "";
+        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(product.market_price_min || product.price * 0.8)} – ${fmt(product.market_price_max || product.price * 1.2)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
       }
     } else if (intent.intent === "BUY") {
       const criteria = await ai(
