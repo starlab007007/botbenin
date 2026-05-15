@@ -32,12 +32,23 @@ serve(async (req) => {
       ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
     };
 
-    const { action, session = "default", webhook } = await req.json();
+    const { action, session = "WaouhApp", webhook, config } = await req.json();
 
     let res: Response;
     switch (action) {
       case "session-status":
         res = await fetch(`${base}/api/sessions/${session}`, { headers });
+        break;
+      case "session-create":
+        // Create the session if it doesn't exist (idempotent)
+        res = await fetch(`${base}/api/sessions`, {
+          method: "POST", headers,
+          body: JSON.stringify({ name: session, start: true, config: config || { webhooks: [] } }),
+        });
+        if (res.status === 409 || res.status === 422) {
+          // already exists → return current state
+          res = await fetch(`${base}/api/sessions/${session}`, { headers });
+        }
         break;
       case "session-start":
         res = await fetch(`${base}/api/sessions/${session}/start`, { method: "POST", headers });
