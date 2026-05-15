@@ -60,7 +60,8 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
     );
   }
 
-  const statusIndex = STEPS.findIndex((s) => s.key === tx.status);
+  const normalizedStatus = tx.status === "payment_pending" || tx.status === "initiated" ? "pending" : tx.status;
+  const statusIndex = STEPS.findIndex((s) => s.key === normalizedStatus);
   const currentIdx = statusIndex < 0 ? 0 : statusIndex;
   const historyMap = Object.fromEntries((tx.status_history || []).map((h) => [h.status, h.at]));
 
@@ -77,7 +78,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
 
       <div className="space-y-2 mb-3">
         {STEPS.map((s, i) => {
-          const done = i < currentIdx || (i === currentIdx && tx.status !== "pending");
+          const done = i < currentIdx || (i === currentIdx && normalizedStatus !== "pending");
           const current = i === currentIdx;
           const at = historyMap[s.key];
           const Icon = done ? CheckCircle2 : current ? s.icon : Circle;
@@ -93,7 +94,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
         })}
       </div>
 
-      {tx.status === "pending" && (
+      {normalizedStatus === "pending" && (
         <Button size="sm" className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90" onClick={() => onPay(tx)}>
           <CreditCard className="w-4 h-4 mr-1.5" /> Payer maintenant
         </Button>
