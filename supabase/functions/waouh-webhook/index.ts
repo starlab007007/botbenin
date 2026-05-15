@@ -265,6 +265,15 @@ serve(async (req) => {
         await sb.from("waouh_negotiations").update({
           state: "countered", last_offer_price: amount, last_actor: "buyer",
         }).eq("id", neg.id);
+        if (neg.transaction_id) {
+          await sb.from("waouh_transactions").update({
+            amount,
+            negotiated_price: amount,
+            commission: Math.round(amount * 0.05),
+            status: "payment_pending",
+          }).eq("id", neg.transaction_id);
+        }
+        returnedTransactionId = neg.transaction_id ?? null;
         const { data: seller } = await sb.from("waouh_users").select("phone_number,id,web_session_id").eq("id", neg.seller_user_id).maybeSingle();
         if (seller?.phone_number || seller?.web_session_id) {
           await sb.rpc("waouh_enqueue_outbound_v2", {
@@ -277,12 +286,12 @@ serve(async (req) => {
             p_channel: seller.phone_number ? "whatsapp" : "web",
           });
         }
-        reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse.`;
+        reply = `💬 Offre de ${fmt(amount)} transmise au vendeur. Vous serez notifié de sa réponse. Si le vendeur accepte, vous pourrez payer directement avec la carte ci-dessous.`;
       } else {
         reply = "💬 Indiquez votre prix : « Je propose 250 000 FCFA »";
       }
     } else if (intent.intent === "PAY") {
-      // Trouve la dernière négociation acceptée ou la plus récente proposée
+      // Trouve la transaction/négociation courante et renvoie la carte de paiement web
       const { data: neg } = await sb.from("waouh_negotiations")
         .select("*")
         .eq("buyer_user_id", user!.id)
@@ -293,29 +302,27 @@ serve(async (req) => {
       if (!neg) {
         reply = "🤔 Aucune transaction en cours. Cherchez un produit et confirmez votre intérêt avant de payer.";
       } else {
-        // Marque accepté + appelle qosic-payment
         await sb.from("waouh_negotiations").update({ state: "accepted" }).eq("id", neg.id);
-        try {
-          const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/qosic-payment`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: neg.last_offer_price,
-              article_id: neg.article_id, negotiation_id: neg.id,
-              buyer_user_id: user!.id, seller_user_id: neg.seller_user_id,
-              phone: user.phone_number,
-            }),
-          });
-          const payData = await payRes.json().catch(() => ({}));
-          returnedTransactionId = payData?.transaction_id ?? null;
-          if (returnedTransactionId) {
-            await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
-          }
-          reply = `💳 *Paiement Mobile Money initié* — ${fmt(neg.last_offer_price)}\n\nValidez la notification MTN/Moov sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception du produit.`;
-        } catch (e) {
-          console.error("payment init failed", e);
-          reply = "⚠️ Erreur d'initiation du paiement. Réessayez dans quelques instants.";
+        let txId = neg.transaction_id;
+        if (!txId) {
+          const amount = Number(neg.last_offer_price || 0);
+          const { data: tx } = await sb.from("waouh_transactions").insert({
+            article_id: neg.article_id,
+            seller_id: neg.seller_user_id,
+            buyer_id: user!.id,
+            amount,
+            commission: Math.round(amount * 0.05),
+            payment_method: "mobile_money",
+            negotiated_price: amount,
+            status: "payment_pending",
+            escrow_status: "pending",
+          }).select().single();
+          txId = tx?.id ?? null;
+          if (txId) await sb.from("waouh_negotiations").update({ transaction_id: txId }).eq("id", neg.id);
         }
+        returnedArticleId = neg.article_id;
+        returnedTransactionId = txId;
+        reply = `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
       }
     } else if (intent.intent === "HELP") {
       reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "intéressé N°X" pour contacter un vendeur\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;
