@@ -136,10 +136,6 @@ serve(async (req) => {
       });
     }
 
-      web_session_id: sessionId, phone_number: phone,
-      attachments,
-    });
-
     // Call core engine
     const coreRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-webhook`, {
       method: "POST",
