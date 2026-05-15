@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, Search, Handshake, CreditCard, ArrowLeft, Sparkles, Info } from "lucide-react";
+import { ShoppingBag, Search, Handshake, CreditCard, ArrowLeft, Sparkles, Info, Bell, BellOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,9 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import WaouhWebChat from "@/components/waouh/WaouhWebChat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
+
+const SESSION_KEY = "waouh_web_session_id";
 
 const QUICK_ACTIONS = [
   { icon: ShoppingBag, title: "Vendre", desc: "Publiez un article en 30s", gradient: "from-emerald-500 to-teal-500" },
