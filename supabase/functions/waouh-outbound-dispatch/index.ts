@@ -49,9 +49,12 @@ Deno.serve(async (req) => {
     let sent = 0, failed = 0, skipped = 0;
 
     for (const it of items || []) {
-      if (!it.to_phone) {
-        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "no phone" }).eq("id", it.id);
-        skipped++; continue;
+      // Skip web-only entries (frontend listens via Realtime)
+      if ((it.channel && it.channel === "web") || !it.to_phone) {
+        if (!it.to_phone) {
+          await sb.from("waouh_outbound_queue").update({ status: it.web_session_id ? "sent" : "failed", last_error: it.web_session_id ? null : "no phone", sent_at: new Date().toISOString() }).eq("id", it.id);
+          skipped++; continue;
+        }
       }
       if (!WAHA_BASE_URL) {
         await sb.from("waouh_outbound_queue").update({ attempts: it.attempts + 1, last_error: "WAHA_BASE_URL missing" }).eq("id", it.id);
@@ -60,12 +63,22 @@ Deno.serve(async (req) => {
 
       const text = compose(it.template, it.payload || {});
       const phone = it.to_phone.replace(/\D/g, "");
+      const chatId = `${phone}@c.us`;
       try {
-        const r = await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
-          body: JSON.stringify({ session: WAHA_SESSION, chatId: `${phone}@c.us`, text }),
-        });
+        let r: Response;
+        if (it.image_url) {
+          r = await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendImage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
+            body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: it.image_url }, caption: text }),
+          });
+        } else {
+          r = await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
+            body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
+          });
+        }
         if (!r.ok) {
           const body = await r.text();
           throw new Error(`WAHA ${r.status}: ${body.slice(0, 200)}`);
