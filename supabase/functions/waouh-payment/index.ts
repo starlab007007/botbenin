@@ -99,6 +99,40 @@ Deno.serve(async (req) => {
         await sb.from("waouh_transactions").update({ buyer_id: allowedBuyerId }).eq("id", transaction_id);
       }
 
+      // ---- DEMO MODE: skip Qosic, simulate success after a short delay ----
+      if (PAYMENT_MODE === "demo") {
+        await sb.from("waouh_payments").update({
+          status: "pending",
+          qosic_response: { demo: true, simulated: true },
+        }).eq("id", pay.id);
+        await sb.from("waouh_transactions").update({ status: "payment_pending" }).eq("id", transaction_id);
+        // Schedule (best-effort) auto-confirmation after delay
+        const finalize = async () => {
+          await sb.from("waouh_payments").update({ status: "success", qosic_response: { demo: true, simulated: true, finalized_at: new Date().toISOString() } }).eq("id", pay.id);
+          await sb.from("waouh_transactions").update({ status: "paid", escrow_status: "held" }).eq("id", transaction_id);
+          // Push system messages to both buyer and seller
+          const { data: txAfter } = await sb.from("waouh_transactions").select("buyer_id, seller_id, article_id, amount").eq("id", transaction_id).single();
+          if (txAfter) {
+            await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA. Le vendeur va vous contacter pour la livraison.`);
+            await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison et contactez-le. Cliquez sur « J'ai bien reçu » côté acheteur pour libérer les fonds.`);
+          }
+        };
+        // Fire and forget
+        // @ts-ignore EdgeRuntime is available in Supabase functions
+        const wait = new Promise<void>((resolve) => setTimeout(resolve, DEMO_DELAY_MS));
+        try {
+          // @ts-ignore
+          if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
+            // @ts-ignore
+            EdgeRuntime.waitUntil(wait.then(finalize));
+          } else {
+            wait.then(finalize);
+          }
+        } catch { wait.then(finalize); }
+        return json({ success: true, payment_id: pay.id, transref, demo: true, message: "Mode démo : paiement simulé. Confirmation automatique dans quelques secondes." });
+      }
+
+      // ---- LIVE MODE: call Qosic ----
       const payload = {
         msisdn: cleanPhone,
         amount: String(tx.amount),
@@ -110,7 +144,7 @@ Deno.serve(async (req) => {
 
       const r = await fetch(reqEndpoint(op), {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: auth() },
+        headers: { "Content-Type": "application/json", Authorization: "Basic " + btoa(`${QOSIC_USER}:${QOSIC_PASS}`) },
         body: JSON.stringify(payload),
       });
       const txt = await r.text();
