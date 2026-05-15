@@ -71,23 +71,21 @@ export default function WaouhChatPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
-  const { permission, requestPermission } = useWaouhMatchNotifications(sessionId);
+  const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } = useWaouhMatchNotifications(sessionId);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
   }, []);
 
   const NotifButton = (
-    <Button
-      size="sm"
-      variant={permission === "granted" ? "ghost" : "outline"}
-      onClick={requestPermission}
-      className="gap-1.5"
-      title={permission === "granted" ? "Notifications activées" : "Activer les notifications de matching"}
-    >
-      {permission === "granted" ? <Bell className="w-4 h-4 text-emerald-600" /> : <BellOff className="w-4 h-4" />}
-      <span className="hidden sm:inline text-xs">{permission === "granted" ? "Notif. ON" : "Activer notif."}</span>
-    </Button>
+    <WaouhNotificationsBell
+      permission={permission}
+      notifications={notifications}
+      unreadCount={unreadCount}
+      onRequestPermission={requestPermission}
+      onMarkAllRead={markAllRead}
+      onClearAll={clearAll}
+    />
   );
 
   // === MOBILE: full-screen, no scroll, drawer for help ===
