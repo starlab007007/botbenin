@@ -144,6 +144,7 @@ export default function WaouhChatPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
               IA en ligne
             </Badge>
+            {NotifButton}
             {user ? (
               <Link to="/admin/waouh">
                 <Button variant="ghost" size="sm">
