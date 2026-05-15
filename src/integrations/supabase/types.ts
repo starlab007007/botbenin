@@ -5475,6 +5475,7 @@ export type Database = {
           channel: string
           created_at: string
           id: string
+          image_url: string | null
           last_error: string | null
           payload: Json
           sent_at: string | null
@@ -5483,12 +5484,14 @@ export type Database = {
           to_phone: string | null
           to_user_id: string | null
           updated_at: string
+          web_session_id: string | null
         }
         Insert: {
           attempts?: number
           channel?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           last_error?: string | null
           payload?: Json
           sent_at?: string | null
@@ -5497,12 +5500,14 @@ export type Database = {
           to_phone?: string | null
           to_user_id?: string | null
           updated_at?: string
+          web_session_id?: string | null
         }
         Update: {
           attempts?: number
           channel?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           last_error?: string | null
           payload?: Json
           sent_at?: string | null
@@ -5511,6 +5516,7 @@ export type Database = {
           to_phone?: string | null
           to_user_id?: string | null
           updated_at?: string
+          web_session_id?: string | null
         }
         Relationships: []
       }
@@ -8692,6 +8698,18 @@ export type Database = {
           p_template: string
           p_to_phone: string
           p_to_user_id: string
+        }
+        Returns: string
+      }
+      waouh_enqueue_outbound_v2: {
+        Args: {
+          p_channel?: string
+          p_image_url?: string
+          p_payload: Json
+          p_template: string
+          p_to_phone: string
+          p_to_user_id: string
+          p_web_session_id?: string
         }
         Returns: string
       }
