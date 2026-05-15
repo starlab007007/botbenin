@@ -154,13 +154,12 @@ export default function WaouhChatPage() {
               IA en ligne
             </Badge>
             {NotifButton}
-            {user ? (
-              <Link to="/admin/waouh">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-1.5" /> Administration
-                </Button>
-              </Link>
-            ) : (
+            <Link to="/">
+              <Button variant="ghost" size="sm">
+                <X className="w-4 h-4 mr-1.5" /> Fermer
+              </Button>
+            </Link>
+            {!user && (
               <Link to="/auth">
                 <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90">
                   Se connecter
