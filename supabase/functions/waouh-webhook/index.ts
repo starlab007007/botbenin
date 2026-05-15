@@ -232,6 +232,23 @@ serve(async (req) => {
       }
       const { data: matches } = await q.order("created_at", { ascending: false }).limit(5);
 
+      // 🛰️ Radar IA: chercher aussi des signaux SELL (annonces externes captées)
+      let radarSellers: any[] = [];
+      try {
+        let rq = sb.from("waouh_radar_signals")
+          .select("id,product,category,price,city,contact_phone,contact_handle,raw_url,raw_text")
+          .eq("intent", "SELL")
+          .not("contact_phone", "is", null);
+        if (criteria.category) rq = rq.eq("category", criteria.category);
+        if (criteria.price_max) rq = rq.lte("price", criteria.price_max);
+        if (kws.length > 0) {
+          const orFilter = kws.map((k) => `raw_text.ilike.%${k}%`).join(",");
+          rq = rq.or(orFilter);
+        }
+        const { data: rs } = await rq.order("captured_at", { ascending: false }).limit(5);
+        radarSellers = rs || [];
+      } catch (e) { console.warn("[radar SELL search]", e); }
+
       await sb.from("waouh_buyer_profiles").insert({
         user_id: user!.id, query_text: text,
         category: criteria.category, keywords: kws,
@@ -240,23 +257,69 @@ serve(async (req) => {
         origin: channel === "whatsapp" ? "whatsapp" : "chat",
       });
 
-      if (!matches || matches.length === 0) {
+      const totalCount = (matches?.length || 0) + radarSellers.length;
+      if (totalCount === 0) {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
         nextContext = { ...nextContext, last_matches: [] };
       } else {
-        const list = matches.map((m: any, i: number) => {
+        const officialList = (matches || []).map((m: any, i: number) => {
           const photo = Array.isArray(m.photos) && m.photos.length > 0 ? `\n   📸 Photo disponible` : "";
           const min = m.market_price_min || m.price * 0.8;
           const max = m.market_price_max || m.price * 1.2;
           return `${i + 1}. *${m.title}* — ${fmt(m.price)} (${m.city ?? "?"}, ${m.condition})${photo}\n   📊 Marché: ${fmt(min)} – ${fmt(max)}`;
         }).join("\n");
-        replyAttachments = matches
+        const radarList = radarSellers.map((r: any, i: number) => {
+          const idx = (matches?.length || 0) + i + 1;
+          const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
+          const price = r.price ? fmt(Number(r.price)) : "Prix à négocier";
+          const city = r.city || "?";
+          return `${idx}. 🛰️ *${title}* — ${price} (${city})\n   📡 Source: Radar IA${r.contact_phone ? " — contact extrait" : ""}`;
+        }).join("\n");
+        replyAttachments = (matches || [])
           .flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 1) : [])
           .filter((url: any) => typeof url === "string")
           .slice(0, 5)
           .map((url: string) => ({ url, type: "image/jpeg" }));
-        reply = `🎯 *${matches.length} annonce${matches.length > 1 ? "s" : ""} trouvée${matches.length > 1 ? "s" : ""} :*\n\n${list}\n\n💡 Pour contacter le vendeur, répondez avec le numéro exact : *intéressé N°1*${matches.length > 1 ? `, *intéressé N°2* … *intéressé N°${matches.length}*` : ""}. Vous pouvez aussi proposer un prix.`;
-        nextContext = { ...nextContext, last_matches: matches.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })) };
+        const radarHint = radarSellers.length > 0
+          ? `\n\n🛰️ *${radarSellers.length} annonce${radarSellers.length > 1 ? "s" : ""}* détectée${radarSellers.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
+          : "";
+        reply = `🎯 *${totalCount} annonce${totalCount > 1 ? "s" : ""} trouvée${totalCount > 1 ? "s" : ""} :*\n\n${[officialList, radarList].filter(Boolean).join("\n")}\n\n💡 Pour contacter un vendeur officiel, répondez « intéressé N°1 ». Vous pouvez aussi proposer un prix.${radarHint}`;
+        const combinedMatches = [
+          ...(matches || []).map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
+        ];
+        nextContext = { ...nextContext, last_matches: combinedMatches };
+
+        // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
+        for (const r of radarSellers) {
+          const rawPhone = (r.contact_phone || "").replace(/\D/g, "");
+          if (!rawPhone) continue;
+          // Normalisation Bénin: +229 + 8 ou 10 chiffres
+          let e164 = rawPhone;
+          if (rawPhone.length === 8) e164 = `229${rawPhone}`;
+          else if (rawPhone.length === 10 && rawPhone.startsWith("01")) e164 = `2290${rawPhone.slice(2)}`;
+          else if (!rawPhone.startsWith("229")) e164 = `229${rawPhone.slice(-8)}`;
+          // Anti-spam: ne pas re-contacter si déjà notifié dans les 24h
+          const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const { data: recent } = await sb.from("waouh_outbound_queue")
+            .select("id").eq("to_phone", e164).eq("template", "radar_seller_outreach")
+            .gte("created_at", since).limit(1).maybeSingle();
+          if (recent) continue;
+          const title = r.product?.title || (r.raw_text || "").slice(0, 60) || "votre annonce";
+          const priceTxt = r.price ? ` à ${fmt(Number(r.price))}` : "";
+          try {
+            await sb.rpc("waouh_enqueue_outbound_v2", {
+              p_to_phone: e164,
+              p_to_user_id: null,
+              p_template: "radar_seller_outreach",
+              p_payload: {
+                text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez « OUI » pour le mettre en relation via WAOUH (paiement sécurisé escrow, 0 fraude).`,
+                radar_signal_id: r.id,
+                source_url: r.raw_url,
+              },
+              p_channel: "whatsapp",
+            });
+          } catch (e) { console.warn("[radar outreach]", e); }
+        }
       }
     } else if (intent.intent === "CONFIRM" && intent.article_index) {
       const idx = intent.article_index - 1;
