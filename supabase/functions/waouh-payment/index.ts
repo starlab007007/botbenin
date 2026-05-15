@@ -54,8 +54,11 @@ Deno.serve(async (req) => {
     if (action === "init") {
       const { transaction_id, msisdn, operator } = body as { transaction_id: string; msisdn: string; operator: string };
       const op = (operator || "mtn").toLowerCase();
-      if (!transaction_id || !msisdn || !CLIENT_IDS[op]) {
+      if (!transaction_id || !msisdn) {
         return json({ error: "Paramètres invalides" }, 400);
+      }
+      if (PAYMENT_MODE === "live" && !CLIENT_IDS[op]) {
+        return json({ error: "Opérateur non configuré" }, 400);
       }
       if (!userId) return json({ error: "Authentification requise" }, 401);
 
