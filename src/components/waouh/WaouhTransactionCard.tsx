@@ -50,27 +50,28 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
         const { data: a } = await supabase.from("waouh_articles").select("title").eq("id", (data as any).article_id).maybeSingle();
         if (active) setArticle(a as any);
       }
-      // Resolve viewer role via session_id or auth user
+      // Resolve viewer role via session_id AND auth user (try both, accept any match)
       const sessionId = localStorage.getItem(SESSION_KEY);
-      let waouhId: string | null = null;
+      const candidateIds: string[] = [];
       if (user?.id) {
         const { data: wu } = await supabase.from("waouh_users").select("id").eq("auth_user_id", user.id).maybeSingle();
-        waouhId = wu?.id ?? null;
+        if (wu?.id) candidateIds.push(wu.id);
       }
-      if (!waouhId && sessionId) {
+      if (sessionId) {
         const { data: wu } = await supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).maybeSingle();
-        waouhId = wu?.id ?? null;
+        if (wu?.id) candidateIds.push(wu.id);
       }
       const t: any = data;
       if (!active) return;
-      if (waouhId && t.buyer_id === waouhId) setViewerRole("buyer");
-      else if (waouhId && t.seller_id === waouhId) setViewerRole("seller");
-      else if (!t.buyer_id && sessionId) setViewerRole("buyer"); // unclaimed → presumed buyer (web session)
-      else setViewerRole("other");
+      let role: "buyer" | "seller" | "other" = "other";
+      if (candidateIds.includes(t.buyer_id)) role = "buyer";
+      else if (candidateIds.includes(t.seller_id)) role = "seller";
+      else if (!t.buyer_id && sessionId) role = "buyer"; // unclaimed → presumed buyer
+      setViewerRole(role);
 
       // Check existing rating
-      if (waouhId) {
-        const { data: r } = await supabase.from("waouh_ratings").select("id").eq("transaction_id", transactionId).eq("rater_id", waouhId).maybeSingle();
+      if (candidateIds[0]) {
+        const { data: r } = await supabase.from("waouh_ratings").select("id").eq("transaction_id", transactionId).eq("rater_id", candidateIds[0]).maybeSingle();
         if (active && r) setHasRated(true);
       }
     })();
