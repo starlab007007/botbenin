@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       }
 
       // ---- DEMO MODE: skip Qosic, simulate success after a short delay ----
-      if (PAYMENT_MODE === "demo") {
+      if (PAYMENT_MODE === "demo" || isDemoMsisdn) {
         await sb.from("waouh_payments").update({
           status: "pending",
           qosic_response: { demo: true, simulated: true },
