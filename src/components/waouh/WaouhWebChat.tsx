@@ -266,7 +266,14 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           </div>
         )}
         {messages.map((m) => (
-          <div key={m.id}>
+          <div
+            key={m.id}
+            ref={(el) => { msgRefs.current[m.id] = el; }}
+            className={cn(
+              "transition-all rounded-xl",
+              focusMsgId === m.id && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background bg-emerald-50/40"
+            )}
+          >
             <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
