@@ -85,13 +85,15 @@ serve(async (req) => {
 
     // Pré-détection règles déterministes (avant AI)
     const lower = (text || "").toLowerCase();
-    const numMatch = lower.match(/n[°o]?\s*(\d+)/i);
+    const numMatch = lower.match(/(?:n[°o]?\s*|#)(\d+)/i) || lower.match(/(?:int[ée]ress[ée]|interesse|choix|article)\s*(\d+)/i);
+    const literalInterest = /int[ée]ress[ée]\s*n[°o]?\s*x/i.test(lower);
     const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
     const payKw = /(payer|paiement|payement|mtn|moov|momo|paie|j'ach[èe]te maintenant)/i.test(lower);
     const offerMatch = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{4,})\s*(?:f|fcfa|cfa)?/);
 
     let intent: any = {};
     if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
     else if (payKw) intent = { intent: "PAY" };
     else {
       intent = await ai(
@@ -109,9 +111,12 @@ serve(async (req) => {
     let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
     let returnedArticleId: string | null = null;
     let returnedTransactionId: string | null = null;
+    let replyAttachments: Array<{ url: string; type: string }> = [];
     let nextContext: any = conv?.context ?? {};
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
+    const sourceLines = (min: number, max: number) =>
+      `\n\n🔎 *Références comparatives*\n• Facebook Marketplace / groupes WhatsApp locaux : ${fmt(min)} – ${fmt(max)}\n• Plateformes petites annonces (Jiji, CoinAfrique) : fourchette similaire selon état, mémoire et ville\n• Analyse WAOUH : prix, état, marque/modèle et zone de vente comparés pour sécuriser la confiance.`;
 
     if (intent.intent === "SELL") {
       const product = await ai(
@@ -138,8 +143,11 @@ serve(async (req) => {
           origin: channel === "whatsapp" ? "whatsapp" : "chat",
         }).select().single();
         returnedArticleId = art?.id ?? null;
+        replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
         const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo(s) jointe(s)` : "";
-        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(product.market_price_min || product.price * 0.8)} – ${fmt(product.market_price_max || product.price * 1.2)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        const min = product.market_price_min || product.price * 0.8;
+        const max = product.market_price_max || product.price * 1.2;
+        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(min)} – ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
       }
     } else if (intent.intent === "BUY") {
       const criteria = await ai(
