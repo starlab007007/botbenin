@@ -221,7 +221,7 @@ serve(async (req) => {
             .eq("intent", "BUY")
             .not("contact_phone", "is", null);
           if (product.category) bq = bq.eq("category", product.category);
-          const { data: buyerSignals } = await bq.order("captured_at", { ascending: false }).limit: 10 as any;
+          const { data: buyerSignals } = await bq.order("captured_at", { ascending: false }).limit(10);
           for (const b of (buyerSignals || [])) {
             const rawPhone = (b.contact_phone || "").replace(/\D/g, "");
             if (!rawPhone) continue;
