@@ -4,6 +4,70 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const DISPATCH_URL = `${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`;
+
+function normalizeBeninPhone(value: string | null | undefined) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("229")) return digits;
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  return digits.length > 8 ? digits : null;
+}
+
+async function ensureRadarUser(sb: any, sig: any) {
+  const phone = normalizeBeninPhone(sig.contact_phone);
+  if (phone) {
+    const { data: existing } = await sb.from("waouh_users").select("id").eq("phone_number", phone).maybeSingle();
+    if (existing?.id) return existing.id;
+  }
+  const { data: created } = await sb.from("waouh_users").insert({
+    phone_number: phone,
+    display_name: sig.contact_handle || "Contact Radar IA",
+    channel: "whatsapp",
+    city: sig.city,
+  }).select("id").single();
+  return created?.id ?? null;
+}
+
+async function promoteSignal(sb: any, sig: any) {
+  const userId = sig.waouh_user_id || await ensureRadarUser(sb, sig);
+  if (!userId) return null;
+  const title = sig.product?.title || sig.product?.name || String(sig.raw_text || "Annonce Radar IA").slice(0, 120);
+  const category = sig.category || sig.product?.category || "autre";
+  if (sig.intent === "SELL" && !sig.promoted_article_id) {
+    const { data: existing } = await sb.from("waouh_articles").select("id").eq("origin_signal_id", sig.id).maybeSingle();
+    if (existing?.id) return { kind: "article", id: existing.id };
+    const { data: art } = await sb.from("waouh_articles").insert({
+      seller_id: userId,
+      title,
+      description: sig.raw_text,
+      category,
+      price: Number(sig.price || 0),
+      currency: "XOF",
+      city: sig.city,
+      status: "active",
+      origin: "radar",
+      origin_signal_id: sig.id,
+    }).select("id").single();
+    if (art?.id) await sb.from("waouh_radar_signals").update({ promoted_article_id: art.id, waouh_user_id: userId }).eq("id", sig.id);
+    return { kind: "article", id: art?.id ?? null };
+  }
+  if (sig.intent === "BUY" && !sig.promoted_buyer_profile_id) {
+    const { data: buyer } = await sb.from("waouh_buyer_profiles").insert({
+      user_id: userId,
+      query_text: sig.raw_text || title,
+      category,
+      keywords: [title, category].filter(Boolean),
+      price_max: sig.price,
+      is_active: true,
+      origin: "radar",
+      origin_signal_id: sig.id,
+    }).select("id").single();
+    if (buyer?.id) await sb.from("waouh_radar_signals").update({ promoted_buyer_profile_id: buyer.id, waouh_user_id: userId }).eq("id", sig.id);
+    return { kind: "buyer_profile", id: buyer?.id ?? null };
+  }
+  return null;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
