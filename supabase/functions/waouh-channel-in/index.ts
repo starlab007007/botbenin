@@ -266,13 +266,14 @@ serve(async (req) => {
     const core = await coreRes.json().catch(() => ({}));
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
     const reply: string = core.reply ?? "Désolé, une erreur est survenue. Réessayez.";
+    const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
 
     // Persist outgoing
     await sb.from("waouh_messages").insert({
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null },
+      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null, actions },
     });
 
     // WAHA send
