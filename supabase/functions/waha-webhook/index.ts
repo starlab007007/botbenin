@@ -38,6 +38,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+    const waouhSession = (Deno.env.get('WAHA_SESSION') || 'WaouhApp').toLowerCase();
 
     // Use service role key for webhook processing
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -46,6 +47,23 @@ serve(async (req) => {
     console.log('WAHA Webhook received:', JSON.stringify(webhookData, null, 2));
 
     const sessionName = webhookData.session;
+
+    // WAOUH has its own commerce engine. If the WAHA session is the WAOUH number,
+    // forward the incoming WhatsApp event directly to the WAOUH channel handler.
+    if (
+      webhookData.event === 'message' &&
+      webhookData.payload &&
+      !webhookData.payload.fromMe &&
+      String(sessionName || '').toLowerCase() === waouhSession
+    ) {
+      const waouhRes = await fetch(`${supabaseUrl}/functions/v1/waouh-channel-in`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(webhookData),
+      });
+      console.log('Forwarded WAOUH WhatsApp message:', waouhRes.status);
+      return new Response('OK', { headers: corsHeaders });
+    }
 
     // Find the WhatsApp account for this session
     const { data: account, error: accountError } = await supabase
