@@ -10,6 +10,73 @@ const corsHeaders = {
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
+function normalizeCategory(value: string | null | undefined) {
+  const v = String(value || "").toLowerCase();
+  if (/t[ée]l[ée]phone|smartphone|iphone|android/.test(v)) return "smartphone";
+  if (/ordinateur|pc|laptop|macbook/.test(v)) return "ordinateur";
+  if (/v[êe]tement|tissu|chaussure|mode|habit/.test(v)) return "vetement";
+  if (/voiture|moto|v[ée]hicule|auto/.test(v)) return "vehicule";
+  if (/frigo|cong[ée]lateur|machine|[ée]lectrom[ée]nager/.test(v)) return "electromenager";
+  if (/maison|logement|immobilier|location|terrain|chambre|salon|meuble/.test(v)) return "meuble";
+  return "autre";
+}
+
+function normalizeBeninPhone(value: string | null | undefined) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("00229")) return digits.slice(2);
+  if (digits.startsWith("229")) return digits;
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  const last10 = digits.slice(-10);
+  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
+  const last8 = digits.slice(-8);
+  return last8.length === 8 ? `229${last8}` : null;
+}
+
+async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre") {
+  if (sig.promoted_article_id) {
+    const { data: art } = await sb.from("waouh_articles").select("id,title,price,seller_id,photos,market_price_min,market_price_max").eq("id", sig.promoted_article_id).maybeSingle();
+    if (art) return art;
+  }
+  const phone = normalizeBeninPhone(sig.contact_phone || sig.raw_text || sig.contact_handle);
+  let sellerId: string | null = sig.waouh_user_id || null;
+  if (!sellerId) {
+    const { data: existing } = phone ? await sb.from("waouh_users").select("id").eq("phone_number", phone).maybeSingle() : { data: null };
+    sellerId = existing?.id ?? null;
+  }
+  if (!sellerId) {
+    const { data: created } = await sb.from("waouh_users").insert({
+      phone_number: phone,
+      display_name: sig.contact_handle || "Vendeur Radar IA",
+      channel: "whatsapp",
+      city: sig.city,
+    }).select("id").single();
+    sellerId = created?.id ?? null;
+  }
+  if (!sellerId) return null;
+  const title = sig.product?.title || sig.product?.name || String(sig.raw_text || "Annonce Radar IA").slice(0, 120);
+  const price = Number(sig.price || sig.product?.price || 0);
+  const photo = sig.product?.image_url || sig.product?.image || null;
+  const { data: existingArticle } = await sb.from("waouh_articles").select("id,title,price,seller_id,photos,market_price_min,market_price_max").eq("origin_signal_id", sig.id).maybeSingle();
+  if (existingArticle) return existingArticle;
+  const { data: art, error } = await sb.from("waouh_articles").insert({
+    seller_id: sellerId,
+    title,
+    description: sig.raw_text,
+    category: normalizeCategory(sig.category || sig.product?.category || fallbackCategory),
+    price,
+    currency: "XOF",
+    city: sig.city,
+    photos: photo ? [photo] : [],
+    status: "active",
+    origin: "radar",
+    origin_signal_id: sig.id,
+  }).select("id,title,price,seller_id,photos,market_price_min,market_price_max").single();
+  if (error) { console.warn("[radar promote seller]", error); return null; }
+  await sb.from("waouh_radar_signals").update({ promoted_article_id: art.id, waouh_user_id: sellerId, contact_phone: phone ?? sig.contact_phone, status: "notified" }).eq("id", sig.id);
+  return art;
+}
+
 async function ai(system: string, user: string, json = true) {
   const res = await fetch(AI_URL, {
     method: "POST",
@@ -89,6 +156,7 @@ serve(async (req) => {
     const literalInterest = /int[ée]ress[ée]\s*n[°o]?\s*x/i.test(lower);
     const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
     const payKw = /(payer|paiement|payement|momo|mobile money|j'ach[èe]te maintenant|\bje paye\b|\bje paie\b)/i.test(lower);
+    const receivedKw = /(j.?ai\s+(bien\s+)?re[cç]u|re[cç]u\s+l.?article|livraison\s+re[cç]ue|confirmer\s+la\s+r[ée]ception)/i.test(lower);
     const operatorKw: "mtn" | "moov" | "sbin" | null =
       /\bmtn\b/i.test(lower) ? "mtn" :
       /\bmoov\b/i.test(lower) ? "moov" :
@@ -109,7 +177,8 @@ serve(async (req) => {
     const offerMatch = (!payKw && (explicitOffer || fcfaOffer)) || null;
 
     let intent: any = {};
-    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    if (receivedKw) intent = { intent: "CONFIRM_RECEIVED" };
+    else if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
     else if (payKw) intent = { intent: "PAY", payment_phone: paymentPhone, operator: operatorKw };
     else {
@@ -188,6 +257,7 @@ serve(async (req) => {
         `Tu es WAOUH. Extrais d'un message vendeur la fiche produit en JSON: {title, category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), brand, model, condition (new/like_new/good/fair/poor), price (number, FCFA), description, market_price_min, market_price_max, confidence (0-1)}.`,
         text
       );
+      const productCategory = normalizeCategory(product.category);
       if ((product.confidence ?? 0) < 0.5 || !product.price) {
         reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
       } else {
@@ -196,7 +266,7 @@ serve(async (req) => {
           seller_id: user!.id,
           title: product.title || "Annonce",
           description: product.description,
-          category: product.category || "autre",
+          category: productCategory,
           brand: product.brand, model: product.model,
           condition: product.condition || "good",
           price: product.price, currency: "XOF",
@@ -220,14 +290,11 @@ serve(async (req) => {
             .select("id,product,category,price,city,contact_phone,raw_text")
             .eq("intent", "BUY")
             .not("contact_phone", "is", null);
-          if (product.category) bq = bq.eq("category", product.category);
+          if (productCategory) bq = bq.or(`category.ilike.%${productCategory}%,raw_text.ilike.%${productCategory}%`);
           const { data: buyerSignals } = await bq.order("captured_at", { ascending: false }).limit(10);
           for (const b of (buyerSignals || [])) {
-            const rawPhone = (b.contact_phone || "").replace(/\D/g, "");
-            if (!rawPhone) continue;
-            let e164 = rawPhone;
-            if (rawPhone.length === 8) e164 = `229${rawPhone}`;
-            else if (!rawPhone.startsWith("229")) e164 = `229${rawPhone.slice(-8)}`;
+            const e164 = normalizeBeninPhone(b.contact_phone || b.raw_text);
+            if (!e164) continue;
             const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             const { data: recent } = await sb.from("waouh_outbound_queue")
               .select("id").eq("to_phone", e164).eq("template", "radar_buyer_outreach")
@@ -253,11 +320,12 @@ serve(async (req) => {
         "Extrais les critères d'achat en JSON: {keywords (array de mots-clés produit, ex: ['lenovo','ordinateur']), category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), price_max (number FCFA), condition_min, radius_km}.",
         text
       );
+      const criteriaCategory = normalizeCategory(criteria.category || text);
       // Recherche filtrée
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
-      if (criteria.category) q = q.eq("category", criteria.category);
+      if (criteriaCategory) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
       const kws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
       if (kws.length > 0) {
@@ -272,7 +340,7 @@ serve(async (req) => {
         let rq = sb.from("waouh_radar_signals")
           .select("id,product,category,price,city,contact_phone,contact_handle,raw_url,raw_text")
           .eq("intent", "SELL");
-        if (criteria.category) rq = rq.eq("category", criteria.category);
+        if (criteriaCategory && criteriaCategory !== "autre") rq = rq.or(`category.ilike.%${criteriaCategory}%,raw_text.ilike.%${criteriaCategory}%`);
         if (criteria.price_max) rq = rq.lte("price", criteria.price_max);
         if (kws.length > 0) {
           const orFilter = kws.map((k) => `raw_text.ilike.%${k}%`).join(",");
@@ -284,7 +352,7 @@ serve(async (req) => {
 
       await sb.from("waouh_buyer_profiles").insert({
         user_id: user!.id, query_text: text,
-        category: criteria.category, keywords: kws,
+        category: criteriaCategory, keywords: kws,
         price_max: criteria.price_max, radius_km: criteria.radius_km ?? 30,
         location: `SRID=4326;POINT(${lng} ${lat})` as any,
         origin: channel === "whatsapp" ? "whatsapp" : "chat",
@@ -317,20 +385,21 @@ serve(async (req) => {
           ? `\n\n🛰️ *${radarSellers.length} annonce${radarSellers.length > 1 ? "s" : ""}* détectée${radarSellers.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
         reply = `🎯 *${totalCount} annonce${totalCount > 1 ? "s" : ""} trouvée${totalCount > 1 ? "s" : ""} :*\n\n${[officialList, radarList].filter(Boolean).join("\n")}\n\n💡 Pour contacter un vendeur officiel, répondez « intéressé N°1 ». Vous pouvez aussi proposer un prix.${radarHint}`;
+        const promotedRadarMatches: any[] = [];
+        for (const r of radarSellers) {
+          const art = await promoteRadarSeller(sb, r, criteriaCategory);
+          if (art?.id) promotedRadarMatches.push({ ...art, radar: true });
+        }
         const combinedMatches = [
           ...(matches || []).map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
+          ...promotedRadarMatches.map((m: any) => ({ id: m.id, title: `🛰️ ${m.title}`, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
         ];
         nextContext = { ...nextContext, last_matches: combinedMatches };
 
         // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
         for (const r of radarSellers) {
-          const rawPhone = (r.contact_phone || "").replace(/\D/g, "");
-          if (!rawPhone) continue;
-          // Normalisation Bénin: +229 + 8 ou 10 chiffres
-          let e164 = rawPhone;
-          if (rawPhone.length === 8) e164 = `229${rawPhone}`;
-          else if (rawPhone.length === 10 && rawPhone.startsWith("01")) e164 = `2290${rawPhone.slice(2)}`;
-          else if (!rawPhone.startsWith("229")) e164 = `229${rawPhone.slice(-8)}`;
+          const e164 = normalizeBeninPhone(r.contact_phone || r.raw_text || r.contact_handle);
+          if (!e164) continue;
           // Anti-spam: ne pas re-contacter si déjà notifié dans les 24h
           const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
           const { data: recent } = await sb.from("waouh_outbound_queue")
@@ -499,6 +568,22 @@ serve(async (req) => {
             ? `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nPour payer en mode démo, répondez : *payer 0165653468*`
             : `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
         }
+      }
+    } else if (intent.intent === "CONFIRM_RECEIVED") {
+      const txId = conv?.current_transaction_id || nextContext?.current_transaction_id;
+      if (!txId) {
+        reply = "🤔 Aucune transaction à terminer. Payez d'abord une annonce puis confirmez la réception.";
+      } else {
+        const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "confirm_received", transaction_id: txId, waouh_buyer_id: user!.id }),
+        });
+        const done = await payRes.json().catch(() => ({}));
+        reply = done?.success
+          ? "🎉 Réception confirmée. La transaction est terminée et les fonds sont libérés au vendeur (mode démo)."
+          : `Impossible de confirmer la réception : ${done?.error || "réessayez"}`;
+        returnedTransactionId = txId;
       }
     } else if (intent.intent === "HELP") {
       reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "intéressé N°X" pour contacter un vendeur\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;

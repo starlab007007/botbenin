@@ -23,7 +23,11 @@ export const WaouhWhatsAppPanel: React.FC = () => {
       const { data, error } = await supabase.functions.invoke("waouh-waha-control", {
         body: { action, session, ...payload },
       });
-      if (error) throw error;
+      if (error) {
+        let details = "";
+        try { details = (await (error as any).context?.json?.())?.error || ""; } catch { /* ignore */ }
+        throw new Error(details || error.message || "Erreur WAHA");
+      }
       return data;
     } catch (e: any) {
       toast.error(e.message || "Erreur WAHA");
@@ -69,6 +73,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     const data = await callWaha("get-qr");
     if (data?.qr) setQr(data.qr);
     else if (data?.image) setQr(data.image);
+    else if (status === "WORKING") setQr(null);
   };
 
   const configureWebhook = async () => {
@@ -137,7 +142,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
           ) : (
             <div className="text-center text-sm text-muted-foreground">
               <QrCode className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              Aucun QR. Démarrez une session puis cliquez sur « Charger QR ».
+              {status === "WORKING" ? "Session connectée à WhatsApp. Aucun QR nécessaire." : "Aucun QR. Démarrez une session puis cliquez sur « Charger QR »."}
             </div>
           )}
         </div>

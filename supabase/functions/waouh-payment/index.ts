@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
 
       if (ok) {
         await sb.from("waouh_transactions").update({
-          status: "released",
+          status: "completed",
           escrow_status: "released",
           completed_at: new Date().toISOString(),
         }).eq("id", transaction_id);
@@ -313,7 +313,7 @@ Deno.serve(async (req) => {
 
     // ---------------- CONFIRM RECEIVED (buyer) → release escrow ----------------
     if (action === "confirm_received") {
-      const { transaction_id } = body;
+      const { transaction_id, waouh_buyer_id } = body;
       if (!transaction_id) return json({ error: "transaction_id requis" }, 400);
       const { data: tx } = await sb.from("waouh_transactions").select("*").eq("id", transaction_id).maybeSingle();
       if (!tx) return json({ error: "Transaction introuvable" }, 404);
@@ -330,11 +330,12 @@ Deno.serve(async (req) => {
         const { data: wu } = await sb.from("waouh_users").select("id").eq("web_session_id", sessionHeader).maybeSingle();
         if (wu?.id === tx.buyer_id) allowed = true;
       }
+      if (!allowed && authHeader === `Bearer ${SERVICE_ROLE}` && waouh_buyer_id === tx.buyer_id) allowed = true;
       if (!allowed) return json({ error: "Seul l'acheteur peut confirmer la réception" }, 403);
 
       if (PAYMENT_MODE === "demo") {
         await sb.from("waouh_transactions").update({
-          status: "released",
+          status: "completed",
           escrow_status: "released",
           buyer_confirmed: true,
           completed_at: new Date().toISOString(),
