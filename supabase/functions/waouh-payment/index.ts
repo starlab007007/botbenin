@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
         return json({ error: "Opérateur non configuré" }, 400);
       }
       // In LIVE mode auth is mandatory; in DEMO mode we accept web session for testing
-      if (PAYMENT_MODE === "live" && !userId) return json({ error: "Authentification requise" }, 401);
+      if (PAYMENT_MODE === "live" && !userId && !serviceCall) return json({ error: "Authentification requise" }, 401);
       if (PAYMENT_MODE === "demo" && !userId && !waouhBuyerId) {
         return json({ error: "Session introuvable. Rechargez la page." }, 401);
       }
