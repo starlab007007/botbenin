@@ -204,9 +204,13 @@ serve(async (req) => {
     let returnedArticleId: string | null = null;
     let returnedTransactionId: string | null = null;
     let replyAttachments: Array<{ url: string; type: string }> = [];
+    let returnedActions: Array<{ id: string; label: string }> = [];
     let nextContext: any = conv?.context ?? {};
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
+    const moneyLine = (label: string, value: number) => `• *${label}* : ${fmt(value)}`;
+    const paymentCard = (amount: number, txId?: string | null) =>
+      `\n\n💳 *Carte de paiement WAOUH*\n${moneyLine("Montant", amount)}\n${moneyLine("Escrow sécurisé", amount)}\n• *Statut* : En attente de paiement\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}\n\n👉 Appuyez sur *Payer* ou envoyez : *payer 0165653468*`;
     const sourceLines = (min: number, max: number) =>
       `\n\n🔎 *Références comparatives*\n• Facebook Marketplace / groupes WhatsApp locaux : ${fmt(min)} – ${fmt(max)}\n• Plateformes petites annonces (Jiji, CoinAfrique) : fourchette similaire selon état, mémoire et ville\n• Analyse WAOUH : prix, état, marque/modèle et zone de vente comparés pour sécuriser la confiance.`;
 
@@ -225,6 +229,7 @@ serve(async (req) => {
         .select("id, phone_number, web_session_id, channel")
         .eq("id", opts.to_user_id).maybeSingle();
       if (!target) return;
+      if (target.id === user?.id || (target.phone_number && phone && normalizeBeninPhone(target.phone_number) === normalizeBeninPhone(phone))) return;
       // 1) Insert direct chat message first to capture its id
       let insertedMsgId: string | null = null;
       if (target.web_session_id) {
@@ -247,7 +252,7 @@ serve(async (req) => {
           p_to_phone: target.phone_number,
           p_to_user_id: target.id,
           p_template: opts.template,
-          p_payload: { ...(opts.payload || {}), message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null },
+          p_payload: { ...(opts.payload || {}), text: opts.directText, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null },
           p_web_session_id: target.web_session_id,
           p_image_url: opts.image_url ?? null,
           p_channel: target.phone_number ? "whatsapp" : "web",
