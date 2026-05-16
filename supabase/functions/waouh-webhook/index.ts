@@ -22,7 +22,9 @@ function normalizeCategory(value: string | null | undefined) {
 }
 
 function normalizeBeninPhone(value: string | null | undefined) {
-  const digits = String(value || "").replace(/\D/g, "");
+  const original = String(value || "");
+  if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
+  const digits = original.replace(/\D/g, "");
   if (!digits) return null;
   if (digits.startsWith("00229")) return digits.slice(2);
   if (digits.startsWith("229")) return digits;

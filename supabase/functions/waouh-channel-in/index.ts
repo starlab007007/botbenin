@@ -15,8 +15,10 @@ const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 
 const normalizeBeninPhone = (value: string) => {
-  const raw = String(value || "").replace(/@c\.us|@lid/g, "");
-  if (!raw || raw.includes("status@broadcast") || raw.includes("@g.us")) return null;
+  const original = String(value || "");
+  if (!original || original.includes("status@broadcast") || original.includes("@g.us")) return null;
+  if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
+  const raw = original.replace(/@c\.us/g, "");
   const digits = raw.replace(/\D/g, "");
   if (!digits) return null;
   if (digits.startsWith("229")) return digits;
