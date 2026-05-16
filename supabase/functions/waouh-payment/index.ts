@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
 
       if (ok) {
         await sb.from("waouh_transactions").update({
-          status: "released",
+          status: "completed",
           escrow_status: "released",
           completed_at: new Date().toISOString(),
         }).eq("id", transaction_id);
@@ -334,7 +334,7 @@ Deno.serve(async (req) => {
 
       if (PAYMENT_MODE === "demo") {
         await sb.from("waouh_transactions").update({
-          status: "released",
+          status: "completed",
           escrow_status: "released",
           buyer_confirmed: true,
           completed_at: new Date().toISOString(),
