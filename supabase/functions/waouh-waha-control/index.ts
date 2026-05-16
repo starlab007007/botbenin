@@ -24,7 +24,7 @@ async function readWaha(res: Response) {
   try { return JSON.parse(text); } catch { return { raw: text, status: res.status }; }
 }
 
-async function fetchWaha(base: string, path: string, init: RequestInit = {}, headers: Record<string, string>) {
+async function fetchWaha(base: string, path: string, init: RequestInit = {}, headers: Record<string, string> = {}) {
   return fetch(`${base}${path}`, { ...init, headers: { ...headers, ...(init.headers || {}) } });
 }
 
