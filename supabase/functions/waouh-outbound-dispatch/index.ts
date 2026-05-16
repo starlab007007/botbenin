@@ -7,6 +7,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
+const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const MAX_ATTEMPTS = 3;
 
@@ -16,9 +17,10 @@ function fmt(n: number | null | undefined) {
 }
 
 function compose(template: string, p: any): string {
+  if (p?.text) return String(p.text);
   switch (template) {
     case "match_buyer":
-      return `🎯 WAOUH a trouvé pour vous : *${p.title || "une annonce"}*\n💰 ${fmt(p.price)}\n📍 ${p.city || "?"}\n\nRépondez *OUI* pour être mis en relation avec le vendeur, ou proposez votre prix (ex: "15000").`;
+      return `🎯 *WAOUH a trouvé pour vous*\n\n📦 *Produit* : ${p.title || "une annonce"}\n💰 *Prix* : ${fmt(p.price)}\n📍 *Ville* : ${p.city || "?"}\n\nRépondez *intéressé 1* pour être mis en relation, ou proposez votre prix.`;
     case "match_seller":
       return `📩 WAOUH : un acheteur cherche *${p.category || "votre produit"}*.\nRépondez *OUI* pour qu'on vous mette en contact, ou *NON* pour passer.`;
     case "negotiation_open":
@@ -31,7 +33,9 @@ function compose(template: string, p: any): string {
 }
 
 function normalizeBeninPhone(value: string) {
-  const digits = String(value || "").replace(/\D/g, "");
+  const original = String(value || "");
+  if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
+  const digits = original.replace(/\D/g, "");
   if (!digits) return null;
   if (digits.startsWith("229")) return digits;
   if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
@@ -44,6 +48,37 @@ async function sendWahaText(base: string, session: string, chatId: string, text:
   if (r.ok) return r;
   r = await fetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
   return r;
+}
+
+async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string, headers: Record<string, string>) {
+  let r = await fetch(`${base}/api/sendImage`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
+  });
+  if (r.ok) return r;
+  return fetch(`${base}/api/${session}/sendImage`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
+  });
+}
+
+async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string }>, headers: Record<string, string>) {
+  const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
+  let r = await fetch(`${base}/api/sendButtons`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ session, chatId, text, buttons }),
+  });
+  if (r.ok) return r;
+  r = await fetch(`${base}/api/${session}/sendButtons`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ chatId, text, buttons }),
+  });
+  if (r.ok) return r;
+  return sendWahaText(base, session, chatId, `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label} → ${a.id}`).join("\n")}`, headers);
 }
 
 Deno.serve(async (req) => {
@@ -83,17 +118,21 @@ Deno.serve(async (req) => {
         await sb.from("waouh_outbound_queue").update({ status: "failed", attempts: it.attempts + 1, last_error: "invalid phone" }).eq("id", it.id);
         failed++; continue;
       }
-      const chatId = `${phone}@c.us`;
+      if (phone === WAOUH_BUSINESS_PHONE) {
+        await sb.from("waouh_outbound_queue").update({ status: "sent", attempts: it.attempts + 1, last_error: "skipped business self", sent_at: new Date().toISOString() }).eq("id", it.id);
+        skipped++; continue;
+      }
+      const chatId = phone.includes("@") ? phone : `${phone}@c.us`;
       const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
       const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
       try {
         let r: Response;
+        const actions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
         if (it.image_url) {
-          r = await fetch(`${wahaBase}/api/sendImage`, {
-            method: "POST",
-            headers: wahaHeaders,
-            body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: it.image_url }, caption: text }),
-          });
+          r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
+          if (r.ok && actions.length > 0) await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, "Actions rapides WAOUH", actions, wahaHeaders);
+        } else if (actions.length > 0) {
+          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders);
         } else {
           r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
         }
