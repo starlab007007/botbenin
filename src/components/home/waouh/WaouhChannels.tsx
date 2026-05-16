@@ -11,7 +11,7 @@ const channels = [
     color: '#00D4FF',
     icon: MessageSquare,
     cta: 'Ouvrir le chat',
-    span: 'lg:col-span-5',
+    span: 'md:col-span-2 lg:col-span-5',
   },
   {
     href: 'https://wa.me/22965653468',
@@ -22,7 +22,7 @@ const channels = [
     color: '#25D366',
     icon: MessagesSquare,
     cta: 'Écrire sur WhatsApp',
-    span: 'lg:col-span-4',
+    span: 'md:col-span-1 lg:col-span-4',
   },
   {
     href: '/kpakpato',
@@ -32,26 +32,26 @@ const channels = [
     color: '#FFD23F',
     icon: Mic,
     cta: 'Découvrir la voix',
-    span: 'lg:col-span-3',
+    span: 'md:col-span-2 lg:col-span-3',
   },
 ];
 
 export const WaouhChannels: React.FC = () => {
   return (
     <section className="relative" style={{ fontFamily: '"Space Grotesk", Inter, sans-serif' }}>
-      <div className="flex items-end justify-between mb-6 gap-4">
+      <div className="flex items-end justify-between mb-5 sm:mb-6 gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: 'hsl(var(--home-accent))' }}>
             03 canaux
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
             Une seule conversation.{' '}
             <span style={{ color: 'hsl(var(--home-text-muted))' }}>Trois manières d’y entrer.</span>
           </h2>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4">
         {channels.map((c, i) => {
           const Icon = c.icon;
           const inner = (
@@ -98,7 +98,7 @@ export const WaouhChannels: React.FC = () => {
             </>
           );
 
-          const cls = `group relative overflow-hidden rounded-2xl p-6 sm:p-8 transition ${c.span}`;
+          const cls = `group relative overflow-hidden rounded-2xl p-5 sm:p-6 md:p-7 lg:p-8 transition ${c.span}`;
           const style: React.CSSProperties = {
             background: 'hsl(var(--home-surface))',
             border: '1px solid hsl(var(--home-border))',

@@ -9,20 +9,20 @@ const steps = [
 
 export const WaouhHowItWorks: React.FC = () => (
   <section style={{ fontFamily: '"Space Grotesk", Inter, sans-serif' }}>
-    <div className="mb-8">
+    <div className="mb-6 sm:mb-8">
       <div className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: 'hsl(var(--home-accent))' }}>
         Mode d’emploi
       </div>
-      <h2 className="text-3xl sm:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
+      <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
         En <span className="italic" style={{ color: 'hsl(var(--home-text-muted))' }}>4 messages.</span> Pas un de plus.
       </h2>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {steps.map((s, i) => (
         <div
           key={s.n}
-          className="relative overflow-hidden rounded-2xl p-6 transition"
+          className="relative overflow-hidden rounded-2xl p-5 sm:p-6 transition"
           style={{
             background: 'hsl(var(--home-surface))',
             border: '1px solid hsl(var(--home-border))',
@@ -30,7 +30,7 @@ export const WaouhHowItWorks: React.FC = () => (
           }}
         >
           <div
-            className="text-[64px] leading-none font-bold text-transparent"
+            className="text-[48px] sm:text-[64px] leading-none font-bold text-transparent"
             style={{
               WebkitTextStroke: '1px hsl(var(--home-accent))',
               fontFamily: '"Space Grotesk", sans-serif',

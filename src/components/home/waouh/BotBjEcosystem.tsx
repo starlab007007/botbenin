@@ -12,12 +12,12 @@ const modules = [
 
 export const BotBjEcosystem: React.FC = () => (
   <section style={{ fontFamily: '"Space Grotesk", Inter, sans-serif' }}>
-    <div className="mb-8 flex items-end justify-between gap-4 flex-wrap">
+    <div className="mb-6 sm:mb-8 flex items-end justify-between gap-4 flex-wrap">
       <div>
         <div className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: 'hsl(var(--home-accent))' }}>
           L’écosystème bot.bj
         </div>
-        <h2 className="text-3xl sm:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
           Au-delà de WAOUH,{' '}
           <span style={{ color: 'hsl(var(--home-text-muted))' }}>la même IA pour tout votre business.</span>
         </h2>
@@ -28,7 +28,7 @@ export const BotBjEcosystem: React.FC = () => (
       {/* WAOUH flagship */}
       <Link
         to="/waouh-chat"
-        className="group lg:col-span-7 relative overflow-hidden rounded-2xl p-8 sm:p-10 min-h-[260px]"
+        className="group lg:col-span-7 relative overflow-hidden rounded-2xl p-6 sm:p-8 lg:p-10 min-h-[220px] sm:min-h-[260px]"
         style={{
           background:
             'radial-gradient(700px 300px at 80% 0%, hsl(var(--home-accent) / 0.35), transparent 60%),' +
@@ -48,7 +48,7 @@ export const BotBjEcosystem: React.FC = () => (
           ★ Produit phare
         </div>
         <h3
-          className="mt-5 text-5xl sm:text-6xl font-bold leading-none"
+          className="mt-4 sm:mt-5 text-4xl sm:text-5xl lg:text-6xl font-bold leading-none"
           style={{ color: 'hsl(var(--home-text))' }}
         >
           WAOUH

@@ -106,7 +106,7 @@ export const WaouhLiveHero: React.FC = () => {
         }}
       />
 
-      <div className="relative grid lg:grid-cols-[1.15fr_1fr] gap-8 lg:gap-12 p-6 sm:p-10 lg:p-14">
+      <div className="relative grid lg:grid-cols-[1.15fr_1fr] gap-8 lg:gap-12 p-4 sm:p-8 md:p-10 lg:p-14">
         {/* LEFT */}
         <div className="flex flex-col justify-center">
           <div
@@ -126,7 +126,7 @@ export const WaouhLiveHero: React.FC = () => {
           </div>
 
           <h1
-            className="mt-6 font-bold leading-[0.95] tracking-tight text-[44px] sm:text-[68px] lg:text-[88px]"
+            className="mt-5 sm:mt-6 font-bold leading-[0.95] tracking-tight text-[34px] xs:text-[40px] sm:text-[56px] md:text-[68px] lg:text-[80px] xl:text-[88px]"
             style={{ color: 'hsl(var(--home-text))' }}
           >
             <span className="block">Parlez.</span>
@@ -142,7 +142,7 @@ export const WaouhLiveHero: React.FC = () => {
           </h1>
 
           <p
-            className="mt-6 max-w-xl text-base sm:text-lg leading-relaxed"
+            className="mt-5 sm:mt-6 max-w-xl text-sm sm:text-base md:text-lg leading-relaxed"
             style={{ color: 'hsl(var(--home-text-muted))' }}
           >
             <span className="font-semibold" style={{ color: 'hsl(var(--home-text))' }}>WAOUH</span> — le premier marché conversationnel du Bénin.
@@ -150,10 +150,10 @@ export const WaouhLiveHero: React.FC = () => {
             <span style={{ color: 'hsl(var(--home-text))' }}>Aucune app à installer.</span>
           </p>
 
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
+          <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
             <Link
               to="/waouh-chat"
-              className="group inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 font-semibold transition hover:brightness-110"
+              className="group inline-flex items-center justify-center gap-2 rounded-xl px-5 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base font-semibold transition hover:brightness-110"
               style={{
                 background: 'hsl(var(--home-accent))',
                 color: 'hsl(var(--home-text))',
@@ -161,23 +161,23 @@ export const WaouhLiveHero: React.FC = () => {
               }}
             >
               <Sparkles className="h-4 w-4" />
-              Essayer WAOUH maintenant
+              Essayer WAOUH
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <a
               href="https://wa.me/22965653468?text=Salut%20WAOUH"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 font-semibold transition"
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-5 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base font-semibold transition"
               style={{
                 border: '1px solid #25D36680',
                 background: '#25D36618',
-                color: '#16873A',
+                color: '#0E5A26',
               }}
             >
               <MessageCircle className="h-4 w-4" />
-              WhatsApp&nbsp;
-              <span className="font-mono text-sm" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+              <span className="hidden xs:inline">WhatsApp&nbsp;</span>
+              <span className="font-mono text-xs sm:text-sm" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
                 +229 65 65 34 68
               </span>
             </a>
@@ -195,7 +195,7 @@ export const WaouhLiveHero: React.FC = () => {
         </div>
 
         {/* RIGHT — phone mock (deep navy frame, not black) */}
-        <div className="relative mx-auto w-full max-w-[360px]">
+        <div className="relative mx-auto w-full max-w-[260px] sm:max-w-[300px] md:max-w-[340px] lg:max-w-[360px]">
           <div
             className="absolute -inset-10 rounded-[60px] blur-3xl opacity-60"
             style={{ background: 'radial-gradient(closest-side, hsl(var(--home-accent) / 0.5), transparent)' }}
