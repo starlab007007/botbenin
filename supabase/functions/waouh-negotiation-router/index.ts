@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
         p_to_phone: target.phone_number,
         p_to_user_id: target.id,
         p_template: template,
-        p_payload: { ...(payload || {}), text: directText, message_id: insertedMsgId, transaction_id: transactionId },
+        p_payload: { ...(payload || {}), text: directText, actions: directText.includes("Carte de paiement") ? paymentActions : [], message_id: insertedMsgId, transaction_id: transactionId },
         p_web_session_id: target.web_session_id,
         p_image_url: null,
         p_channel: target.phone_number ? "whatsapp" : "web",
