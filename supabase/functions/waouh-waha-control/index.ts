@@ -12,6 +12,22 @@ const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 
+async function readWaha(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("image/")) {
+    const buf = new Uint8Array(await res.arrayBuffer());
+    let bin = "";
+    for (const b of buf) bin += String.fromCharCode(b);
+    return { image: `data:${contentType};base64,${btoa(bin)}` };
+  }
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { return { raw: text, status: res.status }; }
+}
+
+async function fetchWaha(base: string, path: string, init: RequestInit = {}, headers: Record<string, string>) {
+  return fetch(`${base}${path}`, { ...init, headers: { ...headers, ...(init.headers || {}) } });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -35,49 +51,64 @@ serve(async (req) => {
 
     const { action, session = "WaouhApp", webhook, config } = await req.json();
 
+    const webhookConfig = config || (webhook?.url ? { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } : { webhooks: [] });
+
     let res: Response;
     switch (action) {
       case "session-status":
-        res = await fetch(`${base}/api/sessions/${session}`, { headers });
+        res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
         break;
       case "session-create":
-        // Create the session if it doesn't exist (idempotent)
-        res = await fetch(`${base}/api/sessions`, {
-          method: "POST", headers,
-          body: JSON.stringify({ name: session, start: true, config: config || { webhooks: [] } }),
-        });
+        // Idempotent: create if missing, otherwise update webhook/config and return current state.
+        res = await fetchWaha(base, `/api/sessions`, {
+          method: "POST",
+          body: JSON.stringify({ name: session, start: true, config: webhookConfig }),
+        }, headers);
         if (res.status === 409 || res.status === 422) {
-          // already exists → return current state
-          res = await fetch(`${base}/api/sessions/${session}`, { headers });
+          await fetchWaha(base, `/api/sessions/${session}`, {
+            method: "PUT",
+            body: JSON.stringify({ config: webhookConfig }),
+          }, headers).catch(() => null);
+          res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
         }
         break;
       case "session-start":
-        res = await fetch(`${base}/api/sessions/${session}/start`, { method: "POST", headers });
+        res = await fetchWaha(base, `/api/sessions/${session}/start`, { method: "POST" }, headers);
+        if (res.status === 409 || res.status === 422) res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
         break;
       case "session-stop":
-        res = await fetch(`${base}/api/sessions/${session}/stop`, { method: "POST", headers });
+        res = await fetchWaha(base, `/api/sessions/${session}/stop`, { method: "POST" }, headers);
         break;
       case "get-qr":
-        res = await fetch(`${base}/api/${session}/auth/qr?format=image`, { headers });
-        if (res.ok && res.headers.get("content-type")?.includes("image")) {
-          const buf = new Uint8Array(await res.arrayBuffer());
-          let bin = ""; for (const b of buf) bin += String.fromCharCode(b);
-          return json({ image: `data:image/png;base64,${btoa(bin)}` });
+        {
+          const candidates: Array<[string, "GET" | "POST"]> = [
+            [`/api/${session}/auth/qr?format=image`, "POST"],
+            [`/api/${session}/auth/qr?format=base64`, "POST"],
+            [`/api/${session}/auth/qr`, "POST"],
+            [`/api/sessions/${session}/auth/qr?format=image`, "GET"],
+            [`/api/sessions/${session}/qr?format=base64`, "GET"],
+          ];
+          let last: any = null;
+          for (const [path, method] of candidates) {
+            res = await fetchWaha(base, path, { method }, headers);
+            if (res.ok) return json(await readWaha(res));
+            last = await readWaha(res).catch(() => ({ status: res.status }));
+          }
+          return json({ error: "QR non disponible", details: last }, 404);
         }
-        break;
       case "set-webhook":
-        res = await fetch(`${base}/api/sessions/${session}`, {
-          method: "PUT", headers,
+        res = await fetchWaha(base, `/api/sessions/${session}`, {
+          method: "PUT",
           body: JSON.stringify({ config: { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } }),
-        });
+        }, headers);
         break;
       default:
         return json({ error: "Unknown action" }, 400);
     }
 
-    const text = await res.text();
-    try { return json(JSON.parse(text), res.status); }
-    catch { return json({ raw: text, status: res.status }, res.status); }
+    const body = await readWaha(res);
+    const status = res.status === 409 || res.status === 422 ? 200 : res.status;
+    return json(body, status);
   } catch (e: any) {
     return json({ error: e.message }, 500);
   }
