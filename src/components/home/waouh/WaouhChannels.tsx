@@ -8,7 +8,7 @@ const channels = [
     badge: 'CHAT WEB',
     title: 'Discutez sur bot.bj',
     desc: 'Cherchez, négociez et payez sans compte. Le navigateur suffit.',
-    color: 'hsl(var(--waouh-primary))',
+    color: '#00D4FF',
     icon: MessageSquare,
     cta: 'Ouvrir le chat',
     span: 'lg:col-span-5',
@@ -29,7 +29,7 @@ const channels = [
     badge: 'VOIX · KPAKPATO',
     title: 'Parlez, on écoute',
     desc: 'Marché parlé en Fon, Yoruba, Français. Pensé pour tous.',
-    color: 'hsl(var(--waouh-ai))',
+    color: '#FFD23F',
     icon: Mic,
     cta: 'Découvrir la voix',
     span: 'lg:col-span-3',
@@ -41,9 +41,12 @@ export const WaouhChannels: React.FC = () => {
     <section className="relative" style={{ fontFamily: '"Space Grotesk", Inter, sans-serif' }}>
       <div className="flex items-end justify-between mb-6 gap-4">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-[hsl(var(--waouh-primary))] mb-2">03 canaux</div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white leading-tight">
-            Une seule conversation. <span className="text-white/40">Trois manières d’y entrer.</span>
+          <div className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: 'hsl(var(--home-accent))' }}>
+            03 canaux
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
+            Une seule conversation.{' '}
+            <span style={{ color: 'hsl(var(--home-text-muted))' }}>Trois manières d’y entrer.</span>
           </h2>
         </div>
       </div>
@@ -56,20 +59,32 @@ export const WaouhChannels: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div
                   className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em]"
-                  style={{ borderColor: `${c.color}66`, color: c.color, background: `${c.color}14` }}
+                  style={{ borderColor: `${c.color}80`, color: c.color, background: `${c.color}1F` }}
                 >
                   <span className="h-1 w-1 rounded-full" style={{ background: c.color }} />
                   {c.badge}
                 </div>
-                <span className="text-white/30 text-xs font-mono" style={{ fontFamily: '"JetBrains Mono", monospace' }}>0{i + 1}</span>
+                <span
+                  className="text-xs font-mono"
+                  style={{ fontFamily: '"JetBrains Mono", monospace', color: 'hsl(var(--home-text-muted))' }}
+                >
+                  0{i + 1}
+                </span>
               </div>
 
-              <div className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: `${c.color}1A`, border: `1px solid ${c.color}40` }}>
+              <div
+                className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl"
+                style={{ background: `${c.color}1F`, border: `1px solid ${c.color}66` }}
+              >
                 <Icon className="h-6 w-6" style={{ color: c.color }} />
               </div>
 
-              <h3 className="mt-5 text-2xl font-semibold text-white leading-tight">{c.title}</h3>
-              <p className="mt-2 text-white/60 text-sm leading-relaxed">{c.desc}</p>
+              <h3 className="mt-5 text-2xl font-semibold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
+                {c.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: 'hsl(var(--home-text-muted))' }}>
+                {c.desc}
+              </p>
 
               <div className="mt-8 inline-flex items-center gap-2 text-sm font-medium" style={{ color: c.color }}>
                 {c.cta}
@@ -77,17 +92,26 @@ export const WaouhChannels: React.FC = () => {
               </div>
 
               <div
-                className="pointer-events-none absolute -bottom-20 -right-20 h-48 w-48 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-3xl"
+                className="pointer-events-none absolute -bottom-20 -right-20 h-48 w-48 rounded-full opacity-0 group-hover:opacity-40 transition-opacity duration-500 blur-3xl"
                 style={{ background: c.color }}
               />
             </>
           );
 
-          const cls = `group relative overflow-hidden rounded-2xl border border-[hsl(var(--waouh-border))] bg-[hsl(var(--waouh-bg))] p-6 sm:p-8 transition hover:border-[${c.color}] ${c.span}`;
+          const cls = `group relative overflow-hidden rounded-2xl p-6 sm:p-8 transition ${c.span}`;
+          const style: React.CSSProperties = {
+            background: 'hsl(var(--home-surface))',
+            border: '1px solid hsl(var(--home-border))',
+            boxShadow: '0 10px 30px -20px hsl(var(--home-accent) / 0.25)',
+          };
           return c.external ? (
-            <a key={i} href={c.href} target="_blank" rel="noreferrer" className={cls}>{inner}</a>
+            <a key={i} href={c.href} target="_blank" rel="noreferrer" className={cls} style={style}>
+              {inner}
+            </a>
           ) : (
-            <Link key={i} to={c.href} className={cls}>{inner}</Link>
+            <Link key={i} to={c.href} className={cls} style={style}>
+              {inner}
+            </Link>
           );
         })}
       </div>
