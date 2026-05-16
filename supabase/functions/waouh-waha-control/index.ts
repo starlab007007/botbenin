@@ -22,8 +22,9 @@ serve(async (req) => {
     const sb = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: auth } } });
     const { data: claims } = await sb.auth.getClaims(auth.replace("Bearer ", ""));
     if (!claims?.claims?.sub) return json({ error: "Unauthorized" }, 401);
-    const { data: isAdmin } = await sb.rpc("is_admin", { _user_id: claims.claims.sub });
-    if (!isAdmin) return json({ error: "Forbidden" }, 403);
+    const { data: isAdmin, error: adminErr } = await sb.rpc("is_admin", { user_uuid: claims.claims.sub });
+    if (adminErr) console.error("is_admin rpc error", adminErr);
+    if (!isAdmin) return json({ error: "Forbidden", details: adminErr?.message }, 403);
 
     if (!WAHA_BASE_URL) return json({ error: "WAHA_BASE_URL secret missing" }, 500);
     const base = WAHA_BASE_URL.replace(/\/$/, "");
