@@ -148,8 +148,8 @@ Deno.serve(async (req) => {
       }
       if (otherUserId) {
         await pushToOther(otherUserId, "negotiation_open",
-          { neg_id: neg.id, offer: intent.price, transaction_id: neg.transaction_id },
-          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"} : ${fmt(intent.price)}*\n\nRépondez « OUI » pour accepter, « NON » pour refuser, ou proposez un autre montant.`,
+          { neg_id: neg.id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id },
+          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.` + paymentCard(intent.price, neg.transaction_id),
           { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id });
       }
       return new Response(JSON.stringify({ ok: true, reply: `Contre-offre ${fmt(intent.price)} transmise.`, transaction_id: neg.transaction_id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
