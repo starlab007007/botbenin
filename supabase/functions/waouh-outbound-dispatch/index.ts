@@ -64,6 +64,23 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
   });
 }
 
+async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string }>, headers: Record<string, string>) {
+  const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
+  let r = await fetch(`${base}/api/sendButtons`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ session, chatId, text, buttons }),
+  });
+  if (r.ok) return r;
+  r = await fetch(`${base}/api/${session}/sendButtons`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ chatId, text, buttons }),
+  });
+  if (r.ok) return r;
+  return sendWahaText(base, session, chatId, `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label} → ${a.id}`).join("\n")}`, headers);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -110,8 +127,12 @@ Deno.serve(async (req) => {
       const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
       try {
         let r: Response;
+        const actions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
         if (it.image_url) {
           r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
+          if (r.ok && actions.length > 0) await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, "Actions rapides WAOUH", actions, wahaHeaders);
+        } else if (actions.length > 0) {
+          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders);
         } else {
           r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
         }
