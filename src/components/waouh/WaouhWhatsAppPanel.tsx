@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2, QrCode, RefreshCw, Webhook, Power } from "lucide-react";
+import { Loader2, QrCode, RefreshCw, Webhook, Power, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -15,7 +15,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   const [status, setStatus] = useState<string>("unknown");
   const [qr, setQr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [session, setSession] = useState("default");
+  const [session, setSession] = useState("WaouhApp");
 
   const callWaha = async (action: string, payload?: any) => {
     setLoading(true);
@@ -38,9 +38,23 @@ export const WaouhWhatsAppPanel: React.FC = () => {
     if (data?.status) setStatus(data.status);
   };
 
+  const createSession = async () => {
+    const data = await callWaha("session-create", {
+      config: { webhooks: [{ url: CHANNEL_IN_URL, events: ["message"] }] },
+    });
+    if (data) {
+      toast.success(`Session « ${session} » créée et webhook lié.`);
+      setTimeout(loadQr, 1500);
+      refreshStatus();
+    }
+  };
+
   const startSession = async () => {
+    await callWaha("session-create", {
+      config: { webhooks: [{ url: CHANNEL_IN_URL, events: ["message"] }] },
+    });
     await callWaha("session-start");
-    toast.success("Session démarrée. Récupération du QR…");
+    toast.success(`Session « ${session} » démarrée. Récupération du QR…`);
     setTimeout(loadQr, 1500);
     refreshStatus();
   };
@@ -87,6 +101,9 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Input value={session} onChange={(e) => setSession(e.target.value)} />
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={createSession} disabled={loading}>
+              <Plus className="w-4 h-4 mr-1" /> Créer
+            </Button>
             <Button onClick={startSession} disabled={loading}>
               <Power className="w-4 h-4 mr-1" /> Démarrer
             </Button>

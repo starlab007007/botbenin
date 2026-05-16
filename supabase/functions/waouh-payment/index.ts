@@ -91,6 +91,14 @@ Deno.serve(async (req) => {
       const cleanPhone = msisdn.replace(/\D/g, "");
       if (!/^229\d{8}$/.test(cleanPhone)) return json({ error: "Numéro invalide (229XXXXXXXX)" }, 400);
 
+      // 🧪 Demo MTN sandbox — toujours success (solde virtuel 10 000 000 FCFA)
+      const DEMO_MTN_MSISDN = "22965653468";
+      const DEMO_BALANCE = 10_000_000;
+      const isDemoMsisdn = cleanPhone === DEMO_MTN_MSISDN;
+      if (isDemoMsisdn && Number(tx.amount) > DEMO_BALANCE) {
+        return json({ error: "Solde démo insuffisant" }, 400);
+      }
+
       const transref = newRef("WPAY");
       const { data: pay, error: payErr } = await sb
         .from("waouh_payments")
@@ -114,7 +122,7 @@ Deno.serve(async (req) => {
       }
 
       // ---- DEMO MODE: skip Qosic, simulate success after a short delay ----
-      if (PAYMENT_MODE === "demo") {
+      if (PAYMENT_MODE === "demo" || isDemoMsisdn) {
         await sb.from("waouh_payments").update({
           status: "pending",
           qosic_response: { demo: true, simulated: true },

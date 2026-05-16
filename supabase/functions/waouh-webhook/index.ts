@@ -271,15 +271,14 @@ serve(async (req) => {
       try {
         let rq = sb.from("waouh_radar_signals")
           .select("id,product,category,price,city,contact_phone,contact_handle,raw_url,raw_text")
-          .eq("intent", "SELL")
-          .not("contact_phone", "is", null);
+          .eq("intent", "SELL");
         if (criteria.category) rq = rq.eq("category", criteria.category);
         if (criteria.price_max) rq = rq.lte("price", criteria.price_max);
         if (kws.length > 0) {
           const orFilter = kws.map((k) => `raw_text.ilike.%${k}%`).join(",");
           rq = rq.or(orFilter);
         }
-        const { data: rs } = await rq.order("captured_at", { ascending: false }).limit(5);
+        const { data: rs } = await rq.order("captured_at", { ascending: false }).limit(8);
         radarSellers = rs || [];
       } catch (e) { console.warn("[radar SELL search]", e); }
 
