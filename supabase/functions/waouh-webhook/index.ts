@@ -250,11 +250,14 @@ serve(async (req) => {
       }
       // 2) Notification (cloche + WhatsApp si phone) avec deep-link
       try {
+        const quickActions = opts.directText.includes("Carte de paiement")
+          ? [{ id: "payer 0165653468", label: "Payer" }, { id: "Je propose 250000 FCFA", label: "Négocier" }]
+          : [];
         await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.phone_number,
           p_to_user_id: target.id,
           p_template: opts.template,
-          p_payload: { ...(opts.payload || {}), text: opts.directText, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null },
+          p_payload: { ...(opts.payload || {}), text: opts.directText, actions: quickActions, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null },
           p_web_session_id: target.web_session_id,
           p_image_url: opts.image_url ?? null,
           p_channel: target.phone_number ? "whatsapp" : "web",
