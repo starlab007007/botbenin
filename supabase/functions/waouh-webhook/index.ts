@@ -272,7 +272,10 @@ serve(async (req) => {
       if ((product.confidence ?? 0) < 0.5 || !product.price) {
         reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
       } else {
-        const photoUrls = attachments.map((a: any) => a?.url).filter((u: any) => typeof u === "string");
+        const photoUrls = attachments
+          .filter((a: any) => /^image\//i.test(String(a?.type || "image/jpeg")))
+          .map((a: any) => a?.url)
+          .filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
           title: product.title || "Annonce",
@@ -293,7 +296,7 @@ serve(async (req) => {
         const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo(s) jointe(s)` : "";
         const min = product.market_price_min || product.price * 0.8;
         const max = product.market_price_max || product.price * 1.2;
-        reply = `✅ *Annonce publiée !*\n\n📦 ${product.title}\n💰 ${fmt(product.price)}\n📍 ${user!.city}${photoLine}\n\n📊 Prix marché estimé: ${fmt(min)} – ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
 
         // 🛰️ Radar IA: contacter les acheteurs (signaux BUY) qui correspondent
         try {
@@ -378,14 +381,14 @@ serve(async (req) => {
           const photo = Array.isArray(m.photos) && m.photos.length > 0 ? `\n   📸 Photo disponible` : "";
           const min = m.market_price_min || m.price * 0.8;
           const max = m.market_price_max || m.price * 1.2;
-          return `${i + 1}. *${m.title}* — ${fmt(m.price)} (${m.city ?? "?"}, ${m.condition})${photo}\n   📊 Marché: ${fmt(min)} – ${fmt(max)}`;
+          return `*${i + 1}. ${m.title}*\n   💰 ${fmt(m.price)}\n   📍 ${m.city ?? "?"} · ${m.condition}${photo}\n   📊 Marché : ${fmt(min)} – ${fmt(max)}`;
         }).join("\n");
         const radarList = radarSellers.map((r: any, i: number) => {
           const idx = (matches?.length || 0) + i + 1;
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
           const price = r.price ? fmt(Number(r.price)) : "Prix à négocier";
           const city = r.city || "?";
-          return `${idx}. 🛰️ *${title}* — ${price} (${city})\n   📡 Source: Radar IA${r.contact_phone ? " — contact extrait" : ""}`;
+          return `*${idx}. ${title}*\n   💰 ${price}\n   📍 ${city}\n   📡 Source : Radar IA${r.contact_phone ? " · contact extrait" : ""}`;
         }).join("\n");
         replyAttachments = (matches || [])
           .flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 1) : [])
@@ -395,7 +398,7 @@ serve(async (req) => {
         const radarHint = radarSellers.length > 0
           ? `\n\n🛰️ *${radarSellers.length} annonce${radarSellers.length > 1 ? "s" : ""}* détectée${radarSellers.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
-        reply = `🎯 *${totalCount} annonce${totalCount > 1 ? "s" : ""} trouvée${totalCount > 1 ? "s" : ""} :*\n\n${[officialList, radarList].filter(Boolean).join("\n")}\n\n💡 Pour contacter un vendeur officiel, répondez « intéressé N°1 ». Vous pouvez aussi proposer un prix.${radarHint}`;
+        reply = `🎯 *${totalCount} annonce${totalCount > 1 ? "s" : ""} trouvée${totalCount > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez simplement : *intéressé 1*. Vous pouvez aussi proposer un prix.${radarHint}`;
         const promotedRadarMatches: any[] = [];
         for (const r of radarSellers) {
           const art = await promoteRadarSeller(sb, r, criteriaCategory);
