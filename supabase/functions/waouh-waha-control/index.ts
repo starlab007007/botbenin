@@ -94,6 +94,11 @@ serve(async (req) => {
             if (res.ok) return json(await readWaha(res));
             last = await readWaha(res).catch(() => ({ status: res.status }));
           }
+          const current = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
+          const currentBody = await readWaha(current).catch(() => null);
+          if (current.ok && (currentBody?.status === "WORKING" || currentBody?.engine?.state === "CONNECTED")) {
+            return json({ connected: true, status: "WORKING", message: "Session WhatsApp déjà connectée, aucun QR nécessaire." });
+          }
           return json({ error: "QR non disponible", details: last }, 404);
         }
       case "set-webhook":
