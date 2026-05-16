@@ -17,10 +17,18 @@ export const HomePage: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <div className="w-full min-h-screen bg-[#0A0D1A] text-white">
-      {/* Light bar with welcome (kept compact, optional) */}
+    <div
+      className="w-full min-h-screen"
+      style={{
+        background:
+          'radial-gradient(1200px 600px at 90% -10%, hsl(var(--home-accent) / 0.18), transparent 60%),' +
+          'radial-gradient(900px 500px at -10% 110%, hsl(var(--home-accent-warm) / 0.18), transparent 60%),' +
+          'hsl(var(--home-bg))',
+        color: 'hsl(var(--home-text))',
+      }}
+    >
       {user?.name && (
-        <div className="bg-background text-foreground">
+        <div style={{ background: 'hsl(var(--home-surface))', color: 'hsl(var(--home-text))' }}>
           <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-4">
             <WelcomeHeader userName={user.name} />
           </div>
@@ -37,8 +45,10 @@ export const HomePage: React.FC = () => {
         <BotBjEcosystem />
         <WaouhFinalCTA />
 
-        {/* Pricing kept on dark background — wrap to invert */}
-        <section className="rounded-3xl bg-background text-foreground p-6 sm:p-10">
+        <section
+          className="rounded-3xl p-6 sm:p-10"
+          style={{ background: 'hsl(var(--home-surface))', color: 'hsl(var(--home-text))' }}
+        >
           <PricingSection />
         </section>
       </main>

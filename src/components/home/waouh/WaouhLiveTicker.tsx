@@ -15,15 +15,27 @@ export const WaouhLiveTicker: React.FC = () => {
   const row = [...ITEMS, ...ITEMS];
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-[hsl(var(--waouh-border))] bg-[#0A0D1A]"
-      style={{ fontFamily: '"JetBrains Mono", monospace' }}
+      className="relative overflow-hidden rounded-2xl"
+      style={{
+        background: 'hsl(var(--home-surface))',
+        border: '1px solid hsl(var(--home-border))',
+        fontFamily: '"JetBrains Mono", monospace',
+        boxShadow: '0 10px 30px -20px hsl(var(--home-accent) / 0.35)',
+      }}
     >
-      <div className="absolute left-0 top-0 bottom-0 w-16 z-10 bg-gradient-to-r from-[#0A0D1A] to-transparent" />
-      <div className="absolute right-0 top-0 bottom-0 w-16 z-10 bg-gradient-to-l from-[#0A0D1A] to-transparent" />
+      <div
+        className="absolute left-0 top-0 bottom-0 w-16 z-10"
+        style={{ background: 'linear-gradient(to right, hsl(var(--home-surface)), transparent)' }}
+      />
+      <div
+        className="absolute right-0 top-0 bottom-0 w-16 z-10"
+        style={{ background: 'linear-gradient(to left, hsl(var(--home-surface)), transparent)' }}
+      />
       <div className="flex gap-10 py-3 whitespace-nowrap animate-[ticker_40s_linear_infinite]">
         {row.map((t, i) => (
-          <span key={i} className="text-[12px] text-white/70">
-            <span className="text-[hsl(var(--waouh-primary))]">●</span>&nbsp;&nbsp;{t}
+          <span key={i} className="text-[12px]" style={{ color: 'hsl(var(--home-text-muted))' }}>
+            <span style={{ color: 'hsl(var(--home-accent))' }}>●</span>&nbsp;&nbsp;{t}
+            <span className="mx-4" style={{ color: 'hsl(var(--home-accent-warm))' }}>◆</span>
           </span>
         ))}
       </div>

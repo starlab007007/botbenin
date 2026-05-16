@@ -6,24 +6,36 @@ export const WaouhFinalCTA: React.FC = () => (
   <section
     className="relative overflow-hidden rounded-3xl p-10 sm:p-16 lg:p-20 text-center"
     style={{
-      background: 'linear-gradient(135deg, hsl(var(--waouh-primary)) 0%, hsl(var(--waouh-ai)) 100%)',
+      background: 'linear-gradient(135deg, hsl(var(--home-accent)) 0%, #6FE4FF 55%, hsl(var(--home-accent-warm)) 100%)',
       fontFamily: '"Space Grotesk", Inter, sans-serif',
     }}
   >
-    <div className="absolute inset-0 opacity-20" style={{
-      backgroundImage:
-        'radial-gradient(circle at 20% 20%, white 1px, transparent 1px), radial-gradient(circle at 80% 70%, white 1px, transparent 1px)',
-      backgroundSize: '60px 60px, 80px 80px',
-    }} />
+    <div
+      className="absolute inset-0 opacity-25"
+      style={{
+        backgroundImage:
+          'radial-gradient(circle at 20% 20%, white 1px, transparent 1px), radial-gradient(circle at 80% 70%, white 1px, transparent 1px)',
+        backgroundSize: '60px 60px, 80px 80px',
+      }}
+    />
     <div className="relative">
-      <div className="text-[11px] uppercase tracking-[0.3em] text-[#0A0D1A]/60 mb-4">Maintenant</div>
-      <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-[#0A0D1A] leading-[1.05] max-w-3xl mx-auto">
+      <div
+        className="text-[11px] uppercase tracking-[0.3em] mb-4"
+        style={{ color: 'hsl(var(--home-text) / 0.65)' }}
+      >
+        Maintenant
+      </div>
+      <h2
+        className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.05] max-w-3xl mx-auto"
+        style={{ color: 'hsl(var(--home-text))' }}
+      >
         Votre prochain client <span className="italic">vous attend</span> sur WhatsApp.
       </h2>
       <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
         <Link
           to="/waouh-chat"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A0D1A] px-7 py-4 text-white font-semibold transition hover:bg-black"
+          className="inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 font-semibold transition hover:brightness-110"
+          style={{ background: 'hsl(var(--home-text))', color: 'hsl(var(--home-surface))' }}
         >
           Lancer WAOUH <ArrowRight className="h-4 w-4" />
         </Link>
@@ -31,7 +43,13 @@ export const WaouhFinalCTA: React.FC = () => (
           href="https://wa.me/22965653468?text=Salut%20WAOUH"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#0A0D1A]/30 bg-white/30 backdrop-blur px-7 py-4 text-[#0A0D1A] font-semibold transition hover:bg-white/50"
+          className="inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 font-semibold transition hover:bg-white"
+          style={{
+            background: 'hsl(var(--home-surface) / 0.6)',
+            color: 'hsl(var(--home-text))',
+            border: '1px solid hsl(var(--home-text) / 0.25)',
+            backdropFilter: 'blur(6px)',
+          }}
         >
           +229 65 65 34 68
         </a>
