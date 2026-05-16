@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react';
 
 export const WaouhFinalCTA: React.FC = () => (
   <section
-    className="relative overflow-hidden rounded-3xl p-10 sm:p-16 lg:p-20 text-center"
+    className="relative overflow-hidden rounded-2xl sm:rounded-3xl p-6 sm:p-12 md:p-16 lg:p-20 text-center"
     style={{
       background: 'linear-gradient(135deg, hsl(var(--home-accent)) 0%, #6FE4FF 55%, hsl(var(--home-accent-warm)) 100%)',
       fontFamily: '"Space Grotesk", Inter, sans-serif',
@@ -20,18 +20,18 @@ export const WaouhFinalCTA: React.FC = () => (
     />
     <div className="relative">
       <div
-        className="text-[11px] uppercase tracking-[0.3em] mb-4"
-        style={{ color: 'hsl(var(--home-text) / 0.65)' }}
+        className="text-[11px] uppercase tracking-[0.3em] mb-3 sm:mb-4"
+        style={{ color: 'hsl(var(--home-text) / 0.75)' }}
       >
         Maintenant
       </div>
       <h2
-        className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.05] max-w-3xl mx-auto"
+        className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.05] max-w-3xl mx-auto"
         style={{ color: 'hsl(var(--home-text))' }}
       >
         Votre prochain client <span className="italic">vous attend</span> sur WhatsApp.
       </h2>
-      <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
+      <div className="mt-7 sm:mt-10 flex flex-col sm:flex-row gap-3 justify-center">
         <Link
           to="/waouh-chat"
           className="inline-flex items-center justify-center gap-2 rounded-xl px-7 py-4 font-semibold transition hover:brightness-110"
