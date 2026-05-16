@@ -87,12 +87,15 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, processed: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    let matched = 0, notified = 0;
+    let matched = 0, notified = 0, promoted = 0, queued = 0;
 
     for (const sig of signals) {
       // 1) Upsert radar profile
-      if (sig.contact_phone) {
-        const { data: prof } = await sb.from("waouh_radar_profiles").select("*").eq("contact_phone", sig.contact_phone).maybeSingle();
+      const normalizedPhone = normalizeBeninPhone(sig.contact_phone);
+      const promotedSignal = await promoteSignal(sb, sig);
+      if (promotedSignal?.id) promoted++;
+      if (normalizedPhone) {
+        const { data: prof } = await sb.from("waouh_radar_profiles").select("*").eq("contact_phone", normalizedPhone).maybeSingle();
         if (prof) {
           await sb.from("waouh_radar_profiles").update({
             signals_count: (prof.signals_count || 0) + 1,
@@ -104,7 +107,7 @@ Deno.serve(async (req) => {
           }).eq("id", prof.id);
         } else {
           await sb.from("waouh_radar_profiles").insert({
-            contact_phone: sig.contact_phone,
+            contact_phone: normalizedPhone,
             contact_handle: sig.contact_handle,
             display_name: sig.contact_handle,
             role: sig.intent === "SELL" ? "seller" : sig.intent === "BUY" ? "buyer" : "unknown",
@@ -176,7 +179,7 @@ Deno.serve(async (req) => {
                 msgId = msg?.id ?? null;
               }
               try {
-                await sb.rpc("waouh_enqueue_outbound_v2", {
+            const { error: enqueueErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
                   p_to_phone: wu.phone_number,
                   p_to_user_id: wu.id,
                   p_template: "match_buyer",
@@ -187,17 +190,47 @@ Deno.serve(async (req) => {
                   p_message_id: msgId,
                   p_transaction_id: null,
                 });
+            if (!enqueueErr) queued++;
               } catch (e) { console.warn("[radar-process] enqueue", e); }
             }
             notified++;
           }
+      if (normalizedPhone) {
+        try {
+          const title = sig.product?.title || sig.product?.name || sig.category || "votre annonce";
+          const template = sig.intent === "SELL" ? "radar_seller_outreach" : "radar_buyer_outreach";
+          const text = sig.intent === "SELL"
+            ? `👋 Bonjour ! WAOUH a détecté votre annonce "${title}". Répondez « OUI » pour recevoir des acheteurs et négocier avec paiement sécurisé.`
+            : `👋 Bonjour ! WAOUH a détecté votre besoin "${title}". Répondez « OUI » pour recevoir des annonces fiables et payer en escrow sécurisé.`;
+          const { data: recent } = await sb.from("waouh_outbound_queue")
+            .select("id").eq("to_phone", normalizedPhone).eq("template", template)
+            .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()).limit(1).maybeSingle();
+          if (!recent) {
+            const { error: outErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
+              p_to_phone: normalizedPhone,
+              p_to_user_id: null,
+              p_template: template,
+              p_payload: { text, signal_id: sig.id, source_url: sig.raw_url, promoted_id: promotedSignal?.id ?? null },
+              p_image_url: sig.product?.image_url ?? null,
+              p_channel: "whatsapp",
+            });
+            if (!outErr) queued++;
+          }
+        } catch (e) { console.warn("[radar-process] direct outreach", e); }
+      }
         }
       }
 
       await sb.from("waouh_radar_signals").update({ status: "notified" }).eq("id", sig.id);
     }
 
-    return new Response(JSON.stringify({ ok: true, processed: signals.length, matched, notified }), {
+    fetch(DISPATCH_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: 50 }),
+    }).catch(() => {});
+
+    return new Response(JSON.stringify({ ok: true, processed: signals.length, promoted, matched, notified, queued }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
