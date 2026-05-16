@@ -10,6 +10,29 @@ const corsHeaders = {
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
+function normalizeCategory(value: string | null | undefined) {
+  const v = String(value || "").toLowerCase();
+  if (/t[ée]l[ée]phone|smartphone|iphone|android/.test(v)) return "smartphone";
+  if (/ordinateur|pc|laptop|macbook/.test(v)) return "ordinateur";
+  if (/v[êe]tement|tissu|chaussure|mode|habit/.test(v)) return "vetement";
+  if (/voiture|moto|v[ée]hicule|auto/.test(v)) return "vehicule";
+  if (/frigo|cong[ée]lateur|machine|[ée]lectrom[ée]nager/.test(v)) return "electromenager";
+  if (/maison|logement|immobilier|location|terrain|chambre|salon|meuble/.test(v)) return "meuble";
+  return "autre";
+}
+
+function normalizeBeninPhone(value: string | null | undefined) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("00229")) return digits.slice(2);
+  if (digits.startsWith("229")) return digits;
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  const last10 = digits.slice(-10);
+  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
+  const last8 = digits.slice(-8);
+  return last8.length === 8 ? `229${last8}` : null;
+}
+
 async function ai(system: string, user: string, json = true) {
   const res = await fetch(AI_URL, {
     method: "POST",
