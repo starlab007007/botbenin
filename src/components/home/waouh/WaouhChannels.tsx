@@ -39,19 +39,19 @@ const channels = [
 export const WaouhChannels: React.FC = () => {
   return (
     <section className="relative" style={{ fontFamily: '"Space Grotesk", Inter, sans-serif' }}>
-      <div className="flex items-end justify-between mb-6 gap-4">
+      <div className="flex items-end justify-between mb-5 sm:mb-6 gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: 'hsl(var(--home-accent))' }}>
             03 canaux
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
             Une seule conversation.{' '}
             <span style={{ color: 'hsl(var(--home-text-muted))' }}>Trois manières d’y entrer.</span>
           </h2>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4">
         {channels.map((c, i) => {
           const Icon = c.icon;
           const inner = (
