@@ -211,6 +211,7 @@ serve(async (req) => {
         `Tu es WAOUH. Extrais d'un message vendeur la fiche produit en JSON: {title, category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), brand, model, condition (new/like_new/good/fair/poor), price (number, FCFA), description, market_price_min, market_price_max, confidence (0-1)}.`,
         text
       );
+      const productCategory = normalizeCategory(product.category);
       if ((product.confidence ?? 0) < 0.5 || !product.price) {
         reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
       } else {
@@ -219,7 +220,7 @@ serve(async (req) => {
           seller_id: user!.id,
           title: product.title || "Annonce",
           description: product.description,
-          category: product.category || "autre",
+          category: productCategory,
           brand: product.brand, model: product.model,
           condition: product.condition || "good",
           price: product.price, currency: "XOF",
@@ -243,7 +244,7 @@ serve(async (req) => {
             .select("id,product,category,price,city,contact_phone,raw_text")
             .eq("intent", "BUY")
             .not("contact_phone", "is", null);
-          if (product.category) bq = bq.eq("category", product.category);
+          if (productCategory) bq = bq.or(`category.ilike.%${productCategory}%,raw_text.ilike.%${productCategory}%`);
           const { data: buyerSignals } = await bq.order("captured_at", { ascending: false }).limit(10);
           for (const b of (buyerSignals || [])) {
             const rawPhone = (b.contact_phone || "").replace(/\D/g, "");
