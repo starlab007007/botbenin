@@ -13,6 +13,7 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
+const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const normalizeBeninPhone = (value: string) => {
   const raw = String(value || "").replace(/@c\.us|@lid/g, "");
@@ -26,6 +27,42 @@ const normalizeBeninPhone = (value: string) => {
 
 function log(step: string, data: any = {}) {
   console.log(`[waouh-channel-in] ${step}`, JSON.stringify(data));
+}
+
+function wahaHeaders() {
+  return { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
+}
+
+async function sendWahaText(base: string, session: string, chatId: string, text: string) {
+  const cleanBase = base.replace(/\/$/, "");
+  const headers = wahaHeaders();
+  const direct = await fetch(`${cleanBase}/api/sendText`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ session, chatId, text }),
+  });
+  if (direct.ok) return direct;
+  return fetch(`${cleanBase}/api/${session}/sendText`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ chatId, text }),
+  });
+}
+
+async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string) {
+  const cleanBase = base.replace(/\/$/, "");
+  const headers = wahaHeaders();
+  const direct = await fetch(`${cleanBase}/api/sendImage`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
+  });
+  if (direct.ok) return direct;
+  return fetch(`${cleanBase}/api/${session}/sendImage`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
+  });
 }
 
 serve(async (req) => {
@@ -54,10 +91,13 @@ serve(async (req) => {
     const authUserId: string | null = raw.authUserId ?? null;
 
     const wahaSession = raw.session || WAHA_SESSION;
+    let fromChatId: string | null = null;
+    let toPhone: string | null = null;
 
     // WAHA: { event:"message", session, payload:{ from, body, fromMe, hasMedia, mediaUrl, mimetype } }
     if (raw.event && raw.payload) {
       const normalizedFrom = normalizeBeninPhone(raw.payload.from || raw.payload.author || "");
+      toPhone = normalizeBeninPhone(raw.payload.to || raw.payload._data?.to || "") || WAOUH_BUSINESS_PHONE;
       if (raw.event !== "message" || raw.payload.fromMe || !normalizedFrom) {
         return new Response(JSON.stringify({ ok: true, skipped: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -65,11 +105,14 @@ serve(async (req) => {
       }
       channel = "whatsapp";
       phone = normalizedFrom;
+      fromChatId = raw.payload.from || `${normalizedFrom}@c.us`;
       text = raw.payload.body || raw.payload.caption || raw.payload._data?.caption || "";
-      const mediaUrl = raw.payload.mediaUrl || raw.payload.media?.url;
-      const mime = raw.payload.mimetype || raw.payload.media?.mimetype || "image/jpeg";
+      const mediaUrl = raw.payload.mediaUrl || raw.payload.media?.url || raw.payload._data?.deprecatedMms3Url || raw.payload._data?.directPath;
+      const mime = raw.payload.mimetype || raw.payload.media?.mimetype || raw.payload._data?.mimetype || "image/jpeg";
       if (mediaUrl) attachments.push({ url: mediaUrl, type: mime });
     }
+
+    const chatId = fromChatId || (phone?.includes("@") ? phone : `${phone}@c.us`);
 
     if ((!text && attachments.length === 0) || (!phone && !sessionId)) {
       return new Response(JSON.stringify({ ok: false, error: "missing text/attachments or identifier" }), {
@@ -113,6 +156,7 @@ serve(async (req) => {
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
+      meta: { to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
     });
 
     // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router
@@ -144,11 +188,7 @@ serve(async (req) => {
       });
       if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
         try {
-          await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
-            body: JSON.stringify({ session: wahaSession, chatId: phone.includes("@") ? phone : `${phone}@c.us`, text: negReply }),
-          });
+          await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, negReply);
         } catch (e) { console.error("WAHA send failed", e); }
       }
       return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId }), {
@@ -184,21 +224,9 @@ serve(async (req) => {
       try {
         const firstImage = Array.isArray(core.attachments) ? core.attachments.find((a: any) => a?.url)?.url : null;
         if (firstImage) {
-          await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendImage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
-            body: JSON.stringify({ session: wahaSession, chatId: phone.includes("@") ? phone : `${phone}@c.us`, file: { url: firstImage }, caption: reply }),
-          });
+          await sendWahaImage(WAHA_BASE_URL, wahaSession, chatId, firstImage, reply);
         } else {
-          await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
-          body: JSON.stringify({
-            session: wahaSession,
-            chatId: phone.includes("@") ? phone : `${phone}@c.us`,
-            text: reply,
-          }),
-          });
+          await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, reply);
         }
       } catch (e) { console.error("WAHA send failed", e); }
     }
