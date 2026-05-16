@@ -33,7 +33,9 @@ function compose(template: string, p: any): string {
 }
 
 function normalizeBeninPhone(value: string) {
-  const digits = String(value || "").replace(/\D/g, "");
+  const original = String(value || "");
+  if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
+  const digits = original.replace(/\D/g, "");
   if (!digits) return null;
   if (digits.startsWith("229")) return digits;
   if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
         await sb.from("waouh_outbound_queue").update({ status: "sent", attempts: it.attempts + 1, last_error: "skipped business self", sent_at: new Date().toISOString() }).eq("id", it.id);
         skipped++; continue;
       }
-      const chatId = `${phone}@c.us`;
+      const chatId = phone.includes("@") ? phone : `${phone}@c.us`;
       const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
       const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
       try {
