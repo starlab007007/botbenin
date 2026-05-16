@@ -23,6 +23,18 @@ const newRef = (prefix: string) => {
   return `${prefix}_${ts}_${r}`.slice(0, 19);
 };
 
+const normalizeBeninMsisdn = (value: string) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return null;
+  let local = digits;
+  if (local.startsWith("00229")) local = local.slice(5);
+  if (local.startsWith("229")) local = local.slice(3);
+  if (local.length === 9 && local.startsWith("1")) local = `0${local}`;
+  if (local.length > 10) local = local.slice(-10).startsWith("01") ? local.slice(-10) : local.slice(-8);
+  if (local.length === 8 || (local.length === 10 && local.startsWith("01"))) return local;
+  return null;
+};
+
 const reqEndpoint = (op: string) => {
   if (op === "mtn") return `${QOSIC_BASE}/QosicBridge/user/requestpayment`;
   if (op === "moov") return `${QOSIC_BASE}/QosicBridge/user/requestpaymentmv`;
@@ -64,16 +76,18 @@ Deno.serve(async (req) => {
 
     // ---------------- INIT ----------------
     if (action === "init") {
-      const { transaction_id, msisdn, operator } = body as { transaction_id: string; msisdn: string; operator: string };
+      const { transaction_id, msisdn, operator, waouh_buyer_id } = body as { transaction_id: string; msisdn: string; operator: string; waouh_buyer_id?: string };
       const op = (operator || "mtn").toLowerCase();
       if (!transaction_id || !msisdn) {
         return json({ error: "Paramètres invalides" }, 400);
       }
+      const serviceCall = authHeader === `Bearer ${SERVICE_ROLE}`;
+      if (!waouhBuyerId && serviceCall && waouh_buyer_id) waouhBuyerId = waouh_buyer_id;
       if (PAYMENT_MODE === "live" && !CLIENT_IDS[op]) {
         return json({ error: "Opérateur non configuré" }, 400);
       }
       // In LIVE mode auth is mandatory; in DEMO mode we accept web session for testing
-      if (PAYMENT_MODE === "live" && !userId) return json({ error: "Authentification requise" }, 401);
+      if (PAYMENT_MODE === "live" && !userId && !serviceCall) return json({ error: "Authentification requise" }, 401);
       if (PAYMENT_MODE === "demo" && !userId && !waouhBuyerId) {
         return json({ error: "Session introuvable. Rechargez la page." }, 401);
       }
@@ -88,13 +102,13 @@ Deno.serve(async (req) => {
         return json({ error: "Transaction déjà payée" }, 409);
       }
 
-      const cleanPhone = msisdn.replace(/\D/g, "");
-      if (!/^229\d{8}$/.test(cleanPhone)) return json({ error: "Numéro invalide (229XXXXXXXX)" }, 400);
+      const cleanPhone = normalizeBeninMsisdn(msisdn);
+      if (!cleanPhone) return json({ error: "Numéro invalide. Utilisez le format local, ex: 0165653468" }, 400);
 
       // 🧪 Demo MTN sandbox — toujours success (solde virtuel 10 000 000 FCFA)
-      const DEMO_MTN_MSISDN = "22965653468";
+      const DEMO_MTN_MSISDNS = new Set(["0165653468", "65653468"]);
       const DEMO_BALANCE = 10_000_000;
-      const isDemoMsisdn = cleanPhone === DEMO_MTN_MSISDN;
+      const isDemoMsisdn = DEMO_MTN_MSISDNS.has(cleanPhone);
       if (isDemoMsisdn && Number(tx.amount) > DEMO_BALANCE) {
         return json({ error: "Solde démo insuffisant" }, 400);
       }
@@ -124,34 +138,16 @@ Deno.serve(async (req) => {
       // ---- DEMO MODE: skip Qosic, simulate success after a short delay ----
       if (PAYMENT_MODE === "demo" || isDemoMsisdn) {
         await sb.from("waouh_payments").update({
-          status: "pending",
-          qosic_response: { demo: true, simulated: true },
+          status: "success",
+          qosic_response: { demo: true, simulated: true, finalized_at: new Date().toISOString() },
         }).eq("id", pay.id);
-        await sb.from("waouh_transactions").update({ status: "payment_pending" }).eq("id", transaction_id);
-        // Schedule (best-effort) auto-confirmation after delay
-        const finalize = async () => {
-          await sb.from("waouh_payments").update({ status: "success", qosic_response: { demo: true, simulated: true, finalized_at: new Date().toISOString() } }).eq("id", pay.id);
-          await sb.from("waouh_transactions").update({ status: "paid", escrow_status: "held" }).eq("id", transaction_id);
-          // Push system messages to both buyer and seller
-          const { data: txAfter } = await sb.from("waouh_transactions").select("buyer_id, seller_id, article_id, amount").eq("id", transaction_id).single();
-          if (txAfter) {
-            await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA. Le vendeur va vous contacter pour la livraison.`);
-            await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison et contactez-le. Cliquez sur « J'ai bien reçu » côté acheteur pour libérer les fonds.`);
-          }
-        };
-        // Fire and forget
-        // @ts-ignore EdgeRuntime is available in Supabase functions
-        const wait = new Promise<void>((resolve) => setTimeout(resolve, DEMO_DELAY_MS));
-        try {
-          // @ts-ignore
-          if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
-            // @ts-ignore
-            EdgeRuntime.waitUntil(wait.then(finalize));
-          } else {
-            wait.then(finalize);
-          }
-        } catch { wait.then(finalize); }
-        return json({ success: true, payment_id: pay.id, transref, demo: true, message: "Mode démo : paiement simulé. Confirmation automatique dans quelques secondes." });
+        await sb.from("waouh_transactions").update({ status: "paid", escrow_status: "held" }).eq("id", transaction_id);
+        const { data: txAfter } = await sb.from("waouh_transactions").select("buyer_id, seller_id, article_id, amount").eq("id", transaction_id).single();
+        if (txAfter) {
+          await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA. Le vendeur va vous contacter pour la livraison.`);
+          await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison et contactez-le. Cliquez sur « J'ai bien reçu » côté acheteur pour libérer les fonds.`);
+        }
+        return json({ success: true, status: "success", payment_id: pay.id, transref, demo: true, message: "Mode démo : paiement confirmé sans vérification." });
       }
 
       // ---- LIVE MODE: call Qosic ----

@@ -96,7 +96,7 @@ serve(async (req) => {
     // Détection numéro Mobile Money (à exclure du parsing montant)
     const phoneCtx = /(num[ée]ro|num[ée]ro\s*:|num\b|tel|t[ée]l|whatsapp|momo|mtn|moov|mobile money)/i.test(lower);
     let paymentPhone: string | null = null;
-    if (phoneCtx) {
+    if (phoneCtx || payKw) {
       const phoneMatch = text.match(/(?:\+?229\s?)?\s*(0?\d(?:[\s.\-]?\d){7,12})/);
       if (phoneMatch) {
         const digits = phoneMatch[0].replace(/\D/g, "");
@@ -484,7 +484,21 @@ serve(async (req) => {
         }
         returnedArticleId = neg.article_id;
         returnedTransactionId = txId;
-        reply = `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
+        if (channel === "whatsapp" && intent.payment_phone && txId) {
+          const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "init", transaction_id: txId, msisdn: intent.payment_phone, operator: intent.operator || "mtn", waouh_buyer_id: user!.id }),
+          });
+          const pay = await payRes.json().catch(() => ({}));
+          reply = pay?.success
+            ? `✅ *Paiement confirmé en mode démo* — ${fmt(neg.last_offer_price)}\n\nLes fonds sont bloqués en escrow. Après livraison, écrivez « j'ai reçu » pour terminer la transaction.`
+            : `💳 Paiement prêt, mais le numéro n'est pas accepté. En mode démo, écrivez : *payer 0165653468*`;
+        } else {
+          reply = channel === "whatsapp"
+            ? `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nPour payer en mode démo, répondez : *payer 0165653468*`
+            : `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
+        }
       }
     } else if (intent.intent === "HELP") {
       reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "intéressé N°X" pour contacter un vendeur\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;

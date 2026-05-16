@@ -16,7 +16,7 @@ type Props = {
 };
 
 export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transactionId, amount }) => {
-  const [msisdn, setMsisdn] = useState("229");
+  const [msisdn, setMsisdn] = useState("0165653468");
   const [operator, setOperator] = useState<"mtn" | "moov">("mtn");
   const [step, setStep] = useState<"form" | "polling" | "success" | "failed">("form");
   const [errMsg, setErrMsg] = useState("");
@@ -32,8 +32,8 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
 
   const submit = async () => {
     const clean = msisdn.replace(/\D/g, "");
-    if (!/^229\d{8}$/.test(clean)) {
-      toast.error("Numéro invalide. Format: 229XXXXXXXX");
+    if (!/^(\d{8}|01\d{8})$/.test(clean)) {
+      toast.error("Numéro invalide. Format local: 0165653468");
       return;
     }
     cancelRef.current = false;
@@ -56,6 +56,10 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
     }
     const isDemo = !!data?.demo;
     toast.success(isDemo ? "Mode démo : confirmation automatique en cours…" : "Validez sur votre téléphone Mobile Money");
+    if (data?.status === "success") {
+      setStep("success");
+      return;
+    }
 
     let attempts = 0;
     const poll = async () => {
@@ -73,7 +77,7 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
       if (attempts < max) setTimeout(poll, delay);
       else { setErrMsg("Délai dépassé."); setStep("failed"); }
     };
-    setTimeout(poll, isDemo ? 1500 : 5000);
+    setTimeout(poll, isDemo ? 500 : 5000);
   };
 
   const cancel = () => {
@@ -100,8 +104,8 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
             </div>
             <div>
               <Label>Numéro Mobile Money</Label>
-              <Input value={msisdn} onChange={(e) => setMsisdn(e.target.value)} placeholder="22996123456" />
-              <p className="text-xs text-muted-foreground mt-1">Format: 229 + 8 chiffres</p>
+              <Input value={msisdn} onChange={(e) => setMsisdn(e.target.value)} placeholder="0165653468" />
+              <p className="text-xs text-muted-foreground mt-1">Mode démo: mettez 0165653468. Ne mettez pas 229 devant le numéro.</p>
             </div>
             <Button className="w-full bg-gradient-to-r from-cyan-500 to-blue-500" onClick={submit}>Payer {new Intl.NumberFormat("fr-FR").format(amount)} FCFA</Button>
           </div>

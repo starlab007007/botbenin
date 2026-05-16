@@ -6,7 +6,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
-const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "default";
+const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 
 const MAX_ATTEMPTS = 3;
 
@@ -28,6 +28,22 @@ function compose(template: string, p: any): string {
     default:
       return p.text || "Message WAOUH";
   }
+}
+
+function normalizeBeninPhone(value: string) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("229")) return digits;
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  return digits.length > 8 ? digits : null;
+}
+
+async function sendWahaText(base: string, session: string, chatId: string, text: string, headers: Record<string, string>) {
+  const payload = JSON.stringify({ session, chatId, text });
+  let r = await fetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
+  if (r.ok) return r;
+  r = await fetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
+  return r;
 }
 
 Deno.serve(async (req) => {
@@ -62,22 +78,24 @@ Deno.serve(async (req) => {
       }
 
       const text = compose(it.template, it.payload || {});
-      const phone = it.to_phone.replace(/\D/g, "");
+      const phone = normalizeBeninPhone(it.to_phone);
+      if (!phone) {
+        await sb.from("waouh_outbound_queue").update({ status: "failed", attempts: it.attempts + 1, last_error: "invalid phone" }).eq("id", it.id);
+        failed++; continue;
+      }
       const chatId = `${phone}@c.us`;
+      const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
+      const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
       try {
         let r: Response;
         if (it.image_url) {
-          r = await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendImage`, {
+          r = await fetch(`${wahaBase}/api/sendImage`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
+            headers: wahaHeaders,
             body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: it.image_url }, caption: text }),
           });
         } else {
-          r = await fetch(`${WAHA_BASE_URL.replace(/\/$/, "")}/api/sendText`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) },
-            body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
-          });
+          r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
         }
         if (!r.ok) {
           const body = await r.text();
