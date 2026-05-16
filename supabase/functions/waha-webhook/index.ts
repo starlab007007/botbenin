@@ -28,6 +28,18 @@ interface WAHAWebhookMessage {
   environment?: any;
 }
 
+const normalizeBeninPhone = (value?: string) => {
+  const raw = String(value || '').replace(/@c\.us|@lid/g, '');
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('229')) return digits;
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith('01'))) return `229${digits}`;
+  const last10 = digits.slice(-10);
+  if (last10.length === 10 && last10.startsWith('01')) return `229${last10}`;
+  const last8 = digits.slice(-8);
+  return last8.length === 8 ? `229${last8}` : null;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -39,6 +51,7 @@ serve(async (req) => {
     const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
     const waouhSession = (Deno.env.get('WAHA_SESSION') || 'WaouhApp').toLowerCase();
+    const waouhBusinessPhone = normalizeBeninPhone(Deno.env.get('WAOUH_BUSINESS_PHONE') || '65653468');
 
     // Use service role key for webhook processing
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -47,6 +60,12 @@ serve(async (req) => {
     console.log('WAHA Webhook received:', JSON.stringify(webhookData, null, 2));
 
     const sessionName = webhookData.session;
+    const payloadTo = normalizeBeninPhone(webhookData.payload?.to || webhookData.me?.id || '');
+    const isWaouhTarget =
+      String(sessionName || '').toLowerCase() === waouhSession ||
+      String(sessionName || '').toLowerCase().includes('waouh') ||
+      String(sessionName || '').toLowerCase().includes('woaouh') ||
+      (!!waouhBusinessPhone && payloadTo === waouhBusinessPhone);
 
     // WAOUH has its own commerce engine. If the WAHA session is the WAOUH number,
     // forward the incoming WhatsApp event directly to the WAOUH channel handler.
@@ -54,7 +73,7 @@ serve(async (req) => {
       webhookData.event === 'message' &&
       webhookData.payload &&
       !webhookData.payload.fromMe &&
-      String(sessionName || '').toLowerCase() === waouhSession
+      isWaouhTarget
     ) {
       const waouhRes = await fetch(`${supabaseUrl}/functions/v1/waouh-channel-in`, {
         method: 'POST',
