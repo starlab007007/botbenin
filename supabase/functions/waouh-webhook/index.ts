@@ -157,6 +157,9 @@ serve(async (req) => {
     const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
     const payKw = /(payer|paiement|payement|momo|mobile money|j'ach[èe]te maintenant|\bje paye\b|\bje paie\b)/i.test(lower);
     const receivedKw = /(j.?ai\s+(bien\s+)?re[cç]u|re[cç]u\s+l.?article|livraison\s+re[cç]ue|confirmer\s+la\s+r[ée]ception)/i.test(lower);
+    const sellKw = /\b(?:je\s+)?(?:vends?|vend|vendre|vente|publier|annonce)\b/i.test(lower);
+    const buyKw = /\b(?:je\s+)?(?:cherche|recherche|besoin|acheter|ach[èe]te)\b/i.test(lower);
+    const negotiateKw = /\b(?:n[ée]gocier|negocier|n[ée]gociation|marchander|proposer\s+un\s+prix)\b/i.test(lower);
     const operatorKw: "mtn" | "moov" | "sbin" | null =
       /\bmtn\b/i.test(lower) ? "mtn" :
       /\bmoov\b/i.test(lower) ? "moov" :
@@ -181,6 +184,9 @@ serve(async (req) => {
     else if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
     else if (payKw) intent = { intent: "PAY", payment_phone: paymentPhone, operator: operatorKw };
+    else if (sellKw) intent = { intent: "SELL" };
+    else if (buyKw) intent = { intent: "BUY" };
+    else if (negotiateKw) intent = { intent: "NEGOTIATE" };
     else {
       intent = await ai(
         "Tu es WAOUH, assistant commerce IA. Détecte l'intention parmi: SELL, BUY, NEGOTIATE, PAY, CONFIRM, RATE, HELP, UNKNOWN. Retourne JSON {intent}.",
