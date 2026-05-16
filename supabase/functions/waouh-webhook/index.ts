@@ -277,11 +277,12 @@ serve(async (req) => {
         "Extrais les critères d'achat en JSON: {keywords (array de mots-clés produit, ex: ['lenovo','ordinateur']), category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), price_max (number FCFA), condition_min, radius_km}.",
         text
       );
+      const criteriaCategory = normalizeCategory(criteria.category || text);
       // Recherche filtrée
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
-      if (criteria.category) q = q.eq("category", criteria.category);
+      if (criteriaCategory) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
       const kws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
       if (kws.length > 0) {
@@ -296,7 +297,7 @@ serve(async (req) => {
         let rq = sb.from("waouh_radar_signals")
           .select("id,product,category,price,city,contact_phone,contact_handle,raw_url,raw_text")
           .eq("intent", "SELL");
-        if (criteria.category) rq = rq.eq("category", criteria.category);
+        if (criteriaCategory && criteriaCategory !== "autre") rq = rq.or(`category.ilike.%${criteriaCategory}%,raw_text.ilike.%${criteriaCategory}%`);
         if (criteria.price_max) rq = rq.lte("price", criteria.price_max);
         if (kws.length > 0) {
           const orFilter = kws.map((k) => `raw_text.ilike.%${k}%`).join(",");
@@ -308,7 +309,7 @@ serve(async (req) => {
 
       await sb.from("waouh_buyer_profiles").insert({
         user_id: user!.id, query_text: text,
-        category: criteria.category, keywords: kws,
+        category: criteriaCategory, keywords: kws,
         price_max: criteria.price_max, radius_km: criteria.radius_km ?? 30,
         location: `SRID=4326;POINT(${lng} ${lat})` as any,
         origin: channel === "whatsapp" ? "whatsapp" : "chat",
