@@ -96,7 +96,7 @@ serve(async (req) => {
     // Détection numéro Mobile Money (à exclure du parsing montant)
     const phoneCtx = /(num[ée]ro|num[ée]ro\s*:|num\b|tel|t[ée]l|whatsapp|momo|mtn|moov|mobile money)/i.test(lower);
     let paymentPhone: string | null = null;
-    if (phoneCtx) {
+    if (phoneCtx || payKw) {
       const phoneMatch = text.match(/(?:\+?229\s?)?\s*(0?\d(?:[\s.\-]?\d){7,12})/);
       if (phoneMatch) {
         const digits = phoneMatch[0].replace(/\D/g, "");
