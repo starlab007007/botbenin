@@ -3,16 +3,11 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, MessageCircle, Sparkles, MapPin } from 'lucide-react';
 
 /**
- * WAOUH Live Hero — split 55/45
- * Left: monumental headline + CTAs
- * Right: looped iPhone-frame chat demo replaying a real WAOUH negotiation
+ * WAOUH Live Hero — Sky Electric edition
+ * Light vivid background, deep-navy phone (not black) with WhatsApp-style bubbles.
  */
 
-type Bubble = {
-  side: 'in' | 'out' | 'sys';
-  text: string;
-  delay: number;
-};
+type Bubble = { side: 'in' | 'out' | 'sys'; text: string; delay: number };
 
 const SCRIPT: Bubble[] = [
   { side: 'in',  text: 'Je cherche un iPhone 11 à Cotonou, max 150 000 FCFA', delay: 0 },
@@ -33,16 +28,23 @@ const LOOP = 14000;
 
 const Typing: React.FC = () => (
   <div className="flex gap-1 px-3 py-2">
-    <span className="waouh-typing-dot h-1.5 w-1.5 rounded-full bg-white/60" />
-    <span className="waouh-typing-dot h-1.5 w-1.5 rounded-full bg-white/60" />
-    <span className="waouh-typing-dot h-1.5 w-1.5 rounded-full bg-white/60" />
+    <span className="waouh-typing-dot h-1.5 w-1.5 rounded-full bg-white/70" />
+    <span className="waouh-typing-dot h-1.5 w-1.5 rounded-full bg-white/70" />
+    <span className="waouh-typing-dot h-1.5 w-1.5 rounded-full bg-white/70" />
   </div>
 );
 
 const ChatBubble: React.FC<{ b: Bubble }> = ({ b }) => {
   if (b.side === 'sys') {
     return (
-      <div className="mx-auto rounded-full bg-[hsl(var(--waouh-success)/0.15)] border border-[hsl(var(--waouh-success)/0.3)] px-3 py-1 text-[10.5px] text-[hsl(var(--waouh-success))] font-medium animate-fade-in">
+      <div
+        className="mx-auto rounded-full px-3 py-1 text-[10.5px] font-medium animate-fade-in"
+        style={{
+          background: '#FFD23F33',
+          border: '1px solid #FFD23F88',
+          color: '#FFE08A',
+        }}
+      >
         {b.text}
       </div>
     );
@@ -52,10 +54,13 @@ const ChatBubble: React.FC<{ b: Bubble }> = ({ b }) => {
     <div className={`flex ${isIn ? 'justify-end' : 'justify-start'} animate-fade-in`}>
       <div
         className={`max-w-[78%] whitespace-pre-line px-3 py-2 text-[12.5px] leading-snug rounded-2xl ${
-          isIn
-            ? 'bg-[#005C4B] text-white rounded-br-sm'
-            : 'bg-[#202C33] text-white/95 rounded-bl-sm border border-white/5'
+          isIn ? 'rounded-br-sm' : 'rounded-bl-sm'
         }`}
+        style={
+          isIn
+            ? { background: '#25D366', color: '#FFFFFF' }
+            : { background: '#1B3A6B', color: '#FFFFFF', border: '1px solid #2B4F8E' }
+        }
       >
         {b.text}
       </div>
@@ -80,21 +85,23 @@ export const WaouhLiveHero: React.FC = () => {
 
   return (
     <section
-      className="relative overflow-hidden rounded-3xl border border-[hsl(var(--waouh-border))]"
+      className="relative overflow-hidden rounded-3xl"
       style={{
         background:
-          'radial-gradient(1100px 600px at 85% 0%, hsl(var(--waouh-primary) / 0.18), transparent 60%),' +
-          'radial-gradient(900px 500px at 0% 100%, hsl(var(--waouh-ai) / 0.18), transparent 60%),' +
-          'linear-gradient(180deg, #0A0D1A 0%, #0C0F1C 100%)',
+          'radial-gradient(1100px 600px at 85% 0%, hsl(var(--home-accent) / 0.30), transparent 60%),' +
+          'radial-gradient(900px 500px at 0% 100%, hsl(var(--home-accent-warm) / 0.30), transparent 60%),' +
+          'linear-gradient(180deg, hsl(var(--home-surface)) 0%, hsl(var(--home-bg)) 100%)',
+        border: '1px solid hsl(var(--home-border))',
+        boxShadow: '0 30px 80px -40px hsl(var(--home-accent) / 0.45)',
         fontFamily: '"Space Grotesk", Inter, sans-serif',
       }}
     >
-      {/* grid overlay */}
+      {/* subtle grid overlay */}
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.08]"
         style={{
           backgroundImage:
-            'linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px)',
+            'linear-gradient(hsl(var(--home-text) / 0.6) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--home-text) / 0.6) 1px, transparent 1px)',
           backgroundSize: '44px 44px',
         }}
       />
@@ -102,32 +109,56 @@ export const WaouhLiveHero: React.FC = () => {
       <div className="relative grid lg:grid-cols-[1.15fr_1fr] gap-8 lg:gap-12 p-6 sm:p-10 lg:p-14">
         {/* LEFT */}
         <div className="flex flex-col justify-center">
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-[hsl(var(--waouh-primary)/0.4)] bg-[hsl(var(--waouh-primary)/0.08)] px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[hsl(var(--waouh-primary))] backdrop-blur waouh-badge-new">
-            <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--waouh-success))] animate-pulse" />
+          <div
+            className="inline-flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] backdrop-blur waouh-badge-new"
+            style={{
+              border: '1px solid hsl(var(--home-accent))',
+              background: 'hsl(var(--home-accent) / 0.12)',
+              color: 'hsl(var(--home-text))',
+            }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: '#22c55e' }} />
             LIVE
-            <span className="text-white/40">•</span>
+            <span style={{ color: 'hsl(var(--home-text-muted))' }}>•</span>
             <MapPin className="h-3 w-3" /> Cotonou
-            <span className="text-white/40">•</span>
+            <span style={{ color: 'hsl(var(--home-text-muted))' }}>•</span>
             <span className="font-mono" style={{ fontFamily: '"JetBrains Mono", monospace' }}>{time}</span>
           </div>
 
-          <h1 className="mt-6 text-white font-bold leading-[0.95] tracking-tight text-[44px] sm:text-[68px] lg:text-[88px]">
+          <h1
+            className="mt-6 font-bold leading-[0.95] tracking-tight text-[44px] sm:text-[68px] lg:text-[88px]"
+            style={{ color: 'hsl(var(--home-text))' }}
+          >
             <span className="block">Parlez.</span>
-            <span className="block italic font-medium text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(90deg, hsl(var(--waouh-primary)), hsl(var(--waouh-ai)))' }}>
+            <span
+              className="block italic font-medium text-transparent bg-clip-text"
+              style={{
+                backgroundImage: 'linear-gradient(90deg, hsl(var(--home-accent)), hsl(var(--home-accent-warm)))',
+              }}
+            >
               Achetez.
             </span>
             <span className="block">Vendez.</span>
           </h1>
 
-          <p className="mt-6 max-w-xl text-white/70 text-base sm:text-lg leading-relaxed">
-            <span className="text-white font-semibold">WAOUH</span> — le premier marché conversationnel du Bénin.
-            WhatsApp, voix, chat. Négociez et payez en parlant. <span className="text-white/90">Aucune app à installer.</span>
+          <p
+            className="mt-6 max-w-xl text-base sm:text-lg leading-relaxed"
+            style={{ color: 'hsl(var(--home-text-muted))' }}
+          >
+            <span className="font-semibold" style={{ color: 'hsl(var(--home-text))' }}>WAOUH</span> — le premier marché conversationnel du Bénin.
+            WhatsApp, voix, chat. Négociez et payez en parlant.{' '}
+            <span style={{ color: 'hsl(var(--home-text))' }}>Aucune app à installer.</span>
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <Link
               to="/waouh-chat"
-              className="group inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--waouh-primary))] px-6 py-3.5 text-[#0A0D1A] font-semibold shadow-[0_10px_40px_-10px_hsl(var(--waouh-primary)/0.6)] transition hover:brightness-110"
+              className="group inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 font-semibold transition hover:brightness-110"
+              style={{
+                background: 'hsl(var(--home-accent))',
+                color: 'hsl(var(--home-text))',
+                boxShadow: '0 10px 40px -10px hsl(var(--home-accent) / 0.7)',
+              }}
             >
               <Sparkles className="h-4 w-4" />
               Essayer WAOUH maintenant
@@ -137,15 +168,25 @@ export const WaouhLiveHero: React.FC = () => {
               href="https://wa.me/22965653468?text=Salut%20WAOUH"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#25D366]/50 bg-[#25D366]/10 px-6 py-3.5 text-[#25D366] font-semibold transition hover:bg-[#25D366]/20"
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3.5 font-semibold transition"
+              style={{
+                border: '1px solid #25D36680',
+                background: '#25D36618',
+                color: '#16873A',
+              }}
             >
               <MessageCircle className="h-4 w-4" />
-              WhatsApp&nbsp;<span className="font-mono text-sm" style={{ fontFamily: '"JetBrains Mono", monospace' }}>+229 65 65 34 68</span>
+              WhatsApp&nbsp;
+              <span className="font-mono text-sm" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
+                +229 65 65 34 68
+              </span>
             </a>
           </div>
 
-          {/* mini badges */}
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] uppercase tracking-wider text-white/40">
+          <div
+            className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] uppercase tracking-wider"
+            style={{ color: 'hsl(var(--home-text-muted))' }}
+          >
             <span>🛰️ Radar IA</span>
             <span>💸 Mobile Money</span>
             <span>🔒 Escrow</span>
@@ -153,33 +194,58 @@ export const WaouhLiveHero: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT — phone mock */}
+        {/* RIGHT — phone mock (deep navy frame, not black) */}
         <div className="relative mx-auto w-full max-w-[360px]">
           <div
-            className="absolute -inset-10 rounded-[60px] blur-3xl opacity-50"
-            style={{ background: 'radial-gradient(closest-side, hsl(var(--waouh-primary)/0.4), transparent)' }}
+            className="absolute -inset-10 rounded-[60px] blur-3xl opacity-60"
+            style={{ background: 'radial-gradient(closest-side, hsl(var(--home-accent) / 0.5), transparent)' }}
           />
-          <div className="relative aspect-[9/19] rounded-[44px] border border-white/10 bg-[#0B141A] p-3 shadow-[0_60px_120px_-30px_rgba(0,0,0,0.7)] rotate-[-2deg]">
-            {/* notch */}
-            <div className="absolute left-1/2 top-3 z-10 h-5 w-24 -translate-x-1/2 rounded-b-2xl bg-black" />
+          <div
+            className="relative aspect-[9/19] rounded-[44px] p-3 rotate-[-2deg]"
+            style={{
+              background: '#0B2447',
+              border: '1px solid #1B3A6B',
+              boxShadow: '0 60px 120px -30px hsl(var(--home-accent) / 0.5), 0 0 0 6px #FFFFFF20',
+            }}
+          >
+            {/* notch (navy not black) */}
+            <div
+              className="absolute left-1/2 top-3 z-10 h-5 w-24 -translate-x-1/2 rounded-b-2xl"
+              style={{ background: '#0B2447' }}
+            />
             {/* screen */}
-            <div className="relative h-full w-full overflow-hidden rounded-[34px] bg-[#0B141A]">
-              {/* WA header */}
-              <div className="flex items-center gap-2.5 bg-[#202C33] px-3 py-2.5">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[hsl(var(--waouh-primary))] to-[hsl(var(--waouh-ai))] flex items-center justify-center text-[10px] font-bold text-[#0A0D1A]">W</div>
-                <div className="flex-1">
-                  <div className="text-[12px] text-white font-medium leading-tight">WAOUH</div>
-                  <div className="text-[10px] text-white/50 leading-tight">en ligne</div>
+            <div
+              className="relative h-full w-full overflow-hidden rounded-[34px]"
+              style={{ background: '#0F2F5B' }}
+            >
+              {/* header */}
+              <div
+                className="flex items-center gap-2 px-3 py-2.5"
+                style={{ background: '#15396E', borderBottom: '1px solid #1F4A85' }}
+              >
+                <div
+                  className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  style={{ background: 'hsl(var(--home-accent))', color: '#0B2447' }}
+                >
+                  W
                 </div>
-                <div className="text-white/40 text-[10px] font-mono" style={{ fontFamily: '"JetBrains Mono", monospace' }}>•••</div>
+                <div className="flex-1">
+                  <div className="text-[12px] font-medium leading-tight text-white">WAOUH</div>
+                  <div className="text-[10px] leading-tight text-white/60">en ligne</div>
+                </div>
+                <div
+                  className="text-white/50 text-[10px] font-mono"
+                  style={{ fontFamily: '"JetBrains Mono", monospace' }}
+                >
+                  •••
+                </div>
               </div>
 
-              {/* bg pattern */}
               <div
                 className="relative h-[calc(100%-44px)] overflow-hidden px-3 pt-3 pb-4 space-y-2"
                 style={{
                   background:
-                    'repeating-linear-gradient(45deg, #0E1A22 0 2px, transparent 2px 6px), #0B141A',
+                    'repeating-linear-gradient(45deg, #133765 0 2px, transparent 2px 6px), #0F2F5B',
                 }}
                 key={tick}
               >
@@ -188,19 +254,46 @@ export const WaouhLiveHero: React.FC = () => {
                     <ChatBubble b={b} />
                   </div>
                 ))}
-                <div style={{ animationDelay: `${SCRIPT[SCRIPT.length - 1].delay + 600}ms`, animationFillMode: 'backwards' }} className="animate-fade-in">
-                  <div className="flex justify-start"><div className="bg-[#202C33] rounded-2xl rounded-bl-sm"><Typing /></div></div>
+                <div
+                  style={{
+                    animationDelay: `${SCRIPT[SCRIPT.length - 1].delay + 600}ms`,
+                    animationFillMode: 'backwards',
+                  }}
+                  className="animate-fade-in"
+                >
+                  <div className="flex justify-start">
+                    <div
+                      className="rounded-2xl rounded-bl-sm"
+                      style={{ background: '#1B3A6B', border: '1px solid #2B4F8E' }}
+                    >
+                      <Typing />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* floating chip */}
-          <div className="absolute -left-6 top-1/3 hidden sm:flex items-center gap-2 rounded-full border border-[hsl(var(--waouh-success)/0.4)] bg-[#0A0D1A]/80 backdrop-blur px-3 py-1.5 text-[11px] text-[hsl(var(--waouh-success))] shadow-xl">
-            <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--waouh-success))] animate-pulse" />
+          {/* floating chips */}
+          <div
+            className="absolute -left-6 top-1/3 hidden sm:flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] shadow-xl backdrop-blur"
+            style={{
+              border: '1px solid #22c55e80',
+              background: 'hsl(var(--home-surface) / 0.95)',
+              color: '#16873A',
+            }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: '#22c55e' }} />
             +1 transaction
           </div>
-          <div className="absolute -right-4 bottom-16 hidden sm:flex items-center gap-2 rounded-full border border-[hsl(var(--waouh-primary)/0.4)] bg-[#0A0D1A]/80 backdrop-blur px-3 py-1.5 text-[11px] text-[hsl(var(--waouh-primary))] shadow-xl">
+          <div
+            className="absolute -right-4 bottom-16 hidden sm:flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] shadow-xl backdrop-blur"
+            style={{
+              border: '1px solid hsl(var(--home-accent))',
+              background: 'hsl(var(--home-surface) / 0.95)',
+              color: 'hsl(var(--home-text))',
+            }}
+          >
             🛰️ Radar IA
           </div>
         </div>
