@@ -166,6 +166,7 @@ serve(async (req) => {
       /\bmtn\b/i.test(lower) ? "mtn" :
       /\bmoov\b/i.test(lower) ? "moov" :
       /\bsbin\b/i.test(lower) ? "sbin" : null;
+    const operatorOnlyPay = !!operatorKw && /^(mtn|moov|sbin)$/i.test(lower.trim());
     // Détection numéro Mobile Money (à exclure du parsing montant)
     const phoneCtx = /(num[ée]ro|num[ée]ro\s*:|num\b|tel|t[ée]l|whatsapp|momo|mtn|moov|mobile money)/i.test(lower);
     let paymentPhone: string | null = null;
@@ -185,7 +186,7 @@ serve(async (req) => {
     if (receivedKw) intent = { intent: "CONFIRM_RECEIVED" };
     else if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
-    else if (payKw) intent = { intent: "PAY", payment_phone: paymentPhone, operator: operatorKw };
+    else if (payKw || operatorOnlyPay) intent = { intent: "PAY", payment_phone: paymentPhone || (operatorOnlyPay ? "0165653468" : null), operator: operatorKw };
     else if (sellKw) intent = { intent: "SELL" };
     else if (buyKw) intent = { intent: "BUY" };
     else if (negotiateKw) intent = { intent: "NEGOTIATE" };
