@@ -291,11 +291,8 @@ serve(async (req) => {
           if (productCategory) bq = bq.or(`category.ilike.%${productCategory}%,raw_text.ilike.%${productCategory}%`);
           const { data: buyerSignals } = await bq.order("captured_at", { ascending: false }).limit(10);
           for (const b of (buyerSignals || [])) {
-            const rawPhone = (b.contact_phone || "").replace(/\D/g, "");
-            if (!rawPhone) continue;
-            let e164 = rawPhone;
-            if (rawPhone.length === 8) e164 = `229${rawPhone}`;
-            else if (!rawPhone.startsWith("229")) e164 = `229${rawPhone.slice(-8)}`;
+            const e164 = normalizeBeninPhone(b.contact_phone || b.raw_text);
+            if (!e164) continue;
             const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             const { data: recent } = await sb.from("waouh_outbound_queue")
               .select("id").eq("to_phone", e164).eq("template", "radar_buyer_outreach")
