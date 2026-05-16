@@ -509,7 +509,7 @@ serve(async (req) => {
         .limit(1)
         .maybeSingle();
       if (!neg) {
-        reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites « intéressé N°X ».";
+        reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
       } else if (amount) {
         const isBuyer = neg.buyer_user_id === user!.id;
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
@@ -529,7 +529,7 @@ serve(async (req) => {
             to_user_id: otherId,
             template: "negotiation_open",
             payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, transaction_id: returnedTransactionId },
-            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"} : ${fmt(amount)}*\n\nRépondez « OUI » pour accepter, « NON » pour refuser, ou proposez un autre montant.`,
+            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.` + paymentCard(amount, returnedTransactionId),
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
           });
         }
@@ -569,6 +569,7 @@ serve(async (req) => {
         }
         returnedArticleId = neg.article_id;
         returnedTransactionId = txId;
+        returnedActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "mtn", label: "MTN" }, { id: "moov", label: "Moov" }];
         if (channel === "whatsapp" && intent.payment_phone && txId) {
           const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
             method: "POST",
@@ -577,11 +578,11 @@ serve(async (req) => {
           });
           const pay = await payRes.json().catch(() => ({}));
           reply = pay?.success
-            ? `✅ *Paiement confirmé en mode démo* — ${fmt(neg.last_offer_price)}\n\nLes fonds sont bloqués en escrow. Après livraison, écrivez « j'ai reçu » pour terminer la transaction.`
-            : `💳 Paiement prêt, mais le numéro n'est pas accepté. En mode démo, écrivez : *payer 0165653468*`;
+            ? `✅ *Paiement confirmé*\n\n💰 *Montant* : ${fmt(neg.last_offer_price)}\n🔒 *Escrow* : Fonds bloqués jusqu'à réception.\n\nAprès livraison, écrivez *j'ai reçu* pour terminer la transaction.`
+            : `💳 *Paiement prêt*\n\nLe numéro n'est pas accepté pour le mode démo.\n\n👉 Essayez : *payer 0165653468*`;
         } else {
           reply = channel === "whatsapp"
-            ? `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nPour payer en mode démo, répondez : *payer 0165653468*`
+            ? `💳 *Paiement prêt*` + paymentCard(Number(neg.last_offer_price || 0), txId)
             : `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
         }
       }
@@ -602,7 +603,7 @@ serve(async (req) => {
         returnedTransactionId = txId;
       }
     } else if (intent.intent === "HELP") {
-      reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "intéressé N°X" pour contacter un vendeur\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;
+      reply = `🤖 *WAOUH — Commandes*\n\n• *Je vends ...* pour publier une annonce\n• *Je cherche ...* pour trouver un produit\n• *intéressé 1* pour contacter un vendeur\n• *Je propose X FCFA* pour négocier\n• *Je paye* pour finaliser`;
     }
 
     // Save conversation (avec contexte)
