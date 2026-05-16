@@ -56,6 +56,10 @@ export const WaouhPaymentDialog: React.FC<Props> = ({ open, onOpenChange, transa
     }
     const isDemo = !!data?.demo;
     toast.success(isDemo ? "Mode démo : confirmation automatique en cours…" : "Validez sur votre téléphone Mobile Money");
+    if (data?.status === "success") {
+      setStep("success");
+      return;
+    }
 
     let attempts = 0;
     const poll = async () => {
