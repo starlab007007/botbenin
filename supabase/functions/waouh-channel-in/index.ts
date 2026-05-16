@@ -13,7 +13,6 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
-const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const normalizeBeninPhone = (value: string) => {
   const raw = String(value || "").replace(/@c\.us|@lid/g, "");
@@ -24,6 +23,8 @@ const normalizeBeninPhone = (value: string) => {
   if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
   return digits.length > 8 ? digits : null;
 };
+
+const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 function log(step: string, data: any = {}) {
   console.log(`[waouh-channel-in] ${step}`, JSON.stringify(data));
@@ -112,7 +113,7 @@ serve(async (req) => {
       if (mediaUrl) attachments.push({ url: mediaUrl, type: mime });
     }
 
-    const chatId = fromChatId || (phone?.includes("@") ? phone : `${phone}@c.us`);
+    const chatId = fromChatId || (phone ? (phone.includes("@") ? phone : `${phone}@c.us`) : "");
 
     if ((!text && attachments.length === 0) || (!phone && !sessionId)) {
       return new Response(JSON.stringify({ ok: false, error: "missing text/attachments or identifier" }), {
