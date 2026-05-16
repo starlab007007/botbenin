@@ -33,6 +33,50 @@ function normalizeBeninPhone(value: string | null | undefined) {
   return last8.length === 8 ? `229${last8}` : null;
 }
 
+async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre") {
+  if (sig.promoted_article_id) {
+    const { data: art } = await sb.from("waouh_articles").select("id,title,price,seller_id,photos,market_price_min,market_price_max").eq("id", sig.promoted_article_id).maybeSingle();
+    if (art) return art;
+  }
+  const phone = normalizeBeninPhone(sig.contact_phone || sig.raw_text || sig.contact_handle);
+  let sellerId: string | null = sig.waouh_user_id || null;
+  if (!sellerId) {
+    const { data: existing } = phone ? await sb.from("waouh_users").select("id").eq("phone_number", phone).maybeSingle() : { data: null };
+    sellerId = existing?.id ?? null;
+  }
+  if (!sellerId) {
+    const { data: created } = await sb.from("waouh_users").insert({
+      phone_number: phone,
+      display_name: sig.contact_handle || "Vendeur Radar IA",
+      channel: "whatsapp",
+      city: sig.city,
+    }).select("id").single();
+    sellerId = created?.id ?? null;
+  }
+  if (!sellerId) return null;
+  const title = sig.product?.title || sig.product?.name || String(sig.raw_text || "Annonce Radar IA").slice(0, 120);
+  const price = Number(sig.price || sig.product?.price || 0);
+  const photo = sig.product?.image_url || sig.product?.image || null;
+  const { data: existingArticle } = await sb.from("waouh_articles").select("id,title,price,seller_id,photos,market_price_min,market_price_max").eq("origin_signal_id", sig.id).maybeSingle();
+  if (existingArticle) return existingArticle;
+  const { data: art, error } = await sb.from("waouh_articles").insert({
+    seller_id: sellerId,
+    title,
+    description: sig.raw_text,
+    category: normalizeCategory(sig.category || sig.product?.category || fallbackCategory),
+    price,
+    currency: "XOF",
+    city: sig.city,
+    photos: photo ? [photo] : [],
+    status: "active",
+    origin: "radar",
+    origin_signal_id: sig.id,
+  }).select("id,title,price,seller_id,photos,market_price_min,market_price_max").single();
+  if (error) { console.warn("[radar promote seller]", error); return null; }
+  await sb.from("waouh_radar_signals").update({ promoted_article_id: art.id, waouh_user_id: sellerId, contact_phone: phone ?? sig.contact_phone, status: "notified" }).eq("id", sig.id);
+  return art;
+}
+
 async function ai(system: string, user: string, json = true) {
   const res = await fetch(AI_URL, {
     method: "POST",
