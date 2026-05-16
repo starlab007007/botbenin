@@ -35,7 +35,7 @@ export const HomePage: React.FC = () => {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8 md:py-12 space-y-10 md:space-y-16">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 md:py-12 space-y-8 sm:space-y-12 md:space-y-16">
         <WaouhLiveHero />
         <WaouhLiveTicker />
         <WaouhChannels />
@@ -45,7 +45,7 @@ export const HomePage: React.FC = () => {
         <WaouhFinalCTA />
 
         <section
-          className="rounded-3xl p-6 sm:p-10"
+          className="rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-10"
           style={{ background: 'hsl(var(--home-surface))', color: 'hsl(var(--home-text))' }}
         >
           <PricingSection />

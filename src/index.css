@@ -371,7 +371,7 @@ h1, h2, h3, h4, h5, h6 {
   --home-surface-alt: 207 100% 90%;       /* #CDE8FF tinted cards */
   --home-border:      207 100% 81%;       /* #BFE0FF */
   --home-text:        214 71% 16%;        /* #0B2447 deep navy (NOT black) */
-  --home-text-muted:  211 32% 35%;        /* #3E5C76 */
+  --home-text-muted:  214 35% 28%;        /* #2E4763 — meilleur contraste AA+ */
   --home-accent:      190 100% 50%;       /* #00D4FF cyan */
   --home-accent-warm: 48 100% 62%;        /* #FFD23F solar yellow */
 }
