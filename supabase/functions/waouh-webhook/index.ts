@@ -399,13 +399,8 @@ serve(async (req) => {
 
         // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
         for (const r of radarSellers) {
-          const rawPhone = (r.contact_phone || "").replace(/\D/g, "");
-          if (!rawPhone) continue;
-          // Normalisation Bénin: +229 + 8 ou 10 chiffres
-          let e164 = rawPhone;
-          if (rawPhone.length === 8) e164 = `229${rawPhone}`;
-          else if (rawPhone.length === 10 && rawPhone.startsWith("01")) e164 = `2290${rawPhone.slice(2)}`;
-          else if (!rawPhone.startsWith("229")) e164 = `229${rawPhone.slice(-8)}`;
+          const e164 = normalizeBeninPhone(r.contact_phone || r.raw_text || r.contact_handle);
+          if (!e164) continue;
           // Anti-spam: ne pas re-contacter si déjà notifié dans les 24h
           const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
           const { data: recent } = await sb.from("waouh_outbound_queue")
