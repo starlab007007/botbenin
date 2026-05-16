@@ -569,6 +569,22 @@ serve(async (req) => {
             : `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
         }
       }
+    } else if (intent.intent === "CONFIRM_RECEIVED") {
+      const txId = conv?.current_transaction_id || nextContext?.current_transaction_id;
+      if (!txId) {
+        reply = "🤔 Aucune transaction à terminer. Payez d'abord une annonce puis confirmez la réception.";
+      } else {
+        const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "confirm_received", transaction_id: txId, waouh_buyer_id: user!.id }),
+        });
+        const done = await payRes.json().catch(() => ({}));
+        reply = done?.success
+          ? "🎉 Réception confirmée. La transaction est terminée et les fonds sont libérés au vendeur (mode démo)."
+          : `Impossible de confirmer la réception : ${done?.error || "réessayez"}`;
+        returnedTransactionId = txId;
+      }
     } else if (intent.intent === "HELP") {
       reply = `🤖 *WAOUH — Commandes :*\n\n• "Je vends ..." pour publier une annonce\n• "Je cherche ..." pour trouver un produit\n• "intéressé N°X" pour contacter un vendeur\n• "Je propose X FCFA" pour négocier\n• "Je paye" pour finaliser`;
     }
