@@ -11,7 +11,7 @@ const channels = [
     color: '#00D4FF',
     icon: MessageSquare,
     cta: 'Ouvrir le chat',
-    span: 'lg:col-span-5',
+    span: 'md:col-span-2 lg:col-span-5',
   },
   {
     href: 'https://wa.me/22965653468',
@@ -22,7 +22,7 @@ const channels = [
     color: '#25D366',
     icon: MessagesSquare,
     cta: 'Écrire sur WhatsApp',
-    span: 'lg:col-span-4',
+    span: 'md:col-span-1 lg:col-span-4',
   },
   {
     href: '/kpakpato',
@@ -32,7 +32,7 @@ const channels = [
     color: '#FFD23F',
     icon: Mic,
     cta: 'Découvrir la voix',
-    span: 'lg:col-span-3',
+    span: 'md:col-span-2 lg:col-span-3',
   },
 ];
 
@@ -98,7 +98,7 @@ export const WaouhChannels: React.FC = () => {
             </>
           );
 
-          const cls = `group relative overflow-hidden rounded-2xl p-6 sm:p-8 transition ${c.span}`;
+          const cls = `group relative overflow-hidden rounded-2xl p-5 sm:p-6 md:p-7 lg:p-8 transition ${c.span}`;
           const style: React.CSSProperties = {
             background: 'hsl(var(--home-surface))',
             border: '1px solid hsl(var(--home-border))',
