@@ -362,8 +362,18 @@ h1, h2, h3, h4, h5, h6 {
   --waouh-warning: 18 100% 62%;          /* #FF7A3D orange */
   --waouh-ai: 271 91% 65%;               /* #A855F7 violet */
   --waouh-payment: 43 96% 56%;           /* #FBBF24 yellow */
-  --waouh-bg: 226 39% 8%;                /* #0C0F1C card bg */
-  --waouh-border: 226 38% 18%;           /* #1C2340 border */
+  --waouh-bg: 226 39% 8%;                /* #0C0F1C card bg (WAOUH internal module) */
+  --waouh-border: 226 38% 18%;           /* #1C2340 border (WAOUH internal module) */
+
+  /* Home page — Sky Electric palette (light, vivid, no black) */
+  --home-bg:          204 100% 96%;      /* #EAF6FF sky */
+  --home-surface:     0 0% 100%;          /* #FFFFFF cards */
+  --home-surface-alt: 207 100% 90%;       /* #CDE8FF tinted cards */
+  --home-border:      207 100% 81%;       /* #BFE0FF */
+  --home-text:        214 71% 16%;        /* #0B2447 deep navy (NOT black) */
+  --home-text-muted:  211 32% 35%;        /* #3E5C76 */
+  --home-accent:      190 100% 50%;       /* #00D4FF cyan */
+  --home-accent-warm: 48 100% 62%;        /* #FFD23F solar yellow */
 }
 
 @keyframes waouh-pulse {
