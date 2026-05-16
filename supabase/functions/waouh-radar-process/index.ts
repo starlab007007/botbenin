@@ -18,6 +18,17 @@ function normalizeBeninPhone(value: string | null | undefined) {
   return last8.length === 8 ? `229${last8}` : null;
 }
 
+function normalizeCategory(value: string | null | undefined) {
+  const v = String(value || "").toLowerCase();
+  if (/t[ée]l[ée]phone|smartphone|iphone|android/.test(v)) return "smartphone";
+  if (/ordinateur|pc|laptop|macbook/.test(v)) return "ordinateur";
+  if (/v[êe]tement|tissu|chaussure|mode|habit/.test(v)) return "vetement";
+  if (/voiture|moto|v[ée]hicule|auto/.test(v)) return "vehicule";
+  if (/frigo|cong[ée]lateur|machine|[ée]lectrom[ée]nager/.test(v)) return "electromenager";
+  if (/maison|logement|immobilier|location|terrain|chambre|salon|meuble/.test(v)) return "meuble";
+  return "autre";
+}
+
 function extractPhone(sig: any) {
   return normalizeBeninPhone(sig.contact_phone) || normalizeBeninPhone(sig.raw_text) || normalizeBeninPhone(sig.contact_handle);
 }
@@ -42,7 +53,7 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
   if (!userId) return null;
 
   const title = sig.product?.title || sig.product?.name || String(sig.raw_text || "Annonce Radar IA").slice(0, 120);
-  const category = sig.category || sig.product?.category || "autre";
+  const category = normalizeCategory(sig.category || sig.product?.category);
   const price = Number(sig.price || sig.product?.price || 0);
 
   if (sig.intent === "SELL") {
