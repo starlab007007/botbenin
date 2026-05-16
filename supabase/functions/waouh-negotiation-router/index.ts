@@ -7,6 +7,9 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
+const paymentCard = (amount: number, txId?: string | null) =>
+  `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH\n• *Statut* : en attente\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}\n\n👉 Appuyez sur *Payer* ou envoyez : *payer 0165653468*`;
+const paymentActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "mtn", label: "MTN" }, { id: "moov", label: "Moov" }];
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
   const lower = (text || "").toLowerCase();
@@ -45,6 +48,7 @@ Deno.serve(async (req) => {
     const { data: target } = await sb.from("waouh_users")
       .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
+    if (target.id === payload?.from_user_id) return;
     let insertedMsgId: string | null = null;
     if (target.web_session_id) {
       try {
@@ -61,7 +65,7 @@ Deno.serve(async (req) => {
         p_to_phone: target.phone_number,
         p_to_user_id: target.id,
         p_template: template,
-        p_payload: { ...(payload || {}), message_id: insertedMsgId, transaction_id: transactionId },
+        p_payload: { ...(payload || {}), text: directText, message_id: insertedMsgId, transaction_id: transactionId },
         p_web_session_id: target.web_session_id,
         p_image_url: null,
         p_channel: target.phone_number ? "whatsapp" : "web",
@@ -89,7 +93,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!neg) {
-      return new Response(JSON.stringify({ ok: true, reply: "🤔 Aucune négociation ouverte. Cherchez un produit puis dites « intéressé N°X »." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: "🤔 Aucune négociation ouverte. Cherchez un produit puis dites *intéressé 1*." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const intent = await aiIntent(text || "");
@@ -114,11 +118,14 @@ Deno.serve(async (req) => {
       if (otherUserId) {
         const targetIsBuyer = otherUserId === neg.buyer_user_id;
         const txt = targetIsBuyer
-          ? `✅ *Le vendeur a accepté ${fmt(amount)} !*\n\nVous pouvez maintenant payer en Mobile Money via la carte ci-dessous.`
-          : `✅ *L'acheteur a accepté ${fmt(amount)}.*\n\nLe paiement va être lancé.`;
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId });
+          ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId)
+          : `✅ *L'acheteur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nLe paiement va être lancé. Vous recevrez une notification dès que l'argent est bloqué en escrow.` + paymentCard(amount, txId);
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId });
       }
-      return new Response(JSON.stringify({ ok: true, reply: `✅ Accord enregistré à ${fmt(amount)}.${isBuyer ? " Cliquez sur Payer maintenant pour finaliser." : " L'acheteur va lancer le paiement."}`, transaction_id: txId, intent: "negotiation_accepted" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const reply = isBuyer
+        ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId)
+        : `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nL'acheteur va lancer le paiement.` + paymentCard(amount, txId);
+      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: paymentActions }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (intent.kind === "no") {
