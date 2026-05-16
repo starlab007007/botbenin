@@ -8710,33 +8710,20 @@ export type Database = {
         }
         Returns: string
       }
-      waouh_enqueue_outbound_v2:
-        | {
-            Args: {
-              p_channel?: string
-              p_image_url?: string
-              p_payload: Json
-              p_template: string
-              p_to_phone: string
-              p_to_user_id: string
-              p_web_session_id?: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_channel?: string
-              p_image_url?: string
-              p_message_id?: string
-              p_payload: Json
-              p_template: string
-              p_to_phone: string
-              p_to_user_id: string
-              p_transaction_id?: string
-              p_web_session_id?: string
-            }
-            Returns: string
-          }
+      waouh_enqueue_outbound_v2: {
+        Args: {
+          p_channel?: string
+          p_image_url?: string
+          p_message_id?: string
+          p_payload: Json
+          p_template: string
+          p_to_phone: string
+          p_to_user_id: string
+          p_transaction_id?: string
+          p_web_session_id?: string
+        }
+        Returns: string
+      }
       waouh_link_session: {
         Args: { p_session_id: string; p_user_id: string }
         Returns: undefined
