@@ -156,6 +156,7 @@ serve(async (req) => {
     const literalInterest = /int[ée]ress[ée]\s*n[°o]?\s*x/i.test(lower);
     const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
     const payKw = /(payer|paiement|payement|momo|mobile money|j'ach[èe]te maintenant|\bje paye\b|\bje paie\b)/i.test(lower);
+    const receivedKw = /(j.?ai\s+(bien\s+)?re[cç]u|re[cç]u\s+l.?article|livraison\s+re[cç]ue|confirmer\s+la\s+r[ée]ception)/i.test(lower);
     const operatorKw: "mtn" | "moov" | "sbin" | null =
       /\bmtn\b/i.test(lower) ? "mtn" :
       /\bmoov\b/i.test(lower) ? "moov" :
@@ -176,7 +177,8 @@ serve(async (req) => {
     const offerMatch = (!payKw && (explicitOffer || fcfaOffer)) || null;
 
     let intent: any = {};
-    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    if (receivedKw) intent = { intent: "CONFIRM_RECEIVED" };
+    else if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
     else if (payKw) intent = { intent: "PAY", payment_phone: paymentPhone, operator: operatorKw };
     else {
