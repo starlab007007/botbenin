@@ -7,7 +7,7 @@ import { FloatingChatButton } from '@/components/FloatingChatButton';
 import { WaouhLiveHero } from '@/components/home/waouh/WaouhLiveHero';
 import { WaouhLiveTicker } from '@/components/home/waouh/WaouhLiveTicker';
 import { WaouhChannels } from '@/components/home/waouh/WaouhChannels';
-import { WaouhRadarLive } from '@/components/home/waouh/WaouhRadarLive';
+
 import { WaouhHowItWorks } from '@/components/home/waouh/WaouhHowItWorks';
 import { WaouhProofStats } from '@/components/home/waouh/WaouhProofStats';
 import { BotBjEcosystem } from '@/components/home/waouh/BotBjEcosystem';
@@ -39,7 +39,6 @@ export const HomePage: React.FC = () => {
         <WaouhLiveHero />
         <WaouhLiveTicker />
         <WaouhChannels />
-        <WaouhRadarLive />
         <WaouhHowItWorks />
         <WaouhProofStats />
         <BotBjEcosystem />
