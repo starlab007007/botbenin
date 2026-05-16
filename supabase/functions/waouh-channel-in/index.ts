@@ -164,7 +164,7 @@ serve(async (req) => {
       const derivedMediaUrl = raw.payload.id && WAHA_BASE_URL
         ? `${WAHA_BASE_URL.replace(/\/$/, "")}/api/files/${wahaSession}/${raw.payload.id}.${mediaExt(mime)}`
         : null;
-      const mediaUrl = raw.payload.mediaUrl || raw.payload.media?.url || raw.payload._data?.deprecatedMms3Url || derivedMediaUrl;
+      const mediaUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
       if (mediaUrl && !String(mediaUrl).startsWith("/")) attachments.push({ url: mediaUrl, type: mime });
     }
 
