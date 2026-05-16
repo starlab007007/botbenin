@@ -449,7 +449,8 @@ serve(async (req) => {
         if (alreadyOnArticle && existingTxId) {
           returnedArticleId = pick.id;
           returnedTransactionId = existingTxId;
-          reply = `✅ Vous êtes déjà mis en relation pour *${pick.title}*.\n\nVous pouvez écrire « Je propose 250 000 FCFA » pour négocier ou cliquer sur *Payer maintenant* pour finaliser.`;
+          returnedActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "Je propose 250000 FCFA", label: "Négocier" }];
+          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(Number(pick.price || 0))}\n\nVous pouvez écrire *Je propose 250 000 FCFA* pour négocier ou appuyer sur *Payer*.` + paymentCard(Number(pick.price || 0), existingTxId);
         } else {
         // Récupère vendeur (phone + web session)
         const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
@@ -487,13 +488,14 @@ serve(async (req) => {
             template: "match_seller",
             payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto, transaction_id: returnedTransactionId },
             image_url: firstPhoto,
-            directText: `📩 *Nouvel acheteur intéressé !*\n\n📦 ${pick.title}\n💰 ${fmt(pick.price)}\n\nUn acheteur souhaite acquérir votre annonce. Répondez « OUI » pour accepter au prix demandé, « NON » pour refuser, ou proposez votre contre-offre (ex: « Je propose 18000 FCFA »).`,
+            directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix demandé* : ${fmt(pick.price)}\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose 18000 FCFA*).` + paymentCard(Number(pick.price || 0), returnedTransactionId),
             directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
             directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
           });
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
-        reply = `✅ *Demande envoyée au vendeur !*\n\n📦 ${pick.title} — ${fmt(pick.price)}\n${firstPhoto ? "📸 Photo transmise avec la demande\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez par exemple « Je propose 250 000 FCFA ». Pour finaliser au prix demandé, utilisez la carte de paiement ci-dessous.`;
+        returnedActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "Je propose 250000 FCFA", label: "Négocier" }];
+        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(pick.price)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez *Je propose 250 000 FCFA*.` + paymentCard(Number(pick.price || 0), returnedTransactionId);
         }
       }
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
