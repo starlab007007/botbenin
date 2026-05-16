@@ -386,8 +386,14 @@ serve(async (req) => {
           ? `\n\n🛰️ *${radarSellers.length} annonce${radarSellers.length > 1 ? "s" : ""}* détectée${radarSellers.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
         reply = `🎯 *${totalCount} annonce${totalCount > 1 ? "s" : ""} trouvée${totalCount > 1 ? "s" : ""} :*\n\n${[officialList, radarList].filter(Boolean).join("\n")}\n\n💡 Pour contacter un vendeur officiel, répondez « intéressé N°1 ». Vous pouvez aussi proposer un prix.${radarHint}`;
+        const promotedRadarMatches: any[] = [];
+        for (const r of radarSellers) {
+          const art = await promoteRadarSeller(sb, r, criteriaCategory);
+          if (art?.id) promotedRadarMatches.push({ ...art, radar: true });
+        }
         const combinedMatches = [
           ...(matches || []).map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
+          ...promotedRadarMatches.map((m: any) => ({ id: m.id, title: `🛰️ ${m.title}`, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
         ];
         nextContext = { ...nextContext, last_matches: combinedMatches };
 
