@@ -54,43 +54,75 @@ serve(async (req) => {
     const webhookConfig = config || (webhook?.url ? { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } : { webhooks: [] });
 
     let res: Response;
+    console.log(`[waha-control] action=${action} session=${session} base=${base}`);
     switch (action) {
       case "session-status":
         res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
         break;
-      case "session-create":
+      case "session-create": {
         // Idempotent: create if missing, otherwise update webhook/config and return current state.
         res = await fetchWaha(base, `/api/sessions`, {
           method: "POST",
           body: JSON.stringify({ name: session, start: true, config: webhookConfig }),
         }, headers);
-        if (res.status === 409 || res.status === 422) {
+        const createBodyText = await res.clone().text().catch(() => "");
+        console.log(`[waha-control] session-create status=${res.status} body=${createBodyText.slice(0, 500)}`);
+        // Already exists → treat as success (update config + fetch state)
+        if (res.status === 409 || res.status === 422 || (res.status === 400 && /exist/i.test(createBodyText))) {
           await fetchWaha(base, `/api/sessions/${session}`, {
             method: "PUT",
             body: JSON.stringify({ config: webhookConfig }),
           }, headers).catch(() => null);
           res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
         }
+        // Some WAHA versions use PUT /api/sessions/{name}
+        if (!res.ok && res.status !== 200) {
+          const alt = await fetchWaha(base, `/api/sessions/${session}`, {
+            method: "PUT",
+            body: JSON.stringify({ name: session, start: true, config: webhookConfig }),
+          }, headers);
+          const altText = await alt.clone().text().catch(() => "");
+          console.log(`[waha-control] session-create PUT fallback status=${alt.status} body=${altText.slice(0, 300)}`);
+          if (alt.ok || alt.status === 409 || alt.status === 422) {
+            res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
+          }
+        }
         break;
-      case "session-start":
+      }
+      case "session-start": {
         res = await fetchWaha(base, `/api/sessions/${session}/start`, { method: "POST" }, headers);
-        if (res.status === 409 || res.status === 422) res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
+        const startText = await res.clone().text().catch(() => "");
+        console.log(`[waha-control] session-start status=${res.status} body=${startText.slice(0, 300)}`);
+        if (res.status === 409 || res.status === 422 || res.status === 404) {
+          // Try to create first
+          await fetchWaha(base, `/api/sessions`, {
+            method: "POST",
+            body: JSON.stringify({ name: session, start: true, config: webhookConfig }),
+          }, headers).catch(() => null);
+          res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
+        }
         break;
+      }
       case "session-stop":
         res = await fetchWaha(base, `/api/sessions/${session}/stop`, { method: "POST" }, headers);
         break;
       case "get-qr":
         {
           const candidates: Array<[string, "GET" | "POST"]> = [
+            [`/api/${session}/auth/qr?format=image`, "GET"],
             [`/api/${session}/auth/qr?format=image`, "POST"],
+            [`/api/${session}/auth/qr?format=base64`, "GET"],
             [`/api/${session}/auth/qr?format=base64`, "POST"],
+            [`/api/${session}/auth/qr`, "GET"],
             [`/api/${session}/auth/qr`, "POST"],
             [`/api/sessions/${session}/auth/qr?format=image`, "GET"],
             [`/api/sessions/${session}/qr?format=base64`, "GET"],
+            [`/api/screenshot?session=${session}`, "GET"],
           ];
           let last: any = null;
           for (const [path, method] of candidates) {
             res = await fetchWaha(base, path, { method }, headers);
+            console.log(`[waha-control] get-qr try ${method} ${path} → ${res.status}`);
             if (res.ok) return json(await readWaha(res));
             last = await readWaha(res).catch(() => ({ status: res.status }));
           }
@@ -99,7 +131,7 @@ serve(async (req) => {
           if (current.ok && (currentBody?.status === "WORKING" || currentBody?.engine?.state === "CONNECTED")) {
             return json({ connected: true, status: "WORKING", message: "Session WhatsApp déjà connectée, aucun QR nécessaire." });
           }
-          return json({ error: "QR non disponible", details: last }, 404);
+          return json({ error: "QR non disponible", details: last, sessionStatus: currentBody }, 404);
         }
       case "set-webhook":
         res = await fetchWaha(base, `/api/sessions/${session}`, {
@@ -113,8 +145,12 @@ serve(async (req) => {
 
     const body = await readWaha(res);
     const status = res.status === 409 || res.status === 422 ? 200 : res.status;
+    if (!res.ok && status >= 400) {
+      console.log(`[waha-control] action=${action} returning status=${status} body=${JSON.stringify(body).slice(0, 400)}`);
+    }
     return json(body, status);
   } catch (e: any) {
+    console.error("[waha-control] exception", e);
     return json({ error: e.message }, 500);
   }
 });
