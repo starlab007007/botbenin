@@ -109,15 +109,20 @@ serve(async (req) => {
       case "get-qr":
         {
           const candidates: Array<[string, "GET" | "POST"]> = [
+            [`/api/${session}/auth/qr?format=image`, "GET"],
             [`/api/${session}/auth/qr?format=image`, "POST"],
+            [`/api/${session}/auth/qr?format=base64`, "GET"],
             [`/api/${session}/auth/qr?format=base64`, "POST"],
+            [`/api/${session}/auth/qr`, "GET"],
             [`/api/${session}/auth/qr`, "POST"],
             [`/api/sessions/${session}/auth/qr?format=image`, "GET"],
             [`/api/sessions/${session}/qr?format=base64`, "GET"],
+            [`/api/screenshot?session=${session}`, "GET"],
           ];
           let last: any = null;
           for (const [path, method] of candidates) {
             res = await fetchWaha(base, path, { method }, headers);
+            console.log(`[waha-control] get-qr try ${method} ${path} → ${res.status}`);
             if (res.ok) return json(await readWaha(res));
             last = await readWaha(res).catch(() => ({ status: res.status }));
           }
@@ -126,7 +131,7 @@ serve(async (req) => {
           if (current.ok && (currentBody?.status === "WORKING" || currentBody?.engine?.state === "CONNECTED")) {
             return json({ connected: true, status: "WORKING", message: "Session WhatsApp déjà connectée, aucun QR nécessaire." });
           }
-          return json({ error: "QR non disponible", details: last }, 404);
+          return json({ error: "QR non disponible", details: last, sessionStatus: currentBody }, 404);
         }
       case "set-webhook":
         res = await fetchWaha(base, `/api/sessions/${session}`, {
@@ -140,8 +145,12 @@ serve(async (req) => {
 
     const body = await readWaha(res);
     const status = res.status === 409 || res.status === 422 ? 200 : res.status;
+    if (!res.ok && status >= 400) {
+      console.log(`[waha-control] action=${action} returning status=${status} body=${JSON.stringify(body).slice(0, 400)}`);
+    }
     return json(body, status);
   } catch (e: any) {
+    console.error("[waha-control] exception", e);
     return json({ error: e.message }, 500);
   }
 });
