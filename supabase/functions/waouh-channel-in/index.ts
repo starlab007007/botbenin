@@ -45,6 +45,39 @@ function mediaExt(mime: string) {
   return "jpeg";
 }
 
+// Télécharge un média (URL WAHA protégée par X-Api-Key) et l'upload dans le bucket public waouh-media.
+// Retourne l'URL publique réutilisable par WhatsApp/Web.
+async function rehostMedia(sb: any, sourceUrl: string, mime: string): Promise<string | null> {
+  try {
+    const headers: Record<string, string> = {};
+    if (WAHA_API_KEY && WAHA_BASE_URL && sourceUrl.startsWith(WAHA_BASE_URL.replace(/\/$/, ""))) {
+      headers["X-Api-Key"] = WAHA_API_KEY;
+    }
+    const res = await fetch(sourceUrl, { headers });
+    if (!res.ok) {
+      console.warn("[rehostMedia] fetch failed", res.status, sourceUrl);
+      return null;
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength === 0) return null;
+    const ext = mediaExt(mime);
+    const path = `inbound/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await sb.storage.from("waouh-media").upload(path, buf, {
+      contentType: mime || "image/jpeg",
+      upsert: false,
+    });
+    if (error) {
+      console.warn("[rehostMedia] upload failed", error.message);
+      return null;
+    }
+    const { data: pub } = sb.storage.from("waouh-media").getPublicUrl(path);
+    return pub?.publicUrl || null;
+  } catch (e) {
+    console.warn("[rehostMedia] exception", e);
+    return null;
+  }
+}
+
 function extractInteractiveText(payload: any) {
   return payload?.body
     || payload?.caption
