@@ -557,5 +557,109 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
         ]
       }
     ]
+  },
+  {
+    id: 'waouh',
+    sector: 'waouh',
+    name: 'WAOUH — Marketplace Social IA',
+    description: 'Base de connaissances pour alimenter WAOUH : annonces, contacts vendeurs/acheteurs, photos produits, classification — exploitable par le chat web et WhatsApp.',
+    icon: 'Sparkles',
+    color: 'from-fuchsia-500 to-orange-500',
+    structuralInfo: [
+      { name: 'nom_marchand', type: 'text', category: 'contact', required: true, description: 'Nom du marchand / vendeur principal', placeholder: 'Boutique Adjoua' },
+      { name: 'whatsapp_vendeur', type: 'phone', category: 'contact', required: true, description: 'WhatsApp du vendeur (E.164)', placeholder: '+22997112233' },
+      { name: 'ville', type: 'text', category: 'location', required: true, description: 'Ville principale d\'activité', placeholder: 'Cotonou' },
+      { name: 'quartier', type: 'text', category: 'location', required: false, description: 'Quartier / zone de livraison', placeholder: 'Cadjèhoun' },
+      { name: 'moyens_paiement', type: 'text', category: 'policy', required: false, description: 'Moyens de paiement acceptés', placeholder: 'MTN MoMo, Moov Money, Espèces' },
+      { name: 'politique_livraison', type: 'text', category: 'policy', required: false, description: 'Politique de livraison', placeholder: 'Livraison gratuite Cotonou dès 20 000 FCFA' },
+      { name: 'horaires', type: 'text', category: 'hours', required: false, description: 'Horaires de réponse', placeholder: 'Lun-Sam : 8h-20h' }
+    ],
+    tables: [
+      {
+        id: 'annonces',
+        name: 'Annonces produits',
+        description: 'Catalogue des annonces injectées dans WAOUH (web + WhatsApp). Une ligne = une annonce.',
+        required: true,
+        icon: 'Megaphone',
+        fields: [
+          { name: 'titre', type: 'text', required: true, placeholder: 'iPhone 13 128Go état neuf' },
+          { name: 'categorie', type: 'select', required: true, options: ['smartphone', 'ordinateur', 'vetement', 'vehicule', 'electromenager', 'meuble', 'service', 'autre'] },
+          { name: 'marque', type: 'text', required: false, placeholder: 'Apple' },
+          { name: 'modele', type: 'text', required: false, placeholder: 'iPhone 13' },
+          { name: 'etat', type: 'select', required: true, options: ['new', 'like_new', 'good', 'fair', 'poor'] },
+          { name: 'prix_fcfa', type: 'price', required: true, placeholder: '250000' },
+          { name: 'prix_marche_min', type: 'price', required: false, placeholder: '220000' },
+          { name: 'prix_marche_max', type: 'price', required: false, placeholder: '280000' },
+          { name: 'description', type: 'textarea', required: false, placeholder: 'Détails, accessoires, garantie...' },
+          { name: 'photo_principale', type: 'image', required: false, description: 'URL ou upload de la photo principale' },
+          { name: 'photos_supplementaires', type: 'text', required: false, placeholder: 'URLs séparées par des virgules' },
+          { name: 'ville', type: 'text', required: true, placeholder: 'Cotonou' },
+          { name: 'quartier', type: 'text', required: false, placeholder: 'Akpakpa' },
+          { name: 'whatsapp_vendeur', type: 'phone', required: true, placeholder: '+22997112233' },
+          { name: 'statut', type: 'select', required: true, options: ['active', 'reserved', 'sold', 'paused', 'expired'] },
+          { name: 'origine', type: 'select', required: false, options: ['manuel', 'web_chat', 'whatsapp', 'radar', 'import'] }
+        ]
+      },
+      {
+        id: 'contacts',
+        name: 'Contacts (Vendeurs & Acheteurs)',
+        description: 'Annuaire des contacts WAOUH utilisés pour le matching et les notifications.',
+        required: true,
+        icon: 'Users',
+        fields: [
+          { name: 'nom', type: 'text', required: true, placeholder: 'Adjoua Koffi' },
+          { name: 'whatsapp', type: 'phone', required: true, placeholder: '+22997112233' },
+          { name: 'role', type: 'select', required: true, options: ['vendeur', 'acheteur', 'les_deux'] },
+          { name: 'ville', type: 'text', required: false, placeholder: 'Cotonou' },
+          { name: 'quartier', type: 'text', required: false, placeholder: 'Cadjèhoun' },
+          { name: 'categories_interet', type: 'text', required: false, placeholder: 'smartphone, electromenager' },
+          { name: 'budget_min', type: 'price', required: false, placeholder: '50000' },
+          { name: 'budget_max', type: 'price', required: false, placeholder: '500000' },
+          { name: 'langue_preferee', type: 'select', required: false, options: ['fr', 'fon', 'yoruba', 'mina', 'en'] },
+          { name: 'opt_in_notifications', type: 'select', required: true, options: ['oui', 'non'] },
+          { name: 'note', type: 'textarea', required: false, placeholder: 'Préférences, historique...' }
+        ]
+      },
+      {
+        id: 'classifications',
+        name: 'Classification produits',
+        description: 'Règles de classification (mots-clés → catégorie WAOUH) pour améliorer la détection IA.',
+        required: false,
+        icon: 'Tags',
+        fields: [
+          { name: 'categorie', type: 'select', required: true, options: ['smartphone', 'ordinateur', 'vetement', 'vehicule', 'electromenager', 'meuble', 'service', 'autre'] },
+          { name: 'mots_cles', type: 'text', required: true, placeholder: 'iphone, samsung, tecno, infinix' },
+          { name: 'prix_min_fcfa', type: 'price', required: false, placeholder: '20000' },
+          { name: 'prix_max_fcfa', type: 'price', required: false, placeholder: '1500000' },
+          { name: 'unite', type: 'text', required: false, placeholder: 'pièce / kg / m²' }
+        ]
+      },
+      {
+        id: 'reponses_rapides',
+        name: 'Réponses rapides',
+        description: 'Scripts prêts à l\'emploi pour vendre, négocier, rassurer (WhatsApp et chat web).',
+        required: false,
+        icon: 'MessageSquare',
+        fields: [
+          { name: 'declencheur', type: 'select', required: true, options: ['bienvenue', 'prix', 'disponibilite', 'livraison', 'paiement', 'negociation', 'sav', 'autre'] },
+          { name: 'message', type: 'textarea', required: true, placeholder: 'Bonjour 👋 Merci pour votre intérêt...' },
+          { name: 'langue', type: 'select', required: false, options: ['fr', 'fon', 'yoruba', 'mina', 'en'] }
+        ]
+      },
+      {
+        id: 'zones_livraison',
+        name: 'Zones de livraison & tarifs',
+        description: 'Zones desservies, frais et délais.',
+        required: false,
+        icon: 'MapPin',
+        fields: [
+          { name: 'ville', type: 'text', required: true, placeholder: 'Cotonou' },
+          { name: 'quartier', type: 'text', required: false, placeholder: 'Akpakpa' },
+          { name: 'frais_fcfa', type: 'price', required: true, placeholder: '1500' },
+          { name: 'delai', type: 'text', required: false, placeholder: '1-2h' },
+          { name: 'gratuit_des_fcfa', type: 'price', required: false, placeholder: '20000' }
+        ]
+      }
+    ]
   }
 ];
