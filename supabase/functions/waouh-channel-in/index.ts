@@ -197,8 +197,19 @@ serve(async (req) => {
       const derivedMediaUrl = raw.payload.id && WAHA_BASE_URL
         ? `${WAHA_BASE_URL.replace(/\/$/, "")}/api/files/${wahaSession}/${raw.payload.id}.${mediaExt(mime)}`
         : null;
-      const mediaUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
-      if (mediaUrl && !String(mediaUrl).startsWith("/")) attachments.push({ url: mediaUrl, type: mime });
+      const candidateUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
+      // Ré-héberger l'image dans un bucket public pour qu'elle soit réutilisable par WAHA et le chat web.
+      if (candidateUrl && !String(candidateUrl).startsWith("/") && /^image\//i.test(mime)) {
+        const sbForUpload = createClient(SUPABASE_URL, SERVICE);
+        const publicUrl = await rehostMedia(sbForUpload, candidateUrl, mime);
+        if (publicUrl) {
+          attachments.push({ url: publicUrl, type: mime });
+        } else if (/^https?:\/\//i.test(candidateUrl)) {
+          attachments.push({ url: candidateUrl, type: mime });
+        }
+      } else if (candidateUrl && /^https?:\/\//i.test(candidateUrl)) {
+        attachments.push({ url: candidateUrl, type: mime });
+      }
     }
 
     const chatId = fromChatId || (phone ? (phone.includes("@") ? phone : `${phone}@c.us`) : "");
