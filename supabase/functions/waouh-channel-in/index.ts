@@ -45,6 +45,39 @@ function mediaExt(mime: string) {
   return "jpeg";
 }
 
+// Télécharge un média (URL WAHA protégée par X-Api-Key) et l'upload dans le bucket public waouh-media.
+// Retourne l'URL publique réutilisable par WhatsApp/Web.
+async function rehostMedia(sb: any, sourceUrl: string, mime: string): Promise<string | null> {
+  try {
+    const headers: Record<string, string> = {};
+    if (WAHA_API_KEY && WAHA_BASE_URL && sourceUrl.startsWith(WAHA_BASE_URL.replace(/\/$/, ""))) {
+      headers["X-Api-Key"] = WAHA_API_KEY;
+    }
+    const res = await fetch(sourceUrl, { headers });
+    if (!res.ok) {
+      console.warn("[rehostMedia] fetch failed", res.status, sourceUrl);
+      return null;
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength === 0) return null;
+    const ext = mediaExt(mime);
+    const path = `inbound/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await sb.storage.from("waouh-media").upload(path, buf, {
+      contentType: mime || "image/jpeg",
+      upsert: false,
+    });
+    if (error) {
+      console.warn("[rehostMedia] upload failed", error.message);
+      return null;
+    }
+    const { data: pub } = sb.storage.from("waouh-media").getPublicUrl(path);
+    return pub?.publicUrl || null;
+  } catch (e) {
+    console.warn("[rehostMedia] exception", e);
+    return null;
+  }
+}
+
 function extractInteractiveText(payload: any) {
   return payload?.body
     || payload?.caption
@@ -164,8 +197,19 @@ serve(async (req) => {
       const derivedMediaUrl = raw.payload.id && WAHA_BASE_URL
         ? `${WAHA_BASE_URL.replace(/\/$/, "")}/api/files/${wahaSession}/${raw.payload.id}.${mediaExt(mime)}`
         : null;
-      const mediaUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
-      if (mediaUrl && !String(mediaUrl).startsWith("/")) attachments.push({ url: mediaUrl, type: mime });
+      const candidateUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
+      // Ré-héberger l'image dans un bucket public pour qu'elle soit réutilisable par WAHA et le chat web.
+      if (candidateUrl && !String(candidateUrl).startsWith("/") && /^image\//i.test(mime)) {
+        const sbForUpload = createClient(SUPABASE_URL, SERVICE);
+        const publicUrl = await rehostMedia(sbForUpload, candidateUrl, mime);
+        if (publicUrl) {
+          attachments.push({ url: publicUrl, type: mime });
+        } else if (/^https?:\/\//i.test(candidateUrl)) {
+          attachments.push({ url: candidateUrl, type: mime });
+        }
+      } else if (candidateUrl && /^https?:\/\//i.test(candidateUrl)) {
+        attachments.push({ url: candidateUrl, type: mime });
+      }
     }
 
     const chatId = fromChatId || (phone ? (phone.includes("@") ? phone : `${phone}@c.us`) : "");
