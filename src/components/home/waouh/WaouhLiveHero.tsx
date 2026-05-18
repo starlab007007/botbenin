@@ -106,7 +106,7 @@ export const WaouhLiveHero: React.FC = () => {
         }}
       />
 
-      <div className="relative grid lg:grid-cols-[1.15fr_1fr] gap-8 lg:gap-12 p-4 sm:p-8 md:p-10 lg:p-14">
+      <div className="relative grid lg:grid-cols-[1.15fr_1fr] gap-6 sm:gap-8 lg:gap-12 p-4 xs:p-5 sm:p-8 md:p-10 lg:p-14">
         {/* LEFT */}
         <div className="flex flex-col justify-center">
           <div
