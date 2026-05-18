@@ -20,13 +20,16 @@ function compose(template: string, p: any): string {
   if (p?.text) return String(p.text);
   switch (template) {
     case "match_buyer":
-      return `🎯 *WAOUH a trouvé pour vous*\n\n📦 *Produit* : ${p.title || "une annonce"}\n💰 *Prix* : ${fmt(p.price)}\n📍 *Ville* : ${p.city || "?"}\n\nRépondez *intéressé 1* pour être mis en relation, ou proposez votre prix.`;
+      return `🎯 *WAOUH a trouvé pour vous*\n━━━━━━━━━━━━━━━\n📦 *${p.title || "une annonce"}*\n💰 Prix : *${fmt(p.price)}*\n📍 Ville : ${p.city || "?"}\n${p.seller_rating ? `⭐ Vendeur : ${p.seller_rating}\n` : ""}━━━━━━━━━━━━━━━\n👉 Touchez un bouton ci-dessous, ou tapez *intéressé 1* / proposez un prix.`;
     case "match_seller":
-      return `📩 WAOUH : un acheteur cherche *${p.category || "votre produit"}*.\nRépondez *OUI* pour qu'on vous mette en contact, ou *NON* pour passer.`;
+      return `📩 *WAOUH — Acheteur intéressé*\n━━━━━━━━━━━━━━━\nUn acheteur cherche : *${p.category || "votre produit"}*${p.city ? `\n📍 ${p.city}` : ""}${p.budget ? `\n💰 Budget : ${fmt(p.budget)}` : ""}\n━━━━━━━━━━━━━━━\nRépondez via les boutons, ou *OUI* / *NON*.`;
     case "negotiation_open":
-      return `🤝 Nouvelle offre : ${fmt(p.price)} pour *${p.title || "votre annonce"}*.\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre.`;
+      return `🤝 *Nouvelle offre WAOUH*\n━━━━━━━━━━━━━━━\n📦 *${p.title || "votre annonce"}*\n💸 Offre : *${fmt(p.price)}*\n━━━━━━━━━━━━━━━\nAcceptez, refusez ou contre-proposez ci-dessous.`;
+    case "payment_card":
     case "payment_link":
-      return `💳 Paiement WAOUH : ${fmt(p.amount)}\n🔗 ${p.url}\nMobile Money accepté.`;
+      return `💳 *Paiement sécurisé WAOUH*\n━━━━━━━━━━━━━━━\n📦 ${p.title || "Transaction"}\n💰 Montant : *${fmt(p.amount)}*\n🔒 Escrow — fonds libérés à réception\n📱 Mobile Money MTN / Moov\n━━━━━━━━━━━━━━━\n🔗 ${p.url}\n\nTouchez *Payer maintenant* pour valider.`;
+    case "order_recap":
+      return `📋 *Récapitulatif commande*\n━━━━━━━━━━━━━━━\n📦 ${p.title || "—"}\n💰 ${fmt(p.amount)}\n📍 Livraison : ${p.delivery || "à convenir"}\n👤 Vendeur : ${p.seller_name || "—"}\n━━━━━━━━━━━━━━━`;
     default:
       return p.text || "Message WAOUH";
   }
