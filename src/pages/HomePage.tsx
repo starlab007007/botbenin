@@ -35,7 +35,7 @@ export const HomePage: React.FC = () => {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 md:py-12 space-y-8 sm:space-y-12 md:space-y-16">
+      <main className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-5 md:px-6 lg:px-8 py-5 xs:py-6 sm:py-8 md:py-12 space-y-6 xs:space-y-8 sm:space-y-12 md:space-y-16">
         <WaouhLiveHero />
         <WaouhLiveTicker />
         <WaouhChannels />

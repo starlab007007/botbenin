@@ -106,7 +106,7 @@ export const WaouhLiveHero: React.FC = () => {
         }}
       />
 
-      <div className="relative grid lg:grid-cols-[1.15fr_1fr] gap-8 lg:gap-12 p-4 sm:p-8 md:p-10 lg:p-14">
+      <div className="relative grid lg:grid-cols-[1.15fr_1fr] gap-6 sm:gap-8 lg:gap-12 p-4 xs:p-5 sm:p-8 md:p-10 lg:p-14">
         {/* LEFT */}
         <div className="flex flex-col justify-center">
           <div
@@ -126,7 +126,7 @@ export const WaouhLiveHero: React.FC = () => {
           </div>
 
           <h1
-            className="mt-5 sm:mt-6 font-bold leading-[0.95] tracking-tight text-[34px] xs:text-[40px] sm:text-[56px] md:text-[68px] lg:text-[80px] xl:text-[88px]"
+            className="mt-5 sm:mt-6 font-bold leading-[0.95] tracking-tight text-[30px] xs:text-[40px] sm:text-[52px] md:text-[64px] lg:text-[76px] xl:text-[88px]"
             style={{ color: 'hsl(var(--home-text))' }}
           >
             <span className="block">Parlez.</span>
@@ -195,7 +195,7 @@ export const WaouhLiveHero: React.FC = () => {
         </div>
 
         {/* RIGHT — phone mock (deep navy frame, not black) */}
-        <div className="relative mx-auto w-full max-w-[260px] sm:max-w-[300px] md:max-w-[340px] lg:max-w-[360px]">
+        <div className="relative mx-auto w-full max-w-[220px] xs:max-w-[260px] sm:max-w-[300px] md:max-w-[320px] lg:max-w-[360px]">
           <div
             className="absolute -inset-10 rounded-[60px] blur-3xl opacity-60"
             style={{ background: 'radial-gradient(closest-side, hsl(var(--home-accent) / 0.5), transparent)' }}

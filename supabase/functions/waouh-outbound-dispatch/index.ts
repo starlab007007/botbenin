@@ -20,13 +20,16 @@ function compose(template: string, p: any): string {
   if (p?.text) return String(p.text);
   switch (template) {
     case "match_buyer":
-      return `🎯 *WAOUH a trouvé pour vous*\n\n📦 *Produit* : ${p.title || "une annonce"}\n💰 *Prix* : ${fmt(p.price)}\n📍 *Ville* : ${p.city || "?"}\n\nRépondez *intéressé 1* pour être mis en relation, ou proposez votre prix.`;
+      return `🎯 *WAOUH a trouvé pour vous*\n━━━━━━━━━━━━━━━\n📦 *${p.title || "une annonce"}*\n💰 Prix : *${fmt(p.price)}*\n📍 Ville : ${p.city || "?"}\n${p.seller_rating ? `⭐ Vendeur : ${p.seller_rating}\n` : ""}━━━━━━━━━━━━━━━\n👉 Touchez un bouton ci-dessous, ou tapez *intéressé 1* / proposez un prix.`;
     case "match_seller":
-      return `📩 WAOUH : un acheteur cherche *${p.category || "votre produit"}*.\nRépondez *OUI* pour qu'on vous mette en contact, ou *NON* pour passer.`;
+      return `📩 *WAOUH — Acheteur intéressé*\n━━━━━━━━━━━━━━━\nUn acheteur cherche : *${p.category || "votre produit"}*${p.city ? `\n📍 ${p.city}` : ""}${p.budget ? `\n💰 Budget : ${fmt(p.budget)}` : ""}\n━━━━━━━━━━━━━━━\nRépondez via les boutons, ou *OUI* / *NON*.`;
     case "negotiation_open":
-      return `🤝 Nouvelle offre : ${fmt(p.price)} pour *${p.title || "votre annonce"}*.\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre.`;
+      return `🤝 *Nouvelle offre WAOUH*\n━━━━━━━━━━━━━━━\n📦 *${p.title || "votre annonce"}*\n💸 Offre : *${fmt(p.price)}*\n━━━━━━━━━━━━━━━\nAcceptez, refusez ou contre-proposez ci-dessous.`;
+    case "payment_card":
     case "payment_link":
-      return `💳 Paiement WAOUH : ${fmt(p.amount)}\n🔗 ${p.url}\nMobile Money accepté.`;
+      return `💳 *Paiement sécurisé WAOUH*\n━━━━━━━━━━━━━━━\n📦 ${p.title || "Transaction"}\n💰 Montant : *${fmt(p.amount)}*\n🔒 Escrow — fonds libérés à réception\n📱 Mobile Money MTN / Moov\n━━━━━━━━━━━━━━━\n🔗 ${p.url}\n\nTouchez *Payer maintenant* pour valider.`;
+    case "order_recap":
+      return `📋 *Récapitulatif commande*\n━━━━━━━━━━━━━━━\n📦 ${p.title || "—"}\n💰 ${fmt(p.amount)}\n📍 Livraison : ${p.delivery || "à convenir"}\n👤 Vendeur : ${p.seller_name || "—"}\n━━━━━━━━━━━━━━━`;
     default:
       return p.text || "Message WAOUH";
   }
@@ -64,21 +67,58 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
   });
 }
 
-async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string }>, headers: Record<string, string>) {
+async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string; url?: string; phone?: string }>, headers: Record<string, string>, footer?: string, title?: string) {
+  // Try the rich interactive format (WAHA Plus / NOWEB+) with reply/url/call buttons
+  const richButtons = actions.slice(0, 3).map((a) => {
+    if (a.url) return { type: "url", url: a.url, text: a.label };
+    if (a.phone) return { type: "call", phoneNumber: a.phone, text: a.label };
+    return { type: "reply", reply: { id: a.id, title: a.label } };
+  });
+  const richBody = { session, chatId, header: title, body: text, footer: footer || "WAOUH • bot.bj", buttons: richButtons };
+  let r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
+  if (r.ok) return r;
+  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ chatId, ...richBody, session: undefined }) });
+  if (r.ok) return r;
+  // Legacy simple format
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
-  let r = await fetch(`${base}/api/sendButtons`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ session, chatId, text, buttons }),
-  });
+  r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  r = await fetch(`${base}/api/${session}/sendButtons`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ chatId, text, buttons }),
-  });
+  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ chatId, text, buttons }) });
   if (r.ok) return r;
-  return sendWahaText(base, session, chatId, `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label} → ${a.id}`).join("\n")}`, headers);
+  // Text fallback with numbered options
+  const lines = actions.map((a, i) => `${i + 1}. ${a.label}${a.url ? ` → ${a.url}` : a.phone ? ` ☎ ${a.phone}` : ""}`).join("\n");
+  return sendWahaText(base, session, chatId, `${text}\n\n${lines}`, headers);
+}
+
+function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
+  switch (template) {
+    case "match_buyer":
+      return [
+        { id: `interest:${p.product_id || ""}`, label: "✅ Intéressé" },
+        { id: `negotiate:${p.product_id || ""}`, label: "💬 Négocier" },
+        { id: `skip:${p.product_id || ""}`, label: "⏭️ Passer" },
+      ];
+    case "match_seller":
+      return [
+        { id: `match_yes:${p.product_id || ""}`, label: "✅ Oui, mettre en contact" },
+        { id: `match_no:${p.product_id || ""}`, label: "❌ Non merci" },
+      ];
+    case "negotiation_open":
+      return [
+        { id: `accept:${p.negotiation_id || ""}`, label: "✅ Accepter" },
+        { id: `counter:${p.negotiation_id || ""}`, label: "💬 Contre-offre" },
+        { id: `refuse:${p.negotiation_id || ""}`, label: "❌ Refuser" },
+      ];
+    case "payment_card":
+    case "payment_link":
+      return [
+        ...(p.url ? [{ id: "pay_open", label: "💳 Payer maintenant", url: p.url }] : []),
+        { id: `pay_help:${p.transaction_id || ""}`, label: "❓ Aide paiement" },
+        { id: `pay_cancel:${p.transaction_id || ""}`, label: "✖️ Annuler" },
+      ];
+    default:
+      return [];
+  }
 }
 
 Deno.serve(async (req) => {
@@ -127,12 +167,14 @@ Deno.serve(async (req) => {
       const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
       try {
         let r: Response;
-        const actions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
+        const customActions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
+        const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
+        const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
         if (it.image_url) {
           r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
-          if (r.ok && actions.length > 0) await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, "Actions rapides WAOUH", actions, wahaHeaders);
+          if (r.ok && actions.length > 0) await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, "Actions rapides", actions, wahaHeaders, footer);
         } else if (actions.length > 0) {
-          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders);
+          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer);
         } else {
           r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
         }
