@@ -195,7 +195,7 @@ export const WaouhLiveHero: React.FC = () => {
         </div>
 
         {/* RIGHT — phone mock (deep navy frame, not black) */}
-        <div className="relative mx-auto w-full max-w-[260px] sm:max-w-[300px] md:max-w-[340px] lg:max-w-[360px]">
+        <div className="relative mx-auto w-full max-w-[220px] xs:max-w-[260px] sm:max-w-[300px] md:max-w-[320px] lg:max-w-[360px]">
           <div
             className="absolute -inset-10 rounded-[60px] blur-3xl opacity-60"
             style={{ background: 'radial-gradient(closest-side, hsl(var(--home-accent) / 0.5), transparent)' }}
