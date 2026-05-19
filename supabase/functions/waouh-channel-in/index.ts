@@ -339,15 +339,14 @@ serve(async (req) => {
       meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null, actions },
     });
 
-    // WAHA send
+    // WAHA send — UN SEUL message par réponse (image + texte + boutons combinés si possible)
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
       try {
         const firstImage = Array.isArray(core.attachments) ? core.attachments.find((a: any) => a?.url)?.url : null;
-        if (firstImage) {
+        if (actions.length > 0) {
+          await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, reply, actions, firstImage);
+        } else if (firstImage) {
           await sendWahaImage(WAHA_BASE_URL, wahaSession, chatId, firstImage, reply);
-          if (actions.length > 0) await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, "Actions rapides WAOUH", actions);
-        } else if (actions.length > 0) {
-          await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, reply, actions);
         } else {
           await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, reply);
         }
