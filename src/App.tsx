@@ -94,6 +94,13 @@ const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhChatPage = lazy(() => import("./pages/waouh/WaouhChatPage"));
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 const WaouhWhatsAppOpsPage = lazy(() => import("./pages/admin/WaouhWhatsAppOpsPage"));
+const AdminWaouhPartnersPage = lazy(() => import("./pages/admin/AdminWaouhPartnersPage"));
+const AdminWaouhDataControlPage = lazy(() => import("./pages/admin/AdminWaouhDataControlPage"));
+const PartnerDashboardPage = lazy(() => import("./pages/partner/PartnerDashboardPage"));
+const PartnerBusinessesPage = lazy(() => import("./pages/partner/PartnerBusinessesPage"));
+const PartnerProductsPage = lazy(() => import("./pages/partner/PartnerProductsPage"));
+const PartnerSalesPage = lazy(() => import("./pages/partner/PartnerSalesPage"));
+const PartnerPayoutsPage = lazy(() => import("./pages/partner/PartnerPayoutsPage"));
 
 // Module Support Technique SIGDSTS (isolé, sans layout principal)
 const SupportTechniquePage = lazy(() => import("./pages/SupportTechniquePage").then(m => ({ default: (m as any).default ?? (m as any).SupportTechniquePage })));
