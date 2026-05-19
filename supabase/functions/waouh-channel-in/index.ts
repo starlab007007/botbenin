@@ -125,23 +125,31 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
   });
 }
 
-async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: WaouhAction[]) {
+async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: WaouhAction[], imageUrl?: string | null) {
   const cleanBase = base.replace(/\/$/, "");
   const headers = wahaHeaders();
+  const richButtons = actions.slice(0, 3).map((a: any) => {
+    if (a.url) return { type: "url", url: a.url, text: a.label };
+    if (a.phone) return { type: "call", phoneNumber: a.phone, text: a.label };
+    return { type: "reply", reply: { id: a.id, title: a.label } };
+  });
+  const richBody: any = { session, chatId, body: text, footer: "WAOUH • bot.bj", buttons: richButtons };
+  if (imageUrl) richBody.header = { image: { url: imageUrl } };
+  let r = await fetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
+  if (r.ok) return r;
+  r = await fetch(`${cleanBase}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
+  if (r.ok) return r;
+  // Legacy fallback
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
-  const direct = await fetch(`${cleanBase}/api/sendButtons`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ session, chatId, text, buttons }),
-  });
-  if (direct.ok) return direct;
-  const scoped = await fetch(`${cleanBase}/api/${session}/sendButtons`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ chatId, text, buttons }),
-  });
-  if (scoped.ok) return scoped;
-  const fallback = `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label} → ${a.id}`).join("\n")}`;
+  r = await fetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
+  if (r.ok) return r;
+  // Final text fallback — if we have an image, send it first
+  if (imageUrl) {
+    await sendWahaImage(base, session, chatId, imageUrl, text);
+    const lines = actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n");
+    return sendWahaText(base, session, chatId, `_Répondez avec le numéro de votre choix :_\n${lines}`);
+  }
+  const fallback = `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n")}`;
   return sendWahaText(base, session, chatId, fallback);
 }
 

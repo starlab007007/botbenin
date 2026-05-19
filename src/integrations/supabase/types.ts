@@ -5612,6 +5612,24 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_processed_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          source?: string
+        }
+        Relationships: []
+      }
       waouh_radar_matches: {
         Row: {
           created_at: string
