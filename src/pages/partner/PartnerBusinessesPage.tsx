@@ -254,8 +254,8 @@ export default function PartnerBusinessesPage() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {b.description && <p className="text-muted-foreground line-clamp-2">{b.description}</p>}
-              {b.telephone && <div>📞 {b.telephone}</div>}
-              {b.mobile_money_number && <div>💳 {b.mobile_money_operator} {b.mobile_money_number}</div>}
+              {b.telephone && <div>📞 {formatPhoneDisplay(b.telephone)}</div>}
+              {b.mobile_money_number && <div>💳 {b.mobile_money_operator} · {formatPhoneDisplay(b.mobile_money_number)}</div>}
               {b.lat && <div className="text-xs text-muted-foreground">📍 {Number(b.lat).toFixed(4)}, {Number(b.lng).toFixed(4)}</div>}
               <Link to={`/partner/businesses/${b.id}/products`}>
                 <Button variant="outline" size="sm" className="w-full mt-2"><Package className="h-4 w-4 mr-2" />Gérer les produits</Button>
