@@ -8,7 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
-import { Loader2, Search, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock } from 'lucide-react';
+import { useRef } from 'react';
+
+type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
+interface CleanItem { id: string; titre: string; status: CleanItemStatus; message?: string }
 
 export default function AdminWaouhDataControlPage() {
   const { toast } = useToast();
@@ -20,7 +25,10 @@ export default function AdminWaouhDataControlPage() {
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
-  const [cleanReport, setCleanReport] = useState<{ ok: number; failed: number } | null>(null);
+  const [cleanItems, setCleanItems] = useState<CleanItem[]>([]);
+  const [cleanProgress, setCleanProgress] = useState(0);
+  const [batchSize, setBatchSize] = useState(20);
+  const cancelRef = useRef(false);
 
   const loadStats = async () => {
     setLoading(true);
@@ -54,35 +62,74 @@ export default function AdminWaouhDataControlPage() {
   };
 
   // === Nettoyage IA en batch ===
+  const updateItem = (id: string, patch: Partial<CleanItem>) =>
+    setCleanItems(prev => prev.map(it => it.id === id ? { ...it, ...patch } : it));
+
+  const cancelCleaning = () => { cancelRef.current = true; };
+
   const cleanWithAI = async () => {
+    cancelRef.current = false;
     setCleaning(true);
-    setCleanReport(null);
-    // Récupère les 20 entrées les moins propres (score bas, non vérifiées)
+    setCleanProgress(0);
+    setCleanItems([]);
     const { data: entries } = await supabase
       .from('waouh_unified_catalog' as any)
       .select('id, titre, description, categorie, ville, source, qualite_score')
       .eq('verified', false)
       .order('qualite_score', { ascending: true })
-      .limit(20);
+      .limit(batchSize);
     if (!entries?.length) { setCleaning(false); toast({ title: 'Rien à nettoyer' }); return; }
-    let ok = 0, failed = 0;
-    for (const e of entries as any[]) {
-      const r = await ai.run<any>('clean_catalog_entry', { entry: { titre: e.titre, description: e.description, categorie: e.categorie, ville: e.ville } });
-      if (r?.titre) {
-        await supabase.from('waouh_unified_catalog' as any).update({
-          titre: r.titre,
-          categorie: r.categorie || e.categorie,
-          sous_categorie: r.sous_categorie || null,
-          tags: r.tags || null,
-          qualite_score: Math.max(e.qualite_score || 0, r.qualite_score || 0),
-        }).eq('id', e.id);
-        ok++;
-      } else failed++;
+
+    const initial: CleanItem[] = (entries as any[]).map(e => ({ id: e.id, titre: e.titre || '(sans titre)', status: 'pending' }));
+    setCleanItems(initial);
+
+    let ok = 0, failed = 0, cancelled = 0;
+    const total = entries.length;
+    for (let i = 0; i < total; i++) {
+      if (cancelRef.current) {
+        // Marquer le reste comme annulé
+        for (let j = i; j < total; j++) updateItem((entries as any[])[j].id, { status: 'cancelled' });
+        cancelled = total - i;
+        break;
+      }
+      const e = (entries as any[])[i];
+      updateItem(e.id, { status: 'processing' });
+      try {
+        const r = await ai.run<any>('clean_catalog_entry', { entry: { titre: e.titre, description: e.description, categorie: e.categorie, ville: e.ville } });
+        if (r?.titre) {
+          await supabase.from('waouh_unified_catalog' as any).update({
+            titre: r.titre,
+            categorie: r.categorie || e.categorie,
+            sous_categorie: r.sous_categorie || null,
+            tags: r.tags || null,
+            qualite_score: Math.max(e.qualite_score || 0, r.qualite_score || 0),
+          }).eq('id', e.id);
+          ok++;
+          updateItem(e.id, { status: 'ok', titre: r.titre, message: `Score: ${r.qualite_score || '?'}` });
+        } else {
+          failed++;
+          updateItem(e.id, { status: 'failed', message: 'Réponse IA invalide' });
+        }
+      } catch (err: any) {
+        failed++;
+        updateItem(e.id, { status: 'failed', message: err?.message || 'Erreur' });
+      }
+      setCleanProgress(Math.round(((i + 1) / total) * 100));
     }
-    setCleanReport({ ok, failed });
     setCleaning(false);
-    toast({ title: `✅ Nettoyage terminé`, description: `${ok} OK / ${failed} échecs` });
+    toast({
+      title: cancelRef.current ? 'Nettoyage annulé' : '✅ Nettoyage terminé',
+      description: `${ok} OK · ${failed} échecs${cancelled ? ` · ${cancelled} annulés` : ''}`,
+    });
     loadStats(); search();
+  };
+
+  const statusMeta: Record<CleanItemStatus, { label: string; icon: any; cls: string }> = {
+    pending:    { label: 'En attente',  icon: Clock,        cls: 'text-muted-foreground' },
+    processing: { label: 'En cours',    icon: Loader2,      cls: 'text-blue-600 animate-spin' },
+    ok:         { label: 'OK',          icon: CheckCircle2, cls: 'text-green-600' },
+    failed:     { label: 'Échec',       icon: XCircle,      cls: 'text-red-600' },
+    cancelled:  { label: 'Annulé',      icon: StopCircle,   cls: 'text-amber-600' },
   };
 
   return (
@@ -152,13 +199,73 @@ export default function AdminWaouhDataControlPage() {
               <CardDescription>Sélectionne les 20 entrées au score qualité le plus bas, normalise titre / catégorie / tags et recalcule le score.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button onClick={cleanWithAI} disabled={cleaning} size="lg">
-                {cleaning ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                Lancer le nettoyage IA (20 entrées)
-              </Button>
-              {cleanReport && (
-                <div className="p-4 rounded border bg-muted/30">
-                  ✅ {cleanReport.ok} entrées nettoyées · ❌ {cleanReport.failed} échecs
+              <div className="flex flex-wrap gap-2 items-center">
+                <label className="text-sm text-muted-foreground">Taille du lot :</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={batchSize}
+                  onChange={e => setBatchSize(Math.max(1, Math.min(100, Number(e.target.value) || 20)))}
+                  disabled={cleaning}
+                  className="w-24"
+                />
+                <Button onClick={cleanWithAI} disabled={cleaning} size="lg">
+                  {cleaning ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Lancer le nettoyage IA ({batchSize})
+                </Button>
+                {cleaning && (
+                  <Button onClick={cancelCleaning} variant="destructive" size="lg">
+                    <StopCircle className="h-4 w-4 mr-2" />Annuler
+                  </Button>
+                )}
+              </div>
+
+              {(cleaning || cleanItems.length > 0) && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progression</span>
+                    <span className="font-mono">{cleanProgress}%</span>
+                  </div>
+                  <Progress value={cleanProgress} />
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    <span>✅ {cleanItems.filter(i => i.status === 'ok').length} OK</span>
+                    <span>❌ {cleanItems.filter(i => i.status === 'failed').length} échecs</span>
+                    <span>⏸ {cleanItems.filter(i => i.status === 'cancelled').length} annulés</span>
+                    <span>⏳ {cleanItems.filter(i => i.status === 'pending' || i.status === 'processing').length} restants</span>
+                  </div>
+                </div>
+              )}
+
+              {cleanItems.length > 0 && (
+                <div className="border rounded-md max-h-96 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-32">Statut</TableHead>
+                        <TableHead>Titre</TableHead>
+                        <TableHead>Détails</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cleanItems.map(it => {
+                        const m = statusMeta[it.status];
+                        const Icon = m.icon;
+                        return (
+                          <TableRow key={it.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Icon className={`h-4 w-4 ${m.cls}`} />
+                                <span className="text-xs">{m.label}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-md truncate text-sm">{it.titre}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{it.message || '—'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>

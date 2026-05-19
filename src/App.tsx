@@ -134,6 +134,7 @@ import { IACreatorAdminPage } from "./pages/admin/IACreatorAdminPage";
 const SystemLogsPage = lazy(() => import("./pages/admin/SystemLogsPage"));
 const AdminKnowledgeBasesPage = lazy(() => import("./pages/modules/AdminKnowledgeBasesPage").then(module => ({ default: module.AdminKnowledgeBasesPage })));
 import { AdminRoute } from "./components/auth/AdminRoute";
+import { PartnerRoute, AuthRoute } from "./components/auth/PartnerRoute";
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -234,11 +235,11 @@ const AppContent = () => {
                      <Route path="/admin/waouh/whatsapp-ops" element={<AdminRoute><WaouhWhatsAppOpsPage /></AdminRoute>} />
                      <Route path="/admin/waouh/partners" element={<AdminRoute><AdminWaouhPartnersPage /></AdminRoute>} />
                      <Route path="/admin/waouh/data-control" element={<AdminRoute><AdminWaouhDataControlPage /></AdminRoute>} />
-                     <Route path="/partner" element={<PartnerDashboardPage />} />
-                     <Route path="/partner/businesses" element={<PartnerBusinessesPage />} />
-                     <Route path="/partner/businesses/:businessId/products" element={<PartnerProductsPage />} />
-                     <Route path="/partner/sales" element={<PartnerSalesPage />} />
-                     <Route path="/partner/payouts" element={<PartnerPayoutsPage />} />
+                     <Route path="/partner" element={<AuthRoute><PartnerDashboardPage /></AuthRoute>} />
+                     <Route path="/partner/businesses" element={<PartnerRoute><PartnerBusinessesPage /></PartnerRoute>} />
+                     <Route path="/partner/businesses/:businessId/products" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
+                     <Route path="/partner/sales" element={<PartnerRoute><PartnerSalesPage /></PartnerRoute>} />
+                     <Route path="/partner/payouts" element={<PartnerRoute><PartnerPayoutsPage /></PartnerRoute>} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
