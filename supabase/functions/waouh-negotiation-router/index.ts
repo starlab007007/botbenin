@@ -8,8 +8,17 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 const paymentCard = (amount: number, txId?: string | null) =>
-  `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH\n• *Statut* : en attente\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}\n\n👉 Appuyez sur *Payer* ou envoyez : *payer 0165653468*`;
-const paymentActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "mtn", label: "MTN" }, { id: "moov", label: "Moov" }];
+  `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? String(txId).slice(0, 8).toUpperCase() : "créée"}`;
+const paymentActions = (txId: string | null) => [
+  { id: `pay:${txId || ""}`, label: "💳 Payer maintenant" },
+  { id: "mtn", label: "MTN" },
+  { id: "moov", label: "Moov" },
+];
+const negotiationActions = (negId: string) => [
+  { id: `accept:${negId}`, label: "✅ Accepter" },
+  { id: `counter:${negId}`, label: "💬 Contre-offre" },
+  { id: `refuse:${negId}`, label: "❌ Refuser" },
+];
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
   const lower = (text || "").toLowerCase();
