@@ -128,12 +128,12 @@ Deno.serve(async (req) => {
       if (otherUserId) {
         const targetIsBuyer = otherUserId === neg.buyer_user_id;
         const txt = targetIsBuyer
-          ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId)
+          ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId) + payInstructions
           : `✅ *L'acheteur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nLe paiement va être lancé. Vous recevrez une notification dès que l'argent est bloqué en escrow.` + paymentCard(amount, txId);
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, targetIsBuyer ? paymentActions(txId) : [], `neg:${neg.id}:accepted:${otherUserId}`, "negotiation_accepted");
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, [], `neg:${neg.id}:accepted:${otherUserId}`, "negotiation_accepted");
       }
       const reply = isBuyer
-        ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId)
+        ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId) + payInstructions
         : `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nL'acheteur va lancer le paiement.` + paymentCard(amount, txId);
       // Fire-and-forget dispatch
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
-      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: isBuyer ? paymentActions(txId) : [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (intent.kind === "no") {
