@@ -232,19 +232,11 @@ Deno.serve(async (req) => {
           }).eq("id", transaction_id);
 
           // System message in chat
-          const { data: tx } = await sb.from("waouh_transactions").select("article_id, buyer_id").eq("id", transaction_id).single();
+          const { data: tx } = await sb.from("waouh_transactions").select("article_id, buyer_id, seller_id, amount").eq("id", transaction_id).single();
           if (tx?.buyer_id) {
-            const { data: conv } = await sb.from("waouh_conversations").select("id").eq("user_id", tx.buyer_id).limit(1).maybeSingle();
-            if (conv?.id) {
-              await sb.from("waouh_messages").insert({
-                conversation_id: conv.id,
-                user_id: tx.buyer_id,
-                channel: "system",
-                direction: "out",
-                text: "✅ Paiement reçu. Fonds bloqués en escrow jusqu'à confirmation de réception.",
-                meta: { transaction_id, event: "payment_success" },
-              });
-            }
+            await pushSystemMessage(sb, tx.buyer_id, transaction_id, "✅ Paiement reçu. Fonds bloqués en escrow jusqu'à confirmation de réception.");
+            await pushSystemMessage(sb, tx.seller_id, transaction_id, `💰 Paiement reçu (${Number(tx.amount).toLocaleString("fr-FR")} FCFA). Préparez la livraison.`);
+            await exchangeContacts(sb, tx.buyer_id, tx.seller_id, transaction_id);
           }
         } else if (newStatus === "failed") {
           await sb.from("waouh_transactions").update({ status: "payment_pending" }).eq("id", transaction_id);
