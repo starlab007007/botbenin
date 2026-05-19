@@ -163,7 +163,8 @@ Deno.serve(async (req) => {
         skipped++; continue;
       }
 
-      const text = compose(it.template, it.payload || {});
+      const rawText = compose(it.template, it.payload || {});
+      const text = stripLegacyPaymentText(rawText);
       const phone = normalizeBeninPhone(it.to_phone);
       if (!phone) {
         await sb.from("waouh_outbound_queue").update({ status: "failed", attempts: it.attempts + 1, last_error: "invalid phone" }).eq("id", it.id);
