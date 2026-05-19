@@ -145,83 +145,102 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
   const historyMap = Object.fromEntries((tx.status_history || []).map((h) => [h.status, h.at]));
 
   return (
-    <Card className="p-4 my-2 bg-white border-cyan-200 shadow-md max-w-sm">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-cyan-600 font-semibold">
-            Transaction · {viewerRole === "buyer" ? "Achat" : "Vente"}
+    <Card className="my-2 max-w-sm overflow-hidden border-0 shadow-xl ring-1 ring-cyan-500/10">
+      {/* Gradient header */}
+      <div className="bg-gradient-to-br from-cyan-500 via-sky-500 to-blue-600 px-4 py-3 text-white">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.18em] font-semibold opacity-90">
+              💎 Transaction · {viewerRole === "buyer" ? "Achat sécurisé" : "Vente sécurisée"}
+            </div>
+            <div className="font-bold text-base truncate">{article?.title || "Article"}</div>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-2xl font-extrabold tracking-tight">{fmt(tx.amount)}</span>
+              <span className="text-[10px] uppercase opacity-80 flex items-center gap-0.5">
+                <ShieldCheck className="w-3 h-3" /> Escrow
+              </span>
+            </div>
           </div>
-          <div className="font-bold text-gray-900 text-sm">{article?.title || "Article"}</div>
-          <div className="text-cyan-700 font-bold">{fmt(tx.amount)}</div>
+          <span className="text-[10px] font-mono bg-white/20 backdrop-blur px-1.5 py-0.5 rounded">
+            #{tx.id.slice(0, 6).toUpperCase()}
+          </span>
         </div>
-        <span className="text-[10px] font-mono text-gray-400">#{tx.id.slice(0, 6).toUpperCase()}</span>
       </div>
 
-      <div className="space-y-2 mb-3">
-        {STEPS.map((s, i) => {
-          const done = i < currentIdx || (i === currentIdx && normalizedStatus !== "pending");
-          const current = i === currentIdx;
-          const at = historyMap[s.key];
-          const Icon = done ? CheckCircle2 : current ? s.icon : Circle;
-          return (
-            <div key={s.key} className="flex items-center gap-2 text-xs">
-              <Icon className={cn("w-4 h-4 shrink-0",
-                done ? "text-emerald-500" : current ? "text-cyan-500 animate-pulse" : "text-gray-300"
-              )} />
-              <span className={cn("flex-1", done || current ? "text-gray-900" : "text-gray-400")}>{s.label}</span>
-              {at && <span className="text-[10px] text-gray-400">{new Date(at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* BUYER actions */}
-      {viewerRole === "buyer" && normalizedStatus === "pending" && (
-        <Button size="sm" className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90" onClick={() => onPay(tx)}>
-          <CreditCard className="w-4 h-4 mr-1.5" /> Payer maintenant
-        </Button>
-      )}
-      {viewerRole === "buyer" && tx.status === "paid" && (
-        <div className="space-y-2">
-          <div className="text-xs text-center text-emerald-600 font-medium">✓ Fonds sécurisés en escrow</div>
-          <Button size="sm" variant="outline" className="w-full" onClick={confirmReceived} disabled={confirming}>
-            {confirming ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <PackageCheck className="w-4 h-4 mr-1.5" />}
-            J'ai bien reçu l'article
-          </Button>
-        </div>
-      )}
-
-      {/* SELLER read-only states */}
-      {viewerRole === "seller" && normalizedStatus === "pending" && (
-        <div className="text-xs text-center text-amber-600 font-medium bg-amber-50 rounded-md py-1.5">
-          ⏳ En attente du paiement de l'acheteur
-        </div>
-      )}
-      {viewerRole === "seller" && tx.status === "paid" && (
-        <div className="text-xs text-center text-emerald-600 font-medium bg-emerald-50 rounded-md py-1.5">
-          ✓ Paiement reçu — préparez la livraison
-        </div>
-      )}
-
-      {/* COMPLETED - rating (buyer only) */}
-      {(tx.status === "released" || tx.status === "completed") && (
-        <div className="space-y-2">
-          <div className="text-xs text-center text-emerald-700 font-medium">🎉 Transaction terminée</div>
-          {viewerRole === "buyer" && !hasRated && (
-            <div className="flex flex-col items-center gap-1.5 pt-1">
-              <div className="text-xs text-gray-600">Notez le vendeur :</div>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <button key={s} onClick={() => submitRating(s)} className="hover:scale-125 transition" aria-label={`${s} étoile${s > 1 ? "s" : ""}`}>
-                    <Star className={cn("w-6 h-6", (rating ?? 0) >= s ? "fill-amber-400 text-amber-400" : "text-gray-300")} />
-                  </button>
-                ))}
+      <div className="p-4 bg-white">
+        {/* Steps */}
+        <div className="space-y-2 mb-3">
+          {STEPS.map((s, i) => {
+            const done = i < currentIdx || (i === currentIdx && normalizedStatus !== "pending");
+            const current = i === currentIdx;
+            const at = historyMap[s.key];
+            const Icon = done ? CheckCircle2 : current ? s.icon : Circle;
+            return (
+              <div key={s.key} className="flex items-center gap-2 text-xs">
+                <Icon className={cn("w-4 h-4 shrink-0",
+                  done ? "text-emerald-500" : current ? "text-cyan-500 animate-pulse" : "text-gray-300"
+                )} />
+                <span className={cn("flex-1 font-medium", done || current ? "text-gray-900" : "text-gray-400")}>{s.label}</span>
+                {at && <span className="text-[10px] text-gray-400">{new Date(at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
               </div>
-            </div>
-          )}
-          {hasRated && <div className="text-xs text-center text-amber-600">⭐ Merci pour votre évaluation</div>}
+            );
+          })}
         </div>
-      )}
+
+        {/* BUYER actions */}
+        {viewerRole === "buyer" && normalizedStatus === "pending" && (
+          <Button
+            size="lg"
+            className="w-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:opacity-95 shadow-lg shadow-cyan-500/30 font-semibold"
+            onClick={() => onPay(tx)}
+          >
+            <CreditCard className="w-4 h-4 mr-2" /> 💳 Payer maintenant
+          </Button>
+        )}
+        {viewerRole === "buyer" && tx.status === "paid" && (
+          <div className="space-y-2">
+            <div className="text-xs text-center text-emerald-700 font-semibold bg-emerald-50 rounded-md py-1.5 border border-emerald-100">
+              🔒 Fonds sécurisés en escrow
+            </div>
+            <Button size="sm" variant="outline" className="w-full border-cyan-300 hover:bg-cyan-50" onClick={confirmReceived} disabled={confirming}>
+              {confirming ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <PackageCheck className="w-4 h-4 mr-1.5 text-cyan-600" />}
+              J'ai bien reçu l'article
+            </Button>
+          </div>
+        )}
+
+        {/* SELLER read-only states */}
+        {viewerRole === "seller" && normalizedStatus === "pending" && (
+          <div className="text-xs text-center text-amber-700 font-semibold bg-amber-50 rounded-md py-2 border border-amber-100">
+            ⏳ En attente du paiement de l'acheteur
+          </div>
+        )}
+        {viewerRole === "seller" && tx.status === "paid" && (
+          <div className="text-xs text-center text-emerald-700 font-semibold bg-emerald-50 rounded-md py-2 border border-emerald-100">
+            ✅ Paiement reçu — préparez la livraison
+          </div>
+        )}
+
+        {/* COMPLETED - rating (buyer only) */}
+        {(tx.status === "released" || tx.status === "completed") && (
+          <div className="space-y-2">
+            <div className="text-xs text-center text-emerald-700 font-bold">🎉 Transaction terminée</div>
+            {viewerRole === "buyer" && !hasRated && (
+              <div className="flex flex-col items-center gap-1.5 pt-1">
+                <div className="text-xs text-gray-600">Notez le vendeur :</div>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button key={s} onClick={() => submitRating(s)} className="hover:scale-125 transition" aria-label={`${s} étoile${s > 1 ? "s" : ""}`}>
+                      <Star className={cn("w-6 h-6", (rating ?? 0) >= s ? "fill-amber-400 text-amber-400" : "text-gray-300")} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {hasRated && <div className="text-xs text-center text-amber-600">⭐ Merci pour votre évaluation</div>}
+          </div>
+        )}
+      </div>
     </Card>
   );
 };
