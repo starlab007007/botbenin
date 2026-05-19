@@ -182,28 +182,52 @@ export default function PartnerBusinessesPage() {
             )}
 
             <div className="space-y-4">
-              <div><Label>Nom de l'entreprise *</Label><Input value={form.nom_entreprise} onChange={e => setForm({ ...form, nom_entreprise: e.target.value })} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Catégorie</Label><Input value={form.categorie} onChange={e => setForm({ ...form, categorie: e.target.value })} placeholder="Auto-suggéré par IA" /></div>
-                <div><Label>Ville</Label><Input value={form.ville} onChange={e => setForm({ ...form, ville: e.target.value })} /></div>
+              <div><Label>Nom de l'entreprise *</Label><Input value={form.nom_entreprise} onChange={e => setForm({ ...form, nom_entreprise: e.target.value })} placeholder="Ex: Maquis Chez Sika" /></div>
+              <div>
+                <Label>Catégorie</Label>
+                <SmartCombobox
+                  value={form.categorie}
+                  onChange={v => setForm({ ...form, categorie: v })}
+                  options={BUSINESS_CATEGORIES}
+                  placeholder="Type d'activité"
+                />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Quartier</Label><Input value={form.quartier} onChange={e => setForm({ ...form, quartier: e.target.value })} /></div>
-                <div><Label>Adresse complète</Label><Input value={form.adresse_complete} onChange={e => setForm({ ...form, adresse_complete: e.target.value })} /></div>
-              </div>
+              <LocationAutocomplete
+                ville={form.ville}
+                quartier={form.quartier}
+                onChange={({ ville, quartier }) => setForm({ ...form, ville, quartier })}
+              />
+              <div><Label>Adresse complète</Label><Input value={form.adresse_complete} onChange={e => setForm({ ...form, adresse_complete: e.target.value })} placeholder="Repère, rue, immeuble..." /></div>
               <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
               {form.tags?.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {form.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Téléphone</Label><Input value={form.telephone} onChange={e => setForm({ ...form, telephone: e.target.value })} /></div>
-                <div><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} /></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Téléphone</Label>
+                  <PhoneInput value={form.telephone} onChange={v => setForm({ ...form, telephone: v })} />
+                </div>
+                <div>
+                  <Label>WhatsApp</Label>
+                  <PhoneInput value={form.whatsapp} onChange={v => setForm({ ...form, whatsapp: v })} />
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Opérateur MM</Label><Input value={form.mobile_money_operator} onChange={e => setForm({ ...form, mobile_money_operator: e.target.value })} /></div>
-                <div><Label>Numéro Mobile Money</Label><Input value={form.mobile_money_number} onChange={e => setForm({ ...form, mobile_money_number: e.target.value })} /></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Opérateur Mobile Money</Label>
+                  <SmartCombobox
+                    value={form.mobile_money_operator}
+                    onChange={v => setForm({ ...form, mobile_money_operator: v })}
+                    options={MOMO_OPERATORS.map(o => o.value)}
+                    allowCustom={false}
+                  />
+                </div>
+                <div>
+                  <Label>Numéro Mobile Money</Label>
+                  <PhoneInput value={form.mobile_money_number} onChange={v => setForm({ ...form, mobile_money_number: v })} />
+                </div>
               </div>
               {form.lat && (
                 <div className="text-sm text-muted-foreground flex items-center gap-2">
