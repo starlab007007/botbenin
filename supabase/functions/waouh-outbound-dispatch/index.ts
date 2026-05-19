@@ -179,18 +179,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Filtre : on ne peut PAS envoyer vers un identifiant @lid (LID WhatsApp).
-      if (String(it.to_phone).includes("@lid")) {
-        await sb.from("waouh_outbound_queue").update({
-          status: "failed", last_error: "lid phone not sendable",
-        }).eq("id", it.id);
-        skipped++; continue;
-      }
-
       const rawText = compose(it.template, it.payload || {});
       const text = stripLegacyPaymentText(rawText);
       const phone = normalizeBeninPhone(it.to_phone);
-      if (!phone || phone.includes("@")) {
+      if (!phone || (phone.includes("@") && !phone.includes("@lid"))) {
         await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "invalid phone" }).eq("id", it.id);
         failed++; continue;
       }
@@ -198,7 +190,7 @@ Deno.serve(async (req) => {
         await sb.from("waouh_outbound_queue").update({ status: "sent", last_error: "skipped business self", sent_at: new Date().toISOString() }).eq("id", it.id);
         skipped++; continue;
       }
-      const chatId = `${phone}@c.us`;
+      const chatId = phone.includes("@lid") ? phone : `${phone}@c.us`;
       const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
       const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
       try {
