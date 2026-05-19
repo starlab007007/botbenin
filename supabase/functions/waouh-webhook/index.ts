@@ -473,7 +473,17 @@ serve(async (req) => {
     } else if (intent.intent === "CONFIRM" && intent.article_index) {
       const idx = intent.article_index - 1;
       const last = Array.isArray(nextContext?.last_matches) ? nextContext.last_matches : [];
-      const pick = last[idx];
+      let pick: any = last[idx];
+      // Fallback : si la liste est perdue, retomber sur l'article courant
+      if (!pick) {
+        const fallbackArticleId = nextContext?.current_article_id || conv?.current_article_id || null;
+        if (fallbackArticleId) {
+          const { data: art } = await sb.from("waouh_articles")
+            .select("id,title,price,seller_id,photos,market_price_min,market_price_max")
+            .eq("id", fallbackArticleId).maybeSingle();
+          if (art) pick = art;
+        }
+      }
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
