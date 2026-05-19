@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   // Helper: notification cloche + message direct chez l'autre partie
-  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null) {
+  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = []) {
     const { data: target } = await sb.from("waouh_users")
       .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
         const { data: msg } = await sb.from("waouh_messages").insert({
           user_id: target.id, channel: "web", direction: "out",
           text: directText, web_session_id: target.web_session_id,
-          meta: { ...(directMeta || {}), transaction_id: transactionId ?? directMeta?.transaction_id ?? null },
+          meta: { ...(directMeta || {}), transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
         }).select("id").maybeSingle();
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
         p_to_phone: target.phone_number,
         p_to_user_id: target.id,
         p_template: template,
-        p_payload: { ...(payload || {}), text: directText, actions: directText.includes("Carte de paiement") ? paymentActions : [], message_id: insertedMsgId, transaction_id: transactionId },
+        p_payload: { ...(payload || {}), text: directText, actions, message_id: insertedMsgId, transaction_id: transactionId },
         p_web_session_id: target.web_session_id,
         p_image_url: null,
         p_channel: target.phone_number ? "whatsapp" : "web",
