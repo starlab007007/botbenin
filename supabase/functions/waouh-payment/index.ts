@@ -380,6 +380,31 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
   } catch (e) { console.warn("[waouh-payment] enqueue", e); }
 }
 
+async function getWaouhUserContact(sb: any, id: string | null) {
+  if (!id) return null;
+  const { data } = await sb.from("waouh_users")
+    .select("id, display_name, phone_number, city, lat, lng, web_session_id")
+    .eq("id", id).maybeSingle();
+  return data;
+}
+
+/** Exchange both contacts (buyer↔seller) once payment is confirmed. */
+async function exchangeContacts(sb: any, buyerId: string | null, sellerId: string | null, transaction_id: string) {
+  try {
+    const [buyer, seller] = await Promise.all([
+      getWaouhUserContact(sb, buyerId),
+      getWaouhUserContact(sb, sellerId),
+    ]);
+    if (buyer && seller) {
+      const toSellerText = contactExchangeText("seller_to_buyer", buyer);
+      const toBuyerText = contactExchangeText("buyer_to_seller", seller);
+      await pushSystemMessage(sb, sellerId, transaction_id, toSellerText);
+      await pushSystemMessage(sb, buyerId, transaction_id, toBuyerText);
+    }
+  } catch (e) {
+    console.warn("[waouh-payment] exchangeContacts", e);
+  }
+}
 
 function json(b: any, status = 200) {
   return new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
