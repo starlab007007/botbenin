@@ -258,9 +258,9 @@ serve(async (req) => {
       }
       // 2) Notification (cloche + WhatsApp si phone) avec deep-link
       try {
-        const quickActions = opts.directText.includes("Carte de paiement")
-          ? [{ id: "payer 0165653468", label: "Payer" }, { id: "Je propose 250000 FCFA", label: "Négocier" }]
-          : [];
+        // Pas d'actions paiement automatiques dans les notifications de match/négo
+        // (les boutons restent contextuels: Accepter / Refuser / Contre-offrer côté caller)
+        const quickActions: Array<{ id: string; label: string }> = [];
         await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.phone_number,
           p_to_user_id: target.id,
