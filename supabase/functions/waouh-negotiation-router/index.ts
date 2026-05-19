@@ -9,11 +9,10 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 const paymentCard = (amount: number, txId?: string | null) =>
   `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? String(txId).slice(0, 8).toUpperCase() : "créée"}`;
-const paymentActions = (txId: string | null) => [
-  { id: `pay:${txId || ""}`, label: "💳 Payer maintenant" },
-  { id: "mtn", label: "MTN" },
-  { id: "moov", label: "Moov" },
-];
+const payInstructions =
+  `\n\nPayer maintenant : envoyez « MTN » et votre numéro (ex : MTN 0197000000)` +
+  ` ou « Moov » et votre numéro (ex : Moov 0195000000),` +
+  ` puis validez la notification reçue sur votre téléphone pour confirmer le paiement.`;
 const negotiationActions = (negId: string) => [
   { id: `accept:${negId}`, label: "✅ Accepter" },
   { id: `counter:${negId}`, label: "💬 Contre-offre" },
