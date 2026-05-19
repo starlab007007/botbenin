@@ -535,11 +535,7 @@ serve(async (req) => {
                 article_id: pick.id, title: pick.title, price: askPrice,
                 buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
                 transaction_id: returnedTransactionId,
-                actions: [
-                  { id: `accept:${neg?.id || ""}`, label: "✅ Accepter" },
-                  { id: `counter:${neg?.id || ""}`, label: "💬 Contre-offre" },
-                  { id: `refuse:${neg?.id || ""}`, label: "❌ Refuser" },
-                ],
+                actions: [],
               },
               image_url: firstPhoto,
               directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
