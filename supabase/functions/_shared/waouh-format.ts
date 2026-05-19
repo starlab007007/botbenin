@@ -30,9 +30,7 @@ export function paymentInstructions(amount: number, txId?: string | null): strin
   return (
     `💳 *Paiement prêt*` +
     paymentCard(amount, txId) +
-    `\n\n📱 Choisissez votre opérateur Mobile Money (MTN ou Moov)` +
-    ` puis validez la notification reçue sur votre téléphone.` +
-    `\n🔒 Les fonds restent en escrow jusqu'à confirmation de réception.`
+    `\n\nvalidez la notification reçue sur votre téléphone`
   );
 }
 
