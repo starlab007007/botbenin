@@ -96,6 +96,8 @@ const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 const WaouhWhatsAppOpsPage = lazy(() => import("./pages/admin/WaouhWhatsAppOpsPage"));
 const AdminWaouhPartnersPage = lazy(() => import("./pages/admin/AdminWaouhPartnersPage"));
 const AdminWaouhDataControlPage = lazy(() => import("./pages/admin/AdminWaouhDataControlPage"));
+const AdminWaouhMonitoringPage = lazy(() => import("./pages/admin/AdminWaouhMonitoringPage"));
+const AdminWaouhBusinessesPage = lazy(() => import("./pages/admin/AdminWaouhBusinessesPage"));
 const PartnerDashboardPage = lazy(() => import("./pages/partner/PartnerDashboardPage"));
 const PartnerBusinessesPage = lazy(() => import("./pages/partner/PartnerBusinessesPage"));
 const PartnerProductsPage = lazy(() => import("./pages/partner/PartnerProductsPage"));
