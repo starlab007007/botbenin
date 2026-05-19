@@ -13,6 +13,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
+import { SmartCombobox } from '@/components/ui/smart-combobox';
+import { BUSINESS_CATEGORIES, PRODUCT_UNITS } from '@/data/beninLocations';
 import { Plus, Loader2, ArrowLeft, Trash2, Sparkles, Wand2 } from 'lucide-react';
 
 const emptyForm = { nom: '', description: '', categorie: '', prix_min: '', prix_max: '', unite: '', disponible: true, stock_estime: '' };
@@ -133,8 +135,8 @@ export default function PartnerProductsPage() {
                 <div><Label>Nom *</Label><Input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} /></div>
                 <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label>Catégorie</Label><Input value={form.categorie} onChange={e => setForm({ ...form, categorie: e.target.value })} /></div>
-                  <div><Label>Unité</Label><Input value={form.unite} onChange={e => setForm({ ...form, unite: e.target.value })} placeholder="kg, pièce..." /></div>
+                  <div><Label>Catégorie</Label><SmartCombobox value={form.categorie} onChange={v => setForm({ ...form, categorie: v })} options={BUSINESS_CATEGORIES} placeholder="Catégorie" /></div>
+                  <div><Label>Unité</Label><SmartCombobox value={form.unite} onChange={v => setForm({ ...form, unite: v })} options={PRODUCT_UNITS} placeholder="kg, pièce..." /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Prix min (FCFA)</Label><Input type="number" value={form.prix_min} onChange={e => setForm({ ...form, prix_min: e.target.value })} /></div>

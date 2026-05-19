@@ -1,92 +1,101 @@
-# Plan — Waouh Partner Intelligent + Performance
 
-## 1. Accès & navigation aux routes Partner
+# Plan : Espace Partenaire intelligent, Bénin par défaut, ultra-rapide
 
-Les routes existent déjà dans `src/App.tsx` (lignes 232-238) mais ne sont pas visibles dans le menu et `/admin/waouh/whatsapp-ops` est déjà câblé. Action :
+## Objectifs
+- Remplacer les champs texte libres par des **listes intelligentes** (Combobox avec recherche + saisie libre fallback).
+- Tous les champs téléphone / WhatsApp / Mobile Money → composant **PhoneInput** avec drapeau pays + indicatif, **+229 Bénin par défaut**.
+- **Autocomplete ville/quartier** dès la saisie (Bénin par défaut, puis suggestions IA).
+- Design intuitif, responsive, chargement ultra-rapide (lazy data, debounce, virtualization quand utile).
 
-- Ajouter dans la sidebar (navigation principale) un groupe **"Waouh Partner"** visible :
-  - `/partner` — Espace partenaire
-  - `/partner/businesses` — Mes entreprises
-  - `/partner/sales` — Ventes & commissions
-  - `/partner/payouts` — Versements
-- Ajouter dans la section admin un groupe **"Waouh Admin"** :
-  - `/admin/waouh/partners`
-  - `/admin/waouh/data-control`
-  - `/admin/waouh/whatsapp-ops`
-  - `/admin/waouh/radar`
-- Vérifier que `/partner` n'est pas bloqué par `AdminRoute` (déjà OK, juste auth requise).
+## Composants nouveaux
 
-## 2. IA partout — Edge function `waouh-partner-ai`
+### 1. `src/components/ui/phone-input.tsx`
+PhoneInput unifié :
+- Sélecteur pays compact (drapeau + indicatif), **default = BJ (+229)**.
+- Liste pays prioritaires Afrique de l'Ouest (BJ, TG, CI, SN, BF, NG, GH, ML, NE), puis reste du monde.
+- Format automatique (espaces tous les 2 chiffres pour BJ : `97 12 34 56`).
+- Validation longueur selon pays. Stocke en E.164 (`+22997123456`).
+- Variant `momo` : ajoute sélecteur opérateur (MTN/Moov/Celtiis) à côté.
+- Réutilise `react-phone-number-input` (déjà-ish léger) **OU** implémentation maison ~120 lignes pour rester léger et stylé via tokens.
 
-Une seule edge function multi-actions appelant **Lovable AI Gateway** (`google/gemini-3-flash-preview`) avec routage par `action` :
+### 2. `src/components/ui/smart-combobox.tsx`
+Wrapper autour de `cmdk` (déjà présent via shadcn `Command`) :
+- Props : `options`, `value`, `onChange`, `placeholder`, `allowCustom`, `onSearch?` (async pour IA).
+- Affiche suggestions filtrées + option "Utiliser : {texte saisi}" si `allowCustom`.
+- Debounce 250 ms pour `onSearch`.
 
-| Action | Entrée | Sortie (tool calling JSON) |
-|---|---|---|
-| `enrich_business` | nom + ville | catégorie, sous-catégorie, description SEO, tags, horaires probables |
-| `suggest_products` | nom entreprise + catégorie | liste 5-10 produits typiques avec prix min/max FCFA, unité |
-| `parse_product_free_text` | "j'ai 20 kg de riz à 800F" | structuré (nom, prix, unité, stock) |
-| `parse_voice_business` | transcript vocal | toutes les colonnes business pré-remplies |
-| `reverse_geocode` | lat/lng | ville, quartier, adresse (via Nominatim côté serveur) |
-| `geocode_address` | adresse texte | lat/lng |
-| `clean_catalog_entry` | entrée brute catalogue unifié | titre normalisé, catégorie, tags, dédoublonnage hint |
-| `bulk_restore_suggestions` | échantillon ligne | mapping colonnes proposé pour import CSV |
+### 3. `src/components/waouh/LocationAutocomplete.tsx`
+- Deux SmartCombobox liés : **Ville** et **Quartier**.
+- Données statiques `src/data/beninLocations.ts` (villes principales + quartiers connus de Cotonou, Porto-Novo, Calavi, Parakou…).
+- Quand l'utilisateur tape ≥3 caractères et que rien ne matche → appel IA `geocode_address` ou nouvelle action `suggest_locations` pour récupérer suggestions OpenStreetMap (debounce 400 ms).
+- Affiche drapeau 🇧🇯 et "Bénin" en pré-réglage.
 
-## 3. Remplissage intelligent — UI Partner
+### 4. `src/data/beninLocations.ts`
+- Liste statique : 30+ villes du Bénin avec leurs quartiers principaux (Cotonou : Cadjèhoun, Akpakpa, Fidjrossè, Gbégamey, Sainte-Rita, Ganhi… / Calavi : Godomey, Kpota, Zogbadjè…).
+- Catégories d'entreprises typiques (réutilise `africanContext.businessTypes`, étendu).
+- Unités produits (kg, sac, pièce, litre, paquet, carton, plat, bouteille…).
+- Opérateurs Mobile Money (MTN, Moov, Celtiis).
 
-**`PartnerBusinessesPage`** dialog enrôlement repensé :
-- Bouton **"📍 Détecter ma position"** : capture GPS → appelle `reverse_geocode` → remplit ville/quartier/adresse automatiquement.
-- Champ **adresse libre** → bouton **"Géocoder"** → calcule lat/lng.
-- Bouton **"🎤 Dicter"** : enregistre voix (Web Speech API ou Whisper via edge) → `parse_voice_business` → pré-remplit tout le formulaire.
-- Bouton **"✨ Compléter par IA"** : à partir du nom + ville, appelle `enrich_business` → propose catégorie, description, tags (acceptables en un clic).
-- Mini-carte Leaflet (déjà dispo dans le projet ? sinon `react-leaflet`) pour valider/déplacer le pin GPS.
+## Modifications pages partenaire
 
-**`PartnerProductsPage`** :
-- Bouton **"✨ Suggérer produits"** : appelle `suggest_products` → liste de cartes cochables → "Ajouter sélection" → insert batch.
-- Champ unique **"Décrire en langage naturel"** (ex: "20 kg de riz à 800F l'unité, stock 50") → `parse_product_free_text` → remplit formulaire.
+### `src/pages/partner/PartnerBusinessesPage.tsx`
+- **Catégorie** : SmartCombobox depuis `businessTypes` (allowCustom).
+- **Ville / Quartier** : `LocationAutocomplete`.
+- **Téléphone / WhatsApp** : `PhoneInput` (+229 par défaut).
+- **Mobile Money** : `PhoneInput variant="momo"` (sélecteur opérateur intégré, +229 par défaut).
+- Pays caché — toujours Bénin par défaut, mais modifiable via le sélecteur du PhoneInput.
 
-## 4. Admin — Restauration & contrôle base de données intelligent
+### `src/pages/partner/PartnerProductsPage.tsx`
+- **Catégorie produit** : SmartCombobox (catégories selon type de business).
+- **Unité** : SmartCombobox (unités courantes).
+- Suggestions IA déjà OK, juste relier au nouveau Combobox dans le dialog.
 
-**`AdminWaouhDataControlPage`** enrichie :
-- Section **"Nettoyage IA"** : bouton scanne les N entrées les moins propres du `waouh_unified_catalog`, appelle `clean_catalog_entry` en batch, propose corrections (titre, catégorie, tags) → apply en bulk.
-- Section **"Détection doublons IA"** : embedding ou heuristique titre+ville → propose merges.
-- Section **"Import CSV intelligent"** : upload CSV → IA propose mapping de colonnes → preview → insert.
-- Section **"Restauration depuis sources"** : re-trigger backfill par source (partner/chat/radar) avec compteurs live.
-- Filtres rapides par source, ville, qualité, vérifié.
+### `src/pages/partner/PartnerDashboardPage.tsx` (enrôlement)
+- Tous les champs contact → `PhoneInput`.
+- Champs ville/quartier → `LocationAutocomplete`.
 
-## 5. Performance — page lente "Chargement…"
+### Admin Waouh
+- `AdminWaouhPartnersPage` : filtres ville/catégorie → SmartCombobox.
+- Téléphones affichés formatés via util `formatPhone`.
 
-Causes identifiées :
-- `App.tsx` charge ~50+ lazy components, mais le `Suspense` global avec `<LoadingSpinner />` masque toute la page à chaque navigation. Cause du loader interminable.
-- `QueryClient` `retry: 1` mais pas de `refetchOnWindowFocus: false` → refetch agressif.
-- Plusieurs providers nested (Auth/User/Theme/Language) déclenchent rechargements en cascade.
+## Performance
 
-Actions :
-- **Préchargement** : `<link rel="modulepreload">` injecté pour les routes critiques après idle.
-- Désactiver `refetchOnWindowFocus`, augmenter `gcTime`.
-- Wrapper Suspense plus **local** : un Suspense par section (sidebar visible pendant que la page charge).
-- `MainLayout` rendu immédiatement, contenu route en Suspense interne avec skeleton léger (pas un splash plein écran).
-- `useActivityTracking` : vérifier qu'il n'appelle pas Supabase en boucle (à throttler).
-- `AuthContext` : éviter double-fetch session → utiliser `getSession()` + listener une seule fois.
-- Vérifier les requêtes `select('*')` sur grosses tables → cibler colonnes nécessaires.
+- **Lazy load** `cmdk` listes (déjà cas), virtualisation seulement si >200 items.
+- `PhoneInput` : drapeaux en **SVG inline** (pas d'images), pas de lib lourde.
+- `LocationAutocomplete` : index pré-construit (Map) pour filtrer en O(1) sur les villes.
+- Mémoïsation (`useMemo`) des listes filtrées.
+- `React.lazy` pour les dialogs lourds (déjà partiel).
+- Requêtes Supabase : `select` colonnes ciblées au lieu de `*` sur les listes (businesses, products).
+- Préchargement prefetch des pages partenaires depuis le sidebar (mouseover).
 
-## 6. Détails techniques
+## Edge function
 
-```text
-supabase/functions/waouh-partner-ai/index.ts   (nouveau, multi-action)
-src/hooks/useWaouhAI.ts                         (wrapper appels IA + toasts erreurs 402/429)
-src/components/partner/SmartBusinessDialog.tsx  (extrait du formulaire actuel)
-src/components/partner/SmartProductDialog.tsx
-src/components/partner/GeoPicker.tsx            (Leaflet + reverse geocode)
-src/components/admin/CatalogCleaner.tsx
-src/components/admin/CatalogImporter.tsx
-src/components/Sidebar*                          (ajouter groupes Partner/Waouh Admin)
-src/App.tsx                                     (Suspense local, QueryClient tuning)
-```
+Ajouter action `suggest_locations` à `waouh-partner-ai` :
+- Input : `{ query, country: 'BJ' }`
+- Appelle Nominatim (`q={query}&countrycodes=bj&addressdetails=1&limit=5`)
+- Retourne `[{ ville, quartier, lat, lng, label }]`
 
-Aucune migration DB nouvelle requise (toutes les tables existent déjà).
+## Design
 
-## 7. Hors scope explicite
+- Tokens existants uniquement (pas de couleurs en dur).
+- Dialogs : `max-h-[90dvh] overflow-y-auto` (pattern projet).
+- PhoneInput : hauteur cohérente avec `Input` (h-10), focus ring identique.
+- Drapeau 🇧🇯 visible partout où le pays s'applique → renforce l'identité Bénin.
 
-- Pas de refonte design.
-- Pas de modification des triggers/migrations existants.
-- Pas de Whisper STT si Web Speech API suffit (fallback edge function plus tard).
+## Fichiers touchés
+
+**Nouveaux**
+- `src/components/ui/phone-input.tsx`
+- `src/components/ui/smart-combobox.tsx`
+- `src/components/waouh/LocationAutocomplete.tsx`
+- `src/data/beninLocations.ts`
+- `src/lib/phone.ts` (formatPhone, parsePhone, validatePhone)
+
+**Modifiés**
+- `src/pages/partner/PartnerBusinessesPage.tsx`
+- `src/pages/partner/PartnerProductsPage.tsx`
+- `src/pages/partner/PartnerDashboardPage.tsx`
+- `src/pages/admin/AdminWaouhPartnersPage.tsx`
+- `supabase/functions/waouh-partner-ai/index.ts` (action `suggest_locations`)
+
+Aucune migration DB.
