@@ -170,11 +170,10 @@ Deno.serve(async (req) => {
         const customActions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
         const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
         const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
-        if (it.image_url) {
+        if (actions.length > 0) {
+          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer, undefined, it.image_url || null);
+        } else if (it.image_url) {
           r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
-          if (r.ok && actions.length > 0) await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, "Actions rapides", actions, wahaHeaders, footer);
-        } else if (actions.length > 0) {
-          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer);
         } else {
           r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
         }
