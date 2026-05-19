@@ -493,11 +493,8 @@ serve(async (req) => {
         if (alreadyOnArticle && existingTxId) {
           returnedArticleId = pick.id;
           returnedTransactionId = existingTxId;
-          returnedActions = [
-            { id: `pay:${existingTxId}`, label: "💳 Payer" },
-            { id: `counter:${pick.id}`, label: "💬 Négocier" },
-          ];
-          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nVous pouvez écrire *Je propose ${fmt(askPrice)}* pour négocier ou appuyer sur *Payer*.`;
+          returnedActions = [];
+          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou vous pouvez écrire ( Ex: Je propose ${fmt(askPrice)}) pour négocier.`;
         } else {
         // Récupère vendeur (phone + web session)
         const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
