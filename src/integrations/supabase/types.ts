@@ -6551,6 +6551,114 @@ export type Database = {
           },
         ]
       }
+      waouh_unified_catalog: {
+        Row: {
+          business_id: string | null
+          categorie: string | null
+          created_at: string
+          description: string | null
+          devise: string | null
+          expires_at: string | null
+          geohash: string | null
+          id: string
+          is_active: boolean
+          last_seen_at: string | null
+          lat: number | null
+          lng: number | null
+          partner_id: string | null
+          photos: string[] | null
+          priority_rank: number
+          prix_max: number | null
+          prix_min: number | null
+          qualite_score: number
+          quartier: string | null
+          raw_payload: Json | null
+          source: Database["public"]["Enums"]["waouh_catalog_source"]
+          source_ref_id: string
+          sous_categorie: string | null
+          tags: string[] | null
+          titre: string
+          type: Database["public"]["Enums"]["waouh_catalog_type"]
+          updated_at: string
+          vendeur_mobile_money: string | null
+          vendeur_nom: string | null
+          vendeur_phone: string | null
+          vendeur_whatsapp: string | null
+          verified: boolean | null
+          ville: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          categorie?: string | null
+          created_at?: string
+          description?: string | null
+          devise?: string | null
+          expires_at?: string | null
+          geohash?: string | null
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          lat?: number | null
+          lng?: number | null
+          partner_id?: string | null
+          photos?: string[] | null
+          priority_rank?: number
+          prix_max?: number | null
+          prix_min?: number | null
+          qualite_score?: number
+          quartier?: string | null
+          raw_payload?: Json | null
+          source: Database["public"]["Enums"]["waouh_catalog_source"]
+          source_ref_id: string
+          sous_categorie?: string | null
+          tags?: string[] | null
+          titre: string
+          type?: Database["public"]["Enums"]["waouh_catalog_type"]
+          updated_at?: string
+          vendeur_mobile_money?: string | null
+          vendeur_nom?: string | null
+          vendeur_phone?: string | null
+          vendeur_whatsapp?: string | null
+          verified?: boolean | null
+          ville?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          categorie?: string | null
+          created_at?: string
+          description?: string | null
+          devise?: string | null
+          expires_at?: string | null
+          geohash?: string | null
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          lat?: number | null
+          lng?: number | null
+          partner_id?: string | null
+          photos?: string[] | null
+          priority_rank?: number
+          prix_max?: number | null
+          prix_min?: number | null
+          qualite_score?: number
+          quartier?: string | null
+          raw_payload?: Json | null
+          source?: Database["public"]["Enums"]["waouh_catalog_source"]
+          source_ref_id?: string
+          sous_categorie?: string | null
+          tags?: string[] | null
+          titre?: string
+          type?: Database["public"]["Enums"]["waouh_catalog_type"]
+          updated_at?: string
+          vendeur_mobile_money?: string | null
+          vendeur_nom?: string | null
+          vendeur_phone?: string | null
+          vendeur_whatsapp?: string | null
+          verified?: boolean | null
+          ville?: string | null
+        }
+        Relationships: []
+      }
       waouh_users: {
         Row: {
           auth_user_id: string | null
@@ -9280,9 +9388,42 @@ export type Database = {
       waouh_match_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_promote_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
+      waouh_search_unified: {
+        Args: {
+          in_categorie?: string
+          in_lat?: number
+          in_lng?: number
+          in_ville?: string
+          max_results?: number
+          q?: string
+          radius_km?: number
+        }
+        Returns: {
+          business_id: string
+          categorie: string
+          description: string
+          devise: string
+          distance_km: number
+          id: string
+          partner_id: string
+          photos: string[]
+          priority_rank: number
+          prix_max: number
+          prix_min: number
+          qualite_score: number
+          quartier: string
+          source: Database["public"]["Enums"]["waouh_catalog_source"]
+          titre: string
+          vendeur_nom: string
+          vendeur_phone: string
+          vendeur_whatsapp: string
+          ville: string
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      waouh_catalog_source: "partner" | "chat" | "radar"
+      waouh_catalog_type: "offer" | "demand"
     }
     CompositeTypes: {
       geometry_dump: {
@@ -9417,6 +9558,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      waouh_catalog_source: ["partner", "chat", "radar"],
+      waouh_catalog_type: ["offer", "demand"],
+    },
   },
 } as const
