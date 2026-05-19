@@ -383,7 +383,7 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
 async function getWaouhUserContact(sb: any, id: string | null) {
   if (!id) return null;
   const { data } = await sb.from("waouh_users")
-    .select("id, display_name, phone_number, city, lat, lng, web_session_id")
+    .select("id, display_name, phone_number, city, web_session_id")
     .eq("id", id).maybeSingle();
   return data;
 }
