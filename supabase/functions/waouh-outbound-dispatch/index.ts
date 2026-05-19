@@ -192,13 +192,12 @@ Deno.serve(async (req) => {
           throw new Error(`WAHA ${r.status}: ${body.slice(0, 200)}`);
         }
         await sb.from("waouh_outbound_queue").update({
-          status: "sent", sent_at: new Date().toISOString(), attempts: it.attempts + 1,
+          status: "sent", sent_at: new Date().toISOString(),
         }).eq("id", it.id);
         sent++;
       } catch (e: any) {
         const newAttempts = it.attempts + 1;
         await sb.from("waouh_outbound_queue").update({
-          attempts: newAttempts,
           status: newAttempts >= MAX_ATTEMPTS ? "failed" : "pending",
           last_error: String(e.message || e),
         }).eq("id", it.id);
