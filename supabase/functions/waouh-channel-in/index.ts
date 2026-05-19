@@ -143,11 +143,11 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await fetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  // Final text fallback — if we have an image, send it first
+  // Final fallback: keep one WhatsApp bubble only. If media buttons fail,
+  // put the choices in the same image caption instead of sending a 2nd text.
   if (imageUrl) {
-    await sendWahaImage(base, session, chatId, imageUrl, text);
     const lines = actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n");
-    return sendWahaText(base, session, chatId, `_Répondez avec le numéro de votre choix :_\n${lines}`);
+    return sendWahaImage(base, session, chatId, imageUrl, `${text}\n\n${lines}`);
   }
   const fallback = `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n")}`;
   return sendWahaText(base, session, chatId, fallback);
