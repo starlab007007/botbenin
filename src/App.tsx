@@ -229,6 +229,13 @@ const AppContent = () => {
                      <Route path="/waouh/demo" element={<Navigate to="/admin/waouh/demo" replace />} />
                      <Route path="/admin/waouh/radar" element={<AdminRoute><WaouhRadarPage /></AdminRoute>} />
                      <Route path="/admin/waouh/whatsapp-ops" element={<AdminRoute><WaouhWhatsAppOpsPage /></AdminRoute>} />
+                     <Route path="/admin/waouh/partners" element={<AdminRoute><AdminWaouhPartnersPage /></AdminRoute>} />
+                     <Route path="/admin/waouh/data-control" element={<AdminRoute><AdminWaouhDataControlPage /></AdminRoute>} />
+                     <Route path="/partner" element={<PartnerDashboardPage />} />
+                     <Route path="/partner/businesses" element={<PartnerBusinessesPage />} />
+                     <Route path="/partner/businesses/:businessId/products" element={<PartnerProductsPage />} />
+                     <Route path="/partner/sales" element={<PartnerSalesPage />} />
+                     <Route path="/partner/payouts" element={<PartnerPayoutsPage />} />
                   </Route>
                   
                   {/* Routes publiques sans layout */}
