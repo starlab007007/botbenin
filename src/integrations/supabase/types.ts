@@ -5649,6 +5649,126 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_partner_activity: {
+        Row: {
+          actor_id: string | null
+          business_id: string | null
+          created_at: string
+          event_type: Database["public"]["Enums"]["waouh_partner_activity_type"]
+          id: string
+          metadata: Json | null
+          partner_id: string
+          product_id: string | null
+          sale_id: string | null
+          title: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          event_type: Database["public"]["Enums"]["waouh_partner_activity_type"]
+          id?: string
+          metadata?: Json | null
+          partner_id: string
+          product_id?: string | null
+          sale_id?: string | null
+          title?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["waouh_partner_activity_type"]
+          id?: string
+          metadata?: Json | null
+          partner_id?: string
+          product_id?: string | null
+          sale_id?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_activity_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_activity_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_activity_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_activity_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_activity_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_partner_audit_log: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string
+          id: string
+          partner_id: string
+          payload: Json | null
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          partner_id: string
+          payload?: Json | null
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          partner_id?: string
+          payload?: Json | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_audit_log_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_audit_log_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_partner_businesses: {
         Row: {
           adresse_complete: string | null
@@ -5751,6 +5871,13 @@ export type Database = {
             foreignKeyName: "waouh_partner_businesses_partner_id_fkey"
             columns: ["partner_id"]
             isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_businesses_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
             referencedRelation: "waouh_partners"
             referencedColumns: ["id"]
           },
@@ -5805,6 +5932,52 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "waouh_partner_payouts_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_payouts_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_partner_permissions: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          partner_id: string
+          permission: Database["public"]["Enums"]["waouh_partner_permission"]
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          partner_id: string
+          permission: Database["public"]["Enums"]["waouh_partner_permission"]
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          partner_id?: string
+          permission?: Database["public"]["Enums"]["waouh_partner_permission"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_permissions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_permissions_partner_id_fkey"
             columns: ["partner_id"]
             isOneToOne: false
             referencedRelation: "waouh_partners"
@@ -5882,6 +6055,13 @@ export type Database = {
             foreignKeyName: "waouh_partner_products_partner_id_fkey"
             columns: ["partner_id"]
             isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_products_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
             referencedRelation: "waouh_partners"
             referencedColumns: ["id"]
           },
@@ -5946,6 +6126,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "waouh_partner_businesses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_sales_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
           },
           {
             foreignKeyName: "waouh_partner_sales_partner_id_fkey"
@@ -7740,6 +7927,57 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_partner_stats_v: {
+        Row: {
+          ca_24h: number | null
+          ca_30j: number | null
+          ca_7j: number | null
+          code_partenaire: string | null
+          commission_en_attente: number | null
+          commission_totale: number | null
+          derniere_activite: string | null
+          nb_businesses: number | null
+          nb_products: number | null
+          nb_ventes_30j: number | null
+          niveau: string | null
+          nom: string | null
+          partner_id: string | null
+          statut: string | null
+        }
+        Insert: {
+          ca_24h?: never
+          ca_30j?: never
+          ca_7j?: never
+          code_partenaire?: string | null
+          commission_en_attente?: never
+          commission_totale?: never
+          derniere_activite?: never
+          nb_businesses?: never
+          nb_products?: never
+          nb_ventes_30j?: never
+          niveau?: string | null
+          nom?: string | null
+          partner_id?: string | null
+          statut?: string | null
+        }
+        Update: {
+          ca_24h?: never
+          ca_30j?: never
+          ca_7j?: never
+          code_partenaire?: string | null
+          commission_en_attente?: never
+          commission_totale?: never
+          derniere_activite?: never
+          nb_businesses?: never
+          nb_products?: never
+          nb_ventes_30j?: never
+          niveau?: string | null
+          nom?: string | null
+          partner_id?: string | null
+          statut?: string | null
+        }
+        Relationships: []
+      }
       waouh_unified_demands: {
         Row: {
           active: boolean | null
@@ -8500,6 +8738,13 @@ export type Database = {
       grant_whatsapp_permissions_to_user: {
         Args: { target_user_id: string }
         Returns: undefined
+      }
+      has_partner_permission: {
+        Args: {
+          _perm: Database["public"]["Enums"]["waouh_partner_permission"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       has_role: {
         Args: { _role_name: string; _user_id: string }
@@ -9424,6 +9669,33 @@ export type Database = {
     Enums: {
       waouh_catalog_source: "partner" | "chat" | "radar"
       waouh_catalog_type: "offer" | "demand"
+      waouh_partner_activity_type:
+        | "business_created"
+        | "business_updated"
+        | "business_deleted"
+        | "product_created"
+        | "product_updated"
+        | "product_deleted"
+        | "sale_recorded"
+        | "sale_confirmed"
+        | "sale_paid"
+        | "sale_cancelled"
+        | "payout_requested"
+        | "payout_paid"
+        | "status_changed"
+        | "permission_granted"
+        | "permission_revoked"
+        | "kyc_verified"
+      waouh_partner_permission:
+        | "can_add_business"
+        | "can_edit_business"
+        | "can_delete_business"
+        | "can_add_product"
+        | "can_edit_product"
+        | "can_delete_product"
+        | "can_record_sale"
+        | "can_request_payout"
+        | "can_invite_subagent"
     }
     CompositeTypes: {
       geometry_dump: {
@@ -9561,6 +9833,35 @@ export const Constants = {
     Enums: {
       waouh_catalog_source: ["partner", "chat", "radar"],
       waouh_catalog_type: ["offer", "demand"],
+      waouh_partner_activity_type: [
+        "business_created",
+        "business_updated",
+        "business_deleted",
+        "product_created",
+        "product_updated",
+        "product_deleted",
+        "sale_recorded",
+        "sale_confirmed",
+        "sale_paid",
+        "sale_cancelled",
+        "payout_requested",
+        "payout_paid",
+        "status_changed",
+        "permission_granted",
+        "permission_revoked",
+        "kyc_verified",
+      ],
+      waouh_partner_permission: [
+        "can_add_business",
+        "can_edit_business",
+        "can_delete_business",
+        "can_add_product",
+        "can_edit_product",
+        "can_delete_product",
+        "can_record_sale",
+        "can_request_payout",
+        "can_invite_subagent",
+      ],
     },
   },
 } as const
