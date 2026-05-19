@@ -56,24 +56,20 @@ export default function PartnerDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div><Label>Nom complet *</Label><Input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>Téléphone</Label><Input value={form.telephone} onChange={e => setForm({ ...form, telephone: e.target.value })} /></div>
-              <div><Label>WhatsApp</Label><Input value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><Label>Téléphone</Label><PhoneInput value={form.telephone} onChange={v => setForm({ ...form, telephone: v })} /></div>
+              <div><Label>WhatsApp</Label><PhoneInput value={form.whatsapp} onChange={v => setForm({ ...form, whatsapp: v })} /></div>
             </div>
-            <div><Label>Ville</Label><Input value={form.ville} onChange={e => setForm({ ...form, ville: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="flex items-center gap-1"><span className="text-base leading-none">🇧🇯</span>Ville</Label>
+              <SmartCombobox value={form.ville} onChange={v => setForm({ ...form, ville: v })} options={BENIN_CITY_NAMES} placeholder="Sélectionner une ville" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Opérateur Mobile Money</Label>
-                <Select value={form.mobile_money_operator} onValueChange={v => setForm({ ...form, mobile_money_operator: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MTN">MTN</SelectItem>
-                    <SelectItem value="Moov">Moov</SelectItem>
-                    <SelectItem value="Wave">Wave</SelectItem>
-                  </SelectContent>
-                </Select>
+                <SmartCombobox value={form.mobile_money_operator} onChange={v => setForm({ ...form, mobile_money_operator: v })} options={MOMO_OPERATORS.map(o => o.value)} allowCustom={false} />
               </div>
-              <div><Label>Numéro Mobile Money</Label><Input value={form.mobile_money_number} onChange={e => setForm({ ...form, mobile_money_number: e.target.value })} /></div>
+              <div><Label>Numéro Mobile Money</Label><PhoneInput value={form.mobile_money_number} onChange={v => setForm({ ...form, mobile_money_number: v })} /></div>
             </div>
             <Button
               disabled={submitting || !form.nom}
