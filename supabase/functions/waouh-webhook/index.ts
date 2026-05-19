@@ -316,12 +316,8 @@ serve(async (req) => {
           ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${lat},${lng}` : "";
         const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
         reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${geoLine}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
-        // Actions vendeur : gérer/modifier/désactiver l'annonce
-        returnedActions = [
-          { id: `seller_boost:${art?.id || ""}`, label: "🚀 Booster" },
-          { id: `seller_edit:${art?.id || ""}`, label: "✏️ Modifier" },
-          { id: `seller_pause:${art?.id || ""}`, label: "⏸️ Pause" },
-        ];
+        // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
+        returnedActions = [];
 
         // 🛰️ Radar IA: contacter les acheteurs (signaux BUY) qui correspondent
         try {
