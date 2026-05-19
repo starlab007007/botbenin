@@ -217,6 +217,25 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
                 </span>
               </NavLink>
               <NavItem item={{ title: 'WAOUH Admin', path: '/waouh', icon: ShoppingBag, color: 'from-cyan-600 to-blue-700', description: 'Tableau de bord marketplace' }} showDescription />
+              <NavItem item={{ title: 'Waouh Partners', path: '/admin/waouh/partners', icon: Handshake, color: 'from-amber-500 to-orange-600', description: 'Gérer les partenaires' }} showDescription />
+              <NavItem item={{ title: 'Catalogue unifié', path: '/admin/waouh/data-control', icon: Database, color: 'from-emerald-500 to-teal-600', description: 'Contrôle & IA' }} showDescription />
+              <NavItem item={{ title: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', icon: Settings2, color: 'from-green-600 to-emerald-700', description: 'Opérations WhatsApp' }} showDescription />
+              <NavItem item={{ title: 'Radar IA', path: '/admin/waouh/radar', icon: Radar, color: 'from-purple-500 to-pink-600', description: 'Scraping intelligent' }} showDescription />
+            </div>
+          </div>
+        )}
+
+        {/* Waouh Partner — accessible à tous les utilisateurs connectés */}
+        {user && (
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+              Waouh Partner
+            </h3>
+            <div className="space-y-2">
+              <NavItem item={{ title: 'Espace Partner', path: '/partner', icon: Handshake, color: 'from-amber-500 to-orange-500', description: 'Tableau de bord', badge: 'New' }} showDescription />
+              <NavItem item={{ title: 'Mes entreprises', path: '/partner/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Enrôler des commerces' }} showDescription />
+              <NavItem item={{ title: 'Mes ventes', path: '/partner/sales', icon: TrendingUp, color: 'from-green-500 to-emerald-600', description: 'Commissions' }} showDescription />
+              <NavItem item={{ title: 'Mes versements', path: '/partner/payouts', icon: Wallet, color: 'from-purple-500 to-pink-600', description: 'Historique paiements' }} showDescription />
             </div>
           </div>
         )}
