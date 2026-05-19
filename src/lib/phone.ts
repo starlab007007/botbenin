@@ -7,10 +7,11 @@ export type Country = {
   flag: string; // emoji
   length: number; // longueur attendue du numéro local (sans indicatif)
   groups?: number[]; // découpage formatage ex: [2,2,2,2]
+  prefixes?: string[]; // préfixes opérateurs valides (premier chiffre attendu)
 };
 
 export const COUNTRIES: Country[] = [
-  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 8, groups: [2, 2, 2, 2] },
+  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 8, groups: [2, 2, 2, 2], prefixes: ['9', '6', '5', '4'] },
   { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬', length: 8, groups: [2, 2, 2, 2] },
   { code: 'CI', name: "Côte d'Ivoire", dial: '+225', flag: '🇨🇮', length: 10, groups: [2, 2, 2, 2, 2] },
   { code: 'SN', name: 'Sénégal', dial: '+221', flag: '🇸🇳', length: 9, groups: [3, 3, 3] },
@@ -29,21 +30,17 @@ export const DEFAULT_COUNTRY = COUNTRIES[0]; // Bénin
 export function findCountryByDial(dial: string): Country | undefined {
   return COUNTRIES.find(c => c.dial === dial);
 }
-
 export function findCountryByCode(code: string): Country | undefined {
   return COUNTRIES.find(c => c.code === code);
 }
 
-// Sépare l'indicatif et le numéro local depuis une valeur stockée
 export function parsePhone(value: string | null | undefined): { country: Country; local: string } {
   if (!value) return { country: DEFAULT_COUNTRY, local: '' };
   const v = value.trim();
   if (v.startsWith('+')) {
-    // trouver l'indicatif le plus long qui matche
     const match = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find(c => v.startsWith(c.dial));
     if (match) return { country: match, local: v.slice(match.dial.length).replace(/\D/g, '') };
   }
-  // sinon on suppose Bénin
   return { country: DEFAULT_COUNTRY, local: v.replace(/\D/g, '') };
 }
 
@@ -67,11 +64,45 @@ export function toE164(local: string, country: Country): string {
 }
 
 export function isValidPhone(local: string, country: Country): boolean {
-  return local.replace(/\D/g, '').length === country.length;
+  const d = local.replace(/\D/g, '');
+  if (d.length !== country.length) return false;
+  if (country.prefixes && !country.prefixes.includes(d[0])) return false;
+  return true;
 }
 
 export function formatPhoneDisplay(value: string | null | undefined): string {
   if (!value) return '';
   const { country, local } = parsePhone(value);
   return `${country.flag} ${country.dial} ${formatLocal(local, country)}`;
+}
+
+/** Normalise un numéro pour stockage E.164, retourne { e164, valid, reason } */
+export function normalizePhone(
+  value: string | null | undefined,
+  defaultCountryCode: string = 'BJ'
+): { e164: string; valid: boolean; reason?: string } {
+  if (!value || !String(value).trim()) {
+    return { e164: '', valid: false, reason: 'Numéro requis' };
+  }
+  const defaultCountry = findCountryByCode(defaultCountryCode) || DEFAULT_COUNTRY;
+  const v = String(value).trim();
+  let country = defaultCountry;
+  let local = v.replace(/\D/g, '');
+  if (v.startsWith('+')) {
+    const m = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find(c => v.startsWith(c.dial));
+    if (m) {
+      country = m;
+      local = v.slice(m.dial.length).replace(/\D/g, '');
+    }
+  }
+  if (!isValidPhone(local, country)) {
+    if (local.length !== country.length) {
+      return { e164: '', valid: false, reason: `${country.length} chiffres requis pour ${country.name}` };
+    }
+    if (country.prefixes) {
+      return { e164: '', valid: false, reason: `Préfixe invalide (attendu : ${country.prefixes.join('/')})` };
+    }
+    return { e164: '', valid: false, reason: 'Format invalide' };
+  }
+  return { e164: toE164(local, country), valid: true };
 }

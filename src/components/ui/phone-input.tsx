@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { COUNTRIES, DEFAULT_COUNTRY, Country, parsePhone, formatLocal, toE164, isValidPhone } from '@/lib/phone';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface PhoneInputProps {
@@ -15,9 +15,15 @@ interface PhoneInputProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  invalid?: boolean;
+  errorMessage?: string;
+  hideHelper?: boolean;
 }
 
-export function PhoneInput({ value, onChange, defaultCountryCode = 'BJ', placeholder, className, disabled, id }: PhoneInputProps) {
+export const PhoneInput = React.memo(function PhoneInput({
+  value, onChange, defaultCountryCode = 'BJ', placeholder, className, disabled, id,
+  invalid, errorMessage, hideHelper,
+}: PhoneInputProps) {
   const parsed = React.useMemo(() => {
     if (value) return parsePhone(value);
     return { country: COUNTRIES.find(c => c.code === defaultCountryCode) || DEFAULT_COUNTRY, local: '' };
@@ -26,9 +32,9 @@ export function PhoneInput({ value, onChange, defaultCountryCode = 'BJ', placeho
   const [country, setCountry] = React.useState<Country>(parsed.country);
   const [local, setLocal] = React.useState(parsed.local);
   const [open, setOpen] = React.useState(false);
+  const [touched, setTouched] = React.useState(false);
 
   React.useEffect(() => {
-    // sync externe
     setCountry(parsed.country);
     setLocal(parsed.local);
   }, [value]); // eslint-disable-line
@@ -50,46 +56,65 @@ export function PhoneInput({ value, onChange, defaultCountryCode = 'BJ', placeho
     emit(c, local);
   };
 
-  const valid = !local || isValidPhone(local, country);
+  const valid = isValidPhone(local, country);
+  const showError = (invalid || (touched && local.length > 0 && !valid));
+  const helperText = showError
+    ? (errorMessage || (local.length !== country.length
+        ? `${country.length} chiffres requis (${country.name})`
+        : country.prefixes ? `Préfixe attendu : ${country.prefixes.join(' / ')}` : 'Numéro invalide'))
+    : (local && valid ? `${country.flag} ${country.dial} ${formatLocal(local, country)}` : '');
 
   return (
-    <div className={cn('flex gap-2', className)}>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button type="button" variant="outline" disabled={disabled} className="px-2 gap-1 shrink-0">
-            <span className="text-lg leading-none">{country.flag}</span>
-            <span className="text-xs font-medium">{country.dial}</span>
-            <ChevronDown className="h-3 w-3 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="p-0 w-64" align="start">
-          <Command>
-            <CommandInput placeholder="Rechercher un pays..." />
-            <CommandList>
-              <CommandEmpty>Aucun pays.</CommandEmpty>
-              <CommandGroup>
-                {COUNTRIES.map(c => (
-                  <CommandItem key={c.code} value={`${c.name} ${c.dial}`} onSelect={() => handleCountry(c)}>
-                    <span className="text-lg mr-2">{c.flag}</span>
-                    <span className="flex-1">{c.name}</span>
-                    <span className="text-xs text-muted-foreground mr-2">{c.dial}</span>
-                    {country.code === c.code && <Check className="h-4 w-4" />}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-      <Input
-        id={id}
-        inputMode="tel"
-        value={formatLocal(local, country)}
-        onChange={e => handleLocal(e.target.value)}
-        placeholder={placeholder || (country.code === 'BJ' ? '97 12 34 56' : '')}
-        disabled={disabled}
-        className={cn(!valid && 'border-destructive focus-visible:ring-destructive')}
-      />
+    <div className={cn('space-y-1', className)}>
+      <div className="flex gap-2">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="outline" disabled={disabled} className="px-2 gap-1 shrink-0">
+              <span className="text-lg leading-none">{country.flag}</span>
+              <span className="text-xs font-medium">{country.dial}</span>
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-0 w-64" align="start">
+            <Command>
+              <CommandInput placeholder="Rechercher un pays..." />
+              <CommandList>
+                <CommandEmpty>Aucun pays.</CommandEmpty>
+                <CommandGroup>
+                  {COUNTRIES.map(c => (
+                    <CommandItem key={c.code} value={`${c.name} ${c.dial}`} onSelect={() => handleCountry(c)}>
+                      <span className="text-lg mr-2">{c.flag}</span>
+                      <span className="flex-1">{c.name}</span>
+                      <span className="text-xs text-muted-foreground mr-2">{c.dial}</span>
+                      {country.code === c.code && <Check className="h-4 w-4" />}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        <Input
+          id={id}
+          inputMode="tel"
+          aria-invalid={showError || undefined}
+          value={formatLocal(local, country)}
+          onChange={e => handleLocal(e.target.value)}
+          onBlur={() => setTouched(true)}
+          placeholder={placeholder || (country.code === 'BJ' ? '97 12 34 56' : '')}
+          disabled={disabled}
+          className={cn(showError && 'border-destructive focus-visible:ring-destructive')}
+        />
+      </div>
+      {!hideHelper && helperText && (
+        <p className={cn(
+          'text-xs flex items-center gap-1',
+          showError ? 'text-destructive' : 'text-muted-foreground'
+        )}>
+          {showError ? <AlertCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
+          {helperText}
+        </p>
+      )}
     </div>
   );
-}
+});
