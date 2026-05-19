@@ -123,24 +123,30 @@ Deno.serve(async (req) => {
         txId = tx?.id ?? null;
         if (txId) await sb.from("waouh_negotiations").update({ transaction_id: txId }).eq("id", neg.id);
       }
-      // Notifie l'autre partie (généralement l'acheteur)
+      // Notifie l'autre partie avec la carte paiement + boutons interactifs
       if (otherUserId) {
         const targetIsBuyer = otherUserId === neg.buyer_user_id;
         const txt = targetIsBuyer
           ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId)
           : `✅ *L'acheteur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nLe paiement va être lancé. Vous recevrez une notification dès que l'argent est bloqué en escrow.` + paymentCard(amount, txId);
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId });
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, targetIsBuyer ? paymentActions(txId) : []);
       }
       const reply = isBuyer
         ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId)
         : `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nL'acheteur va lancer le paiement.` + paymentCard(amount, txId);
-      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: paymentActions }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // Fire-and-forget dispatch
+      fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 20 }),
+      }).catch(() => {});
+      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: isBuyer ? paymentActions(txId) : [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, closed: true }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id });
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, closed: true, from_user_id: user.id }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id });
       }
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -158,9 +164,17 @@ Deno.serve(async (req) => {
       if (otherUserId) {
         await pushToOther(otherUserId, "negotiation_open",
           { neg_id: neg.id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id },
-          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.` + paymentCard(intent.price, neg.transaction_id),
-          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id });
+          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
+          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id },
+          neg.transaction_id,
+          negotiationActions(neg.id));
       }
+      // Fire-and-forget dispatch
+      fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 20 }),
+      }).catch(() => {});
       return new Response(JSON.stringify({ ok: true, reply: `Contre-offre ${fmt(intent.price)} transmise.`, transaction_id: neg.transaction_id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
