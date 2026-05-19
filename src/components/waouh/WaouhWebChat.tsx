@@ -17,6 +17,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 type Att = { url: string; type: string };
+type WaouhAction = { id: string; label: string; url?: string };
+const stripLegacy = (t: string) =>
+  (t || "")
+    .replace(/\n*👉\s*Appuyez sur \*?Payer\*?[^\n]*/gi, "")
+    .replace(/\n*1\.\s*Payer\s*→[^\n]*\n?2\.\s*MTN[^\n]*\n?3\.\s*Moov[^\n]*/gi, "")
+    .replace(/\n*1\.\s*Payer[^\n]*\n?2\.\s*Négocier[^\n]*/gi, "")
+    .replace(/\n*_Répondez avec le numéro[^\n]*\n?(?:\d+\.[^\n]*\n?)+/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 type Msg = {
   id: string;
   direction: "in" | "out";
@@ -305,7 +314,35 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
                     ))}
                   </div>
                 )}
-                {m.text && m.text !== "(image)" && <ReactMarkdown>{m.text}</ReactMarkdown>}
+                {m.text && m.text !== "(image)" && <ReactMarkdown>{stripLegacy(m.text)}</ReactMarkdown>}
+                {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
+                    {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
+                      <Button
+                        key={i}
+                        size="sm"
+                        variant={/pay/i.test(a.id) ? "default" : "secondary"}
+                        className={cn("h-7 text-xs", /pay_open|^pay:/i.test(a.id) && "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90")}
+                        onClick={() => {
+                          if (a.url) { window.open(a.url, "_blank"); return; }
+                          if (/^pay/i.test(a.id) && m.meta?.transaction_id) {
+                            onPay({ id: m.meta.transaction_id, amount: 0 } as any);
+                            return;
+                          }
+                          const kw = /accept/i.test(a.id) ? "OUI"
+                            : /refuse/i.test(a.id) ? "NON"
+                            : /counter|negociat/i.test(a.id) ? "Je propose "
+                            : /mtn/i.test(a.id) ? "mtn"
+                            : /moov/i.test(a.id) ? "moov"
+                            : a.id.startsWith("intéressé") ? a.id
+                            : a.label;
+                          if (kw.endsWith(" ")) { setInput(kw); setTimeout(() => inputRef.current?.focus(), 0); }
+                          else sendCore(kw, []);
+                        }}
+                      >{a.label}</Button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             {m.meta?.transaction_id && (

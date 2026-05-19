@@ -211,11 +211,18 @@ serve(async (req) => {
     let nextContext: any = conv?.context ?? {};
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
-    const moneyLine = (label: string, value: number) => `• *${label}* : ${fmt(value)}`;
     const paymentCard = (amount: number, txId?: string | null) =>
-      `\n\n💳 *Carte de paiement WAOUH*\n${moneyLine("Montant", amount)}\n${moneyLine("Escrow sécurisé", amount)}\n• *Statut* : En attente de paiement\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}\n\n👉 Appuyez sur *Payer* ou envoyez : *payer 0165653468*`;
-    const sourceLines = (min: number, max: number) =>
-      `\n\n🔎 *Références comparatives*\n• Facebook Marketplace / groupes WhatsApp locaux : ${fmt(min)} – ${fmt(max)}\n• Plateformes petites annonces (Jiji, CoinAfrique) : fourchette similaire selon état, mémoire et ville\n• Analyse WAOUH : prix, état, marque/modèle et zone de vente comparés pour sécuriser la confiance.`;
+      `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}`;
+    // Petite phrase analytique IA sur le prix (best-effort, fail-soft)
+    const marketNote = async (title: string, price: number, min: number, max: number, city: string): Promise<string> => {
+      try {
+        const r = await ai(
+          `Tu es analyste prix marché Bénin. Rends UNE SEULE phrase concise (max 22 mots) qui qualifie le prix proposé par rapport au marché local (cher/correct/bonne affaire) avec un chiffre approximatif. JSON: {"note": string}`,
+          `Produit: ${title}\nPrix proposé: ${price} FCFA\nFourchette marché: ${min} – ${max} FCFA\nVille: ${city}`
+        );
+        return typeof r?.note === "string" ? r.note.trim() : "";
+      } catch { return ""; }
+    };
 
     // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie
     async function pushToOther(opts: {
@@ -251,9 +258,9 @@ serve(async (req) => {
       }
       // 2) Notification (cloche + WhatsApp si phone) avec deep-link
       try {
-        const quickActions = opts.directText.includes("Carte de paiement")
-          ? [{ id: "payer 0165653468", label: "Payer" }, { id: "Je propose 250000 FCFA", label: "Négocier" }]
-          : [];
+        // Pas d'actions paiement automatiques dans les notifications de match/négo
+        // (les boutons restent contextuels: Accepter / Refuser / Contre-offrer côté caller)
+        const quickActions: Array<{ id: string; label: string }> = [];
         await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.phone_number,
           p_to_user_id: target.id,
@@ -299,10 +306,14 @@ serve(async (req) => {
         }).select().single();
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
-        const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo(s) jointe(s)` : "";
+        const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""} jointe${photoUrls.length > 1 ? "s" : ""}` : "";
         const min = product.market_price_min || product.price * 0.8;
         const max = product.market_price_max || product.price * 1.2;
-        reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        const aiNote = await marketNote(product.title || "", product.price, min, max, user!.city || "");
+        const geoLine = (typeof lat === "number" && typeof lng === "number")
+          ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${lat},${lng}` : "";
+        const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
+        reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${geoLine}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
         // Actions vendeur : gérer/modifier/désactiver l'annonce
         returnedActions = [
           { id: `seller_boost:${art?.id || ""}`, label: "🚀 Booster" },
@@ -389,30 +400,39 @@ serve(async (req) => {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
         nextContext = { ...nextContext, last_matches: [] };
       } else {
-        const officialList = (matches || []).map((m: any, i: number) => {
-          const photo = Array.isArray(m.photos) && m.photos.length > 0 ? `\n   📸 Photo disponible` : "";
+        // Limiter explicitement à top 5 cumulés
+        const matchesTop = (matches || []).slice(0, 5);
+        const radarTop = radarSellers.slice(0, Math.max(0, 5 - matchesTop.length));
+        // Note IA par produit officiel
+        const officialList = (await Promise.all(matchesTop.map(async (m: any, i: number) => {
+          const photos: string[] = Array.isArray(m.photos) ? m.photos.filter((u: any) => typeof u === "string") : [];
+          const photoLine = photos.length > 0 ? `\n   📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
           const min = m.market_price_min || m.price * 0.8;
           const max = m.market_price_max || m.price * 1.2;
-          return `*${i + 1}. ${m.title}*\n   💰 ${fmt(m.price)}\n   📍 ${m.city ?? "?"} · ${m.condition}${photo}\n   📊 Marché : ${fmt(min)} – ${fmt(max)}`;
-        }).join("\n");
-        const radarList = radarSellers.map((r: any, i: number) => {
-          const idx = (matches?.length || 0) + i + 1;
+          const note = await marketNote(m.title || "", Number(m.price || 0), min, max, m.city || "");
+          const noteLine = note ? `\n   🧠 ${note}` : "";
+          return `*${i + 1}. ${m.title}*\n   💰 ${fmt(m.price)}\n   📍 ${m.city ?? "?"} · ${m.condition}${photoLine}\n   📊 Marché : ${fmt(min)} – ${fmt(max)}${noteLine}`;
+        }))).join("\n\n");
+        const radarList = radarTop.map((r: any, i: number) => {
+          const idx = matchesTop.length + i + 1;
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
           const price = r.price ? fmt(Number(r.price)) : "Prix à négocier";
           const city = r.city || "?";
           return `*${idx}. ${title}*\n   💰 ${price}\n   📍 ${city}\n   📡 Source : Radar IA${r.contact_phone ? " · contact extrait" : ""}`;
-        }).join("\n");
-        replyAttachments = (matches || [])
-          .flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 1) : [])
+        }).join("\n\n");
+        // Envoyer toutes les photos disponibles (max 2 par produit, plafond 6)
+        replyAttachments = matchesTop
+          .flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 2) : [])
           .filter((url: any) => typeof url === "string")
-          .slice(0, 5)
+          .slice(0, 6)
           .map((url: string) => ({ url, type: "image/jpeg" }));
-        const radarHint = radarSellers.length > 0
-          ? `\n\n🛰️ *${radarSellers.length} annonce${radarSellers.length > 1 ? "s" : ""}* détectée${radarSellers.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
+        const radarHint = radarTop.length > 0
+          ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
-        reply = `🎯 *${totalCount} annonce${totalCount > 1 ? "s" : ""} trouvée${totalCount > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez simplement : *intéressé 1*. Vous pouvez aussi proposer un prix.${radarHint}`;
-        // Actions acheteur : choix rapide des 3 premiers résultats
-        returnedActions = (matches || []).slice(0, 3).map((_m: any, i: number) => ({ id: `intéressé ${i + 1}`, label: `✅ Choisir n°${i + 1}` }));
+        const totalShown = matchesTop.length + radarTop.length;
+        reply = `🎯 *Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez : *intéressé 1*, *intéressé 2*, … ou proposez un prix.${radarHint}`;
+        // Boutons : jusqu'à 3 choix (limite WAHA), le reste reste accessible par texte
+        returnedActions = matchesTop.slice(0, 3).map((_m: any, i: number) => ({ id: `intéressé ${i + 1}`, label: `✅ Choisir n°${i + 1}` }));
         const promotedRadarMatches: any[] = [];
         for (const r of radarSellers) {
           const art = await promoteRadarSeller(sb, r, criteriaCategory);
@@ -460,11 +480,15 @@ serve(async (req) => {
       } else {
         const existingTxId = nextContext?.current_transaction_id || conv?.current_transaction_id || null;
         const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
+        const askPrice = Number(pick.price || 0);
         if (alreadyOnArticle && existingTxId) {
           returnedArticleId = pick.id;
           returnedTransactionId = existingTxId;
-          returnedActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "Je propose 250000 FCFA", label: "Négocier" }];
-          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(Number(pick.price || 0))}\n\nVous pouvez écrire *Je propose 250 000 FCFA* pour négocier ou appuyer sur *Payer*.` + paymentCard(Number(pick.price || 0), existingTxId);
+          returnedActions = [
+            { id: `pay:${existingTxId}`, label: "💳 Payer" },
+            { id: `counter:${pick.id}`, label: "💬 Négocier" },
+          ];
+          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nVous pouvez écrire *Je propose ${fmt(askPrice)}* pour négocier ou appuyer sur *Payer*.`;
         } else {
         // Récupère vendeur (phone + web session)
         const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
@@ -474,20 +498,19 @@ serve(async (req) => {
         // Crée la négociation
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
-          state: "proposed", last_offer_price: pick.price, last_actor: "buyer",
+          state: "proposed", last_offer_price: askPrice, last_actor: "buyer",
           meta: { source: "chat" },
         }).select().single();
         returnedArticleId = pick.id;
-        const amount = Number(pick.price || 0);
-        const commission = Math.round(amount * 0.05);
+        const commission = Math.round(askPrice * 0.05);
         const { data: tx } = await sb.from("waouh_transactions").insert({
           article_id: pick.id,
           seller_id: pick.seller_id,
           buyer_id: user!.id,
-          amount,
+          amount: askPrice,
           commission,
           payment_method: "mobile_money",
-          negotiated_price: amount,
+          negotiated_price: askPrice,
           status: "payment_pending",
           escrow_status: "pending",
         }).select().single();
@@ -495,21 +518,33 @@ serve(async (req) => {
         if (neg?.id && returnedTransactionId) {
           await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
         }
-        // Notifie le vendeur (cloche + WhatsApp + message direct dans son chatbot)
+        // Notifie le vendeur — UN SEUL message, sans carte paiement, sans actions paiement.
+        // Boutons interactifs : Accepter / Contre-offre / Refuser.
         if (seller?.id) {
           await pushToOther({
             to_user_id: seller.id,
             template: "match_seller",
-            payload: { article_id: pick.id, title: pick.title, price: pick.price, buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto, transaction_id: returnedTransactionId },
+            payload: {
+              article_id: pick.id, title: pick.title, price: askPrice,
+              buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+              transaction_id: returnedTransactionId,
+              actions: [
+                { id: `accept:${neg?.id || ""}`, label: "✅ Accepter" },
+                { id: `counter:${neg?.id || ""}`, label: "💬 Contre-offre" },
+                { id: `refuse:${neg?.id || ""}`, label: "❌ Refuser" },
+              ],
+            },
             image_url: firstPhoto,
-            directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix demandé* : ${fmt(pick.price)}\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose 18000 FCFA*).` + paymentCard(Number(pick.price || 0), returnedTransactionId),
+            directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
             directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
             directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
           });
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
-        returnedActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "Je propose 250000 FCFA", label: "Négocier" }];
-        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(pick.price)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez *Je propose 250 000 FCFA*.` + paymentCard(Number(pick.price || 0), returnedTransactionId);
+        returnedActions = [
+          { id: `counter:${neg?.id || ""}`, label: "💬 Négocier" },
+        ];
+        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez *Je propose ${fmt(Math.round(askPrice * 0.9))}*.`;
         }
       }
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
@@ -542,14 +577,22 @@ serve(async (req) => {
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
-            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, transaction_id: returnedTransactionId },
-            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.` + paymentCard(amount, returnedTransactionId),
+            payload: {
+              neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount,
+              transaction_id: returnedTransactionId,
+              actions: [
+                { id: `accept:${neg.id}`, label: "✅ Accepter" },
+                { id: `counter:${neg.id}`, label: "💬 Contre-offre" },
+                { id: `refuse:${neg.id}`, label: "❌ Refuser" },
+              ],
+            },
+            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
           });
         }
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de ${fmt(amount)} transmise. Vous serez notifié de la réponse.`;
       } else {
-        reply = "💬 Indiquez votre prix : « Je propose 250 000 FCFA »";
+        reply = `💬 Indiquez votre prix : « Je propose ${fmt(neg.last_offer_price || 0)} »`;
       }
     } else if (intent.intent === "PAY") {
       // Trouve la transaction/négociation courante et renvoie la carte de paiement web
@@ -583,7 +626,12 @@ serve(async (req) => {
         }
         returnedArticleId = neg.article_id;
         returnedTransactionId = txId;
-        returnedActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "mtn", label: "MTN" }, { id: "moov", label: "Moov" }];
+        const payAmount = Number(neg.last_offer_price || 0);
+        returnedActions = [
+          { id: `pay:${txId || ""}`, label: "💳 Payer maintenant" },
+          { id: "mtn", label: "MTN" },
+          { id: "moov", label: "Moov" },
+        ];
         if (channel === "whatsapp" && intent.payment_phone && txId) {
           const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
             method: "POST",
@@ -592,12 +640,12 @@ serve(async (req) => {
           });
           const pay = await payRes.json().catch(() => ({}));
           reply = pay?.success
-            ? `✅ *Paiement confirmé*\n\n💰 *Montant* : ${fmt(neg.last_offer_price)}\n🔒 *Escrow* : Fonds bloqués jusqu'à réception.\n\nAprès livraison, écrivez *j'ai reçu* pour terminer la transaction.`
-            : `💳 *Paiement prêt*\n\nLe numéro n'est pas accepté pour le mode démo.\n\n👉 Essayez : *payer 0165653468*`;
+            ? `✅ *Paiement confirmé*\n\n💰 *Montant* : ${fmt(payAmount)}\n🔒 *Escrow* : Fonds bloqués jusqu'à réception.\n\nAprès livraison, écrivez *j'ai reçu* pour terminer la transaction.`
+            : `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\n📱 Indiquez l'opérateur (MTN ou Moov) puis validez la notification reçue sur votre téléphone.`;
         } else {
           reply = channel === "whatsapp"
-            ? `💳 *Paiement prêt*` + paymentCard(Number(neg.last_offer_price || 0), txId)
-            : `💳 *Paiement prêt* — ${fmt(neg.last_offer_price)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
+            ? `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\n📱 Choisissez votre opérateur Mobile Money (MTN ou Moov) puis validez la notification reçue sur votre téléphone.\n🔒 Les fonds restent en escrow jusqu'à confirmation de réception.`
+            : `💳 *Paiement prêt* — ${fmt(payAmount)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
         }
       }
     } else if (intent.intent === "CONFIRM_RECEIVED") {

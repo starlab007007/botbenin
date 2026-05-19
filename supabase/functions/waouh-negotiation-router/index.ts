@@ -8,8 +8,17 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 const paymentCard = (amount: number, txId?: string | null) =>
-  `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH\n• *Statut* : en attente\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}\n\n👉 Appuyez sur *Payer* ou envoyez : *payer 0165653468*`;
-const paymentActions = [{ id: "payer 0165653468", label: "Payer" }, { id: "mtn", label: "MTN" }, { id: "moov", label: "Moov" }];
+  `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? String(txId).slice(0, 8).toUpperCase() : "créée"}`;
+const paymentActions = (txId: string | null) => [
+  { id: `pay:${txId || ""}`, label: "💳 Payer maintenant" },
+  { id: "mtn", label: "MTN" },
+  { id: "moov", label: "Moov" },
+];
+const negotiationActions = (negId: string) => [
+  { id: `accept:${negId}`, label: "✅ Accepter" },
+  { id: `counter:${negId}`, label: "💬 Contre-offre" },
+  { id: `refuse:${negId}`, label: "❌ Refuser" },
+];
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
   const lower = (text || "").toLowerCase();
@@ -44,7 +53,7 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   // Helper: notification cloche + message direct chez l'autre partie
-  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null) {
+  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = []) {
     const { data: target } = await sb.from("waouh_users")
       .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
@@ -55,7 +64,7 @@ Deno.serve(async (req) => {
         const { data: msg } = await sb.from("waouh_messages").insert({
           user_id: target.id, channel: "web", direction: "out",
           text: directText, web_session_id: target.web_session_id,
-          meta: { ...(directMeta || {}), transaction_id: transactionId ?? directMeta?.transaction_id ?? null },
+          meta: { ...(directMeta || {}), transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
         }).select("id").maybeSingle();
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
@@ -65,7 +74,7 @@ Deno.serve(async (req) => {
         p_to_phone: target.phone_number,
         p_to_user_id: target.id,
         p_template: template,
-        p_payload: { ...(payload || {}), text: directText, actions: directText.includes("Carte de paiement") ? paymentActions : [], message_id: insertedMsgId, transaction_id: transactionId },
+        p_payload: { ...(payload || {}), text: directText, actions, message_id: insertedMsgId, transaction_id: transactionId },
         p_web_session_id: target.web_session_id,
         p_image_url: null,
         p_channel: target.phone_number ? "whatsapp" : "web",
@@ -114,24 +123,30 @@ Deno.serve(async (req) => {
         txId = tx?.id ?? null;
         if (txId) await sb.from("waouh_negotiations").update({ transaction_id: txId }).eq("id", neg.id);
       }
-      // Notifie l'autre partie (généralement l'acheteur)
+      // Notifie l'autre partie avec la carte paiement + boutons interactifs
       if (otherUserId) {
         const targetIsBuyer = otherUserId === neg.buyer_user_id;
         const txt = targetIsBuyer
           ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId)
           : `✅ *L'acheteur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nLe paiement va être lancé. Vous recevrez une notification dès que l'argent est bloqué en escrow.` + paymentCard(amount, txId);
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId });
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, targetIsBuyer ? paymentActions(txId) : []);
       }
       const reply = isBuyer
         ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId)
         : `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nL'acheteur va lancer le paiement.` + paymentCard(amount, txId);
-      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: paymentActions }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // Fire-and-forget dispatch
+      fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 20 }),
+      }).catch(() => {});
+      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: isBuyer ? paymentActions(txId) : [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, closed: true }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id });
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, closed: true, from_user_id: user.id }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id });
       }
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -149,9 +164,17 @@ Deno.serve(async (req) => {
       if (otherUserId) {
         await pushToOther(otherUserId, "negotiation_open",
           { neg_id: neg.id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id },
-          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.` + paymentCard(intent.price, neg.transaction_id),
-          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id });
+          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
+          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id },
+          neg.transaction_id,
+          negotiationActions(neg.id));
       }
+      // Fire-and-forget dispatch
+      fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 20 }),
+      }).catch(() => {});
       return new Response(JSON.stringify({ ok: true, reply: `Contre-offre ${fmt(intent.price)} transmise.`, transaction_id: neg.transaction_id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
