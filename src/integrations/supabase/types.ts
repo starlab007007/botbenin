@@ -4976,6 +4976,87 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_alert_config: {
+        Row: {
+          cooldown_minutes: number
+          enabled: boolean
+          id: string
+          last_alert_sent_at: string | null
+          threshold_422: number
+          threshold_429: number
+          threshold_5xx: number
+          threshold_global_pct: number
+          updated_at: string
+          updated_by: string | null
+          webhook_secret: string | null
+          webhook_url: string | null
+          window_minutes: number
+        }
+        Insert: {
+          cooldown_minutes?: number
+          enabled?: boolean
+          id?: string
+          last_alert_sent_at?: string | null
+          threshold_422?: number
+          threshold_429?: number
+          threshold_5xx?: number
+          threshold_global_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+          webhook_secret?: string | null
+          webhook_url?: string | null
+          window_minutes?: number
+        }
+        Update: {
+          cooldown_minutes?: number
+          enabled?: boolean
+          id?: string
+          last_alert_sent_at?: string | null
+          threshold_422?: number
+          threshold_429?: number
+          threshold_5xx?: number
+          threshold_global_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+          webhook_secret?: string | null
+          webhook_url?: string | null
+          window_minutes?: number
+        }
+        Relationships: []
+      }
+      waouh_alert_history: {
+        Row: {
+          count: number | null
+          created_at: string
+          delivered: boolean
+          error: string | null
+          id: string
+          payload: Json | null
+          rule: string
+          severity: string
+        }
+        Insert: {
+          count?: number | null
+          created_at?: string
+          delivered?: boolean
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          rule: string
+          severity: string
+        }
+        Update: {
+          count?: number | null
+          created_at?: string
+          delivered?: boolean
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          rule?: string
+          severity?: string
+        }
+        Relationships: []
+      }
       waouh_articles: {
         Row: {
           address_description: string | null
