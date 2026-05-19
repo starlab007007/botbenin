@@ -145,8 +145,9 @@ Deno.serve(async (req) => {
         await sb.from("waouh_transactions").update({ status: "paid", escrow_status: "held" }).eq("id", transaction_id);
         const { data: txAfter } = await sb.from("waouh_transactions").select("buyer_id, seller_id, article_id, amount").eq("id", transaction_id).single();
         if (txAfter) {
-          await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA. Le vendeur va vous contacter pour la livraison.`);
-          await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison et contactez-le. Cliquez sur « J'ai bien reçu » côté acheteur pour libérer les fonds.`);
+          await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA.`);
+          await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison.`);
+          await exchangeContacts(sb, txAfter.buyer_id, txAfter.seller_id, transaction_id);
         }
         return json({ success: true, status: "success", payment_id: pay.id, transref, demo: true, message: "Mode démo : paiement confirmé sans vérification." });
       }
