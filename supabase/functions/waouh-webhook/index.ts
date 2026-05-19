@@ -258,7 +258,9 @@ serve(async (req) => {
         } catch (e) { console.warn("[pushToOther] msg", e); }
       }
       try {
-        const quickActions: Array<{ id: string; label: string }> = [];
+        const quickActions: Array<{ id: string; label: string }> = Array.isArray(opts.payload?.actions)
+          ? opts.payload.actions.slice(0, 3)
+          : [];
         await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.phone_number,
           p_to_user_id: target.id,
