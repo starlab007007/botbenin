@@ -126,7 +126,7 @@ export default function PartnerBusinessesPage() {
     const { error } = await supabase.from('waouh_partner_businesses' as any).insert({
       ...insertable, partner_id: partner.id,
       tags: tags?.length ? tags : null,
-      horaires_ouverture: horaires || null,
+      horaires: horaires ? { texte: horaires } : null,
     });
     setSaving(false);
     if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
