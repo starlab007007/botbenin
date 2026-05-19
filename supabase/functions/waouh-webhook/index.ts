@@ -577,14 +577,22 @@ serve(async (req) => {
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
-            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, transaction_id: returnedTransactionId },
-            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.` + paymentCard(amount, returnedTransactionId),
+            payload: {
+              neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount,
+              transaction_id: returnedTransactionId,
+              actions: [
+                { id: `accept:${neg.id}`, label: "✅ Accepter" },
+                { id: `counter:${neg.id}`, label: "💬 Contre-offre" },
+                { id: `refuse:${neg.id}`, label: "❌ Refuser" },
+              ],
+            },
+            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
           });
         }
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de ${fmt(amount)} transmise. Vous serez notifié de la réponse.`;
       } else {
-        reply = "💬 Indiquez votre prix : « Je propose 250 000 FCFA »";
+        reply = `💬 Indiquez votre prix : « Je propose ${fmt(neg.last_offer_price || 0)} »`;
       }
     } else if (intent.intent === "PAY") {
       // Trouve la transaction/négociation courante et renvoie la carte de paiement web
