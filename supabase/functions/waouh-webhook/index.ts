@@ -428,9 +428,10 @@ serve(async (req) => {
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
         const totalShown = matchesTop.length + radarTop.length;
-        reply = `🎯 *Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez : *intéressé 1*, *intéressé 2*, … ou proposez un prix.${radarHint}`;
-        // Boutons : jusqu'à 3 choix (limite WAHA), le reste reste accessible par texte
-        returnedActions = matchesTop.slice(0, 3).map((_m: any, i: number) => ({ id: `intéressé ${i + 1}`, label: `✅ Choisir n°${i + 1}` }));
+        const interestList = Array.from({ length: totalShown }, (_, i) => `intéressé ${i + 1}`).join(", ");
+        reply = `🎯 *Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez : ${interestList}.${radarHint}`;
+        // Pas de boutons : tout passe par texte (intéressé 1, intéressé 2, …)
+        returnedActions = [];
         const promotedRadarMatches: any[] = [];
         for (const r of radarSellers) {
           const art = await promoteRadarSeller(sb, r, criteriaCategory);
