@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   // Helper: notification cloche + message direct chez l'autre partie
-  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = []) {
+  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null) {
     const { data: target } = await sb.from("waouh_users")
       .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
@@ -80,6 +80,8 @@ Deno.serve(async (req) => {
         p_channel: target.phone_number ? "whatsapp" : "web",
         p_message_id: insertedMsgId,
         p_transaction_id: transactionId,
+        p_dedupe_key: dedupeKey,
+        p_event_type: eventType,
       });
     } catch (e) { console.warn("[neg-router] enqueue", e); }
   }
