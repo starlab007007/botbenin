@@ -92,7 +92,9 @@ export function contactExchangeText(
 ): string {
   const who = role === "buyer_to_seller" ? "vendeur" : "acheteur";
   const name = other.display_name || `Contact ${who}`;
-  const phone = other.phone_number ? `\n📞 *WhatsApp* : ${other.phone_number}` : "";
+  const rawPhone = (other.phone_number || "").replace(/@(?:c\.us|lid|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
+  const formatted = rawPhone ? `+${rawPhone}` : "";
+  const phone = formatted ? `\n📞 *WhatsApp* : ${formatted}` : "";
   const city = other.city ? `\n📍 *Ville* : ${other.city}` : "";
   const maps = (other.lat != null && other.lng != null)
     ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${other.lat},${other.lng}`
