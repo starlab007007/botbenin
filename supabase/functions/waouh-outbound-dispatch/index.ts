@@ -85,10 +85,10 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  // Final fallback : image (si présente) + texte avec options numérotées
-  if (imageUrl) await sendWahaImage(base, session, chatId, imageUrl, text, headers);
   const lines = actions.map((a, i) => `${i + 1}. ${a.label}${a.url ? ` → ${a.url}` : a.phone ? ` ☎ ${a.phone}` : ""}`).join("\n");
-  return sendWahaText(base, session, chatId, imageUrl ? `_Répondez avec le numéro de votre choix :_\n${lines}` : `${text}\n\n${lines}`, headers);
+  // Final fallback : garder une seule bulle WhatsApp. Avec image, les choix sont dans la légende.
+  if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, `${text}\n\n${lines}`, headers);
+  return sendWahaText(base, session, chatId, `${text}\n\n${lines}`, headers);
 }
 
 function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
