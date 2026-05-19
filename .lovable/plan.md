@@ -1,101 +1,141 @@
+# Plan — Espace Partenaire & Admin Waouh : intelligence, validation et traçabilité
 
-# Plan : Espace Partenaire intelligent, Bénin par défaut, ultra-rapide
+## 1. Performance & UX des champs intelligents
 
-## Objectifs
-- Remplacer les champs texte libres par des **listes intelligentes** (Combobox avec recherche + saisie libre fallback).
-- Tous les champs téléphone / WhatsApp / Mobile Money → composant **PhoneInput** avec drapeau pays + indicatif, **+229 Bénin par défaut**.
-- **Autocomplete ville/quartier** dès la saisie (Bénin par défaut, puis suggestions IA).
-- Design intuitif, responsive, chargement ultra-rapide (lazy data, debounce, virtualization quand utile).
+**LocationAutocomplete (ville/quartier)**
+- Mémoriser `BENIN_CITY_NAMES` et l'index `BENIN_CITY_INDEX` au niveau module (déjà fait) + ajouter un cache `Map<ville, quartiers[]>` exposé par `getQuartiersForCity` pour éviter les recalculs.
+- Envelopper le composant dans `React.memo` + `useCallback` sur `onChange` côté parents.
+- Dans `SmartCombobox`, debouncer la recherche (150 ms) avec `useDeferredValue` pour réduire les re-rendus de la liste pendant la frappe.
+- Précharger en idle (`requestIdleCallback`) les quartiers des 5 villes principales (Cotonou, Calavi, Porto-Novo, Parakou, Bohicon).
 
-## Composants nouveaux
+**PhoneInput**
+- Ajouter à droite du champ un badge inline « 🇧🇯 +229 97 12 34 56 » qui montre en direct le numéro normalisé (E.164 affiché format local), affiché en `text-muted-foreground` quand valide, en `text-destructive` quand invalide.
+- État visuel `aria-invalid`, bordure `border-destructive` + texte d'aide sous le champ : « 8 chiffres requis pour le Bénin », « Format MTN/Moov attendu : 9X / 6X / 5X / 4X ».
+- Helper `normalizePhone(value, defaultCountry='BJ')` dans `src/lib/phone.ts` retournant `{ e164, valid, reason }`. Utilisé avant tout `insert/update` Supabase.
 
-### 1. `src/components/ui/phone-input.tsx`
-PhoneInput unifié :
-- Sélecteur pays compact (drapeau + indicatif), **default = BJ (+229)**.
-- Liste pays prioritaires Afrique de l'Ouest (BJ, TG, CI, SN, BF, NG, GH, ML, NE), puis reste du monde.
-- Format automatique (espaces tous les 2 chiffres pour BJ : `97 12 34 56`).
-- Validation longueur selon pays. Stocke en E.164 (`+22997123456`).
-- Variant `momo` : ajoute sélecteur opérateur (MTN/Moov/Celtiis) à côté.
-- Réutilise `react-phone-number-input` (déjà-ish léger) **OU** implémentation maison ~120 lignes pour rester léger et stylé via tokens.
+**SmartCombobox — états d'erreur**
+- Nouvelle prop `invalid?: boolean` + `errorMessage?: string` → bordure destructive, message en dessous.
+- Appliqué aux champs catégorie entreprise, catégorie produit, unité, opérateur Mobile Money.
 
-### 2. `src/components/ui/smart-combobox.tsx`
-Wrapper autour de `cmdk` (déjà présent via shadcn `Command`) :
-- Props : `options`, `value`, `onChange`, `placeholder`, `allowCustom`, `onSearch?` (async pour IA).
-- Affiche suggestions filtrées + option "Utiliser : {texte saisi}" si `allowCustom`.
-- Debounce 250 ms pour `onSearch`.
+## 2. Validation centralisée (Zod) avant envoi
 
-### 3. `src/components/waouh/LocationAutocomplete.tsx`
-- Deux SmartCombobox liés : **Ville** et **Quartier**.
-- Données statiques `src/data/beninLocations.ts` (villes principales + quartiers connus de Cotonou, Porto-Novo, Calavi, Parakou…).
-- Quand l'utilisateur tape ≥3 caractères et que rien ne matche → appel IA `geocode_address` ou nouvelle action `suggest_locations` pour récupérer suggestions OpenStreetMap (debounce 400 ms).
-- Affiche drapeau 🇧🇯 et "Bénin" en pré-réglage.
+Créer `src/lib/validation/waouh.ts` :
+- `partnerEnrollmentSchema`, `businessSchema`, `productSchema`, `saleSchema`
+- Tous les champs téléphone passent par `phoneSchema` (normalise + valide via `normalizePhone`)
+- Catégorie / unité / opérateur MM : `z.string().min(1, "Champ requis")`
+- Géoloc : ville obligatoire, quartier optionnel, lat/lng optionnels mais cohérents si fournis
 
-### 4. `src/data/beninLocations.ts`
-- Liste statique : 30+ villes du Bénin avec leurs quartiers principaux (Cotonou : Cadjèhoun, Akpakpa, Fidjrossè, Gbégamey, Sainte-Rita, Ganhi… / Calavi : Godomey, Kpota, Zogbadjè…).
-- Catégories d'entreprises typiques (réutilise `africanContext.businessTypes`, étendu).
-- Unités produits (kg, sac, pièce, litre, paquet, carton, plat, bouteille…).
-- Opérateurs Mobile Money (MTN, Moov, Celtiis).
+Les pages `PartnerDashboardPage`, `PartnerBusinessesPage`, `PartnerProductsPage` :
+- `useForm` avec `zodResolver` (déjà présent dans le projet via `react-hook-form` + `@hookform/resolvers`)
+- Affichage des erreurs par champ via le composant `FormMessage` existant.
+- Toast récap si erreurs multiples : « Corrigez les champs en rouge ».
 
-## Modifications pages partenaire
+## 3. Partner — CRUD complet sur entreprises
 
-### `src/pages/partner/PartnerBusinessesPage.tsx`
-- **Catégorie** : SmartCombobox depuis `businessTypes` (allowCustom).
-- **Ville / Quartier** : `LocationAutocomplete`.
-- **Téléphone / WhatsApp** : `PhoneInput` (+229 par défaut).
-- **Mobile Money** : `PhoneInput variant="momo"` (sélecteur opérateur intégré, +229 par défaut).
-- Pays caché — toujours Bénin par défaut, mais modifiable via le sélecteur du PhoneInput.
+`PartnerBusinessesPage.tsx` :
+- Carte par entreprise → bouton **Voir** (drawer détail : toutes les infos, photos, géoloc, contacts formatés, produits liés, ventes récentes, stats commission)
+- Bouton **Modifier** → réutilise le dialog actuel, pré-rempli
+- Bouton **Supprimer** → `AlertDialog` de confirmation, hard delete si pas de ventes, sinon soft delete (`is_active=false`) avec explication
+- Compteurs : nb produits, ventes 30j, CA, commission totale
 
-### `src/pages/partner/PartnerProductsPage.tsx`
-- **Catégorie produit** : SmartCombobox (catégories selon type de business).
-- **Unité** : SmartCombobox (unités courantes).
-- Suggestions IA déjà OK, juste relier au nouveau Combobox dans le dialog.
+Idem `PartnerProductsPage.tsx` : action Voir/Modifier/Supprimer + état stock visible.
 
-### `src/pages/partner/PartnerDashboardPage.tsx` (enrôlement)
-- Tous les champs contact → `PhoneInput`.
-- Champs ville/quartier → `LocationAutocomplete`.
+## 4. Admin — Gestion complète des partenaires
 
-### Admin Waouh
-- `AdminWaouhPartnersPage` : filtres ville/catégorie → SmartCombobox.
-- Téléphones affichés formatés via util `formatPhone`.
+`AdminWaouhPartnersPage.tsx` enrichi :
+- Tableau filtrable (statut, niveau, ville, KYC) + recherche plein-texte
+- Actions par ligne :
+  - **Activer** (`statut=active`, `date_activation=now()`)
+  - **Suspendre** (`statut=suspended`, dialog avec motif → `waouh_partner_audit_log`)
+  - **Rejeter** / **Réactiver**
+  - **Vérifier KYC** (`kyc_verified=true`)
+  - **Changer niveau** (Bronze/Argent/Or/Platine)
+  - **Voir** drawer 360° : profil + entreprises + produits + ventes + commissions + audit log
+  - **Modifier** (toutes infos éditables côté admin via edge function `waouh-partner-admin-update`)
+- Nouvelle page **AdminWaouhBusinessesPage** : voir/valider toutes les entreprises de tous partenaires (`verifie_admin`, suspendre, supprimer).
 
-## Performance
+## 5. Système d'habilitations
 
-- **Lazy load** `cmdk` listes (déjà cas), virtualisation seulement si >200 items.
-- `PhoneInput` : drapeaux en **SVG inline** (pas d'images), pas de lib lourde.
-- `LocationAutocomplete` : index pré-construit (Map) pour filtrer en O(1) sur les villes.
-- Mémoïsation (`useMemo`) des listes filtrées.
-- `React.lazy` pour les dialogs lourds (déjà partiel).
-- Requêtes Supabase : `select` colonnes ciblées au lieu de `*` sur les listes (businesses, products).
-- Préchargement prefetch des pages partenaires depuis le sidebar (mouseover).
+Migration DB :
+- Table `waouh_partner_permissions` (partner_id, permission ENUM: `can_add_business`, `can_add_product`, `can_record_sale`, `can_request_payout`, `can_invite_subagent`)
+- Table `waouh_partner_audit_log` (partner_id, admin_id, action, payload jsonb, created_at)
+- RLS : lecture publique aux admins, partenaire voit ses propres lignes
+- Fonction `has_partner_permission(_user_id, _perm)` SECURITY DEFINER
 
-## Edge function
+Côté admin : matrice de cases à cocher par partenaire (toggle direct, write via edge function `waouh-partner-set-permission` qui log dans audit).
+Côté partner : les boutons d'action sont désactivés si la permission manque, avec tooltip explicatif.
 
-Ajouter action `suggest_locations` à `waouh-partner-ai` :
-- Input : `{ query, country: 'BJ' }`
-- Appelle Nominatim (`q={query}&countrycodes=bj&addressdetails=1&limit=5`)
-- Retourne `[{ ville, quartier, lat, lng, label }]`
+## 6. Monitoring temps réel & traçabilité
 
-## Design
+Migration DB :
+- Table `waouh_partner_activity` (partner_id, business_id?, product_id?, sale_id?, event_type, metadata jsonb, created_at). Triggers d'insertion sur businesses/products/sales pour la traçabilité automatique.
+- Vue `waouh_partner_stats_v` : par partenaire → nb ventes 24h/7j/30j, CA, commission, stock total, produits actifs, dernière activité.
+- Vue `waouh_product_traceability_v` : produit → business → partenaire → ventes → commission.
 
-- Tokens existants uniquement (pas de couleurs en dur).
-- Dialogs : `max-h-[90dvh] overflow-y-auto` (pattern projet).
-- PhoneInput : hauteur cohérente avec `Input` (h-10), focus ring identique.
-- Drapeau 🇧🇯 visible partout où le pays s'applique → renforce l'identité Bénin.
+Frontend admin **AdminWaouhMonitoringPage** (nouvelle route `/admin/waouh/monitoring`) :
+- Realtime Supabase channel sur `waouh_partner_activity` → flux live (10 derniers événements, badges colorés par type).
+- KPIs globaux (partenaires actifs, ventes du jour, CA, commissions à payer).
+- Top partenaires + alertes (stock bas, partenaire inactif >7j, ventes anormales).
 
-## Fichiers touchés
+Frontend partner **PartnerDashboardPage** (enrichi) :
+- Notifications temps réel à chaque vente d'un de ses produits (Supabase realtime sur `waouh_partner_sales` filtré `partner_id=eq.X` + toast + badge cloche).
+- Cartes KPI : CA jour/semaine/mois, commission cumulée, commission en attente, prochaine paie.
+- Section **Mes produits & stock** : liste avec stock courant, ventes 30j, commission générée, alerte stock bas (<5).
+- Section **Statistiques de vente** : graphique (recharts) ventes/jour 30j, top 5 produits, répartition par entreprise.
+- Chaîne de traçabilité (mini-graph) : Partenaire → Entreprises → Produits → Ventes.
 
-**Nouveaux**
-- `src/components/ui/phone-input.tsx`
-- `src/components/ui/smart-combobox.tsx`
-- `src/components/waouh/LocationAutocomplete.tsx`
-- `src/data/beninLocations.ts`
-- `src/lib/phone.ts` (formatPhone, parsePhone, validatePhone)
+## 7. Routes ajoutées / modifiées
 
-**Modifiés**
-- `src/pages/partner/PartnerBusinessesPage.tsx`
-- `src/pages/partner/PartnerProductsPage.tsx`
-- `src/pages/partner/PartnerDashboardPage.tsx`
-- `src/pages/admin/AdminWaouhPartnersPage.tsx`
-- `supabase/functions/waouh-partner-ai/index.ts` (action `suggest_locations`)
+```
+/partner                                 (dashboard enrichi)
+/partner/businesses                      (CRUD + drawer détail)
+/partner/businesses/:id                  (drawer route)
+/partner/products                        (CRUD + stats)
+/partner/sales                           (historique + filtres)
+/partner/payouts                         (demandes + statut)
+/admin/waouh/partners                    (gestion + habilitations)
+/admin/waouh/businesses                  (NEW - validation entreprises)
+/admin/waouh/monitoring                  (NEW - temps réel)
+/admin/waouh/data-control                (existant, conservé)
+```
 
-Aucune migration DB.
+Toutes protégées par `PartnerRoute` / admin guard existants.
+
+## Détails techniques
+
+**Fichiers nouveaux** :
+- `src/lib/validation/waouh.ts`
+- `src/components/waouh/PartnerBusinessDetailDrawer.tsx`
+- `src/components/waouh/PartnerActivityFeed.tsx`
+- `src/components/waouh/PartnerStatsCards.tsx`
+- `src/components/waouh/AdminPartnerDetailDrawer.tsx`
+- `src/components/waouh/PartnerPermissionsMatrix.tsx`
+- `src/hooks/useWaouhPartnerStats.ts` (realtime + agrégats)
+- `src/hooks/useWaouhPartnerActivity.ts` (realtime feed)
+- `src/hooks/useWaouhPartnerPermissions.ts`
+- `src/pages/admin/AdminWaouhMonitoringPage.tsx`
+- `src/pages/admin/AdminWaouhBusinessesPage.tsx`
+- Edge functions : `waouh-partner-admin-update`, `waouh-partner-set-permission`, `waouh-partner-set-status`
+
+**Fichiers modifiés** :
+- `src/lib/phone.ts` (ajout `normalizePhone`)
+- `src/components/ui/phone-input.tsx` (badge live, états d'erreur, helper text)
+- `src/components/ui/smart-combobox.tsx` (props `invalid`, `errorMessage`, debounce)
+- `src/components/waouh/LocationAutocomplete.tsx` (memo + cache)
+- `src/data/beninLocations.ts` (cache Map quartiers)
+- `src/pages/partner/PartnerBusinessesPage.tsx` (CRUD complet + Zod)
+- `src/pages/partner/PartnerProductsPage.tsx` (CRUD + stats stock)
+- `src/pages/partner/PartnerDashboardPage.tsx` (KPIs + realtime + traçabilité)
+- `src/pages/partner/PartnerSalesPage.tsx` (filtres + graph)
+- `src/pages/admin/AdminWaouhPartnersPage.tsx` (actions + drawer + permissions)
+- `src/App.tsx` (nouvelles routes admin)
+- `src/components/navigation/ModernSidebar.tsx` (liens admin monitoring + businesses)
+
+**Migrations DB** (1 seule) :
+- `waouh_partner_permissions`, `waouh_partner_audit_log`, `waouh_partner_activity` + triggers
+- Vues `waouh_partner_stats_v`, `waouh_product_traceability_v`
+- Fonctions `has_partner_permission`, `waouh_partner_log_activity`
+- Activation realtime (`alter publication supabase_realtime add table ...`) pour `waouh_partner_sales`, `waouh_partner_activity`
+- RLS sur toutes les nouvelles tables
+
+**Pas de changement** : pricing, FCFA, modules existants hors Waouh.
