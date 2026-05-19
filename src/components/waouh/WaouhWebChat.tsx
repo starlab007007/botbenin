@@ -17,6 +17,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 type Att = { url: string; type: string };
+type WaouhAction = { id: string; label: string; url?: string };
+const stripLegacy = (t: string) =>
+  (t || "")
+    .replace(/\n*👉\s*Appuyez sur \*?Payer\*?[^\n]*/gi, "")
+    .replace(/\n*1\.\s*Payer\s*→[^\n]*\n?2\.\s*MTN[^\n]*\n?3\.\s*Moov[^\n]*/gi, "")
+    .replace(/\n*1\.\s*Payer[^\n]*\n?2\.\s*Négocier[^\n]*/gi, "")
+    .replace(/\n*_Répondez avec le numéro[^\n]*\n?(?:\d+\.[^\n]*\n?)+/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 type Msg = {
   id: string;
   direction: "in" | "out";
