@@ -588,13 +588,9 @@ serve(async (req) => {
             payload: {
               neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount,
               transaction_id: returnedTransactionId,
-              actions: [
-                { id: `accept:${neg.id}`, label: "✅ Accepter" },
-                { id: `counter:${neg.id}`, label: "💬 Contre-offre" },
-                { id: `refuse:${neg.id}`, label: "❌ Refuser" },
-              ],
+              actions: [],
             },
-            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
+            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(amount)} CFA).`,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
             transaction_id: returnedTransactionId,
             dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
