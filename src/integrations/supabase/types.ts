@@ -5246,6 +5246,36 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_commission_settings: {
+        Row: {
+          bonus_volume: Json | null
+          commission_partner_pct_sur_plateforme: number
+          commission_plateforme_pct: number
+          id: number
+          seuil_payout_fcfa: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bonus_volume?: Json | null
+          commission_partner_pct_sur_plateforme?: number
+          commission_plateforme_pct?: number
+          id?: number
+          seuil_payout_fcfa?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bonus_volume?: Json | null
+          commission_partner_pct_sur_plateforme?: number
+          commission_plateforme_pct?: number
+          id?: number
+          seuil_payout_fcfa?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       waouh_conversations: {
         Row: {
           channel: string
@@ -5616,6 +5646,393 @@ export type Database = {
           transaction_id?: string | null
           updated_at?: string
           web_session_id?: string | null
+        }
+        Relationships: []
+      }
+      waouh_partner_businesses: {
+        Row: {
+          adresse_complete: string | null
+          categorie: string | null
+          created_at: string
+          description: string | null
+          email: string | null
+          geohash: string | null
+          gerant_nom: string | null
+          gerant_role: string | null
+          horaires: Json | null
+          id: string
+          langues_parlees: string[] | null
+          lat: number | null
+          lng: number | null
+          mobile_money_number: string | null
+          mobile_money_operator: string | null
+          nom_entreprise: string
+          note_qualite: number | null
+          partner_id: string
+          photo_principale: string | null
+          photos: string[] | null
+          quartier: string | null
+          site_web: string | null
+          sous_categorie: string | null
+          statut: string | null
+          tags: string[] | null
+          telephone: string | null
+          updated_at: string
+          verifie_admin: boolean | null
+          ville: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          adresse_complete?: string | null
+          categorie?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          geohash?: string | null
+          gerant_nom?: string | null
+          gerant_role?: string | null
+          horaires?: Json | null
+          id?: string
+          langues_parlees?: string[] | null
+          lat?: number | null
+          lng?: number | null
+          mobile_money_number?: string | null
+          mobile_money_operator?: string | null
+          nom_entreprise: string
+          note_qualite?: number | null
+          partner_id: string
+          photo_principale?: string | null
+          photos?: string[] | null
+          quartier?: string | null
+          site_web?: string | null
+          sous_categorie?: string | null
+          statut?: string | null
+          tags?: string[] | null
+          telephone?: string | null
+          updated_at?: string
+          verifie_admin?: boolean | null
+          ville?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          adresse_complete?: string | null
+          categorie?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          geohash?: string | null
+          gerant_nom?: string | null
+          gerant_role?: string | null
+          horaires?: Json | null
+          id?: string
+          langues_parlees?: string[] | null
+          lat?: number | null
+          lng?: number | null
+          mobile_money_number?: string | null
+          mobile_money_operator?: string | null
+          nom_entreprise?: string
+          note_qualite?: number | null
+          partner_id?: string
+          photo_principale?: string | null
+          photos?: string[] | null
+          quartier?: string | null
+          site_web?: string | null
+          sous_categorie?: string | null
+          statut?: string | null
+          tags?: string[] | null
+          telephone?: string | null
+          updated_at?: string
+          verifie_admin?: boolean | null
+          ville?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_businesses_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_partner_payouts: {
+        Row: {
+          created_at: string
+          id: string
+          mobile_money_ref: string | null
+          montant_total: number
+          nb_ventes: number
+          notes: string | null
+          paid_at: string | null
+          partner_id: string
+          paye_par: string | null
+          payment_proof_url: string | null
+          periode_debut: string
+          periode_fin: string
+          statut: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mobile_money_ref?: string | null
+          montant_total: number
+          nb_ventes?: number
+          notes?: string | null
+          paid_at?: string | null
+          partner_id: string
+          paye_par?: string | null
+          payment_proof_url?: string | null
+          periode_debut: string
+          periode_fin: string
+          statut?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mobile_money_ref?: string | null
+          montant_total?: number
+          nb_ventes?: number
+          notes?: string | null
+          paid_at?: string | null
+          partner_id?: string
+          paye_par?: string | null
+          payment_proof_url?: string | null
+          periode_debut?: string
+          periode_fin?: string
+          statut?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_payouts_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_partner_products: {
+        Row: {
+          business_id: string
+          categorie: string | null
+          created_at: string
+          derniere_maj: string | null
+          description: string | null
+          devise: string | null
+          disponible: boolean | null
+          id: string
+          nom: string
+          partner_id: string
+          photos: string[] | null
+          prix_max: number | null
+          prix_min: number | null
+          stock_estime: number | null
+          tags: string[] | null
+          unite: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          categorie?: string | null
+          created_at?: string
+          derniere_maj?: string | null
+          description?: string | null
+          devise?: string | null
+          disponible?: boolean | null
+          id?: string
+          nom: string
+          partner_id: string
+          photos?: string[] | null
+          prix_max?: number | null
+          prix_min?: number | null
+          stock_estime?: number | null
+          tags?: string[] | null
+          unite?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          categorie?: string | null
+          created_at?: string
+          derniere_maj?: string | null
+          description?: string | null
+          devise?: string | null
+          disponible?: boolean | null
+          id?: string
+          nom?: string
+          partner_id?: string
+          photos?: string[] | null
+          prix_max?: number | null
+          prix_min?: number | null
+          stock_estime?: number | null
+          tags?: string[] | null
+          unite?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_products_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_products_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_partner_sales: {
+        Row: {
+          business_id: string | null
+          buyer_phone: string | null
+          commission_partner: number
+          commission_plateforme: number
+          created_at: string
+          date_paiement_commission: string | null
+          date_vente: string
+          id: string
+          montant_vente: number
+          partner_id: string
+          payout_id: string | null
+          product_id: string | null
+          source: string | null
+          statut: string
+          transaction_id: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          buyer_phone?: string | null
+          commission_partner: number
+          commission_plateforme: number
+          created_at?: string
+          date_paiement_commission?: string | null
+          date_vente?: string
+          id?: string
+          montant_vente: number
+          partner_id: string
+          payout_id?: string | null
+          product_id?: string | null
+          source?: string | null
+          statut?: string
+          transaction_id?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          buyer_phone?: string | null
+          commission_partner?: number
+          commission_plateforme?: number
+          created_at?: string
+          date_paiement_commission?: string | null
+          date_vente?: string
+          id?: string
+          montant_vente?: number
+          partner_id?: string
+          payout_id?: string | null
+          product_id?: string | null
+          source?: string | null
+          statut?: string
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_sales_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_sales_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_sales_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_sales_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_partners: {
+        Row: {
+          code_partenaire: string
+          created_at: string
+          date_activation: string | null
+          email: string | null
+          id: string
+          kyc_doc_url: string | null
+          kyc_verified: boolean | null
+          mobile_money_number: string | null
+          mobile_money_operator: string | null
+          niveau: string | null
+          nom: string
+          notes_admin: string | null
+          pays: string | null
+          statut: string
+          telephone: string | null
+          updated_at: string
+          user_id: string
+          ville: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          code_partenaire: string
+          created_at?: string
+          date_activation?: string | null
+          email?: string | null
+          id?: string
+          kyc_doc_url?: string | null
+          kyc_verified?: boolean | null
+          mobile_money_number?: string | null
+          mobile_money_operator?: string | null
+          niveau?: string | null
+          nom: string
+          notes_admin?: string | null
+          pays?: string | null
+          statut?: string
+          telephone?: string | null
+          updated_at?: string
+          user_id: string
+          ville?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          code_partenaire?: string
+          created_at?: string
+          date_activation?: string | null
+          email?: string | null
+          id?: string
+          kyc_doc_url?: string | null
+          kyc_verified?: boolean | null
+          mobile_money_number?: string | null
+          mobile_money_operator?: string | null
+          niveau?: string | null
+          nom?: string
+          notes_admin?: string | null
+          pays?: string | null
+          statut?: string
+          telephone?: string | null
+          updated_at?: string
+          user_id?: string
+          ville?: string | null
+          whatsapp?: string | null
         }
         Relationships: []
       }
@@ -7995,6 +8412,10 @@ export type Database = {
       is_admin: { Args: { user_uuid?: string }; Returns: boolean }
       is_support_admin: { Args: { _user_id: string }; Returns: boolean }
       is_support_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_waouh_partner_owner: {
+        Args: { _partner_id: string }
+        Returns: boolean
+      }
       log_user_activity: {
         Args: {
           p_activity_type: string
