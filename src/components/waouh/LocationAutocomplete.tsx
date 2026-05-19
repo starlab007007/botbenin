@@ -10,16 +10,22 @@ interface LocationAutocompleteProps {
   showLabels?: boolean;
   villeLabel?: string;
   quartierLabel?: string;
+  villeInvalid?: boolean;
+  villeError?: string;
 }
 
-export function LocationAutocomplete({
+export const LocationAutocomplete = React.memo(function LocationAutocomplete({
   ville, quartier, onChange,
   showLabels = true, villeLabel = 'Ville', quartierLabel = 'Quartier',
+  villeInvalid, villeError,
 }: LocationAutocompleteProps) {
   const quartiers = React.useMemo(() => getQuartiersForCity(ville), [ville]);
 
+  const handleVille = React.useCallback((v: string) => onChange({ ville: v, quartier: '' }), [onChange]);
+  const handleQuartier = React.useCallback((v: string) => onChange({ ville, quartier: v }), [onChange, ville]);
+
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="space-y-2">
         {showLabels && (
           <Label className="flex items-center gap-1">
@@ -29,17 +35,19 @@ export function LocationAutocomplete({
         )}
         <SmartCombobox
           value={ville}
-          onChange={v => onChange({ ville: v, quartier: '' })}
+          onChange={handleVille}
           options={BENIN_CITY_NAMES}
           placeholder="Sélectionner une ville"
           allowCustom
+          invalid={villeInvalid}
+          errorMessage={villeError}
         />
       </div>
       <div className="space-y-2">
         {showLabels && <Label>{quartierLabel}</Label>}
         <SmartCombobox
           value={quartier}
-          onChange={v => onChange({ ville, quartier: v })}
+          onChange={handleQuartier}
           options={quartiers}
           placeholder={quartiers.length ? 'Sélectionner un quartier' : 'Saisir le quartier'}
           allowCustom
@@ -47,4 +55,4 @@ export function LocationAutocomplete({
       </div>
     </div>
   );
-}
+});
