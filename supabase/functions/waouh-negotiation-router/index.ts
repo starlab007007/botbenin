@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   // Helper: notification cloche + message direct chez l'autre partie
-  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = []) {
+  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null) {
     const { data: target } = await sb.from("waouh_users")
       .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
@@ -80,6 +80,8 @@ Deno.serve(async (req) => {
         p_channel: target.phone_number ? "whatsapp" : "web",
         p_message_id: insertedMsgId,
         p_transaction_id: transactionId,
+        p_dedupe_key: dedupeKey,
+        p_event_type: eventType,
       });
     } catch (e) { console.warn("[neg-router] enqueue", e); }
   }
@@ -129,7 +131,7 @@ Deno.serve(async (req) => {
         const txt = targetIsBuyer
           ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId)
           : `✅ *L'acheteur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nLe paiement va être lancé. Vous recevrez une notification dès que l'argent est bloqué en escrow.` + paymentCard(amount, txId);
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, targetIsBuyer ? paymentActions(txId) : []);
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, targetIsBuyer ? paymentActions(txId) : [], `neg:${neg.id}:accepted:${otherUserId}`, "negotiation_accepted");
       }
       const reply = isBuyer
         ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId)
@@ -146,7 +148,7 @@ Deno.serve(async (req) => {
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, closed: true, from_user_id: user.id }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id });
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, closed: true, from_user_id: user.id }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
       }
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -167,7 +169,9 @@ Deno.serve(async (req) => {
           `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
           { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id },
           neg.transaction_id,
-          negotiationActions(neg.id));
+          negotiationActions(neg.id),
+          `neg:${neg.id}:offer:${intent.price}:${otherUserId}`,
+          "negotiation_counter");
       }
       // Fire-and-forget dispatch
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
