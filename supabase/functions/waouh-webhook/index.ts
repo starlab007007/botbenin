@@ -303,6 +303,12 @@ serve(async (req) => {
         const min = product.market_price_min || product.price * 0.8;
         const max = product.market_price_max || product.price * 1.2;
         reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        // Actions vendeur : gérer/modifier/désactiver l'annonce
+        returnedActions = [
+          { id: `seller_boost:${art?.id || ""}`, label: "🚀 Booster" },
+          { id: `seller_edit:${art?.id || ""}`, label: "✏️ Modifier" },
+          { id: `seller_pause:${art?.id || ""}`, label: "⏸️ Pause" },
+        ];
 
         // 🛰️ Radar IA: contacter les acheteurs (signaux BUY) qui correspondent
         try {
@@ -405,6 +411,8 @@ serve(async (req) => {
           ? `\n\n🛰️ *${radarSellers.length} annonce${radarSellers.length > 1 ? "s" : ""}* détectée${radarSellers.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
         reply = `🎯 *${totalCount} annonce${totalCount > 1 ? "s" : ""} trouvée${totalCount > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez simplement : *intéressé 1*. Vous pouvez aussi proposer un prix.${radarHint}`;
+        // Actions acheteur : choix rapide des 3 premiers résultats
+        returnedActions = (matches || []).slice(0, 3).map((_m: any, i: number) => ({ id: `intéressé ${i + 1}`, label: `✅ Choisir n°${i + 1}` }));
         const promotedRadarMatches: any[] = [];
         for (const r of radarSellers) {
           const art = await promoteRadarSeller(sb, r, criteriaCategory);

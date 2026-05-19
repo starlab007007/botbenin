@@ -67,27 +67,27 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
   });
 }
 
-async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string; url?: string; phone?: string }>, headers: Record<string, string>, footer?: string, title?: string) {
-  // Try the rich interactive format (WAHA Plus / NOWEB+) with reply/url/call buttons
+async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string; url?: string; phone?: string }>, headers: Record<string, string>, footer?: string, title?: string, imageUrl?: string | null) {
   const richButtons = actions.slice(0, 3).map((a) => {
     if (a.url) return { type: "url", url: a.url, text: a.label };
     if (a.phone) return { type: "call", phoneNumber: a.phone, text: a.label };
     return { type: "reply", reply: { id: a.id, title: a.label } };
   });
-  const richBody = { session, chatId, header: title, body: text, footer: footer || "WAOUH • bot.bj", buttons: richButtons };
+  const richBody: any = { session, chatId, body: text, footer: footer || "WAOUH • bot.bj", buttons: richButtons };
+  if (title) richBody.header = title;
+  if (imageUrl) richBody.header = { image: { url: imageUrl } };
   let r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
-  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ chatId, ...richBody, session: undefined }) });
+  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
   // Legacy simple format
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ chatId, text, buttons }) });
-  if (r.ok) return r;
-  // Text fallback with numbered options
+  // Final fallback : image (si présente) + texte avec options numérotées
+  if (imageUrl) await sendWahaImage(base, session, chatId, imageUrl, text, headers);
   const lines = actions.map((a, i) => `${i + 1}. ${a.label}${a.url ? ` → ${a.url}` : a.phone ? ` ☎ ${a.phone}` : ""}`).join("\n");
-  return sendWahaText(base, session, chatId, `${text}\n\n${lines}`, headers);
+  return sendWahaText(base, session, chatId, imageUrl ? `_Répondez avec le numéro de votre choix :_\n${lines}` : `${text}\n\n${lines}`, headers);
 }
 
 function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
@@ -140,6 +140,16 @@ Deno.serve(async (req) => {
     let sent = 0, failed = 0, skipped = 0;
 
     for (const it of items || []) {
+      // 🔒 Verrouillage atomique : on revendique la ligne en passant status pending→sending.
+      // Si une autre instance l'a déjà revendiquée, l'update renvoie 0 ligne et on saute.
+      const { data: claimed } = await sb
+        .from("waouh_outbound_queue")
+        .update({ status: "sending", attempts: it.attempts + 1 })
+        .eq("id", it.id)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      if (!claimed) { skipped++; continue; }
       // Skip web-only entries (frontend listens via Realtime)
       if ((it.channel && it.channel === "web") || !it.to_phone) {
         if (!it.to_phone) {
@@ -170,11 +180,10 @@ Deno.serve(async (req) => {
         const customActions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
         const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
         const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
-        if (it.image_url) {
+        if (actions.length > 0) {
+          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer, undefined, it.image_url || null);
+        } else if (it.image_url) {
           r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
-          if (r.ok && actions.length > 0) await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, "Actions rapides", actions, wahaHeaders, footer);
-        } else if (actions.length > 0) {
-          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer);
         } else {
           r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
         }
@@ -183,13 +192,12 @@ Deno.serve(async (req) => {
           throw new Error(`WAHA ${r.status}: ${body.slice(0, 200)}`);
         }
         await sb.from("waouh_outbound_queue").update({
-          status: "sent", sent_at: new Date().toISOString(), attempts: it.attempts + 1,
+          status: "sent", sent_at: new Date().toISOString(),
         }).eq("id", it.id);
         sent++;
       } catch (e: any) {
         const newAttempts = it.attempts + 1;
         await sb.from("waouh_outbound_queue").update({
-          attempts: newAttempts,
           status: newAttempts >= MAX_ATTEMPTS ? "failed" : "pending",
           last_error: String(e.message || e),
         }).eq("id", it.id);

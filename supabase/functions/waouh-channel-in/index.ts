@@ -125,23 +125,31 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
   });
 }
 
-async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: WaouhAction[]) {
+async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: WaouhAction[], imageUrl?: string | null) {
   const cleanBase = base.replace(/\/$/, "");
   const headers = wahaHeaders();
+  const richButtons = actions.slice(0, 3).map((a: any) => {
+    if (a.url) return { type: "url", url: a.url, text: a.label };
+    if (a.phone) return { type: "call", phoneNumber: a.phone, text: a.label };
+    return { type: "reply", reply: { id: a.id, title: a.label } };
+  });
+  const richBody: any = { session, chatId, body: text, footer: "WAOUH • bot.bj", buttons: richButtons };
+  if (imageUrl) richBody.header = { image: { url: imageUrl } };
+  let r = await fetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
+  if (r.ok) return r;
+  r = await fetch(`${cleanBase}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
+  if (r.ok) return r;
+  // Legacy fallback
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
-  const direct = await fetch(`${cleanBase}/api/sendButtons`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ session, chatId, text, buttons }),
-  });
-  if (direct.ok) return direct;
-  const scoped = await fetch(`${cleanBase}/api/${session}/sendButtons`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ chatId, text, buttons }),
-  });
-  if (scoped.ok) return scoped;
-  const fallback = `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label} → ${a.id}`).join("\n")}`;
+  r = await fetch(`${cleanBase}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
+  if (r.ok) return r;
+  // Final text fallback — if we have an image, send it first
+  if (imageUrl) {
+    await sendWahaImage(base, session, chatId, imageUrl, text);
+    const lines = actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n");
+    return sendWahaText(base, session, chatId, `_Répondez avec le numéro de votre choix :_\n${lines}`);
+  }
+  const fallback = `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n")}`;
   return sendWahaText(base, session, chatId, fallback);
 }
 
@@ -174,7 +182,7 @@ serve(async (req) => {
     let fromChatId: string | null = null;
     let toPhone: string | null = null;
 
-    // WAHA: { event:"message", session, payload:{ from, body, fromMe, hasMedia, mediaUrl, mimetype } }
+    // WAHA: { event:"message", session, payload:{ id, from, body, fromMe, hasMedia, mediaUrl, mimetype } }
     if (raw.event && raw.payload) {
       const normalizedFrom = normalizeBeninPhone(raw.payload.from || raw.payload.author || "");
       toPhone = normalizeBeninPhone(raw.payload.to || raw.payload._data?.to || "") || WAOUH_BUSINESS_PHONE;
@@ -189,6 +197,17 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // 🛡️ Idempotence : WAHA peut émettre "message" et "message.any" pour le même message → on dédupe par event id.
+      const wahaEventId = raw.payload.id || raw.id || `${normalizedFrom}:${raw.payload.timestamp || ""}:${(raw.payload.body || "").slice(0, 40)}`;
+      if (wahaEventId) {
+        const { error: dupErr } = await sb.from("waouh_processed_events").insert({ event_id: String(wahaEventId), source: "waha" });
+        if (dupErr && (dupErr.code === "23505" || /duplicate/i.test(dupErr.message))) {
+          log("skip duplicate waha event", { wahaEventId });
+          return new Response(JSON.stringify({ ok: true, skipped: true, reason: "duplicate" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
       channel = "whatsapp";
       phone = normalizedFrom;
       fromChatId = raw.payload.from || `${normalizedFrom}@c.us`;
@@ -198,10 +217,8 @@ serve(async (req) => {
         ? `${WAHA_BASE_URL.replace(/\/$/, "")}/api/files/${wahaSession}/${raw.payload.id}.${mediaExt(mime)}`
         : null;
       const candidateUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
-      // Ré-héberger l'image dans un bucket public pour qu'elle soit réutilisable par WAHA et le chat web.
       if (candidateUrl && !String(candidateUrl).startsWith("/") && /^image\//i.test(mime)) {
-        const sbForUpload = createClient(SUPABASE_URL, SERVICE);
-        const publicUrl = await rehostMedia(sbForUpload, candidateUrl, mime);
+        const publicUrl = await rehostMedia(sb, candidateUrl, mime);
         if (publicUrl) {
           attachments.push({ url: publicUrl, type: mime });
         } else if (/^https?:\/\//i.test(candidateUrl)) {
@@ -322,15 +339,14 @@ serve(async (req) => {
       meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null, actions },
     });
 
-    // WAHA send
+    // WAHA send — UN SEUL message par réponse (image + texte + boutons combinés si possible)
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
       try {
         const firstImage = Array.isArray(core.attachments) ? core.attachments.find((a: any) => a?.url)?.url : null;
-        if (firstImage) {
+        if (actions.length > 0) {
+          await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, reply, actions, firstImage);
+        } else if (firstImage) {
           await sendWahaImage(WAHA_BASE_URL, wahaSession, chatId, firstImage, reply);
-          if (actions.length > 0) await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, "Actions rapides WAOUH", actions);
-        } else if (actions.length > 0) {
-          await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, reply, actions);
         } else {
           await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, reply);
         }
