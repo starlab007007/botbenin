@@ -382,6 +382,11 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
       p_dedupe_key: dedupeKey,
       p_event_type: eventKey || "transaction_update",
     });
+    fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: 20 }),
+    }).catch(() => {});
   } catch (e) { console.warn("[waouh-payment] enqueue", e); }
 }
 
