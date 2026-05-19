@@ -140,6 +140,16 @@ Deno.serve(async (req) => {
     let sent = 0, failed = 0, skipped = 0;
 
     for (const it of items || []) {
+      // 🔒 Verrouillage atomique : on revendique la ligne en passant status pending→sending.
+      // Si une autre instance l'a déjà revendiquée, l'update renvoie 0 ligne et on saute.
+      const { data: claimed } = await sb
+        .from("waouh_outbound_queue")
+        .update({ status: "sending", attempts: it.attempts + 1 })
+        .eq("id", it.id)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      if (!claimed) { skipped++; continue; }
       // Skip web-only entries (frontend listens via Realtime)
       if ((it.channel && it.channel === "web") || !it.to_phone) {
         if (!it.to_phone) {
