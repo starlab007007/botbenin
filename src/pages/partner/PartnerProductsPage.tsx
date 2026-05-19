@@ -13,6 +13,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
+import { SmartCombobox } from '@/components/ui/smart-combobox';
+import { BUSINESS_CATEGORIES, PRODUCT_UNITS } from '@/data/beninLocations';
 import { Plus, Loader2, ArrowLeft, Trash2, Sparkles, Wand2 } from 'lucide-react';
 
 const emptyForm = { nom: '', description: '', categorie: '', prix_min: '', prix_max: '', unite: '', disponible: true, stock_estime: '' };
