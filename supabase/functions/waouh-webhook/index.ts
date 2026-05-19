@@ -306,10 +306,14 @@ serve(async (req) => {
         }).select().single();
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
-        const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo(s) jointe(s)` : "";
+        const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""} jointe${photoUrls.length > 1 ? "s" : ""}` : "";
         const min = product.market_price_min || product.price * 0.8;
         const max = product.market_price_max || product.price * 1.2;
-        reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${sourceLines(min, max)}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        const aiNote = await marketNote(product.title || "", product.price, min, max, user!.city || "");
+        const geoLine = (typeof lat === "number" && typeof lng === "number")
+          ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${lat},${lng}` : "";
+        const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
+        reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${geoLine}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
         // Actions vendeur : gérer/modifier/désactiver l'annonce
         returnedActions = [
           { id: `seller_boost:${art?.id || ""}`, label: "🚀 Booster" },
