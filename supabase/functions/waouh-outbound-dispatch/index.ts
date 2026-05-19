@@ -129,11 +129,13 @@ Deno.serve(async (req) => {
   try {
     const { limit = 50 } = req.method === "POST" ? await req.json().catch(() => ({})) : {};
 
+    const nowIso = new Date().toISOString();
     const { data: items, error } = await sb
       .from("waouh_outbound_queue")
       .select("*")
       .eq("status", "pending")
       .lt("attempts", MAX_ATTEMPTS)
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${nowIso}`)
       .order("created_at", { ascending: true })
       .limit(limit);
     if (error) throw error;
@@ -141,8 +143,7 @@ Deno.serve(async (req) => {
     let sent = 0, failed = 0, skipped = 0;
 
     for (const it of items || []) {
-      // 🔒 Verrouillage atomique : on revendique la ligne en passant status pending→sending.
-      // Si une autre instance l'a déjà revendiquée, l'update renvoie 0 ligne et on saute.
+      // 🔒 Verrouillage atomique : pending→sending.
       const { data: claimed } = await sb
         .from("waouh_outbound_queue")
         .update({ status: "sending", attempts: it.attempts + 1 })
@@ -151,30 +152,53 @@ Deno.serve(async (req) => {
         .select("id")
         .maybeSingle();
       if (!claimed) { skipped++; continue; }
-      // Skip web-only entries (frontend listens via Realtime)
+
+      const finishFailed = async (err: string, retry = false) => {
+        const newAttempts = it.attempts + 1;
+        const shouldRetry = retry && newAttempts < MAX_ATTEMPTS;
+        const backoffSec = Math.min(60 * Math.pow(2, newAttempts), 600); // 2,4,8…min, cap 10 min
+        await sb.from("waouh_outbound_queue").update({
+          status: shouldRetry ? "pending" : "failed",
+          last_error: err.slice(0, 500),
+          next_attempt_at: shouldRetry ? new Date(Date.now() + backoffSec * 1000).toISOString() : null,
+        }).eq("id", it.id);
+        failed++;
+      };
+
+      // Web-only : pas de téléphone → realtime web suffit
       if ((it.channel && it.channel === "web") || !it.to_phone) {
-        if (!it.to_phone) {
-          await sb.from("waouh_outbound_queue").update({ status: it.web_session_id ? "sent" : "failed", last_error: it.web_session_id ? null : "no phone", sent_at: new Date().toISOString() }).eq("id", it.id);
-          skipped++; continue;
-        }
+        await sb.from("waouh_outbound_queue").update({
+          status: it.web_session_id ? "sent" : "failed",
+          last_error: it.web_session_id ? null : "no phone",
+          sent_at: new Date().toISOString(),
+        }).eq("id", it.id);
+        skipped++; continue;
       }
       if (!WAHA_BASE_URL) {
-        await sb.from("waouh_outbound_queue").update({ attempts: it.attempts + 1, last_error: "WAHA_BASE_URL missing" }).eq("id", it.id);
+        await finishFailed("WAHA_BASE_URL missing", true);
+        continue;
+      }
+
+      // Filtre : on ne peut PAS envoyer vers un identifiant @lid (LID WhatsApp).
+      if (String(it.to_phone).includes("@lid")) {
+        await sb.from("waouh_outbound_queue").update({
+          status: "failed", last_error: "lid phone not sendable",
+        }).eq("id", it.id);
         skipped++; continue;
       }
 
       const rawText = compose(it.template, it.payload || {});
       const text = stripLegacyPaymentText(rawText);
       const phone = normalizeBeninPhone(it.to_phone);
-      if (!phone) {
-        await sb.from("waouh_outbound_queue").update({ status: "failed", attempts: it.attempts + 1, last_error: "invalid phone" }).eq("id", it.id);
+      if (!phone || phone.includes("@")) {
+        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "invalid phone" }).eq("id", it.id);
         failed++; continue;
       }
       if (phone === WAOUH_BUSINESS_PHONE) {
-        await sb.from("waouh_outbound_queue").update({ status: "sent", attempts: it.attempts + 1, last_error: "skipped business self", sent_at: new Date().toISOString() }).eq("id", it.id);
+        await sb.from("waouh_outbound_queue").update({ status: "sent", last_error: "skipped business self", sent_at: new Date().toISOString() }).eq("id", it.id);
         skipped++; continue;
       }
-      const chatId = phone.includes("@") ? phone : `${phone}@c.us`;
+      const chatId = `${phone}@c.us`;
       const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
       const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
       try {
@@ -191,19 +215,19 @@ Deno.serve(async (req) => {
         }
         if (!r.ok) {
           const body = await r.text();
-          throw new Error(`WAHA ${r.status}: ${body.slice(0, 200)}`);
+          const errMsg = `WAHA ${r.status}: ${body.slice(0, 200)}`;
+          // 422 = session pas prête, 429 = rate-limit, 5xx = serveur → retry avec backoff
+          const transient = r.status === 422 || r.status === 429 || r.status >= 500;
+          await finishFailed(errMsg, transient);
+          continue;
         }
         await sb.from("waouh_outbound_queue").update({
-          status: "sent", sent_at: new Date().toISOString(),
+          status: "sent", sent_at: new Date().toISOString(), last_error: null,
         }).eq("id", it.id);
         sent++;
       } catch (e: any) {
-        const newAttempts = it.attempts + 1;
-        await sb.from("waouh_outbound_queue").update({
-          status: newAttempts >= MAX_ATTEMPTS ? "failed" : "pending",
-          last_error: String(e.message || e),
-        }).eq("id", it.id);
-        failed++;
+        // Erreur réseau → retry
+        await finishFailed(String(e.message || e), true);
       }
     }
 

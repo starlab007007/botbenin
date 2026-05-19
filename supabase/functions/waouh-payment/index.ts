@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
   }
 });
 
-async function pushSystemMessage(sb: any, waouhUserId: string | null, transaction_id: string, text: string) {
+async function pushSystemMessage(sb: any, waouhUserId: string | null, transaction_id: string, text: string, eventKey?: string) {
   if (!waouhUserId) return;
   const { data: wu } = await sb.from("waouh_users").select("id, web_session_id, phone_number").eq("id", waouhUserId).maybeSingle();
   if (!wu) return;
@@ -363,9 +363,12 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
     channel: wu.web_session_id ? "web" : "system",
     direction: "out",
     text,
-    meta: { transaction_id, event: "post_payment_flow" },
+    meta: { transaction_id, event: eventKey || "post_payment_flow" },
   }).select("id").maybeSingle();
   try {
+    // Hash court du texte pour différencier les notifs du même event
+    const txtHash = Array.from(text).reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0).toString(36);
+    const dedupeKey = `tx:${transaction_id}:${eventKey || "msg"}:${wu.id}:${txtHash}`;
     await sb.rpc("waouh_enqueue_outbound_v2", {
       p_to_phone: wu.phone_number,
       p_to_user_id: wu.id,
@@ -376,6 +379,8 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
       p_channel: wu.phone_number ? "whatsapp" : "web",
       p_message_id: msg?.id ?? null,
       p_transaction_id: transaction_id,
+      p_dedupe_key: dedupeKey,
+      p_event_type: eventKey || "transaction_update",
     });
   } catch (e) { console.warn("[waouh-payment] enqueue", e); }
 }
@@ -388,9 +393,21 @@ async function getWaouhUserContact(sb: any, id: string | null) {
   return data;
 }
 
-/** Exchange both contacts (buyer↔seller) once payment is confirmed. */
+/** Exchange both contacts (buyer↔seller) — strictement une seule fois par transaction. */
 async function exchangeContacts(sb: any, buyerId: string | null, sellerId: string | null, transaction_id: string) {
   try {
+    // 🔒 Verrou atomique : on ne fait l'échange QUE si contacts_exchanged_at est NULL.
+    const { data: claimed } = await sb
+      .from("waouh_transactions")
+      .update({ contacts_exchanged_at: new Date().toISOString() })
+      .eq("id", transaction_id)
+      .is("contacts_exchanged_at", null)
+      .select("id")
+      .maybeSingle();
+    if (!claimed) {
+      console.log("[waouh-payment] contacts already exchanged for", transaction_id);
+      return;
+    }
     const [buyer, seller] = await Promise.all([
       getWaouhUserContact(sb, buyerId),
       getWaouhUserContact(sb, sellerId),
