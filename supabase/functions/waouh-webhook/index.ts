@@ -211,11 +211,18 @@ serve(async (req) => {
     let nextContext: any = conv?.context ?? {};
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
-    const moneyLine = (label: string, value: number) => `• *${label}* : ${fmt(value)}`;
     const paymentCard = (amount: number, txId?: string | null) =>
-      `\n\n💳 *Carte de paiement WAOUH*\n${moneyLine("Montant", amount)}\n${moneyLine("Escrow sécurisé", amount)}\n• *Statut* : En attente de paiement\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}\n\n👉 Appuyez sur *Payer* ou envoyez : *payer 0165653468*`;
-    const sourceLines = (min: number, max: number) =>
-      `\n\n🔎 *Références comparatives*\n• Facebook Marketplace / groupes WhatsApp locaux : ${fmt(min)} – ${fmt(max)}\n• Plateformes petites annonces (Jiji, CoinAfrique) : fourchette similaire selon état, mémoire et ville\n• Analyse WAOUH : prix, état, marque/modèle et zone de vente comparés pour sécuriser la confiance.`;
+      `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}`;
+    // Petite phrase analytique IA sur le prix (best-effort, fail-soft)
+    const marketNote = async (title: string, price: number, min: number, max: number, city: string): Promise<string> => {
+      try {
+        const r = await ai(
+          `Tu es analyste prix marché Bénin. Rends UNE SEULE phrase concise (max 22 mots) qui qualifie le prix proposé par rapport au marché local (cher/correct/bonne affaire) avec un chiffre approximatif. JSON: {"note": string}`,
+          `Produit: ${title}\nPrix proposé: ${price} FCFA\nFourchette marché: ${min} – ${max} FCFA\nVille: ${city}`
+        );
+        return typeof r?.note === "string" ? r.note.trim() : "";
+      } catch { return ""; }
+    };
 
     // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie
     async function pushToOther(opts: {
