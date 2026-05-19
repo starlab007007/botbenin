@@ -182,7 +182,7 @@ serve(async (req) => {
     let fromChatId: string | null = null;
     let toPhone: string | null = null;
 
-    // WAHA: { event:"message", session, payload:{ from, body, fromMe, hasMedia, mediaUrl, mimetype } }
+    // WAHA: { event:"message", session, payload:{ id, from, body, fromMe, hasMedia, mediaUrl, mimetype } }
     if (raw.event && raw.payload) {
       const normalizedFrom = normalizeBeninPhone(raw.payload.from || raw.payload.author || "");
       toPhone = normalizeBeninPhone(raw.payload.to || raw.payload._data?.to || "") || WAOUH_BUSINESS_PHONE;
@@ -197,6 +197,17 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // 🛡️ Idempotence : WAHA peut émettre "message" et "message.any" pour le même message → on dédupe par event id.
+      const wahaEventId = raw.payload.id || raw.id || `${normalizedFrom}:${raw.payload.timestamp || ""}:${(raw.payload.body || "").slice(0, 40)}`;
+      if (wahaEventId) {
+        const { error: dupErr } = await sb.from("waouh_processed_events").insert({ event_id: String(wahaEventId), source: "waha" });
+        if (dupErr && (dupErr.code === "23505" || /duplicate/i.test(dupErr.message))) {
+          log("skip duplicate waha event", { wahaEventId });
+          return new Response(JSON.stringify({ ok: true, skipped: true, reason: "duplicate" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
       channel = "whatsapp";
       phone = normalizedFrom;
       fromChatId = raw.payload.from || `${normalizedFrom}@c.us`;
@@ -206,10 +217,8 @@ serve(async (req) => {
         ? `${WAHA_BASE_URL.replace(/\/$/, "")}/api/files/${wahaSession}/${raw.payload.id}.${mediaExt(mime)}`
         : null;
       const candidateUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
-      // Ré-héberger l'image dans un bucket public pour qu'elle soit réutilisable par WAHA et le chat web.
       if (candidateUrl && !String(candidateUrl).startsWith("/") && /^image\//i.test(mime)) {
-        const sbForUpload = createClient(SUPABASE_URL, SERVICE);
-        const publicUrl = await rehostMedia(sbForUpload, candidateUrl, mime);
+        const publicUrl = await rehostMedia(sb, candidateUrl, mime);
         if (publicUrl) {
           attachments.push({ url: publicUrl, type: mime });
         } else if (/^https?:\/\//i.test(candidateUrl)) {
