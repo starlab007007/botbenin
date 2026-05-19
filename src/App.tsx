@@ -237,6 +237,8 @@ const AppContent = () => {
                      <Route path="/admin/waouh/whatsapp-ops" element={<AdminRoute><WaouhWhatsAppOpsPage /></AdminRoute>} />
                      <Route path="/admin/waouh/partners" element={<AdminRoute><AdminWaouhPartnersPage /></AdminRoute>} />
                      <Route path="/admin/waouh/data-control" element={<AdminRoute><AdminWaouhDataControlPage /></AdminRoute>} />
+                     <Route path="/admin/waouh/monitoring" element={<AdminRoute><AdminWaouhMonitoringPage /></AdminRoute>} />
+                     <Route path="/admin/waouh/businesses" element={<AdminRoute><AdminWaouhBusinessesPage /></AdminRoute>} />
                      <Route path="/partner" element={<AuthRoute><PartnerDashboardPage /></AuthRoute>} />
                      <Route path="/partner/businesses" element={<PartnerRoute><PartnerBusinessesPage /></PartnerRoute>} />
                      <Route path="/partner/businesses/:businessId/products" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
