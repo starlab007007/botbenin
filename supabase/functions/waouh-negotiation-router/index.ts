@@ -9,11 +9,10 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 const paymentCard = (amount: number, txId?: string | null) =>
   `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? String(txId).slice(0, 8).toUpperCase() : "créée"}`;
-const paymentActions = (txId: string | null) => [
-  { id: `pay:${txId || ""}`, label: "💳 Payer maintenant" },
-  { id: "mtn", label: "MTN" },
-  { id: "moov", label: "Moov" },
-];
+const payInstructions =
+  `\n\nPayer maintenant : envoyez « MTN » et votre numéro (ex : MTN 0197000000)` +
+  ` ou « Moov » et votre numéro (ex : Moov 0195000000),` +
+  ` puis validez la notification reçue sur votre téléphone pour confirmer le paiement.`;
 const negotiationActions = (negId: string) => [
   { id: `accept:${negId}`, label: "✅ Accepter" },
   { id: `counter:${negId}`, label: "💬 Contre-offre" },
@@ -129,12 +128,12 @@ Deno.serve(async (req) => {
       if (otherUserId) {
         const targetIsBuyer = otherUserId === neg.buyer_user_id;
         const txt = targetIsBuyer
-          ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId)
+          ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId) + payInstructions
           : `✅ *L'acheteur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nLe paiement va être lancé. Vous recevrez une notification dès que l'argent est bloqué en escrow.` + paymentCard(amount, txId);
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, targetIsBuyer ? paymentActions(txId) : [], `neg:${neg.id}:accepted:${otherUserId}`, "negotiation_accepted");
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, [], `neg:${neg.id}:accepted:${otherUserId}`, "negotiation_accepted");
       }
       const reply = isBuyer
-        ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId)
+        ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId) + payInstructions
         : `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nL'acheteur va lancer le paiement.` + paymentCard(amount, txId);
       // Fire-and-forget dispatch
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
@@ -142,7 +141,7 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
-      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: isBuyer ? paymentActions(txId) : [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (intent.kind === "no") {

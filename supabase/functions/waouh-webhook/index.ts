@@ -316,12 +316,8 @@ serve(async (req) => {
           ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${lat},${lng}` : "";
         const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
         reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${geoLine}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
-        // Actions vendeur : gérer/modifier/désactiver l'annonce
-        returnedActions = [
-          { id: `seller_boost:${art?.id || ""}`, label: "🚀 Booster" },
-          { id: `seller_edit:${art?.id || ""}`, label: "✏️ Modifier" },
-          { id: `seller_pause:${art?.id || ""}`, label: "⏸️ Pause" },
-        ];
+        // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
+        returnedActions = [];
 
         // 🛰️ Radar IA: contacter les acheteurs (signaux BUY) qui correspondent
         try {
@@ -432,9 +428,10 @@ serve(async (req) => {
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
         const totalShown = matchesTop.length + radarTop.length;
-        reply = `🎯 *Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez : *intéressé 1*, *intéressé 2*, … ou proposez un prix.${radarHint}`;
-        // Boutons : jusqu'à 3 choix (limite WAHA), le reste reste accessible par texte
-        returnedActions = matchesTop.slice(0, 3).map((_m: any, i: number) => ({ id: `intéressé ${i + 1}`, label: `✅ Choisir n°${i + 1}` }));
+        const interestList = Array.from({ length: totalShown }, (_, i) => `intéressé ${i + 1}`).join(", ");
+        reply = `🎯 *Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez : ${interestList}.${radarHint}`;
+        // Pas de boutons : tout passe par texte (intéressé 1, intéressé 2, …)
+        returnedActions = [];
         const promotedRadarMatches: any[] = [];
         for (const r of radarSellers) {
           const art = await promoteRadarSeller(sb, r, criteriaCategory);
@@ -476,7 +473,17 @@ serve(async (req) => {
     } else if (intent.intent === "CONFIRM" && intent.article_index) {
       const idx = intent.article_index - 1;
       const last = Array.isArray(nextContext?.last_matches) ? nextContext.last_matches : [];
-      const pick = last[idx];
+      let pick: any = last[idx];
+      // Fallback : si la liste est perdue, retomber sur l'article courant
+      if (!pick) {
+        const fallbackArticleId = nextContext?.current_article_id || conv?.current_article_id || null;
+        if (fallbackArticleId) {
+          const { data: art } = await sb.from("waouh_articles")
+            .select("id,title,price,seller_id,photos,market_price_min,market_price_max")
+            .eq("id", fallbackArticleId).maybeSingle();
+          if (art) pick = art;
+        }
+      }
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
@@ -523,33 +530,36 @@ serve(async (req) => {
         // Notifie le vendeur — UN SEUL message, sans carte paiement, sans actions paiement.
         // Boutons interactifs : Accepter / Contre-offre / Refuser.
         if (seller?.id) {
-          await pushToOther({
-            to_user_id: seller.id,
-            template: "match_seller",
-            payload: {
-              article_id: pick.id, title: pick.title, price: askPrice,
-              buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+          try {
+            await pushToOther({
+              to_user_id: seller.id,
+              template: "match_seller",
+              payload: {
+                article_id: pick.id, title: pick.title, price: askPrice,
+                buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+                transaction_id: returnedTransactionId,
+                actions: [
+                  { id: `accept:${neg?.id || ""}`, label: "✅ Accepter" },
+                  { id: `counter:${neg?.id || ""}`, label: "💬 Contre-offre" },
+                  { id: `refuse:${neg?.id || ""}`, label: "❌ Refuser" },
+                ],
+              },
+              image_url: firstPhoto,
+              directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
+              directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
+              directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
               transaction_id: returnedTransactionId,
-              actions: [
-                { id: `accept:${neg?.id || ""}`, label: "✅ Accepter" },
-                { id: `counter:${neg?.id || ""}`, label: "💬 Contre-offre" },
-                { id: `refuse:${neg?.id || ""}`, label: "❌ Refuser" },
-              ],
-            },
-            image_url: firstPhoto,
-            directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
-            directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
-            directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
-            transaction_id: returnedTransactionId,
-            dedupe_key: neg?.id ? `neg:${neg.id}:new_interest:${seller.id}` : null,
-            event_type: "seller_new_interest",
-          });
+              dedupe_key: null,
+              event_type: "seller_new_interest",
+            });
+            console.log("[interest-push] enqueue ok", { seller_id: seller.id, neg_id: neg?.id, tx: returnedTransactionId });
+          } catch (e) {
+            console.error("[interest-push] enqueue failed", e);
+          }
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
-        returnedActions = [
-          { id: `counter:${neg?.id || ""}`, label: "💬 Négocier" },
-        ];
-        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez *Je propose ${fmt(Math.round(askPrice * 0.9))}*.`;
+        returnedActions = [];
+        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez (Exemple : Je propose 450 FCFA).`;
         }
       }
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
