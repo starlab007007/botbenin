@@ -30,9 +30,7 @@ export function paymentInstructions(amount: number, txId?: string | null): strin
   return (
     `💳 *Paiement prêt*` +
     paymentCard(amount, txId) +
-    `\n\n📱 Choisissez votre opérateur Mobile Money (MTN ou Moov)` +
-    ` puis validez la notification reçue sur votre téléphone.` +
-    `\n🔒 Les fonds restent en escrow jusqu'à confirmation de réception.`
+    `\n\nvalidez la notification reçue sur votre téléphone`
   );
 }
 
@@ -94,7 +92,9 @@ export function contactExchangeText(
 ): string {
   const who = role === "buyer_to_seller" ? "vendeur" : "acheteur";
   const name = other.display_name || `Contact ${who}`;
-  const phone = other.phone_number ? `\n📞 *WhatsApp* : ${other.phone_number}` : "";
+  const rawPhone = (other.phone_number || "").replace(/@(?:c\.us|lid|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
+  const formatted = rawPhone ? `+${rawPhone}` : "";
+  const phone = formatted ? `\n📞 *WhatsApp* : ${formatted}` : "";
   const city = other.city ? `\n📍 *Ville* : ${other.city}` : "";
   const maps = (other.lat != null && other.lng != null)
     ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${other.lat},${other.lng}`

@@ -493,11 +493,8 @@ serve(async (req) => {
         if (alreadyOnArticle && existingTxId) {
           returnedArticleId = pick.id;
           returnedTransactionId = existingTxId;
-          returnedActions = [
-            { id: `pay:${existingTxId}`, label: "💳 Payer" },
-            { id: `counter:${pick.id}`, label: "💬 Négocier" },
-          ];
-          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nVous pouvez écrire *Je propose ${fmt(askPrice)}* pour négocier ou appuyer sur *Payer*.`;
+          returnedActions = [];
+          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou vous pouvez écrire ( Ex: Je propose ${fmt(askPrice)}) pour négocier.`;
         } else {
         // Récupère vendeur (phone + web session)
         const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
@@ -538,11 +535,7 @@ serve(async (req) => {
                 article_id: pick.id, title: pick.title, price: askPrice,
                 buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
                 transaction_id: returnedTransactionId,
-                actions: [
-                  { id: `accept:${neg?.id || ""}`, label: "✅ Accepter" },
-                  { id: `counter:${neg?.id || ""}`, label: "💬 Contre-offre" },
-                  { id: `refuse:${neg?.id || ""}`, label: "❌ Refuser" },
-                ],
+                actions: [],
               },
               image_url: firstPhoto,
               directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
@@ -595,13 +588,9 @@ serve(async (req) => {
             payload: {
               neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount,
               transaction_id: returnedTransactionId,
-              actions: [
-                { id: `accept:${neg.id}`, label: "✅ Accepter" },
-                { id: `counter:${neg.id}`, label: "💬 Contre-offre" },
-                { id: `refuse:${neg.id}`, label: "❌ Refuser" },
-              ],
+              actions: [],
             },
-            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
+            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(amount)} CFA).`,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
             transaction_id: returnedTransactionId,
             dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
@@ -645,11 +634,7 @@ serve(async (req) => {
         returnedArticleId = neg.article_id;
         returnedTransactionId = txId;
         const payAmount = Number(neg.last_offer_price || 0);
-        returnedActions = [
-          { id: `pay:${txId || ""}`, label: "💳 Payer maintenant" },
-          { id: "mtn", label: "MTN" },
-          { id: "moov", label: "Moov" },
-        ];
+        returnedActions = [];
         if (channel === "whatsapp" && intent.payment_phone && txId) {
           const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
             method: "POST",
@@ -659,11 +644,11 @@ serve(async (req) => {
           const pay = await payRes.json().catch(() => ({}));
           reply = pay?.success
             ? `✅ *Paiement confirmé*\n\n💰 *Montant* : ${fmt(payAmount)}\n🔒 *Escrow* : Fonds bloqués jusqu'à réception.\n\nAprès livraison, écrivez *j'ai reçu* pour terminer la transaction.`
-            : `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\n📱 Indiquez l'opérateur (MTN ou Moov) puis validez la notification reçue sur votre téléphone.`;
+            : `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\nvalidez la notification reçue sur votre téléphone`;
         } else {
           reply = channel === "whatsapp"
-            ? `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\n📱 Choisissez votre opérateur Mobile Money (MTN ou Moov) puis validez la notification reçue sur votre téléphone.\n🔒 Les fonds restent en escrow jusqu'à confirmation de réception.`
-            : `💳 *Paiement prêt* — ${fmt(payAmount)}\n\nCliquez sur *Payer maintenant* dans la carte ci-dessous, choisissez MTN/Moov Money, puis validez sur votre téléphone. L'argent sera bloqué en escrow et libéré au vendeur après confirmation de réception.`;
+            ? `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\nvalidez la notification reçue sur votre téléphone`
+            : `💳 *Paiement prêt* — ${fmt(payAmount)}\n\nvalidez la notification reçue sur votre téléphone`;
         }
       }
     } else if (intent.intent === "CONFIRM_RECEIVED") {

@@ -10,14 +10,10 @@ const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) 
 const paymentCard = (amount: number, txId?: string | null) =>
   `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? String(txId).slice(0, 8).toUpperCase() : "créée"}`;
 const payInstructions =
-  `\n\nPayer maintenant : envoyez « MTN » et votre numéro (ex : MTN 0197000000)` +
-  ` ou « Moov » et votre numéro (ex : Moov 0195000000),` +
-  ` puis validez la notification reçue sur votre téléphone pour confirmer le paiement.`;
-const negotiationActions = (negId: string) => [
-  { id: `accept:${negId}`, label: "✅ Accepter" },
-  { id: `counter:${negId}`, label: "💬 Contre-offre" },
-  { id: `refuse:${negId}`, label: "❌ Refuser" },
-];
+  `\n\nPayer maintenant :` +
+  `\n📱 Choisissez selon votre opérateur Mobile Money (MTN ou Moov) envoyer MTN + numéro ou Moov + Numéro ( Ex: MTN 0197-------) puis validez la notification reçue sur votre téléphone.` +
+  `\n🔒 Les fonds restent en escrow jusqu'à confirmation de réception.`;
+const negotiationActions = (_negId: string) => [] as Array<{ id: string; label: string }>;
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
   const lower = (text || "").toLowerCase();
@@ -165,7 +161,7 @@ Deno.serve(async (req) => {
       if (otherUserId) {
         await pushToOther(otherUserId, "negotiation_open",
           { neg_id: neg.id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id },
-          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
+          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(intent.price)} CFA).`,
           { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id },
           neg.transaction_id,
           negotiationActions(neg.id),
