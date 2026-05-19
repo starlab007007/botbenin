@@ -67,27 +67,27 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
   });
 }
 
-async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string; url?: string; phone?: string }>, headers: Record<string, string>, footer?: string, title?: string) {
-  // Try the rich interactive format (WAHA Plus / NOWEB+) with reply/url/call buttons
+async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string; url?: string; phone?: string }>, headers: Record<string, string>, footer?: string, title?: string, imageUrl?: string | null) {
   const richButtons = actions.slice(0, 3).map((a) => {
     if (a.url) return { type: "url", url: a.url, text: a.label };
     if (a.phone) return { type: "call", phoneNumber: a.phone, text: a.label };
     return { type: "reply", reply: { id: a.id, title: a.label } };
   });
-  const richBody = { session, chatId, header: title, body: text, footer: footer || "WAOUH • bot.bj", buttons: richButtons };
+  const richBody: any = { session, chatId, body: text, footer: footer || "WAOUH • bot.bj", buttons: richButtons };
+  if (title) richBody.header = title;
+  if (imageUrl) richBody.header = { image: { url: imageUrl } };
   let r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
-  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ chatId, ...richBody, session: undefined }) });
+  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
   // Legacy simple format
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ chatId, text, buttons }) });
-  if (r.ok) return r;
-  // Text fallback with numbered options
+  // Final fallback : image (si présente) + texte avec options numérotées
+  if (imageUrl) await sendWahaImage(base, session, chatId, imageUrl, text, headers);
   const lines = actions.map((a, i) => `${i + 1}. ${a.label}${a.url ? ` → ${a.url}` : a.phone ? ` ☎ ${a.phone}` : ""}`).join("\n");
-  return sendWahaText(base, session, chatId, `${text}\n\n${lines}`, headers);
+  return sendWahaText(base, session, chatId, imageUrl ? `_Répondez avec le numéro de votre choix :_\n${lines}` : `${text}\n\n${lines}`, headers);
 }
 
 function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
