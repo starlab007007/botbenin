@@ -234,13 +234,14 @@ serve(async (req) => {
       directAtts?: Array<{ url: string; type: string }>;
       directMeta?: any;
       transaction_id?: string | null;
+      dedupe_key?: string | null;
+      event_type?: string | null;
     }) {
       const { data: target } = await sb.from("waouh_users")
         .select("id, phone_number, web_session_id, channel")
         .eq("id", opts.to_user_id).maybeSingle();
       if (!target) return;
       if (target.id === user?.id || (target.phone_number && phone && normalizeBeninPhone(target.phone_number) === normalizeBeninPhone(phone))) return;
-      // 1) Insert direct chat message first to capture its id
       let insertedMsgId: string | null = null;
       if (target.web_session_id) {
         try {
@@ -256,10 +257,7 @@ serve(async (req) => {
           insertedMsgId = msg?.id ?? null;
         } catch (e) { console.warn("[pushToOther] msg", e); }
       }
-      // 2) Notification (cloche + WhatsApp si phone) avec deep-link
       try {
-        // Pas d'actions paiement automatiques dans les notifications de match/négo
-        // (les boutons restent contextuels: Accepter / Refuser / Contre-offrer côté caller)
         const quickActions: Array<{ id: string; label: string }> = [];
         await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.phone_number,
@@ -271,6 +269,8 @@ serve(async (req) => {
           p_channel: target.phone_number ? "whatsapp" : "web",
           p_message_id: insertedMsgId,
           p_transaction_id: opts.transaction_id ?? null,
+          p_dedupe_key: opts.dedupe_key ?? null,
+          p_event_type: opts.event_type ?? null,
         });
       } catch (e) { console.warn("[pushToOther] enqueue", e); }
     }
