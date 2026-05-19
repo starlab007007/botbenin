@@ -538,6 +538,9 @@ serve(async (req) => {
             directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
             directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
             directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
+            transaction_id: returnedTransactionId,
+            dedupe_key: neg?.id ? `neg:${neg.id}:new_interest:${seller.id}` : null,
+            event_type: "seller_new_interest",
           });
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
@@ -588,6 +591,9 @@ serve(async (req) => {
             },
             directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant.`,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
+            transaction_id: returnedTransactionId,
+            dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
+            event_type: "negotiation_counter",
           });
         }
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de ${fmt(amount)} transmise. Vous serez notifié de la réponse.`;
