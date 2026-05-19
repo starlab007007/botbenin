@@ -530,33 +530,36 @@ serve(async (req) => {
         // Notifie le vendeur — UN SEUL message, sans carte paiement, sans actions paiement.
         // Boutons interactifs : Accepter / Contre-offre / Refuser.
         if (seller?.id) {
-          await pushToOther({
-            to_user_id: seller.id,
-            template: "match_seller",
-            payload: {
-              article_id: pick.id, title: pick.title, price: askPrice,
-              buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+          try {
+            await pushToOther({
+              to_user_id: seller.id,
+              template: "match_seller",
+              payload: {
+                article_id: pick.id, title: pick.title, price: askPrice,
+                buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+                transaction_id: returnedTransactionId,
+                actions: [
+                  { id: `accept:${neg?.id || ""}`, label: "✅ Accepter" },
+                  { id: `counter:${neg?.id || ""}`, label: "💬 Contre-offre" },
+                  { id: `refuse:${neg?.id || ""}`, label: "❌ Refuser" },
+                ],
+              },
+              image_url: firstPhoto,
+              directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
+              directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
+              directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
               transaction_id: returnedTransactionId,
-              actions: [
-                { id: `accept:${neg?.id || ""}`, label: "✅ Accepter" },
-                { id: `counter:${neg?.id || ""}`, label: "💬 Contre-offre" },
-                { id: `refuse:${neg?.id || ""}`, label: "❌ Refuser" },
-              ],
-            },
-            image_url: firstPhoto,
-            directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
-            directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
-            directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
-            transaction_id: returnedTransactionId,
-            dedupe_key: neg?.id ? `neg:${neg.id}:new_interest:${seller.id}` : null,
-            event_type: "seller_new_interest",
-          });
+              dedupe_key: null,
+              event_type: "seller_new_interest",
+            });
+            console.log("[interest-push] enqueue ok", { seller_id: seller.id, neg_id: neg?.id, tx: returnedTransactionId });
+          } catch (e) {
+            console.error("[interest-push] enqueue failed", e);
+          }
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
-        returnedActions = [
-          { id: `counter:${neg?.id || ""}`, label: "💬 Négocier" },
-        ];
-        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez *Je propose ${fmt(Math.round(askPrice * 0.9))}*.`;
+        returnedActions = [];
+        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez (Exemple : Je propose 450 FCFA).`;
         }
       }
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
