@@ -9,13 +9,15 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { SmartCombobox } from '@/components/ui/smart-combobox';
 import { BUSINESS_CATEGORIES, PRODUCT_UNITS } from '@/data/beninLocations';
-import { Plus, Loader2, ArrowLeft, Trash2, Sparkles, Wand2 } from 'lucide-react';
+import { productSchema, flattenZodErrors } from '@/lib/validation/waouh';
+import { Plus, Loader2, ArrowLeft, Trash2, Sparkles, Wand2, Pencil } from 'lucide-react';
 
 const emptyForm = { nom: '', description: '', categorie: '', prix_min: '', prix_max: '', unite: '', disponible: true, stock_estime: '' };
 
