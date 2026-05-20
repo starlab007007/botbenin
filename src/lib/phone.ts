@@ -11,7 +11,8 @@ export type Country = {
 };
 
 export const COUNTRIES: Country[] = [
-  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 8, groups: [2, 2, 2, 2], prefixes: ['9', '6', '5', '4'] },
+  // Bénin : depuis 2021, numéros à 10 chiffres commençant par 01
+  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 10, groups: [2, 2, 2, 2, 2], prefixes: ['01'] },
   { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬', length: 8, groups: [2, 2, 2, 2] },
   { code: 'CI', name: "Côte d'Ivoire", dial: '+225', flag: '🇨🇮', length: 10, groups: [2, 2, 2, 2, 2] },
   { code: 'SN', name: 'Sénégal', dial: '+221', flag: '🇸🇳', length: 9, groups: [3, 3, 3] },
