@@ -159,9 +159,9 @@ serve(async (req) => {
 
     // Clean and validate phone number
     const cleanPhone = phoneNumber.replace(/\D/g, '');
-    if (!/^229\d{8}$/.test(cleanPhone)) {
+    if (!/^229\d{8,12}$/.test(cleanPhone)) {
       log('error', 'phone_validation_failed', { orderId, phoneFormat: cleanPhone.substring(0, 6) + '***' });
-      throw new Error('Format de téléphone invalide (doit être 229XXXXXXXX)');
+      throw new Error('Format de téléphone invalide (doit commencer par 229)');
     }
 
     log('info', 'phone_validated', { orderId, phonePrefix: cleanPhone.substring(0, 6) + '***' });
