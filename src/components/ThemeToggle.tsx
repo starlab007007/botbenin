@@ -48,11 +48,12 @@ export const ThemeToggle: React.FC = () => {
       variant="ghost"
       size="sm"
       onClick={toggleTheme}
-      className="flex items-center space-x-2 w-full justify-start px-3 py-2 text-sm font-body hover:bg-muted/50 rounded-xl transition-all duration-300"
+      className="flex items-center gap-2 justify-center sm:justify-start px-2 sm:px-3 py-2 text-sm font-body hover:bg-muted/50 rounded-xl transition-all duration-300"
       title={getLabel()}
+      aria-label={getLabel()}
     >
       {getIcon()}
-      <span className="text-muted-foreground">{getLabel()}</span>
+      <span className="hidden md:inline text-muted-foreground">{getLabel()}</span>
     </Button>
   );
 };

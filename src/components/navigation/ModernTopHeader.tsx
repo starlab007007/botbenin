@@ -101,9 +101,9 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 
   return (
     <>
-      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-40 shadow-sm">
+      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between gap-2 px-2 sm:px-4 lg:px-6 sticky top-0 z-40 shadow-sm w-full max-w-[100vw] overflow-x-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {/* Gauche */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-shrink">
           {/* Bouton menu mobile */}
           <Button
             variant="ghost"
@@ -140,7 +140,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
         </div>
 
         {/* Droite */}
-        <div className="flex items-center space-x-2 lg:space-x-4">
+        <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 flex-shrink-0">
           {/* Recherche mobile */}
           <Button
             variant="ghost"
@@ -239,11 +239,12 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           ) : (
             <Button
               onClick={() => setShowAuthModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-2 sm:px-4"
               size="sm"
+              aria-label="Connexion"
             >
-              <User className="w-4 h-4 mr-2" />
-              Connexion
+              <User className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Connexion</span>
             </Button>
           )}
         </div>
