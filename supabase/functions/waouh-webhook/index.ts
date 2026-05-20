@@ -477,6 +477,7 @@ serve(async (req) => {
           if (art?.id) promotedRadarMatches.push({ ...art, radar: true });
         }
         const combinedMatches = [
+          ...partnerTop.map((p: any) => ({ id: p.id, title: `🏪 ${p.titre}`, price: Number(p.prix_min || p.prix_max || 0), seller_id: null, partner_id: p.partner_id, business_id: p.business_id, vendeur_phone: p.vendeur_phone, vendeur_whatsapp: p.vendeur_whatsapp, photos: p.photos, source: "partner" })),
           ...(matches || []).map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
           ...promotedRadarMatches.map((m: any) => ({ id: m.id, title: `🛰️ ${m.title}`, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
         ];
