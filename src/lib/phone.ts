@@ -37,12 +37,25 @@ export function findCountryByCode(code: string): Country | undefined {
 
 export function parsePhone(value: string | null | undefined): { country: Country; local: string } {
   if (!value) return { country: DEFAULT_COUNTRY, local: '' };
-  const v = value.trim();
+  const v = String(value).trim();
   if (v.startsWith('+')) {
     const match = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find(c => v.startsWith(c.dial));
-    if (match) return { country: match, local: v.slice(match.dial.length).replace(/\D/g, '') };
+    if (match) {
+      let local = v.slice(match.dial.length).replace(/\D/g, '');
+      // Bénin : ancien format 8 chiffres → préfixer 01
+      if (match.code === 'BJ' && local.length === 8 && /^[4-9]/.test(local)) local = '01' + local;
+      return { country: match, local };
+    }
   }
-  return { country: DEFAULT_COUNTRY, local: v.replace(/\D/g, '') };
+  let local = v.replace(/\D/g, '');
+  // Cas WhatsApp JID style: peut contenir l'indicatif 229 collé
+  if (local.startsWith('229') && (local.length === 11 || local.length === 13)) {
+    let rest = local.slice(3);
+    if (rest.length === 8 && /^[4-9]/.test(rest)) rest = '01' + rest;
+    return { country: DEFAULT_COUNTRY, local: rest };
+  }
+  if (local.length === 8 && /^[4-9]/.test(local)) local = '01' + local;
+  return { country: DEFAULT_COUNTRY, local };
 }
 
 export function formatLocal(local: string, country: Country): string {
