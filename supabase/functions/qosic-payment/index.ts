@@ -233,6 +233,11 @@ serve(async (req) => {
     // Normalize base URL: strip any path suffix and trailing slash so users can paste full endpoint by mistake
     let qosicBaseUrl = Deno.env.get('QOSIC_BASE_URL') || 'http://staging.qosic.net:9010';
     qosicBaseUrl = qosicBaseUrl.replace(/\/QosicBridge.*$/i, '').replace(/\/+$/, '');
+    // Auto-force staging endpoint when staging credentials are detected (USR01 / MTNTEST)
+    if (qosicUsername === 'USR01' || clientId === 'MTNTEST') {
+      qosicBaseUrl = 'http://staging.qosic.net:9010';
+      log('info', 'staging_url_forced', { reason: 'staging credentials detected' });
+    }
     
     // Map operator to correct endpoint
     const endpointMap = {
