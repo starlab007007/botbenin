@@ -101,7 +101,7 @@ export const PhoneInput = React.memo(function PhoneInput({
           value={formatLocal(local, country)}
           onChange={e => handleLocal(e.target.value)}
           onBlur={() => setTouched(true)}
-          placeholder={placeholder || (country.code === 'BJ' ? '97 12 34 56' : '')}
+          placeholder={placeholder || (country.code === 'BJ' ? '01 97 12 34 56' : '')}
           disabled={disabled}
           className={cn(showError && 'border-destructive focus-visible:ring-destructive')}
         />

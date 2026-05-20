@@ -11,7 +11,8 @@ export type Country = {
 };
 
 export const COUNTRIES: Country[] = [
-  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 8, groups: [2, 2, 2, 2], prefixes: ['9', '6', '5', '4'] },
+  // Bénin : depuis 2021, numéros à 10 chiffres commençant par 01
+  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 10, groups: [2, 2, 2, 2, 2], prefixes: ['01'] },
   { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬', length: 8, groups: [2, 2, 2, 2] },
   { code: 'CI', name: "Côte d'Ivoire", dial: '+225', flag: '🇨🇮', length: 10, groups: [2, 2, 2, 2, 2] },
   { code: 'SN', name: 'Sénégal', dial: '+221', flag: '🇸🇳', length: 9, groups: [3, 3, 3] },
@@ -36,12 +37,25 @@ export function findCountryByCode(code: string): Country | undefined {
 
 export function parsePhone(value: string | null | undefined): { country: Country; local: string } {
   if (!value) return { country: DEFAULT_COUNTRY, local: '' };
-  const v = value.trim();
+  const v = String(value).trim();
   if (v.startsWith('+')) {
     const match = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find(c => v.startsWith(c.dial));
-    if (match) return { country: match, local: v.slice(match.dial.length).replace(/\D/g, '') };
+    if (match) {
+      let local = v.slice(match.dial.length).replace(/\D/g, '');
+      // Bénin : ancien format 8 chiffres → préfixer 01
+      if (match.code === 'BJ' && local.length === 8 && /^[4-9]/.test(local)) local = '01' + local;
+      return { country: match, local };
+    }
   }
-  return { country: DEFAULT_COUNTRY, local: v.replace(/\D/g, '') };
+  let local = v.replace(/\D/g, '');
+  // Cas WhatsApp JID style: peut contenir l'indicatif 229 collé
+  if (local.startsWith('229') && (local.length === 11 || local.length === 13)) {
+    let rest = local.slice(3);
+    if (rest.length === 8 && /^[4-9]/.test(rest)) rest = '01' + rest;
+    return { country: DEFAULT_COUNTRY, local: rest };
+  }
+  if (local.length === 8 && /^[4-9]/.test(local)) local = '01' + local;
+  return { country: DEFAULT_COUNTRY, local };
 }
 
 export function formatLocal(local: string, country: Country): string {
@@ -66,8 +80,35 @@ export function toE164(local: string, country: Country): string {
 export function isValidPhone(local: string, country: Country): boolean {
   const d = local.replace(/\D/g, '');
   if (d.length !== country.length) return false;
-  if (country.prefixes && !country.prefixes.includes(d[0])) return false;
+  if (country.prefixes) {
+    // Préfixe peut être de 1 ou plusieurs caractères
+    if (!country.prefixes.some(p => d.startsWith(p))) return false;
+  }
   return true;
+}
+
+/** Extrait un numéro depuis un JID WhatsApp (ex: 22901XXXXXXXX@s.whatsapp.net, 273091318042723@lid) */
+export function jidToPhone(jid: string | null | undefined): string {
+  if (!jid) return '';
+  const raw = String(jid);
+  const atIdx = raw.indexOf('@');
+  const numPart = (atIdx >= 0 ? raw.slice(0, atIdx) : raw).replace(/\D/g, '');
+  if (!numPart) return '';
+  // Les LID ne sont pas des numéros téléphoniques réels — on ne tente la conversion
+  // que si on reconnait un indicatif pays connu (sinon on renvoie '' pour fallback).
+  if (raw.includes('@lid')) {
+    // Heuristique : si commence par 229 et la suite fait 8/10 chiffres
+    if (numPart.startsWith('229')) {
+      const e = '+' + numPart;
+      const p = parsePhone(e);
+      if (isValidPhone(p.local, p.country)) return toE164(p.local, p.country);
+    }
+    return '';
+  }
+  const e164 = numPart.startsWith('+') ? numPart : '+' + numPart;
+  const p = parsePhone(e164);
+  if (isValidPhone(p.local, p.country)) return toE164(p.local, p.country);
+  return '';
 }
 
 export function formatPhoneDisplay(value: string | null | undefined): string {
