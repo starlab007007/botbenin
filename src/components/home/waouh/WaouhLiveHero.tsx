@@ -126,7 +126,7 @@ export const WaouhLiveHero: React.FC = () => {
           </div>
 
           <h1
-            className="mt-5 sm:mt-6 font-bold leading-[0.95] tracking-tight text-[30px] xs:text-[40px] sm:text-[52px] md:text-[64px] lg:text-[76px] xl:text-[88px]"
+            className="mt-5 sm:mt-6 font-bold leading-[0.95] tracking-tight text-[clamp(28px,9vw,40px)] xs:text-[40px] sm:text-[52px] md:text-[64px] lg:text-[76px] xl:text-[88px] break-words"
             style={{ color: 'hsl(var(--home-text))' }}
           >
             <span className="block">Parlez.</span>
