@@ -5407,6 +5407,84 @@ export type Database = {
           },
         ]
       }
+      waouh_lid_phone_map: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          jid: string | null
+          last_synced_at: string
+          lid: string
+          phone: string | null
+          phone_e164: string | null
+          pushname: string | null
+          session: string | null
+          source: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          jid?: string | null
+          last_synced_at?: string
+          lid: string
+          phone?: string | null
+          phone_e164?: string | null
+          pushname?: string | null
+          session?: string | null
+          source?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          jid?: string | null
+          last_synced_at?: string
+          lid?: string
+          phone?: string | null
+          phone_e164?: string | null
+          pushname?: string | null
+          session?: string | null
+          source?: string | null
+        }
+        Relationships: []
+      }
+      waouh_lid_sync_runs: {
+        Row: {
+          contacts_fetched: number | null
+          contacts_mapped: number | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          rows_backfilled: number | null
+          session: string | null
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          contacts_fetched?: number | null
+          contacts_mapped?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_backfilled?: number | null
+          session?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          contacts_fetched?: number | null
+          contacts_mapped?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_backfilled?: number | null
+          session?: string | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       waouh_messages: {
         Row: {
           attachments: Json | null
@@ -9634,6 +9712,7 @@ export type Database = {
       waouh_normalize_bj_phone: { Args: { input: string }; Returns: string }
       waouh_promote_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
+      waouh_resolve_phone: { Args: { input: string }; Returns: string }
       waouh_search_unified: {
         Args: {
           in_categorie?: string
