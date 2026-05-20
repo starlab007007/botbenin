@@ -11,6 +11,7 @@ import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock } from 'lucide-react';
 import { useRef } from 'react';
+import { PhoneCell } from '@/components/waouh/PhoneCell';
 
 type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
 interface CleanItem { id: string; titre: string; status: CleanItemStatus; message?: string }
