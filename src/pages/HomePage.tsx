@@ -18,13 +18,14 @@ export const HomePage: React.FC = () => {
 
   return (
     <div
-      className="w-full min-h-screen"
+      className="w-full min-h-screen overflow-x-hidden"
       style={{
         background:
           'radial-gradient(1200px 600px at 90% -10%, hsl(var(--home-accent) / 0.18), transparent 60%),' +
           'radial-gradient(900px 500px at -10% 110%, hsl(var(--home-accent-warm) / 0.18), transparent 60%),' +
           'hsl(var(--home-bg))',
         color: 'hsl(var(--home-text))',
+        maxWidth: '100vw',
       }}
     >
       {user?.name && (
