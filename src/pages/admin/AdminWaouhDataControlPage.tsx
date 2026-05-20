@@ -180,7 +180,7 @@ export default function AdminWaouhDataControlPage() {
                         <TableCell className="max-w-xs truncate">{r.titre}</TableCell>
                         <TableCell>{r.ville}</TableCell>
                         <TableCell>{r.prix_min ? `${Number(r.prix_min).toLocaleString()} F` : '-'}</TableCell>
-                        <TableCell className="text-xs">{r.vendeur_nom}<div className="text-muted-foreground">{r.vendeur_phone}</div></TableCell>
+                        <TableCell className="text-xs"><div className="font-medium">{r.vendeur_nom}</div><PhoneCell value={r.vendeur_whatsapp || r.vendeur_phone} /></TableCell>
                         <TableCell><Badge variant="outline">{r.qualite_score}</Badge></TableCell>
                         <TableCell><Button size="sm" variant="outline" onClick={() => toggleVerified(r.id, false)}><CheckCircle2 className="h-4 w-4 mr-1" />Vérifier</Button></TableCell>
                       </TableRow>
