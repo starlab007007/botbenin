@@ -80,8 +80,35 @@ export function toE164(local: string, country: Country): string {
 export function isValidPhone(local: string, country: Country): boolean {
   const d = local.replace(/\D/g, '');
   if (d.length !== country.length) return false;
-  if (country.prefixes && !country.prefixes.includes(d[0])) return false;
+  if (country.prefixes) {
+    // Préfixe peut être de 1 ou plusieurs caractères
+    if (!country.prefixes.some(p => d.startsWith(p))) return false;
+  }
   return true;
+}
+
+/** Extrait un numéro depuis un JID WhatsApp (ex: 22901XXXXXXXX@s.whatsapp.net, 273091318042723@lid) */
+export function jidToPhone(jid: string | null | undefined): string {
+  if (!jid) return '';
+  const raw = String(jid);
+  const atIdx = raw.indexOf('@');
+  const numPart = (atIdx >= 0 ? raw.slice(0, atIdx) : raw).replace(/\D/g, '');
+  if (!numPart) return '';
+  // Les LID ne sont pas des numéros téléphoniques réels — on ne tente la conversion
+  // que si on reconnait un indicatif pays connu (sinon on renvoie '' pour fallback).
+  if (raw.includes('@lid')) {
+    // Heuristique : si commence par 229 et la suite fait 8/10 chiffres
+    if (numPart.startsWith('229')) {
+      const e = '+' + numPart;
+      const p = parsePhone(e);
+      if (isValidPhone(p.local, p.country)) return toE164(p.local, p.country);
+    }
+    return '';
+  }
+  const e164 = numPart.startsWith('+') ? numPart : '+' + numPart;
+  const p = parsePhone(e164);
+  if (isValidPhone(p.local, p.country)) return toE164(p.local, p.country);
+  return '';
 }
 
 export function formatPhoneDisplay(value: string | null | undefined): string {
