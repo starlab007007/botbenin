@@ -443,6 +443,87 @@ export default function AdminWaouhDataControlPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Voir détails */}
+      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{viewing?.titre || 'Détails'}</DialogTitle></DialogHeader>
+          {viewing && (
+            <div className="space-y-4 text-sm">
+              {Array.isArray(viewing.photos) && viewing.photos.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {viewing.photos.map((p: string, i: number) => (
+                    <img key={i} src={p} alt="" className="w-full aspect-square object-cover rounded border" />
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Source">{viewing.source} (P{viewing.priority_rank})</Field>
+                <Field label="Type">{viewing.type === 'offer' ? 'Annonce vendeur' : 'Demande acheteur'}</Field>
+                <Field label="Catégorie">{viewing.categorie || '—'} {viewing.sous_categorie ? `· ${viewing.sous_categorie}` : ''}</Field>
+                <Field label="Prix">{viewing.prix_min ? `${Number(viewing.prix_min).toLocaleString()} ${viewing.devise || 'FCFA'}` : '—'}</Field>
+                <Field label="Ville">{viewing.ville || '—'}</Field>
+                <Field label="Quartier">{viewing.quartier || '—'}</Field>
+                <Field label="Géolocalisation">{viewing.lat && viewing.lng ? `${viewing.lat}, ${viewing.lng}` : '—'}</Field>
+                <Field label="Date publication">{viewing.date_publication ? new Date(viewing.date_publication).toLocaleString('fr-FR') : '—'}</Field>
+                <Field label="Vendeur"><div>{viewing.vendeur_nom || '—'}</div></Field>
+                <Field label="Score qualité">{viewing.qualite_score}</Field>
+                <Field label="Téléphone"><PhoneCell value={viewing.vendeur_phone_norm || viewing.vendeur_phone} /></Field>
+                <Field label="WhatsApp"><PhoneCell value={viewing.vendeur_whatsapp_norm || viewing.vendeur_whatsapp} /></Field>
+                {viewing.vendeur_mobile_money && <Field label="Mobile Money"><PhoneCell value={viewing.vendeur_mobile_money} /></Field>}
+              </div>
+              {viewing.description && (
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Description</div>
+                  <p className="whitespace-pre-wrap text-sm">{viewing.description}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modifier */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Modifier l'entrée du catalogue</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <LField label="Titre"><Input value={editDraft.titre || ''} onChange={e => setEditDraft({ ...editDraft, titre: e.target.value })} /></LField>
+            <LField label="Description"><Textarea rows={3} value={editDraft.description || ''} onChange={e => setEditDraft({ ...editDraft, description: e.target.value })} /></LField>
+            <div className="grid grid-cols-2 gap-3">
+              <LField label="Catégorie"><Input value={editDraft.categorie || ''} onChange={e => setEditDraft({ ...editDraft, categorie: e.target.value })} /></LField>
+              <LField label="Ville"><Input value={editDraft.ville || ''} onChange={e => setEditDraft({ ...editDraft, ville: e.target.value })} /></LField>
+              <LField label="Quartier"><Input value={editDraft.quartier || ''} onChange={e => setEditDraft({ ...editDraft, quartier: e.target.value })} /></LField>
+              <LField label="Vendeur"><Input value={editDraft.vendeur_nom || ''} onChange={e => setEditDraft({ ...editDraft, vendeur_nom: e.target.value })} /></LField>
+              <LField label="Prix min"><Input type="number" value={editDraft.prix_min ?? ''} onChange={e => setEditDraft({ ...editDraft, prix_min: e.target.value })} /></LField>
+              <LField label="Prix max"><Input type="number" value={editDraft.prix_max ?? ''} onChange={e => setEditDraft({ ...editDraft, prix_max: e.target.value })} /></LField>
+              <LField label="Téléphone"><Input value={editDraft.vendeur_phone || ''} onChange={e => setEditDraft({ ...editDraft, vendeur_phone: e.target.value })} placeholder="+229 01..." /></LField>
+              <LField label="WhatsApp"><Input value={editDraft.vendeur_whatsapp || ''} onChange={e => setEditDraft({ ...editDraft, vendeur_whatsapp: e.target.value })} placeholder="+229 01..." /></LField>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Annuler</Button>
+            <Button onClick={saveEdit}>Enregistrer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm font-medium">{children}</div>
+    </div>
+  );
+}
+function LField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
+      {children}
     </div>
   );
 }
