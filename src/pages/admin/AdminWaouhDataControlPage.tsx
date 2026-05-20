@@ -238,6 +238,18 @@ export default function AdminWaouhDataControlPage() {
                   {searching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                   Rechercher
                 </Button>
+                <Button variant="outline" onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke('waouh-waha-sync-contacts', { body: { session: 'default', backfill: true } });
+                    if (error) throw error;
+                    toast({ title: 'Synchronisation WAHA', description: `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} annonces mises à jour` });
+                    search();
+                  } catch (e: any) {
+                    toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
+                  }
+                }}>
+                  <RefreshCw className="h-4 w-4 mr-2" />Synchroniser contacts WAHA
+                </Button>
               </div>
               <div className="text-xs text-muted-foreground">{results.length} résultat{results.length > 1 ? 's' : ''}</div>
               <div className="overflow-x-auto">
