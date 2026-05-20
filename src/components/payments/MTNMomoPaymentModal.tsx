@@ -33,10 +33,10 @@ export const MTNMomoPaymentModal: React.FC<MTNMomoPaymentModalProps> = ({ open, 
     const cleanPhone = phone.replace(/\D/g, '');
     
     // Validate phone format (should be 229XXXXXXXX for Benin)
-    if (!/^229\d{8}$/.test(cleanPhone)) {
+    if (!/^229\d{8,12}$/.test(cleanPhone)) {
       toast({ 
         title: 'Format invalide', 
-        description: 'Le numéro doit être au format 229XXXXXXXX (ex: 22967123456)', 
+        description: 'Le numéro doit commencer par 229 (ex: 22967123456)', 
         variant: 'destructive' 
       });
       return;
