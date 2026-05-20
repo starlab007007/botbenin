@@ -90,7 +90,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   const isButtonDisabled = !inputValue.trim() || isLoading || isProcessingRef.current;
 
   return (
-    <div className={`border-t border-gray-200 bg-white ${isMobile ? 'px-[5%] py-4' : 'px-[5%] md:px-6 py-6'}`}>
+    <div className={`border-t border-gray-200 bg-white ${isMobile ? 'px-[5%] py-4 pb-safe' : 'px-[5%] md:px-6 py-6'}`} style={{ paddingBottom: isMobile ? `max(1rem, env(safe-area-inset-bottom))` : undefined }}>
       <div className="max-w-full mx-auto">
         <div className="flex items-end space-x-3">
           <div className="flex-1 relative">
