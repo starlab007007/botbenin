@@ -309,7 +309,7 @@ export default function WaouhPage() {
                   <tbody>
                     {buyers.map((b) => (
                       <tr key={b.id} className="border-b border-[hsl(var(--waouh-border))]">
-                        <td className="p-2">{b.waouh_users?.phone_number ?? "—"}</td>
+                        <td className="p-2"><PhoneCell value={b.waouh_users?.phone_number} /></td>
                         <td className="p-2 max-w-md truncate">{b.query_text}</td>
                         <td className="p-2">{b.price_max ? fmtXOF(Number(b.price_max)) : "—"}</td>
                         <td className="p-2">{b.radius_km} km</td>
