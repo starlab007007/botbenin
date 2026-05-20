@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
 import WaouhRadarTab from "@/components/waouh/WaouhRadarTab";
+import { PhoneCell } from "@/components/waouh/PhoneCell";
 
 type Stats = {
   total_articles: number;
