@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock } from 'lucide-react';
-import { useRef } from 'react';
+import {
+  Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
+  MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon
+} from 'lucide-react';
 import { PhoneCell } from '@/components/waouh/PhoneCell';
 
 type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
@@ -24,12 +29,18 @@ export default function AdminWaouhDataControlPage() {
   const [query, setQuery] = useState('');
   const [ville, setVille] = useState('');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [cleanItems, setCleanItems] = useState<CleanItem[]>([]);
   const [cleanProgress, setCleanProgress] = useState(0);
   const [batchSize, setBatchSize] = useState(20);
   const cancelRef = useRef(false);
+  const [viewing, setViewing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editDraft, setEditDraft] = useState<any>({});
 
   const loadStats = async () => {
     setLoading(true);
@@ -45,21 +56,65 @@ export default function AdminWaouhDataControlPage() {
     setStats(counts);
     setLoading(false);
   };
-  useEffect(() => { loadStats(); }, []);
+  useEffect(() => { loadStats(); search(); /* eslint-disable-next-line */ }, []);
 
   const search = async () => {
+    setSearching(true);
     const { data, error } = await supabase.rpc('waouh_search_unified' as any, {
-      q: query || null, in_ville: ville || null, max_results: 100
+      q: query || null,
+      in_ville: ville || null,
+      max_results: 200,
+      in_type: typeFilter === 'all' ? null : typeFilter,
+      in_source: sourceFilter === 'all' ? null : sourceFilter,
+      include_inactive: statusFilter !== 'active',
+      only_verified: statusFilter === 'verified',
     });
+    setSearching(false);
     if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
     let rows = (data as any) || [];
-    if (sourceFilter !== 'all') rows = rows.filter((r: any) => r.source === sourceFilter);
+    if (statusFilter === 'inactive') rows = rows.filter((r: any) => !r.is_active);
     setResults(rows);
   };
 
   const toggleVerified = async (id: string, current: boolean) => {
-    await supabase.from('waouh_unified_catalog' as any).update({ verified: !current, qualite_score: !current ? 90 : 70 }).eq('id', id);
-    search(); loadStats();
+    const { error } = await supabase.from('waouh_unified_catalog' as any).update({ verified: !current, qualite_score: !current ? 90 : 70 }).eq('id', id);
+    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    toast({ title: !current ? '✅ Vérifié' : 'Vérification retirée' });
+    setResults(prev => prev.map(r => r.id === id ? { ...r, verified: !current } : r));
+    loadStats();
+  };
+  const toggleActive = async (id: string, current: boolean) => {
+    const { error } = await supabase.from('waouh_unified_catalog' as any).update({ is_active: !current }).eq('id', id);
+    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    toast({ title: !current ? 'Activé' : 'Désactivé' });
+    setResults(prev => prev.map(r => r.id === id ? { ...r, is_active: !current } : r));
+  };
+  const removeRow = async (id: string) => {
+    if (!confirm('Supprimer définitivement cette entrée du catalogue ?')) return;
+    const { error } = await supabase.from('waouh_unified_catalog' as any).delete().eq('id', id);
+    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    toast({ title: 'Supprimé' });
+    setResults(prev => prev.filter(r => r.id !== id));
+    loadStats();
+  };
+  const openEdit = (r: any) => {
+    setEditing(r);
+    setEditDraft({
+      titre: r.titre || '', description: r.description || '', categorie: r.categorie || '',
+      ville: r.ville || '', quartier: r.quartier || '',
+      prix_min: r.prix_min ?? '', prix_max: r.prix_max ?? '',
+      vendeur_nom: r.vendeur_nom || '', vendeur_phone: r.vendeur_phone || '', vendeur_whatsapp: r.vendeur_whatsapp || '',
+    });
+  };
+  const saveEdit = async () => {
+    if (!editing) return;
+    const patch: any = { ...editDraft };
+    ['prix_min', 'prix_max'].forEach(k => { patch[k] = patch[k] === '' ? null : Number(patch[k]); });
+    const { error } = await supabase.from('waouh_unified_catalog' as any).update(patch).eq('id', editing.id);
+    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    toast({ title: '✅ Mis à jour' });
+    setResults(prev => prev.map(r => r.id === editing.id ? { ...r, ...patch } : r));
+    setEditing(null);
   };
 
   // === Nettoyage IA en batch ===
