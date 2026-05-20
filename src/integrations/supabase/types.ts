@@ -9631,6 +9631,7 @@ export type Database = {
         Returns: undefined
       }
       waouh_match_signal: { Args: { p_signal_id: string }; Returns: Json }
+      waouh_normalize_bj_phone: { Args: { input: string }; Returns: string }
       waouh_promote_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
       waouh_search_unified: {
@@ -9638,18 +9639,28 @@ export type Database = {
           in_categorie?: string
           in_lat?: number
           in_lng?: number
+          in_source?: string
+          in_type?: string
           in_ville?: string
+          include_inactive?: boolean
           max_results?: number
+          only_verified?: boolean
           q?: string
           radius_km?: number
         }
         Returns: {
           business_id: string
           categorie: string
+          date_publication: string
           description: string
           devise: string
           distance_km: number
+          expires_at: string
           id: string
+          is_active: boolean
+          last_seen_at: string
+          lat: number
+          lng: number
           partner_id: string
           photos: string[]
           priority_rank: number
@@ -9658,10 +9669,17 @@ export type Database = {
           qualite_score: number
           quartier: string
           source: Database["public"]["Enums"]["waouh_catalog_source"]
+          source_ref_id: string
+          sous_categorie: string
           titre: string
+          type: Database["public"]["Enums"]["waouh_catalog_type"]
+          vendeur_mobile_money: string
           vendeur_nom: string
           vendeur_phone: string
+          vendeur_phone_norm: string
           vendeur_whatsapp: string
+          vendeur_whatsapp_norm: string
+          verified: boolean
           ville: string
         }[]
       }
