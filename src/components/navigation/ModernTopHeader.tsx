@@ -140,7 +140,7 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
         </div>
 
         {/* Droite */}
-        <div className="flex items-center space-x-2 lg:space-x-4">
+        <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 flex-shrink-0">
           {/* Recherche mobile */}
           <Button
             variant="ghost"
