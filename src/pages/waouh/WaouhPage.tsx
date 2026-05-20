@@ -283,7 +283,7 @@ export default function WaouhPage() {
                       <tr key={a.id} onClick={() => setSelectedArticle(a)} className="border-b border-[hsl(var(--waouh-border))] hover:bg-waouh-primary/5 cursor-pointer">
                         <td className="p-2 font-medium">{a.title}</td>
                         <td className="p-2"><Badge variant="outline" className={originBadge[a.origin || "chat"]}>{a.origin || "chat"}</Badge></td>
-                        <td className="p-2 text-muted-foreground">{a.waouh_users?.phone_number ?? "—"}</td>
+                        <td className="p-2"><PhoneCell value={a.waouh_users?.phone_number} /></td>
                         <td className="p-2 font-semibold text-waouh-success">{fmtXOF(Number(a.price))}</td>
                         <td className="p-2">{a.category}</td>
                         <td className="p-2"><Badge className={statusColor[a.status]}>{a.status}</Badge></td>
