@@ -343,8 +343,8 @@ export default function WaouhPage() {
                       <tr key={t.id} className="border-b border-[hsl(var(--waouh-border))]">
                         <td className="p-2 font-mono text-xs">{t.id.slice(0, 8)}</td>
                         <td className="p-2">{t.waouh_articles?.title ?? "—"}</td>
-                        <td className="p-2 text-xs">{t.seller?.phone_number}</td>
-                        <td className="p-2 text-xs">{t.buyer?.phone_number}</td>
+                        <td className="p-2"><PhoneCell value={t.seller?.phone_number} /></td>
+                        <td className="p-2"><PhoneCell value={t.buyer?.phone_number} /></td>
                         <td className="p-2 font-semibold">{fmtXOF(Number(t.amount))}</td>
                         <td className="p-2 text-waouh-payment">{fmtXOF(Number(t.commission))}</td>
                         <td className="p-2">{t.payment_method}</td>
