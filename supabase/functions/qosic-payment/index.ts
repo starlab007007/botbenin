@@ -230,7 +230,9 @@ serve(async (req) => {
     }
     
     // PRODUCTION MODE: Real API call
-    const qosicBaseUrl = Deno.env.get('QOSIC_BASE_URL') || 'http://staging.qosic.net:9010';
+    // Normalize base URL: strip any path suffix and trailing slash so users can paste full endpoint by mistake
+    let qosicBaseUrl = Deno.env.get('QOSIC_BASE_URL') || 'http://staging.qosic.net:9010';
+    qosicBaseUrl = qosicBaseUrl.replace(/\/QosicBridge.*$/i, '').replace(/\/+$/, '');
     
     // Map operator to correct endpoint
     const endpointMap = {
