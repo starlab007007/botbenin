@@ -101,9 +101,9 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
 
   return (
     <>
-      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-40 shadow-sm">
+      <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between gap-2 px-2 sm:px-4 lg:px-6 sticky top-0 z-40 shadow-sm w-full max-w-[100vw] overflow-x-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {/* Gauche */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-shrink">
           {/* Bouton menu mobile */}
           <Button
             variant="ghost"
