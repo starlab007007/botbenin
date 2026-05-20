@@ -369,6 +369,26 @@ serve(async (req) => {
       }
       const { data: matches } = await q.order("created_at", { ascending: false }).limit(5);
 
+      // 🏪 Recherche dans le Catalogue Unifié (produits partenaires + chat + radar)
+      let partnerMatches: any[] = [];
+      try {
+        let pq = sb.from("waouh_unified_catalog")
+          .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
+          .eq("type", "offer")
+          .eq("is_active", true)
+          .eq("source", "partner");
+        if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
+        if (kws.length > 0) {
+          const orFilter = kws
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,tags.cs.{${k}}`)
+            .join(",");
+          pq = pq.or(orFilter);
+        }
+        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(5);
+        partnerMatches = pm || [];
+      } catch (e) { console.warn("[partner catalog search]", e); }
+
+
       // 🛰️ Radar IA: chercher aussi des signaux SELL (annonces externes captées)
       let radarSellers: any[] = [];
       try {
