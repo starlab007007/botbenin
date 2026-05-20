@@ -413,43 +413,62 @@ serve(async (req) => {
         origin: channel === "whatsapp" ? "whatsapp" : "chat",
       });
 
-      const totalCount = (matches?.length || 0) + radarSellers.length;
+      const totalCount = (matches?.length || 0) + radarSellers.length + partnerMatches.length;
       if (totalCount === 0) {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
         nextContext = { ...nextContext, last_matches: [] };
       } else {
-        // Limiter explicitement à top 5 cumulés
-        const matchesTop = (matches || []).slice(0, 5);
-        const radarTop = radarSellers.slice(0, Math.max(0, 5 - matchesTop.length));
+        // Limiter explicitement à top 5 cumulés (priorité: partenaires d'abord)
+        const partnerTop = partnerMatches.slice(0, 5);
+        const remainingAfterPartners = Math.max(0, 5 - partnerTop.length);
+        const matchesTop = (matches || []).slice(0, remainingAfterPartners);
+        const radarTop = radarSellers.slice(0, Math.max(0, 5 - partnerTop.length - matchesTop.length));
+        // 🏪 Liste partenaires (avec contact direct)
+        const partnerList = partnerTop.map((p: any, i: number) => {
+          const idx = i + 1;
+          const photos: string[] = Array.isArray(p.photos) ? p.photos.filter((u: any) => typeof u === "string") : [];
+          const photoLine = photos.length > 0 ? `\n   📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
+          const priceTxt = p.prix_min && p.prix_max && p.prix_min !== p.prix_max
+            ? `${fmt(Number(p.prix_min))} – ${fmt(Number(p.prix_max))}`
+            : fmt(Number(p.prix_min || p.prix_max || 0));
+          const loc = [p.ville, p.quartier].filter(Boolean).join(" · ") || "?";
+          const contact = p.vendeur_whatsapp || p.vendeur_phone;
+          const contactLine = contact ? `\n   📞 ${contact}` : "";
+          const vendor = p.vendeur_nom ? `\n   🏪 ${p.vendeur_nom}` : "";
+          return `*${idx}. ${p.titre}*\n   💰 ${priceTxt}\n   📍 ${loc}${vendor}${contactLine}${photoLine}\n   ✅ Partenaire vérifié`;
+        }).join("\n\n");
         // Note IA par produit officiel
         const officialList = (await Promise.all(matchesTop.map(async (m: any, i: number) => {
+          const idx = partnerTop.length + i + 1;
           const photos: string[] = Array.isArray(m.photos) ? m.photos.filter((u: any) => typeof u === "string") : [];
           const photoLine = photos.length > 0 ? `\n   📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
           const min = m.market_price_min || m.price * 0.8;
           const max = m.market_price_max || m.price * 1.2;
           const note = await marketNote(m.title || "", Number(m.price || 0), min, max, m.city || "");
           const noteLine = note ? `\n   🧠 ${note}` : "";
-          return `*${i + 1}. ${m.title}*\n   💰 ${fmt(m.price)}\n   📍 ${m.city ?? "?"} · ${m.condition}${photoLine}\n   📊 Marché : ${fmt(min)} – ${fmt(max)}${noteLine}`;
+          return `*${idx}. ${m.title}*\n   💰 ${fmt(m.price)}\n   📍 ${m.city ?? "?"} · ${m.condition}${photoLine}\n   📊 Marché : ${fmt(min)} – ${fmt(max)}${noteLine}`;
         }))).join("\n\n");
         const radarList = radarTop.map((r: any, i: number) => {
-          const idx = matchesTop.length + i + 1;
+          const idx = partnerTop.length + matchesTop.length + i + 1;
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
           const price = r.price ? fmt(Number(r.price)) : "Prix à négocier";
           const city = r.city || "?";
           return `*${idx}. ${title}*\n   💰 ${price}\n   📍 ${city}\n   📡 Source : Radar IA${r.contact_phone ? " · contact extrait" : ""}`;
         }).join("\n\n");
-        // Envoyer toutes les photos disponibles (max 2 par produit, plafond 6)
-        replyAttachments = matchesTop
-          .flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 2) : [])
+        // Envoyer toutes les photos disponibles (partenaires + officiels, max 2 par produit, plafond 6)
+        replyAttachments = [
+          ...partnerTop.flatMap((p: any) => Array.isArray(p.photos) ? p.photos.slice(0, 2) : []),
+          ...matchesTop.flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 2) : []),
+        ]
           .filter((url: any) => typeof url === "string")
           .slice(0, 6)
           .map((url: string) => ({ url, type: "image/jpeg" }));
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
-        const totalShown = matchesTop.length + radarTop.length;
+        const totalShown = partnerTop.length + matchesTop.length + radarTop.length;
         const interestList = Array.from({ length: totalShown }, (_, i) => `intéressé ${i + 1}`).join(", ");
-        reply = `🎯 *Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}*\n\n${[officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez : ${interestList}.${radarHint}`;
+        reply = `🎯 *Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}*\n\n${[partnerList, officialList, radarList].filter(Boolean).join("\n\n")}\n\n💡 Pour contacter un vendeur, répondez : ${interestList}.${radarHint}`;
         // Pas de boutons : tout passe par texte (intéressé 1, intéressé 2, …)
         returnedActions = [];
         const promotedRadarMatches: any[] = [];
