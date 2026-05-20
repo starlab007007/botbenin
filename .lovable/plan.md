@@ -1,86 +1,88 @@
-## Plan — Normalisation Bénin (01) + Photos produits + Catalogue unifié enrichi
 
-### 1. Normalisation numéros Bénin (format 01)
+# Module de paiement — État & Plan d'intégration MTN
 
-Depuis 2021, le Bénin utilise un format à **10 chiffres commençant par `01`** (ex: `01 97 12 34 56`). Mettre à jour `src/lib/phone.ts` :
+## 1. Ce qui est déjà intégré
 
-- `BJ`: `length: 10`, `groups: [2,2,2,2,2]`, `prefixes: ['01']` (validation sur les 2 premiers chiffres).
-- `parsePhone` / `normalizePhone` : si l'utilisateur saisit 8 chiffres legacy (`97...`), auto-préfixer `01`. Si `+229XXXXXXXX` (8 chiffres après indicatif), convertir en `+22901XXXXXXXX`.
-- `formatPhoneDisplay` : afficher `+229 01 XX XX XX XX`.
-- Adapter `PhoneInput` placeholder et helper.
-- Helper `waToPhone(jid)` : convertir `273091318042723@lid` / `22901...@s.whatsapp.net` → `+229 01 XX XX XX XX` ; fallback vers le JID brut si non-parsable.
+### Backend (Edge Functions Supabase)
+- `qosic-payment` (442 lignes) — Initie un paiement Qosic, mappe `MTN → mtn_momo`, `MOOV → moov_money`, `SBIN → sbin`. Gère Basic Auth, génération `transref` (≤20 chars), insertion en base, mode test, gestion erreurs SSL, timeout 30s.
+- `qosic-check-status` — Polling du statut via `gettransactionstatus`, mappe `responsecode 00 → completed`, `01 → processing`, autres → `failed`. Supporte un check ciblé ou tous les `processing` > 30s.
+- `qosic-webhook` — Réception callback Qosic.
+- `mtn-momo-initiate` (71 lignes) — wrapper léger (probablement legacy/doublon).
+- `waouh-payment` + `waouh-payment-handler` — Pipeline paiement marketplace WAOUH (escrow 3% commission).
 
-Mise à jour appliquée à : `PartnerEnrollmentPage`, `PartnerBusinessesPage`, `PartnerProductsPage`, `AdminWaouhPartnersPage`, et toutes les colonnes Vendeur/Acheteur des tables admin.
+### Frontend
+- `MTNMomoPaymentModal.tsx` — Format `229XXXXXXXX`, appel `qosic-payment` avec `operator: 'MTN'`, suivi via `PaymentStatusTracker`.
+- `MoovMoneyPaymentModal.tsx`, `SBINPaymentModal.tsx` — Analogues.
+- `WaouhPaymentDialog.tsx` — Flow Mobile Money pour la marketplace (polling 6s, max 18 tentatives).
+- `PaymentDiagnostic.tsx`, `PaymentTestPage.tsx`, `PaymentHistoryPage.tsx`, `PaymentStatusTracker`.
 
-### 2. Partner Products — photos + catégorie + édition (capture 1)
+### Base de données
+- Table `payment_transactions` avec : `order_id`, `user_id`, `amount`, `currency`, `phone_number`, `status` (pending/processing/completed/failed), `payment_method`, `operator`, `qosic_transaction_id`, `qosic_response`, `metadata`.
+- Tables `waouh_transactions` + `waouh_partner_payouts` pour la marketplace.
 
-`src/pages/partner/PartnerProductsPage.tsx` :
-- Form produit : champ upload **jusqu'à 3 photos** (drag-drop + caméra mobile), stockées dans bucket Supabase `waouh-partner-products` (créer + RLS partner-only write, public read).
-- Champ **catégorie** = `SmartCombobox` (liste : Alimentation, Boissons, Électronique, Mode, Maison, Beauté, Bureautique, Auto/Moto, Services, Autre) avec saisie libre.
-- Carte produit : miniature, prix, statut, bouton **Voir détails** (Dialog) → modification inline + suppression.
-- Dialog "Détails" : galerie 3 photos, tous champs éditables, bouton supprimer (confirm).
+### Secrets configurés
+`QOSIC_USERNAME`, `QOSIC_PASSWORD`, `QOSIC_BASE_URL`, `QOSIC_MTN_CLIENT_ID`, `QOSIC_MOOV_CLIENT_ID`, `QOSIC_SBIN_CLIENT_ID`, `QOSIC_API_PASSWORD`, `QOSIC_CLIENT_ID`.
 
-Migration DB : ajouter `photos text[]` à `waouh_partner_products` + colonne `categorie` si manquante.
+## 2. Ce qui n'est PAS intégré / problèmes connus
 
-### 3. Photos + classification + téléphones dans les 3 bases (Partner / Chat / Radar)
+1. **Credentials staging non vérifiés** — Les valeurs actuelles des secrets `QOSIC_*` n'ont jamais été confirmées comme étant celles fournies aujourd'hui (`USR01` / `YG739G5XFVPYYV4ADJVW` / `MTNTEST`).
+2. **`QOSIC_BASE_URL` probablement en HTTPS** alors que staging exige `http://staging.qosic.net:9010` (HTTP plein). À vérifier — la mémoire projet note une "HTTPS enforcement" qui peut bloquer le staging.
+3. **Format téléphone strict `229XXXXXXXX`** dans `qosic-payment` (ligne 162). Le numéro de test fourni `2290191299191` fait 13 chiffres après `229` au lieu de 8 → la regex `^229\d{8}$` rejettera. À assouplir ou corriger le numéro.
+4. **Mode test SSL** (`QOSIC_TEST_MODE`) simule un succès sans appel API → empêche tout vrai test. Doit rester `false`.
+5. **Doublon `mtn-momo-initiate`** vs `qosic-payment` — source de confusion, à supprimer ou unifier.
+6. **Webhook Qosic non documenté côté Qosic** — l'URL de callback `qosic-webhook` doit être déclarée chez Qosic (manuel).
+7. **Pas de test E2E automatisé MTN** (un `waouh-e2e-test` existe pour WAOUH uniquement).
+8. **Polling status côté frontend** déclenché manuellement via `PaymentStatusTracker`, pas de cron de réconciliation automatique.
 
-Pour chaque source de données produit :
-- **Partner** : déjà couvert ci-dessus.
-- **Chat (`waouh_chat_listings`)** : ajouter `photos text[]`, `classification` enum (`annonce`|`vendeur`|`acheteur`), `phone_normalized`, `whatsapp_normalized`. UI admin : bouton "Extraire photos du chat" (parse messages WhatsApp avec media → push vers storage).
-- **Radar IA (`waouh_radar_*`)** : pareil + bouton "Extraire photos & profil" dans `AdminWaouhRadarPage`.
+## 3. Plan d'action
 
-Edge function `waouh-extract-media` : prend un `chat_id` ou `radar_id`, télécharge les médias WAHA, upload sur storage, met à jour la ligne. Edge function `waouh-normalize-numbers` (cron + manuel) : convertit tous les JIDs en numéros normalisés.
+### Étape A — Mettre à jour / vérifier les secrets Qosic staging
+Mettre à jour via le tooling secrets (l'utilisateur saisit les valeurs en clair) :
+- `QOSIC_USERNAME` = `USR01`
+- `QOSIC_PASSWORD` = `YG739G5XFVPYYV4ADJVW`
+- `QOSIC_MTN_CLIENT_ID` = `MTNTEST`
+- `QOSIC_BASE_URL` = `http://staging.qosic.net:9010`
 
-### 4. Affichage numéros réels dans tables admin (captures 2, 3, 4)
+### Étape B — Corriger la validation téléphone
+Dans `supabase/functions/qosic-payment/index.ts` (ligne ~161-165), assouplir la regex pour accepter le format de test long :
+```
+if (!/^229\d{8,12}$/.test(cleanPhone)) { ... }
+```
+Et même chose côté frontend `MTNMomoPaymentModal.tsx` (ligne ~37).
 
-Composant `<PhoneCell value={jidOrPhone} />` qui :
-- Détecte `@lid` / `@s.whatsapp.net` → extrait chiffres → `normalizePhone(..., 'BJ')` → affiche `🇧🇯 +229 01 XX XX XX XX`.
-- Fallback : affiche le JID en `text-muted` + tooltip "non normalisable".
-- Boutons rapides : Appel / WhatsApp.
+### Étape C — Confirmer endpoint MTN
+Vérifier que `endpointMap.MTN` (ligne 237) pointe bien sur `${baseUrl}/QosicBridge/user/requestpayment` (déjà OK), et que le payload utilise bien `clientid` minuscule (déjà OK).
 
-Appliqué dans : `AdminWaouhDataControlPage` (Annonces, Acheteurs, Transactions), `AdminWaouhRadarPage`, `AdminWaouhMonitoringPage`.
+### Étape D — Test de bout en bout
+1. Désactiver `QOSIC_TEST_MODE` (ou ne pas le définir).
+2. Appeler `qosic-payment` via `supabase--curl_edge_functions` :
+   ```json
+   { "amount": 100, "phoneNumber": "2290191299191", "operator": "MTN", "fullName": "Test User", "planName": "MTN-TEST" }
+   ```
+3. Lire les logs (`supabase--edge_function_logs qosic-payment`) pour confirmer `responsecode: "01"` et `serviceref` retourné.
+4. Appeler `qosic-check-status` avec le `transref` retourné pour valider le passage `processing → completed`.
+5. Vérifier la ligne en base `payment_transactions`.
 
-**Transactions** : ajouter colonne Actions admin → Dialog avec : marquer payé, libérer escrow, rembourser, contacter vendeur/acheteur (WhatsApp deeplink), ajouter note.
+### Étape E — Nettoyage
+- Supprimer `mtn-momo-initiate` (doublon) après validation.
+- Documenter le webhook callback à fournir à Qosic.
 
-### 5. Catalogue unifié enrichi (capture 5)
+## 4. Détails techniques
 
-Refonte de la vue/recherche unifiée (`AdminWaouhDataControlPage` onglet Recherche) — devient **la source unique** pour annonces/vendeurs/acheteurs.
+**Mapping codes Qosic** :
+| responsecode | Sens | DB status |
+|---|---|---|
+| 00 | Succès final | `completed` |
+| 01 | En cours / initié | `processing` |
+| autre | Échec | `failed` |
 
-Migration : créer **vue `waouh_unified_catalog_v`** unionnant Partner Products + Chat Listings + Radar Items, colonnes :
+**Format `transref`** : ≤ 20 chars, actuel `PAY_{9 digits}_{5 chars}` = 19 chars ✅
 
-| Colonne | Source |
-|---|---|
-| `source` | partner / chat / radar |
-| `type` | annonce / vendeur / acheteur |
-| `titre`, `description`, `categorie` | normalisé |
-| `prix`, `devise` | |
-| `contact_phone`, `contact_whatsapp` | normalisés Bénin 01 |
-| `photos[]` | merge photos |
-| `ville`, `quartier`, `adresse`, `lat`, `lng` | |
-| `vendeur_nom`, `acheteur_nom` | |
-| `date_publication` | created_at source |
-| `statut` | active / desactive / supprime |
-| `score_qualite` | calculé |
+**Headers Qosic** : `Authorization: Basic base64(USR01:YG739G5XFVPYYV4ADJVW)` + `Content-Type: application/json`.
 
-UI table catalogue avec colonnes ci-dessus + actions par ligne : **Voir / Vérifier / Modifier / Activer / Désactiver / Supprimer**. Filtres : type, source, ville, statut, présence photo, présence contact WhatsApp.
+**Endpoints staging** :
+- Init : `http://staging.qosic.net:9010/QosicBridge/user/requestpayment`
+- Status : `http://staging.qosic.net:9010/QosicBridge/user/gettransactionstatus`
 
-Édition cross-source : edge function `waouh-catalog-update` qui route l'update vers la bonne table source selon `source`.
-
-### Détails techniques
-
-- **Storage bucket** : `waouh-media` (public read, authenticated write, 5MB max, image/* uniquement).
-- **Migrations** : 1 seul fichier — ajout colonnes `photos`, `classification`, `phone_normalized`, `whatsapp_normalized` aux 3 tables ; vue `waouh_unified_catalog_v` ; fonction `waouh_normalize_bj_phone(text)` SQL.
-- **Backfill** : trigger + script one-shot pour normaliser les numéros existants et extraire les `@lid` connus.
-- **Perf** : index sur `(classification, statut, ville)` ; vue matérialisée si volume > 10k.
-- **Validation Zod** : adapter `phoneRequired` pour exiger 10 chiffres BJ commençant par `01`.
-
-### Fichiers impactés
-
-- `src/lib/phone.ts`, `src/lib/validation/waouh.ts`
-- `src/components/ui/phone-input.tsx`, nouveau `src/components/waouh/PhoneCell.tsx`
-- nouveau `src/components/waouh/ProductPhotoUploader.tsx`, `src/components/waouh/ProductDetailDialog.tsx`
-- `src/pages/partner/PartnerProductsPage.tsx`
-- `src/pages/admin/AdminWaouhDataControlPage.tsx` (onglets Annonces, Acheteurs, Transactions, Recherche)
-- `src/pages/admin/AdminWaouhRadarPage.tsx` (ou équivalent)
-- nouvelles edge functions : `waouh-extract-media`, `waouh-normalize-numbers`, `waouh-catalog-update`
-- 1 migration SQL
+## 5. Validation finale
+Après approbation du plan, j'exécuterai A → D et fournirai les logs du test 100 FCFA sur `2290191299191`.
