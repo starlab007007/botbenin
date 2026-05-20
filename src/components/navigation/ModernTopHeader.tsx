@@ -239,11 +239,12 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           ) : (
             <Button
               onClick={() => setShowAuthModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-2 sm:px-4"
               size="sm"
+              aria-label="Connexion"
             >
-              <User className="w-4 h-4 mr-2" />
-              Connexion
+              <User className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Connexion</span>
             </Button>
           )}
         </div>
