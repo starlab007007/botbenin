@@ -1,141 +1,86 @@
-# Plan — Espace Partenaire & Admin Waouh : intelligence, validation et traçabilité
+## Plan — Normalisation Bénin (01) + Photos produits + Catalogue unifié enrichi
 
-## 1. Performance & UX des champs intelligents
+### 1. Normalisation numéros Bénin (format 01)
 
-**LocationAutocomplete (ville/quartier)**
-- Mémoriser `BENIN_CITY_NAMES` et l'index `BENIN_CITY_INDEX` au niveau module (déjà fait) + ajouter un cache `Map<ville, quartiers[]>` exposé par `getQuartiersForCity` pour éviter les recalculs.
-- Envelopper le composant dans `React.memo` + `useCallback` sur `onChange` côté parents.
-- Dans `SmartCombobox`, debouncer la recherche (150 ms) avec `useDeferredValue` pour réduire les re-rendus de la liste pendant la frappe.
-- Précharger en idle (`requestIdleCallback`) les quartiers des 5 villes principales (Cotonou, Calavi, Porto-Novo, Parakou, Bohicon).
+Depuis 2021, le Bénin utilise un format à **10 chiffres commençant par `01`** (ex: `01 97 12 34 56`). Mettre à jour `src/lib/phone.ts` :
 
-**PhoneInput**
-- Ajouter à droite du champ un badge inline « 🇧🇯 +229 97 12 34 56 » qui montre en direct le numéro normalisé (E.164 affiché format local), affiché en `text-muted-foreground` quand valide, en `text-destructive` quand invalide.
-- État visuel `aria-invalid`, bordure `border-destructive` + texte d'aide sous le champ : « 8 chiffres requis pour le Bénin », « Format MTN/Moov attendu : 9X / 6X / 5X / 4X ».
-- Helper `normalizePhone(value, defaultCountry='BJ')` dans `src/lib/phone.ts` retournant `{ e164, valid, reason }`. Utilisé avant tout `insert/update` Supabase.
+- `BJ`: `length: 10`, `groups: [2,2,2,2,2]`, `prefixes: ['01']` (validation sur les 2 premiers chiffres).
+- `parsePhone` / `normalizePhone` : si l'utilisateur saisit 8 chiffres legacy (`97...`), auto-préfixer `01`. Si `+229XXXXXXXX` (8 chiffres après indicatif), convertir en `+22901XXXXXXXX`.
+- `formatPhoneDisplay` : afficher `+229 01 XX XX XX XX`.
+- Adapter `PhoneInput` placeholder et helper.
+- Helper `waToPhone(jid)` : convertir `273091318042723@lid` / `22901...@s.whatsapp.net` → `+229 01 XX XX XX XX` ; fallback vers le JID brut si non-parsable.
 
-**SmartCombobox — états d'erreur**
-- Nouvelle prop `invalid?: boolean` + `errorMessage?: string` → bordure destructive, message en dessous.
-- Appliqué aux champs catégorie entreprise, catégorie produit, unité, opérateur Mobile Money.
+Mise à jour appliquée à : `PartnerEnrollmentPage`, `PartnerBusinessesPage`, `PartnerProductsPage`, `AdminWaouhPartnersPage`, et toutes les colonnes Vendeur/Acheteur des tables admin.
 
-## 2. Validation centralisée (Zod) avant envoi
+### 2. Partner Products — photos + catégorie + édition (capture 1)
 
-Créer `src/lib/validation/waouh.ts` :
-- `partnerEnrollmentSchema`, `businessSchema`, `productSchema`, `saleSchema`
-- Tous les champs téléphone passent par `phoneSchema` (normalise + valide via `normalizePhone`)
-- Catégorie / unité / opérateur MM : `z.string().min(1, "Champ requis")`
-- Géoloc : ville obligatoire, quartier optionnel, lat/lng optionnels mais cohérents si fournis
+`src/pages/partner/PartnerProductsPage.tsx` :
+- Form produit : champ upload **jusqu'à 3 photos** (drag-drop + caméra mobile), stockées dans bucket Supabase `waouh-partner-products` (créer + RLS partner-only write, public read).
+- Champ **catégorie** = `SmartCombobox` (liste : Alimentation, Boissons, Électronique, Mode, Maison, Beauté, Bureautique, Auto/Moto, Services, Autre) avec saisie libre.
+- Carte produit : miniature, prix, statut, bouton **Voir détails** (Dialog) → modification inline + suppression.
+- Dialog "Détails" : galerie 3 photos, tous champs éditables, bouton supprimer (confirm).
 
-Les pages `PartnerDashboardPage`, `PartnerBusinessesPage`, `PartnerProductsPage` :
-- `useForm` avec `zodResolver` (déjà présent dans le projet via `react-hook-form` + `@hookform/resolvers`)
-- Affichage des erreurs par champ via le composant `FormMessage` existant.
-- Toast récap si erreurs multiples : « Corrigez les champs en rouge ».
+Migration DB : ajouter `photos text[]` à `waouh_partner_products` + colonne `categorie` si manquante.
 
-## 3. Partner — CRUD complet sur entreprises
+### 3. Photos + classification + téléphones dans les 3 bases (Partner / Chat / Radar)
 
-`PartnerBusinessesPage.tsx` :
-- Carte par entreprise → bouton **Voir** (drawer détail : toutes les infos, photos, géoloc, contacts formatés, produits liés, ventes récentes, stats commission)
-- Bouton **Modifier** → réutilise le dialog actuel, pré-rempli
-- Bouton **Supprimer** → `AlertDialog` de confirmation, hard delete si pas de ventes, sinon soft delete (`is_active=false`) avec explication
-- Compteurs : nb produits, ventes 30j, CA, commission totale
+Pour chaque source de données produit :
+- **Partner** : déjà couvert ci-dessus.
+- **Chat (`waouh_chat_listings`)** : ajouter `photos text[]`, `classification` enum (`annonce`|`vendeur`|`acheteur`), `phone_normalized`, `whatsapp_normalized`. UI admin : bouton "Extraire photos du chat" (parse messages WhatsApp avec media → push vers storage).
+- **Radar IA (`waouh_radar_*`)** : pareil + bouton "Extraire photos & profil" dans `AdminWaouhRadarPage`.
 
-Idem `PartnerProductsPage.tsx` : action Voir/Modifier/Supprimer + état stock visible.
+Edge function `waouh-extract-media` : prend un `chat_id` ou `radar_id`, télécharge les médias WAHA, upload sur storage, met à jour la ligne. Edge function `waouh-normalize-numbers` (cron + manuel) : convertit tous les JIDs en numéros normalisés.
 
-## 4. Admin — Gestion complète des partenaires
+### 4. Affichage numéros réels dans tables admin (captures 2, 3, 4)
 
-`AdminWaouhPartnersPage.tsx` enrichi :
-- Tableau filtrable (statut, niveau, ville, KYC) + recherche plein-texte
-- Actions par ligne :
-  - **Activer** (`statut=active`, `date_activation=now()`)
-  - **Suspendre** (`statut=suspended`, dialog avec motif → `waouh_partner_audit_log`)
-  - **Rejeter** / **Réactiver**
-  - **Vérifier KYC** (`kyc_verified=true`)
-  - **Changer niveau** (Bronze/Argent/Or/Platine)
-  - **Voir** drawer 360° : profil + entreprises + produits + ventes + commissions + audit log
-  - **Modifier** (toutes infos éditables côté admin via edge function `waouh-partner-admin-update`)
-- Nouvelle page **AdminWaouhBusinessesPage** : voir/valider toutes les entreprises de tous partenaires (`verifie_admin`, suspendre, supprimer).
+Composant `<PhoneCell value={jidOrPhone} />` qui :
+- Détecte `@lid` / `@s.whatsapp.net` → extrait chiffres → `normalizePhone(..., 'BJ')` → affiche `🇧🇯 +229 01 XX XX XX XX`.
+- Fallback : affiche le JID en `text-muted` + tooltip "non normalisable".
+- Boutons rapides : Appel / WhatsApp.
 
-## 5. Système d'habilitations
+Appliqué dans : `AdminWaouhDataControlPage` (Annonces, Acheteurs, Transactions), `AdminWaouhRadarPage`, `AdminWaouhMonitoringPage`.
 
-Migration DB :
-- Table `waouh_partner_permissions` (partner_id, permission ENUM: `can_add_business`, `can_add_product`, `can_record_sale`, `can_request_payout`, `can_invite_subagent`)
-- Table `waouh_partner_audit_log` (partner_id, admin_id, action, payload jsonb, created_at)
-- RLS : lecture publique aux admins, partenaire voit ses propres lignes
-- Fonction `has_partner_permission(_user_id, _perm)` SECURITY DEFINER
+**Transactions** : ajouter colonne Actions admin → Dialog avec : marquer payé, libérer escrow, rembourser, contacter vendeur/acheteur (WhatsApp deeplink), ajouter note.
 
-Côté admin : matrice de cases à cocher par partenaire (toggle direct, write via edge function `waouh-partner-set-permission` qui log dans audit).
-Côté partner : les boutons d'action sont désactivés si la permission manque, avec tooltip explicatif.
+### 5. Catalogue unifié enrichi (capture 5)
 
-## 6. Monitoring temps réel & traçabilité
+Refonte de la vue/recherche unifiée (`AdminWaouhDataControlPage` onglet Recherche) — devient **la source unique** pour annonces/vendeurs/acheteurs.
 
-Migration DB :
-- Table `waouh_partner_activity` (partner_id, business_id?, product_id?, sale_id?, event_type, metadata jsonb, created_at). Triggers d'insertion sur businesses/products/sales pour la traçabilité automatique.
-- Vue `waouh_partner_stats_v` : par partenaire → nb ventes 24h/7j/30j, CA, commission, stock total, produits actifs, dernière activité.
-- Vue `waouh_product_traceability_v` : produit → business → partenaire → ventes → commission.
+Migration : créer **vue `waouh_unified_catalog_v`** unionnant Partner Products + Chat Listings + Radar Items, colonnes :
 
-Frontend admin **AdminWaouhMonitoringPage** (nouvelle route `/admin/waouh/monitoring`) :
-- Realtime Supabase channel sur `waouh_partner_activity` → flux live (10 derniers événements, badges colorés par type).
-- KPIs globaux (partenaires actifs, ventes du jour, CA, commissions à payer).
-- Top partenaires + alertes (stock bas, partenaire inactif >7j, ventes anormales).
+| Colonne | Source |
+|---|---|
+| `source` | partner / chat / radar |
+| `type` | annonce / vendeur / acheteur |
+| `titre`, `description`, `categorie` | normalisé |
+| `prix`, `devise` | |
+| `contact_phone`, `contact_whatsapp` | normalisés Bénin 01 |
+| `photos[]` | merge photos |
+| `ville`, `quartier`, `adresse`, `lat`, `lng` | |
+| `vendeur_nom`, `acheteur_nom` | |
+| `date_publication` | created_at source |
+| `statut` | active / desactive / supprime |
+| `score_qualite` | calculé |
 
-Frontend partner **PartnerDashboardPage** (enrichi) :
-- Notifications temps réel à chaque vente d'un de ses produits (Supabase realtime sur `waouh_partner_sales` filtré `partner_id=eq.X` + toast + badge cloche).
-- Cartes KPI : CA jour/semaine/mois, commission cumulée, commission en attente, prochaine paie.
-- Section **Mes produits & stock** : liste avec stock courant, ventes 30j, commission générée, alerte stock bas (<5).
-- Section **Statistiques de vente** : graphique (recharts) ventes/jour 30j, top 5 produits, répartition par entreprise.
-- Chaîne de traçabilité (mini-graph) : Partenaire → Entreprises → Produits → Ventes.
+UI table catalogue avec colonnes ci-dessus + actions par ligne : **Voir / Vérifier / Modifier / Activer / Désactiver / Supprimer**. Filtres : type, source, ville, statut, présence photo, présence contact WhatsApp.
 
-## 7. Routes ajoutées / modifiées
+Édition cross-source : edge function `waouh-catalog-update` qui route l'update vers la bonne table source selon `source`.
 
-```
-/partner                                 (dashboard enrichi)
-/partner/businesses                      (CRUD + drawer détail)
-/partner/businesses/:id                  (drawer route)
-/partner/products                        (CRUD + stats)
-/partner/sales                           (historique + filtres)
-/partner/payouts                         (demandes + statut)
-/admin/waouh/partners                    (gestion + habilitations)
-/admin/waouh/businesses                  (NEW - validation entreprises)
-/admin/waouh/monitoring                  (NEW - temps réel)
-/admin/waouh/data-control                (existant, conservé)
-```
+### Détails techniques
 
-Toutes protégées par `PartnerRoute` / admin guard existants.
+- **Storage bucket** : `waouh-media` (public read, authenticated write, 5MB max, image/* uniquement).
+- **Migrations** : 1 seul fichier — ajout colonnes `photos`, `classification`, `phone_normalized`, `whatsapp_normalized` aux 3 tables ; vue `waouh_unified_catalog_v` ; fonction `waouh_normalize_bj_phone(text)` SQL.
+- **Backfill** : trigger + script one-shot pour normaliser les numéros existants et extraire les `@lid` connus.
+- **Perf** : index sur `(classification, statut, ville)` ; vue matérialisée si volume > 10k.
+- **Validation Zod** : adapter `phoneRequired` pour exiger 10 chiffres BJ commençant par `01`.
 
-## Détails techniques
+### Fichiers impactés
 
-**Fichiers nouveaux** :
-- `src/lib/validation/waouh.ts`
-- `src/components/waouh/PartnerBusinessDetailDrawer.tsx`
-- `src/components/waouh/PartnerActivityFeed.tsx`
-- `src/components/waouh/PartnerStatsCards.tsx`
-- `src/components/waouh/AdminPartnerDetailDrawer.tsx`
-- `src/components/waouh/PartnerPermissionsMatrix.tsx`
-- `src/hooks/useWaouhPartnerStats.ts` (realtime + agrégats)
-- `src/hooks/useWaouhPartnerActivity.ts` (realtime feed)
-- `src/hooks/useWaouhPartnerPermissions.ts`
-- `src/pages/admin/AdminWaouhMonitoringPage.tsx`
-- `src/pages/admin/AdminWaouhBusinessesPage.tsx`
-- Edge functions : `waouh-partner-admin-update`, `waouh-partner-set-permission`, `waouh-partner-set-status`
-
-**Fichiers modifiés** :
-- `src/lib/phone.ts` (ajout `normalizePhone`)
-- `src/components/ui/phone-input.tsx` (badge live, états d'erreur, helper text)
-- `src/components/ui/smart-combobox.tsx` (props `invalid`, `errorMessage`, debounce)
-- `src/components/waouh/LocationAutocomplete.tsx` (memo + cache)
-- `src/data/beninLocations.ts` (cache Map quartiers)
-- `src/pages/partner/PartnerBusinessesPage.tsx` (CRUD complet + Zod)
-- `src/pages/partner/PartnerProductsPage.tsx` (CRUD + stats stock)
-- `src/pages/partner/PartnerDashboardPage.tsx` (KPIs + realtime + traçabilité)
-- `src/pages/partner/PartnerSalesPage.tsx` (filtres + graph)
-- `src/pages/admin/AdminWaouhPartnersPage.tsx` (actions + drawer + permissions)
-- `src/App.tsx` (nouvelles routes admin)
-- `src/components/navigation/ModernSidebar.tsx` (liens admin monitoring + businesses)
-
-**Migrations DB** (1 seule) :
-- `waouh_partner_permissions`, `waouh_partner_audit_log`, `waouh_partner_activity` + triggers
-- Vues `waouh_partner_stats_v`, `waouh_product_traceability_v`
-- Fonctions `has_partner_permission`, `waouh_partner_log_activity`
-- Activation realtime (`alter publication supabase_realtime add table ...`) pour `waouh_partner_sales`, `waouh_partner_activity`
-- RLS sur toutes les nouvelles tables
-
-**Pas de changement** : pricing, FCFA, modules existants hors Waouh.
+- `src/lib/phone.ts`, `src/lib/validation/waouh.ts`
+- `src/components/ui/phone-input.tsx`, nouveau `src/components/waouh/PhoneCell.tsx`
+- nouveau `src/components/waouh/ProductPhotoUploader.tsx`, `src/components/waouh/ProductDetailDialog.tsx`
+- `src/pages/partner/PartnerProductsPage.tsx`
+- `src/pages/admin/AdminWaouhDataControlPage.tsx` (onglets Annonces, Acheteurs, Transactions, Recherche)
+- `src/pages/admin/AdminWaouhRadarPage.tsx` (ou équivalent)
+- nouvelles edge functions : `waouh-extract-media`, `waouh-normalize-numbers`, `waouh-catalog-update`
+- 1 migration SQL
