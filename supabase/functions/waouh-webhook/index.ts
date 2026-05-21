@@ -233,9 +233,14 @@ serve(async (req) => {
       } catch { return ""; }
     };
 
-    // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie
+    // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie.
+    // Accepte soit to_user_id (chemin chat classique), soit to_phone (partner/radar sans compte existant).
+    // Double check Bénin sur le numéro avant lookup. Si le target a phone + web_session, miroir whatsapp + web.
     async function pushToOther(opts: {
-      to_user_id: string;
+      to_user_id?: string | null;
+      to_phone?: string | null;
+      to_web_session_id?: string | null;
+      source?: "chat" | "partner" | "radar";
       template: string;
       payload: any;
       image_url?: string | null;
@@ -246,44 +251,109 @@ serve(async (req) => {
       dedupe_key?: string | null;
       event_type?: string | null;
     }) {
-      const { data: target } = await sb.from("waouh_users")
-        .select("id, phone_number, web_session_id, channel")
-        .eq("id", opts.to_user_id).maybeSingle();
+      // 1) Résoudre la cible
+      let target: any = null;
+      if (opts.to_user_id) {
+        const { data } = await sb.from("waouh_users")
+          .select("id, phone_number, web_session_id, channel")
+          .eq("id", opts.to_user_id).maybeSingle();
+        target = data;
+      }
+      if (!target && opts.to_phone) {
+        const resolved = await resolveWaouhUserByPhone(sb, opts.to_phone);
+        if (resolved) target = resolved;
+      }
+      // Fallback "vendeur invité" : pas de compte trouvé mais on a un numéro normalisable
+      if (!target && opts.to_phone) {
+        const canon = normalizeBeninPhone(opts.to_phone);
+        if (canon) {
+          target = { id: null, phone_number: canon, web_session_id: opts.to_web_session_id ?? null, channel: "whatsapp" };
+        }
+      }
       if (!target) return;
-      if (target.id === user?.id || (target.phone_number && phone && normalizeBeninPhone(target.phone_number) === normalizeBeninPhone(phone))) return;
+      // Ne pas se renvoyer le message à soi-même
+      if (target.id && user?.id && target.id === user.id) return;
+      if (target.phone_number && phone) {
+        const tgtCanon = normalizeBeninPhone(target.phone_number);
+        const meCanon = normalizeBeninPhone(phone);
+        if (tgtCanon && meCanon && tgtCanon === meCanon) return;
+      }
+
+      const webSession = target.web_session_id || opts.to_web_session_id || null;
       let insertedMsgId: string | null = null;
-      if (target.web_session_id) {
+      if (webSession && target.id) {
         try {
           const { data: msg } = await sb.from("waouh_messages").insert({
             user_id: target.id,
             channel: "web",
             direction: "out",
             text: opts.directText,
-            web_session_id: target.web_session_id,
+            web_session_id: webSession,
             attachments: opts.directAtts ?? [],
-            meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null },
+            meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null, source: opts.source ?? "chat" },
           }).select("id").maybeSingle();
           insertedMsgId = msg?.id ?? null;
         } catch (e) { console.warn("[pushToOther] msg", e); }
       }
-      try {
-        const quickActions: Array<{ id: string; label: string }> = Array.isArray(opts.payload?.actions)
-          ? opts.payload.actions.slice(0, 3)
-          : [];
-        await sb.rpc("waouh_enqueue_outbound_v2", {
-          p_to_phone: target.phone_number,
-          p_to_user_id: target.id,
-          p_template: opts.template,
-          p_payload: { ...(opts.payload || {}), text: opts.directText, actions: quickActions, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null },
-          p_web_session_id: target.web_session_id,
-          p_image_url: opts.image_url ?? null,
-          p_channel: target.phone_number ? "whatsapp" : "web",
-          p_message_id: insertedMsgId,
-          p_transaction_id: opts.transaction_id ?? null,
-          p_dedupe_key: opts.dedupe_key ?? null,
-          p_event_type: opts.event_type ?? null,
-        });
-      } catch (e) { console.warn("[pushToOther] enqueue", e); }
+
+      const quickActions: Array<{ id: string; label: string }> = Array.isArray(opts.payload?.actions)
+        ? opts.payload.actions.slice(0, 3)
+        : [];
+      const basePayload = { ...(opts.payload || {}), text: opts.directText, actions: quickActions, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat" };
+
+      // 2) Enqueue WhatsApp si on a un numéro
+      if (target.phone_number) {
+        try {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: target.phone_number,
+            p_to_user_id: target.id,
+            p_template: opts.template,
+            p_payload: basePayload,
+            p_web_session_id: webSession,
+            p_image_url: opts.image_url ?? null,
+            p_channel: "whatsapp",
+            p_message_id: insertedMsgId,
+            p_transaction_id: opts.transaction_id ?? null,
+            p_dedupe_key: opts.dedupe_key ? `wa:${opts.dedupe_key}` : null,
+            p_event_type: opts.event_type ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] enqueue wa", e); }
+      }
+      // 3) Enqueue web en miroir si on a une session web (et qu'on n'a pas déjà envoyé que web)
+      if (webSession && target.phone_number) {
+        try {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: null,
+            p_to_user_id: target.id,
+            p_template: opts.template,
+            p_payload: basePayload,
+            p_web_session_id: webSession,
+            p_image_url: opts.image_url ?? null,
+            p_channel: "web",
+            p_message_id: insertedMsgId,
+            p_transaction_id: opts.transaction_id ?? null,
+            p_dedupe_key: opts.dedupe_key ? `web:${opts.dedupe_key}` : null,
+            p_event_type: opts.event_type ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] enqueue web mirror", e); }
+      } else if (webSession && !target.phone_number) {
+        // Cas pur web (pas de numéro) : 1 seul enqueue web pour cohérence avec le dispatcher
+        try {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: null,
+            p_to_user_id: target.id,
+            p_template: opts.template,
+            p_payload: basePayload,
+            p_web_session_id: webSession,
+            p_image_url: opts.image_url ?? null,
+            p_channel: "web",
+            p_message_id: insertedMsgId,
+            p_transaction_id: opts.transaction_id ?? null,
+            p_dedupe_key: opts.dedupe_key ? `web:${opts.dedupe_key}` : null,
+            p_event_type: opts.event_type ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] enqueue web", e); }
+      }
     }
 
 
