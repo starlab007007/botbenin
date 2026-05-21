@@ -645,7 +645,7 @@ serve(async (req) => {
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
           state: "proposed", last_offer_price: askPrice, last_actor: "buyer",
-          meta: { source: "chat" },
+          meta: { source: pickSource },
         }).select().single();
         returnedArticleId = pick.id;
         const commission = Math.round(askPrice * 0.05);
@@ -664,12 +664,14 @@ serve(async (req) => {
         if (neg?.id && returnedTransactionId) {
           await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
         }
-        // Notifie le vendeur — UN SEUL message, sans carte paiement, sans actions paiement.
-        // Boutons interactifs : Accepter / Contre-offre / Refuser.
-        if (seller?.id) {
+        // Notifie le vendeur (chat: via to_user_id ; partner/radar: via to_user_id stub + to_phone fallback)
+        const vendorPhoneForPush = !seller?.phone_number ? await resolveVendorPhone(sb, pick) : null;
+        if (seller?.id || vendorPhoneForPush) {
           try {
             await pushToOther({
-              to_user_id: seller.id,
+              to_user_id: seller?.id ?? null,
+              to_phone: vendorPhoneForPush,
+              source: pickSource,
               template: "match_seller",
               payload: {
                 article_id: pick.id, title: pick.title, price: askPrice,
@@ -680,15 +682,17 @@ serve(async (req) => {
               image_url: firstPhoto,
               directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
               directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
-              directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
+              directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id, source: pickSource },
               transaction_id: returnedTransactionId,
-              dedupe_key: null,
+              dedupe_key: `match:${neg?.id ?? pick.id}:${pickSource}`,
               event_type: "seller_new_interest",
             });
-            console.log("[interest-push] enqueue ok", { seller_id: seller.id, neg_id: neg?.id, tx: returnedTransactionId });
+            console.log("[interest-push] enqueue ok", { source: pickSource, seller_id: seller?.id, neg_id: neg?.id, tx: returnedTransactionId });
           } catch (e) {
             console.error("[interest-push] enqueue failed", e);
           }
+        } else {
+          console.warn("[interest-push] no seller and no vendor phone resolvable", { pick_id: pick.id, source: pickSource });
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
         returnedActions = [];
