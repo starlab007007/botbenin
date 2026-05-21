@@ -141,11 +141,12 @@ Deno.serve(async (req) => {
         totalFetched += fetched;
 
         const rows: any[] = [];
+        const phoneRowsByName = new Map<string, any>();
         for (const c of contacts || []) {
           const id = c.id || '';
           const rawPhone = c.number || c.phoneNumber || (id.includes('@') ? id.split('@')[0] : '');
           const digits = (rawPhone || '').replace(/\D/g, '');
-          if (!digits) continue;
+          if (!digits || !isLikelyPhoneDigits(digits)) continue;
 
           let phone_e164: string;
           try {
@@ -156,22 +157,32 @@ Deno.serve(async (req) => {
           }
 
           const lidId = c.lid || (id.endsWith('@lid') ? id.split('@')[0] : null);
+          const displayName = c.name || c.shortName || null;
+          const pushname = c.pushname || null;
+          const rowBase = {
+            jid: id, phone: digits, phone_e164,
+            pushname,
+            display_name: displayName,
+            session, last_synced_at: new Date().toISOString(),
+          };
           if (lidId) {
-            rows.push({
-              lid: lidId, jid: id, phone: digits, phone_e164,
-              pushname: c.pushname || null,
-              display_name: c.name || c.shortName || null,
-              session, last_synced_at: new Date().toISOString(),
-            });
+            rows.push({ lid: lidId, ...rowBase });
           }
           if (id && !id.endsWith('@lid')) {
-            rows.push({
-              lid: id, jid: id, phone: digits, phone_e164,
-              pushname: c.pushname || null,
-              display_name: c.name || c.shortName || null,
-              session, last_synced_at: new Date().toISOString(),
-            });
+            rows.push({ lid: id, ...rowBase });
           }
+          for (const name of [displayName, pushname]) {
+            const key = nameKey(name);
+            if (key && isBjPhoneDigits(digits)) phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
+          }
+        }
+
+        for (const c of contacts || []) {
+          const id = c.id || '';
+          if (!id.endsWith('@lid')) continue;
+          const lidId = c.lid || id.split('@')[0];
+          const linked = phoneRowsByName.get(nameKey(c.name || c.shortName)) || phoneRowsByName.get(nameKey(c.pushname));
+          if (linked && lidId) rows.push({ ...linked, lid: lidId, jid: id });
         }
 
         // Dedupe rows by lid (last wins)
