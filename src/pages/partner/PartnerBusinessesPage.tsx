@@ -281,7 +281,7 @@ export default function PartnerBusinessesPage() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-                <Link to={`/partner/businesses/${b.id}/products`} className="ml-auto">
+                <Link to={b.code_court ? `/partner/b/${b.code_court}/produits` : `/partner/businesses/${b.id}/products`} className="ml-auto">
                   <Button size="sm" variant="default"><Package className="h-4 w-4 mr-1" />Produits</Button>
                 </Link>
               </div>
@@ -310,7 +310,7 @@ export default function PartnerBusinessesPage() {
                 <div><strong>Statut :</strong> <Badge variant={detail.statut === 'active' ? 'default' : 'secondary'}>{detail.statut}</Badge> {detail.verifie_admin && <Badge>Vérifié admin</Badge>}</div>
                 <div className="flex gap-2 pt-4">
                   <Button onClick={() => { setDetailId(null); startEdit(detail); }}><Pencil className="h-4 w-4 mr-1" />Modifier</Button>
-                  <Link to={`/partner/businesses/${detail.id}/products`}><Button variant="outline"><Package className="h-4 w-4 mr-1" />Produits</Button></Link>
+                  <Link to={detail.code_court ? `/partner/b/${detail.code_court}/produits` : `/partner/businesses/${detail.id}/products`}><Button variant="outline"><Package className="h-4 w-4 mr-1" />Produits</Button></Link>
                 </div>
               </div>
             </>

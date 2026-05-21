@@ -37,11 +37,14 @@ const emptyForm: ProductForm = {
 };
 
 export default function PartnerProductsPage() {
-  const { businessId } = useParams();
+  const params = useParams();
+  const codeParam = (params as any).code as string | undefined;
+  const businessIdParam = (params as any).businessId as string | undefined;
   const { partner } = useWaouhPartner();
   const { toast } = useToast();
   const ai = useWaouhAI();
   const [business, setBusiness] = useState<any>(null);
+  const [businessId, setBusinessId] = useState<string | null>(businessIdParam || null);
   const [products, setProducts] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -53,15 +56,18 @@ export default function PartnerProductsPage() {
   const [picked, setPicked] = useState<Set<number>>(new Set());
 
   const load = async () => {
-    if (!businessId) return;
-    const [b, p] = await Promise.all([
-      supabase.from('waouh_partner_businesses' as any).select('*').eq('id', businessId).single(),
-      supabase.from('waouh_partner_products' as any).select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
-    ]);
-    setBusiness(b.data);
-    setProducts((p.data as any) || []);
+    let bQuery = supabase.from('waouh_partner_businesses' as any).select('*');
+    if (codeParam) bQuery = bQuery.eq('code_court', codeParam.toUpperCase());
+    else if (businessIdParam) bQuery = bQuery.eq('id', businessIdParam);
+    else return;
+    const { data: b } = await bQuery.maybeSingle();
+    if (!b) { setBusiness(null); setProducts([]); return; }
+    setBusiness(b);
+    setBusinessId((b as any).id);
+    const { data: p } = await supabase.from('waouh_partner_products' as any).select('*').eq('business_id', (b as any).id).order('created_at', { ascending: false });
+    setProducts((p as any) || []);
   };
-  useEffect(() => { load(); }, [businessId]);
+  useEffect(() => { load(); }, [codeParam, businessIdParam]);
 
   const openNew = () => { setEditId(null); setForm({ ...emptyForm }); setOpen(true); };
   const openEdit = (p: any) => {
@@ -182,7 +188,6 @@ export default function PartnerProductsPage() {
               <ProductPhotoUploader value={form.photos} onChange={photos => setForm({ ...form, photos })} max={3} />
             </div>
             <div><Label>Nom *</Label><Input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Catégorie</Label>

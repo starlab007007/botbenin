@@ -5851,6 +5851,7 @@ export type Database = {
         Row: {
           adresse_complete: string | null
           categorie: string | null
+          code_court: string | null
           created_at: string
           description: string | null
           email: string | null
@@ -5883,6 +5884,7 @@ export type Database = {
         Insert: {
           adresse_complete?: string | null
           categorie?: string | null
+          code_court?: string | null
           created_at?: string
           description?: string | null
           email?: string | null
@@ -5915,6 +5917,7 @@ export type Database = {
         Update: {
           adresse_complete?: string | null
           categorie?: string | null
+          code_court?: string | null
           created_at?: string
           description?: string | null
           email?: string | null
