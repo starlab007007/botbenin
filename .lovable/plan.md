@@ -1,88 +1,113 @@
 
-# Module de paiement — État & Plan d'intégration MTN
+# Notifications multi-canal WAOUH (Chat / Partenaire / Radar IA)
 
-## 1. Ce qui est déjà intégré
+## Problème
 
-### Backend (Edge Functions Supabase)
-- `qosic-payment` (442 lignes) — Initie un paiement Qosic, mappe `MTN → mtn_momo`, `MOOV → moov_money`, `SBIN → sbin`. Gère Basic Auth, génération `transref` (≤20 chars), insertion en base, mode test, gestion erreurs SSL, timeout 30s.
-- `qosic-check-status` — Polling du statut via `gettransactionstatus`, mappe `responsecode 00 → completed`, `01 → processing`, autres → `failed`. Supporte un check ciblé ou tous les `processing` > 30s.
-- `qosic-webhook` — Réception callback Qosic.
-- `mtn-momo-initiate` (71 lignes) — wrapper léger (probablement legacy/doublon).
-- `waouh-payment` + `waouh-payment-handler` — Pipeline paiement marketplace WAOUH (escrow 3% commission).
+Quand l'acheteur dit *"intéressé N"*, `waouh-webhook` (branche `CONFIRM`, lignes 513-597) ne notifie que les annonces issues du **chat** (`pick.seller_id` → `waouh_users`). Les produits venant du **catalogue partenaire** (`vendeur_phone/vendeur_whatsapp`, `partner_id`, `business_id`) et du **radar IA** (`contact_phone` scrapé) sont listés et choisissables mais le vendeur ne reçoit jamais le message *"Nouvel acheteur intéressé"*. La suite de la négociation (contre-offre, OUI/NON, paiement) ne suit donc pas non plus sur WhatsApp pour ces deux sources.
 
-### Frontend
-- `MTNMomoPaymentModal.tsx` — Format `229XXXXXXXX`, appel `qosic-payment` avec `operator: 'MTN'`, suivi via `PaymentStatusTracker`.
-- `MoovMoneyPaymentModal.tsx`, `SBINPaymentModal.tsx` — Analogues.
-- `WaouhPaymentDialog.tsx` — Flow Mobile Money pour la marketplace (polling 6s, max 18 tentatives).
-- `PaymentDiagnostic.tsx`, `PaymentTestPage.tsx`, `PaymentHistoryPage.tsx`, `PaymentStatusTracker`.
+De plus :
+- `normalizeBeninPhone` produit `229XXXXXXXX` sans tester la double variante Bénin (`+229` court vs `+22901` long depuis la réforme 2021).
+- `pushToOther` ne sait cibler que via `to_user_id` ; il n'a pas de chemin "numéro brut sans compte WAOUH".
+- L'acheteur web (connecté avec un `phone_number` lié) ne reçoit pas systématiquement les messages WhatsApp en miroir et inversement.
 
-### Base de données
-- Table `payment_transactions` avec : `order_id`, `user_id`, `amount`, `currency`, `phone_number`, `status` (pending/processing/completed/failed), `payment_method`, `operator`, `qosic_transaction_id`, `qosic_response`, `metadata`.
-- Tables `waouh_transactions` + `waouh_partner_payouts` pour la marketplace.
+## Objectif
 
-### Secrets configurés
-`QOSIC_USERNAME`, `QOSIC_PASSWORD`, `QOSIC_BASE_URL`, `QOSIC_MTN_CLIENT_ID`, `QOSIC_MOOV_CLIENT_ID`, `QOSIC_SBIN_CLIENT_ID`, `QOSIC_API_PASSWORD`, `QOSIC_CLIENT_ID`.
+Pour les **3 sources** (chat, partner, radar), à partir de *"intéressé N"* et jusqu'à clôture (`completed`, `cancelled`, `refused`) :
 
-## 2. Ce qui n'est PAS intégré / problèmes connus
+1. Identifier le numéro WhatsApp du vendeur selon la source.
+2. Vérifier/normaliser ce numéro avec **double tentative Bénin** (`229XXXXXXXX` puis `22901XXXXXXXX`).
+3. Envoyer la notif WhatsApp + le message web (si compte web associé existe).
+4. Faire pareil côté acheteur (web + WhatsApp si numéro Bénin associé).
+5. Propager **chaque message** de la négociation aux deux canaux des deux parties jusqu'à clôture.
 
-1. **Credentials staging non vérifiés** — Les valeurs actuelles des secrets `QOSIC_*` n'ont jamais été confirmées comme étant celles fournies aujourd'hui (`USR01` / `YG739G5XFVPYYV4ADJVW` / `MTNTEST`).
-2. **`QOSIC_BASE_URL` probablement en HTTPS** alors que staging exige `http://staging.qosic.net:9010` (HTTP plein). À vérifier — la mémoire projet note une "HTTPS enforcement" qui peut bloquer le staging.
-3. **Format téléphone strict `229XXXXXXXX`** dans `qosic-payment` (ligne 162). Le numéro de test fourni `2290191299191` fait 13 chiffres après `229` au lieu de 8 → la regex `^229\d{8}$` rejettera. À assouplir ou corriger le numéro.
-4. **Mode test SSL** (`QOSIC_TEST_MODE`) simule un succès sans appel API → empêche tout vrai test. Doit rester `false`.
-5. **Doublon `mtn-momo-initiate`** vs `qosic-payment` — source de confusion, à supprimer ou unifier.
-6. **Webhook Qosic non documenté côté Qosic** — l'URL de callback `qosic-webhook` doit être déclarée chez Qosic (manuel).
-7. **Pas de test E2E automatisé MTN** (un `waouh-e2e-test` existe pour WAOUH uniquement).
-8. **Polling status côté frontend** déclenché manuellement via `PaymentStatusTracker`, pas de cron de réconciliation automatique.
+## Plan d'implémentation
 
-## 3. Plan d'action
+### Étape 1 — Helper de normalisation Bénin "double check" (`_shared/waouh-phone.ts`)
 
-### Étape A — Mettre à jour / vérifier les secrets Qosic staging
-Mettre à jour via le tooling secrets (l'utilisateur saisit les valeurs en clair) :
-- `QOSIC_USERNAME` = `USR01`
-- `QOSIC_PASSWORD` = `YG739G5XFVPYYV4ADJVW`
-- `QOSIC_MTN_CLIENT_ID` = `MTNTEST`
-- `QOSIC_BASE_URL` = `http://staging.qosic.net:9010`
+Nouveau module exportant :
 
-### Étape B — Corriger la validation téléphone
-Dans `supabase/functions/qosic-payment/index.ts` (ligne ~161-165), assouplir la regex pour accepter le format de test long :
+- `normalizeBeninPhone(raw)` : version actuelle améliorée → renvoie toujours le format `229XXXXXXXXXX` (8 ou 10 chiffres locaux).
+- `beninPhoneCandidates(raw)` : renvoie `[short, long]` — par ex `229XXXXXXXX` (8) et `22901XXXXXXXX` (10) — pour interroger la DB avec les deux variantes.
+- `resolveWaouhUserByPhone(sb, raw)` : essaie `waouh_users` avec chaque candidat ; renvoie le 1ᵉʳ trouvé (id, web_session_id, phone_number).
+
+Remplace les usages dispersés dans `waouh-webhook`, `waouh-outbound-dispatch`, `promoteRadarSeller`, `waouh-radar-wa-webhook`.
+
+### Étape 2 — Extension de `pushToOther` (waouh-webhook L228-278)
+
+Aujourd'hui : prend `to_user_id` obligatoire.
+
+Nouvelle signature :
 ```
-if (!/^229\d{8,12}$/.test(cleanPhone)) { ... }
+pushToOther({
+  to_user_id?: string,
+  to_phone?: string,              // numéro brut (sera normalisé + double-check)
+  to_web_session_id?: string,
+  source: "chat" | "partner" | "radar",
+  ... payload/text/atts/meta inchangés
+})
 ```
-Et même chose côté frontend `MTNMomoPaymentModal.tsx` (ligne ~37).
 
-### Étape C — Confirmer endpoint MTN
-Vérifier que `endpointMap.MTN` (ligne 237) pointe bien sur `${baseUrl}/QosicBridge/user/requestpayment` (déjà OK), et que le payload utilise bien `clientid` minuscule (déjà OK).
+Logique :
+1. Si `to_user_id` fourni → comportement actuel.
+2. Sinon, normaliser `to_phone` via `beninPhoneCandidates` et chercher `waouh_users` ; si trouvé → utiliser son `id` + `web_session_id`.
+3. Si aucun user → enqueue WhatsApp pur via `waouh_enqueue_outbound_v2` avec `p_to_user_id: null`, `p_to_phone: <canonique>`, `p_channel: "whatsapp"` (mode "vendeur invité").
+4. Si `to_web_session_id` fourni en plus → également enqueue `channel: "web"` pour miroir.
 
-### Étape D — Test de bout en bout
-1. Désactiver `QOSIC_TEST_MODE` (ou ne pas le définir).
-2. Appeler `qosic-payment` via `supabase--curl_edge_functions` :
-   ```json
-   { "amount": 100, "phoneNumber": "2290191299191", "operator": "MTN", "fullName": "Test User", "planName": "MTN-TEST" }
-   ```
-3. Lire les logs (`supabase--edge_function_logs qosic-payment`) pour confirmer `responsecode: "01"` et `serviceref` retourné.
-4. Appeler `qosic-check-status` avec le `transref` retourné pour valider le passage `processing → completed`.
-5. Vérifier la ligne en base `payment_transactions`.
+### Étape 3 — Branche CONFIRM : router selon la source (L513-597)
 
-### Étape E — Nettoyage
-- Supprimer `mtn-momo-initiate` (doublon) après validation.
-- Documenter le webhook callback à fournir à Qosic.
+Le `combinedMatches` (L479-483) tague déjà `source: "partner"` et les promotions radar. Étendre :
 
-## 4. Détails techniques
+| Source | seller_id | Numéro vendeur cible | Comportement |
+|---|---|---|---|
+| chat (défaut) | présent | `seller.phone_number` | Comme aujourd'hui via `to_user_id`. |
+| partner | absent | `pick.vendeur_whatsapp \|\| pick.vendeur_phone` (fallback : `partner_businesses.whatsapp_phone` via `business_id`) | `pushToOther({ to_phone, source: "partner" })`. Pas de `waouh_negotiations` lié à un `seller_user_id` → créer/upsert un `waouh_users` "vendor stub" à partir du numéro normalisé pour pouvoir attacher `seller_user_id`. |
+| radar | éventuellement présent après `promoteRadarSeller` | `waouh_radar_signals.contact_phone` (ramené dans `combinedMatches`) | Idem partner : upsert user stub + `pushToOther({ to_phone, source: "radar" })`. |
 
-**Mapping codes Qosic** :
-| responsecode | Sens | DB status |
-|---|---|---|
-| 00 | Succès final | `completed` |
-| 01 | En cours / initié | `processing` |
-| autre | Échec | `failed` |
+Dans tous les cas la même `waouh_negotiation` + `waouh_transaction` est créée (le code existant fonctionne dès que `seller_user_id` est résolu).
 
-**Format `transref`** : ≤ 20 chars, actuel `PAY_{9 digits}_{5 chars}` = 19 chars ✅
+### Étape 4 — Réponse vendeur & suite de conversation
 
-**Headers Qosic** : `Authorization: Basic base64(USR01:YG739G5XFVPYYV4ADJVW)` + `Content-Type: application/json`.
+Le webhook entrant WhatsApp (`waouh-channel-in` → `waouh-webhook`) reconnaît déjà *OUI / NON / "Je propose X"*. Pour que ça fonctionne pour un vendeur partner/radar qui n'avait pas de compte avant :
 
-**Endpoints staging** :
-- Init : `http://staging.qosic.net:9010/QosicBridge/user/requestpayment`
-- Status : `http://staging.qosic.net:9010/QosicBridge/user/gettransactionstatus`
+- L'upsert "vendor stub" de l'étape 3 donne un `waouh_users.id` rattaché au numéro WhatsApp ; donc dès qu'il répond, `waouh-channel-in` (L131-148) le retrouve par `phone_number` et la conversation suit le pipeline normal.
+- Marquer ces users avec `meta: { stub_origin: "partner" | "radar" }` pour analytics.
 
-## 5. Validation finale
-Après approbation du plan, j'exécuterai A → D et fournirai les logs du test 100 FCFA sur `2290191299191`.
+### Étape 5 — Miroir Web ↔ WhatsApp pour les deux parties
+
+Modifier `pushToOther` (et l'appel équivalent pour `pushToBuyer` côté acheteur lors des contre-offres L598-700) pour, à chaque événement de la négociation :
+
+1. Résoudre vendeur ET acheteur (id, phone, web_session_id).
+2. Pour chacun, enqueue en **double canal** dès qu'il a les deux références :
+   - `p_channel: "whatsapp"` si `phone_number`
+   - `p_channel: "web"` si `web_session_id`
+3. Continuer jusqu'à ce que `waouh_negotiations.state ∈ ('completed','refused','cancelled')` ou `waouh_transactions.status ∈ ('completed','cancelled','failed')`.
+
+L'outbound dispatcher actuel (`waouh-outbound-dispatch`) gère déjà le routage par `channel`, rien à changer côté dispatch.
+
+### Étape 6 — Test E2E
+
+Étendre `waouh-e2e-test` avec 3 scénarios :
+1. Annonce chat → "intéressé 1" → vendeur reçoit WA + Web.
+2. Annonce partner (mock business avec numéro `0191XXXXXX`) → vendeur partenaire reçoit WA (avec double-check `+229` / `+22901`).
+3. Signal radar mock → vendeur scrapé reçoit WA, répond *OUI*, négocie, va jusqu'à `payment_pending`.
+
+## Détails techniques
+
+**Fichiers modifiés** :
+- `supabase/functions/_shared/waouh-phone.ts` *(nouveau)*
+- `supabase/functions/waouh-webhook/index.ts` — `pushToOther`, branche `CONFIRM`, branches `NEGOTIATE`/`ACCEPT`/`REFUSE`.
+- `supabase/functions/waouh-channel-in/index.ts` — utiliser `resolveWaouhUserByPhone`.
+- `supabase/functions/waouh-outbound-dispatch/index.ts` — utiliser `beninPhoneCandidates` au moment d'envoyer (sécurité supplémentaire).
+- `supabase/functions/waouh-e2e-test/index.ts` — nouveaux cas.
+
+**Table partner** : lookup `partner_businesses` par `business_id` quand `vendeur_whatsapp/phone` est absent de `partner_products`.
+
+**Idempotence** : conserver les `dedupe_key` existants ; ajouter un préfixe `chat:`/`partner:`/`radar:` pour éviter qu'un même évènement parte deux fois sur le même canal.
+
+**Schéma DB** : pas de migration nécessaire — `waouh_users` accepte déjà des users sans `auth.uid`, `waouh_outbound_queue` accepte `to_user_id` nullable.
+
+## Hors scope
+
+- Pas de modification de l'UI web chat (déjà multi-canal).
+- Pas de refonte du dispatcher WAHA.
+- Pas d'ajout de templates WhatsApp Business — on reste sur `sendText`/`sendImage` via WAHA.
