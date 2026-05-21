@@ -244,7 +244,21 @@ export default function AdminWaouhDataControlPage() {
                   try {
                     toast({ title: 'Synchronisation WAHA en cours…', description: 'Récupération des contacts depuis toutes les sessions actives.' });
                     const { data, error } = await supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } });
-                    if (error) throw error;
+                    if (error) {
+                      let details = error.message || 'Erreur inconnue';
+                      const ctx = (error as any).context;
+                      try {
+                        if (ctx?.json) {
+                          const payload = await ctx.json();
+                          details = payload?.error || payload?.message || JSON.stringify(payload);
+                        } else if (ctx?.text) {
+                          details = await ctx.text();
+                        } else if (ctx?.body) {
+                          details = typeof ctx.body === 'string' ? ctx.body : JSON.stringify(ctx.body);
+                        }
+                      } catch { /* garde le message Supabase par défaut */ }
+                      throw new Error(details);
+                    }
                     if (data?.warning) {
                       toast({ title: '⚠️ Aucune session WAHA active', description: data.warning, variant: 'destructive' });
                     } else {
@@ -253,8 +267,7 @@ export default function AdminWaouhDataControlPage() {
                     }
                     search();
                   } catch (e: any) {
-                    const msg = e?.context?.body ? (typeof e.context.body === 'string' ? e.context.body : JSON.stringify(e.context.body)) : (e?.message || String(e));
-                    toast({ title: 'Erreur synchro WAHA', description: msg, variant: 'destructive' });
+                    toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
                   }
                 }}>
                   <RefreshCw className="h-4 w-4 mr-2" />Synchroniser contacts WAHA
