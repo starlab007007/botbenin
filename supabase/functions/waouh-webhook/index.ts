@@ -389,6 +389,43 @@ serve(async (req) => {
           });
         } catch (e) { console.warn("[pushToOther] enqueue web", e); }
       }
+      // 4) Miroir vers les sessions web supplémentaires (ex: compte partner ayant enregistré l'entreprise)
+      const extras = opts.mirror_web_sessions || [];
+      const alreadySent = new Set<string>();
+      if (webSession) alreadySent.add(webSession);
+      for (const extra of extras) {
+        if (!extra?.web_session_id || alreadySent.has(extra.web_session_id)) continue;
+        alreadySent.add(extra.web_session_id);
+        try {
+          // Insère le message dans le chat web du partner pour l'affichage immédiat
+          let mirrorMsgId: string | null = null;
+          try {
+            const { data: msg } = await sb.from("waouh_messages").insert({
+              user_id: extra.user_id,
+              channel: "web",
+              direction: "out",
+              text: opts.directText,
+              web_session_id: extra.web_session_id,
+              attachments: opts.directAtts ?? [],
+              meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat", mirror: "partner_web" },
+            }).select("id").maybeSingle();
+            mirrorMsgId = msg?.id ?? null;
+          } catch (e) { console.warn("[pushToOther] mirror msg", e); }
+          await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: null,
+            p_to_user_id: extra.user_id,
+            p_template: opts.template,
+            p_payload: { ...basePayload, message_id: mirrorMsgId },
+            p_web_session_id: extra.web_session_id,
+            p_image_url: opts.image_url ?? null,
+            p_channel: "web",
+            p_message_id: mirrorMsgId,
+            p_transaction_id: opts.transaction_id ?? null,
+            p_dedupe_key: opts.dedupe_key ? `web:${opts.dedupe_key}:${extra.web_session_id}` : null,
+            p_event_type: opts.event_type ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] enqueue web extra", e); }
+      }
     }
 
 
