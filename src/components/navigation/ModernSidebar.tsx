@@ -241,20 +241,7 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           </div>
         )}
 
-        {/* Waouh Partner — accessible à tous les utilisateurs connectés */}
-        {user && (
-          <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-              Waouh Partner
-            </h3>
-            <div className="space-y-2">
-              <NavItem item={{ title: 'Espace Partner', path: '/partner', icon: Handshake, color: 'from-amber-500 to-orange-500', description: 'Tableau de bord', badge: 'New' }} showDescription />
-              <NavItem item={{ title: 'Mes entreprises', path: '/partner/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Enrôler des commerces' }} showDescription />
-              <NavItem item={{ title: 'Mes ventes', path: '/partner/sales', icon: TrendingUp, color: 'from-green-500 to-emerald-600', description: 'Commissions' }} showDescription />
-              <NavItem item={{ title: 'Mes versements', path: '/partner/payouts', icon: Wallet, color: 'from-purple-500 to-pink-600', description: 'Historique paiements' }} showDescription />
-            </div>
-          </div>
-        )}
+
 
         {/* Waouh Partner — visible à tous, login requis au clic */}
         <div>
