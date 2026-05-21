@@ -30,6 +30,18 @@ const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PH
 
 type WaouhAction = { id: string; label: string };
 
+function beninPhoneCandidates(value: string | null | undefined): string[] {
+  const canon = normalizeBeninPhone(String(value || ""));
+  const out = new Set<string>();
+  if (canon) out.add(canon);
+  if (canon && canon.startsWith("229") && !canon.includes("@")) {
+    const local = canon.slice(3);
+    if (local.length === 8) out.add(`22901${local}`);
+    if (local.length === 10 && local.startsWith("01")) out.add(`229${local.slice(2)}`);
+  }
+  return [...out];
+}
+
 function log(step: string, data: any = {}) {
   console.log(`[waouh-channel-in] ${step}`, JSON.stringify(data));
 }
@@ -153,6 +165,43 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   return sendWahaText(base, session, chatId, fallback);
 }
 
+async function resolveReplyChatIds(sb: any, rawFrom: string | null, phone: string | null): Promise<string[]> {
+  const out = new Set<string>();
+  if (rawFrom && rawFrom.includes("@")) out.add(rawFrom);
+  if (phone && !phone.includes("@")) beninPhoneCandidates(phone).forEach((p) => out.add(`${p}@c.us`));
+  if (rawFrom?.includes("@lid")) {
+    const lid = rawFrom.replace(/@lid$/, "");
+    const { data: maps } = await sb.from("waouh_lid_phone_map")
+      .select("phone, phone_e164, jid")
+      .or(`lid.eq.${lid},jid.eq.${rawFrom}`)
+      .limit(3);
+    for (const m of maps || []) {
+      const raw = m.phone_e164 || m.phone;
+      beninPhoneCandidates(raw).forEach((p) => out.add(`${p}@c.us`));
+    }
+  }
+  return [...out];
+}
+
+async function sendWahaReply(base: string, session: string, chatIds: string[], text: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
+  let lastError = "";
+  for (const chatId of chatIds) {
+    const res = actions.length > 0
+      ? await sendWahaButtons(base, session, chatId, text, actions, imageUrl)
+      : imageUrl
+        ? await sendWahaImage(base, session, chatId, imageUrl, text)
+        : await sendWahaText(base, session, chatId, text);
+    if (res.ok) {
+      log("waha reply sent", { chatId, status: res.status });
+      return { ok: true, chatId };
+    }
+    const body = await res.text().catch(() => "");
+    lastError = `WAHA ${res.status} ${chatId}: ${body.slice(0, 200)}`;
+    console.warn("[waouh-channel-in] waha reply failed", lastError);
+  }
+  return { ok: false, error: lastError || "no chatId" };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -213,7 +262,8 @@ serve(async (req) => {
       fromChatId = raw.payload.from || `${normalizedFrom}@c.us`;
       text = extractInteractiveText(raw.payload);
       const mime = raw.payload.mimetype || raw.payload.media?.mimetype || raw.payload._data?.mimetype || "image/jpeg";
-      const derivedMediaUrl = raw.payload.id && WAHA_BASE_URL
+      const hasInboundMedia = raw.payload.hasMedia || raw.payload.media || raw.payload.mediaUrl || raw.payload._data?.deprecatedMms3Url;
+      const derivedMediaUrl = hasInboundMedia && raw.payload.id && WAHA_BASE_URL
         ? `${WAHA_BASE_URL.replace(/\/$/, "")}/api/files/${wahaSession}/${raw.payload.id}.${mediaExt(mime)}`
         : null;
       const candidateUrl = raw.payload.mediaUrl || raw.payload.media?.url || derivedMediaUrl || raw.payload._data?.deprecatedMms3Url;
@@ -230,6 +280,9 @@ serve(async (req) => {
     }
 
     const chatId = fromChatId || (phone ? (phone.includes("@") ? phone : `${phone}@c.us`) : "");
+    const replyChatIds = channel === "whatsapp"
+      ? await resolveReplyChatIds(sb, fromChatId, phone)
+      : [chatId].filter(Boolean);
 
     if ((!text && attachments.length === 0) || (!phone && !sessionId)) {
       return new Response(JSON.stringify({ ok: false, error: "missing text/attachments or identifier" }), {
@@ -306,8 +359,7 @@ serve(async (req) => {
       });
       if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
         try {
-          if (negActions.length > 0) await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, negReply, negActions);
-          else await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, negReply);
+          await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions);
         } catch (e) { console.error("WAHA send failed", e); }
       }
       return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId }), {
@@ -343,13 +395,7 @@ serve(async (req) => {
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
       try {
         const firstImage = Array.isArray(core.attachments) ? core.attachments.find((a: any) => a?.url)?.url : null;
-        if (actions.length > 0) {
-          await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, reply, actions, firstImage);
-        } else if (firstImage) {
-          await sendWahaImage(WAHA_BASE_URL, wahaSession, chatId, firstImage, reply);
-        } else {
-          await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, reply);
-        }
+        await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, reply, actions, firstImage);
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
