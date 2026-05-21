@@ -34,25 +34,40 @@ function normalizeCategory(value: string | null | undefined) {
  *                    les waouh_users (web_session_id) liées à ce auth user.
  * Source radar     → utilise le contact_phone scrapé (déjà sur le pick).
  */
-async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: string | null; owner_auth_user_id: string | null; web_sessions: Array<{ user_id: string; web_session_id: string }> }> {
-  let phone: string | null = pick?.vendeur_whatsapp || pick?.vendeur_phone || pick?.contact_phone || null;
+async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: string | null; phones: string[]; owner_auth_user_id: string | null; web_sessions: Array<{ user_id: string; web_session_id: string }> }> {
+  const rawPhones: Array<string | null | undefined> = [
+    pick?.vendeur_whatsapp,
+    pick?.vendeur_phone,
+    pick?.contact_phone,
+    pick?.vendeur_mobile_money,
+  ];
   let ownerAuthId: string | null = null;
   if (pick?.business_id) {
     const { data: biz } = await sb.from("waouh_partner_businesses")
       .select("whatsapp, telephone, mobile_money_number, partner_id")
       .eq("id", pick.business_id).maybeSingle();
     if (biz) {
-      phone = phone || biz.whatsapp || biz.telephone || biz.mobile_money_number || null;
+      rawPhones.push(biz.whatsapp, biz.telephone, biz.mobile_money_number);
       if (biz.partner_id) {
         const { data: partner } = await sb.from("waouh_partners")
           .select("user_id, whatsapp, telephone, mobile_money_number")
           .eq("id", biz.partner_id).maybeSingle();
         if (partner) {
           ownerAuthId = partner.user_id || null;
-          phone = phone || partner.whatsapp || partner.telephone || partner.mobile_money_number || null;
+          rawPhones.push(partner.whatsapp, partner.telephone, partner.mobile_money_number);
         }
       }
     }
+  }
+  // Normalise et dédoublonne tous les numéros candidats (whatsapp, tel, mobile money).
+  // On enverra la notif à CHAQUE numéro distinct pour s'assurer que le marchand reçoit
+  // bien sur la ligne qu'il utilise réellement (un même partenaire saisit souvent un
+  // numéro WhatsApp ≠ de son numéro tel/mobile money).
+  const seen = new Set<string>();
+  const phones: string[] = [];
+  for (const raw of rawPhones) {
+    const canon = normalizeBeninPhone(raw);
+    if (canon && !seen.has(canon)) { seen.add(canon); phones.push(canon); }
   }
   let webSessions: Array<{ user_id: string; web_session_id: string }> = [];
   if (ownerAuthId) {
@@ -62,14 +77,14 @@ async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: strin
       .not("web_session_id", "is", null)
       .order("updated_at", { ascending: false })
       .limit(20);
-    const seen = new Set<string>();
+    const seenWs = new Set<string>();
     for (const r of (rows || [])) {
-      if (!r.web_session_id || seen.has(r.web_session_id)) continue;
-      seen.add(r.web_session_id);
+      if (!r.web_session_id || seenWs.has(r.web_session_id)) continue;
+      seenWs.add(r.web_session_id);
       webSessions.push({ user_id: r.id, web_session_id: r.web_session_id });
     }
   }
-  return { phone, owner_auth_user_id: ownerAuthId, web_sessions: webSessions };
+  return { phone: phones[0] || null, phones, owner_auth_user_id: ownerAuthId, web_sessions: webSessions };
 }
 
 /** Compat : ancien helper renvoyant uniquement le numéro brut. */
