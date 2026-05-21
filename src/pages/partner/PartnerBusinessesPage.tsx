@@ -281,7 +281,7 @@ export default function PartnerBusinessesPage() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-                <Link to={`/partner/businesses/${b.id}/products`} className="ml-auto">
+                <Link to={b.code_court ? `/partner/b/${b.code_court}/produits` : `/partner/businesses/${b.id}/products`} className="ml-auto">
                   <Button size="sm" variant="default"><Package className="h-4 w-4 mr-1" />Produits</Button>
                 </Link>
               </div>
