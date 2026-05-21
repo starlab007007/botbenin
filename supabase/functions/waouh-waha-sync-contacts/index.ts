@@ -41,116 +41,169 @@ Deno.serve(async (req) => {
   if (!isAdmin) return json({ error: 'Forbidden — admin only' }, 403);
 
   const body = await req.json().catch(() => ({}));
-  const session = body.session || 'default';
   const backfill = body.backfill !== false;
+  const requestedSessions: string[] | null = Array.isArray(body.sessions) && body.sessions.length
+    ? body.sessions.map((s: any) => String(s))
+    : (body.session ? [String(body.session)] : null);
+
+  const wahaBase = (Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj').replace(/\/$/, '');
+  const wahaUser = Deno.env.get('WAHA_USERNAME');
+  const wahaPass = Deno.env.get('WAHA_PASSWORD');
+  const wahaApiKey = Deno.env.get('WAHA_API_KEY');
+  if (!wahaApiKey && !(wahaUser && wahaPass)) {
+    return json({ error: 'WAHA credentials missing (set WAHA_API_KEY or WAHA_USERNAME/PASSWORD)' }, 500);
+  }
+
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (wahaApiKey) headers['X-Api-Key'] = wahaApiKey;
+  if (wahaUser && wahaPass) headers['Authorization'] = 'Basic ' + btoa(`${wahaUser}:${wahaPass}`);
 
   const runRes = await supabase
     .from('waouh_lid_sync_runs')
-    .insert({ session, status: 'running' })
+    .insert({ session: requestedSessions ? requestedSessions.join(',') : 'auto', status: 'running' })
     .select('id')
     .single();
   const runId = runRes.data?.id;
 
   try {
-    const wahaBase = (Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj').replace(/\/$/, '');
-    const wahaUser = Deno.env.get('WAHA_USERNAME');
-    const wahaPass = Deno.env.get('WAHA_PASSWORD');
-    const wahaApiKey = Deno.env.get('WAHA_API_KEY');
-
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (wahaApiKey) headers['X-Api-Key'] = wahaApiKey;
-    if (wahaUser && wahaPass) {
-      headers['Authorization'] = 'Basic ' + btoa(`${wahaUser}:${wahaPass}`);
-    }
-
-    const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
-    const resp = await fetch(url, { headers });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`WAHA ${resp.status}: ${text.slice(0, 200)}`);
-    }
-    const contacts: WahaContact[] = await resp.json();
-    const fetched = Array.isArray(contacts) ? contacts.length : 0;
-
-    // Build rows: pair lid with real phone where possible
-    const rows: any[] = [];
-    for (const c of contacts || []) {
-      const id = c.id || '';
-      const rawPhone = c.number || c.phoneNumber || (id.includes('@') ? id.split('@')[0] : '');
-      const digits = (rawPhone || '').replace(/\D/g, '');
-      if (!digits) continue;
-
-      // Resolve E.164 via DB helper
-      const { data: norm } = await supabase.rpc('waouh_normalize_bj_phone', { p: digits });
-      const phone_e164 = (norm as string) || (digits.startsWith('229') ? `+${digits}` : `+${digits}`);
-
-      const lidId = c.lid || (id.endsWith('@lid') ? id.split('@')[0] : null);
-      if (lidId) {
-        rows.push({
-          lid: lidId,
-          jid: id,
-          phone: digits,
-          phone_e164,
-          pushname: c.pushname || null,
-          display_name: c.name || c.shortName || null,
-          session,
-          last_synced_at: new Date().toISOString(),
-        });
+    // 1) Resolve target sessions: explicit list OR every WORKING session
+    let sessionsToUse: string[] = [];
+    if (requestedSessions) {
+      sessionsToUse = requestedSessions;
+    } else {
+      const sRes = await fetch(`${wahaBase}/api/sessions`, { headers });
+      if (!sRes.ok) {
+        const t = await sRes.text();
+        throw new Error(`WAHA /api/sessions HTTP ${sRes.status}: ${t.slice(0, 200)}`);
       }
-      // Also index the JID itself (some WAHA versions only return @c.us)
-      if (id && !id.endsWith('@lid')) {
-        rows.push({
-          lid: id, // store the full jid as key
-          jid: id,
-          phone: digits,
-          phone_e164,
-          pushname: c.pushname || null,
-          display_name: c.name || c.shortName || null,
-          session,
-          last_synced_at: new Date().toISOString(),
-        });
-      }
+      const list = await sRes.json();
+      sessionsToUse = (Array.isArray(list) ? list : [])
+        .filter((s: any) => s?.status === 'WORKING')
+        .map((s: any) => s.name)
+        .filter(Boolean);
     }
 
-    let mapped = 0;
-    // Batch upsert
-    for (let i = 0; i < rows.length; i += 500) {
-      const chunk = rows.slice(i, i + 500);
-      const { error } = await supabase
-        .from('waouh_lid_phone_map')
-        .upsert(chunk, { onConflict: 'lid' });
-      if (error) throw error;
-      mapped += chunk.length;
+    if (sessionsToUse.length === 0) {
+      await supabase.from('waouh_lid_sync_runs').update({
+        status: 'success', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
+        error: 'Aucune session WAHA active (WORKING). Veuillez scanner le QR-code dans WAHA pour activer au moins une session.',
+        finished_at: new Date().toISOString(),
+      }).eq('id', runId);
+      return json({
+        ok: true,
+        warning: 'Aucune session WAHA active (WORKING). Connectez au moins une session via QR-code.',
+        sessions: [], fetched: 0, mapped: 0, backfilled: 0, perSession: [],
+      });
     }
 
-    // Backfill catalogue: pour chaque mapping, mettre à jour les lignes dont vendeur_phone/whatsapp == lid@lid
-    let backfilled = 0;
-    if (backfill && rows.length) {
-      for (const r of rows) {
-        const variants = [r.lid, `${r.lid}@lid`, r.jid].filter(Boolean);
-        const { data: upd1 } = await supabase
-          .from('waouh_unified_catalog')
-          .update({ vendeur_phone: r.phone_e164 })
-          .in('vendeur_phone', variants)
-          .select('id');
-        const { data: upd2 } = await supabase
-          .from('waouh_unified_catalog')
-          .update({ vendeur_whatsapp: r.phone_e164 })
-          .in('vendeur_whatsapp', variants)
-          .select('id');
-        backfilled += (upd1?.length || 0) + (upd2?.length || 0);
+    let totalFetched = 0, totalMapped = 0, totalBackfilled = 0;
+    const perSession: any[] = [];
+
+    for (const session of sessionsToUse) {
+      const sessionResult: any = { session, fetched: 0, mapped: 0, backfilled: 0, ok: false };
+      try {
+        const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
+        const resp = await fetch(url, { headers });
+        if (!resp.ok) {
+          const text = await resp.text();
+          sessionResult.error = `HTTP ${resp.status}: ${text.slice(0, 200)}`;
+          perSession.push(sessionResult);
+          continue;
+        }
+        const contacts: WahaContact[] = await resp.json();
+        const fetched = Array.isArray(contacts) ? contacts.length : 0;
+        sessionResult.fetched = fetched;
+        totalFetched += fetched;
+
+        const rows: any[] = [];
+        for (const c of contacts || []) {
+          const id = c.id || '';
+          const rawPhone = c.number || c.phoneNumber || (id.includes('@') ? id.split('@')[0] : '');
+          const digits = (rawPhone || '').replace(/\D/g, '');
+          if (!digits) continue;
+
+          let phone_e164: string;
+          try {
+            const { data: norm } = await supabase.rpc('waouh_normalize_bj_phone', { p: digits });
+            phone_e164 = (norm as string) || (digits.startsWith('229') ? `+${digits}` : `+${digits}`);
+          } catch {
+            phone_e164 = digits.startsWith('229') ? `+${digits}` : `+${digits}`;
+          }
+
+          const lidId = c.lid || (id.endsWith('@lid') ? id.split('@')[0] : null);
+          if (lidId) {
+            rows.push({
+              lid: lidId, jid: id, phone: digits, phone_e164,
+              pushname: c.pushname || null,
+              display_name: c.name || c.shortName || null,
+              session, last_synced_at: new Date().toISOString(),
+            });
+          }
+          if (id && !id.endsWith('@lid')) {
+            rows.push({
+              lid: id, jid: id, phone: digits, phone_e164,
+              pushname: c.pushname || null,
+              display_name: c.name || c.shortName || null,
+              session, last_synced_at: new Date().toISOString(),
+            });
+          }
+        }
+
+        // Dedupe rows by lid (last wins)
+        const dedup = new Map<string, any>();
+        for (const r of rows) dedup.set(r.lid, r);
+        const finalRows = [...dedup.values()];
+
+        for (let i = 0; i < finalRows.length; i += 500) {
+          const chunk = finalRows.slice(i, i + 500);
+          const { error } = await supabase
+            .from('waouh_lid_phone_map')
+            .upsert(chunk, { onConflict: 'lid' });
+          if (error) throw error;
+          sessionResult.mapped += chunk.length;
+        }
+        totalMapped += sessionResult.mapped;
+
+        if (backfill && finalRows.length) {
+          for (const r of finalRows) {
+            const variants = [r.lid, `${r.lid}@lid`, r.jid].filter(Boolean);
+            const { data: upd1 } = await supabase
+              .from('waouh_unified_catalog')
+              .update({ vendeur_phone: r.phone_e164 })
+              .in('vendeur_phone', variants)
+              .select('id');
+            const { data: upd2 } = await supabase
+              .from('waouh_unified_catalog')
+              .update({ vendeur_whatsapp: r.phone_e164 })
+              .in('vendeur_whatsapp', variants)
+              .select('id');
+            sessionResult.backfilled += (upd1?.length || 0) + (upd2?.length || 0);
+          }
+          totalBackfilled += sessionResult.backfilled;
+        }
+        sessionResult.ok = true;
+      } catch (e) {
+        sessionResult.error = e instanceof Error ? e.message : String(e);
       }
+      perSession.push(sessionResult);
     }
 
     await supabase.from('waouh_lid_sync_runs').update({
-      contacts_fetched: fetched,
-      contacts_mapped: mapped,
-      rows_backfilled: backfilled,
+      contacts_fetched: totalFetched,
+      contacts_mapped: totalMapped,
+      rows_backfilled: totalBackfilled,
       status: 'success',
       finished_at: new Date().toISOString(),
     }).eq('id', runId);
 
-    return json({ ok: true, session, fetched, mapped, backfilled });
+    return json({
+      ok: true,
+      sessions: sessionsToUse,
+      fetched: totalFetched,
+      mapped: totalMapped,
+      backfilled: totalBackfilled,
+      perSession,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await supabase.from('waouh_lid_sync_runs').update({
