@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,8 @@ import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
-  MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon
+  MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon,
+  Download, FileSpreadsheet, Archive
 } from 'lucide-react';
 import { PhoneCell } from '@/components/waouh/PhoneCell';
 
