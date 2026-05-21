@@ -34,11 +34,19 @@ Deno.serve(async (req) => {
   );
   const { data: userData } = await userClient.auth.getUser();
   if (!userData?.user) return json({ error: 'Unauthorized' }, 401);
-  const { data: isAdmin } = await supabase.rpc('has_role', {
+  const { data: isAdmin, error: adminRoleError } = await supabase.rpc('has_role', {
     _user_id: userData.user.id,
-    _role: 'admin',
+    _role_name: 'admin',
   });
-  if (!isAdmin) return json({ error: 'Forbidden — admin only' }, 403);
+  const { data: isSuperAdmin, error: superAdminRoleError } = await supabase.rpc('has_role', {
+    _user_id: userData.user.id,
+    _role_name: 'super_admin',
+  });
+  if (adminRoleError || superAdminRoleError) {
+    console.error('[waouh-waha-sync-contacts] role check failed', { adminRoleError, superAdminRoleError });
+    return json({ error: 'Impossible de vérifier le rôle administrateur' }, 500);
+  }
+  if (!isAdmin && !isSuperAdmin) return json({ error: 'Forbidden — admin only' }, 403);
 
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
