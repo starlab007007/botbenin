@@ -222,13 +222,43 @@ Deno.serve(async (req) => {
       const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
       const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
 
+      // 🔎 Pré-vol checkExists : on demande à WAHA quel JID correspond réellement
+      // à chacun de nos candidats Bénin (8 vs 10 chiffres). Évite les faux 200
+      // quand WAHA accepte un sendText vers un numéro non enregistré sur WhatsApp.
+      const resolvedChatIds: string[] = [];
+      const seenChat = new Set<string>();
+      for (const candidate of candidates) {
+        if (candidate.includes("@")) {
+          if (!seenChat.has(candidate)) { seenChat.add(candidate); resolvedChatIds.push(candidate); }
+          continue;
+        }
+        let mappedChatId: string | null = null;
+        for (const path of [`/api/${WAHA_SESSION}/contacts/check-exists?phone=${encodeURIComponent(candidate)}`, `/api/contacts/check-exists?phone=${encodeURIComponent(candidate)}&session=${encodeURIComponent(WAHA_SESSION)}`]) {
+          try {
+            const cr = await fetch(`${wahaBase}${path}`, { headers: wahaHeaders });
+            if (!cr.ok) { await cr.text().catch(() => ""); continue; }
+            const cj = await cr.json().catch(() => null);
+            if (cj && (cj.numberExists === true || cj.exists === true) && typeof cj.chatId === "string") {
+              mappedChatId = cj.chatId; break;
+            }
+            if (cj && cj.numberExists === false) { mappedChatId = ""; break; } // explicitly not on WA
+          } catch (_e) { /* ignore */ }
+        }
+        if (mappedChatId === "") continue; // skip candidates confirmed absent
+        const chatId = mappedChatId || `${candidate}@c.us`;
+        if (!seenChat.has(chatId)) { seenChat.add(chatId); resolvedChatIds.push(chatId); }
+      }
+      if (resolvedChatIds.length === 0) {
+        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: `no WA contact for ${phone}` }).eq("id", it.id);
+        failed++; continue;
+      }
+
       let lastErr = "";
       let lastTransient = false;
       let delivered = false;
       let usedChatId: string | null = null;
       try {
-        for (const candidate of candidates) {
-          const chatId = candidate.includes("@lid") ? candidate : `${candidate}@c.us`;
+        for (const chatId of resolvedChatIds) {
           let r: Response;
           if (actions.length > 0) {
             r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer, undefined, it.image_url || null);
@@ -241,7 +271,6 @@ Deno.serve(async (req) => {
           const body = await r.text();
           lastErr = `WAHA ${r.status} [${chatId}]: ${body.slice(0, 200)}`;
           lastTransient = r.status === 422 || r.status === 429 || r.status >= 500;
-          // 4xx non-transient (404 / 400 "no such number") → tente le candidat suivant
           if (lastTransient) break;
         }
         if (!delivered) {
