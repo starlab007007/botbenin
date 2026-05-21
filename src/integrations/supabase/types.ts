@@ -5246,6 +5246,39 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_catalog_backups: {
+        Row: {
+          bytes_size: number
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          rows_count: number
+          storage_path: string
+          trigger: string
+        }
+        Insert: {
+          bytes_size?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          rows_count?: number
+          storage_path: string
+          trigger?: string
+        }
+        Update: {
+          bytes_size?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          rows_count?: number
+          storage_path?: string
+          trigger?: string
+        }
+        Relationships: []
+      }
       waouh_commission_settings: {
         Row: {
           bonus_volume: Json | null

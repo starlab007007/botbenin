@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,8 @@ import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
-  MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon
+  MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon,
+  Download, FileSpreadsheet, Archive
 } from 'lucide-react';
 import { PhoneCell } from '@/components/waouh/PhoneCell';
 
@@ -240,15 +242,59 @@ export default function AdminWaouhDataControlPage() {
                 </Button>
                 <Button variant="outline" onClick={async () => {
                   try {
-                    const { data, error } = await supabase.functions.invoke('waouh-waha-sync-contacts', { body: { session: 'default', backfill: true } });
+                    toast({ title: 'Synchronisation WAHA en cours…', description: 'Récupération des contacts depuis toutes les sessions actives.' });
+                    const { data, error } = await supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } });
                     if (error) throw error;
-                    toast({ title: 'Synchronisation WAHA', description: `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} annonces mises à jour` });
+                    if (data?.warning) {
+                      toast({ title: '⚠️ Aucune session WAHA active', description: data.warning, variant: 'destructive' });
+                    } else {
+                      const sessLabel = (data?.sessions || []).join(', ') || 'aucune session';
+                      toast({ title: '✅ Synchro WAHA terminée', description: `Sessions: ${sessLabel} · ${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} annonces mises à jour` });
+                    }
                     search();
                   } catch (e: any) {
-                    toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
+                    const msg = e?.context?.body ? (typeof e.context.body === 'string' ? e.context.body : JSON.stringify(e.context.body)) : (e?.message || String(e));
+                    toast({ title: 'Erreur synchro WAHA', description: msg, variant: 'destructive' });
                   }
                 }}>
                   <RefreshCw className="h-4 w-4 mr-2" />Synchroniser contacts WAHA
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  if (!results.length) { toast({ title: 'Rien à exporter', variant: 'destructive' }); return; }
+                  const ws = XLSX.utils.json_to_sheet(results);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, 'Catalogue');
+                  const fname = `waouh-catalogue-${new Date().toISOString().slice(0,10)}.xlsx`;
+                  XLSX.writeFile(wb, fname);
+                  toast({ title: '✅ Excel téléchargé', description: fname });
+                }}>
+                  <Download className="h-4 w-4 mr-2" />Télécharger Excel
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  if (!results.length) { toast({ title: 'Rien à exporter', variant: 'destructive' }); return; }
+                  const ws = XLSX.utils.json_to_sheet(results);
+                  const csv = XLSX.utils.sheet_to_csv(ws);
+                  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = `waouh-catalogue-${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click(); URL.revokeObjectURL(url);
+                  toast({ title: '✅ CSV téléchargé', description: 'Importez ce fichier dans Google Sheets via Fichier → Importer.' });
+                }}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />CSV pour Google Sheets
+                </Button>
+                <Button variant="outline" onClick={async () => {
+                  try {
+                    toast({ title: 'Backup en cours…' });
+                    const { data, error } = await supabase.functions.invoke('waouh-catalog-backup', { body: { trigger: 'manual' } });
+                    if (error) throw error;
+                    toast({ title: '✅ Backup créé', description: `${data?.rows_count ?? 0} lignes archivées · ${data?.path}` });
+                  } catch (e: any) {
+                    const msg = e?.context?.body ? (typeof e.context.body === 'string' ? e.context.body : JSON.stringify(e.context.body)) : (e?.message || String(e));
+                    toast({ title: 'Erreur backup', description: msg, variant: 'destructive' });
+                  }
+                }}>
+                  <Archive className="h-4 w-4 mr-2" />Backup manuel
                 </Button>
               </div>
               <div className="text-xs text-muted-foreground">{results.length} résultat{results.length > 1 ? 's' : ''}</div>
