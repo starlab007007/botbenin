@@ -34,11 +34,19 @@ Deno.serve(async (req) => {
   );
   const { data: userData } = await userClient.auth.getUser();
   if (!userData?.user) return json({ error: 'Unauthorized' }, 401);
-  const { data: isAdmin } = await supabase.rpc('has_role', {
+  const { data: isAdmin, error: adminRoleError } = await supabase.rpc('has_role', {
     _user_id: userData.user.id,
-    _role: 'admin',
+    _role_name: 'admin',
   });
-  if (!isAdmin) return json({ error: 'Forbidden — admin only' }, 403);
+  const { data: isSuperAdmin, error: superAdminRoleError } = await supabase.rpc('has_role', {
+    _user_id: userData.user.id,
+    _role_name: 'super_admin',
+  });
+  if (adminRoleError || superAdminRoleError) {
+    console.error('[waouh-waha-sync-contacts] role check failed', { adminRoleError, superAdminRoleError });
+    return json({ error: 'Impossible de vérifier le rôle administrateur' }, 500);
+  }
+  if (!isAdmin && !isSuperAdmin) return json({ error: 'Forbidden — admin only' }, 403);
 
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
@@ -47,8 +55,8 @@ Deno.serve(async (req) => {
     : (body.session ? [String(body.session)] : null);
 
   const wahaBase = (Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj').replace(/\/$/, '');
-  const wahaUser = Deno.env.get('WAHA_USERNAME');
-  const wahaPass = Deno.env.get('WAHA_PASSWORD');
+  const wahaUser = Deno.env.get('WAHA_USERNAME') || Deno.env.get('WAHA_DASHBOARD_USERNAME');
+  const wahaPass = Deno.env.get('WAHA_PASSWORD') || Deno.env.get('WAHA_DASHBOARD_PASSWORD');
   const wahaApiKey = Deno.env.get('WAHA_API_KEY');
   if (!wahaApiKey && !(wahaUser && wahaPass)) {
     return json({ error: 'WAHA credentials missing (set WAHA_API_KEY or WAHA_USERNAME/PASSWORD)' }, 500);
@@ -81,6 +89,23 @@ Deno.serve(async (req) => {
         .filter((s: any) => s?.status === 'WORKING')
         .map((s: any) => s.name)
         .filter(Boolean);
+
+      try {
+        await Promise.all((Array.isArray(list) ? list : []).map((s: any) => supabase
+          .from('waha_sessions_data')
+          .upsert({
+            session_name: s?.name,
+            status: s?.status || 'DISCONNECTED',
+            phone_number: normalizeWahaPhone(s?.me?.id || s?.me?.number || s?.config?.metadata?.phone_number || null),
+            account_info: s?.config || {},
+            metadata: s?.metadata || {},
+            server_name: 'WAHA',
+            last_activity: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'session_name' })));
+      } catch (syncSessionsError) {
+        console.warn('[waouh-waha-sync-contacts] session cache sync skipped', syncSessionsError);
+      }
     }
 
     if (sessionsToUse.length === 0) {
@@ -116,11 +141,12 @@ Deno.serve(async (req) => {
         totalFetched += fetched;
 
         const rows: any[] = [];
+        const phoneRowsByName = new Map<string, any>();
         for (const c of contacts || []) {
           const id = c.id || '';
           const rawPhone = c.number || c.phoneNumber || (id.includes('@') ? id.split('@')[0] : '');
           const digits = (rawPhone || '').replace(/\D/g, '');
-          if (!digits) continue;
+          if (!digits || !isLikelyPhoneDigits(digits)) continue;
 
           let phone_e164: string;
           try {
@@ -131,22 +157,32 @@ Deno.serve(async (req) => {
           }
 
           const lidId = c.lid || (id.endsWith('@lid') ? id.split('@')[0] : null);
+          const displayName = c.name || c.shortName || null;
+          const pushname = c.pushname || null;
+          const rowBase = {
+            jid: id, phone: digits, phone_e164,
+            pushname,
+            display_name: displayName,
+            session, last_synced_at: new Date().toISOString(),
+          };
           if (lidId) {
-            rows.push({
-              lid: lidId, jid: id, phone: digits, phone_e164,
-              pushname: c.pushname || null,
-              display_name: c.name || c.shortName || null,
-              session, last_synced_at: new Date().toISOString(),
-            });
+            rows.push({ lid: lidId, ...rowBase });
           }
           if (id && !id.endsWith('@lid')) {
-            rows.push({
-              lid: id, jid: id, phone: digits, phone_e164,
-              pushname: c.pushname || null,
-              display_name: c.name || c.shortName || null,
-              session, last_synced_at: new Date().toISOString(),
-            });
+            rows.push({ lid: id, ...rowBase });
           }
+          for (const name of [displayName, pushname]) {
+            const key = nameKey(name);
+            if (key && isBjPhoneDigits(digits)) phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
+          }
+        }
+
+        for (const c of contacts || []) {
+          const id = c.id || '';
+          if (!id.endsWith('@lid')) continue;
+          const lidId = c.lid || id.split('@')[0];
+          const linked = phoneRowsByName.get(nameKey(c.name || c.shortName)) || phoneRowsByName.get(nameKey(c.pushname));
+          if (linked && lidId) rows.push({ ...linked, lid: lidId, jid: id });
         }
 
         // Dedupe rows by lid (last wins)
@@ -218,4 +254,23 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+function normalizeWahaPhone(value?: string | null) {
+  const digits = (value || '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('229') && digits.length === 11) return `+22901${digits.slice(3)}`;
+  return digits.startsWith('229') ? `+${digits}` : `+${digits}`;
+}
+
+function isBjPhoneDigits(digits: string) {
+  return /^22901\d{8}$/.test(digits) || /^229[4-9]\d{7}$/.test(digits) || /^01\d{8}$/.test(digits) || /^[4-9]\d{7}$/.test(digits);
+}
+
+function isLikelyPhoneDigits(digits: string) {
+  return isBjPhoneDigits(digits) || (digits.length >= 8 && digits.length <= 15 && !digits.startsWith('1000'));
+}
+
+function nameKey(value?: string | null) {
+  return (value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 }
