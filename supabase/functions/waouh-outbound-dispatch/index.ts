@@ -215,31 +215,41 @@ Deno.serve(async (req) => {
         await sb.from("waouh_outbound_queue").update({ status: "sent", last_error: "skipped business self", sent_at: new Date().toISOString() }).eq("id", it.id);
         skipped++; continue;
       }
-      const chatId = phone.includes("@lid") ? phone : `${phone}@c.us`;
+      const candidates = phone.includes("@lid") ? [phone] : beninPhoneCandidates(phone);
       const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
       const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
+      const customActions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
+      const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
+      const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
+
+      let lastErr = "";
+      let lastTransient = false;
+      let delivered = false;
+      let usedChatId: string | null = null;
       try {
-        let r: Response;
-        const customActions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
-        const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
-        const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
-        if (actions.length > 0) {
-          r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer, undefined, it.image_url || null);
-        } else if (it.image_url) {
-          r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
-        } else {
-          r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
-        }
-        if (!r.ok) {
+        for (const candidate of candidates) {
+          const chatId = candidate.includes("@lid") ? candidate : `${candidate}@c.us`;
+          let r: Response;
+          if (actions.length > 0) {
+            r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer, undefined, it.image_url || null);
+          } else if (it.image_url) {
+            r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
+          } else {
+            r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
+          }
+          if (r.ok) { delivered = true; usedChatId = chatId; break; }
           const body = await r.text();
-          const errMsg = `WAHA ${r.status}: ${body.slice(0, 200)}`;
-          // 422 = session pas prête, 429 = rate-limit, 5xx = serveur → retry avec backoff
-          const transient = r.status === 422 || r.status === 429 || r.status >= 500;
-          await finishFailed(errMsg, transient);
+          lastErr = `WAHA ${r.status} [${chatId}]: ${body.slice(0, 200)}`;
+          lastTransient = r.status === 422 || r.status === 429 || r.status >= 500;
+          // 4xx non-transient (404 / 400 "no such number") → tente le candidat suivant
+          if (lastTransient) break;
+        }
+        if (!delivered) {
+          await finishFailed(lastErr || "WAHA send failed", lastTransient);
           continue;
         }
         await sb.from("waouh_outbound_queue").update({
-          status: "sent", sent_at: new Date().toISOString(), last_error: null,
+          status: "sent", sent_at: new Date().toISOString(), last_error: usedChatId ? `delivered via ${usedChatId}` : null,
         }).eq("id", it.id);
         sent++;
       } catch (e: any) {
