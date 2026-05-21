@@ -41,9 +41,34 @@ function normalizeBeninPhone(value: string) {
   if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
   const digits = original.replace(/\D/g, "");
   if (!digits) return null;
+  if (digits.startsWith("00229")) return digits.slice(2);
   if (digits.startsWith("229")) return digits;
   if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
   return digits.length > 8 ? digits : null;
+}
+
+/**
+ * Pour un numéro Bénin, génère les deux candidats JID possibles :
+ *  - format 10 chiffres (réforme 2021)        ex: 2290191299191
+ *  - format 8 chiffres historique (sans 01)   ex: 22991299191
+ * WhatsApp accepte généralement l'un des deux selon comment la ligne a été enregistrée.
+ * On essaie les deux séquentiellement dans le dispatcher pour fiabiliser la livraison.
+ */
+function beninPhoneCandidates(canonical: string): string[] {
+  if (!canonical) return [];
+  if (canonical.includes("@")) return [canonical];
+  const out: string[] = [canonical];
+  if (canonical.startsWith("229")) {
+    const local = canonical.slice(3);
+    if (local.length === 10 && local.startsWith("01")) {
+      const eight = `229${local.slice(2)}`;
+      if (!out.includes(eight)) out.push(eight);
+    } else if (local.length === 8) {
+      const ten = `22901${local}`;
+      if (!out.includes(ten)) out.push(ten);
+    }
+  }
+  return out;
 }
 
 async function sendWahaText(base: string, session: string, chatId: string, text: string, headers: Record<string, string>) {
