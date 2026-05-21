@@ -182,7 +182,6 @@ export default function PartnerProductsPage() {
               <ProductPhotoUploader value={form.photos} onChange={photos => setForm({ ...form, photos })} max={3} />
             </div>
             <div><Label>Nom *</Label><Input value={form.nom} onChange={e => setForm({ ...form, nom: e.target.value })} /></div>
-            <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Catégorie</Label>
