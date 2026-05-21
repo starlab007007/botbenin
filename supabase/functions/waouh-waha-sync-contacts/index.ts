@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
     : (body.session ? [String(body.session)] : null);
 
   const wahaBase = (Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj').replace(/\/$/, '');
-  const wahaUser = Deno.env.get('WAHA_USERNAME');
-  const wahaPass = Deno.env.get('WAHA_PASSWORD');
+  const wahaUser = Deno.env.get('WAHA_USERNAME') || Deno.env.get('WAHA_DASHBOARD_USERNAME');
+  const wahaPass = Deno.env.get('WAHA_PASSWORD') || Deno.env.get('WAHA_DASHBOARD_PASSWORD');
   const wahaApiKey = Deno.env.get('WAHA_API_KEY');
   if (!wahaApiKey && !(wahaUser && wahaPass)) {
     return json({ error: 'WAHA credentials missing (set WAHA_API_KEY or WAHA_USERNAME/PASSWORD)' }, 500);
