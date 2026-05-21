@@ -753,11 +753,19 @@ serve(async (req) => {
           await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
         }
         // Notifie le vendeur :
-        //  - WhatsApp via numéro résolu (double-check 8/10 chiffres au niveau du dispatcher)
-        //  - Web chat du compte ayant enregistré l'entreprise (toutes les sessions web du partner)
-        const vendorPhoneForPush = seller?.phone_number || vendorContacts.phone || null;
-        if (seller?.id || vendorPhoneForPush || vendorContacts.web_sessions.length > 0) {
+        //  - WhatsApp via TOUS les numéros résolus (whatsapp + tel + mobile money) pour
+        //    garantir la livraison sur la ligne réellement utilisée par le marchand
+        //  - Web chat du compte ayant enregistré l'entreprise
+        const sellerCanon = seller?.phone_number ? normalizeBeninPhone(seller.phone_number) : null;
+        const phonesToPush: string[] = [];
+        const seenP = new Set<string>();
+        for (const p of [sellerCanon, ...vendorContacts.phones]) {
+          if (p && !seenP.has(p)) { seenP.add(p); phonesToPush.push(p); }
+        }
+        const vendorPhoneForPush = phonesToPush[0] || null;
+        if (seller?.id || phonesToPush.length > 0 || vendorContacts.web_sessions.length > 0) {
           try {
+            // Premier push : couvre web + 1er numéro + sessions web miroir
             await pushToOther({
               to_user_id: seller?.id ?? null,
               to_phone: vendorPhoneForPush,
@@ -778,7 +786,29 @@ serve(async (req) => {
               dedupe_key: `match:${neg?.id ?? pick.id}:${pickSource}`,
               event_type: "seller_new_interest",
             });
-            console.log("[interest-push] enqueue ok", { source: pickSource, seller_id: seller?.id, neg_id: neg?.id, tx: returnedTransactionId, phone: vendorPhoneForPush, web_sessions: vendorContacts.web_sessions.length });
+            // Push direct WhatsApp sur les numéros supplémentaires (tel / mobile money / partner perso)
+            for (const extraPhone of phonesToPush.slice(1)) {
+              try {
+                await sb.rpc("waouh_enqueue_outbound_v2", {
+                  p_to_phone: extraPhone,
+                  p_to_user_id: null,
+                  p_template: "match_seller",
+                  p_payload: {
+                    article_id: pick.id, title: pick.title, price: askPrice,
+                    buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+                    transaction_id: returnedTransactionId,
+                    actions: [],
+                    text: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser.`,
+                  },
+                  p_channel: "whatsapp",
+                  p_image_url: firstPhoto,
+                  p_transaction_id: returnedTransactionId,
+                  p_dedupe_key: `wa:match:${neg?.id ?? pick.id}:${pickSource}:${extraPhone}`,
+                  p_event_type: "seller_new_interest",
+                });
+              } catch (e) { console.warn("[interest-push] extra phone enqueue failed", extraPhone, e); }
+            }
+            console.log("[interest-push] enqueue ok", { source: pickSource, seller_id: seller?.id, neg_id: neg?.id, tx: returnedTransactionId, phones: phonesToPush, web_sessions: vendorContacts.web_sessions.length });
           } catch (e) {
             console.error("[interest-push] enqueue failed", e);
           }
