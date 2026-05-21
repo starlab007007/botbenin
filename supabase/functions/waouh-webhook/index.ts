@@ -274,6 +274,7 @@ serve(async (req) => {
       to_user_id?: string | null;
       to_phone?: string | null;
       to_web_session_id?: string | null;
+      mirror_web_sessions?: Array<{ user_id: string; web_session_id: string }>;
       source?: "chat" | "partner" | "radar";
       template: string;
       payload: any;
