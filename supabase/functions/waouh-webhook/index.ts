@@ -615,11 +615,32 @@ serve(async (req) => {
           returnedActions = [];
           reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou vous pouvez écrire ( Ex: Je propose ${fmt(askPrice)}) pour négocier.`;
         } else {
+        // 🛒 Source du produit (chat / partner / radar) → résoudre le vendeur cible
+        const pickSource: "chat" | "partner" | "radar" =
+          pick.source === "partner" ? "partner" :
+          pick.source === "radar" || pick.radar ? "radar" : "chat";
+        // Si pas de seller_id (partenaire) → upsert un stub waouh_users à partir du WhatsApp marchand
+        if (!pick.seller_id) {
+          const vendorPhoneRaw = await resolveVendorPhone(sb, pick);
+          if (vendorPhoneRaw) {
+            const stub = await ensureWaouhVendorStub(sb, vendorPhoneRaw, {
+              display_name: pick.vendeur_nom || pick.title || "Vendeur partenaire",
+              city: pick.city || pick.ville || null,
+              stub_origin: pickSource,
+            });
+            if (stub?.id) pick.seller_id = stub.id;
+          }
+        }
         // Récupère vendeur (phone + web session)
-        const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
-        // Récupère 1ère photo de l'article pour la notification
-        const { data: artPhoto } = await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle();
-        const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : null;
+        const { data: seller } = pick.seller_id
+          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle()
+          : { data: null };
+        // Récupère 1ère photo (article officiel ou pick partner/radar)
+        const { data: artPhoto } = pick.seller_id
+          ? await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle()
+          : { data: null };
+        const fallbackPhoto = Array.isArray(pick.photos) && pick.photos.length > 0 ? pick.photos[0] : null;
+        const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : fallbackPhoto;
         // Crée la négociation
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
