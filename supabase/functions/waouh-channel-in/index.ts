@@ -280,6 +280,9 @@ serve(async (req) => {
     }
 
     const chatId = fromChatId || (phone ? (phone.includes("@") ? phone : `${phone}@c.us`) : "");
+    const replyChatIds = channel === "whatsapp"
+      ? await resolveReplyChatIds(sb, fromChatId, phone)
+      : [chatId].filter(Boolean);
 
     if ((!text && attachments.length === 0) || (!phone && !sessionId)) {
       return new Response(JSON.stringify({ ok: false, error: "missing text/attachments or identifier" }), {
@@ -356,8 +359,7 @@ serve(async (req) => {
       });
       if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
         try {
-          if (negActions.length > 0) await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, negReply, negActions);
-          else await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, negReply);
+          await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions);
         } catch (e) { console.error("WAHA send failed", e); }
       }
       return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId }), {
@@ -393,13 +395,7 @@ serve(async (req) => {
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
       try {
         const firstImage = Array.isArray(core.attachments) ? core.attachments.find((a: any) => a?.url)?.url : null;
-        if (actions.length > 0) {
-          await sendWahaButtons(WAHA_BASE_URL, wahaSession, chatId, reply, actions, firstImage);
-        } else if (firstImage) {
-          await sendWahaImage(WAHA_BASE_URL, wahaSession, chatId, firstImage, reply);
-        } else {
-          await sendWahaText(WAHA_BASE_URL, wahaSession, chatId, reply);
-        }
+        await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, reply, actions, firstImage);
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
