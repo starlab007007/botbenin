@@ -27,21 +27,55 @@ function normalizeCategory(value: string | null | undefined) {
 }
 
 /**
- * Pour un produit issu du catalogue unifié, résout le numéro WhatsApp du vendeur.
- * Source partner   → cherche dans le produit puis dans waouh_partner_businesses.
+ * Pour un produit issu du catalogue unifié, résout le numéro WhatsApp du vendeur
+ * ET les sessions web du compte ayant enregistré l'entreprise (partner).
+ * Source partner   → cherche dans le produit puis dans waouh_partner_businesses,
+ *                    puis remonte vers waouh_partners.user_id pour trouver toutes
+ *                    les waouh_users (web_session_id) liées à ce auth user.
  * Source radar     → utilise le contact_phone scrapé (déjà sur le pick).
- * Renvoie le numéro brut (non normalisé) ; la normalisation est faite par ensureWaouhVendorStub.
  */
-async function resolveVendorPhone(sb: any, pick: any): Promise<string | null> {
-  const direct = pick?.vendeur_whatsapp || pick?.vendeur_phone || pick?.contact_phone || null;
-  if (direct) return direct;
+async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: string | null; owner_auth_user_id: string | null; web_sessions: Array<{ user_id: string; web_session_id: string }> }> {
+  let phone: string | null = pick?.vendeur_whatsapp || pick?.vendeur_phone || pick?.contact_phone || null;
+  let ownerAuthId: string | null = null;
   if (pick?.business_id) {
     const { data: biz } = await sb.from("waouh_partner_businesses")
-      .select("whatsapp, telephone, mobile_money_number, nom_entreprise, ville")
+      .select("whatsapp, telephone, mobile_money_number, partner_id")
       .eq("id", pick.business_id).maybeSingle();
-    return biz?.whatsapp || biz?.telephone || biz?.mobile_money_number || null;
+    if (biz) {
+      phone = phone || biz.whatsapp || biz.telephone || biz.mobile_money_number || null;
+      if (biz.partner_id) {
+        const { data: partner } = await sb.from("waouh_partners")
+          .select("user_id, whatsapp, telephone, mobile_money_number")
+          .eq("id", biz.partner_id).maybeSingle();
+        if (partner) {
+          ownerAuthId = partner.user_id || null;
+          phone = phone || partner.whatsapp || partner.telephone || partner.mobile_money_number || null;
+        }
+      }
+    }
   }
-  return null;
+  let webSessions: Array<{ user_id: string; web_session_id: string }> = [];
+  if (ownerAuthId) {
+    const { data: rows } = await sb.from("waouh_users")
+      .select("id, web_session_id")
+      .eq("auth_user_id", ownerAuthId)
+      .not("web_session_id", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(20);
+    const seen = new Set<string>();
+    for (const r of (rows || [])) {
+      if (!r.web_session_id || seen.has(r.web_session_id)) continue;
+      seen.add(r.web_session_id);
+      webSessions.push({ user_id: r.id, web_session_id: r.web_session_id });
+    }
+  }
+  return { phone, owner_auth_user_id: ownerAuthId, web_sessions: webSessions };
+}
+
+/** Compat : ancien helper renvoyant uniquement le numéro brut. */
+async function resolveVendorPhone(sb: any, pick: any): Promise<string | null> {
+  const r = await resolveVendorContacts(sb, pick);
+  return r.phone;
 }
 
 async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre") {
