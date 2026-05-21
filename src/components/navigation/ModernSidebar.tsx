@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { 
   BarChart3, 
@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { AuthModal } from '@/components/AuthModal';
 import whatsappIcon from '@/assets/whatsapp-icon.png';
 
 interface ModernSidebarProps {
@@ -115,8 +116,11 @@ const bottomItems = [
 
 export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
+  const [authOpen, setAuthOpen] = useState(false);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   const isActive = (path: string) => {
     if (path === '/home') {
@@ -125,45 +129,57 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
     return location.pathname.startsWith(path);
   };
 
-  const NavItem = ({ item, showDescription = false }: { item: any; showDescription?: boolean }) => (
-    <NavLink
-      to={item.path}
-      onClick={onClose}
-      className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 relative ${
-        isActive(item.path)
-          ? 'bg-white shadow-md border border-gray-100'
-          : 'hover:bg-white/60 hover:shadow-sm'
-      }`}
-    >
-      <div className={`w-10 h-10 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow overflow-hidden`}>
-        {item.iconImage ? (
-          <img src={item.iconImage} alt={item.title} className="w-full h-full object-cover" />
-        ) : (
-          <item.icon className="w-5 h-5 text-white" />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <span className={`font-medium truncate ${
-            isActive(item.path) ? 'text-gray-900' : 'text-gray-700'
-          }`}>
-            {item.title}
-          </span>
-          {item.badge && (
-            <Badge variant="secondary" className="ml-2 text-xs px-2 py-0.5">
-              {item.badge}
-            </Badge>
+  const NavItem = ({ item, showDescription = false, requireAuth = false }: { item: any; showDescription?: boolean; requireAuth?: boolean }) => {
+    const needsAuth = requireAuth && !user;
+    const handleClick = (e: React.MouseEvent) => {
+      if (needsAuth) {
+        e.preventDefault();
+        setPendingPath(item.path);
+        setAuthOpen(true);
+        return;
+      }
+      onClose();
+    };
+    return (
+      <NavLink
+        to={item.path}
+        onClick={handleClick}
+        className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 relative ${
+          isActive(item.path)
+            ? 'bg-white shadow-md border border-gray-100'
+            : 'hover:bg-white/60 hover:shadow-sm'
+        }`}
+      >
+        <div className={`w-10 h-10 bg-gradient-to-r ${item.color} rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow overflow-hidden`}>
+          {item.iconImage ? (
+            <img src={item.iconImage} alt={item.title} className="w-full h-full object-cover" />
+          ) : (
+            <item.icon className="w-5 h-5 text-white" />
           )}
         </div>
-        {showDescription && item.description && (
-          <p className="text-xs text-gray-500 truncate">{item.description}</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <span className={`font-medium truncate ${
+              isActive(item.path) ? 'text-gray-900' : 'text-gray-700'
+            }`}>
+              {item.title}
+            </span>
+            {item.badge && (
+              <Badge variant="secondary" className="ml-2 text-xs px-2 py-0.5">
+                {item.badge}
+              </Badge>
+            )}
+          </div>
+          {showDescription && item.description && (
+            <p className="text-xs text-gray-500 truncate">{item.description}</p>
+          )}
+        </div>
+        {isActive(item.path) && (
+          <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-600 rounded-r-full"></div>
         )}
-      </div>
-      {isActive(item.path) && (
-        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-600 rounded-r-full"></div>
-      )}
-    </NavLink>
-  );
+      </NavLink>
+    );
+  };
 
   return (
     <div className={`fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gradient-to-b from-gray-50 to-gray-100 border-r border-gray-200 overflow-y-auto transform transition-transform duration-300 ease-out z-40 ${
@@ -225,20 +241,20 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           </div>
         )}
 
-        {/* Waouh Partner — accessible à tous les utilisateurs connectés */}
-        {user && (
-          <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-              Waouh Partner
-            </h3>
-            <div className="space-y-2">
-              <NavItem item={{ title: 'Espace Partner', path: '/partner', icon: Handshake, color: 'from-amber-500 to-orange-500', description: 'Tableau de bord', badge: 'New' }} showDescription />
-              <NavItem item={{ title: 'Mes entreprises', path: '/partner/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Enrôler des commerces' }} showDescription />
-              <NavItem item={{ title: 'Mes ventes', path: '/partner/sales', icon: TrendingUp, color: 'from-green-500 to-emerald-600', description: 'Commissions' }} showDescription />
-              <NavItem item={{ title: 'Mes versements', path: '/partner/payouts', icon: Wallet, color: 'from-purple-500 to-pink-600', description: 'Historique paiements' }} showDescription />
-            </div>
+
+
+        {/* Waouh Partner — visible à tous, login requis au clic */}
+        <div>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
+            Waouh Partner
+          </h3>
+          <div className="space-y-2">
+            <NavItem requireAuth item={{ title: 'Espace Partner', path: '/partner', icon: Handshake, color: 'from-amber-500 to-orange-500', description: 'Tableau de bord', badge: 'New' }} showDescription />
+            <NavItem requireAuth item={{ title: 'Mes entreprises', path: '/partner/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Enrôler des commerces' }} showDescription />
+            <NavItem requireAuth item={{ title: 'Mes ventes', path: '/partner/sales', icon: TrendingUp, color: 'from-green-500 to-emerald-600', description: 'Commissions' }} showDescription />
+            <NavItem requireAuth item={{ title: 'Mes versements', path: '/partner/payouts', icon: Wallet, color: 'from-purple-500 to-pink-600', description: 'Historique paiements' }} showDescription />
           </div>
-        )}
+        </div>
 
         {/* Mon Compte */}
         <div className="pt-4">
@@ -249,6 +265,18 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
           </div>
         </div>
       </nav>
+
+      <AuthModal
+        isOpen={authOpen}
+        onClose={() => {
+          setAuthOpen(false);
+          if (pendingPath && user) {
+            navigate(pendingPath);
+            onClose();
+          }
+          setPendingPath(null);
+        }}
+      />
     </div>
   );
 };
