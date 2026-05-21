@@ -89,6 +89,23 @@ Deno.serve(async (req) => {
         .filter((s: any) => s?.status === 'WORKING')
         .map((s: any) => s.name)
         .filter(Boolean);
+
+      try {
+        await Promise.all((Array.isArray(list) ? list : []).map((s: any) => supabase
+          .from('waha_sessions_data')
+          .upsert({
+            session_name: s?.name,
+            status: s?.status || 'DISCONNECTED',
+            phone_number: normalizeWahaPhone(s?.me?.id || s?.me?.number || s?.config?.metadata?.phone_number || null),
+            account_info: s?.config || {},
+            metadata: s?.metadata || {},
+            server_name: 'WAHA',
+            last_activity: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'session_name' })));
+      } catch (syncSessionsError) {
+        console.warn('[waouh-waha-sync-contacts] session cache sync skipped', syncSessionsError);
+      }
     }
 
     if (sessionsToUse.length === 0) {
