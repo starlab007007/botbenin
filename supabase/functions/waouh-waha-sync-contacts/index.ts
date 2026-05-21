@@ -255,3 +255,22 @@ function json(body: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
+
+function normalizeWahaPhone(value?: string | null) {
+  const digits = (value || '').replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('229') && digits.length === 11) return `+22901${digits.slice(3)}`;
+  return digits.startsWith('229') ? `+${digits}` : `+${digits}`;
+}
+
+function isBjPhoneDigits(digits: string) {
+  return /^22901\d{8}$/.test(digits) || /^229[4-9]\d{7}$/.test(digits) || /^01\d{8}$/.test(digits) || /^[4-9]\d{7}$/.test(digits);
+}
+
+function isLikelyPhoneDigits(digits: string) {
+  return isBjPhoneDigits(digits) || (digits.length >= 8 && digits.length <= 15 && !digits.startsWith('1000'));
+}
+
+function nameKey(value?: string | null) {
+  return (value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+}
