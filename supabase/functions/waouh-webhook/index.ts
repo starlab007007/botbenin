@@ -1,6 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import {
+  normalizeBeninPhone,
+  resolveWaouhUserByPhone,
+  ensureWaouhVendorStub,
+} from "../_shared/waouh-phone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,18 +26,22 @@ function normalizeCategory(value: string | null | undefined) {
   return "autre";
 }
 
-function normalizeBeninPhone(value: string | null | undefined) {
-  const original = String(value || "");
-  if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
-  const digits = original.replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
-  const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
-  const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : null;
+/**
+ * Pour un produit issu du catalogue unifié, résout le numéro WhatsApp du vendeur.
+ * Source partner   → cherche dans le produit puis dans waouh_partner_businesses.
+ * Source radar     → utilise le contact_phone scrapé (déjà sur le pick).
+ * Renvoie le numéro brut (non normalisé) ; la normalisation est faite par ensureWaouhVendorStub.
+ */
+async function resolveVendorPhone(sb: any, pick: any): Promise<string | null> {
+  const direct = pick?.vendeur_whatsapp || pick?.vendeur_phone || pick?.contact_phone || null;
+  if (direct) return direct;
+  if (pick?.business_id) {
+    const { data: biz } = await sb.from("waouh_partner_businesses")
+      .select("whatsapp, telephone, mobile_money_number, nom_entreprise, ville")
+      .eq("id", pick.business_id).maybeSingle();
+    return biz?.whatsapp || biz?.telephone || biz?.mobile_money_number || null;
+  }
+  return null;
 }
 
 async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre") {
