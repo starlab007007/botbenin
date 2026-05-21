@@ -1,6 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import {
+  normalizeBeninPhone,
+  resolveWaouhUserByPhone,
+  ensureWaouhVendorStub,
+} from "../_shared/waouh-phone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,18 +26,22 @@ function normalizeCategory(value: string | null | undefined) {
   return "autre";
 }
 
-function normalizeBeninPhone(value: string | null | undefined) {
-  const original = String(value || "");
-  if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
-  const digits = original.replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
-  const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
-  const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : null;
+/**
+ * Pour un produit issu du catalogue unifié, résout le numéro WhatsApp du vendeur.
+ * Source partner   → cherche dans le produit puis dans waouh_partner_businesses.
+ * Source radar     → utilise le contact_phone scrapé (déjà sur le pick).
+ * Renvoie le numéro brut (non normalisé) ; la normalisation est faite par ensureWaouhVendorStub.
+ */
+async function resolveVendorPhone(sb: any, pick: any): Promise<string | null> {
+  const direct = pick?.vendeur_whatsapp || pick?.vendeur_phone || pick?.contact_phone || null;
+  if (direct) return direct;
+  if (pick?.business_id) {
+    const { data: biz } = await sb.from("waouh_partner_businesses")
+      .select("whatsapp, telephone, mobile_money_number, nom_entreprise, ville")
+      .eq("id", pick.business_id).maybeSingle();
+    return biz?.whatsapp || biz?.telephone || biz?.mobile_money_number || null;
+  }
+  return null;
 }
 
 async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre") {
@@ -224,9 +233,14 @@ serve(async (req) => {
       } catch { return ""; }
     };
 
-    // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie
+    // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie.
+    // Accepte soit to_user_id (chemin chat classique), soit to_phone (partner/radar sans compte existant).
+    // Double check Bénin sur le numéro avant lookup. Si le target a phone + web_session, miroir whatsapp + web.
     async function pushToOther(opts: {
-      to_user_id: string;
+      to_user_id?: string | null;
+      to_phone?: string | null;
+      to_web_session_id?: string | null;
+      source?: "chat" | "partner" | "radar";
       template: string;
       payload: any;
       image_url?: string | null;
@@ -237,44 +251,109 @@ serve(async (req) => {
       dedupe_key?: string | null;
       event_type?: string | null;
     }) {
-      const { data: target } = await sb.from("waouh_users")
-        .select("id, phone_number, web_session_id, channel")
-        .eq("id", opts.to_user_id).maybeSingle();
+      // 1) Résoudre la cible
+      let target: any = null;
+      if (opts.to_user_id) {
+        const { data } = await sb.from("waouh_users")
+          .select("id, phone_number, web_session_id, channel")
+          .eq("id", opts.to_user_id).maybeSingle();
+        target = data;
+      }
+      if (!target && opts.to_phone) {
+        const resolved = await resolveWaouhUserByPhone(sb, opts.to_phone);
+        if (resolved) target = resolved;
+      }
+      // Fallback "vendeur invité" : pas de compte trouvé mais on a un numéro normalisable
+      if (!target && opts.to_phone) {
+        const canon = normalizeBeninPhone(opts.to_phone);
+        if (canon) {
+          target = { id: null, phone_number: canon, web_session_id: opts.to_web_session_id ?? null, channel: "whatsapp" };
+        }
+      }
       if (!target) return;
-      if (target.id === user?.id || (target.phone_number && phone && normalizeBeninPhone(target.phone_number) === normalizeBeninPhone(phone))) return;
+      // Ne pas se renvoyer le message à soi-même
+      if (target.id && user?.id && target.id === user.id) return;
+      if (target.phone_number && phone) {
+        const tgtCanon = normalizeBeninPhone(target.phone_number);
+        const meCanon = normalizeBeninPhone(phone);
+        if (tgtCanon && meCanon && tgtCanon === meCanon) return;
+      }
+
+      const webSession = target.web_session_id || opts.to_web_session_id || null;
       let insertedMsgId: string | null = null;
-      if (target.web_session_id) {
+      if (webSession && target.id) {
         try {
           const { data: msg } = await sb.from("waouh_messages").insert({
             user_id: target.id,
             channel: "web",
             direction: "out",
             text: opts.directText,
-            web_session_id: target.web_session_id,
+            web_session_id: webSession,
             attachments: opts.directAtts ?? [],
-            meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null },
+            meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null, source: opts.source ?? "chat" },
           }).select("id").maybeSingle();
           insertedMsgId = msg?.id ?? null;
         } catch (e) { console.warn("[pushToOther] msg", e); }
       }
-      try {
-        const quickActions: Array<{ id: string; label: string }> = Array.isArray(opts.payload?.actions)
-          ? opts.payload.actions.slice(0, 3)
-          : [];
-        await sb.rpc("waouh_enqueue_outbound_v2", {
-          p_to_phone: target.phone_number,
-          p_to_user_id: target.id,
-          p_template: opts.template,
-          p_payload: { ...(opts.payload || {}), text: opts.directText, actions: quickActions, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null },
-          p_web_session_id: target.web_session_id,
-          p_image_url: opts.image_url ?? null,
-          p_channel: target.phone_number ? "whatsapp" : "web",
-          p_message_id: insertedMsgId,
-          p_transaction_id: opts.transaction_id ?? null,
-          p_dedupe_key: opts.dedupe_key ?? null,
-          p_event_type: opts.event_type ?? null,
-        });
-      } catch (e) { console.warn("[pushToOther] enqueue", e); }
+
+      const quickActions: Array<{ id: string; label: string }> = Array.isArray(opts.payload?.actions)
+        ? opts.payload.actions.slice(0, 3)
+        : [];
+      const basePayload = { ...(opts.payload || {}), text: opts.directText, actions: quickActions, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat" };
+
+      // 2) Enqueue WhatsApp si on a un numéro
+      if (target.phone_number) {
+        try {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: target.phone_number,
+            p_to_user_id: target.id,
+            p_template: opts.template,
+            p_payload: basePayload,
+            p_web_session_id: webSession,
+            p_image_url: opts.image_url ?? null,
+            p_channel: "whatsapp",
+            p_message_id: insertedMsgId,
+            p_transaction_id: opts.transaction_id ?? null,
+            p_dedupe_key: opts.dedupe_key ? `wa:${opts.dedupe_key}` : null,
+            p_event_type: opts.event_type ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] enqueue wa", e); }
+      }
+      // 3) Enqueue web en miroir si on a une session web (et qu'on n'a pas déjà envoyé que web)
+      if (webSession && target.phone_number) {
+        try {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: null,
+            p_to_user_id: target.id,
+            p_template: opts.template,
+            p_payload: basePayload,
+            p_web_session_id: webSession,
+            p_image_url: opts.image_url ?? null,
+            p_channel: "web",
+            p_message_id: insertedMsgId,
+            p_transaction_id: opts.transaction_id ?? null,
+            p_dedupe_key: opts.dedupe_key ? `web:${opts.dedupe_key}` : null,
+            p_event_type: opts.event_type ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] enqueue web mirror", e); }
+      } else if (webSession && !target.phone_number) {
+        // Cas pur web (pas de numéro) : 1 seul enqueue web pour cohérence avec le dispatcher
+        try {
+          await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: null,
+            p_to_user_id: target.id,
+            p_template: opts.template,
+            p_payload: basePayload,
+            p_web_session_id: webSession,
+            p_image_url: opts.image_url ?? null,
+            p_channel: "web",
+            p_message_id: insertedMsgId,
+            p_transaction_id: opts.transaction_id ?? null,
+            p_dedupe_key: opts.dedupe_key ? `web:${opts.dedupe_key}` : null,
+            p_event_type: opts.event_type ?? null,
+          });
+        } catch (e) { console.warn("[pushToOther] enqueue web", e); }
+      }
     }
 
 
@@ -536,16 +615,37 @@ serve(async (req) => {
           returnedActions = [];
           reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou vous pouvez écrire ( Ex: Je propose ${fmt(askPrice)}) pour négocier.`;
         } else {
+        // 🛒 Source du produit (chat / partner / radar) → résoudre le vendeur cible
+        const pickSource: "chat" | "partner" | "radar" =
+          pick.source === "partner" ? "partner" :
+          pick.source === "radar" || pick.radar ? "radar" : "chat";
+        // Si pas de seller_id (partenaire) → upsert un stub waouh_users à partir du WhatsApp marchand
+        if (!pick.seller_id) {
+          const vendorPhoneRaw = await resolveVendorPhone(sb, pick);
+          if (vendorPhoneRaw) {
+            const stub = await ensureWaouhVendorStub(sb, vendorPhoneRaw, {
+              display_name: pick.vendeur_nom || pick.title || "Vendeur partenaire",
+              city: pick.city || pick.ville || null,
+              stub_origin: pickSource,
+            });
+            if (stub?.id) pick.seller_id = stub.id;
+          }
+        }
         // Récupère vendeur (phone + web session)
-        const { data: seller } = await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle();
-        // Récupère 1ère photo de l'article pour la notification
-        const { data: artPhoto } = await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle();
-        const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : null;
+        const { data: seller } = pick.seller_id
+          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle()
+          : { data: null };
+        // Récupère 1ère photo (article officiel ou pick partner/radar)
+        const { data: artPhoto } = pick.seller_id
+          ? await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle()
+          : { data: null };
+        const fallbackPhoto = Array.isArray(pick.photos) && pick.photos.length > 0 ? pick.photos[0] : null;
+        const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : fallbackPhoto;
         // Crée la négociation
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
           state: "proposed", last_offer_price: askPrice, last_actor: "buyer",
-          meta: { source: "chat" },
+          meta: { source: pickSource },
         }).select().single();
         returnedArticleId = pick.id;
         const commission = Math.round(askPrice * 0.05);
@@ -564,12 +664,14 @@ serve(async (req) => {
         if (neg?.id && returnedTransactionId) {
           await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
         }
-        // Notifie le vendeur — UN SEUL message, sans carte paiement, sans actions paiement.
-        // Boutons interactifs : Accepter / Contre-offre / Refuser.
-        if (seller?.id) {
+        // Notifie le vendeur (chat: via to_user_id ; partner/radar: via to_user_id stub + to_phone fallback)
+        const vendorPhoneForPush = !seller?.phone_number ? await resolveVendorPhone(sb, pick) : null;
+        if (seller?.id || vendorPhoneForPush) {
           try {
             await pushToOther({
-              to_user_id: seller.id,
+              to_user_id: seller?.id ?? null,
+              to_phone: vendorPhoneForPush,
+              source: pickSource,
               template: "match_seller",
               payload: {
                 article_id: pick.id, title: pick.title, price: askPrice,
@@ -580,15 +682,17 @@ serve(async (req) => {
               image_url: firstPhoto,
               directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
               directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
-              directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id },
+              directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id, source: pickSource },
               transaction_id: returnedTransactionId,
-              dedupe_key: null,
+              dedupe_key: `match:${neg?.id ?? pick.id}:${pickSource}`,
               event_type: "seller_new_interest",
             });
-            console.log("[interest-push] enqueue ok", { seller_id: seller.id, neg_id: neg?.id, tx: returnedTransactionId });
+            console.log("[interest-push] enqueue ok", { source: pickSource, seller_id: seller?.id, neg_id: neg?.id, tx: returnedTransactionId });
           } catch (e) {
             console.error("[interest-push] enqueue failed", e);
           }
+        } else {
+          console.warn("[interest-push] no seller and no vendor phone resolvable", { pick_id: pick.id, source: pickSource });
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
         returnedActions = [];
