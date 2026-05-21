@@ -691,11 +691,12 @@ serve(async (req) => {
         const pickSource: "chat" | "partner" | "radar" =
           pick.source === "partner" ? "partner" :
           pick.source === "radar" || pick.radar ? "radar" : "chat";
+        // 🛒 Résolution complète des contacts vendeur (téléphone + web sessions partner)
+        const vendorContacts = await resolveVendorContacts(sb, pick);
         // Si pas de seller_id (partenaire) → upsert un stub waouh_users à partir du WhatsApp marchand
         if (!pick.seller_id) {
-          const vendorPhoneRaw = await resolveVendorPhone(sb, pick);
-          if (vendorPhoneRaw) {
-            const stub = await ensureWaouhVendorStub(sb, vendorPhoneRaw, {
+          if (vendorContacts.phone) {
+            const stub = await ensureWaouhVendorStub(sb, vendorContacts.phone, {
               display_name: pick.vendeur_nom || pick.title || "Vendeur partenaire",
               city: pick.city || pick.ville || null,
               stub_origin: pickSource,
@@ -736,13 +737,16 @@ serve(async (req) => {
         if (neg?.id && returnedTransactionId) {
           await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
         }
-        // Notifie le vendeur (chat: via to_user_id ; partner/radar: via to_user_id stub + to_phone fallback)
-        const vendorPhoneForPush = !seller?.phone_number ? await resolveVendorPhone(sb, pick) : null;
-        if (seller?.id || vendorPhoneForPush) {
+        // Notifie le vendeur :
+        //  - WhatsApp via numéro résolu (double-check 8/10 chiffres au niveau du dispatcher)
+        //  - Web chat du compte ayant enregistré l'entreprise (toutes les sessions web du partner)
+        const vendorPhoneForPush = seller?.phone_number || vendorContacts.phone || null;
+        if (seller?.id || vendorPhoneForPush || vendorContacts.web_sessions.length > 0) {
           try {
             await pushToOther({
               to_user_id: seller?.id ?? null,
               to_phone: vendorPhoneForPush,
+              mirror_web_sessions: vendorContacts.web_sessions,
               source: pickSource,
               template: "match_seller",
               payload: {
@@ -759,12 +763,12 @@ serve(async (req) => {
               dedupe_key: `match:${neg?.id ?? pick.id}:${pickSource}`,
               event_type: "seller_new_interest",
             });
-            console.log("[interest-push] enqueue ok", { source: pickSource, seller_id: seller?.id, neg_id: neg?.id, tx: returnedTransactionId });
+            console.log("[interest-push] enqueue ok", { source: pickSource, seller_id: seller?.id, neg_id: neg?.id, tx: returnedTransactionId, phone: vendorPhoneForPush, web_sessions: vendorContacts.web_sessions.length });
           } catch (e) {
             console.error("[interest-push] enqueue failed", e);
           }
         } else {
-          console.warn("[interest-push] no seller and no vendor phone resolvable", { pick_id: pick.id, source: pickSource });
+          console.warn("[interest-push] no seller, no vendor phone, no partner web session", { pick_id: pick.id, source: pickSource });
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
         returnedActions = [];
