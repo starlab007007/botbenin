@@ -14,7 +14,7 @@ import { initPerformanceMonitoring } from "./utils/performance";
 import { useActivityTracking } from "./hooks/useActivityTracking";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
-import { LoadingSpinner } from "./components/LoadingSpinner";
+import { LoadingSpinner, DeferredRouteFallback } from "./components/LoadingSpinner";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -160,7 +160,7 @@ const AppContent = () => {
   useActivityTracking();
   
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={<DeferredRouteFallback />}>
       <Routes>
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
