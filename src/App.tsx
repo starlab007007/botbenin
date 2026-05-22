@@ -12,11 +12,11 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
 import { initPerformanceMonitoring } from "./utils/performance";
 import { useActivityTracking } from "./hooks/useActivityTracking";
-import Index from "./pages/Index";
-import { MainLayout } from "./components/layouts/MainLayout";
-import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
+
+const Index = lazy(() => import("./pages/Index"));
+
 
 // Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
