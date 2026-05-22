@@ -289,11 +289,19 @@ const AppContent = () => {
 };
 
 const App = () => {
-  // Register service worker for push notifications and initialize performance monitoring
+  // Initialisation différée pour ne pas bloquer le premier paint
   useEffect(() => {
-    registerServiceWorker();
-    initPerformanceMonitoring();
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    const run = () => {
+      registerServiceWorker();
+      initPerformanceMonitoring();
+    };
+    if (ric) ric(run, { timeout: 3000 });
+    else setTimeout(run, 1500);
   }, []);
+
 
   return (
     <QueryClientProvider client={queryClient}>
