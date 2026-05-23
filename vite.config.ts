@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      recharts: path.resolve(__dirname, "./src/lib/recharts-stub.tsx"),
     },
   },
   optimizeDeps: {
