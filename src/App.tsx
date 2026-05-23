@@ -129,13 +129,13 @@ const IAProspectPreCallPage = lazy(() => import("./pages/IAProspectPreCallPage")
 const ProspectPreparationPage = lazy(() => import("./pages/ProspectPreparationPage").then(module => ({ default: module.ProspectPreparationPage })));
 const EvaluationResultsPage = lazy(() => import("./pages/EvaluationResultsPage").then(module => ({ default: module.EvaluationResultsPage })));
 
-import { SystemTestPage } from "./pages/SystemTestPage";
-import { PlatformTestPage } from "./pages/PlatformTestPage";
-import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
-import { AdminRolesPage } from "./pages/admin/AdminRolesPage";
-import { AdminPermissionsPage } from "./pages/admin/AdminPermissionsPage";
-import { AdminUsersManagementPage } from "./pages/admin/AdminUsersManagementPage";
-import { IACreatorAdminPage } from "./pages/admin/IACreatorAdminPage";
+const SystemTestPage = lazy(() => import("./pages/SystemTestPage").then(module => ({ default: module.SystemTestPage })));
+const PlatformTestPage = lazy(() => import("./pages/PlatformTestPage").then(module => ({ default: module.PlatformTestPage })));
+const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then(module => ({ default: module.AdminDashboardPage })));
+const AdminRolesPage = lazy(() => import("./pages/admin/AdminRolesPage").then(module => ({ default: module.AdminRolesPage })));
+const AdminPermissionsPage = lazy(() => import("./pages/admin/AdminPermissionsPage").then(module => ({ default: module.AdminPermissionsPage })));
+const AdminUsersManagementPage = lazy(() => import("./pages/admin/AdminUsersManagementPage").then(module => ({ default: module.AdminUsersManagementPage })));
+const IACreatorAdminPage = lazy(() => import("./pages/admin/IACreatorAdminPage").then(module => ({ default: module.IACreatorAdminPage })));
 const SystemLogsPage = lazy(() => import("./pages/admin/SystemLogsPage"));
 const AdminKnowledgeBasesPage = lazy(() => import("./pages/modules/AdminKnowledgeBasesPage").then(module => ({ default: module.AdminKnowledgeBasesPage })));
 import { AdminRoute } from "./components/auth/AdminRoute";
