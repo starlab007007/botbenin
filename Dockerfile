@@ -9,9 +9,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Installation
-RUN npm ci --legacy-peer-deps --no-audit --no-fund || \
-    (echo "⚠️ npm ci failed — fallback npm install" && \
-    npm install --legacy-peer-deps --no-audit --no-fund)
+#RUN npm ci --legacy-peer-deps --no-audit --no-fund || \
+#    (echo "⚠️ npm ci failed — fallback npm install" && \
+#    npm install --legacy-peer-deps --no-audit --no-fund)
+
+RUN npm i
 
 # Copie du projet
 COPY . .
