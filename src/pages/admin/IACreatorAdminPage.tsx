@@ -9,7 +9,6 @@ import { IACreatorStats } from '@/components/admin/ia-creator/IACreatorStats';
 import { IACreatorUsersTable } from '@/components/admin/ia-creator/IACreatorUsersTable';
 import { IACreatorGallery } from '@/components/admin/ia-creator/IACreatorGallery';
 import { IACreatorLimitsConfig } from '@/components/admin/ia-creator/IACreatorLimitsConfig';
-import { IACreatorCharts } from '@/components/admin/ia-creator/IACreatorCharts';
 
 export const IACreatorAdminPage = () => {
   const navigate = useNavigate();
@@ -59,11 +58,10 @@ export const IACreatorAdminPage = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="users" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="users">Utilisateurs</TabsTrigger>
           <TabsTrigger value="gallery">Galerie</TabsTrigger>
           <TabsTrigger value="limits">Limites</TabsTrigger>
-          <TabsTrigger value="charts">Graphiques</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -122,9 +120,6 @@ export const IACreatorAdminPage = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="charts" className="space-y-4">
-          <IACreatorCharts stats={stats} />
-        </TabsContent>
       </Tabs>
     </div>
   );
