@@ -3,7 +3,7 @@ import { useSupportRealtimeStats } from '@/hooks/useSupportRealtimeStats';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, TicketIcon, Clock, CheckCircle2, ShieldCheck, AlertTriangle, Bot, TrendingUp } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from '@/lib/recharts-stub';
 import { TicketCard } from './TicketCard';
 
 const SEVERITY_COLORS = { critique: '#ef4444', majeure: '#f59e0b', mineure: '#3b82f6' };
