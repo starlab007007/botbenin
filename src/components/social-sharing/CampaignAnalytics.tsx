@@ -13,7 +13,7 @@ import {
   Eye,
   MousePointer
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "@/lib/recharts-stub";
+
 
 interface CampaignAnalyticsProps {
   campaignId?: string;
@@ -117,17 +117,7 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({ campaignId
               <CardTitle>Évolution des performances</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={analyticsData.timelineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="reach" stroke="#3b82f6" name="Portée" />
-                  <Line type="monotone" dataKey="engagement" stroke="#10b981" name="Engagement" />
-                  <Line type="monotone" dataKey="clicks" stroke="#f59e0b" name="Clics" />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground border border-dashed rounded-md">Graphique indisponible</div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -138,17 +128,7 @@ export const CampaignAnalytics: React.FC<CampaignAnalyticsProps> = ({ campaignId
               <CardTitle>Performance par plateforme</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={analyticsData.platformPerformance}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="platform" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="reach" fill="#3b82f6" name="Portée" />
-                  <Bar dataKey="engagement" fill="#10b981" name="Engagement" />
-                  <Bar dataKey="clicks" fill="#f59e0b" name="Clics" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground border border-dashed rounded-md">Graphique indisponible</div>
             </CardContent>
           </Card>
 

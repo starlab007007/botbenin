@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from '@/lib/recharts-stub';
 
 interface IACreatorChartsProps {
   stats: {
@@ -17,11 +16,12 @@ interface IACreatorChartsProps {
 export const IACreatorCharts: React.FC<IACreatorChartsProps> = ({ stats }) => {
   if (!stats) return null;
 
-  const pieData = [
+  const items = [
     { name: 'Images', value: stats.total_images, color: '#ec4899' },
     { name: 'Flyers', value: stats.total_flyers, color: '#8b5cf6' },
     { name: 'Vidéos', value: stats.total_videos, color: '#3b82f6' },
   ];
+  const total = items.reduce((s, i) => s + i.value, 0) || 1;
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -29,26 +29,18 @@ export const IACreatorCharts: React.FC<IACreatorChartsProps> = ({ stats }) => {
         <CardHeader>
           <CardTitle>Répartition par Type</CardTitle>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+        <CardContent className="space-y-3">
+          {items.map((it) => (
+            <div key={it.name}>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{ background: it.color }} />{it.name}</span>
+                <span className="font-semibold">{it.value} ({((it.value / total) * 100).toFixed(0)}%)</span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div className="h-full" style={{ width: `${(it.value / total) * 100}%`, background: it.color }} />
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
