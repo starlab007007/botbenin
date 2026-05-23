@@ -107,41 +107,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setGuestUser(null);
           
           try {
-            const withTimeout = async <T,>(promise: PromiseLike<T>, ms: number, fallback: T): Promise<T> => {
-              let timeoutId: ReturnType<typeof setTimeout> | undefined;
-              try {
-                return await Promise.race([
-                  promise,
-                  new Promise<T>((resolve) => {
-                    timeoutId = setTimeout(() => resolve(fallback), ms);
-                  }),
-                ]);
-              } finally {
-                if (timeoutId) clearTimeout(timeoutId);
-              }
-            };
+            // Récupérer le rôle depuis user_roles avec timeout
+            const rolePromise = supabase
+              .from('user_roles')
+              .select(`
+                roles (
+                  name
+                )
+              `)
+              .eq('user_id', session.user.id)
+              .maybeSingle();
+            
+            const { data: roleData, error: roleError } = await Promise.race([
+              rolePromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Role fetch timeout')), 3000))
+            ]) as any;
+            
+            if (roleError) {
+              console.error('Error fetching role:', roleError);
+            }
 
-            const [roleResult, permissionsResult] = await Promise.all([
-              withTimeout(
-                supabase
-                  .from('user_roles')
-                  .select(`roles (name)`)
-                  .eq('user_id', session.user.id)
-                  .maybeSingle(),
-                1800,
-                { data: null, error: null } as any
-              ),
-              withTimeout(
-                supabase.rpc('get_user_permissions', { user_uuid: session.user.id }),
-                1800,
-                { data: null, error: null } as any
-              ),
-            ]) as any[];
+            const userRole = (roleData?.roles as any)?.name || 'user';
 
-            if (roleResult.error) console.error('Error fetching role:', roleResult.error);
+            // Récupérer les permissions depuis la fonction get_user_permissions avec timeout
+            const permissionsPromise = supabase.rpc('get_user_permissions', { 
+              user_uuid: session.user.id 
+            });
+            
+            const { data: permissionsData } = await Promise.race([
+              permissionsPromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Permissions fetch timeout')), 3000))
+            ]) as any;
 
-            const userRole = (roleResult.data?.roles as any)?.name || 'user';
-            const permissions = permissionsResult.data?.map((p: any) => p.permission_name) || rolePermissions.user;
+            const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions.user;
 
             // Create AuthUser from Supabase user with DB role and permissions
             const authUser: AuthUser = {

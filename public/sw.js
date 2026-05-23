@@ -1,7 +1,6 @@
-// Service Worker — notifications push + cache assets statiques uniquement.
-// Ne jamais cacher le HTML : un app-shell obsolète peut référencer des chunks JS supprimés
-// et provoquer l'écran blanc/spinner infini après déploiement.
-const STATIC_CACHE = 'static-v3';
+// Service Worker — notifications push + cache assets statiques
+const STATIC_CACHE = 'static-v2';
+const HTML_CACHE = 'html-v2';
 const DB_NAME = 'NotificationsDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'notifications';
@@ -29,7 +28,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== STATIC_CACHE && k !== 'notifications-v1')
+          .filter((k) => ![STATIC_CACHE, HTML_CACHE].includes(k) && k !== 'notifications-v1')
           .map((k) => caches.delete(k))
       )
     ).then(() => self.clients.claim())
@@ -44,7 +43,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Cache-first immutable pour assets hashés JS/CSS/images/fonts uniquement
+  // Cache-first immutable pour assets hashés
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
@@ -52,7 +51,7 @@ self.addEventListener('fetch', (event) => {
         if (cached) return cached;
         try {
           const res = await fetch(req);
-          if (res.ok && res.type === 'basic') cache.put(req, res.clone());
+          if (res.ok) cache.put(req, res.clone());
           return res;
         } catch (e) {
           return cached || Response.error();
@@ -62,15 +61,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-only pour HTML/navigation afin d'éviter les index.html périmés après publication.
+  // Network-first pour HTML/navigation
   if (req.mode === 'navigate' || req.destination === 'document') {
     event.respondWith(
-      fetch(req, { cache: 'no-store' }).catch(() =>
-        new Response('Bot.BJ est momentanément indisponible. Vérifiez votre connexion puis rechargez la page.', {
-          status: 503,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        })
-      )
+      (async () => {
+        try {
+          const res = await fetch(req);
+          const cache = await caches.open(HTML_CACHE);
+          cache.put(req, res.clone());
+          return res;
+        } catch (e) {
+          const cached = await caches.match(req);
+          return cached || caches.match('/') || Response.error();
+        }
+      })()
     );
   }
 });
