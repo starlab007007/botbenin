@@ -11,19 +11,15 @@ const runWhenIdle = (cb: () => void) => {
 export const registerServiceWorker = () => {
   if (!('serviceWorker' in navigator)) return;
 
-  // ⚠️ Désactivé temporairement : un ancien SW servait un index.html mis en
-  // cache qui pointait vers des chunks obsolètes, ce qui bloquait l'app sur
-  // l'écran "Chargement de Bot.BJ...". On désinscrit toute version existante.
   runWhenIdle(async () => {
     try {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister().catch(() => false)));
-      if ((window as any).caches?.keys) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k).catch(() => false)));
+      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      console.log('Service Worker enregistré:', registration.scope);
+      if ('Notification' in window && Notification.permission === 'default') {
+        // Ne pas prompter d'office, juste préparer
       }
     } catch (error) {
-      console.error('Nettoyage SW:', error);
+      console.error('Erreur SW:', error);
     }
   });
 };

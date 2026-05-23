@@ -30,15 +30,23 @@ export default defineConfig(({ mode }) => ({
     assetsDir: 'assets',
     sourcemap: false,
     cssCodeSplit: true,
-    minify: mode === 'production' ? 'esbuild' : false,
+    minify: mode === 'production' ? 'terser' : false,
+    terserOptions: mode === 'production' ? {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        passes: 2,
+        pure_funcs: ['console.log', 'console.info', 'console.debug'],
+      },
+      mangle: { safari10: true },
+    } : undefined,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
           if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler') || id.includes('react-router')) return 'react';
           if (id.includes('@radix-ui') || id.includes('cmdk') || id.includes('vaul')) return 'radix';
-          if (id.includes('recharts')) return 'recharts';
-          if (id.includes('d3-')) return 'd3';
+          if (id.includes('recharts') || id.includes('d3-')) return 'charts';
           if (id.includes('leaflet') || id.includes('mapbox')) return 'maps';
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
           if (id.includes('@ffmpeg')) return 'ffmpeg';

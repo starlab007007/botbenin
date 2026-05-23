@@ -1,8 +1,6 @@
 
-import React, { Suspense, useState } from 'react';
+import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { DeferredRouteFallback } from '@/components/LoadingSpinner';
-
 import { ModernSidebar } from '@/components/navigation/ModernSidebar';
 import { ModernTopHeader } from '@/components/navigation/ModernTopHeader';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
@@ -35,10 +33,7 @@ export const MainLayout: React.FC = () => {
           
           {/* Container avec largeur maximale et responsive padding */}
           <div className={`w-full max-w-[1440px] mx-auto ${isMobile ? 'px-[2.5%]' : 'px-4 sm:px-6 lg:px-8'} py-6 lg:py-8`}>
-            <Suspense fallback={<DeferredRouteFallback inline />}>
-              <Outlet />
-            </Suspense>
-
+            <Outlet />
           </div>
         </main>
       </div>
