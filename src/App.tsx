@@ -9,7 +9,6 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { LanguageProvider } from "./contexts/LanguageContext";
-import { registerServiceWorker } from "./utils/registerServiceWorker";
 import { initPerformanceMonitoring } from "./utils/performance";
 import { useActivityTracking } from "./hooks/useActivityTracking";
 import { MainLayout } from "./components/layouts/MainLayout";
@@ -295,7 +294,6 @@ const App = () => {
       | ((cb: () => void, opts?: { timeout: number }) => number)
       | undefined;
     const run = () => {
-      registerServiceWorker();
       initPerformanceMonitoring();
     };
     if (ric) ric(run, { timeout: 3000 });
