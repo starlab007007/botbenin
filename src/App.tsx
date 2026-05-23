@@ -12,11 +12,14 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
 import { initPerformanceMonitoring } from "./utils/performance";
 import { useActivityTracking } from "./hooks/useActivityTracking";
-import Index from "./pages/Index";
 import { MainLayout } from "./components/layouts/MainLayout";
 import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
-import { LoadingSpinner } from "./components/LoadingSpinner";
+import { LoadingSpinner, DeferredRouteFallback } from "./components/LoadingSpinner";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
+
+const Index = lazy(() => import("./pages/Index"));
+
+
 
 // Pages principales - Lazy loading with correct export handling
 const HomePage = lazy(() => import("./pages/HomePage").then(module => ({ default: module.HomePage })));
@@ -157,7 +160,7 @@ const AppContent = () => {
   useActivityTracking();
   
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={<DeferredRouteFallback />}>
       <Routes>
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
@@ -286,11 +289,19 @@ const AppContent = () => {
 };
 
 const App = () => {
-  // Register service worker for push notifications and initialize performance monitoring
+  // Initialisation différée pour ne pas bloquer le premier paint
   useEffect(() => {
-    registerServiceWorker();
-    initPerformanceMonitoring();
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    const run = () => {
+      registerServiceWorker();
+      initPerformanceMonitoring();
+    };
+    if (ric) ric(run, { timeout: 3000 });
+    else setTimeout(run, 1500);
   }, []);
+
 
   return (
     <QueryClientProvider client={queryClient}>
