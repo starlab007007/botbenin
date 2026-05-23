@@ -1,27 +1,22 @@
-// Enregistrement différé du service worker pour éviter de bloquer le rendu initial
-const runWhenIdle = (cb: () => void) => {
-  if (typeof window === 'undefined') return;
-  const ric = (window as any).requestIdleCallback as
-    | ((cb: () => void, opts?: { timeout: number }) => number)
-    | undefined;
-  if (ric) ric(cb, { timeout: 3000 });
-  else setTimeout(cb, 1500);
-};
-
-export const registerServiceWorker = () => {
-  if (!('serviceWorker' in navigator)) return;
-
-  runWhenIdle(async () => {
+export const registerServiceWorker = async () => {
+  if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      console.log('Service Worker enregistré:', registration.scope);
+      const registration = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/'
+      });
+      
+      console.log('Service Worker enregistré avec succès:', registration);
+      
+      // Request notification permission
       if ('Notification' in window && Notification.permission === 'default') {
-        // Ne pas prompter d'office, juste préparer
+        await Notification.requestPermission();
       }
+      
+      return registration;
     } catch (error) {
-      console.error('Erreur SW:', error);
+      console.error('Erreur lors de l\'enregistrement du Service Worker:', error);
     }
-  });
+  }
 };
 
 export const unregisterServiceWorker = async () => {
@@ -29,6 +24,7 @@ export const unregisterServiceWorker = async () => {
     const registration = await navigator.serviceWorker.getRegistration();
     if (registration) {
       await registration.unregister();
+      console.log('Service Worker désinscrit');
     }
   }
 };

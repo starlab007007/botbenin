@@ -10,7 +10,7 @@
     <!-- Performance & Security -->
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
     
     <!-- Preconnect to important domains -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
@@ -68,9 +68,10 @@
     <meta name="twitter:image" content="https://bot.bj/bot-bj-logo.png" />
     <meta name="twitter:image:alt" content="Bot.BJ - Chatbot WhatsApp IA" />
     
-    <!-- Preload assets critiques LCP -->
-    <link rel="preload" as="image" href="/bot-bj-logo.png" fetchpriority="high" />
-
+    <!-- Optimisations pour le cache et les performances -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     
     <!-- Sécurité -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data: https://unpkg.com https://cdn.jsdelivr.net https://*.elevenlabs.io https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src 'self' fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https: wss:; frame-src https://*.elevenlabs.io; worker-src 'self'; media-src 'self' data: blob:;">
