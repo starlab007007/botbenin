@@ -1,34 +1,29 @@
-// Enregistrement différé du service worker pour éviter de bloquer le rendu initial
-const runWhenIdle = (cb: () => void) => {
-  if (typeof window === 'undefined') return;
-  const ric = (window as any).requestIdleCallback as
-    | ((cb: () => void, opts?: { timeout: number }) => number)
-    | undefined;
-  if (ric) ric(cb, { timeout: 3000 });
-  else setTimeout(cb, 1500);
-};
+// Service Worker désactivé : la stratégie de cache provoquait des boucles infinies
+// en production lorsque d'anciens assets hashés restaient en cache après un nouveau déploiement.
+// Cette fonction désinscrit tout SW existant et purge tous les caches.
 
 export const registerServiceWorker = () => {
+  if (typeof window === 'undefined') return;
   if (!('serviceWorker' in navigator)) return;
 
-  runWhenIdle(async () => {
+  // Désinscription + purge silencieuse, exécutée après le rendu initial
+  setTimeout(async () => {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      console.log('Service Worker enregistré:', registration.scope);
-      if ('Notification' in window && Notification.permission === 'default') {
-        // Ne pas prompter d'office, juste préparer
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
       }
-    } catch (error) {
-      console.error('Erreur SW:', error);
+    } catch (e) {
+      // silencieux
     }
-  });
+  }, 1500);
 };
 
 export const unregisterServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
-    const registration = await navigator.serviceWorker.getRegistration();
-    if (registration) {
-      await registration.unregister();
-    }
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((r) => r.unregister()));
   }
 };
