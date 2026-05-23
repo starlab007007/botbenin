@@ -9,11 +9,6 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-
-  optimizeDeps: {
-    include: ["recharts"]
-  },
-
   plugins: [
     react(),
     mode === 'development' && componentTagger(),
@@ -33,7 +28,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    sourcemap: true,
+    sourcemap: false,
     cssCodeSplit: true,
     minify: mode === 'production' ? 'terser' : false,
     terserOptions: mode === 'production' ? {
