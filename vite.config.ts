@@ -16,7 +16,6 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      recharts: path.resolve(__dirname, "./src/lib/recharts-stub.tsx"),
     },
   },
   optimizeDeps: {
@@ -47,7 +46,7 @@ export default defineConfig(({ mode }) => ({
           if (!id.includes('node_modules')) return;
           if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler') || id.includes('react-router')) return 'react';
           if (id.includes('@radix-ui') || id.includes('cmdk') || id.includes('vaul')) return 'radix';
-          if (id.includes('d3-')) return 'charts';
+          
           if (id.includes('leaflet') || id.includes('mapbox')) return 'maps';
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
           if (id.includes('@ffmpeg')) return 'ffmpeg';
