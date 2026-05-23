@@ -13,7 +13,7 @@ COPY package.json package-lock.json ./
 #    (echo "⚠️ npm ci failed — fallback npm install" && \
 #    npm install --legacy-peer-deps --no-audit --no-fund)
 
-RUN npm i
+RUN npm i -f
 
 # Copie du projet
 COPY . .
