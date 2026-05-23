@@ -27,13 +27,13 @@ export const useAdminRole = () => {
 
         if (error) {
           console.error('Error checking admin role:', error);
-          setIsAdmin(user.role === 'admin');
+          setIsAdmin(false);
         } else {
-          setIsAdmin(Boolean(data) || user.role === 'admin');
+          setIsAdmin(Boolean(data));
         }
       } catch (error) {
         console.error('Error in checkAdminRole:', error);
-        setIsAdmin(user.role === 'admin');
+        setIsAdmin(false);
       } finally {
         setIsLoading(false);
       }
