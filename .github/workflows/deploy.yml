@@ -4,7 +4,7 @@ name: Deploy React App botbj
 on:
   push:
     branches:
-      - main
+      - prod
 
 jobs:
   deploy:
