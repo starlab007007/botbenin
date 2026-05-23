@@ -30,16 +30,10 @@ export default defineConfig(({ mode }) => ({
     assetsDir: 'assets',
     sourcemap: false,
     cssCodeSplit: true,
-    minify: mode === 'production' ? 'terser' : false,
-    terserOptions: mode === 'production' ? {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        passes: 2,
-        pure_funcs: ['console.log', 'console.info', 'console.debug'],
-      },
-      mangle: { safari10: true },
-    } : undefined,
+    // Terser provoquait en production une erreur TDZ dans le chunk Recharts
+    // (`Cannot access 'e' before initialization`), ce qui empêchait React de démarrer
+    // et laissait l'écran HTML "Chargement de Bot.BJ..." tourner indéfiniment.
+    minify: mode === 'production' ? 'esbuild' : false,
     rollupOptions: {
       output: {
         manualChunks(id) {
