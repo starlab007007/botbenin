@@ -17,20 +17,23 @@ export const useAdminRole = () => {
 
       try {
         // Appel sécurisé à la fonction SECURITY DEFINER
-        const { data, error } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role_name: 'admin'
-        });
+        const { data, error } = await Promise.race([
+          supabase.rpc('has_role', {
+            _user_id: user.id,
+            _role_name: 'admin'
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Admin role fetch timeout')), 2500))
+        ]) as any;
 
         if (error) {
           console.error('Error checking admin role:', error);
-          setIsAdmin(false);
+          setIsAdmin(user.role === 'admin');
         } else {
-          setIsAdmin(data || false);
+          setIsAdmin(Boolean(data) || user.role === 'admin');
         }
       } catch (error) {
         console.error('Error in checkAdminRole:', error);
-        setIsAdmin(false);
+        setIsAdmin(user.role === 'admin');
       } finally {
         setIsLoading(false);
       }
