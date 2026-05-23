@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    sourcemap: false,
+    sourcemap: true,
     cssCodeSplit: true,
     minify: mode === 'production' ? 'terser' : false,
     terserOptions: mode === 'production' ? {
