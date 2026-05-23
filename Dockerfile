@@ -1,6 +1,6 @@
 
 # Utilisation d'une image Node.js pour le build
-FROM node:18-alpine as build
+FROM node:25-alpine as build
 
 WORKDIR /app
 
