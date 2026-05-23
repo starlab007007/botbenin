@@ -173,6 +173,9 @@ COPY <<EOF /docker-entrypoint.sh
 #!/bin/sh
 set -e
 
+
+
+
 echo "🔍 Vérification des fichiers..."
 ls -la /usr/share/nginx/html/
 echo "📄 Contenu de index.html:"
