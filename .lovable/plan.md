@@ -1,54 +1,40 @@
+## Diagnostic
 
-# Plan : corriger l'écran blanc en production
+La production ne bloque pas à cause de Supabase ni de l’auth pour l’erreur fournie. Le signal important est :
 
-## Contexte vérifié dans le repo
-
-- **Déploiement** : Docker + nginx (`Dockerfile`, `default.conf`, `docker-compose.yml`) sur `bot.bj`. Ce n'est **ni Netlify ni Vercel** — donc pas besoin de `public/_redirects` ni de `vercel.json`. Le SPA fallback est déjà géré par `try_files $uri $uri/ /index.html;` dans `default.conf`.
-- **Vite** : `base: '/'` et `outDir: 'dist'` déjà présents. Manque seulement `emptyOutDir: true`.
-- **Supabase client** : URL + anon key **codées en dur** dans `src/integrations/supabase/client.ts` (pas via `import.meta.env`). C'est volontaire (fichier auto-généré Lovable). Aucune variable critique n'est donc bloquante en prod — on ajoute quand même un `.env.example` pour documenter.
-- **AuthContext** : `isLoading: true` initial + `getSession()` + `onAuthStateChange` déjà bien implémentés (lignes 110-195). Pas de boucle infinie côté auth, le pattern demandé est déjà appliqué.
-- **Router** : `BrowserRouter` déjà utilisé dans `App.tsx`.
-- **ErrorBoundary** : le composant existe (`src/components/ErrorBoundary.tsx`) mais **n'enveloppe pas `<App />` dans `main.tsx`** → si une erreur de chunk lazy ou de render se produit au boot en prod, l'écran reste blanc sans message.
-
-## Changements à faire
-
-### 1. `src/main.tsx`
-Envelopper `<App />` avec `<ErrorBoundary>` pour capturer toute erreur de boot (notamment échecs `lazy()` quand un chunk hashé est introuvable après redéploiement).
-
-### 2. `src/components/ErrorBoundary.tsx`
-Détecter les erreurs `ChunkLoadError` / `Loading chunk ... failed` et déclencher un `window.location.reload()` automatique une seule fois (via `sessionStorage` flag) — cause classique du blanc après nouveau déploiement quand le navigateur a un vieux `index.html` en cache pointant vers un ancien hash.
-
-### 3. `vite.config.ts`
-- Ajouter `emptyOutDir: true` dans `build`.
-- Conserver `manualChunks` actuel (il fonctionne ; le supprimer casserait les optimisations existantes — on ne touche pas).
-- Confirmer `base: '/'` (déjà OK).
-
-### 4. `index.html`
-Ajouter `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` pour forcer le navigateur à toujours re-fetch `index.html` (le `default.conf` le fait déjà côté serveur, on double côté client par sécurité).
-
-### 5. `.env.example` (nouveau)
-Créer à la racine, sans valeurs sensibles :
-```
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
-VITE_SUPABASE_PROJECT_ID=
+```text
+icons-Det9xvbz.js:20 Uncaught ReferenceError: Cannot access 'a' before initialization
 ```
 
-### 6. Garde explicite Supabase
-Dans `src/integrations/supabase/client.ts` ajouter en haut un `console.error` si les constantes deviennent vides un jour (sécurité défensive, n'affecte rien aujourd'hui).
+Cela indique un crash JavaScript dans un chunk de production, généré par Vite/Rollup/Terser. En développement Lovable, le code n’est pas minifié ni découpé de la même manière, donc l’application fonctionne. En production, le chunk `icons-*` vient très probablement du découpage manuel `manualChunks` qui force `lucide-react` dans un chunk séparé nommé `icons`, combiné à la minification Terser/mangle. Le navigateur charge ce chunk, il plante avant l’initialisation de React, puis l’utilisateur reste sur le spinner HTML de `index.html`.
 
-### 7. Vérification post-build
-Après les changements, lancer un build local pour confirmer la génération de `dist/index.html` + `dist/assets/`.
+L’erreur `chrome-extension://... content_reporter.js` vient d’une extension Chrome et n’est pas la cause principale de Bot.BJ.
 
-## Ce que je NE fais PAS (et pourquoi)
+## Plan de correction
 
-- **Pas de `public/_redirects` ni `vercel.json`** → hébergement nginx, déjà géré.
-- **Pas de refonte d'`AuthContext`** → le pattern `isLoading` est déjà correct, le modifier casserait le flux OAuth en place.
-- **Pas de figeage des versions `package.json`** (suppression des `^`) → risque élevé de casser des peer deps qui marchent ; à faire uniquement si un conflit réel est identifié. Aucun signalé.
-- **Pas de suppression de `manualChunks`** → la config actuelle de splitting fonctionne ; la retirer regrouperait tout dans un bundle géant et dégraderait le LCP en prod.
-- **Pas de modification du `sw.js`** → déjà neutralisé en kill-switch dans la dernière itération.
-- **Pas de scan `grep localhost`** automatique destructif → s'il y a des occurrences, elles sont en commentaires/configs dev et n'impactent pas le build.
+1. Modifier `vite.config.ts`
+   - Supprimer le chunk manuel `icons` pour `lucide-react`.
+   - Supprimer aussi les restes inutiles `recharts` / `d3-*` dans `manualChunks`, puisque la librairie chart a été retirée.
+   - Remplacer la minification production `terser` par `esbuild`, ou au minimum désactiver le mangle Terser agressif.
+   - Garder `base: '/'`, `outDir: 'dist'`, `emptyOutDir: true`.
+   - Ajouter un commentaire clair dans le code expliquant que cette configuration évite les erreurs TDZ `Cannot access before initialization` en production.
 
-## Résultat attendu
+2. Corriger la configuration nginx utilisée par Docker
+   - Le Dockerfile copie `nginx.conf`, pas `default.conf`.
+   - Adapter donc `nginx.conf` pour différencier :
+     - `index.html` : `no-cache`, afin que le navigateur récupère toujours le nouvel index après déploiement.
+     - `/assets/` : cache long `immutable`, car les fichiers sont hashés.
+   - Ajouter des headers anti-cache pour les fichiers racine sensibles (`/`, `/index.html`, `/manifest.json`, `/sw.js`).
 
-L'app charge en production. Si une erreur survient (chunk manquant après redeploy, exception render), l'utilisateur voit soit un rechargement automatique soit la page d'erreur d'`ErrorBoundary` au lieu d'un écran blanc.
+3. Stabiliser `index.html`
+   - Supprimer les meta `Cache-Control` côté HTML si nécessaire, car le vrai contrôle cache doit venir de nginx.
+   - Garder le spinner initial, mais s’assurer que les chemins critiques restent cohérents avec `base: '/'`.
+
+4. Vérification après correction
+   - Rechercher les références restantes à `recharts`, `recharts-stub`, `charts`, et `localhost` dans le code source.
+   - Vérifier que la configuration de build ne génère plus de chunk manuel `icons-*`.
+   - La validation finale attendue : après redéploiement Docker, le navigateur ne doit plus charger un chunk `icons-*` isolé qui plante, et React doit remplacer le spinner HTML par l’application.
+
+## Cause à retenir
+
+La différence dev/prod vient du build production : découpage manuel + minification. Le chunk `icons-*` plante avant que l’app React ne démarre, donc l’écran reste sur “Chargement de Bot.BJ...”. La correction doit donc se faire côté `vite.config.ts` et cache nginx, pas côté Supabase.
