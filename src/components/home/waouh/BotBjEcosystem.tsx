@@ -17,6 +17,10 @@ export const BotBjEcosystem: React.FC = () => (
         <div className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: 'hsl(var(--home-accent))' }}>
           L’écosystème bot.bj
         </div>
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight" style={{ color: 'hsl(var(--home-text))' }}>
+          Au-delà de WAOUH,{' '}
+          <span style={{ color: 'hsl(var(--home-text-muted))' }}>la même IA pour tout votre business.</span>
+        </h2>
       </div>
     </div>
 

@@ -5,11 +5,6 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://mvynepqulhflxtyymtzs.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8";
 
-// Garde défensive : alerter si les constantes deviennent vides un jour.
-if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  console.error('[Supabase] URL ou clé publique manquante — le client ne fonctionnera pas.');
-}
-
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 

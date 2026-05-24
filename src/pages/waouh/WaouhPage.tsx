@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw, Radar, ArrowLeft } from "lucide-react";
-
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
@@ -184,19 +184,28 @@ export default function WaouhPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <Card className="lg:col-span-2 p-4 bg-card border-[hsl(var(--waouh-border))]">
                 <h3 className="font-semibold mb-3">Annonces publiées vs vendues — 30 derniers jours</h3>
-                <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground border border-dashed rounded-md">Graphique indisponible</div>
+                <ResponsiveContainer width="100%" height={240}>
+                  <LineChart data={stats?.growth_30d ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--waouh-border))" />
+                    <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--waouh-bg))", border: "1px solid hsl(var(--waouh-border))" }} />
+                    <Line type="monotone" dataKey="published" stroke="hsl(var(--waouh-primary))" strokeWidth={2} dot={false} name="Publiées" />
+                    <Line type="monotone" dataKey="sold" stroke="hsl(var(--waouh-success))" strokeWidth={2} dot={false} name="Vendues" />
+                  </LineChart>
+                </ResponsiveContainer>
               </Card>
 
               <Card className="p-4 bg-card border-[hsl(var(--waouh-border))]">
                 <h3 className="font-semibold mb-3">Top catégories</h3>
-                <div className="space-y-2 h-[240px] overflow-auto">
-                  {(stats?.top_categories ?? []).map((c: any) => (
-                    <div key={c.category} className="flex items-center justify-between text-sm">
-                      <span className="truncate">{c.category}</span>
-                      <span className="font-semibold">{c.count}</span>
-                    </div>
-                  ))}
-                </div>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={stats?.top_categories ?? []} layout="vertical">
+                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                    <YAxis dataKey="category" type="category" stroke="hsl(var(--muted-foreground))" fontSize={11} width={90} />
+                    <Tooltip contentStyle={{ background: "hsl(var(--waouh-bg))", border: "1px solid hsl(var(--waouh-border))" }} />
+                    <Bar dataKey="count" fill="hsl(var(--waouh-primary))" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </Card>
             </div>
 

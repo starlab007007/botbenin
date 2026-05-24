@@ -75,38 +75,6 @@ const rolePermissions = {
   ]
 };
 
-const allowedRoles = ['admin', 'manager', 'user', 'viewer'] as const;
-
-const createAuthUser = (
-  supabaseUser: SupabaseUser,
-  role: AuthUser['role'] = 'user',
-  permissions: string[] = rolePermissions.user
-): AuthUser => ({
-  id: supabaseUser.id,
-  name: supabaseUser.user_metadata?.full_name ||
-        supabaseUser.user_metadata?.name ||
-        supabaseUser.email?.split('@')[0] ||
-        'Utilisateur',
-  email: supabaseUser.email || '',
-  avatar: supabaseUser.user_metadata?.avatar_url ||
-          supabaseUser.user_metadata?.picture,
-  role,
-  permissions,
-  status: 'active',
-  createdAt: new Date(supabaseUser.created_at),
-  lastLogin: new Date(),
-  subscription: {
-    type: 'free',
-    status: 'active'
-  },
-  chatHistory: []
-});
-
-const normalizeRole = (roleName?: string): AuthUser['role'] => {
-  if (roleName === 'super_admin') return 'admin';
-  return allowedRoles.includes(roleName as AuthUser['role']) ? (roleName as AuthUser['role']) : 'user';
-};
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
@@ -117,80 +85,131 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { toast } = useToast();
 
   useEffect(() => {
-    let mounted = true;
-
-    const enrichUser = async (currentUser: SupabaseUser) => {
-      try {
-        const roleResponse = await Promise.race([
-          supabase
-            .from('user_roles')
-            .select('roles(name)')
-            .eq('user_id', currentUser.id)
-            .limit(10),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Role fetch timeout')), 2500))
-        ]) as any;
-
-        if (roleResponse.error) {
-          console.error('Error fetching role:', roleResponse.error);
-        }
-
-        const roleNames = (roleResponse.data || [])
-          .map((row: any) => Array.isArray(row.roles) ? row.roles[0]?.name : row.roles?.name)
-          .filter(Boolean);
-        const selectedRole = roleNames.includes('admin') || roleNames.includes('super_admin')
-          ? 'admin'
-          : roleNames[0];
-        const normalizedRole = normalizeRole(selectedRole);
-
-        const permissionsResponse = await Promise.race([
-          supabase.rpc('get_user_permissions', { user_uuid: currentUser.id }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Permissions fetch timeout')), 2500))
-        ]) as any;
-
-        const permissions = permissionsResponse.data?.map((p: any) => p.permission_name) || rolePermissions[normalizedRole];
-
-        if (mounted) {
-          setUser(createAuthUser(currentUser, normalizedRole, permissions));
-        }
-      } catch (error) {
-        console.error('Error fetching role and permissions:', error);
-        if (mounted) {
-          setUser((previous) => previous ?? createAuthUser(currentUser));
-        }
-      }
-    };
-
-    const applySession = (nextSession: Session | null) => {
-      if (!mounted) return;
-      setSession(nextSession);
-      setSupabaseUser(nextSession?.user ?? null);
-
-      if (nextSession?.user) {
-        setIsGuest(false);
-        setGuestUser(null);
-        setUser(createAuthUser(nextSession.user));
-        setIsLoading(false);
-        void enrichUser(nextSession.user);
-      } else {
-        setUser(null);
-        setIsLoading(false);
-      }
-    };
-
+    let timeoutId: NodeJS.Timeout;
+    
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => applySession(nextSession)
+      async (event, session) => {
+        // Clear any existing timeout
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Safety timeout: force loading to false after 5 seconds
+        timeoutId = setTimeout(() => {
+          console.warn('[Auth] Forcing isLoading to false after timeout');
+          setIsLoading(false);
+        }, 5000);
+        
+        setSession(session);
+        setSupabaseUser(session?.user ?? null);
+        
+        if (session?.user) {
+          setIsGuest(false);
+          setGuestUser(null);
+          
+          try {
+            // Récupérer le rôle depuis user_roles avec timeout
+            const rolePromise = supabase
+              .from('user_roles')
+              .select(`
+                roles (
+                  name
+                )
+              `)
+              .eq('user_id', session.user.id)
+              .maybeSingle();
+            
+            const { data: roleData, error: roleError } = await Promise.race([
+              rolePromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Role fetch timeout')), 3000))
+            ]) as any;
+            
+            if (roleError) {
+              console.error('Error fetching role:', roleError);
+            }
+
+            const userRole = (roleData?.roles as any)?.name || 'user';
+
+            // Récupérer les permissions depuis la fonction get_user_permissions avec timeout
+            const permissionsPromise = supabase.rpc('get_user_permissions', { 
+              user_uuid: session.user.id 
+            });
+            
+            const { data: permissionsData } = await Promise.race([
+              permissionsPromise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Permissions fetch timeout')), 3000))
+            ]) as any;
+
+            const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions.user;
+
+            // Create AuthUser from Supabase user with DB role and permissions
+            const authUser: AuthUser = {
+              id: session.user.id,
+              name: session.user.user_metadata?.full_name || 
+                    session.user.user_metadata?.name || 
+                    session.user.email?.split('@')[0] || 
+                    'Utilisateur',
+              email: session.user.email || '',
+              avatar: session.user.user_metadata?.avatar_url || 
+                      session.user.user_metadata?.picture,
+              role: userRole as 'admin' | 'manager' | 'user' | 'viewer',
+              permissions: permissions,
+              status: 'active',
+              createdAt: new Date(session.user.created_at),
+              lastLogin: new Date(),
+              subscription: {
+                type: 'free',
+                status: 'active'
+              },
+              chatHistory: []
+            };
+            setUser(authUser);
+          } catch (error) {
+            console.error('Error fetching role and permissions:', error);
+            // Fallback to default user role if DB fetch fails
+            const authUser: AuthUser = {
+              id: session.user.id,
+              name: session.user.user_metadata?.full_name || 
+                    session.user.user_metadata?.name || 
+                    session.user.email?.split('@')[0] || 
+                    'Utilisateur',
+              email: session.user.email || '',
+              avatar: session.user.user_metadata?.avatar_url || 
+                      session.user.user_metadata?.picture,
+              role: 'user',
+              permissions: rolePermissions.user,
+              status: 'active',
+              createdAt: new Date(session.user.created_at),
+              lastLogin: new Date(),
+              subscription: {
+                type: 'free',
+                status: 'active'
+              },
+              chatHistory: []
+            };
+            setUser(authUser);
+          } finally {
+            clearTimeout(timeoutId);
+            setIsLoading(false);
+          }
+        } else {
+          // Pas de session : conserver l'état guest si configuré
+          setUser(null);
+          clearTimeout(timeoutId);
+          setIsLoading(false);
+        }
+      }
     );
 
-    supabase.auth.getSession()
-      .then(({ data }) => applySession(data.session))
-      .catch((error) => {
-        console.error('Error getting session:', error);
-        if (mounted) setIsLoading(false);
-      });
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        setIsLoading(false);
+      }
+    });
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, []);
 

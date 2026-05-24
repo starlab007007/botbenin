@@ -53,7 +53,7 @@ export const HomePage: React.FC = () => {
         </section>
       </main>
 
-      
+      <FloatingChatButton />
     </div>
   );
 };

@@ -3,9 +3,7 @@ import { useSupportRealtimeStats } from '@/hooks/useSupportRealtimeStats';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, TicketIcon, Clock, CheckCircle2, ShieldCheck, AlertTriangle, Bot, TrendingUp } from 'lucide-react';
-const ChartPlaceholder: React.FC<{ height?: number; label?: string }> = ({ height = 220, label = 'Graphique indisponible' }) => (
-  <div className="flex items-center justify-center text-sm text-muted-foreground border border-dashed rounded-md" style={{ height }}>{label}</div>
-);
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import { TicketCard } from './TicketCard';
 
 const SEVERITY_COLORS = { critique: '#ef4444', majeure: '#f59e0b', mineure: '#3b82f6' };
@@ -49,7 +47,15 @@ export const AdminDashboard: React.FC = () => {
             <h3 className="font-semibold flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Tickets sur 7 jours</h3>
             <Badge variant="outline">{stats.total} total</Badge>
           </div>
-          <ChartPlaceholder height={220} />
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={stats.byDay}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="date" fontSize={11} stroke="hsl(var(--muted-foreground))" />
+              <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+              <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', fontSize: 12 }} />
+              <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </Card>
 
         <Card className="p-4">
@@ -57,14 +63,15 @@ export const AdminDashboard: React.FC = () => {
           {sevData.length === 0 ? (
             <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Aucune donnée</div>
           ) : (
-            <div className="space-y-2">
-              {sevData.map((d) => (
-                <div key={d.name} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{ background: d.color }} />{d.name}</span>
-                  <span className="font-semibold">{d.value}</span>
-                </div>
-              ))}
-            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={sevData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} paddingAngle={2}>
+                  {sevData.map((d) => <Cell key={d.name} fill={d.color} />)}
+                </Pie>
+                <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
           )}
         </Card>
       </div>
@@ -76,20 +83,15 @@ export const AdminDashboard: React.FC = () => {
           {moduleData.length === 0 ? (
             <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">Aucune donnée</div>
           ) : (
-            <div className="space-y-2">
-              {moduleData.map((m) => {
-                const max = moduleData[0]?.value || 1;
-                return (
-                  <div key={m.name} className="flex items-center gap-3 text-sm">
-                    <span className="w-32 truncate">{m.name}</span>
-                    <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
-                      <div className="bg-primary h-full" style={{ width: `${(m.value / max) * 100}%` }} />
-                    </div>
-                    <span className="font-semibold w-8 text-right">{m.value}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={moduleData} layout="vertical" margin={{ left: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis type="number" fontSize={11} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+                <YAxis type="category" dataKey="name" fontSize={11} stroke="hsl(var(--muted-foreground))" width={120} />
+                <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', fontSize: 12 }} />
+                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </Card>
 

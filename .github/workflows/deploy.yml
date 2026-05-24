@@ -4,7 +4,7 @@ name: Deploy React App botbj
 on:
   push:
     branches:
-      - prod
+      - main
 
 jobs:
   deploy:
@@ -22,7 +22,7 @@ jobs:
             cd /home/debian/botbenin/
 
             echo "📥 Mise à jour du code..."
-            git pull origin prod || { echo "❌ Erreur lors du git pull"; exit 1; }
+            git pull origin main || { echo "❌ Erreur lors du git pull"; exit 1; }
 
             echo "🛑 Arrêt des anciens conteneurs..."
             docker compose down || echo "⚠️ Aucun conteneur à arrêter"

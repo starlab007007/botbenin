@@ -33,22 +33,6 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    // Auto-reload sur erreurs de chunk (vieux index.html en cache après redéploiement)
-    const msg = error?.message || '';
-    const isChunkError =
-      error?.name === 'ChunkLoadError' ||
-      /Loading chunk [\d]+ failed/i.test(msg) ||
-      /Failed to fetch dynamically imported module/i.test(msg) ||
-      /Importing a module script failed/i.test(msg);
-
-    if (isChunkError && typeof window !== 'undefined') {
-      const flag = 'lov_chunk_reload';
-      if (!sessionStorage.getItem(flag)) {
-        sessionStorage.setItem(flag, '1');
-        window.location.reload();
-      }
-    }
-
     return {
       hasError: true,
       error,
