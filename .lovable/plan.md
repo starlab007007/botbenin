@@ -1,94 +1,54 @@
-## Diagnostic actuel
 
-Audit des fichiers d'entrée (`index.html`, `main.tsx`, `App.tsx`, `vite.config.ts`, `package.json`) — plusieurs goulots majeurs identifiés :
+# Plan : corriger l'écran blanc en production
 
-### Problèmes critiques détectés
-1. **`index.html` casse le cache navigateur** : les balises `<meta http-equiv="Cache-Control" content="no-cache, no-store">`, `Pragma: no-cache`, `Expires: 0` forcent un re-téléchargement complet à chaque visite (assets JS/CSS inclus). Effet : chaque navigation = cold load.
-2. **Double CSP** : deux balises `Content-Security-Policy` se chevauchent (la première `upgrade-insecure-requests`, la seconde restrictive). Le navigateur applique l'intersection → blocages aléatoires + warnings coûteux.
-3. **Chunks Vite mal calibrés** : `manualChunks` regroupe seulement 2 composants Radix dans `ui`, le reste (20+ Radix, recharts, leaflet, mapbox, ffmpeg, huggingface, pdfjs, jspdf) part dans le bundle principal ou vendor → bundle initial gonflé.
-4. **Dépendances lourdes chargées globalement** :
-   - `@huggingface/transformers` (~50 Mo), `@ffmpeg/ffmpeg`, `pdfjs-dist`, `mapbox-gl`, `leaflet` + CSS leaflet importé dans `main.tsx` (chargé pour tout le monde même hors carte).
-   - `recharts`, `jspdf`, `react-pdf`, `jszip` — utilisés sur quelques pages seulement.
-5. **`Index` (HomePage) non lazy** : importé statiquement dans `App.tsx` (`import Index from "./pages/Index"`), donc inclus dans le bundle initial avec tous ses sous-composants.
-6. **Pas de préchargement intelligent** des routes (pas de `<link rel="modulepreload">` ni de prefetch au survol).
-7. **React Query** : aucun `staleTime`/`gcTime` configuré globalement → refetch à chaque mount, requêtes Supabase dupliquées (ex. `DashboardPage` enchaîne 3 requêtes séquentielles dans `useEffect`).
-8. **Pas d'optimisation des images** : pas de plugin `vite-imagetools`, pas de `loading="lazy"` systématique, pas de `width/height` → CLS, LCP dégradés.
-9. **Service Worker** (`/sw.js`) enregistré mais probablement sans stratégie cache-first sur les assets hashés.
-10. **`useActivityTracking`** + Google Analytics + monitoring Web Vitals s'exécutent dans le main thread au boot sans `requestIdleCallback`.
-11. **63 pages, ~150 hooks** : composants Toast/Sonner/Tooltip/Theme empilés autour de tout — pas vraiment problématique sauf si re-render global.
+## Contexte vérifié dans le repo
 
-## Plan d'optimisation
+- **Déploiement** : Docker + nginx (`Dockerfile`, `default.conf`, `docker-compose.yml`) sur `bot.bj`. Ce n'est **ni Netlify ni Vercel** — donc pas besoin de `public/_redirects` ni de `vercel.json`. Le SPA fallback est déjà géré par `try_files $uri $uri/ /index.html;` dans `default.conf`.
+- **Vite** : `base: '/'` et `outDir: 'dist'` déjà présents. Manque seulement `emptyOutDir: true`.
+- **Supabase client** : URL + anon key **codées en dur** dans `src/integrations/supabase/client.ts` (pas via `import.meta.env`). C'est volontaire (fichier auto-généré Lovable). Aucune variable critique n'est donc bloquante en prod — on ajoute quand même un `.env.example` pour documenter.
+- **AuthContext** : `isLoading: true` initial + `getSession()` + `onAuthStateChange` déjà bien implémentés (lignes 110-195). Pas de boucle infinie côté auth, le pattern demandé est déjà appliqué.
+- **Router** : `BrowserRouter` déjà utilisé dans `App.tsx`.
+- **ErrorBoundary** : le composant existe (`src/components/ErrorBoundary.tsx`) mais **n'enveloppe pas `<App />` dans `main.tsx`** → si une erreur de chunk lazy ou de render se produit au boot en prod, l'écran reste blanc sans message.
 
-### Phase 1 — Quick wins (impact maximal, 0 risque)
-- **`index.html`** : supprimer les `<meta>` `Cache-Control/Pragma/Expires`, supprimer la CSP `upgrade-insecure-requests` dupliquée (garder uniquement la CSP complète), ajouter `<link rel="preload">` pour le logo LCP et les fonts critiques, ajouter `fetchpriority="high"` sur l'image LCP.
-- **`main.tsx`** : retirer l'import global `leaflet/dist/leaflet.css` ; le déplacer dans les composants qui montent une `MapContainer` (lazy CSS via dynamic import).
-- **`App.tsx`** : passer `Index` en `lazy()` comme les autres pages.
+## Changements à faire
 
-### Phase 2 — Code-splitting agressif (Vite)
-Refondre `vite.config.ts > rollupOptions.output.manualChunks` en fonction :
-```ts
-manualChunks(id) {
-  if (id.includes('node_modules')) {
-    if (id.includes('react-dom') || id.includes('react/') || id.includes('scheduler')) return 'react';
-    if (id.includes('@radix-ui')) return 'radix';
-    if (id.includes('recharts') || id.includes('d3-')) return 'charts';
-    if (id.includes('leaflet') || id.includes('mapbox')) return 'maps';
-    if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
-    if (id.includes('@ffmpeg')) return 'ffmpeg';
-    if (id.includes('pdfjs') || id.includes('jspdf') || id.includes('react-pdf')) return 'pdf';
-    if (id.includes('@supabase')) return 'supabase';
-    if (id.includes('framer-motion') || id.includes('motion')) return 'motion';
-    if (id.includes('lucide-react')) return 'icons';
-  }
-}
+### 1. `src/main.tsx`
+Envelopper `<App />` avec `<ErrorBoundary>` pour capturer toute erreur de boot (notamment échecs `lazy()` quand un chunk hashé est introuvable après redéploiement).
+
+### 2. `src/components/ErrorBoundary.tsx`
+Détecter les erreurs `ChunkLoadError` / `Loading chunk ... failed` et déclencher un `window.location.reload()` automatique une seule fois (via `sessionStorage` flag) — cause classique du blanc après nouveau déploiement quand le navigateur a un vieux `index.html` en cache pointant vers un ancien hash.
+
+### 3. `vite.config.ts`
+- Ajouter `emptyOutDir: true` dans `build`.
+- Conserver `manualChunks` actuel (il fonctionne ; le supprimer casserait les optimisations existantes — on ne touche pas).
+- Confirmer `base: '/'` (déjà OK).
+
+### 4. `index.html`
+Ajouter `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` pour forcer le navigateur à toujours re-fetch `index.html` (le `default.conf` le fait déjà côté serveur, on double côté client par sécurité).
+
+### 5. `.env.example` (nouveau)
+Créer à la racine, sans valeurs sensibles :
 ```
-Effet attendu : bundle initial 60–75 % plus léger.
-
-### Phase 3 — Lazy-load des libs lourdes côté composants
-- `@huggingface/transformers`, `@ffmpeg/ffmpeg`, `pdfjs-dist`, `jspdf`, `mapbox-gl`, `leaflet`, `recharts` → encapsuler chaque usage dans un `await import('...')` au moment du clic / mount de la feature concernée (pas au top-level).
-- Ajouter `optimizeDeps.exclude` pour `@huggingface/transformers` et `@ffmpeg/ffmpeg` afin que Vite ne les pré-bundle pas en dev.
-
-### Phase 4 — React Query & data
-- Centraliser `QueryClient` avec `defaultOptions: { queries: { staleTime: 60_000, gcTime: 5*60_000, refetchOnWindowFocus: false, retry: 1 } }`.
-- `DashboardPage` : paralléliser `fetchDashboardStats / fetchUserPermissions / fetchMyBots` via `Promise.all` + transformer les `useEffect` en `useQuery` (cache partagé entre routes).
-
-### Phase 5 — Images & assets
-- Ajouter `vite-imagetools` (dev dep) + convertir les images critiques (hero, logo) en AVIF/WebP avec import `?format=avif&as=picture`.
-- `OptimizedImage` : forcer `width/height` obligatoires + `decoding="async"` + `fetchpriority` configurable.
-- Script `scripts/optimize-public-images.mjs` (sharp) pour pré-générer WebP des assets de `public/`.
-
-### Phase 6 — Préchargement routes
-- Ajouter un util `prefetchRoute(importer)` appelé `onMouseEnter`/`onFocus` des liens de navigation principaux (Sidebar, Header) → import dynamique en idle.
-- `requestIdleCallback` autour de `registerServiceWorker()`, `initPerformanceMonitoring()`, GA.
-
-### Phase 7 — Service Worker
-- Réécrire `public/sw.js` avec stratégie :
-  - `cache-first` immutable pour `/assets/js/*`, `/assets/images/*`, `/assets/fonts/*` (fichiers hashés).
-  - `network-first` avec fallback cache pour `index.html`.
-  - Skip waiting + clients claim.
-
-### Phase 8 — Mesure
-- Lancer Lighthouse avant/après via `browser--performance_profile` sur 3 pages clés (`/home`, `/dashboard`, `/waouh`) et rapporter LCP / CLS / INP / Total JS transféré.
-
-## Détails techniques (récap fichiers)
-
-```text
-index.html                      → nettoyage meta cache + CSP + preloads LCP
-src/main.tsx                    → retirer import leaflet CSS
-src/App.tsx                     → lazy(Index), QueryClient defaultOptions, idle init
-vite.config.ts                  → manualChunks fonction, optimizeDeps.exclude, vite-imagetools
-src/components/OptimizedImage   → width/height requis, fetchpriority
-src/utils/registerServiceWorker → wrap requestIdleCallback
-public/sw.js                    → réécriture stratégies cache
-src/pages/DashboardPage.tsx     → Promise.all + useQuery
-src/pages/{features ai/pdf/map} → dynamic import des libs lourdes
-src/components/layouts/*Layout  → prefetch onHover sur NavLinks
-package.json                    → +vite-imagetools, +sharp (dev)
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_SUPABASE_PROJECT_ID=
 ```
 
-## Hors scope
-- Pas de migration SSR/Next.js (lourd, hors demande).
-- Pas de refonte UI/visuelle.
-- Pas de modification des règles RLS Supabase ni des edge functions.
+### 6. Garde explicite Supabase
+Dans `src/integrations/supabase/client.ts` ajouter en haut un `console.error` si les constantes deviennent vides un jour (sécurité défensive, n'affecte rien aujourd'hui).
 
-Une fois ces phases livrées, l'objectif est : LCP < 2.0 s sur 4G simulé, JS initial < 250 Ko gzip, INP < 200 ms sur toutes les pages.
+### 7. Vérification post-build
+Après les changements, lancer un build local pour confirmer la génération de `dist/index.html` + `dist/assets/`.
+
+## Ce que je NE fais PAS (et pourquoi)
+
+- **Pas de `public/_redirects` ni `vercel.json`** → hébergement nginx, déjà géré.
+- **Pas de refonte d'`AuthContext`** → le pattern `isLoading` est déjà correct, le modifier casserait le flux OAuth en place.
+- **Pas de figeage des versions `package.json`** (suppression des `^`) → risque élevé de casser des peer deps qui marchent ; à faire uniquement si un conflit réel est identifié. Aucun signalé.
+- **Pas de suppression de `manualChunks`** → la config actuelle de splitting fonctionne ; la retirer regrouperait tout dans un bundle géant et dégraderait le LCP en prod.
+- **Pas de modification du `sw.js`** → déjà neutralisé en kill-switch dans la dernière itération.
+- **Pas de scan `grep localhost`** automatique destructif → s'il y a des occurrences, elles sont en commentaires/configs dev et n'impactent pas le build.
+
+## Résultat attendu
+
+L'app charge en production. Si une erreur survient (chunk manquant après redeploy, exception render), l'utilisateur voit soit un rechargement automatique soit la page d'erreur d'`ErrorBoundary` au lieu d'un écran blanc.
