@@ -92,6 +92,13 @@ const getHighestRole = (rows: any[] | null | undefined): AuthRole => {
   return roles.sort((a, b) => rolePriority[b] - rolePriority[a])[0] || 'user';
 };
 
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs)),
+  ]);
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
@@ -123,6 +130,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setIsGuest(false);
           setGuestUser(null);
           
+          let userRole: AuthRole = 'user';
+          let permissions: string[] = rolePermissions.user;
+
           try {
             // Récupérer les rôles sans .single(): certains comptes ont plusieurs rôles en production.
             const rolePromise = supabase
@@ -134,30 +144,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               `)
               .eq('user_id', session.user.id)
               .limit(10);
-            
-            const { data: roleData, error: roleError } = await Promise.race([
-              rolePromise,
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Role fetch timeout')), 3000))
-            ]) as any;
+
+            const { data: roleData, error: roleError } = await withTimeout(rolePromise, 2500, 'Role fetch') as any;
             
             if (roleError) {
               console.error('Error fetching role:', roleError);
             }
 
-            const userRole = getHighestRole(roleData);
+            userRole = getHighestRole(roleData);
+          } catch (error) {
+            console.error('Error fetching role:', error);
+          }
 
+          try {
             // Récupérer les permissions depuis la fonction get_user_permissions avec timeout
             const permissionsPromise = supabase.rpc('get_user_permissions', { 
               user_uuid: session.user.id 
             });
             
-            const { data: permissionsData } = await Promise.race([
-              permissionsPromise,
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Permissions fetch timeout')), 3000))
-            ]) as any;
+            const { data: permissionsData, error: permissionsError } = await withTimeout(permissionsPromise, 2500, 'Permissions fetch') as any;
 
-            const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions[userRole];
+            if (permissionsError) {
+              console.error('Error fetching permissions:', permissionsError);
+            }
 
+            permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions[userRole];
+          } catch (error) {
+            console.error('Error fetching permissions:', error);
+            permissions = rolePermissions[userRole];
+          }
+
+          try {
             // Create AuthUser from Supabase user with DB role and permissions
             const authUser: AuthUser = {
               id: session.user.id,
