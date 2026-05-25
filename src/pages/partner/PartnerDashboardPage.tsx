@@ -30,7 +30,7 @@ export default function PartnerDashboardPage() {
   // Realtime sales notifications for the partner
   useEffect(() => {
     if (!partner) return;
-    const ch = supabase.channel(`sales-${partner.id}`)
+    const ch = supabase.channel(`sales-${partner.id}-${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'waouh_partner_sales', filter: `partner_id=eq.${partner.id}` }, (payload) => {
         const s: any = payload.new;
         toast({
