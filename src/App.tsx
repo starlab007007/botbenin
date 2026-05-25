@@ -283,7 +283,8 @@ const AppContent = () => {
                   <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
                   <Route path="/app" element={<RequireMobileAuth><MobileShell /></RequireMobileAuth>}>
                     <Route index element={<Navigate to="/app/chat" replace />} />
-                    <Route path="chat" element={<MobileChat />} />
+                    <Route path="chat" element={<MobileWaouhChat />} />
+                    <Route path="conversations" element={<MobileConversations />} />
                     <Route path="chat/:id" element={<MobileChatThread />} />
                     <Route path="bots" element={<MobileBots />} />
                     <Route path="bots/new" element={<MobileCreateBot />} />
