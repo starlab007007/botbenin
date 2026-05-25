@@ -1,186 +1,135 @@
 ## Objectif
 
-Remplacer le parcours actuel (intérêt → négociation → paiement escrow) par :
+Nettoyer définitivement les messages WAOUH (WhatsApp + web chat) : supprimer toute mention de paiement/escrow/carte WAOUH, retirer les listes numérotées « 1./2./3. » et soigner la mise en forme + l'affichage des photos dans le web chat.
 
-**Intéressé X → notif vendeur → négociation libre prix (OUI / NON / contre‑offre) → accord → échange automatique des contacts vendeur ↔ acheteur → fin.**
+## 1. Supprimer toutes les listes « 1./2./3. » sur WhatsApp
 
-Plus aucun paiement Mobile Money / escrow / commission n'est déclenché.
-La présentation des messages web chat devient professionnelle (couleurs, séparateurs, en‑tête, signature WAOUH), affiche toutes les photos avec légendes, géolocalisation en live et analyse marché IA réelle.
+Aujourd'hui, le fallback de `sendWahaButtons` (`supabase/functions/waouh-outbound-dispatch/index.ts`) ré-écrit `1. label\n2. label\n3. label` quand l'envoi de boutons natifs échoue. C'est ce qui produit les listes visibles sur les captures 3, 4 et 5.
 
----
+Action :
+- Dans `sendWahaButtons`, supprimer entièrement le fallback texte « 1. … 2. … 3. … » (lignes ~110-117). Si l'envoi de boutons natifs échoue, on retombe simplement sur `sendWahaText` / `sendWahaImage` avec le texte brut, sans ajouter de liste numérotée.
+- Dans `defaultActionsForTemplate`, vider les cas `match_seller`, `negotiation_open` et `match_buyer` (retourner `[]`) pour ne plus jamais joindre de boutons d'action « Accepter / Contre-offre / Refuser » ni « Oui, mettre en contact / Non merci ». Ces actions ne seront plus proposées : le parcours est désormais 100 % conversationnel (OUI / NON / Je propose X).
+- Supprimer le cas `payment_card` / `payment_link` (plus utilisés).
 
-## 1. Fichiers à modifier
+## 2. Réécrire les 4 messages-clés (web + WhatsApp)
 
-### Backend (edge functions)
+Tous les textes proviennent de `supabase/functions/waouh-webhook/index.ts` et `supabase/functions/waouh-negotiation-router/index.ts`. Le web chat les ré-affiche tels quels via ReactMarkdown.
 
-- `supabase/functions/waouh-webhook/index.ts`
-  - Bloc `MATCH` (lignes ~587–656) : retirer **nom vendeur**, **contact**, **whatsapp partenaire** du listing initial. Conserver titre, prix, ville/quartier, condition, # photos, badge ✅/🏪/🛰️.
-  - Bloc `CONFIRM` (lignes ~685–828) : ne plus créer de `waouh_transactions`, supprimer `paymentCard`, garder uniquement `waouh_negotiations` (état `proposed`), prix de référence = `askPrice`, notif vendeur "Nouvel acheteur intéressé" avec **photo + distance live**.
-  - Bloc `NEGOTIATE` (lignes ~829–874) : ne plus toucher `waouh_transactions`. Mettre à jour uniquement `last_offer_price`, push contre‑offre au pair.
-  - Bloc `PAY` / `CONFIRM_RECEIVED` (lignes 875–940) : supprimer totalement (intent retiré).
-  - Bloc `HELP` (ligne 942) : retirer "Je paye".
-  - Helpers `paymentCard`, `payInstructions` (lignes 272–273) : supprimer.
-  - Nouvelle fonction `buildSearchResultBlock(p, idx, distKm, photos)` qui formate un produit avec séparateur `━━━━━━━━` et `📍 à X,X km de vous`.
-  - Nouvelle fonction `buildContactExchange(buyer, seller, article, finalPrice)` qui produit la synthèse finale + carte contact (sans liens, juste texte).
-  - Calcul distance live (Haversine) à partir de `lat/lng` acheteur (passé par `waouh-channel-in`) et `geo_location` vendeur déjà stocké.
-
-- `supabase/functions/waouh-negotiation-router/index.ts`
-  - Cas `kind === "yes"` (lignes 110–141) : remplacer toute la logique paiement par :
-    1. `state = "accepted"`, `closed_at = now()`
-    2. Charger acheteur + vendeur (`waouh_users` : phone, name, city, geo) + article (title, price, photos)
-    3. Envoyer à l'acheteur la **carte contact vendeur** (nom, téléphone, ville, distance) + synthèse + signature WAOUH
-    4. Envoyer au vendeur la **carte contact acheteur** + synthèse
-    5. Retirer `paymentCard`, `payInstructions`
-  - Cas `kind === "no"` et `kind === "price"` : conserver (déjà sans paiement).
-
-- `supabase/functions/waouh-channel-in/index.ts`
-  - Passer `lat`/`lng` acheteur jusqu'à `waouh-webhook` (déjà fait pour `geo.lat/lng`, vérifier qu'ils arrivent intacts dans `body.lat/lng`).
-
-- Nouveau helper `supabase/functions/_shared/waouh-format.ts`
-  - `formatHeader(title)` → "━━━━━━━━━━━━━━━━━━\n*🎯 {title}*\n━━━━━━━━━━━━━━━━━━"
-  - `formatFooter()` → "━━━━━━━━━━━━━━━━━━\n_✨ WAOUH — Achetez, vendez, négociez en confiance_"
-  - `formatPriceBadge(price)`, `formatDistance(km)`, `formatProductCard({...})`
-  - `marketAnalysis(title, price, min, max, city)` : appel Gemini synthétique (1–2 phrases factuelles, ex. "Prix dans la fourchette basse marché Cotonou. Bonne affaire si état neuf.").
-
-### Frontend
-
-- `src/components/waouh/WaouhWebChat.tsx`
-  - Améliorer le rendu Markdown : composants `ReactMarkdown` custom (h2 bleu, hr coloré, blockquote vert pour synthèse, strong en couleur primaire).
-  - Galerie photos : ne plus limiter à 2 par produit côté affichage — afficher **toutes** les photos transmises dans `attachments` avec légende (alt = caption). Grid 2/3 colonnes selon nombre.
-  - Caption visible sous chaque image (overlay bas, fond noir/50, texte blanc) à partir du champ `caption` ajouté à `Att`.
-  - Adresse vendeur en bloc encadré (Card border-l-4 emerald) inline dans le message au lieu d'un lien.
-  - Badge "📍 à X km" stylé (pill emerald).
-
-- `src/components/waouh/WaouhTransactionCard.tsx`
-  - Plus utilisé après accord → conditionner l'affichage : si `meta.intent === "contact_exchange"`, afficher une **Card contact** (nom, téléphone cliquable `tel:`, WhatsApp `wa.me/`, ville, distance).
-  - Sinon (négociation en cours) garder un mini résumé prix sans bouton "Payer".
-
-- `src/components/waouh/WaouhQuickActions.tsx`
-  - Retirer l'action "pay" du `QUICK_PROMPTS` dans `WaouhWebChat.tsx` (ligne 49–53).
-
-- `src/hooks/useWaouhMatchNotifications.ts`
-  - Ajouter template `contact_exchange` → titre "🎉 Accord conclu — contact partagé".
-  - Retirer `payment_link`.
-
-- `src/components/waouh/WaouhPaymentDialog.tsx` et `WaouhPaymentForm.tsx`
-  - Conserver en place mais ne plus être ouverts (mort code toléré pour rollback rapide). Pas de suppression de fichier.
-
-### Géolocalisation (vérification)
-
-- `src/hooks/useWaouhGeolocation.ts` : vérifier `watchPosition` actif (sinon le passer à watch) pour rester live.
-- `supabase/functions/waouh-channel-in/index.ts` : confirmer écriture `lat/lng` dans `waouh_users.geo_location` à chaque message.
-- Côté vendeur : à la publication "Je vends", `waouh-webhook` doit déjà persister la position vendeur sur `waouh_articles.geo_location` (à vérifier dans bloc SELL).
-
-### Base de données
-
-Migration légère (non destructive) :
-
-```sql
--- Marquer les négociations conclues sans paiement
-ALTER TABLE public.waouh_negotiations
-  ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS contact_shared_at TIMESTAMPTZ;
-```
-
-Aucune suppression de table : `waouh_transactions` reste pour l'historique, simplement plus alimenté.
-
----
-
-## 2. Nouveau format des messages (web chat)
-
-### Annonce trouvée (liste Top N)
-
+### a) « Nouvel acheteur intéressé » (capture 4) — `waouh-webhook/index.ts` ligne ~779
+Remplacer par :
 ```
 ━━━━━━━━━━━━━━━━━━
-*🎯 Top 3 annonces trouvées*
+📩 *Nouvel acheteur intéressé*
 ━━━━━━━━━━━━━━━━━━
 
-*1. Honda Civic 2018*
-💰 *3 200 000 FCFA*
-📍 Cotonou · Cadjèhoun
-📏 *à 2,4 km de vous*
-📸 4 photos
-🧠 Prix correct vs marché local (3,0–3,6 M)
+📦 *{title}*
+💰 *Prix demandé* : {fmt(askPrice)}
+📏 *à {distKm} km de vous*
+🏙️ *Acheteur* : {city}
+
+Répondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose {prix} FCFA*.
 
 ━━━━━━━━━━━━━━━━━━
-
-*2. ...*
-
-━━━━━━━━━━━━━━━━━━
-
-💡 Pour discuter avec un vendeur : *intéressé 1*, *intéressé 2*…
-
-_✨ WAOUH_
+_✨ WAOUH — Achetez · Vendez · Négociez en confiance_
 ```
+→ Plus de bloc « 1./2./3. ».
 
-Pas de nom / téléphone / nom d'entreprise visibles.
+### b) « Nouvelle offre acheteur » / « Contre-offre vendeur » (capture 5) — `waouh-webhook/index.ts` ligne ~850
+Identique : retirer la liste à puces, garder uniquement la phrase de réponse OUI / NON / Je propose.
 
-### Notification vendeur (après "intéressé X")
+### c) « Accord enregistré » / « Le vendeur a accepté » (captures 1 & 2) — `waouh-negotiation-router/index.ts` branche `intent.kind === "yes"`
 
+Réécrire intégralement la synthèse. Plus aucune mention de paiement, escrow, carte WAOUH, Mobile Money, MTN/Moov.
+
+Message envoyé à l'acheteur :
 ```
 ━━━━━━━━━━━━━━━━━━
-*📩 Nouvel acheteur intéressé*
+🎉 *Le vendeur a accepté !*
 ━━━━━━━━━━━━━━━━━━
 
-📦 *Honda Civic 2018*
-💰 *Prix demandé : 3 200 000 FCFA*
-📏 *Acheteur à 2,4 km de vous*
-🏙️ Cotonou
+📦 *{title}*
+💰 *Prix final* : {fmt(amount)}
 
-Répondez :
-• *OUI* pour accepter
-• *NON* pour refuser
-• *Je propose 2 900 000 FCFA* pour contre‑offrir
+📇 *Contact vendeur*
+👤 {seller.display_name}
+📞 {seller.phone}
+🟢 WhatsApp : {seller.phone}
+🏙️ {seller.city} — {quartier si dispo}
+📏 *à {distKm} km de vous*
 
-_✨ WAOUH_
+Félicitations 🎊 Vous pouvez maintenant convenir directement de la livraison avec le vendeur.
+
+━━━━━━━━━━━━━━━━━━
+_✨ WAOUH — Merci de votre confiance_
 ```
 
-### Accord conclu (envoyé aux deux parties)
-
+Message envoyé au vendeur (symétrique) :
 ```
 ━━━━━━━━━━━━━━━━━━
-*🎉 Accord conclu !*
+🎉 *Accord conclu — Acheteur confirmé*
 ━━━━━━━━━━━━━━━━━━
 
-📦 *Honda Civic 2018*
-💰 *Prix final : 3 000 000 FCFA*
+📦 *{title}*
+💰 *Prix final* : {fmt(amount)}
 
-📇 *Contact {vendeur|acheteur}*
-👤 Komlan A.
-📞 +229 01 65 65 34 68
-🟢 WhatsApp : +229 01 65 65 34 68
-🏙️ Cotonou · Cadjèhoun
-📏 à 2,4 km
+📇 *Contact acheteur*
+👤 {buyer.display_name}
+📞 {buyer.phone}
+🟢 WhatsApp : {buyer.phone}
+🏙️ {buyer.city}
+📏 *à {distKm} km de vous*
 
-Vous pouvez maintenant convenir directement de la livraison et du paiement.
+Félicitations 🎊 Convenez librement de la livraison avec l'acheteur.
 
-_Merci d'avoir utilisé WAOUH ✨_
+━━━━━━━━━━━━━━━━━━
+_✨ WAOUH — Merci de votre confiance_
 ```
 
----
+Adapter `contactExchangeText` dans `_shared/waouh-format.ts` pour inclure quartier/adresse si présents dans `users.location` (champ JSON) en plus de la ville.
 
-## 3. Analyse marché IA (réelle)
+### d) Texte « match_buyer » initial — `waouh-webhook/index.ts` ligne ~523
+Retirer la mention « (paiement sécurisé escrow) ». Texte cible :
+```
+🎯 WAOUH a trouvé pour vous : *{title}* à {prix} ({ville}, à {distKm} km).
+Répondez *OUI* pour être mis en relation avec le vendeur.
+```
 
-Implémenter `marketAnalysis()` dans `_shared/waouh-format.ts` :
-- Appel `google/gemini-2.5-flash` via `LOVABLE_API_KEY`
-- Prompt synthétique :
-  > "Tu es analyste marché Bénin. Donne en 1 phrase (max 25 mots) une appréciation factuelle : prix vs fourchette, contexte ville, conseil. Pas de bla‑bla."
-- Cache mémoire 10 min par (titre, ville, fourchette) pour éviter répétition.
+### e) Texte radar vendeur (ligne ~700 + `waouh-radar-process`)
+Retirer toute mention « paiement sécurisé escrow / 0 fraude ». Garder : « Répondez OUI pour recevoir les acheteurs et négocier en direct via WAOUH. »
 
----
+## 3. Nettoyer les helpers legacy de paiement
 
-## 4. Hors‑scope (non touché)
+Dans `supabase/functions/_shared/waouh-format.ts` :
+- Supprimer `paymentCard`, `paymentInstructions`, `paymentActions` (plus utilisés une fois 1./2. retirés).
+- Garder `stripLegacyPaymentText` et l'appliquer dans `waouh-outbound-dispatch` juste avant l'envoi, pour purger toute trace de carte de paiement qui subsisterait dans la file `waouh_outbound_queue` déjà créée.
 
-- `.github/`, `Dockerfile`, `docker-compose.yml`, `vite.config.ts` : **inchangés**.
-- `waouh-payment*`, `qosic-*`, `mtn-momo-*` : conservés mais non appelés.
-- Authentification, profils, partenaires : aucun changement.
+## 4. Web chat — photos et mise en forme
 
----
+Dans `src/components/waouh/WaouhWebChat.tsx` :
+- Les attachements sont déjà rendus, mais ils ne s'affichent pas car le webhook insère le message texte avant que `replyAttachments` ne soit propagé sur l'enregistrement `waouh_messages`. Vérifier la branche d'écriture du message « out » dans `waouh-webhook/index.ts` (insert `waouh_messages` final) et y inclure `attachments: replyAttachments` quand non vide (notamment pour les blocs de résultats de recherche et le bloc « Demande envoyée au vendeur »).
+- Améliorer la mise en forme Markdown dans `WaouhWebChat.tsx` :
+  - `hr` → trait dégradé `bg-gradient-to-r from-transparent via-primary/40 to-transparent`
+  - `strong` → `text-foreground font-semibold`
+  - `h1`/`h2`/`h3` → titres stylés (taille, weight, color)
+  - `ul` → puces vertes (•) avec espacement
+  - `em` → couleur muted italique (utilisé par le footer WAOUH)
+  - Ajouter le rendu des emojis localisation/contact avec un fond pill discret via un composant `p` custom détectant les lignes commençant par `📞`, `🟢`, `🏙️`, `📏`.
+- Pour les résultats de recherche multi-produits, chaque produit est séparé par `━━━━━━━━`. S'assurer que le `ReactMarkdown` reçoit bien `remark-gfm` (vérifier import) pour que les séparateurs s'affichent en `<hr>`.
 
-## 5. Vérification end‑to‑end
+## 5. Vérifications finales
 
-1. `/waouh-chat` : "Je cherche une voiture" → liste sans nom ni contact, distance affichée, photos visibles, analyse IA présente.
-2. "intéressé 1" → vendeur (autre session) reçoit notif avec photo + distance.
-3. Vendeur "Je propose 2 900 000" → acheteur reçoit contre‑offre.
-4. Acheteur "OUI" → les deux parties reçoivent la carte contact de l'autre, état `accepted`, `contact_shared_at` rempli.
-5. Aucune transaction `payment_pending` créée pendant le parcours.
+- Tester un parcours complet en preview : recherche → intéressé 1 → contre-offre → OUI → réception des coordonnées sur les 2 sessions web.
+- Vérifier dans les logs `waouh-outbound-dispatch` qu'aucun message sortant ne contient « 1. », « Carte de paiement », « escrow » ou « MTN / Moov ».
+- Vérifier sur le web chat que la photo du produit s'affiche dans la bulle « Demande envoyée au vendeur ».
+
+## Détails techniques
+
+- Fichiers modifiés :
+  - `supabase/functions/waouh-outbound-dispatch/index.ts` (suppression fallback + actions par défaut)
+  - `supabase/functions/waouh-webhook/index.ts` (textes a, b, d, e + insert attachments)
+  - `supabase/functions/waouh-negotiation-router/index.ts` (texte c)
+  - `supabase/functions/waouh-radar-process/index.ts` (texte e)
+  - `supabase/functions/_shared/waouh-format.ts` (cleanup helpers + `contactExchangeText` enrichi)
+  - `src/components/waouh/WaouhWebChat.tsx` (markdown components + remark-gfm)
+- Aucune migration SQL nécessaire.
+- Aucune nouvelle dépendance.

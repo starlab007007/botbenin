@@ -106,46 +106,21 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   if (r.ok) return r;
   r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
-  // Legacy simple format
+  // Legacy simple format (boutons WAHA encore acceptés). Si échec, on tombe en
+  // texte simple SANS jamais ré-injecter de liste numérotée « 1./2./3. ».
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  const lines = actions.map((a, i) => `${i + 1}. ${a.label}${a.url ? ` → ${a.url}` : a.phone ? ` ☎ ${a.phone}` : ""}`).join("\n");
-  // Final fallback : garder une seule bulle WhatsApp. Avec image, les choix sont dans la légende.
-  if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, `${text}\n\n${lines}`, headers);
-  return sendWahaText(base, session, chatId, `${text}\n\n${lines}`, headers);
+  if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, text, headers);
+  return sendWahaText(base, session, chatId, text, headers);
 }
 
-function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
-  switch (template) {
-    case "match_buyer":
-      return [
-        { id: `interest:${p.product_id || ""}`, label: "✅ Intéressé" },
-        { id: `negotiate:${p.product_id || ""}`, label: "💬 Négocier" },
-        { id: `skip:${p.product_id || ""}`, label: "⏭️ Passer" },
-      ];
-    case "match_seller":
-      return [
-        { id: `match_yes:${p.product_id || ""}`, label: "✅ Oui, mettre en contact" },
-        { id: `match_no:${p.product_id || ""}`, label: "❌ Non merci" },
-      ];
-    case "negotiation_open":
-      return [
-        { id: `accept:${p.negotiation_id || ""}`, label: "✅ Accepter" },
-        { id: `counter:${p.negotiation_id || ""}`, label: "💬 Contre-offre" },
-        { id: `refuse:${p.negotiation_id || ""}`, label: "❌ Refuser" },
-      ];
-    case "payment_card":
-    case "payment_link":
-      return [
-        ...(p.url ? [{ id: "pay_open", label: "💳 Payer maintenant", url: p.url }] : []),
-        { id: `pay_help:${p.transaction_id || ""}`, label: "❓ Aide paiement" },
-        { id: `pay_cancel:${p.transaction_id || ""}`, label: "✖️ Annuler" },
-      ];
-    default:
-      return [];
-  }
+
+function defaultActionsForTemplate(_template: string, _p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
+  // Parcours 100 % conversationnel : plus aucune action par défaut (OUI / NON / Je propose XXX).
+  return [];
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

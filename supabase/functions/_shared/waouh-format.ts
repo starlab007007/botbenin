@@ -73,17 +73,31 @@ export function paymentActions(txId: string | null, payUrl?: string | null) {
   return arr;
 }
 
-/** Marketing-cleanup: retire les phrases legacy de tout texte sortant. */
+/** Marketing-cleanup: retire les phrases legacy de tout texte sortant (paiement, escrow, listes 1./2./3.). */
 export function stripLegacyPaymentText(text: string): string {
   if (!text) return text;
   return text
+    // Anciennes phrases « Appuyez sur Payer / envoyez payer 0XXXXXXXX »
     .replace(/\n*👉\s*Appuyez sur \*?Payer\*?[^]*?(?:payer\s*0?165653468|payer\s*\d{8,})\*?/gi, "")
-    .replace(/\n*1\.\s*Payer\s*→[^\n]*\n?2\.\s*MTN[^\n]*\n?3\.\s*Moov[^\n]*/gi, "")
-    .replace(/\n*1\.\s*Payer[^\n]*\n?2\.\s*Négocier[^\n]*/gi, "")
-    .replace(/\n*_Répondez avec le numéro[^\n]*\n?(?:\d+\.[^\n]*\n?)+/gi, "")
+    // Carte de paiement WAOUH complète
+    .replace(/\n*💳\s*\*?Carte de paiement WAOUH\*?[\s\S]*?(?=\n{2,}|$)/gi, "")
+    // Bloc « Payer maintenant : … MTN / Moov »
+    .replace(/\n*Payer maintenant\s*:?[\s\S]*?(?:Moov[^\n]*|MTN[^\n]*)/gi, "")
+    // « Vous pouvez maintenant payer en Mobile Money. »
+    .replace(/\n*Vous pouvez maintenant payer[^\n]*/gi, "")
+    // « L'acheteur va lancer le paiement. »
+    .replace(/\n*L'acheteur va lancer le paiement\.?/gi, "")
+    // Phrase escrow / fonds bloqués
+    .replace(/\n*🔒?\s*Les fonds restent en escrow[^\n]*/gi, "")
+    .replace(/\n*[•\-]?\s*\*?Sécurité\*?\s*:\s*escrow[^\n]*/gi, "")
+    // Listes numérotées 1./2./3. d'actions (Accepter / Contre-offre / Refuser / Oui mettre en contact / Non merci / Payer / MTN / Moov)
+    .replace(/(?:^|\n)\s*1\.\s*(?:✅|💬|❌|💳)?[^\n]*\n\s*2\.\s*(?:✅|💬|❌|💳|MTN|Moov)[^\n]*(?:\n\s*3\.\s*(?:✅|💬|❌|💳|MTN|Moov)[^\n]*)?/gi, "")
+    // Mentions résiduelles « (paiement sécurisé escrow, 0 fraude) »
+    .replace(/\s*\(paiement\s+sécuris[eé][^)]*\)/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+
 
 /** Header décoratif WAOUH (avec lignes de séparation). */
 export function waouhHeader(title: string): string {
@@ -154,14 +168,19 @@ export async function marketAnalysisAI(opts: { title: string; price: number; min
  */
 export function contactExchangeText(
   role: "buyer_to_seller" | "seller_to_buyer",
-  other: { display_name?: string | null; phone_number?: string | null; city?: string | null; distance_km?: number | null }
+  other: { display_name?: string | null; phone_number?: string | null; city?: string | null; distance_km?: number | null; location?: any }
 ): string {
   const who = role === "buyer_to_seller" ? "vendeur" : "acheteur";
   const name = other.display_name || `Contact ${who}`;
   const rawPhone = (other.phone_number || "").replace(/@(?:c\.us|lid|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
   const formatted = rawPhone ? `+${rawPhone}` : "";
   const phoneLine = formatted ? `\n📞 *Téléphone* : ${formatted}\n🟢 *WhatsApp* : ${formatted}` : "";
-  const cityLine = other.city ? `\n🏙️ *Ville* : ${other.city}` : "";
+  // Compose adresse : ville + quartier/adresse si dispo (depuis location JSON)
+  const loc = other.location && typeof other.location === "object" ? other.location : null;
+  const quartier = loc?.quartier || loc?.neighborhood || loc?.district || null;
+  const adresse = loc?.address || loc?.adresse || loc?.street || null;
+  const cityParts = [other.city, quartier, adresse].filter(Boolean);
+  const cityLine = cityParts.length ? `\n🏙️ *Adresse* : ${cityParts.join(" — ")}` : "";
   const distLine = other.distance_km != null ? `\n${formatDistance(other.distance_km)}` : "";
   return (
     `📇 *Contact ${who}*\n${waouhSep}\n` +
@@ -171,4 +190,5 @@ export function contactExchangeText(
     distLine
   );
 }
+
 

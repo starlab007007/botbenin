@@ -520,7 +520,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_buyer_outreach",
               p_payload: {
-                text: `🎯 WAOUH a trouvé pour vous : *${product.title}* à ${fmt(product.price)} (${user!.city}). Répondez « OUI » pour être mis en relation avec le vendeur (paiement sécurisé escrow).`,
+                text: `🎯 WAOUH a trouvé pour vous : *${product.title}* à ${fmt(product.price)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
                 article_id: art?.id,
                 radar_signal_id: b.id,
               },
@@ -697,7 +697,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_seller_outreach",
               p_payload: {
-                text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez « OUI » pour le mettre en relation via WAOUH (paiement sécurisé escrow, 0 fraude).`,
+                text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez *OUI* pour être mis en relation directement avec lui via WAOUH.`,
                 radar_signal_id: r.id,
                 source_url: r.raw_url,
               },
@@ -776,7 +776,7 @@ serve(async (req) => {
         }
         const vendorPhoneForPush = phonesToPush[0] || null;
         const distLineSeller = distKm != null ? `\n${fmtDistance(distKm)}` : "";
-        const sellerText = `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n📦 *${pick.title}*\n💰 *Prix demandé* : ${fmt(askPrice)}${distLineSeller}\n🏙️ Acheteur : ${user!.city || "?"}\n\nRépondez :\n• *OUI* pour accepter\n• *NON* pour refuser\n• *Je propose ${fmt(Math.round(askPrice * 0.9))}* pour contre-offrir\n\n${waouhFooter()}`;
+        const sellerText = `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n📦 *${pick.title}*\n💰 *Prix demandé* : ${fmt(askPrice)}${distLineSeller}\n🏙️ *Acheteur* : ${user!.city || "?"}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose ${fmt(Math.round(askPrice * 0.9))}* pour contre-offrir.\n\n${waouhFooter()}`;
         if (seller?.id || phonesToPush.length > 0 || vendorContacts.web_sessions.length > 0) {
           try {
             await pushToOther({
@@ -847,7 +847,7 @@ serve(async (req) => {
         }).eq("id", neg.id);
         returnedTransactionId = null;
         if (otherId) {
-          const counterText = `${waouhHeader(`🤝 ${isBuyer ? "Nouvelle offre acheteur" : "Contre-offre vendeur"}`)}\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez :\n• *OUI* pour accepter\n• *NON* pour refuser\n• *Je propose XXX FCFA* pour une autre offre\n\n${waouhFooter()}`;
+          const counterText = `${waouhHeader(`🤝 ${isBuyer ? "Nouvelle offre acheteur" : "Contre-offre vendeur"}`)}\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose XXX FCFA* pour une autre offre.\n\n${waouhFooter()}`;
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",

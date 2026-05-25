@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -21,11 +23,17 @@ type WaouhAction = { id: string; label: string; url?: string };
 const stripLegacy = (t: string) =>
   (t || "")
     .replace(/\n*👉\s*Appuyez sur \*?Payer\*?[^\n]*/gi, "")
-    .replace(/\n*1\.\s*Payer\s*→[^\n]*\n?2\.\s*MTN[^\n]*\n?3\.\s*Moov[^\n]*/gi, "")
-    .replace(/\n*1\.\s*Payer[^\n]*\n?2\.\s*Négocier[^\n]*/gi, "")
-    .replace(/\n*_Répondez avec le numéro[^\n]*\n?(?:\d+\.[^\n]*\n?)+/gi, "")
+    .replace(/\n*💳\s*\*?Carte de paiement WAOUH\*?[\s\S]*?(?=\n{2,}|$)/gi, "")
+    .replace(/\n*Payer maintenant\s*:?[\s\S]*?(?:Moov[^\n]*|MTN[^\n]*)/gi, "")
+    .replace(/\n*Vous pouvez maintenant payer[^\n]*/gi, "")
+    .replace(/\n*L'acheteur va lancer le paiement\.?/gi, "")
+    .replace(/\n*🔒?\s*Les fonds restent en escrow[^\n]*/gi, "")
+    .replace(/\n*[•\-]?\s*\*?Sécurité\*?\s*:\s*escrow[^\n]*/gi, "")
+    .replace(/(?:^|\n)\s*1\.\s*(?:✅|💬|❌|💳)?[^\n]*\n\s*2\.\s*(?:✅|💬|❌|💳|MTN|Moov)[^\n]*(?:\n\s*3\.\s*(?:✅|💬|❌|💳|MTN|Moov)[^\n]*)?/gi, "")
+    .replace(/\s*\(paiement\s+sécuris[eé][^)]*\)/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
 type Msg = {
   id: string;
   direction: "in" | "out";
@@ -323,15 +331,31 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
                 )}
                 {m.text && m.text !== "(image)" && (
                   <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
                     components={{
-                      hr: () => <div className="my-2 h-px bg-gradient-to-r from-cyan-500/40 via-blue-500/40 to-cyan-500/40" />,
-                      strong: ({ children }) => <strong className="text-cyan-700 dark:text-cyan-300 font-semibold">{children}</strong>,
+                      hr: () => <div className="my-3 h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />,
+                      h1: ({ children }) => <h1 className="text-base font-bold text-foreground mt-2 mb-1">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-sm font-bold text-foreground mt-2 mb-1">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground mt-1.5 mb-0.5">{children}</h3>,
+                      strong: ({ children }) => <strong className="text-emerald-700 dark:text-emerald-300 font-semibold">{children}</strong>,
                       em: ({ children }) => <em className="text-muted-foreground not-italic text-xs">{children}</em>,
+                      ul: ({ children }) => <ul className="list-none pl-0 my-1 space-y-1">{children}</ul>,
+                      li: ({ children }) => <li className="flex gap-2"><span className="text-emerald-500 mt-[2px]">•</span><span className="flex-1">{children}</span></li>,
+                      p: ({ children }) => {
+                        const s = typeof children === "string" ? children : Array.isArray(children) ? children.join("") : "";
+                        const isLocBlock = /^(📞|🟢|🏙️|📏|📇|👤|💰|📦)/.test(s.trim());
+                        if (isLocBlock) {
+                          return <p className="my-0.5 leading-relaxed">{children}</p>;
+                        }
+                        return <p className="my-1 leading-relaxed">{children}</p>;
+                      },
+                      a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">{children}</a>,
                     }}
                   >
                     {stripLegacy(m.text)}
                   </ReactMarkdown>
                 )}
+
                 {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
                     {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
