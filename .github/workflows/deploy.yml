@@ -4,7 +4,9 @@ name: Deploy React App botbj
 on:
   push:
     branches:
+      - main
       - prod
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -22,8 +24,10 @@ jobs:
             cd /home/debian/botbenin/
 
             echo "📥 Mise à jour du code..."
-            git fetch origin prod || { echo "❌ Erreur lors du git fetch"; exit 1; }
-            git reset --hard origin/prod || { echo "❌ Erreur lors de la synchronisation avec main"; exit 1; }
+            BRANCH="${{ github.ref_name }}"
+            echo "Branche: $BRANCH"
+            git fetch origin "$BRANCH" || { echo "❌ Erreur lors du git fetch"; exit 1; }
+            git reset --hard "origin/$BRANCH" || { echo "❌ Erreur lors de la synchronisation"; exit 1; }
 
             echo "🛑 Arrêt des anciens conteneurs..."
             docker compose down || echo "⚠️ Aucun conteneur à arrêter"
