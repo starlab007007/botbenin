@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, MapPin } from "lucide-react";
+import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
@@ -30,8 +30,8 @@ const PAYLOADS: { key: "sell" | "buy" | "negotiate"; label: string; Icon: any; t
 ];
 
 /**
- * Native-style Waouh chat — single unified header, payload chips, fullscreen messages
- * and native composer (handled inside WaouhWebChat variant="native").
+ * Native-style WAOUH chat — unified header, fullscreen messages, and a
+ * WhatsApp-style composer with payload chips sitting JUST above the input.
  */
 export default function WaouhChatScreen() {
   const navigate = useNavigate();
@@ -47,7 +47,6 @@ export default function WaouhChatScreen() {
     document.title = "WAOUH Chat — bot.bj";
   }, []);
 
-  // Native push notifications registration
   useEffect(() => {
     if (!isNative) return;
     let mounted = true;
@@ -71,9 +70,7 @@ export default function WaouhChatScreen() {
             console.debug("[push] register failed", e);
           }
         });
-        PushNotifications.addListener("registrationError", (e) =>
-          console.debug("[push] regError", e)
-        );
+        PushNotifications.addListener("registrationError", (e) => console.debug("[push] regError", e));
       } catch (e) {
         console.debug("[push] not available", e);
       }
@@ -83,15 +80,44 @@ export default function WaouhChatScreen() {
     };
   }, [isNative]);
 
+  const payloadChips = (
+    <div className="px-2 py-2 bg-background border-t border-border/50 shrink-0">
+      <div className="flex gap-2 overflow-x-auto scrollbar-none">
+        {PAYLOADS.map(({ key, label, Icon, tint }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => chatRef.current?.triggerQuickAction(key)}
+            className={cn(
+              "flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full shrink-0",
+              "bg-card border border-border/60 shadow-sm",
+              "active:scale-95 transition-all duration-150"
+            )}
+          >
+            <span
+              className={cn(
+                "w-6 h-6 rounded-full flex items-center justify-center bg-gradient-to-br text-white",
+                tint
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+            </span>
+            <span className="text-[13px] font-semibold text-foreground">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 flex flex-col bg-background overflow-hidden mobile-shell">
+    <div className="fixed inset-0 flex flex-col bg-background overflow-hidden">
       {/* Unified native header */}
       <header
-        className="flex items-center justify-between gap-2 px-3 h-14 bg-[hsl(var(--wa-green))] text-white shrink-0 shadow-md z-10"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
+        className="flex items-center justify-between gap-2 px-3 bg-[hsl(var(--wa-green,142_70%_24%))] text-white shrink-0 shadow-md z-10"
+        style={{ paddingTop: "max(env(safe-area-inset-top), 0px)", height: "calc(56px + env(safe-area-inset-top))" }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0 backdrop-blur">
+          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
             <ShoppingBag className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
@@ -123,10 +149,7 @@ export default function WaouhChatScreen() {
 
           <Sheet>
             <SheetTrigger asChild>
-              <button
-                className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25"
-                aria-label="Aide"
-              >
+              <button className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25" aria-label="Aide">
                 <Info className="w-5 h-5" />
               </button>
             </SheetTrigger>
@@ -142,9 +165,6 @@ export default function WaouhChatScreen() {
                   <li className="bg-muted rounded-lg p-2">"Je propose 580 000 FCFA pour l'iPhone"</li>
                   <li className="bg-muted rounded-lg p-2">"Je paye en Mobile Money MTN, mon numéro 97 12 34 56"</li>
                 </ul>
-                <div className="p-3 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-xs">
-                  🔒 Paiements Mobile Money via escrow. L'argent n'est libéré qu'après confirmation.
-                </div>
                 <button
                   onClick={() => navigate("/app/conversations")}
                   className="w-full mt-2 p-3 rounded-lg border bg-card text-foreground text-sm flex items-center gap-2 hover:bg-muted"
@@ -165,40 +185,9 @@ export default function WaouhChatScreen() {
         </div>
       </header>
 
-      {/* Payload chips */}
-      <div className="px-3 py-2.5 bg-gradient-to-b from-background to-muted/30 border-b border-border/50 shrink-0">
-        <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1">
-          {PAYLOADS.map(({ key, label, Icon, tint }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => chatRef.current?.triggerQuickAction(key)}
-              className={cn(
-                "group flex items-center gap-2 pl-3 pr-4 py-2 rounded-full shrink-0",
-                "bg-card border border-border/60 shadow-sm",
-                "hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200"
-              )}
-            >
-              <span
-                className={cn(
-                  "w-7 h-7 rounded-full flex items-center justify-center bg-gradient-to-br text-white shadow-inner",
-                  tint
-                )}
-              >
-                <Icon className="w-3.5 h-3.5" />
-              </span>
-              <span className="text-sm font-semibold text-foreground">{label}</span>
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-1 px-2 text-[11px] text-muted-foreground shrink-0">
-            <MapPin className="w-3 h-3" /> {geo.city}
-          </div>
-        </div>
-      </div>
-
-      {/* Chat — fullscreen messages + native composer (cap 2 photos enforced inside) */}
+      {/* Chat fills remaining space — composer is at bottom with chips sitting right above it */}
       <div className="flex-1 min-h-0">
-        <WaouhWebChat ref={chatRef} fullscreen variant="native" />
+        <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
       </div>
     </div>
   );
