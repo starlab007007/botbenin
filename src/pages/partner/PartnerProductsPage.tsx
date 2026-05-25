@@ -180,7 +180,21 @@ export default function PartnerProductsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Catégorie</Label>
-                <SmartCombobox value={form.categorie} onChange={v => setForm({ ...form, categorie: v })} options={PRODUCT_CATEGORIES} placeholder="Choisir une catégorie" />
+                <SmartCombobox
+                  value={PRODUCT_CATEGORIES.includes(form.categorie) ? form.categorie : (form.categorie ? 'Autre' : '')}
+                  onChange={v => setForm({ ...form, categorie: v === 'Autre' ? ' ' : v })}
+                  options={PRODUCT_CATEGORIES}
+                  placeholder="Choisir une catégorie"
+                />
+                {(form.categorie === ' ' || (form.categorie && !PRODUCT_CATEGORIES.includes(form.categorie))) && (
+                  <Input
+                    className="mt-2"
+                    placeholder="Précisez votre catégorie"
+                    value={form.categorie.trim()}
+                    onChange={e => setForm({ ...form, categorie: e.target.value })}
+                    autoFocus
+                  />
+                )}
               </div>
               <div>
                 <Label>Unité</Label>
