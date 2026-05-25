@@ -125,8 +125,8 @@ export default function PartnerProductsPage() {
     setSaving(true);
     const payload: any = {
       nom: form.nom, description: form.description || null, categorie: form.categorie || null,
-      prix_min: form.prix_min !== '' ? Number(form.prix_min) : null,
-      prix_max: form.prix_max !== '' ? Number(form.prix_max) : null,
+      prix_min: form.prix !== '' ? Number(form.prix) : null,
+      prix_max: form.prix !== '' ? Number(form.prix) : null,
       unite: form.unite || null, disponible: form.disponible,
       stock_estime: form.stock_estime !== '' ? parseInt(String(form.stock_estime)) : null,
       photos: form.photos,
