@@ -22,8 +22,8 @@ jobs:
             cd /home/debian/botbenin/
 
             echo "📥 Mise à jour du code..."
-            git fetch origin main || { echo "❌ Erreur lors du git fetch"; exit 1; }
-            git reset --hard origin/main || { echo "❌ Erreur lors de la synchronisation avec main"; exit 1; }
+            git fetch origin prod || { echo "❌ Erreur lors du git fetch"; exit 1; }
+            git reset --hard origin/prod || { echo "❌ Erreur lors de la synchronisation avec main"; exit 1; }
 
             echo "🛑 Arrêt des anciens conteneurs..."
             docker compose down || echo "⚠️ Aucun conteneur à arrêter"
