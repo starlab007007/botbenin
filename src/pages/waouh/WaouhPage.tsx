@@ -81,7 +81,7 @@ export default function WaouhPage() {
   useEffect(() => {
     loadAll();
     const ch = supabase
-      .channel("waouh-realtime")
+      .channel(`waouh-realtime-${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "waouh_articles" }, (payload: any) => {
         setActivity((prev) => [{ type: "article", at: new Date(), payload: payload.new }, ...prev].slice(0, 10));
         loadAll();
