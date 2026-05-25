@@ -644,7 +644,9 @@ serve(async (req) => {
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
           const price = r.price ? fmt(Number(r.price)) : "Prix à négocier";
           const city = r.city || "?";
-          return `*${idx}. ${title}*\n💰 *${price}*\n🏙️ ${city}\n📡 Source : Radar IA`;
+          const photos = extractProductPhotos(r);
+          const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
+          return `*${idx}. ${title}*\n💰 *${price}*\n🏙️ ${city}${photoLine}\n📡 Source : Radar IA`;
         }).join(`\n\n${waouhSep}\n\n`);
         // Envoyer TOUTES les photos publiques (jusqu'à 4 par produit, plafond 12) avec caption
         const isPublicImageUrl = (u: any): u is string =>
@@ -664,6 +666,11 @@ serve(async (req) => {
         replyAttachments = [
           ...collectAtts(partnerTop, "titre"),
           ...collectAtts(matchesTop, "title"),
+          ...radarTop.flatMap((r: any) => extractProductPhotos(r).slice(0, 4).map((url: string, k: number) => ({
+            url,
+            type: "image/jpeg",
+            caption: `${r.product?.title || r.product?.name || "Annonce Radar IA"}${k > 0 ? ` — photo ${k + 1}` : ""}`,
+          }))),
         ].slice(0, 12);
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
@@ -708,6 +715,7 @@ serve(async (req) => {
                 source_url: r.raw_url,
               },
               p_channel: "whatsapp",
+              p_image_url: extractProductPhotos(r)[0] ?? null,
             });
           } catch (e) { console.warn("[radar outreach]", e); }
         }
