@@ -134,22 +134,24 @@ Deno.serve(async (req) => {
 
 
       const title = article?.title || "votre annonce";
-      const synthese =
-        `${waouhHeader("🎉 Accord conclu !")}\n\n` +
+
+      const buildSynthese = (heading: string) =>
+        `${waouhHeader(heading)}\n\n` +
         `📦 *${title}*\n` +
         `💰 *Prix final* : ${fmt(amount)}\n\n`;
 
       const replyToBuyer =
-        synthese +
-        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm }) +
-        `\n\n_Vous pouvez maintenant convenir directement de la livraison et du règlement avec le vendeur._\n\n` +
-        waouhFooter("Merci d'avoir utilisé WAOUH ✨");
+        buildSynthese("🎉 Le vendeur a accepté !") +
+        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm, location: (seller as any)?.location }) +
+        `\n\n🎊 *Félicitations !* Vous pouvez maintenant convenir directement de la livraison avec le vendeur.\n\n` +
+        waouhFooter("WAOUH — Merci de votre confiance ✨");
 
       const replyToSeller =
-        synthese +
-        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm }) +
-        `\n\n_Vous pouvez maintenant convenir directement de la livraison et du règlement avec l'acheteur._\n\n` +
-        waouhFooter("Merci d'avoir utilisé WAOUH ✨");
+        buildSynthese("🎉 Accord conclu — Acheteur confirmé") +
+        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm, location: (buyer as any)?.location }) +
+        `\n\n🎊 *Félicitations !* Convenez librement de la livraison avec l'acheteur.\n\n` +
+        waouhFooter("WAOUH — Merci de votre confiance ✨");
+
 
       const targetReply = isBuyer ? replyToSeller : replyToBuyer; // l'autre partie
       const myReply = isBuyer ? replyToBuyer : replyToSeller;
