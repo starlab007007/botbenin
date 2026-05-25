@@ -110,7 +110,7 @@ export default function WaouhChatScreen() {
   );
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-background overflow-hidden">
+    <div className="flex flex-col bg-background overflow-hidden" style={{ height: "calc(100dvh - 64px - env(safe-area-inset-bottom))" }}>
       {/* Unified native header */}
       <header
         className="flex items-center justify-between gap-2 px-3 bg-[hsl(var(--wa-green,142_70%_24%))] text-white shrink-0 shadow-md z-10"
