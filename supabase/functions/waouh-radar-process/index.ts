@@ -125,7 +125,7 @@ async function enqueueRadarOutreach(sb: any, sig: any, phone: string, promotedId
     p_to_user_id: null,
     p_template: template,
     p_payload: { text, signal_id: sig.id, source_url: sig.raw_url, promoted_id: promotedId },
-    p_image_url: sig.product?.image_url ?? null,
+    p_image_url: extractProductPhotos(sig)[0] ?? null,
     p_channel: "whatsapp",
   });
   if (error) console.warn("[radar-process] direct outreach", error);
@@ -228,6 +228,7 @@ Deno.serve(async (req) => {
 
             const { data: wu } = await sb.from("waouh_users").select("id, phone_number, web_session_id").eq("id", b.user_id).maybeSingle();
             if (wu) {
+              const signalPhotos = extractProductPhotos(sig);
               const directText = `🎯 *Annonce détectée par le Radar IA*\n${title}\n${body}\n${sig.raw_url ? `🔗 ${sig.raw_url}\n` : ""}Répondez « intéressé » pour entrer en contact.`;
               let msgId: string | null = null;
               if (wu.web_session_id) {
@@ -237,7 +238,7 @@ Deno.serve(async (req) => {
                   direction: "out",
                   text: directText,
                   web_session_id: wu.web_session_id,
-                  attachments: sig.product?.image_url ? [{ url: sig.product.image_url, type: "image/jpeg" }] : [],
+                  attachments: signalPhotos[0] ? [{ url: signalPhotos[0], type: "image/jpeg" }] : [],
                   meta: { intent: "RADAR_MATCH", signal_id: sig.id, match_id: m?.id },
                 }).select("id").maybeSingle();
                 msgId = msg?.id ?? null;
@@ -248,7 +249,7 @@ Deno.serve(async (req) => {
                 p_template: "match_buyer",
                 p_payload: { title: sig.product?.title || sig.category, price: sig.price, city: sig.city, signal_id: sig.id, match_id: m?.id, message_id: msgId },
                 p_web_session_id: wu.web_session_id,
-                p_image_url: sig.product?.image_url ?? null,
+                p_image_url: signalPhotos[0] ?? null,
                 p_channel: wu.phone_number ? "whatsapp" : "web",
                 p_message_id: msgId,
                 p_transaction_id: null,
