@@ -6,8 +6,9 @@ const TEMPLATE_TITLES: Record<string, string> = {
   match_seller: "📩 Nouvel acheteur intéressé !",
   match_buyer: "🎯 Annonce trouvée pour vous",
   negotiation_open: "🤝 Nouvelle offre reçue",
-  payment_link: "💳 Lien de paiement",
+  contact_exchange: "🎉 Accord conclu — contact partagé",
 };
+
 
 function fmt(n: number | null | undefined) {
   if (n == null) return "";
