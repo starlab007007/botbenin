@@ -41,7 +41,7 @@ export default function WaouhRadarTab() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    const ch = supabase.channel("radar_signals_live")
+    const ch = supabase.channel(`radar_signals_live_${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_radar_signals" }, (p) => {
         setSignals((prev) => [p.new as Signal, ...prev].slice(0, 100));
       })

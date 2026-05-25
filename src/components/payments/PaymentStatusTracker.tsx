@@ -51,7 +51,7 @@ export const PaymentStatusTracker = ({
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel(`payment:${orderId}`)
+      .channel(`payment:${orderId}:${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         {

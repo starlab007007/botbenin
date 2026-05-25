@@ -22,7 +22,8 @@ jobs:
             cd /home/debian/botbenin/
 
             echo "📥 Mise à jour du code..."
-            git pull origin main || { echo "❌ Erreur lors du git pull"; exit 1; }
+            git fetch origin main || { echo "❌ Erreur lors du git fetch"; exit 1; }
+            git reset --hard origin/main || { echo "❌ Erreur lors de la synchronisation avec main"; exit 1; }
 
             echo "🛑 Arrêt des anciens conteneurs..."
             docker compose down || echo "⚠️ Aucun conteneur à arrêter"
@@ -45,7 +46,7 @@ jobs:
 
             echo "🧪 Test de santé du service..."
             for i in {1..10}; do
-              if curl -f http://localhost:80 > /dev/null 2>&1; then
+              if curl -f http://localhost:8084 > /dev/null 2>&1; then
                 echo "✅ Service accessible"
                 break
               fi
@@ -57,7 +58,10 @@ jobs:
             docker compose logs --tail=100
 
             echo "🔍 Vérification des fichiers dans le conteneur..."
-            docker compose exec -T web ls -la /usr/share/nginx/html/ || echo "⚠️ Impossible de lister les fichiers"
+            docker compose exec -T react-app ls -la /usr/share/nginx/html/ || echo "⚠️ Impossible de lister les fichiers"
+
+            echo "🧪 Vérification anti-ancien bundle..."
+            docker compose exec -T react-app sh -c "! grep -R 'G-XXXXXXXXXX' /usr/share/nginx/html/assets/js /usr/share/nginx/html/index.html" || { echo "❌ Ancien bundle Google Analytics encore présent"; exit 1; }
 
             echo "🧹 Nettoyage final des images inutilisées..."
             docker image prune -af || echo "⚠️ Nettoyage final partiel"

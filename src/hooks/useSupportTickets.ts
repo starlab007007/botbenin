@@ -32,7 +32,7 @@ export const useSupportTickets = (opts: { adminMode?: boolean } = {}) => {
   // Realtime updates
   useEffect(() => {
     const channel = supabase
-      .channel('support_tickets_changes')
+      .channel(`support_tickets_changes_${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, () => {
         load();
       })
@@ -91,7 +91,7 @@ export const useSupportTicket = (id: string | undefined) => {
   useEffect(() => {
     if (!id) return;
     const channel = supabase
-      .channel(`ticket_${id}`)
+      .channel(`ticket_${id}_${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'support_ticket_messages', filter: `ticket_id=eq.${id}` }, load)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'support_tickets', filter: `id=eq.${id}` }, load)
       .subscribe();

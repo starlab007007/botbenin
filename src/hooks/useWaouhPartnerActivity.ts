@@ -32,7 +32,7 @@ export function useWaouhPartnerActivity(opts: { partnerId?: string; limit?: numb
 
   useEffect(() => {
     if (!live) return;
-    const ch = supabase.channel(`partner-activity-${partnerId || 'all'}`)
+    const ch = supabase.channel(`partner-activity-${partnerId || 'all'}-${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'waouh_partner_activity',
         ...(partnerId ? { filter: `partner_id=eq.${partnerId}` } : {}),
