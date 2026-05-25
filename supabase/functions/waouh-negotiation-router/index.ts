@@ -122,20 +122,8 @@ Deno.serve(async (req) => {
         sb.from("waouh_articles").select("id, title, photos").eq("id", neg.article_id).maybeSingle(),
       ]);
 
-      // Distance live via PostGIS ST_X/ST_Y
+      // Distance live entre acheteur et vendeur (via RPC PostGIS)
       let distKm: number | null = null;
-      try {
-        const { data: pts } = await sb.rpc as any;
-        // Fallback: récupère les coordonnées via une requête SQL via supabase.sql
-        const { data: bRow } = await sb.from("waouh_users").select("id").eq("id", neg.buyer_user_id).maybeSingle();
-        if (bRow) {
-          const { data: distRow } = await sb
-            .from("waouh_users")
-            .select("id");
-          // ignored: on calcule via une RPC dédiée si dispo
-        }
-      } catch {}
-      // Best-effort: appel une RPC si elle existe, sinon on ne met pas de distance
       try {
         const { data: distData } = await sb.rpc("waouh_user_pair_distance_km", {
           p_user_a: neg.buyer_user_id,
@@ -143,6 +131,7 @@ Deno.serve(async (req) => {
         });
         if (typeof distData === "number") distKm = Math.round(distData * 10) / 10;
       } catch {}
+
 
       const title = article?.title || "votre annonce";
       const synthese =
