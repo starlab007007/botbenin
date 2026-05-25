@@ -89,7 +89,7 @@ export default function PartnerProductsPage() {
         ...prev,
         nom: r.nom || prev.nom, description: r.description || prev.description,
         categorie: r.categorie || prev.categorie,
-        prix_min: r.prix_min ?? prev.prix_min, prix_max: r.prix_max ?? prev.prix_max,
+        prix: r.prix ?? r.prix_min ?? prev.prix,
         unite: r.unite || prev.unite, stock_estime: r.stock_estime ?? prev.stock_estime,
       }));
       setFreeText('');
