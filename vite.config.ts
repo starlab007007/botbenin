@@ -49,12 +49,15 @@ export default defineConfig(({ mode }) => ({
             id.includes('/node_modules/react/') ||
             id.includes('/node_modules/react-dom/') ||
             id.includes('/node_modules/scheduler/') ||
-            id.includes('/node_modules/object-assign/')
+            id.includes('/node_modules/object-assign/') ||
+            id.includes('/node_modules/use-sync-external-store/')
           ) return 'react';
-          if (id.includes('react-router')) return 'router';
+          if (id.includes('/node_modules/react-router')) return 'router';
+          // Tous les wrappers react-* doivent rester dans vendor (dépendent de React)
+          if (/\/node_modules\/react-[^/]+\//.test(id) && !id.includes('react-pdf')) return 'vendor';
           if (id.includes('@radix-ui') || id.includes('cmdk') || id.includes('vaul')) return 'radix';
-          if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
-          if (id.includes('leaflet') || id.includes('mapbox')) return 'maps';
+          if (id.includes('/node_modules/recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
+          if (id.includes('/node_modules/leaflet') || id.includes('/node_modules/mapbox-gl')) return 'maps';
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
           if (id.includes('@ffmpeg')) return 'ffmpeg';
           if (id.includes('pdfjs') || id.includes('jspdf') || id.includes('react-pdf')) return 'pdf';
