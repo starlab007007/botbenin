@@ -156,6 +156,8 @@ const MobilePartner = lazy(() => import("./app-mobile/screens/PartnerScreen"));
 const MobileAuthHome = lazy(() => import("./app-mobile/screens/auth/AuthHomeScreen"));
 const MobileAuthEmail = lazy(() => import("./app-mobile/screens/auth/EmailAuthScreen"));
 const MobileAuthOtp = lazy(() => import("./app-mobile/screens/auth/WhatsAppOtpScreen"));
+const MobileProfile = lazy(() => import("./app-mobile/screens/ProfileScreen"));
+const RequireMobileAuth = lazy(() => import("./app-mobile/guards/RequireMobileAuth"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
