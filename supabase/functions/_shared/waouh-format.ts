@@ -346,8 +346,10 @@ export async function resolveRealPhoneE164(
 
   // 6 & 7) Sources liées à l'article (partenaire business + radar externe)
   const articleId = opts?.article_id || null;
-  const productPhone = await resolveProductOwnerPhoneE164(sb, articleId, opts?.role === "seller" ? user.id ?? null : null);
-  if (productPhone) return productPhone;
+  if (opts?.role !== "buyer") {
+    const productPhone = await resolveProductOwnerPhoneE164(sb, articleId, user.id ?? null);
+    if (productPhone) return productPhone;
+  }
 
   return "";
 }
