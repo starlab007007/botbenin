@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
         .filter((s: any) => s?.status === 'WORKING')
         .map((s: any) => s.name)
         .filter(Boolean);
-      const startIndex = cursor ? Math.max(0, workingSessions.indexOf(cursor)) : 0;
+      const startIndex = cursor ? Math.max(0, workingSessions.indexOf(cursor) + 1) : 0;
       sessionsToUse = workingSessions.slice(startIndex, startIndex + maxSessions);
 
       try {
