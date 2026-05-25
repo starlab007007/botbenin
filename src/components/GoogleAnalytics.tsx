@@ -1,15 +1,14 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-// Google Analytics 4 Measurement ID
-const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // À remplacer par votre ID GA4
+const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || '';
+const isGaConfigured = () => /^G-[A-Z0-9]+$/.test(GA_MEASUREMENT_ID);
 
 export const GoogleAnalytics = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // Skip if GA ID is not configured (placeholder)
-    if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.includes('XXXX')) return;
+    if (!isGaConfigured()) return;
 
     // Charger le script GA4
     if (!window.gtag) {
@@ -28,6 +27,8 @@ export const GoogleAnalytics = () => {
   }, []);
 
   useEffect(() => {
+    if (!isGaConfigured()) return;
+
     // Tracker les changements de page
     if (window.gtag) {
       window.gtag('config', GA_MEASUREMENT_ID, {
