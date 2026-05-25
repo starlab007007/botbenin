@@ -12,6 +12,28 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Récupérer le code GitHub Actions
+        uses: actions/checkout@v4
+
+      - name: Préparer l'archive de déploiement
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            --exclude='*.log' \
+            --exclude='botbenin-release.tgz' \
+            -czf botbenin-release.tgz .
+
+      - name: Envoyer le code sur le VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: botbenin-release.tgz
+          target: /tmp
+
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -21,13 +43,24 @@ jobs:
           script: |
             set -e  # Arrête le script en cas d'erreur
 
+            echo "📥 Mise à jour du code depuis l'archive GitHub Actions..."
+            if [ ! -f /tmp/botbenin-release.tgz ]; then
+              echo "❌ Archive de déploiement introuvable sur le VPS";
+              exit 1;
+            fi
+            rm -rf /tmp/botbenin-release
+            mkdir -p /tmp/botbenin-release /home/debian/botbenin
+            tar -xzf /tmp/botbenin-release.tgz -C /tmp/botbenin-release
+            if command -v rsync >/dev/null 2>&1; then
+              rsync -a --delete /tmp/botbenin-release/ /home/debian/botbenin/
+            else
+              rm -rf /home/debian/botbenin/* /home/debian/botbenin/.[!.]* /home/debian/botbenin/..?* 2>/dev/null || true
+              cp -a /tmp/botbenin-release/. /home/debian/botbenin/
+            fi
             cd /home/debian/botbenin/
-
-            echo "📥 Mise à jour du code..."
-            BRANCH="${{ github.ref_name }}"
-            echo "Branche: $BRANCH"
-            git fetch origin "$BRANCH" || { echo "❌ Erreur lors du git fetch"; exit 1; }
-            git reset --hard "origin/$BRANCH" || { echo "❌ Erreur lors de la synchronisation"; exit 1; }
+            rm -rf /tmp/botbenin-release
+            rm -f /tmp/botbenin-release.tgz
+            echo "✅ Code synchronisé sans accès GitHub SSH côté VPS"
 
             echo "🛑 Arrêt des anciens conteneurs..."
             docker compose down || echo "⚠️ Aucun conteneur à arrêter"
