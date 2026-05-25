@@ -192,7 +192,9 @@ Deno.serve(async (req) => {
             .select("id, phone_number, auth_user_id")
             .eq("id", it.to_user_id)
             .maybeSingle();
-          const role = it.template === "match_seller" || it.event_type === "seller_new_interest" ? "seller" : "buyer";
+          const role = it.payload?.target_role === "seller" || it.payload?.target_role === "buyer"
+            ? it.payload.target_role
+            : (it.template === "match_seller" || it.event_type === "seller_new_interest" ? "seller" : "buyer");
           const resolved = await resolveRealPhoneE164(sb, targetUser, { article_id: it.payload?.article_id ?? null, role });
           if (resolved) toPhone = resolved;
         } catch (_) { /* garde le to_phone déjà en file */ }
