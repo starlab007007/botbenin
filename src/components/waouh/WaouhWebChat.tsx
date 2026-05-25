@@ -423,6 +423,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       )}
 
       {variant !== "native" && <WaouhQuickActions onAction={handleQuickAction} disabled={sending} />}
+      {variant === "native" && composerTopSlot}
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
