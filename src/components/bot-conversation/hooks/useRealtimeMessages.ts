@@ -20,7 +20,7 @@ export const useRealtimeMessages = (botUserId: string | null, fetchMessages: () 
       return;
     }
 
-    const channelName = `messages_${botUserId}`;
+    const channelName = `messages_${botUserId}_${Math.random().toString(36).slice(2, 8)}`;
     console.log(`[useRealtimeMessages] Subscribing to channel: ${channelName}`);
     
     const channel = supabase
