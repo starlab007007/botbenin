@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
         await pushToOther(
           otherUserId,
           "contact_exchange",
-          { neg_id: neg.id, accepted: true, price: amount, from_user_id: user.id },
+          { neg_id: neg.id, article_id: neg.article_id, accepted: true, price: amount, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
           targetReply,
           { intent: "contact_exchange", negotiation_id: neg.id },
           null,
