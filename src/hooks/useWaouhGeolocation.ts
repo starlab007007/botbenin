@@ -51,15 +51,44 @@ export function useWaouhGeolocation() {
     }
   }, [geo.lat, geo.lng, geo.country]);
 
-  // auto request once
+  // Watch position en continu pour avoir une position LIVE.
   useEffect(() => {
     if (!navigator.geolocation) return;
-    if (localStorage.getItem(CACHE_KEY)) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => reverseGeocode(pos.coords.latitude, pos.coords.longitude),
+    let lastGeocodeAt = 0;
+    let lastLat: number | null = null;
+    let lastLng: number | null = null;
+    // 1er fix immédiat si pas de cache OU cache > 5 min
+    let cacheStale = true;
+    try {
+      const c = localStorage.getItem(CACHE_KEY);
+      if (c) cacheStale = (Date.now() - (JSON.parse(c)?.at || 0)) > 5 * 60 * 1000;
+    } catch {}
+    if (cacheStale) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => reverseGeocode(pos.coords.latitude, pos.coords.longitude),
+        () => {},
+        { timeout: 8000, enableHighAccuracy: true }
+      );
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        // Mise à jour locale immédiate (sans appel geocode si déplacement < 200 m et < 2 min)
+        const now = Date.now();
+        const moved = lastLat == null || Math.hypot(lat - lastLat, lng - lastLng!) > 0.002;
+        const stale = now - lastGeocodeAt > 2 * 60 * 1000;
+        setGeo((g) => ({ ...g, lat, lng }));
+        if (moved && stale) {
+          lastGeocodeAt = now;
+          lastLat = lat;
+          lastLng = lng;
+          reverseGeocode(lat, lng);
+        }
+      },
       () => {},
-      { timeout: 8000, enableHighAccuracy: false }
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
     );
+    return () => { navigator.geolocation.clearWatch(watchId); };
   }, [reverseGeocode]);
 
   const refresh = useCallback(() => {
@@ -70,6 +99,7 @@ export function useWaouhGeolocation() {
       { timeout: 8000, enableHighAccuracy: true }
     );
   }, [reverseGeocode]);
+
 
   return { geo, loading, setCity, refresh };
 }
