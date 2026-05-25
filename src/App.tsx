@@ -153,7 +153,12 @@ const MobileBots = lazy(() => import("./app-mobile/screens/BotsScreen"));
 const MobileCreateBot = lazy(() => import("./app-mobile/screens/CreateBotWizard"));
 const MobileWhatsApp = lazy(() => import("./app-mobile/screens/WhatsAppScreen"));
 const MobileDiffusion = lazy(() => import("./app-mobile/screens/DiffusionScreen"));
-const MobilePartner = lazy(() => import("./app-mobile/screens/PartnerScreen"));
+const MobilePartner = lazy(() => import("./app-mobile/screens/partner/PartnerHomeScreen"));
+const MobilePartnerBusinesses = lazy(() => import("./app-mobile/screens/partner/PartnerBusinessesScreen"));
+const MobilePartnerProducts = lazy(() => import("./app-mobile/screens/partner/PartnerProductsScreen"));
+const MobilePartnerSales = lazy(() => import("./app-mobile/screens/partner/PartnerSalesScreen"));
+const MobilePartnerPayouts = lazy(() => import("./app-mobile/screens/partner/PartnerPayoutsScreen"));
+const MobilePartnerPayments = lazy(() => import("./app-mobile/screens/partner/PartnerPaymentsScreen"));
 const MobileAuthHome = lazy(() => import("./app-mobile/screens/auth/AuthHomeScreen"));
 const MobileAuthEmail = lazy(() => import("./app-mobile/screens/auth/EmailAuthScreen"));
 const MobileAuthOtp = lazy(() => import("./app-mobile/screens/auth/WhatsAppOtpScreen"));
@@ -291,6 +296,12 @@ const AppContent = () => {
                     <Route path="whatsapp" element={<MobileWhatsApp />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
+                    <Route path="partner/businesses" element={<MobilePartnerBusinesses />} />
+                    <Route path="partner/businesses/:businessId/products" element={<MobilePartnerProducts />} />
+                    <Route path="partner/b/:code/produits" element={<MobilePartnerProducts />} />
+                    <Route path="partner/sales" element={<MobilePartnerSales />} />
+                    <Route path="partner/payouts" element={<MobilePartnerPayouts />} />
+                    <Route path="partner/payments" element={<MobilePartnerPayments />} />
                     <Route path="profile" element={<MobileProfile />} />
                   </Route>
 
