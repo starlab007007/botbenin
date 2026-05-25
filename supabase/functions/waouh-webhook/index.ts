@@ -269,14 +269,30 @@ serve(async (req) => {
     let nextContext: any = conv?.context ?? {};
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
-    const paymentCard = (amount: number, txId?: string | null) =>
-      `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? txId.slice(0, 8).toUpperCase() : "créée"}`;
+    const waouhSep = "━━━━━━━━━━━━━━━━━━";
+    const waouhHeader = (t: string) => `${waouhSep}\n*${t}*\n${waouhSep}`;
+    const waouhFooter = (t = "WAOUH — Achetez · Vendez · Négociez en confiance") => `${waouhSep}\n_✨ ${t}_`;
+    const fmtDistance = (km: number | null) => {
+      if (km == null) return "";
+      if (km < 1) return `📏 *à ${Math.round(km * 1000)} m de vous*`;
+      return `📏 *à ${km.toString().replace(".", ",")} km de vous*`;
+    };
+    // Distance Haversine côté JS (fallback si pas de RPC PostGIS)
+    const haversineKm = (la1?: number | null, lo1?: number | null, la2?: number | null, lo2?: number | null) => {
+      if (la1 == null || lo1 == null || la2 == null || lo2 == null) return null;
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(la2 - la1);
+      const dLng = toRad(lo2 - lo1);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(la1)) * Math.cos(toRad(la2)) * Math.sin(dLng / 2) ** 2;
+      return Math.round(2 * 6371 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+    };
     // Petite phrase analytique IA sur le prix (best-effort, fail-soft)
     const marketNote = async (title: string, price: number, min: number, max: number, city: string): Promise<string> => {
       try {
         const r = await ai(
           `Tu es analyste prix marché Bénin. Rends UNE SEULE phrase concise (max 22 mots) qui qualifie le prix proposé par rapport au marché local (cher/correct/bonne affaire) avec un chiffre approximatif. JSON: {"note": string}`,
           `Produit: ${title}\nPrix proposé: ${price} FCFA\nFourchette marché: ${min} – ${max} FCFA\nVille: ${city}`
+
         );
         return typeof r?.note === "string" ? r.note.trim() : "";
       } catch { return ""; }
