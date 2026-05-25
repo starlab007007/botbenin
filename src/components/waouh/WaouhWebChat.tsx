@@ -16,7 +16,7 @@ import { WaouhSellWizard } from "./WaouhSellWizard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
-type Att = { url: string; type: string };
+type Att = { url: string; type: string; caption?: string };
 type WaouhAction = { id: string; label: string; url?: string };
 const stripLegacy = (t: string) =>
   (t || "")
