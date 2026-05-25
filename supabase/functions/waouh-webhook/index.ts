@@ -622,11 +622,17 @@ serve(async (req) => {
           return `*${idx}. ${title}*\n   💰 ${price}\n   📍 ${city}\n   📡 Source : Radar IA${r.contact_phone ? " · contact extrait" : ""}`;
         }).join("\n\n");
         // Envoyer toutes les photos disponibles (partenaires + officiels, max 2 par produit, plafond 6)
+        // ⚠️ Filtrer les URLs non-publiques (WAHA) qui ne s'affichent pas dans le chat web (auth X-Api-Key requise)
+        const isPublicImageUrl = (u: any): u is string =>
+          typeof u === "string"
+          && /^https?:\/\//i.test(u)
+          && !u.includes("waha.bot.bj")
+          && !u.includes("/api/files/");
         replyAttachments = [
           ...partnerTop.flatMap((p: any) => Array.isArray(p.photos) ? p.photos.slice(0, 2) : []),
           ...matchesTop.flatMap((m: any) => Array.isArray(m.photos) ? m.photos.slice(0, 2) : []),
         ]
-          .filter((url: any) => typeof url === "string")
+          .filter(isPublicImageUrl)
           .slice(0, 6)
           .map((url: string) => ({ url, type: "image/jpeg" }));
         const radarHint = radarTop.length > 0
