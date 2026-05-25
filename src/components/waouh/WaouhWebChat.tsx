@@ -422,7 +422,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
-      <WaouhQuickActions onAction={handleQuickAction} disabled={sending} />
+      {variant !== "native" && <WaouhQuickActions onAction={handleQuickAction} disabled={sending} />}
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
