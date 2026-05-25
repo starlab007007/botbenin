@@ -331,15 +331,31 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
                 )}
                 {m.text && m.text !== "(image)" && (
                   <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
                     components={{
-                      hr: () => <div className="my-2 h-px bg-gradient-to-r from-cyan-500/40 via-blue-500/40 to-cyan-500/40" />,
-                      strong: ({ children }) => <strong className="text-cyan-700 dark:text-cyan-300 font-semibold">{children}</strong>,
+                      hr: () => <div className="my-3 h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />,
+                      h1: ({ children }) => <h1 className="text-base font-bold text-foreground mt-2 mb-1">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-sm font-bold text-foreground mt-2 mb-1">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-sm font-semibold text-foreground mt-1.5 mb-0.5">{children}</h3>,
+                      strong: ({ children }) => <strong className="text-emerald-700 dark:text-emerald-300 font-semibold">{children}</strong>,
                       em: ({ children }) => <em className="text-muted-foreground not-italic text-xs">{children}</em>,
+                      ul: ({ children }) => <ul className="list-none pl-0 my-1 space-y-1">{children}</ul>,
+                      li: ({ children }) => <li className="flex gap-2"><span className="text-emerald-500 mt-[2px]">•</span><span className="flex-1">{children}</span></li>,
+                      p: ({ children }) => {
+                        const s = typeof children === "string" ? children : Array.isArray(children) ? children.join("") : "";
+                        const isLocBlock = /^(📞|🟢|🏙️|📏|📇|👤|💰|📦)/.test(s.trim());
+                        if (isLocBlock) {
+                          return <p className="my-0.5 leading-relaxed">{children}</p>;
+                        }
+                        return <p className="my-1 leading-relaxed">{children}</p>;
+                      },
+                      a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">{children}</a>,
                     }}
                   >
                     {stripLegacy(m.text)}
                   </ReactMarkdown>
                 )}
+
                 {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
                     {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
