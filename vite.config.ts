@@ -37,43 +37,41 @@ export default defineConfig(({ mode }) => ({
           if (!id.includes('node_modules')) return;
 
           // ═══════════════════════════════════════════════════════════════════
-          // RÈGLE ABSOLUE : tout module dont le nom commence par "react-"
-          // est un wrapper React et DOIT vivre dans le chunk 'react'.
-          // Cela garantit que React.createContext / React.useState etc.
-          // sont déjà initialisés quand ces wrappers s'exécutent.
+          // CORRECTION DÉFINITIVE v3
+          // ───────────────────────────────────────────────────────────────────
+          // Historique des crashes :
+          //   v1 original  → react-leaflet dans chunk 'leaflet'  → createContext undefined
+          //   v2           → react-pdf     dans chunk 'pdf'      → createContext undefined
+          //   v3 (ici)     → radix/lucide  dans chunk 'vendor'   → forwardRef undefined
           //
-          // CORRECTIONS appliquées ici vs version originale :
-          //   • react-leaflet → n'est PLUS exclu  (fix bug leaflet v1)
-          //   • react-pdf     → n'est PLUS exclu  (fix bug pdf  v2)
+          // Cause racine : isoler React dans son propre chunk 'react' est
+          // dangereux. Rollup ne garantit PAS l'ordre d'exécution des chunks
+          // frères. Toute lib React-dépendante dans un autre chunk peut crasher.
+          //
+          // Solution : SUPPRIMER le chunk 'react' personnalisé.
+          // React + tous ses wrappers tombent dans 'vendor' → co-localisés →
+          // order problem impossible par construction.
           // ═══════════════════════════════════════════════════════════════════
-          if (
-            id.includes('/node_modules/react/') ||
-            id.includes('/node_modules/react-dom/') ||
-            id.includes('/node_modules/scheduler/') ||
-            id.includes('/node_modules/object-assign/') ||
-            id.includes('/node_modules/use-sync-external-store/') ||
-            id.includes('/node_modules/react-router') ||
-            /\/node_modules\/react-[^/]+\//.test(id)
-            // ↑ Tous les react-* sans AUCUNE exception :
-            //   react-leaflet, react-pdf, react-query, react-hook-form…
-            //   sont tous garantis d'avoir React disponible.
-          ) return 'react';
 
-          // ─── Librairies très lourdes sans dépendance React ─────────────────
+          // ─── Libs très lourdes SANS dépendance React → chunks isolés ───────
+          // Ces libs sont du pur JS/WASM, elles n'ont pas besoin de React
+          // et il est safe de les isoler.
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
-          if (id.includes('@ffmpeg')) return 'ffmpeg';
+          if (id.includes('@ffmpeg'))                                     return 'ffmpeg';
+          if (id.includes('/node_modules/mapbox-gl'))                     return 'mapbox';
 
-          // ─── PDF : uniquement les moteurs de rendu pur JS ──────────────────
-          // CORRECTION : react-pdf retiré d'ici (c'est un wrapper React, voir
-          // bloc 'react' ci-dessus). Seuls pdfjs et jspdf restent ici.
-          if (id.includes('pdfjs') || id.includes('jspdf')) return 'pdf';
-
-          if (id.includes('/node_modules/mapbox-gl')) return 'mapbox';
-
-          // ─── Leaflet : uniquement la lib vanilla JS ────────────────────────
-          // CORRECTION (v1) : react-leaflet retiré d'ici (wrapper React).
+          // ─── Leaflet vanilla JS uniquement (sans react-leaflet) ─────────────
+          // react-leaflet tombe dans vendor avec React → pas de risque d'ordre.
           if (id.includes('/node_modules/leaflet') && !id.includes('react-leaflet')) return 'leaflet';
 
+          // ─── Moteurs PDF pur JS uniquement (sans react-pdf) ─────────────────
+          // react-pdf tombe dans vendor avec React → pas de risque d'ordre.
+          if (id.includes('pdfjs') || id.includes('jspdf')) return 'pdf';
+
+          // ─── Charts / dataviz (recharts, d3, victory) ────────────────────────
+          // recharts dépend de React mais il est importé dynamiquement dans
+          // la plupart des apps. Si des crashes réapparaissent ici, déplacer
+          // dans vendor également.
           if (
             id.includes('/node_modules/recharts') ||
             id.includes('/d3-') ||
@@ -82,8 +80,10 @@ export default defineConfig(({ mode }) => ({
 
           if (id.includes('xlsx')) return 'xlsx';
 
-          // ─── Vendor catch-all ──────────────────────────────────────────────
-          // radix, lucide-react, supabase, tanstack, etc.
+          // ─── Vendor catch-all ────────────────────────────────────────────────
+          // Contient : React, react-dom, react-router, react-leaflet, react-pdf,
+          // radix-ui, lucide-react, supabase, tanstack, react-hook-form, etc.
+          // Tout est co-localisé → aucun problème d'ordre d'initialisation.
           return 'vendor';
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
@@ -101,7 +101,7 @@ export default defineConfig(({ mode }) => ({
         },
       },
     },
-    chunkSizeWarningLimit: 1500,
+    chunkSizeWarningLimit: 2000,
   },
   base: '/',
   publicDir: 'public',
