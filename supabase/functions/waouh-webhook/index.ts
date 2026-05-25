@@ -847,7 +847,7 @@ serve(async (req) => {
         }).eq("id", neg.id);
         returnedTransactionId = null;
         if (otherId) {
-          const counterText = `${waouhHeader(`🤝 ${isBuyer ? "Nouvelle offre acheteur" : "Contre-offre vendeur"}`)}\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez :\n• *OUI* pour accepter\n• *NON* pour refuser\n• *Je propose XXX FCFA* pour une autre offre\n\n${waouhFooter()}`;
+          const counterText = `${waouhHeader(`🤝 ${isBuyer ? "Nouvelle offre acheteur" : "Contre-offre vendeur"}`)}\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose XXX FCFA* pour une autre offre.\n\n${waouhFooter()}`;
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
