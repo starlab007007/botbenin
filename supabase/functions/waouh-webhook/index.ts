@@ -845,103 +845,28 @@ serve(async (req) => {
         await sb.from("waouh_negotiations").update({
           state: "countered", last_offer_price: amount, last_actor: isBuyer ? "buyer" : "seller",
         }).eq("id", neg.id);
-        if (neg.transaction_id) {
-          await sb.from("waouh_transactions").update({
-            amount, negotiated_price: amount,
-            commission: Math.round(amount * 0.05),
-            status: "payment_pending",
-          }).eq("id", neg.transaction_id);
-        }
-        returnedTransactionId = neg.transaction_id ?? null;
+        returnedTransactionId = null;
         if (otherId) {
+          const counterText = `${waouhHeader(`🤝 ${isBuyer ? "Nouvelle offre acheteur" : "Contre-offre vendeur"}`)}\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez :\n• *OUI* pour accepter\n• *NON* pour refuser\n• *Je propose XXX FCFA* pour une autre offre\n\n${waouhFooter()}`;
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
-            payload: {
-              neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount,
-              transaction_id: returnedTransactionId,
-              actions: [],
-            },
-            directText: `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(amount)} CFA).`,
-            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: returnedTransactionId },
-            transaction_id: returnedTransactionId,
+            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [] },
+            directText: counterText,
+            directMeta: { intent: "negotiation_open", negotiation_id: neg.id },
+            transaction_id: null,
             dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
             event_type: "negotiation_counter",
           });
         }
-        reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de ${fmt(amount)} transmise. Vous serez notifié de la réponse.`;
+        reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de *${fmt(amount)}* transmise. Vous serez notifié de la réponse.`;
       } else {
-        reply = `💬 Indiquez votre prix : « Je propose ${fmt(neg.last_offer_price || 0)} »`;
-      }
-    } else if (intent.intent === "PAY") {
-      // Trouve la transaction/négociation courante et renvoie la carte de paiement web
-      const { data: neg } = await sb.from("waouh_negotiations")
-        .select("*")
-        .eq("buyer_user_id", user!.id)
-        .in("state", ["proposed", "countered", "accepted"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!neg) {
-        reply = "🤔 Aucune transaction en cours. Cherchez un produit et confirmez votre intérêt avant de payer.";
-      } else {
-        await sb.from("waouh_negotiations").update({ state: "accepted" }).eq("id", neg.id);
-        let txId = neg.transaction_id;
-        if (!txId) {
-          const amount = Number(neg.last_offer_price || 0);
-          const { data: tx } = await sb.from("waouh_transactions").insert({
-            article_id: neg.article_id,
-            seller_id: neg.seller_user_id,
-            buyer_id: user!.id,
-            amount,
-            commission: Math.round(amount * 0.05),
-            payment_method: "mobile_money",
-            negotiated_price: amount,
-            status: "payment_pending",
-            escrow_status: "pending",
-          }).select().single();
-          txId = tx?.id ?? null;
-          if (txId) await sb.from("waouh_negotiations").update({ transaction_id: txId }).eq("id", neg.id);
-        }
-        returnedArticleId = neg.article_id;
-        returnedTransactionId = txId;
-        const payAmount = Number(neg.last_offer_price || 0);
-        returnedActions = [];
-        if (channel === "whatsapp" && intent.payment_phone && txId) {
-          const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "init", transaction_id: txId, msisdn: intent.payment_phone, operator: intent.operator || "mtn", waouh_buyer_id: user!.id }),
-          });
-          const pay = await payRes.json().catch(() => ({}));
-          reply = pay?.success
-            ? `✅ *Paiement confirmé*\n\n💰 *Montant* : ${fmt(payAmount)}\n🔒 *Escrow* : Fonds bloqués jusqu'à réception.\n\nAprès livraison, écrivez *j'ai reçu* pour terminer la transaction.`
-            : `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\nvalidez la notification reçue sur votre téléphone`;
-        } else {
-          reply = channel === "whatsapp"
-            ? `💳 *Paiement prêt*${paymentCard(payAmount, txId)}\n\nvalidez la notification reçue sur votre téléphone`
-            : `💳 *Paiement prêt* — ${fmt(payAmount)}\n\nvalidez la notification reçue sur votre téléphone`;
-        }
-      }
-    } else if (intent.intent === "CONFIRM_RECEIVED") {
-      const txId = conv?.current_transaction_id || nextContext?.current_transaction_id;
-      if (!txId) {
-        reply = "🤔 Aucune transaction à terminer. Payez d'abord une annonce puis confirmez la réception.";
-      } else {
-        const payRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-payment`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "confirm_received", transaction_id: txId, waouh_buyer_id: user!.id }),
-        });
-        const done = await payRes.json().catch(() => ({}));
-        reply = done?.success
-          ? "🎉 Réception confirmée. La transaction est terminée et les fonds sont libérés au vendeur (mode démo)."
-          : `Impossible de confirmer la réception : ${done?.error || "réessayez"}`;
-        returnedTransactionId = txId;
+        reply = `💬 Indiquez votre prix : « *Je propose ${fmt(neg.last_offer_price || 0)}* »`;
       }
     } else if (intent.intent === "HELP") {
-      reply = `🤖 *WAOUH — Commandes*\n\n• *Je vends ...* pour publier une annonce\n• *Je cherche ...* pour trouver un produit\n• *intéressé 1* pour contacter un vendeur\n• *Je propose X FCFA* pour négocier\n• *Je paye* pour finaliser`;
+      reply = `${waouhHeader("🤖 WAOUH — Commandes")}\n\n• *Je vends ...* — publier une annonce\n• *Je cherche ...* — trouver un produit\n• *intéressé 1* — contacter un vendeur\n• *Je propose X FCFA* — négocier\n• *OUI* / *NON* — répondre au vendeur ou à l'acheteur\n\n${waouhFooter()}`;
     }
+
 
     // Save conversation (avec contexte)
     await sb.from("waouh_conversations").upsert({
