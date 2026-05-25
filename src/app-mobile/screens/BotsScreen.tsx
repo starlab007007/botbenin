@@ -17,10 +17,15 @@ export default function BotsScreen() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate("/app/auth"); return; }
-    (async () => {
+    const load = async () => {
       const { data } = await supabase.from("bots").select("id,name,description,is_active,created_at").eq("owner_id", user.id).order("created_at", { ascending: false });
       setBots((data as any) ?? []); setLoading(false);
-    })();
+    };
+    load();
+    const ch = supabase.channel(`mobile-bots-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bots", filter: `owner_id=eq.${user.id}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [user, authLoading, navigate]);
 
   return (
