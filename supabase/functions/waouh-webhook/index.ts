@@ -26,6 +26,12 @@ function normalizeCategory(value: string | null | undefined) {
   return "autre";
 }
 
+function extractProductPhotos(source: any): string[] {
+  const p = source?.product || source || {};
+  const raw = [p.image_url, p.image, p.thumbnail_url, ...(Array.isArray(p.images) ? p.images : []), ...(Array.isArray(p.photos) ? p.photos : [])];
+  return [...new Set(raw.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u)))].slice(0, 6);
+}
+
 /**
  * Pour un produit issu du catalogue unifié, résout le numéro WhatsApp du vendeur
  * ET les sessions web du compte ayant enregistré l'entreprise (partner).
@@ -116,7 +122,7 @@ async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre")
   if (!sellerId) return null;
   const title = sig.product?.title || sig.product?.name || String(sig.raw_text || "Annonce Radar IA").slice(0, 120);
   const price = Number(sig.price || sig.product?.price || 0);
-  const photo = sig.product?.image_url || sig.product?.image || null;
+  const photos = extractProductPhotos(sig);
   const { data: existingArticle } = await sb.from("waouh_articles").select("id,title,price,seller_id,photos,market_price_min,market_price_max").eq("origin_signal_id", sig.id).maybeSingle();
   if (existingArticle) return existingArticle;
   const { data: art, error } = await sb.from("waouh_articles").insert({
@@ -127,7 +133,7 @@ async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre")
     price,
     currency: "XOF",
     city: sig.city,
-    photos: photo ? [photo] : [],
+    photos,
     status: "active",
     origin: "radar",
     origin_signal_id: sig.id,
