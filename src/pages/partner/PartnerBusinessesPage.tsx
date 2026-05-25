@@ -210,8 +210,8 @@ export default function PartnerBusinessesPage() {
               <div>
                 <Label>Catégorie *</Label>
                 <SmartCombobox value={form.categorie} onChange={v => setForm({ ...form, categorie: v })}
-                  options={BUSINESS_CATEGORIES} placeholder="Type d'activité"
-                  invalid={!!errors.categorie} errorMessage={errors.categorie} />
+                  options={[...BUSINESS_CATEGORIES, 'Autre']} placeholder="Type d'activité (saisir si absent)"
+                  allowCustom invalid={!!errors.categorie} errorMessage={errors.categorie} />
               </div>
               <LocationAutocomplete
                 ville={form.ville} quartier={form.quartier}
