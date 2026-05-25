@@ -339,7 +339,7 @@ serve(async (req) => {
       .maybeSingle();
 
     const lowerText = (text || "").toLowerCase();
-    const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends|paye|payer|paiement|payement)\b/i.test(lowerText);
+    const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
 
     if (openNeg && !shouldStayInCore) {
       const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
