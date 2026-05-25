@@ -89,7 +89,7 @@ export const useSupportRealtimeStats = () => {
 
   useEffect(() => {
     const channel = supabase
-      .channel('support_stats_realtime')
+      .channel(`support_stats_realtime_${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, load)
       .subscribe();
     const interval = setInterval(load, 30_000);
