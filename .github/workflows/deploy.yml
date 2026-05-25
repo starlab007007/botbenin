@@ -43,14 +43,17 @@ jobs:
           script: |
             set -e  # Arrête le script en cas d'erreur
 
-            cd /home/debian/botbenin/
-
             echo "📥 Mise à jour du code depuis l'archive GitHub Actions..."
             if [ ! -f /tmp/botbenin-release.tgz ]; then
               echo "❌ Archive de déploiement introuvable sur le VPS";
               exit 1;
             fi
-            tar -xzf /tmp/botbenin-release.tgz -C /home/debian/botbenin/
+            rm -rf /tmp/botbenin-release
+            mkdir -p /tmp/botbenin-release /home/debian/botbenin
+            tar -xzf /tmp/botbenin-release.tgz -C /tmp/botbenin-release
+            rsync -a --delete /tmp/botbenin-release/ /home/debian/botbenin/
+            cd /home/debian/botbenin/
+            rm -rf /tmp/botbenin-release
             rm -f /tmp/botbenin-release.tgz
             echo "✅ Code synchronisé sans accès GitHub SSH côté VPS"
 
