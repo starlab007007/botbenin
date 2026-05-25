@@ -494,10 +494,8 @@ serve(async (req) => {
         const min = product.market_price_min || product.price * 0.8;
         const max = product.market_price_max || product.price * 1.2;
         const aiNote = await marketNote(product.title || "", product.price, min, max, user!.city || "");
-        const geoLine = (typeof lat === "number" && typeof lng === "number")
-          ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${lat},${lng}` : "";
         const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
-        reply = `✅ *Annonce publiée*\n\n📦 *Produit* : ${product.title}\n💰 *Prix* : ${fmt(product.price)}\n📍 *Ville* : ${user!.city}${geoLine}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.`;
+        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title}*\n💰 *Prix* : ${fmt(product.price)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
 
