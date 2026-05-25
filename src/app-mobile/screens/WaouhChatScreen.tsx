@@ -1,0 +1,161 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ShoppingBag, Info, User, MessageSquareText } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import WaouhWebChat from "@/components/waouh/WaouhWebChat";
+import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
+import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
+import { useMobileProfile } from "../hooks/useMobileProfile";
+import { useIsNative } from "../hooks/useIsNative";
+import { supabase } from "@/integrations/supabase/client";
+
+const SESSION_KEY = "waouh_web_session_id";
+function getSessionId() {
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = (crypto as any).randomUUID?.() ?? `web_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
+
+/**
+ * Native-style Waouh chat — same chat engine as the web (WaouhWebChat),
+ * wrapped in a mobile-first WhatsApp-style chrome. Supports photo capture,
+ * notifications and (on native) push token registration.
+ */
+export default function WaouhChatScreen() {
+  const navigate = useNavigate();
+  const { profile } = useMobileProfile();
+  const isNative = useIsNative();
+  const sessionId = getSessionId();
+  const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } =
+    useWaouhMatchNotifications(sessionId);
+
+  useEffect(() => {
+    document.title = "WAOUH Chat — bot.bj";
+  }, []);
+
+  // Native push notifications registration
+  useEffect(() => {
+    if (!isNative) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { PushNotifications } = await import("@capacitor/push-notifications");
+        const perm = await PushNotifications.checkPermissions();
+        let status = perm.receive;
+        if (status === "prompt" || status === "prompt-with-rationale") {
+          const req = await PushNotifications.requestPermissions();
+          status = req.receive;
+        }
+        if (status !== "granted" || !mounted) return;
+        await PushNotifications.register();
+        PushNotifications.addListener("registration", async (token) => {
+          try {
+            await supabase.functions.invoke("register-device-token", {
+              body: { token: token.value, platform: "android" },
+            });
+          } catch (e) {
+            console.debug("[push] register failed", e);
+          }
+        });
+        PushNotifications.addListener("registrationError", (e) =>
+          console.debug("[push] regError", e)
+        );
+      } catch (e) {
+        console.debug("[push] not available", e);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isNative]);
+
+  return (
+    <div className="fixed inset-0 flex flex-col bg-background overflow-hidden mobile-shell">
+      <header
+        className="flex items-center justify-between gap-2 px-3 h-14 bg-[hsl(var(--wa-green))] text-white shrink-0"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+            <ShoppingBag className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-sm leading-tight truncate">WAOUH</span>
+              <Badge className="bg-emerald-400/90 text-emerald-950 border-0 text-[9px] py-0 px-1.5 h-4">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-700 mr-1 animate-pulse" />
+                IA
+              </Badge>
+            </div>
+            <span className="text-[11px] text-white/75 truncate block">
+              {profile?.full_name ? `Bonjour ${profile.full_name.split(" ")[0]}` : "Achetez · Vendez · Négociez"}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-0.5">
+          <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
+            <WaouhNotificationsBell
+              permission={permission}
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onRequestPermission={requestPermission}
+              onMarkAllRead={markAllRead}
+              onClearAll={clearAll}
+            />
+          </div>
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <button
+                className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25"
+                aria-label="Aide"
+              >
+                <Info className="w-5 h-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
+              <SheetHeader>
+                <SheetTitle>Comment utiliser WAOUH</SheetTitle>
+              </SheetHeader>
+              <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+                <p>Écrivez en français, Fon ou Yoruba. Exemples :</p>
+                <ul className="space-y-1.5">
+                  <li className="bg-muted rounded-lg p-2">"Je vends mon iPhone 14 Pro 256Go à Cotonou — 650 000 FCFA"</li>
+                  <li className="bg-muted rounded-lg p-2">"Je cherche un frigo d'occasion à Calavi, max 150 000 FCFA"</li>
+                  <li className="bg-muted rounded-lg p-2">"Je propose 580 000 FCFA pour l'iPhone"</li>
+                  <li className="bg-muted rounded-lg p-2">"Je paye en Mobile Money MTN, mon numéro 97 12 34 56"</li>
+                </ul>
+                <div className="p-3 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-xs">
+                  🔒 Paiements Mobile Money via escrow. L'argent n'est libéré qu'après confirmation.
+                </div>
+                <button
+                  onClick={() => navigate("/app/conversations")}
+                  className="w-full mt-2 p-3 rounded-lg border bg-card text-foreground text-sm flex items-center gap-2 hover:bg-muted"
+                >
+                  <MessageSquareText className="w-4 h-4" /> Voir mes conversations WhatsApp
+                </button>
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          <button
+            onClick={() => navigate("/app/profile")}
+            className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25"
+            aria-label="Profil"
+          >
+            <User className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 min-h-0">
+        <WaouhWebChat fullscreen />
+      </div>
+    </div>
+  );
+}
