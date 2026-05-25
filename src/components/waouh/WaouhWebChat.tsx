@@ -438,7 +438,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           aria-label="Choisir depuis la galerie"
           title={`Galerie (${pendingAtts.length}/${MAX_PHOTOS})`}
         >
-          <ImageIcon className="w-4 h-4" />
+          <Paperclip className="w-4 h-4" />
         </Button>
         <Textarea
           ref={inputRef}
