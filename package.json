@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@11labs/react": "^0.2.0",
+    "@capacitor-community/contacts": "^7.2.0",
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
     "@capacitor/android": "^8.3.4",
     "@capacitor/app": "^8.1.0",
