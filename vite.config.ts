@@ -30,47 +30,34 @@ export default defineConfig(({ mode }) => ({
     assetsDir: 'assets',
     sourcemap: false,
     cssCodeSplit: true,
-    minify: mode === 'production' ? 'terser' : false,
-    terserOptions: mode === 'production' ? {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        passes: 2,
-        pure_funcs: ['console.log', 'console.info', 'console.debug'],
-      },
-      mangle: { safari10: true },
-    } : undefined,
+    // esbuild minifier: plus sûr que terser sur les modules ESM complexes
+    // (évite les TDZ "Cannot access 'a' before initialization" après mangling)
+    minify: mode === 'production' ? 'esbuild' : false,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          // React core strictement isolé (évite tout cycle avec d'autres chunks)
+          // React core + tous les wrappers react-* dans le même chunk
+          // pour éviter les cycles d'initialisation entre chunks.
           if (
             id.includes('/node_modules/react/') ||
             id.includes('/node_modules/react-dom/') ||
             id.includes('/node_modules/scheduler/') ||
             id.includes('/node_modules/object-assign/') ||
-            id.includes('/node_modules/use-sync-external-store/')
+            id.includes('/node_modules/use-sync-external-store/') ||
+            id.includes('/node_modules/react-router') ||
+            (/\/node_modules\/react-[^/]+\//.test(id) && !id.includes('react-pdf') && !id.includes('react-leaflet'))
           ) return 'react';
-          if (id.includes('/node_modules/react-router')) return 'router';
-          // Tous les wrappers react-* doivent rester dans vendor (dépendent de React)
-          if (/\/node_modules\/react-[^/]+\//.test(id) && !id.includes('react-pdf')) return 'vendor';
-          if (id.includes('@radix-ui') || id.includes('cmdk') || id.includes('vaul')) return 'radix';
-          if (id.includes('/node_modules/recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
-          if (id.includes('/node_modules/leaflet') || id.includes('/node_modules/mapbox-gl')) return 'maps';
+          // Librairies très lourdes uniquement -> chunks isolés.
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
           if (id.includes('@ffmpeg')) return 'ffmpeg';
           if (id.includes('pdfjs') || id.includes('jspdf') || id.includes('react-pdf')) return 'pdf';
-          if (id.includes('@supabase')) return 'supabase';
-          if (id.includes('@tanstack')) return 'query';
-          if (id.includes('framer-motion') || id.includes('/motion/')) return 'motion';
-          if (id.includes('lucide-react')) return 'icons';
-          if (id.includes('@11labs') || id.includes('@elevenlabs')) return 'elevenlabs';
-          if (id.includes('jszip') || id.includes('crypto-js') || id.includes('dompurify')) return 'utils-heavy';
-          if (id.includes('date-fns')) return 'date';
-          if (id.includes('embla-carousel')) return 'carousel';
-          if (id.includes('react-hook-form') || id.includes('zod') || id.includes('@hookform')) return 'forms';
-          // Tout le reste -> vendor (évite que des helpers communs remontent dans 'charts')
+          if (id.includes('/node_modules/mapbox-gl')) return 'mapbox';
+          if (id.includes('/node_modules/leaflet') || id.includes('react-leaflet')) return 'leaflet';
+          if (id.includes('/node_modules/recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
+          if (id.includes('xlsx')) return 'xlsx';
+          // Tout le reste (radix, lucide-react, supabase, tanstack, etc.)
+          // -> un seul vendor pour éviter les cycles entre chunks.
           return 'vendor';
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
