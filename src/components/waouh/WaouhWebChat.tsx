@@ -280,23 +280,25 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
       )}
     >
-      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <MessageCircle className="w-5 h-5 shrink-0" />
-          <div className="min-w-0">
-            <div className="font-semibold leading-tight truncate">WAOUH</div>
-            <div className="text-xs opacity-90 truncate">Achetez · Vendez · Négociez · Payez</div>
+      {variant !== "native" && (
+        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <MessageCircle className="w-5 h-5 shrink-0" />
+            <div className="min-w-0">
+              <div className="font-semibold leading-tight truncate">WAOUH</div>
+              <div className="text-xs opacity-90 truncate">Achetez · Vendez · Négociez · Payez</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
+            {!embedded && !fullscreen && (
+              <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => setOpen(false)}>
+                <X className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
-          {!embedded && !fullscreen && (
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => setOpen(false)}>
-              <X className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-      </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/30 min-h-0">
         {messages.length === 0 && (
