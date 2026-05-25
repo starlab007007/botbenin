@@ -723,22 +723,17 @@ serve(async (req) => {
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
-        const existingTxId = nextContext?.current_transaction_id || conv?.current_transaction_id || null;
         const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
         const askPrice = Number(pick.price || 0);
-        if (alreadyOnArticle && existingTxId) {
+        if (alreadyOnArticle) {
           returnedArticleId = pick.id;
-          returnedTransactionId = existingTxId;
           returnedActions = [];
-          reply = `✅ *Mise en relation déjà ouverte*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou vous pouvez écrire ( Ex: Je propose ${fmt(askPrice)}) pour négocier.`;
+          reply = `${waouhHeader("✅ Mise en relation déjà ouverte")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez (Ex : *Je propose ${fmt(askPrice)}*) pour négocier.\n\n${waouhFooter()}`;
         } else {
-        // 🛒 Source du produit (chat / partner / radar) → résoudre le vendeur cible
         const pickSource: "chat" | "partner" | "radar" =
           pick.source === "partner" ? "partner" :
           pick.source === "radar" || pick.radar ? "radar" : "chat";
-        // 🛒 Résolution complète des contacts vendeur (téléphone + web sessions partner)
         const vendorContacts = await resolveVendorContacts(sb, pick);
-        // Si pas de seller_id (partenaire) → upsert un stub waouh_users à partir du WhatsApp marchand
         if (!pick.seller_id) {
           if (vendorContacts.phone) {
             const stub = await ensureWaouhVendorStub(sb, vendorContacts.phone, {
@@ -749,43 +744,30 @@ serve(async (req) => {
             if (stub?.id) pick.seller_id = stub.id;
           }
         }
-        // Récupère vendeur (phone + web session)
         const { data: seller } = pick.seller_id
-          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id").eq("id", pick.seller_id).maybeSingle()
+          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city").eq("id", pick.seller_id).maybeSingle()
           : { data: null };
-        // Récupère 1ère photo (article officiel ou pick partner/radar)
         const { data: artPhoto } = pick.seller_id
           ? await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle()
           : { data: null };
         const fallbackPhoto = Array.isArray(pick.photos) && pick.photos.length > 0 ? pick.photos[0] : null;
         const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : fallbackPhoto;
-        // Crée la négociation
+        // Distance live acheteur ↔ vendeur (RPC PostGIS)
+        let distKm: number | null = null;
+        if (pick.seller_id) {
+          try {
+            const { data: d } = await sb.rpc("waouh_point_distance_km", { p_user: pick.seller_id, p_lat: lat, p_lng: lng });
+            if (typeof d === "number") distKm = Math.round(d * 10) / 10;
+          } catch {}
+        }
+        // Négociation seule, AUCUNE transaction n'est créée (plus de paiement)
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
           state: "proposed", last_offer_price: askPrice, last_actor: "buyer",
           meta: { source: pickSource },
         }).select().single();
         returnedArticleId = pick.id;
-        const commission = Math.round(askPrice * 0.05);
-        const { data: tx } = await sb.from("waouh_transactions").insert({
-          article_id: pick.id,
-          seller_id: pick.seller_id,
-          buyer_id: user!.id,
-          amount: askPrice,
-          commission,
-          payment_method: "mobile_money",
-          negotiated_price: askPrice,
-          status: "payment_pending",
-          escrow_status: "pending",
-        }).select().single();
-        returnedTransactionId = tx?.id ?? null;
-        if (neg?.id && returnedTransactionId) {
-          await sb.from("waouh_negotiations").update({ transaction_id: returnedTransactionId }).eq("id", neg.id);
-        }
-        // Notifie le vendeur :
-        //  - WhatsApp via TOUS les numéros résolus (whatsapp + tel + mobile money) pour
-        //    garantir la livraison sur la ligne réellement utilisée par le marchand
-        //  - Web chat du compte ayant enregistré l'entreprise
+        returnedTransactionId = null;
         const sellerCanon = seller?.phone_number ? normalizeBeninPhone(seller.phone_number) : null;
         const phonesToPush: string[] = [];
         const seenP = new Set<string>();
@@ -793,9 +775,10 @@ serve(async (req) => {
           if (p && !seenP.has(p)) { seenP.add(p); phonesToPush.push(p); }
         }
         const vendorPhoneForPush = phonesToPush[0] || null;
+        const distLineSeller = distKm != null ? `\n${fmtDistance(distKm)}` : "";
+        const sellerText = `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n📦 *${pick.title}*\n💰 *Prix demandé* : ${fmt(askPrice)}${distLineSeller}\n🏙️ Acheteur : ${user!.city || "?"}\n\nRépondez :\n• *OUI* pour accepter\n• *NON* pour refuser\n• *Je propose ${fmt(Math.round(askPrice * 0.9))}* pour contre-offrir\n\n${waouhFooter()}`;
         if (seller?.id || phonesToPush.length > 0 || vendorContacts.web_sessions.length > 0) {
           try {
-            // Premier push : couvre web + 1er numéro + sessions web miroir
             await pushToOther({
               to_user_id: seller?.id ?? null,
               to_phone: vendorPhoneForPush,
@@ -805,18 +788,16 @@ serve(async (req) => {
               payload: {
                 article_id: pick.id, title: pick.title, price: askPrice,
                 buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
-                transaction_id: returnedTransactionId,
                 actions: [],
               },
               image_url: firstPhoto,
-              directText: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez votre contre-offre (ex: *Je propose ${fmt(Math.round(askPrice * 0.9))}*).`,
-              directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [],
-              directMeta: { intent: "match_seller", article_id: pick.id, transaction_id: returnedTransactionId, negotiation_id: neg?.id, source: pickSource },
-              transaction_id: returnedTransactionId,
+              directText: sellerText,
+              directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [],
+              directMeta: { intent: "match_seller", article_id: pick.id, negotiation_id: neg?.id, source: pickSource },
+              transaction_id: null,
               dedupe_key: `match:${neg?.id ?? pick.id}:${pickSource}`,
               event_type: "seller_new_interest",
             });
-            // Push direct WhatsApp sur les numéros supplémentaires (tel / mobile money / partner perso)
             for (const extraPhone of phonesToPush.slice(1)) {
               try {
                 await sb.rpc("waouh_enqueue_outbound_v2", {
@@ -826,30 +807,26 @@ serve(async (req) => {
                   p_payload: {
                     article_id: pick.id, title: pick.title, price: askPrice,
                     buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
-                    transaction_id: returnedTransactionId,
-                    actions: [],
-                    text: `📩 *Nouvel acheteur intéressé*\n\n📦 *Produit* : ${pick.title}\n💰 *Je propose ${fmt(askPrice)}*\n\nUn acheteur souhaite acquérir votre annonce.\n\nRépondez *OUI* pour accepter, *NON* pour refuser.`,
+                    actions: [], text: sellerText,
                   },
                   p_channel: "whatsapp",
                   p_image_url: firstPhoto,
-                  p_transaction_id: returnedTransactionId,
                   p_dedupe_key: `wa:match:${neg?.id ?? pick.id}:${pickSource}:${extraPhone}`,
                   p_event_type: "seller_new_interest",
                 });
               } catch (e) { console.warn("[interest-push] extra phone enqueue failed", extraPhone, e); }
             }
-            console.log("[interest-push] enqueue ok", { source: pickSource, seller_id: seller?.id, neg_id: neg?.id, tx: returnedTransactionId, phones: phonesToPush, web_sessions: vendorContacts.web_sessions.length });
-          } catch (e) {
-            console.error("[interest-push] enqueue failed", e);
-          }
+          } catch (e) { console.error("[interest-push] enqueue failed", e); }
         } else {
-          console.warn("[interest-push] no seller, no vendor phone, no partner web session", { pick_id: pick.id, source: pickSource });
+          console.warn("[interest-push] no seller, no vendor phone", { pick_id: pick.id, source: pickSource });
         }
-        replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg" }] : [];
+        replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [];
         returnedActions = [];
-        reply = `✅ *Demande envoyée au vendeur*\n\n📦 *Produit* : ${pick.title}\n💰 *Prix* : ${fmt(askPrice)}\n${firstPhoto ? "📸 *Photo transmise avec la demande*\n" : ""}\nLe vendeur reçoit votre intérêt. Pour proposer un prix différent, écrivez (Exemple : Je propose 450 FCFA).`;
+        const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
+        reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\nLe vendeur va recevoir votre intérêt. Pour proposer un prix différent, écrivez (Ex : *Je propose ${fmt(Math.round(askPrice * 0.9))}*).\n\n${waouhFooter()}`;
         }
       }
+
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
       const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
       // Trouver la négociation ouverte (acheteur OU vendeur)
