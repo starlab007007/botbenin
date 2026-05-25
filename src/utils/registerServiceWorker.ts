@@ -13,7 +13,11 @@ export const registerServiceWorker = () => {
 
   runWhenIdle(async () => {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      const registration = await navigator.serviceWorker.register(`/sw.js?v=${Date.now()}`, {
+        scope: '/',
+        updateViaCache: 'none',
+      });
+      await registration.update();
       console.log('Service Worker enregistré:', registration.scope);
       if ('Notification' in window && Notification.permission === 'default') {
         // Ne pas prompter d'office, juste préparer
