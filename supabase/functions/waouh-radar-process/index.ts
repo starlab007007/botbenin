@@ -33,6 +33,12 @@ function extractPhone(sig: any) {
   return normalizeBeninPhone(sig.contact_phone) || normalizeBeninPhone(sig.raw_text) || normalizeBeninPhone(sig.contact_handle);
 }
 
+function extractProductPhotos(sig: any): string[] {
+  const p = sig?.product || {};
+  const raw = [p.image_url, p.image, p.thumbnail_url, ...(Array.isArray(p.images) ? p.images : []), ...(Array.isArray(p.photos) ? p.photos : [])];
+  return [...new Set(raw.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u)))].slice(0, 6);
+}
+
 async function ensureRadarUser(sb: any, sig: any, phone: string | null) {
   if (phone) {
     const { data: existing } = await sb.from("waouh_users").select("id").eq("phone_number", phone).maybeSingle();
@@ -55,6 +61,7 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
   const title = sig.product?.title || sig.product?.name || String(sig.raw_text || "Annonce Radar IA").slice(0, 120);
   const category = normalizeCategory(sig.category || sig.product?.category);
   const price = Number(sig.price || sig.product?.price || 0);
+  const photos = extractProductPhotos(sig);
 
   if (sig.intent === "SELL") {
     const { data: existing } = await sb.from("waouh_articles").select("id").eq("origin_signal_id", sig.id).maybeSingle();
@@ -67,6 +74,7 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
       price,
       currency: "XOF",
       city: sig.city,
+      photos,
       status: "active",
       origin: "radar",
       origin_signal_id: sig.id,
