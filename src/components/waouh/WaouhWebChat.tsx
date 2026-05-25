@@ -241,6 +241,12 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  useImperativeHandle(externalRef, () => ({
+    triggerQuickAction: handleQuickAction,
+    focusInput: () => inputRef.current?.focus(),
+  }), []);
+
+
 
   const [paymentTx, setPaymentTx] = useState<{ id: string; amount: number } | null>(null);
   const [pendingPaymentTx, setPendingPaymentTx] = useState<{ id: string; amount: number } | null>(null);
