@@ -193,19 +193,11 @@ export default function PartnerBusinessesPage() {
             </DialogHeader>
 
             <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-muted/40 border">
-              <Button type="button" size="sm" variant={voice.listening ? 'destructive' : 'default'} onClick={voice.listening ? stopVoice : startVoice}>
-                {voice.listening ? <><MicOff className="h-4 w-4 mr-1" />Arrêter</> : <><Mic className="h-4 w-4 mr-1" />Dicter</>}
-              </Button>
               <Button type="button" size="sm" variant="outline" onClick={detectLocation} disabled={ai.loading === 'reverse_geocode'}>
                 {ai.loading === 'reverse_geocode' ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <MapPin className="h-4 w-4 mr-1" />}
                 Détecter ma position
               </Button>
-              <Button type="button" size="sm" variant="outline" onClick={enrichWithAI} disabled={ai.loading === 'enrich_business'}>
-                {ai.loading === 'enrich_business' ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-                Compléter par IA
-              </Button>
             </div>
-            {voice.transcript && <div className="text-xs italic text-muted-foreground p-2 bg-muted/30 rounded">🎤 {voice.transcript}</div>}
 
             <div className="space-y-4">
               <div>
