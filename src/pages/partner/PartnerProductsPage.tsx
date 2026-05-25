@@ -27,12 +27,12 @@ const PRODUCT_CATEGORIES = [
 
 type ProductForm = {
   nom: string; description: string; categorie: string;
-  prix_min: string | number; prix_max: string | number; unite: string;
+  prix: string | number; unite: string;
   disponible: boolean; stock_estime: string | number; photos: string[];
 };
 
 const emptyForm: ProductForm = {
-  nom: '', description: '', categorie: '', prix_min: '', prix_max: '',
+  nom: '', description: '', categorie: '', prix: '',
   unite: '', disponible: true, stock_estime: '', photos: [],
 };
 
@@ -74,7 +74,7 @@ export default function PartnerProductsPage() {
     setEditId(p.id);
     setForm({
       nom: p.nom || '', description: p.description || '', categorie: p.categorie || '',
-      prix_min: p.prix_min ?? '', prix_max: p.prix_max ?? '', unite: p.unite || '',
+      prix: p.prix_min ?? p.prix_max ?? '', unite: p.unite || '',
       disponible: p.disponible ?? true, stock_estime: p.stock_estime ?? '',
       photos: Array.isArray(p.photos) ? p.photos : [],
     });
@@ -89,7 +89,7 @@ export default function PartnerProductsPage() {
         ...prev,
         nom: r.nom || prev.nom, description: r.description || prev.description,
         categorie: r.categorie || prev.categorie,
-        prix_min: r.prix_min ?? prev.prix_min, prix_max: r.prix_max ?? prev.prix_max,
+        prix: r.prix ?? r.prix_min ?? prev.prix,
         unite: r.unite || prev.unite, stock_estime: r.stock_estime ?? prev.stock_estime,
       }));
       setFreeText('');
@@ -125,8 +125,8 @@ export default function PartnerProductsPage() {
     setSaving(true);
     const payload: any = {
       nom: form.nom, description: form.description || null, categorie: form.categorie || null,
-      prix_min: form.prix_min !== '' ? Number(form.prix_min) : null,
-      prix_max: form.prix_max !== '' ? Number(form.prix_max) : null,
+      prix_min: form.prix !== '' ? Number(form.prix) : null,
+      prix_max: form.prix !== '' ? Number(form.prix) : null,
       unite: form.unite || null, disponible: form.disponible,
       stock_estime: form.stock_estime !== '' ? parseInt(String(form.stock_estime)) : null,
       photos: form.photos,
@@ -170,17 +170,6 @@ export default function PartnerProductsPage() {
         <DialogContent className="max-w-xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editId ? 'Modifier le produit' : 'Ajouter un produit'}</DialogTitle></DialogHeader>
 
-          {!editId && (
-            <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 space-y-2">
-              <Label className="flex items-center gap-1"><Wand2 className="h-3 w-3" />Décris en langage naturel</Label>
-              <div className="flex gap-2">
-                <Input placeholder='ex: "20 kg de riz à 800F le kilo, stock 50"' value={freeText} onChange={e => setFreeText(e.target.value)} onKeyDown={e => e.key === 'Enter' && parseFreeText()} />
-                <Button size="sm" onClick={parseFreeText} disabled={ai.loading === 'parse_product_free_text'}>
-                  {ai.loading === 'parse_product_free_text' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Analyser'}
-                </Button>
-              </div>
-            </div>
-          )}
 
           <div className="space-y-4">
             <div>
@@ -198,9 +187,9 @@ export default function PartnerProductsPage() {
                 <SmartCombobox value={form.unite} onChange={v => setForm({ ...form, unite: v })} options={PRODUCT_UNITS} placeholder="kg, pièce..." />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>Prix min (FCFA)</Label><Input type="number" value={form.prix_min} onChange={e => setForm({ ...form, prix_min: e.target.value })} /></div>
-              <div><Label>Prix max (FCFA)</Label><Input type="number" value={form.prix_max} onChange={e => setForm({ ...form, prix_max: e.target.value })} /></div>
+            <div>
+              <Label>Prix (FCFA)</Label>
+              <Input type="number" value={form.prix} onChange={e => setForm({ ...form, prix: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Stock estimé</Label><Input type="number" value={form.stock_estime} onChange={e => setForm({ ...form, stock_estime: e.target.value })} /></div>
