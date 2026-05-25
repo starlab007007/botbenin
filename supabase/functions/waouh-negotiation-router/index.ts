@@ -182,8 +182,8 @@ Deno.serve(async (req) => {
           [],
           `neg:${neg.id}:contact:${otherUserId}`,
           "contact_exchange",
-          replyAttachments
-          , isBuyer ? sellerPhoneE164 : buyerPhoneE164
+          replyAttachments,
+          isBuyer ? sellerPhoneE164 : buyerPhoneE164
         );
       }
 
