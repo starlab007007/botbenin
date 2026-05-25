@@ -116,36 +116,11 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
 }
 
 
-function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
-  switch (template) {
-    case "match_buyer":
-      return [
-        { id: `interest:${p.product_id || ""}`, label: "✅ Intéressé" },
-        { id: `negotiate:${p.product_id || ""}`, label: "💬 Négocier" },
-        { id: `skip:${p.product_id || ""}`, label: "⏭️ Passer" },
-      ];
-    case "match_seller":
-      return [
-        { id: `match_yes:${p.product_id || ""}`, label: "✅ Oui, mettre en contact" },
-        { id: `match_no:${p.product_id || ""}`, label: "❌ Non merci" },
-      ];
-    case "negotiation_open":
-      return [
-        { id: `accept:${p.negotiation_id || ""}`, label: "✅ Accepter" },
-        { id: `counter:${p.negotiation_id || ""}`, label: "💬 Contre-offre" },
-        { id: `refuse:${p.negotiation_id || ""}`, label: "❌ Refuser" },
-      ];
-    case "payment_card":
-    case "payment_link":
-      return [
-        ...(p.url ? [{ id: "pay_open", label: "💳 Payer maintenant", url: p.url }] : []),
-        { id: `pay_help:${p.transaction_id || ""}`, label: "❓ Aide paiement" },
-        { id: `pay_cancel:${p.transaction_id || ""}`, label: "✖️ Annuler" },
-      ];
-    default:
-      return [];
-  }
+function defaultActionsForTemplate(_template: string, _p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
+  // Parcours 100 % conversationnel : plus aucune action par défaut (OUI / NON / Je propose XXX).
+  return [];
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
