@@ -166,23 +166,42 @@ export async function marketAnalysisAI(opts: { title: string; price: number; min
  * Build contact + geoloc block to share between buyer/seller after agreement.
  * Pas de lien Maps — affichage direct ville + distance live.
  */
+/** Normalise un numéro brut en E.164 si plausible (10–15 chiffres). */
+function toE164OrEmpty(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const digits = String(raw).replace(/@(?:c\.us|s\.whatsapp\.net|lid)$/i, "").replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return "";
+  return `+${digits}`;
+}
+
 /**
- * Résout le vrai numéro WhatsApp E.164 d'un utilisateur WAOUH.
- * Ordre: phone_number direct (non-LID) → waouh_lid_phone_map → auth.users.phone.
- * Retourne "" si introuvable.
+ * Résout le vrai numéro WhatsApp / téléphone E.164 d'un utilisateur WAOUH
+ * en parcourant TOUTES les sources connues, dans l'ordre de priorité :
+ *
+ *   1. user.phone_number direct (E.164, non-@lid)             — source chat WhatsApp
+ *   2. waouh_lid_phone_map (si @lid)                          — source chat WhatsApp anonymisée
+ *   3. auth.users.phone (via auth_user_id)                    — source web bot.bj
+ *   4. profiles.phone (via auth_user_id)                      — fallback web bot.bj
+ *   5. waouh_partners.whatsapp / telephone (via auth_user_id) — source partenaire
+ *   6. waouh_partner_businesses.whatsapp / telephone          — source partenaire (par article_id)
+ *   7. waouh_external_listings.seller_phone                   — source radar IA (par article_id)
+ *
+ * Retourne "" si aucune source ne livre un numéro exploitable.
  */
 export async function resolveRealPhoneE164(
   sb: any,
-  user: { id?: string | null; phone_number?: string | null; auth_user_id?: string | null } | null | undefined
+  user: { id?: string | null; phone_number?: string | null; auth_user_id?: string | null } | null | undefined,
+  opts?: { article_id?: string | null }
 ): Promise<string> {
   if (!user) return "";
   const raw = (user.phone_number || "").trim();
+
   // 1) Numéro direct E.164 (pas un LID anonyme)
   if (raw && !/@lid$/i.test(raw)) {
-    const digits = raw.replace(/@(?:c\.us|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
-    // Considère valide si >= 10 chiffres et commence par un indicatif plausible
-    if (digits.length >= 10 && digits.length <= 15) return `+${digits}`;
+    const e164 = toE164OrEmpty(raw);
+    if (e164) return e164;
   }
+
   // 2) Mapping LID → phone via waouh_lid_phone_map
   if (raw && /@lid$/i.test(raw)) {
     const lid = raw.replace(/@lid$/i, "");
@@ -192,18 +211,91 @@ export async function resolveRealPhoneE164(
         .select("phone_e164, phone")
         .or(`lid.eq.${lid},lid.eq.${raw}`)
         .maybeSingle();
-      const p = (data?.phone_e164 || data?.phone || "").toString().replace(/\D/g, "");
-      if (p && p.length >= 10) return `+${p}`;
+      const p = toE164OrEmpty(data?.phone_e164 || data?.phone);
+      if (p) return p;
     } catch (_) { /* ignore */ }
   }
-  // 3) auth.users.phone (pour utilisateurs web authentifiés)
+
+  // 3 & 4) Web bot.bj — auth.users.phone, puis profiles.phone
   if (user.auth_user_id) {
     try {
       const { data } = await sb.auth.admin.getUserById(user.auth_user_id);
-      const p = (data?.user?.phone || "").toString().replace(/\D/g, "");
-      if (p && p.length >= 10) return `+${p}`;
+      const p = toE164OrEmpty(data?.user?.phone);
+      if (p) return p;
+    } catch (_) { /* ignore */ }
+    try {
+      const { data } = await sb.from("profiles").select("phone").eq("id", user.auth_user_id).maybeSingle();
+      const p = toE164OrEmpty(data?.phone);
+      if (p) return p;
+    } catch (_) { /* ignore */ }
+
+    // 5) Partenaire bot.bj : waouh_partners (whatsapp/telephone)
+    try {
+      const { data } = await sb
+        .from("waouh_partners")
+        .select("whatsapp, telephone")
+        .eq("user_id", user.auth_user_id)
+        .maybeSingle();
+      const p = toE164OrEmpty(data?.whatsapp) || toE164OrEmpty(data?.telephone);
+      if (p) return p;
     } catch (_) { /* ignore */ }
   }
+
+  // 6 & 7) Sources liées à l'article (partenaire business + radar externe)
+  const articleId = opts?.article_id || null;
+  if (articleId) {
+    try {
+      const { data: art } = await sb
+        .from("waouh_articles")
+        .select("seller_id, origin, origin_signal_id")
+        .eq("id", articleId)
+        .maybeSingle();
+
+      // 6) Partenaire — chercher un business du partenaire correspondant au seller
+      if (art?.seller_id) {
+        try {
+          const { data: sellerUser } = await sb
+            .from("waouh_users")
+            .select("auth_user_id")
+            .eq("id", art.seller_id)
+            .maybeSingle();
+          if (sellerUser?.auth_user_id) {
+            const { data: partner } = await sb
+              .from("waouh_partners")
+              .select("id, whatsapp, telephone")
+              .eq("user_id", sellerUser.auth_user_id)
+              .maybeSingle();
+            const pp = toE164OrEmpty(partner?.whatsapp) || toE164OrEmpty(partner?.telephone);
+            if (pp) return pp;
+            if (partner?.id) {
+              const { data: biz } = await sb
+                .from("waouh_partner_businesses")
+                .select("whatsapp, telephone")
+                .eq("partner_id", partner.id)
+                .limit(1)
+                .maybeSingle();
+              const bp = toE164OrEmpty(biz?.whatsapp) || toE164OrEmpty(biz?.telephone);
+              if (bp) return bp;
+            }
+          }
+        } catch (_) { /* ignore */ }
+      }
+
+      // 7) Radar IA — seller_phone scrappé depuis source externe
+      if (art?.origin_signal_id) {
+        try {
+          const { data: ext } = await sb
+            .from("waouh_external_listings")
+            .select("seller_phone")
+            .eq("id", art.origin_signal_id)
+            .maybeSingle();
+          const xp = toE164OrEmpty(ext?.seller_phone);
+          if (xp) return xp;
+        } catch (_) { /* ignore */ }
+      }
+    } catch (_) { /* ignore */ }
+  }
+
   return "";
 }
 
