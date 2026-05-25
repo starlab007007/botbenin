@@ -74,7 +74,7 @@ export default function PartnerProductsPage() {
     setEditId(p.id);
     setForm({
       nom: p.nom || '', description: p.description || '', categorie: p.categorie || '',
-      prix_min: p.prix_min ?? '', prix_max: p.prix_max ?? '', unite: p.unite || '',
+      prix: p.prix_min ?? p.prix_max ?? '', unite: p.unite || '',
       disponible: p.disponible ?? true, stock_estime: p.stock_estime ?? '',
       photos: Array.isArray(p.photos) ? p.photos : [],
     });
