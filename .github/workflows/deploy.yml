@@ -67,6 +67,16 @@ jobs:
             echo "🧪 Vérification anti-ancien bundle..."
             docker compose exec -T react-app sh -c "! grep -R 'G-XXXXXXXXXX' /usr/share/nginx/html/assets/js /usr/share/nginx/html/index.html" || { echo "❌ Ancien bundle Google Analytics encore présent"; exit 1; }
 
+            echo "🧪 Vérification anti-cycle de chunks (react <-> charts)..."
+            docker compose exec -T react-app sh -c '
+              REACT_FILE=$(ls /usr/share/nginx/html/assets/js/react-*.js 2>/dev/null | head -n1);
+              if [ -n "$REACT_FILE" ] && grep -q "charts-" "$REACT_FILE"; then
+                echo "❌ Cycle détecté: $REACT_FILE importe un chunk charts-*.js";
+                exit 1;
+              fi;
+              echo "✅ Pas de cycle react<->charts"
+            ' || { echo "❌ Cycle de chunks détecté"; exit 1; }
+
             echo "🧹 Nettoyage final des images inutilisées..."
             docker image prune -af || echo "⚠️ Nettoyage final partiel"
 
