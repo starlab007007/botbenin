@@ -170,17 +170,6 @@ export default function PartnerProductsPage() {
         <DialogContent className="max-w-xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editId ? 'Modifier le produit' : 'Ajouter un produit'}</DialogTitle></DialogHeader>
 
-          {!editId && (
-            <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 space-y-2">
-              <Label className="flex items-center gap-1"><Wand2 className="h-3 w-3" />Décris en langage naturel</Label>
-              <div className="flex gap-2">
-                <Input placeholder='ex: "20 kg de riz à 800F le kilo, stock 50"' value={freeText} onChange={e => setFreeText(e.target.value)} onKeyDown={e => e.key === 'Enter' && parseFreeText()} />
-                <Button size="sm" onClick={parseFreeText} disabled={ai.loading === 'parse_product_free_text'}>
-                  {ai.loading === 'parse_product_free_text' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Analyser'}
-                </Button>
-              </div>
-            </div>
-          )}
 
           <div className="space-y-4">
             <div>
