@@ -101,8 +101,9 @@ async function enqueueRadarOutreach(sb: any, sig: any, phone: string, promotedId
   const title = sig.product?.title || sig.product?.name || sig.category || "votre annonce";
   const template = sig.intent === "SELL" ? "radar_seller_outreach" : "radar_buyer_outreach";
   const text = sig.intent === "SELL"
-    ? `👋 Bonjour ! WAOUH a détecté votre annonce "${title}". Répondez « OUI » pour recevoir des acheteurs, négocier et sécuriser le paiement par escrow.`
-    : `👋 Bonjour ! WAOUH a détecté votre besoin "${title}". Répondez « OUI » pour recevoir des annonces fiables, négocier et payer en escrow sécurisé.`;
+    ? `👋 Bonjour ! WAOUH a détecté votre annonce "${title}". Répondez *OUI* pour recevoir des acheteurs et négocier en direct via WAOUH.`
+    : `👋 Bonjour ! WAOUH a détecté votre besoin "${title}". Répondez *OUI* pour recevoir des annonces fiables et négocier en direct via WAOUH.`;
+
   const { data: recent } = await sb.from("waouh_outbound_queue")
     .select("id")
     .eq("to_phone", phone)
