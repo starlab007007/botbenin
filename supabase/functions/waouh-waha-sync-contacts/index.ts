@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     // 1) Resolve target sessions: explicit list OR every WORKING session
     let sessionsToUse: string[] = [];
     if (requestedSessions) {
-      sessionsToUse = requestedSessions;
+      sessionsToUse = requestedSessions.slice(0, maxSessions);
     } else {
       const sRes = await fetch(`${wahaBase}/api/sessions`, { headers });
       if (!sRes.ok) {
@@ -243,12 +243,14 @@ Deno.serve(async (req) => {
       finished_at: new Date().toISOString(),
     }).eq('id', runId);
 
+    const nextCursor = requestedSessions ? null : (sessionsToUse.length >= maxSessions ? sessionsToUse[sessionsToUse.length - 1] : null);
     return json({
       ok: true,
       sessions: sessionsToUse,
       fetched: totalFetched,
       mapped: totalMapped,
       backfilled: totalBackfilled,
+      nextCursor,
       perSession,
     });
   } catch (e) {
