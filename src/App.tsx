@@ -146,7 +146,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 // WaouhApp — Mobile native shell (Capacitor)
 const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
-const MobileChat = lazy(() => import("./app-mobile/screens/ChatListScreen"));
+const MobileWaouhChat = lazy(() => import("./app-mobile/screens/WaouhChatScreen"));
+const MobileConversations = lazy(() => import("./app-mobile/screens/ChatListScreen"));
 const MobileChatThread = lazy(() => import("./app-mobile/screens/ChatScreen"));
 const MobileBots = lazy(() => import("./app-mobile/screens/BotsScreen"));
 const MobileCreateBot = lazy(() => import("./app-mobile/screens/CreateBotWizard"));
