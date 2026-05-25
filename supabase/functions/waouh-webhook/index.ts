@@ -26,6 +26,12 @@ function normalizeCategory(value: string | null | undefined) {
   return "autre";
 }
 
+function extractProductPhotos(source: any): string[] {
+  const p = source?.product || source || {};
+  const raw = [p.image_url, p.image, p.thumbnail_url, ...(Array.isArray(p.images) ? p.images : []), ...(Array.isArray(p.photos) ? p.photos : [])];
+  return [...new Set(raw.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u)))].slice(0, 6);
+}
+
 /**
  * Pour un produit issu du catalogue unifié, résout le numéro WhatsApp du vendeur
  * ET les sessions web du compte ayant enregistré l'entreprise (partner).
@@ -116,7 +122,7 @@ async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre")
   if (!sellerId) return null;
   const title = sig.product?.title || sig.product?.name || String(sig.raw_text || "Annonce Radar IA").slice(0, 120);
   const price = Number(sig.price || sig.product?.price || 0);
-  const photo = sig.product?.image_url || sig.product?.image || null;
+  const photos = extractProductPhotos(sig);
   const { data: existingArticle } = await sb.from("waouh_articles").select("id,title,price,seller_id,photos,market_price_min,market_price_max").eq("origin_signal_id", sig.id).maybeSingle();
   if (existingArticle) return existingArticle;
   const { data: art, error } = await sb.from("waouh_articles").insert({
@@ -127,7 +133,7 @@ async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre")
     price,
     currency: "XOF",
     city: sig.city,
-    photos: photo ? [photo] : [],
+    photos,
     status: "active",
     origin: "radar",
     origin_signal_id: sig.id,
@@ -339,8 +345,9 @@ serve(async (req) => {
       if (!target) return;
       // Ne pas se renvoyer le message à soi-même
       if (target.id && user?.id && target.id === user.id) return;
-      if (target.phone_number && phone) {
-        const tgtCanon = normalizeBeninPhone(target.phone_number);
+      const outboundPhone = opts.to_phone ? normalizeBeninPhone(opts.to_phone) : (target.phone_number ? normalizeBeninPhone(target.phone_number) : null);
+      if (outboundPhone && phone) {
+        const tgtCanon = normalizeBeninPhone(outboundPhone);
         const meCanon = normalizeBeninPhone(phone);
         if (tgtCanon && meCanon && tgtCanon === meCanon) return;
       }
@@ -368,10 +375,10 @@ serve(async (req) => {
       const basePayload = { ...(opts.payload || {}), text: opts.directText, actions: quickActions, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat" };
 
       // 2) Enqueue WhatsApp si on a un numéro
-      if (target.phone_number) {
+      if (outboundPhone) {
         try {
           await sb.rpc("waouh_enqueue_outbound_v2", {
-            p_to_phone: target.phone_number,
+            p_to_phone: outboundPhone,
             p_to_user_id: target.id,
             p_template: opts.template,
             p_payload: basePayload,
@@ -386,7 +393,7 @@ serve(async (req) => {
         } catch (e) { console.warn("[pushToOther] enqueue wa", e); }
       }
       // 3) Enqueue web en miroir si on a une session web (et qu'on n'a pas déjà envoyé que web)
-      if (webSession && target.phone_number) {
+      if (webSession && outboundPhone) {
         try {
           await sb.rpc("waouh_enqueue_outbound_v2", {
             p_to_phone: null,
@@ -638,7 +645,9 @@ serve(async (req) => {
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
           const price = r.price ? fmt(Number(r.price)) : "Prix à négocier";
           const city = r.city || "?";
-          return `*${idx}. ${title}*\n💰 *${price}*\n🏙️ ${city}\n📡 Source : Radar IA`;
+          const photos = extractProductPhotos(r);
+          const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
+          return `*${idx}. ${title}*\n💰 *${price}*\n🏙️ ${city}${photoLine}\n📡 Source : Radar IA`;
         }).join(`\n\n${waouhSep}\n\n`);
         // Envoyer TOUTES les photos publiques (jusqu'à 4 par produit, plafond 12) avec caption
         const isPublicImageUrl = (u: any): u is string =>
@@ -658,6 +667,11 @@ serve(async (req) => {
         replyAttachments = [
           ...collectAtts(partnerTop, "titre"),
           ...collectAtts(matchesTop, "title"),
+          ...radarTop.flatMap((r: any) => extractProductPhotos(r).slice(0, 4).map((url: string, k: number) => ({
+            url,
+            type: "image/jpeg",
+            caption: `${r.product?.title || r.product?.name || "Annonce Radar IA"}${k > 0 ? ` — photo ${k + 1}` : ""}`,
+          }))),
         ].slice(0, 12);
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
@@ -702,6 +716,7 @@ serve(async (req) => {
                 source_url: r.raw_url,
               },
               p_channel: "whatsapp",
+              p_image_url: extractProductPhotos(r)[0] ?? null,
             });
           } catch (e) { console.warn("[radar outreach]", e); }
         }

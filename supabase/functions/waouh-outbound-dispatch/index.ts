@@ -1,7 +1,7 @@
 // WAOUH Outbound Dispatch — envoie les messages WhatsApp en attente via WAHA
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { stripLegacyPaymentText } from "../_shared/waouh-format.ts";
+import { resolveRealPhoneE164, stripLegacyPaymentText } from "../_shared/waouh-format.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -182,6 +182,23 @@ Deno.serve(async (req) => {
       const rawText = compose(it.template, it.payload || {});
       const text = stripLegacyPaymentText(rawText);
       let toPhone = it.to_phone as string;
+
+      // Dernier verrou central : avant tout envoi, re-résoudre le numéro réel
+      // depuis l'utilisateur + l'annonce pour éviter @lid/profil obsolète.
+      if (it.to_user_id) {
+        try {
+          const { data: targetUser } = await sb
+            .from("waouh_users")
+            .select("id, phone_number, auth_user_id")
+            .eq("id", it.to_user_id)
+            .maybeSingle();
+          const role = it.payload?.target_role === "seller" || it.payload?.target_role === "buyer"
+            ? it.payload.target_role
+            : (it.template === "match_seller" || it.event_type === "seller_new_interest" ? "seller" : "buyer");
+          const resolved = await resolveRealPhoneE164(sb, targetUser, { article_id: it.payload?.article_id ?? null, role });
+          if (resolved) toPhone = resolved;
+        } catch (_) { /* garde le to_phone déjà en file */ }
+      }
 
       // 🔁 LID anonyme → résolution via waouh_lid_phone_map avant tout envoi.
       if (typeof toPhone === "string" && /@lid/i.test(toPhone)) {
