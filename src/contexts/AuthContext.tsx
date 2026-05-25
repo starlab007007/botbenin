@@ -92,7 +92,7 @@ const getHighestRole = (rows: any[] | null | undefined): AuthRole => {
   return roles.sort((a, b) => rolePriority[b] - rolePriority[a])[0] || 'user';
 };
 
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+const withTimeout = <T,>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs)),
