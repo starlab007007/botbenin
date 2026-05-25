@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -41,7 +41,7 @@ export const useWhatsAppAccounts = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const loadAccounts = async () => {
+  const loadAccounts = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('whatsapp_accounts')
@@ -58,9 +58,9 @@ export const useWhatsAppAccounts = () => {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
-  const loadBots = async () => {
+  const loadBots = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('bots')
@@ -73,9 +73,9 @@ export const useWhatsAppAccounts = () => {
     } catch (error: any) {
       console.error('Failed to load bots:', error);
     }
-  };
+  }, []);
 
-  const loadBotLinks = async () => {
+  const loadBotLinks = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('whatsapp_bot_links')
@@ -90,16 +90,16 @@ export const useWhatsAppAccounts = () => {
     } catch (error: any) {
       console.error('Failed to load bot links:', error);
     }
-  };
+  }, []);
 
-const loadData = async () => {
+const loadData = useCallback(async () => {
     setLoading(true);
     try {
       await Promise.all([loadAccounts(), loadBots(), loadBotLinks()]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadAccounts, loadBots, loadBotLinks]);
 
   const getAuthHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -390,8 +390,9 @@ const sendMessage = async (sessionName: string, to: string, message: string, mes
     loadData();
 
     // Set up realtime subscriptions
+    const suffix = Math.random().toString(36).slice(2, 8);
     const accountsSubscription = supabase
-      .channel('whatsapp_accounts_changes')
+      .channel(`whatsapp_accounts_changes_${suffix}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -402,7 +403,7 @@ const sendMessage = async (sessionName: string, to: string, message: string, mes
       .subscribe();
 
     const botLinksSubscription = supabase
-      .channel('whatsapp_bot_links_changes')
+      .channel(`whatsapp_bot_links_changes_${suffix}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -413,10 +414,10 @@ const sendMessage = async (sessionName: string, to: string, message: string, mes
       .subscribe();
 
     return () => {
-      accountsSubscription.unsubscribe();
-      botLinksSubscription.unsubscribe();
+      supabase.removeChannel(accountsSubscription);
+      supabase.removeChannel(botLinksSubscription);
     };
-  }, []);
+  }, [loadData, loadAccounts, loadBotLinks]);
 
   return {
     accounts,
