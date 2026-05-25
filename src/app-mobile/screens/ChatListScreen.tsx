@@ -76,11 +76,32 @@ export default function ChatListScreen() {
       </header>
 
       <main>
+        {/* Pinned WAOUH conversation — default AI assistant chat */}
+        <button
+          onClick={() => navigate("/app/chat/waouh")}
+          className="w-full flex items-center gap-3 px-4 py-3 active:bg-muted border-b bg-gradient-to-r from-emerald-50 to-transparent dark:from-emerald-950/20"
+        >
+          <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-md">
+            <ShoppingBag className="h-6 w-6 text-white" />
+            <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <div className="flex justify-between items-baseline gap-2">
+              <span className="font-semibold truncate flex items-center gap-1.5">
+                WAOUH
+                <Badge className="bg-emerald-500 text-white border-0 text-[9px] py-0 px-1.5 h-4">IA</Badge>
+              </span>
+              <span className="text-xs text-muted-foreground shrink-0">Toujours actif</span>
+            </div>
+            <p className="text-sm text-muted-foreground truncate">Achetez · Vendez · Négociez par message</p>
+          </div>
+        </button>
+
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
         {!loading && filtered.length === 0 && (
           <div className="p-12 text-center text-muted-foreground">
-            <p className="font-medium mb-1">Aucune conversation</p>
-            <p className="text-sm mb-4">Démarrez votre premier Waouh Chat.</p>
+            <p className="font-medium mb-1">Aucune autre conversation</p>
+            <p className="text-sm mb-4">Démarrez un chat WhatsApp ou web.</p>
             <Button onClick={() => setNewOpen(true)} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
               <Plus className="h-4 w-4 mr-1" /> Nouveau chat
             </Button>
