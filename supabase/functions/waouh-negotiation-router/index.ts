@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   // Helper: notification cloche + message direct chez l'autre partie
-  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null, attachments: Array<{url: string; type: string; caption?: string}> = []) {
+  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null, attachments: Array<{url: string; type: string; caption?: string}> = [], toPhoneE164: string | null = null) {
     const { data: target } = await sb.from("waouh_users")
       .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
@@ -63,15 +63,16 @@ Deno.serve(async (req) => {
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
     }
+    const outboundPhone = toPhoneE164 || target.phone_number || null;
     try {
       await sb.rpc("waouh_enqueue_outbound_v2", {
-        p_to_phone: target.phone_number,
+        p_to_phone: outboundPhone,
         p_to_user_id: target.id,
         p_template: template,
         p_payload: { ...(payload || {}), text: directText, actions, message_id: insertedMsgId, transaction_id: transactionId, attachments },
         p_web_session_id: target.web_session_id,
         p_image_url: attachments?.[0]?.url ?? null,
-        p_channel: target.phone_number ? "whatsapp" : "web",
+        p_channel: outboundPhone ? "whatsapp" : "web",
         p_message_id: insertedMsgId,
         p_transaction_id: transactionId,
         p_dedupe_key: dedupeKey,
@@ -182,6 +183,7 @@ Deno.serve(async (req) => {
           `neg:${neg.id}:contact:${otherUserId}`,
           "contact_exchange",
           replyAttachments
+          , isBuyer ? sellerPhoneE164 : buyerPhoneE164
         );
       }
 
