@@ -144,6 +144,14 @@ const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage")
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// WaouhApp — Mobile native shell (Capacitor)
+const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
+const MobileChat = lazy(() => import("./app-mobile/screens/ChatListScreen"));
+const MobileBots = lazy(() => import("./app-mobile/screens/BotsScreen"));
+const MobileWhatsApp = lazy(() => import("./app-mobile/screens/WhatsAppScreen"));
+const MobileDiffusion = lazy(() => import("./app-mobile/screens/DiffusionScreen"));
+const MobilePartner = lazy(() => import("./app-mobile/screens/PartnerScreen"));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
