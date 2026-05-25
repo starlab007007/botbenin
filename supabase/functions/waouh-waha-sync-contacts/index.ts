@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
   const maxSessions = Math.max(1, Math.min(Number(body.maxSessions || 1), 3));
-  const maxContactsPerSession = Math.max(100, Math.min(Number(body.maxContactsPerSession || 2500), 5000));
+  const maxContactsPerSession = Math.max(100, Math.min(Number(body.maxContactsPerSession || 500), 1000));
   const cursor = body.cursor ? String(body.cursor) : null;
   const requestedSessions: string[] | null = Array.isArray(body.sessions) && body.sessions.length
     ? body.sessions.map((s: any) => String(s))
@@ -156,13 +156,7 @@ Deno.serve(async (req) => {
           const digits = (rawPhone || '').replace(/\D/g, '');
           if (!digits || !isLikelyPhoneDigits(digits)) continue;
 
-          let phone_e164: string;
-          try {
-            const { data: norm } = await supabase.rpc('waouh_normalize_bj_phone', { p: digits });
-            phone_e164 = (norm as string) || (digits.startsWith('229') ? `+${digits}` : `+${digits}`);
-          } catch {
-            phone_e164 = digits.startsWith('229') ? `+${digits}` : `+${digits}`;
-          }
+          const phone_e164 = normalizeWahaPhone(digits) || (digits.startsWith('229') ? `+${digits}` : `+${digits}`);
 
           const lidId = c.lid || (id.endsWith('@lid') ? id.split('@')[0] : null);
           const displayName = c.name || c.shortName || null;
