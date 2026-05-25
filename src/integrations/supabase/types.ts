@@ -5579,6 +5579,8 @@ export type Database = {
         Row: {
           article_id: string | null
           buyer_user_id: string | null
+          closed_at: string | null
+          contact_shared_at: string | null
           created_at: string
           id: string
           last_actor: string | null
@@ -5593,6 +5595,8 @@ export type Database = {
         Insert: {
           article_id?: string | null
           buyer_user_id?: string | null
+          closed_at?: string | null
+          contact_shared_at?: string | null
           created_at?: string
           id?: string
           last_actor?: string | null
@@ -5607,6 +5611,8 @@ export type Database = {
         Update: {
           article_id?: string | null
           buyer_user_id?: string | null
+          closed_at?: string | null
+          contact_shared_at?: string | null
           created_at?: string
           id?: string
           last_actor?: string | null
