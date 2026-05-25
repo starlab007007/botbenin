@@ -27,12 +27,12 @@ const PRODUCT_CATEGORIES = [
 
 type ProductForm = {
   nom: string; description: string; categorie: string;
-  prix_min: string | number; prix_max: string | number; unite: string;
+  prix: string | number; unite: string;
   disponible: boolean; stock_estime: string | number; photos: string[];
 };
 
 const emptyForm: ProductForm = {
-  nom: '', description: '', categorie: '', prix_min: '', prix_max: '',
+  nom: '', description: '', categorie: '', prix: '',
   unite: '', disponible: true, stock_estime: '', photos: [],
 };
 
