@@ -86,7 +86,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
     })();
 
     const ch = supabase
-      .channel(`waouh_msgs_${sessionId}`)
+      .channel(`waouh_msgs_${sessionId}_${Math.random().toString(36).slice(2, 8)}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
