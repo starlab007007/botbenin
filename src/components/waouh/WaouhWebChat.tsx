@@ -46,11 +46,11 @@ function getSessionId() {
   return id;
 }
 
-const QUICK_PROMPTS: Record<Exclude<QuickAction, "sell">, string> = {
+const QUICK_PROMPTS: Record<Exclude<QuickAction, "sell" | "pay">, string> = {
   buy: "Je cherche ",
   negotiate: "Je propose  FCFA pour ",
-  pay: "Je paye en Mobile Money MTN, mon numéro ",
 };
+
 
 export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }> = ({ embedded = false, fullscreen = false }) => {
   const [open, setOpen] = useState(embedded);
