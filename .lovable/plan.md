@@ -1,32 +1,33 @@
-## Diagnostic
+## Plan de correction production
 
-La production sert actuellement `index-C5IMKMbW.js`, `react-CxMR-VaM.js` et `charts-CUJi52dS.js`. L’erreur `Cannot access 'e' before initialization` vient d’un cycle de dépendance entre chunks :
+Objectif: supprimer définitivement l’erreur bloquante `Uncaught ReferenceError: Cannot access 'a' before initialization` dans `icons-*.js`, sans modifier `.github`, `Dockerfile` ni `docker-compose.yml`.
 
-```text
-charts-CUJi52dS.js -> importe React depuis react-CxMR-VaM.js
-react-CxMR-VaM.js -> importe un helper depuis charts-CUJi52dS.js
-```
+### Diagnostic
 
-Ce cycle est créé par le découpage manuel Vite/Rollup : `react-router` est inclus dans le chunk `react`, tandis que certains helpers communs sont remontés dans `charts`. En développement, les modules ne sont pas packagés pareil, donc le bug ne se voit pas.
+- L’erreur vient du bundle production `icons-*.js`, généré par le découpage manuel de `lucide-react` dans `vite.config.ts`.
+- Le projet importe massivement `lucide-react` dans plus de 400 endroits, donc isoler toute la librairie dans un chunk `icons` augmente le risque de bug d’ordre d’initialisation après minification.
+- Les erreurs précédentes `maps-*.js createContext` et maintenant `icons-*.js Cannot access 'a' before initialization` pointent vers la même cause probable: découpage manuel trop agressif + minification Terser sur certains modules ESM React.
+- L’erreur `chrome-extension://... content_reporter.js Cannot use import statement outside a module` vient d’une extension Chrome locale, pas de l’application. Elle ne doit pas bloquer le déploiement.
 
-L’erreur `chrome-extension://... Cannot use import statement outside a module` vient d’une extension Chrome, pas du site Bot.bj.
+### Corrections à appliquer
 
-## Plan de correction
+1. Modifier uniquement `vite.config.ts`.
+2. Supprimer le chunk manuel séparé `icons` pour `lucide-react` afin que Vite/Rollup laisse les icônes dans les chunks consommateurs ou `vendor`.
+3. Rendre le découpage `manualChunks` plus conservateur pour éviter les cycles entre chunks React, wrappers React, maps, charts et icônes.
+4. Remplacer la minification production `terser` par `esbuild`, ou au minimum désactiver les options Terser agressives, car l’erreur TDZ `Cannot access before initialization` apparaît souvent après renommage/minification de modules ESM complexes.
+5. Garder les exclusions lourdes existantes (`@huggingface/transformers`, `ffmpeg`, etc.) pour ne pas casser les optimisations déjà utiles.
+6. Ne toucher à aucun fichier dans `.github`, ni `Dockerfile`, ni `docker-compose.yml`.
 
-1. Modifier `vite.config.ts` pour supprimer le cycle de chunks :
-   - isoler `react`, `react-dom` et `scheduler` dans le chunk `react` uniquement ;
-   - mettre `react-router` / `react-router-dom` dans un chunk séparé `router` ;
-   - garder `recharts` et `d3-*` dans `charts` ;
-   - ajouter un chunk `vendor` fallback pour les dépendances non classées afin d’éviter que des helpers communs soient injectés dans `charts`.
+### Fichiers concernés
 
-2. Renforcer la vérification de déploiement dans `.github/workflows/deploy.yml` :
-   - après build, vérifier qu’aucun chunk `react-*.js` n’importe `charts-*.js` ;
-   - si ce cycle réapparaît, faire échouer le déploiement au lieu de publier une version cassée.
+- `vite.config.ts` uniquement.
 
-3. Préparer le redéploiement production :
-   - une fois les fichiers modifiés, utiliser le bouton Publish/Update de Lovable ou laisser le workflow GitHub Actions se déclencher sur `main`/`prod` ;
-   - côté production, refaire un hard refresh ou désenregistrer l’ancien Service Worker si le navigateur garde une ancienne version.
+### Validation prévue
 
-## Résultat attendu
+- Vérifier que la configuration ne génère plus de chunk dédié `icons-*.js`.
+- Vérifier que le build production ne dépend plus d’un chunk `icons` isolé susceptible de casser l’ordre d’initialisation.
+- Confirmer que l’erreur d’extension Chrome est externe et non corrigible dans le code applicatif.
 
-Après redéploiement, `react-*.js` ne dépendra plus de `charts-*.js`, `charts-*.js` pourra charger React normalement, et le dashboard post-authentification ne devrait plus tomber sur la page d’erreur en production.
+### Résultat attendu
+
+La production doit charger la page sans écran blanc, sans erreur bloquante dans `icons-*.js`, avec un bundle plus stable et moins sensible aux cycles de chunks.
