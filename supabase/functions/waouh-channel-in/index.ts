@@ -352,17 +352,20 @@ serve(async (req) => {
       const negTxId = negData?.transaction_id || null;
       const negIntent = negData?.intent || "negotiation";
       const negActions: WaouhAction[] = Array.isArray(negData?.actions) ? negData.actions : [];
+      const negAttachments = Array.isArray(negData?.attachments) ? negData.attachments : [];
       await sb.from("waouh_messages").insert({
         user_id: user.id, channel, direction: "out", text: negReply,
         web_session_id: sessionId, phone_number: phone,
-        meta: { intent: negIntent, transaction_id: negTxId },
+        attachments: negAttachments,
+        meta: { intent: negIntent, transaction_id: negTxId, actions: negActions },
       });
       if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
         try {
-          await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions);
+          const firstImage = negAttachments.find((a: any) => a?.url)?.url || null;
+          await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId }), {
+      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId, attachments: negAttachments }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
