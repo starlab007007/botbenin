@@ -90,7 +90,7 @@ export function useWaouhMatchNotifications(sessionId: string | null) {
     if (!sessionId) return;
 
     const ch = supabase
-      .channel(`waouh_outbound_${sessionId}`)
+      .channel(`waouh_outbound_${sessionId}_${Math.random().toString(36).slice(2, 8)}`)
       .on(
         "postgres_changes",
         {
