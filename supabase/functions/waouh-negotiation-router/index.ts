@@ -1,19 +1,17 @@
-// WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match
+// WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match.
+// Modèle: PAS DE PAIEMENT. Quand un OUI est exprimé par l'une des parties,
+// les coordonnées sont automatiquement échangées et la négociation est close.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance } from "../_shared/waouh-format.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
-const paymentCard = (amount: number, txId?: string | null) =>
-  `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? String(txId).slice(0, 8).toUpperCase() : "créée"}`;
-const payInstructions =
-  `\n\nPayer maintenant :` +
-  `\n📱 Choisissez selon votre opérateur Mobile Money (MTN ou Moov) envoyer MTN + numéro ou Moov + Numéro ( Ex: MTN 0197-------) puis validez la notification reçue sur votre téléphone.` +
-  `\n🔒 Les fonds restent en escrow jusqu'à confirmation de réception.`;
 const negotiationActions = (_negId: string) => [] as Array<{ id: string; label: string }>;
+
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
   const lower = (text || "").toLowerCase();
