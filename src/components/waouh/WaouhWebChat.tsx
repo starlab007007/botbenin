@@ -494,6 +494,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       </Button>
     </>
   );
-};
+});
+WaouhWebChat.displayName = "WaouhWebChat";
 
 export default WaouhWebChat;
