@@ -75,6 +75,23 @@ const rolePermissions = {
   ]
 };
 
+type AuthRole = AuthUser['role'];
+
+const validRoles: AuthRole[] = ['admin', 'manager', 'user', 'viewer'];
+const rolePriority: Record<AuthRole, number> = { admin: 4, manager: 3, user: 2, viewer: 1 };
+
+const normalizeRoleName = (value: unknown): AuthRole | null => {
+  return typeof value === 'string' && validRoles.includes(value as AuthRole) ? (value as AuthRole) : null;
+};
+
+const getHighestRole = (rows: any[] | null | undefined): AuthRole => {
+  const roles = (rows || [])
+    .map((row) => normalizeRoleName(Array.isArray(row?.roles) ? row.roles[0]?.name : row?.roles?.name))
+    .filter(Boolean) as AuthRole[];
+
+  return roles.sort((a, b) => rolePriority[b] - rolePriority[a])[0] || 'user';
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
@@ -107,7 +124,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setGuestUser(null);
           
           try {
-            // Récupérer le rôle depuis user_roles avec timeout
+            // Récupérer les rôles sans .single(): certains comptes ont plusieurs rôles en production.
             const rolePromise = supabase
               .from('user_roles')
               .select(`
@@ -116,7 +133,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 )
               `)
               .eq('user_id', session.user.id)
-              .maybeSingle();
+              .limit(10);
             
             const { data: roleData, error: roleError } = await Promise.race([
               rolePromise,
@@ -127,7 +144,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               console.error('Error fetching role:', roleError);
             }
 
-            const userRole = (roleData?.roles as any)?.name || 'user';
+            const userRole = getHighestRole(roleData);
 
             // Récupérer les permissions depuis la fonction get_user_permissions avec timeout
             const permissionsPromise = supabase.rpc('get_user_permissions', { 
@@ -139,7 +156,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               new Promise((_, reject) => setTimeout(() => reject(new Error('Permissions fetch timeout')), 3000))
             ]) as any;
 
-            const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions.user;
+            const permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions[userRole];
 
             // Create AuthUser from Supabase user with DB role and permissions
             const authUser: AuthUser = {
@@ -151,7 +168,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               email: session.user.email || '',
               avatar: session.user.user_metadata?.avatar_url || 
                       session.user.user_metadata?.picture,
-              role: userRole as 'admin' | 'manager' | 'user' | 'viewer',
+              role: userRole,
               permissions: permissions,
               status: 'active',
               createdAt: new Date(session.user.created_at),
