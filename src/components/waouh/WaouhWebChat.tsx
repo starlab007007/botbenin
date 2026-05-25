@@ -23,11 +23,17 @@ type WaouhAction = { id: string; label: string; url?: string };
 const stripLegacy = (t: string) =>
   (t || "")
     .replace(/\n*👉\s*Appuyez sur \*?Payer\*?[^\n]*/gi, "")
-    .replace(/\n*1\.\s*Payer\s*→[^\n]*\n?2\.\s*MTN[^\n]*\n?3\.\s*Moov[^\n]*/gi, "")
-    .replace(/\n*1\.\s*Payer[^\n]*\n?2\.\s*Négocier[^\n]*/gi, "")
-    .replace(/\n*_Répondez avec le numéro[^\n]*\n?(?:\d+\.[^\n]*\n?)+/gi, "")
+    .replace(/\n*💳\s*\*?Carte de paiement WAOUH\*?[\s\S]*?(?=\n{2,}|$)/gi, "")
+    .replace(/\n*Payer maintenant\s*:?[\s\S]*?(?:Moov[^\n]*|MTN[^\n]*)/gi, "")
+    .replace(/\n*Vous pouvez maintenant payer[^\n]*/gi, "")
+    .replace(/\n*L'acheteur va lancer le paiement\.?/gi, "")
+    .replace(/\n*🔒?\s*Les fonds restent en escrow[^\n]*/gi, "")
+    .replace(/\n*[•\-]?\s*\*?Sécurité\*?\s*:\s*escrow[^\n]*/gi, "")
+    .replace(/(?:^|\n)\s*1\.\s*(?:✅|💬|❌|💳)?[^\n]*\n\s*2\.\s*(?:✅|💬|❌|💳|MTN|Moov)[^\n]*(?:\n\s*3\.\s*(?:✅|💬|❌|💳|MTN|Moov)[^\n]*)?/gi, "")
+    .replace(/\s*\(paiement\s+sécuris[eé][^)]*\)/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
 type Msg = {
   id: string;
   direction: "in" | "out";
