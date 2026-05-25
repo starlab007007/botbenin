@@ -1386,6 +1386,33 @@ export type Database = {
         }
         Relationships: []
       }
+      device_tokens: {
+        Row: {
+          created_at: string
+          fcm_token: string
+          id: string
+          platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fcm_token: string
+          id?: string
+          platform: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fcm_token?: string
+          id?: string
+          platform?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           content: string | null
@@ -7511,6 +7538,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_otp_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string
+          used: boolean
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone: string
+          used?: boolean
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string
+          used?: boolean
+        }
+        Relationships: []
       }
       whatsapp_templates: {
         Row: {
