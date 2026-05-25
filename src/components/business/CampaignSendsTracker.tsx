@@ -63,7 +63,7 @@ export const CampaignSendsTracker: React.FC<CampaignSendsTrackerProps> = ({
 
     // Subscription en temps réel
     const channel = supabase
-      .channel('campaign_sends_changes')
+      .channel(`campaign_sends_changes_${campaignId}_${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         {
