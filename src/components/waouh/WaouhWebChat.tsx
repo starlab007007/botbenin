@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, X, Loader2, Camera, Image as ImageIcon } from "lucide-react";
+import { MessageCircle, Send, X, Loader2, Camera, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
