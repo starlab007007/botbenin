@@ -9706,6 +9706,10 @@ export type Database = {
         }[]
       }
       verify_bot_access_final: { Args: { p_bot_id: string }; Returns: boolean }
+      waouh_article_distance_km: {
+        Args: { p_article: string; p_lat: number; p_lng: number }
+        Returns: number
+      }
       waouh_enqueue_outbound: {
         Args: {
           p_payload: Json
@@ -9752,6 +9756,10 @@ export type Database = {
       }
       waouh_match_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_normalize_bj_phone: { Args: { input: string }; Returns: string }
+      waouh_point_distance_km: {
+        Args: { p_lat: number; p_lng: number; p_user: string }
+        Returns: number
+      }
       waouh_promote_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
       waouh_resolve_phone: { Args: { input: string }; Returns: string }
@@ -9803,6 +9811,10 @@ export type Database = {
           verified: boolean
           ville: string
         }[]
+      }
+      waouh_user_pair_distance_km: {
+        Args: { p_user_a: string; p_user_b: string }
+        Returns: number
       }
     }
     Enums: {
