@@ -26,7 +26,7 @@ export function useWaouhGeolocation() {
         country: data?.country || DEFAULT.country,
       };
       setGeo(next);
-      localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ...next, at: Date.now() }));
     } catch (e) {
       console.warn("reverseGeocode failed", e);
     } finally {
