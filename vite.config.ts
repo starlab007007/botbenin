@@ -30,15 +30,18 @@ export default defineConfig(({ mode }) => ({
     assetsDir: 'assets',
     sourcemap: false,
     cssCodeSplit: true,
-    // esbuild minifier: plus sûr que terser sur les modules ESM complexes
-    // (évite les TDZ "Cannot access 'a' before initialization" après mangling)
     minify: mode === 'production' ? 'esbuild' : false,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          // React core + tous les wrappers react-* dans le même chunk
-          // pour éviter les cycles d'initialisation entre chunks.
+
+          // ─── CORRECTION 1 ───────────────────────────────────────────────────
+          // React core + tous les wrappers react-* (y compris react-leaflet)
+          // dans le MÊME chunk react, pour garantir que React.createContext
+          // existe au moment où react-leaflet s'initialise.
+          // Avant : react-leaflet était exclu de ce bloc et placé dans 'leaflet',
+          // ce qui causait "Cannot read properties of undefined (reading 'createContext')".
           if (
             id.includes('/node_modules/react/') ||
             id.includes('/node_modules/react-dom/') ||
@@ -46,17 +49,30 @@ export default defineConfig(({ mode }) => ({
             id.includes('/node_modules/object-assign/') ||
             id.includes('/node_modules/use-sync-external-store/') ||
             id.includes('/node_modules/react-router') ||
-            (/\/node_modules\/react-[^/]+\//.test(id) && !id.includes('react-pdf') && !id.includes('react-leaflet'))
+            (
+              /\/node_modules\/react-[^/]+\//.test(id) &&
+              !id.includes('react-pdf')
+              // ← react-leaflet n'est PLUS exclu ici ; il reste donc dans 'react'
+            )
           ) return 'react';
-          // Librairies très lourdes uniquement -> chunks isolés.
+
+          // Librairies très lourdes -> chunks isolés
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
           if (id.includes('@ffmpeg')) return 'ffmpeg';
           if (id.includes('pdfjs') || id.includes('jspdf') || id.includes('react-pdf')) return 'pdf';
           if (id.includes('/node_modules/mapbox-gl')) return 'mapbox';
-          if (id.includes('/node_modules/leaflet') || id.includes('react-leaflet')) return 'leaflet';
+
+          // ─── CORRECTION 2 ───────────────────────────────────────────────────
+          // Le chunk 'leaflet' ne contient plus que leaflet (vanilla JS).
+          // react-leaflet est retiré d'ici car c'est un wrapper React :
+          // il doit impérativement s'initialiser APRÈS React.
+          // Avant : id.includes('react-leaflet') était inclus dans cette condition.
+          if (id.includes('/node_modules/leaflet') && !id.includes('react-leaflet')) return 'leaflet';
+
           if (id.includes('/node_modules/recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
           if (id.includes('xlsx')) return 'xlsx';
-          // Tout le reste (radix, lucide-react, supabase, tanstack, etc.)
+
+          // Tout le reste (radix, lucide-react, supabase, tanstack, react-leaflet, etc.)
           // -> un seul vendor pour éviter les cycles entre chunks.
           return 'vendor';
         },
