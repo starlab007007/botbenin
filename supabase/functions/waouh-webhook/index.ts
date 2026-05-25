@@ -345,8 +345,9 @@ serve(async (req) => {
       if (!target) return;
       // Ne pas se renvoyer le message à soi-même
       if (target.id && user?.id && target.id === user.id) return;
-      if (target.phone_number && phone) {
-        const tgtCanon = normalizeBeninPhone(target.phone_number);
+      const outboundPhone = opts.to_phone ? normalizeBeninPhone(opts.to_phone) : (target.phone_number ? normalizeBeninPhone(target.phone_number) : null);
+      if (outboundPhone && phone) {
+        const tgtCanon = normalizeBeninPhone(outboundPhone);
         const meCanon = normalizeBeninPhone(phone);
         if (tgtCanon && meCanon && tgtCanon === meCanon) return;
       }
@@ -374,10 +375,10 @@ serve(async (req) => {
       const basePayload = { ...(opts.payload || {}), text: opts.directText, actions: quickActions, message_id: insertedMsgId, transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat" };
 
       // 2) Enqueue WhatsApp si on a un numéro
-      if (target.phone_number) {
+      if (outboundPhone) {
         try {
           await sb.rpc("waouh_enqueue_outbound_v2", {
-            p_to_phone: target.phone_number,
+            p_to_phone: outboundPhone,
             p_to_user_id: target.id,
             p_template: opts.template,
             p_payload: basePayload,
@@ -392,7 +393,7 @@ serve(async (req) => {
         } catch (e) { console.warn("[pushToOther] enqueue wa", e); }
       }
       // 3) Enqueue web en miroir si on a une session web (et qu'on n'a pas déjà envoyé que web)
-      if (webSession && target.phone_number) {
+      if (webSession && outboundPhone) {
         try {
           await sb.rpc("waouh_enqueue_outbound_v2", {
             p_to_phone: null,
