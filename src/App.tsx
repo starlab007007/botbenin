@@ -269,6 +269,16 @@ const AppContent = () => {
                   <Route path="/yovo-gallery" element={<YovoGallery />} />
                   <Route path="/waouh-chat" element={<WaouhChatPage />} />
 
+                  {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
+                  <Route path="/app" element={<MobileShell />}>
+                    <Route index element={<Navigate to="/app/chat" replace />} />
+                    <Route path="chat" element={<MobileChat />} />
+                    <Route path="bots" element={<MobileBots />} />
+                    <Route path="whatsapp" element={<MobileWhatsApp />} />
+                    <Route path="diffusion" element={<MobileDiffusion />} />
+                    <Route path="partner" element={<MobilePartner />} />
+                  </Route>
+
                   {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
                   <Route path="/sigdsts" element={<SupportTechniquePage />} />
                   <Route path="/sigdsts/guide" element={<SupportGuidePage />} />
