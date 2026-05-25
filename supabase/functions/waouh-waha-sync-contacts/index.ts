@@ -50,6 +50,9 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
+  const maxSessions = Math.max(1, Math.min(Number(body.maxSessions || 1), 3));
+  const maxContactsPerSession = Math.max(100, Math.min(Number(body.maxContactsPerSession || 2500), 5000));
+  const cursor = body.cursor ? String(body.cursor) : null;
   const requestedSessions: string[] | null = Array.isArray(body.sessions) && body.sessions.length
     ? body.sessions.map((s: any) => String(s))
     : (body.session ? [String(body.session)] : null);
@@ -85,10 +88,12 @@ Deno.serve(async (req) => {
         throw new Error(`WAHA /api/sessions HTTP ${sRes.status}: ${t.slice(0, 200)}`);
       }
       const list = await sRes.json();
-      sessionsToUse = (Array.isArray(list) ? list : [])
+      const workingSessions = (Array.isArray(list) ? list : [])
         .filter((s: any) => s?.status === 'WORKING')
         .map((s: any) => s.name)
         .filter(Boolean);
+      const startIndex = cursor ? Math.max(0, workingSessions.indexOf(cursor)) : 0;
+      sessionsToUse = workingSessions.slice(startIndex, startIndex + maxSessions);
 
       try {
         await Promise.all((Array.isArray(list) ? list : []).map((s: any) => supabase
@@ -135,9 +140,12 @@ Deno.serve(async (req) => {
           perSession.push(sessionResult);
           continue;
         }
-        const contacts: WahaContact[] = await resp.json();
-        const fetched = Array.isArray(contacts) ? contacts.length : 0;
+        const allContacts: WahaContact[] = await resp.json();
+        const contacts = Array.isArray(allContacts) ? allContacts.slice(0, maxContactsPerSession) : [];
+        const fetched = Array.isArray(allContacts) ? allContacts.length : 0;
         sessionResult.fetched = fetched;
+        sessionResult.processed = contacts.length;
+        if (fetched > contacts.length) sessionResult.warning = `Lot limité à ${contacts.length}/${fetched} contacts pour éviter la limite CPU Supabase.`;
         totalFetched += fetched;
 
         const rows: any[] = [];
@@ -201,7 +209,9 @@ Deno.serve(async (req) => {
         totalMapped += sessionResult.mapped;
 
         if (backfill && finalRows.length) {
+          let backfilledForSession = 0;
           for (const r of finalRows) {
+            if (backfilledForSession >= 100) break;
             const variants = [r.lid, `${r.lid}@lid`, r.jid].filter(Boolean);
             const { data: upd1 } = await supabase
               .from('waouh_unified_catalog')
@@ -214,6 +224,7 @@ Deno.serve(async (req) => {
               .in('vendeur_whatsapp', variants)
               .select('id');
             sessionResult.backfilled += (upd1?.length || 0) + (upd2?.length || 0);
+            backfilledForSession++;
           }
           totalBackfilled += sessionResult.backfilled;
         }
