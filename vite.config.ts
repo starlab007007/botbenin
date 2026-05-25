@@ -36,12 +36,16 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
 
-          // ─── CORRECTION 1 ───────────────────────────────────────────────────
-          // React core + tous les wrappers react-* (y compris react-leaflet)
-          // dans le MÊME chunk react, pour garantir que React.createContext
-          // existe au moment où react-leaflet s'initialise.
-          // Avant : react-leaflet était exclu de ce bloc et placé dans 'leaflet',
-          // ce qui causait "Cannot read properties of undefined (reading 'createContext')".
+          // ═══════════════════════════════════════════════════════════════════
+          // RÈGLE ABSOLUE : tout module dont le nom commence par "react-"
+          // est un wrapper React et DOIT vivre dans le chunk 'react'.
+          // Cela garantit que React.createContext / React.useState etc.
+          // sont déjà initialisés quand ces wrappers s'exécutent.
+          //
+          // CORRECTIONS appliquées ici vs version originale :
+          //   • react-leaflet → n'est PLUS exclu  (fix bug leaflet v1)
+          //   • react-pdf     → n'est PLUS exclu  (fix bug pdf  v2)
+          // ═══════════════════════════════════════════════════════════════════
           if (
             id.includes('/node_modules/react/') ||
             id.includes('/node_modules/react-dom/') ||
@@ -49,31 +53,37 @@ export default defineConfig(({ mode }) => ({
             id.includes('/node_modules/object-assign/') ||
             id.includes('/node_modules/use-sync-external-store/') ||
             id.includes('/node_modules/react-router') ||
-            (
-              /\/node_modules\/react-[^/]+\//.test(id) &&
-              !id.includes('react-pdf')
-              // ← react-leaflet n'est PLUS exclu ici ; il reste donc dans 'react'
-            )
+            /\/node_modules\/react-[^/]+\//.test(id)
+            // ↑ Tous les react-* sans AUCUNE exception :
+            //   react-leaflet, react-pdf, react-query, react-hook-form…
+            //   sont tous garantis d'avoir React disponible.
           ) return 'react';
 
-          // Librairies très lourdes -> chunks isolés
+          // ─── Librairies très lourdes sans dépendance React ─────────────────
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
           if (id.includes('@ffmpeg')) return 'ffmpeg';
-          if (id.includes('pdfjs') || id.includes('jspdf') || id.includes('react-pdf')) return 'pdf';
+
+          // ─── PDF : uniquement les moteurs de rendu pur JS ──────────────────
+          // CORRECTION : react-pdf retiré d'ici (c'est un wrapper React, voir
+          // bloc 'react' ci-dessus). Seuls pdfjs et jspdf restent ici.
+          if (id.includes('pdfjs') || id.includes('jspdf')) return 'pdf';
+
           if (id.includes('/node_modules/mapbox-gl')) return 'mapbox';
 
-          // ─── CORRECTION 2 ───────────────────────────────────────────────────
-          // Le chunk 'leaflet' ne contient plus que leaflet (vanilla JS).
-          // react-leaflet est retiré d'ici car c'est un wrapper React :
-          // il doit impérativement s'initialiser APRÈS React.
-          // Avant : id.includes('react-leaflet') était inclus dans cette condition.
+          // ─── Leaflet : uniquement la lib vanilla JS ────────────────────────
+          // CORRECTION (v1) : react-leaflet retiré d'ici (wrapper React).
           if (id.includes('/node_modules/leaflet') && !id.includes('react-leaflet')) return 'leaflet';
 
-          if (id.includes('/node_modules/recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
+          if (
+            id.includes('/node_modules/recharts') ||
+            id.includes('/d3-') ||
+            id.includes('victory-vendor')
+          ) return 'charts';
+
           if (id.includes('xlsx')) return 'xlsx';
 
-          // Tout le reste (radix, lucide-react, supabase, tanstack, react-leaflet, etc.)
-          // -> un seul vendor pour éviter les cycles entre chunks.
+          // ─── Vendor catch-all ──────────────────────────────────────────────
+          // radix, lucide-react, supabase, tanstack, etc.
           return 'vendor';
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
