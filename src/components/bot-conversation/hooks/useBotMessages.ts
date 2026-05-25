@@ -141,7 +141,7 @@ export const useBotMessages = (
 
     // Realtime updates for this bot
     const channel = supabase
-      .channel('chat_messages_changes')
+      .channel(`chat_messages_changes_${selectedBot.id}_${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         {
