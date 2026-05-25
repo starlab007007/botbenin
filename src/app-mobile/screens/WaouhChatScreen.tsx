@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake } from "lucide-react";
+import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLeft } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
@@ -110,13 +110,20 @@ export default function WaouhChatScreen() {
   );
 
   return (
-    <div className="flex flex-col bg-background overflow-hidden" style={{ height: "calc(100dvh - 64px - env(safe-area-inset-bottom))" }}>
+    <div className="flex flex-col bg-background overflow-hidden" style={{ height: "100dvh" }}>
       {/* Unified native header */}
       <header
-        className="flex items-center justify-between gap-2 px-3 bg-[hsl(var(--wa-green,142_70%_24%))] text-white shrink-0 shadow-md z-10"
+        className="flex items-center justify-between gap-2 px-2 bg-[hsl(var(--wa-green,142_70%_24%))] text-white shrink-0 shadow-md z-10"
         style={{ paddingTop: "max(env(safe-area-inset-top), 0px)", height: "calc(56px + env(safe-area-inset-top))" }}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1 min-w-0">
+          <button
+            onClick={() => navigate("/app/chat")}
+            className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25 shrink-0"
+            aria-label="Retour"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
             <ShoppingBag className="w-5 h-5 text-white" />
           </div>
