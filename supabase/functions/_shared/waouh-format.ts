@@ -166,15 +166,62 @@ export async function marketAnalysisAI(opts: { title: string; price: number; min
  * Build contact + geoloc block to share between buyer/seller after agreement.
  * Pas de lien Maps — affichage direct ville + distance live.
  */
+/**
+ * Résout le vrai numéro WhatsApp E.164 d'un utilisateur WAOUH.
+ * Ordre: phone_number direct (non-LID) → waouh_lid_phone_map → auth.users.phone.
+ * Retourne "" si introuvable.
+ */
+export async function resolveRealPhoneE164(
+  sb: any,
+  user: { id?: string | null; phone_number?: string | null; auth_user_id?: string | null } | null | undefined
+): Promise<string> {
+  if (!user) return "";
+  const raw = (user.phone_number || "").trim();
+  // 1) Numéro direct E.164 (pas un LID anonyme)
+  if (raw && !/@lid$/i.test(raw)) {
+    const digits = raw.replace(/@(?:c\.us|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
+    // Considère valide si >= 10 chiffres et commence par un indicatif plausible
+    if (digits.length >= 10 && digits.length <= 15) return `+${digits}`;
+  }
+  // 2) Mapping LID → phone via waouh_lid_phone_map
+  if (raw && /@lid$/i.test(raw)) {
+    const lid = raw.replace(/@lid$/i, "");
+    try {
+      const { data } = await sb
+        .from("waouh_lid_phone_map")
+        .select("phone_e164, phone")
+        .or(`lid.eq.${lid},lid.eq.${raw}`)
+        .maybeSingle();
+      const p = (data?.phone_e164 || data?.phone || "").toString().replace(/\D/g, "");
+      if (p && p.length >= 10) return `+${p}`;
+    } catch (_) { /* ignore */ }
+  }
+  // 3) auth.users.phone (pour utilisateurs web authentifiés)
+  if (user.auth_user_id) {
+    try {
+      const { data } = await sb.auth.admin.getUserById(user.auth_user_id);
+      const p = (data?.user?.phone || "").toString().replace(/\D/g, "");
+      if (p && p.length >= 10) return `+${p}`;
+    } catch (_) { /* ignore */ }
+  }
+  return "";
+}
+
 export function contactExchangeText(
   role: "buyer_to_seller" | "seller_to_buyer",
-  other: { display_name?: string | null; phone_number?: string | null; city?: string | null; distance_km?: number | null; location?: any }
+  other: { display_name?: string | null; phone_e164?: string | null; phone_number?: string | null; city?: string | null; distance_km?: number | null; location?: any }
 ): string {
   const who = role === "buyer_to_seller" ? "vendeur" : "acheteur";
   const name = other.display_name || `Contact ${who}`;
-  const rawPhone = (other.phone_number || "").replace(/@(?:c\.us|lid|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
-  const formatted = rawPhone ? `+${rawPhone}` : "";
-  const phoneLine = formatted ? `\n📞 *Téléphone* : ${formatted}\n🟢 *WhatsApp* : ${formatted}` : "";
+  // Préfère phone_e164 (déjà résolu via resolveRealPhoneE164)
+  let formatted = (other.phone_e164 || "").trim();
+  if (!formatted && other.phone_number && !/@lid$/i.test(other.phone_number)) {
+    const digits = other.phone_number.replace(/@(?:c\.us|lid|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
+    if (digits.length >= 10 && digits.length <= 15) formatted = `+${digits}`;
+  }
+  const phoneLine = formatted
+    ? `\n📞 *Téléphone* : ${formatted}\n🟢 *WhatsApp* : https://wa.me/${formatted.replace(/\D/g, "")}`
+    : `\n📞 *Contact direct* : numéro privé — répondez sur WAOUH, nous transmettons votre message au ${who}.`;
   // Compose adresse : ville + quartier/adresse si dispo (depuis location JSON)
   const loc = other.location && typeof other.location === "object" ? other.location : null;
   const quartier = loc?.quartier || loc?.neighborhood || loc?.district || null;

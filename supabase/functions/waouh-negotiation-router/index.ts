@@ -3,7 +3,7 @@
 // les coordonnées sont automatiquement échangées et la négociation est close.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance } from "../_shared/waouh-format.ts";
+import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance, resolveRealPhoneE164 } from "../_shared/waouh-format.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   // Helper: notification cloche + message direct chez l'autre partie
-  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null) {
+  async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null, attachments: Array<{url: string; type: string; caption?: string}> = []) {
     const { data: target } = await sb.from("waouh_users")
       .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
         const { data: msg } = await sb.from("waouh_messages").insert({
           user_id: target.id, channel: "web", direction: "out",
           text: directText, web_session_id: target.web_session_id,
+          attachments,
           meta: { ...(directMeta || {}), transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
         }).select("id").maybeSingle();
         insertedMsgId = msg?.id ?? null;
@@ -67,9 +68,9 @@ Deno.serve(async (req) => {
         p_to_phone: target.phone_number,
         p_to_user_id: target.id,
         p_template: template,
-        p_payload: { ...(payload || {}), text: directText, actions, message_id: insertedMsgId, transaction_id: transactionId },
+        p_payload: { ...(payload || {}), text: directText, actions, message_id: insertedMsgId, transaction_id: transactionId, attachments },
         p_web_session_id: target.web_session_id,
-        p_image_url: null,
+        p_image_url: attachments?.[0]?.url ?? null,
         p_channel: target.phone_number ? "whatsapp" : "web",
         p_message_id: insertedMsgId,
         p_transaction_id: transactionId,
@@ -117,9 +118,15 @@ Deno.serve(async (req) => {
 
       // Charge les deux parties + article (pour photos et titre)
       const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.buyer_user_id).maybeSingle(),
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.seller_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location, auth_user_id").eq("id", neg.buyer_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location, auth_user_id").eq("id", neg.seller_user_id).maybeSingle(),
         sb.from("waouh_articles").select("id, title, photos").eq("id", neg.article_id).maybeSingle(),
+      ]);
+
+      // Résolution des vrais numéros WhatsApp E.164 (LID → phone, auth → phone, …)
+      const [buyerPhoneE164, sellerPhoneE164] = await Promise.all([
+        resolveRealPhoneE164(sb, buyer),
+        resolveRealPhoneE164(sb, seller),
       ]);
 
       // Distance live entre acheteur et vendeur (via RPC PostGIS)
@@ -142,19 +149,26 @@ Deno.serve(async (req) => {
 
       const replyToBuyer =
         buildSynthese("🎉 Le vendeur a accepté !") +
-        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm, location: (seller as any)?.location }) +
+        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_e164: sellerPhoneE164, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm, location: (seller as any)?.location }) +
         `\n\n🎊 *Félicitations !* Vous pouvez maintenant convenir directement de la livraison avec le vendeur.\n\n` +
         waouhFooter("WAOUH — Merci de votre confiance ✨");
 
       const replyToSeller =
         buildSynthese("🎉 Accord conclu — Acheteur confirmé") +
-        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm, location: (buyer as any)?.location }) +
+        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_e164: buyerPhoneE164, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm, location: (buyer as any)?.location }) +
         `\n\n🎊 *Félicitations !* Convenez librement de la livraison avec l'acheteur.\n\n` +
         waouhFooter("WAOUH — Merci de votre confiance ✨");
 
 
       const targetReply = isBuyer ? replyToSeller : replyToBuyer; // l'autre partie
       const myReply = isBuyer ? replyToBuyer : replyToSeller;
+
+      // Photos de l'article pour les deux parties (synthèse finale enrichie)
+      const articlePhotos: string[] = Array.isArray((article as any)?.photos) ? (article as any).photos.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u)) : [];
+      const replyAttachments = articlePhotos.slice(0, 4).map((url, k) => ({
+        url, type: "image/jpeg",
+        caption: `${title}${articlePhotos.length > 1 ? ` — photo ${k + 1}/${articlePhotos.length}` : ""}`,
+      }));
 
       if (otherUserId) {
         await pushToOther(
@@ -166,15 +180,19 @@ Deno.serve(async (req) => {
           null,
           [],
           `neg:${neg.id}:contact:${otherUserId}`,
-          "contact_exchange"
+          "contact_exchange",
+          replyAttachments
         );
       }
+
+      // Note: l'insertion côté requester est faite par waouh-channel-in via les attachments retournés.
+
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
-      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "contact_exchange", actions: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "contact_exchange", actions: [], attachments: replyAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
 
