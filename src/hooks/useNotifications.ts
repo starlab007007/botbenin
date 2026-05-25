@@ -126,12 +126,13 @@ export const useNotifications = () => {
 
   // Setup realtime subscription
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
+    let cancelled = false;
     fetchNotifications();
 
     const channel = supabase
-      .channel('notifications-changes')
+      .channel(`notifications-changes-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
       .on(
         'postgres_changes',
         {
@@ -141,17 +142,16 @@ export const useNotifications = () => {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
+          if (cancelled) return;
           const newNotification = payload.new as Notification;
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
 
-          // Show toast notification
           toast({
             title: newNotification.title,
             description: newNotification.content,
           });
 
-          // Show browser notification if permitted
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(newNotification.title, {
               body: newNotification.content,
@@ -164,9 +164,11 @@ export const useNotifications = () => {
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [user, fetchNotifications]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Request notification permission
   const requestNotificationPermission = async () => {
