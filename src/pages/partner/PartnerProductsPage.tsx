@@ -198,9 +198,9 @@ export default function PartnerProductsPage() {
                 <SmartCombobox value={form.unite} onChange={v => setForm({ ...form, unite: v })} options={PRODUCT_UNITS} placeholder="kg, pièce..." />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><Label>Prix min (FCFA)</Label><Input type="number" value={form.prix_min} onChange={e => setForm({ ...form, prix_min: e.target.value })} /></div>
-              <div><Label>Prix max (FCFA)</Label><Input type="number" value={form.prix_max} onChange={e => setForm({ ...form, prix_max: e.target.value })} /></div>
+            <div>
+              <Label>Prix (FCFA)</Label>
+              <Input type="number" value={form.prix} onChange={e => setForm({ ...form, prix: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Stock estimé</Label><Input type="number" value={form.stock_estime} onChange={e => setForm({ ...form, stock_estime: e.target.value })} /></div>
