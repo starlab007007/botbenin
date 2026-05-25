@@ -209,17 +209,28 @@ export default function PartnerBusinessesPage() {
               </div>
               <div>
                 <Label>Catégorie *</Label>
-                <SmartCombobox value={form.categorie} onChange={v => setForm({ ...form, categorie: v })}
-                  options={[...BUSINESS_CATEGORIES, 'Autre']} placeholder="Type d'activité (saisir si absent)"
-                  allowCustom invalid={!!errors.categorie} errorMessage={errors.categorie} />
+                <SmartCombobox
+                  value={BUSINESS_CATEGORIES.includes(form.categorie) ? form.categorie : (form.categorie ? 'Autre' : '')}
+                  onChange={v => setForm({ ...form, categorie: v === 'Autre' ? ' ' : v })}
+                  options={[...BUSINESS_CATEGORIES, 'Autre']}
+                  placeholder="Type d'activité"
+                  allowCustom invalid={!!errors.categorie} errorMessage={errors.categorie}
+                />
+                {(form.categorie === ' ' || (form.categorie && !BUSINESS_CATEGORIES.includes(form.categorie))) && (
+                  <Input
+                    className="mt-2"
+                    placeholder="Précisez votre type d'activité"
+                    value={form.categorie.trim()}
+                    onChange={e => setForm({ ...form, categorie: e.target.value })}
+                    autoFocus
+                  />
+                )}
               </div>
               <LocationAutocomplete
                 ville={form.ville} quartier={form.quartier}
                 onChange={({ ville, quartier }) => setForm({ ...form, ville, quartier })}
                 villeInvalid={!!errors.ville} villeError={errors.ville}
               />
-              <div><Label>Adresse complète</Label><Input value={form.adresse_complete} onChange={e => setForm({ ...form, adresse_complete: e.target.value })} placeholder="Repère, rue, immeuble..." /></div>
-              <div><Label>Description</Label><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} /></div>
               {form.tags?.length > 0 && <div className="flex flex-wrap gap-1">{form.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}</div>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><Label>Téléphone</Label><PhoneInput value={form.telephone} onChange={v => setForm({ ...form, telephone: v })} invalid={!!errors.telephone} errorMessage={errors.telephone} /></div>
