@@ -22,7 +22,8 @@ jobs:
             --exclude='node_modules' \
             --exclude='dist' \
             --exclude='*.log' \
-            -czf /tmp/botbenin-release.tgz .
+            --exclude='botbenin-release.tgz' \
+            -czf botbenin-release.tgz .
 
       - name: Envoyer le code sur le VPS
         uses: appleboy/scp-action@v0.1.7
@@ -30,9 +31,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: /tmp/botbenin-release.tgz
+          source: botbenin-release.tgz
           target: /tmp
-          strip_components: 1
 
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
@@ -51,7 +51,12 @@ jobs:
             rm -rf /tmp/botbenin-release
             mkdir -p /tmp/botbenin-release /home/debian/botbenin
             tar -xzf /tmp/botbenin-release.tgz -C /tmp/botbenin-release
-            rsync -a --delete /tmp/botbenin-release/ /home/debian/botbenin/
+            if command -v rsync >/dev/null 2>&1; then
+              rsync -a --delete /tmp/botbenin-release/ /home/debian/botbenin/
+            else
+              rm -rf /home/debian/botbenin/* /home/debian/botbenin/.[!.]* /home/debian/botbenin/..?* 2>/dev/null || true
+              cp -a /tmp/botbenin-release/. /home/debian/botbenin/
+            fi
             cd /home/debian/botbenin/
             rm -rf /tmp/botbenin-release
             rm -f /tmp/botbenin-release.tgz
