@@ -1,79 +1,264 @@
-## Objectif
 
-Garantir que dans **tout message** (recherche, annonce, accord, notification), le contact affiché et destinataire soit le **vrai numéro WhatsApp / téléphone** de la personne — peu importe la source d'origine. Un seul resolver, appliqué partout.
+# WaouhApp — Solution native dans le repo Lovable actuel
 
-## Les 4 sources à couvrir
+## Recommandation : **Capacitor + React + Vite + Tailwind**
 
-| # | Source | Table / champ | Cas d'usage |
-|---|--------|---------------|------------|
-| 1 | **Radar IA** (scraping web, groupes WhatsApp, Facebook, Marketplace) | `waouh_external_listings.seller_phone` (+ enrichissement IA depuis description) | Annonces externes captées par le radar |
-| 2 | **Partenaire** (entreprise enregistrée avant publication produits) | `waouh_partner_businesses.whatsapp` et `.telephone` (liée à `seller_id` via `waouh_articles`) | Vendeurs partenaires bot.bj |
-| 3 | **Chat WhatsApp direct** (annonceur/acheteur depuis son propre WhatsApp) | `waouh_users.phone_number` (E.164) ou résolution `waouh_lid_phone_map` si LID | Utilisateurs natifs WhatsApp |
-| 4 | **Web bot.bj** (acheteurs/vendeurs connectés) | `waouh_users.auth_user_id` → `auth.users.phone` ; fallback `profiles.phone` | Utilisateurs web authentifiés |
+C'est la **seule option** qui permet de rester dans le repo Lovable actuel (React/TS/Vite) tout en produisant une **vraie app native Android** publiable sur Google Play Store (et iOS plus tard si besoin).
 
-## Architecture proposée
+### Pourquoi Capacitor et pas autre chose ?
 
-### 1. Resolver unique enrichi : `resolveRealPhoneE164(sb, user, opts?)`
+| Option | Reste dans Lovable ? | Vraie app native ? | Play Store ? | Verdict |
+|---|---|---|---|---|
+| **Capacitor** (Ionic) | ✅ Oui | ✅ Oui (WebView native + APIs natives Java/Kotlin) | ✅ Oui | **★ Choix optimal** |
+| Kotlin natif | ❌ Repo séparé Android Studio | ✅ Oui | ✅ Oui | Trop coûteux pour le scope v1 |
+| React Native | ❌ Repo séparé (Lovable ne supporte pas RN) | ✅ Oui | ✅ Oui | Impossible ici |
+| Flutter | ❌ Dart, repo séparé | ✅ Oui | ✅ Oui | Impossible ici |
+| PWA seule | ✅ Oui | ❌ Web installable | ⚠ Limité | Pas assez natif |
 
-Étendre la fonction existante dans `_shared/waouh-format.ts` pour parcourir les sources dans cet **ordre de priorité** :
+**Capacitor = le bon compromis** : on garde 100% du code React/Tailwind/Supabase déjà écrit, on l'enveloppe dans une app native qui a accès à toutes les APIs Android (caméra, contacts, push, biométrie, ML Kit, etc.) via des plugins natifs.
+
+### Ce que ça donne concrètement
+
+- **Une seule base de code** React/TS dans ce repo → web (bot.bj) **et** app Android se nourrissent du même code UI
+- **APK signé** publiable sur Play Store
+- **Accès natif réel** : caméra, micro, contacts du téléphone (pour Diffusion), push FCM, scan QR, stockage local, biométrie
+- **Hot reload pendant le dev** : on code dans Lovable, on voit en live dans l'émulateur Android
+- **Backend bot.bj inchangé** : Supabase + edge functions existantes réutilisées à 100%
+
+## Architecture
 
 ```text
-1. user.phone_number (si E.164 valide, non-@lid)
-2. waouh_lid_phone_map (si @lid)
-3. auth.users.phone (si auth_user_id)              [NEW: source web]
-4. profiles.phone (via auth_user_id)               [NEW: fallback web]
-5. waouh_partner_businesses (via opts.article_id → seller_id) [NEW: source partenaire]
-6. waouh_external_listings.seller_phone (via opts.article_id → origin_signal_id) [NEW: source radar]
+┌─────────────────────────────────────────────────┐
+│  Repo Lovable (CE REPO — React/TS/Vite)         │
+│                                                  │
+│  ┌──────────────────────────────────────────┐   │
+│  │  Code React partagé                       │   │
+│  │   • Pages waouh, partner, whatsapp        │   │
+│  │   • Hooks Supabase existants              │   │
+│  │   • UI shadcn + Tailwind                  │   │
+│  └──────────────────────────────────────────┘   │
+│        │                          │              │
+│        ▼                          ▼              │
+│  ┌──────────────┐         ┌───────────────────┐ │
+│  │  Build web   │         │  Capacitor wrap   │ │
+│  │  (bot.bj)    │         │  → Android APK    │ │
+│  │  Vercel/VPS  │         │  → iOS (futur)    │ │
+│  └──────────────┘         └───────────────────┘ │
+└─────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+                  ┌────────────────────────────┐
+                  │  Backend Supabase bot.bj   │
+                  │  (inchangé)                │
+                  └────────────────────────────┘
 ```
 
-Renvoie `""` si rien — l'appelant affiche alors un fallback "communiquez via WAOUH".
+## Stack détaillée
 
-### 2. Signature étendue
+### Capacitor + plugins natifs
+| Besoin | Plugin |
+|---|---|
+| Caméra (envoi photos chat / produits) | `@capacitor/camera` |
+| Contacts téléphone (import Diffusion) | `@capacitor-community/contacts` |
+| Push notifications | `@capacitor/push-notifications` + Firebase |
+| Scan QR (connexion WhatsApp WAHA) | `@capacitor-mlkit/barcode-scanning` |
+| Stockage sécurisé (tokens Supabase) | `@capacitor/preferences` + chiffrement |
+| Réseau / offline | `@capacitor/network` |
+| Partage natif | `@capacitor/share` |
+| Géolocalisation (Waouh Partenaire) | `@capacitor/geolocation` |
+| Splash screen + status bar | `@capacitor/splash-screen` + `@capacitor/status-bar` |
+| Haptics (feedback tactile WhatsApp-like) | `@capacitor/haptics` |
+| Système de fichiers (médias offline) | `@capacitor/filesystem` |
 
-```ts
-resolveRealPhoneE164(sb, user, {
-  article_id?: string,        // pour remonter partenaire ou radar
-  fallback_to_partner?: bool, // default true
-  fallback_to_radar?: bool,   // default true
-})
+### Stack web déjà en place (réutilisée)
+- React 18 + TypeScript + Vite (déjà)
+- Tailwind + shadcn/ui (déjà)
+- Supabase JS (déjà)
+- TanStack Query (déjà)
+- React Router (déjà)
+
+### Nouveau pour l'app
+- `@capacitor/core` + `@capacitor/cli`
+- `@capacitor/android` (+ `@capacitor/ios` plus tard)
+- `framer-motion` pour transitions WhatsApp-like (slides, fades)
+- `vaul` pour bottom sheets natives
+- `react-spring` ou `motion` pour gestures (swipe to reply, pull-to-refresh)
+
+## App mobile = nouvelle zone /app dans le repo
+
+Pour ne pas casser bot.bj web, on crée une **section dédiée** à l'app :
+
+```text
+src/
+├── pages/                  (existant — site web bot.bj)
+├── pages/partner/          (existant — utilisé aussi par mobile)
+├── app-mobile/             (NOUVEAU — UI native-like)
+│   ├── layouts/
+│   │   ├── BottomTabBar.tsx       ← style WhatsApp 5 onglets
+│   │   └── MobileShell.tsx
+│   ├── screens/
+│   │   ├── auth/
+│   │   │   ├── AuthHomeScreen.tsx        ← 2 boutons : WhatsApp / Email
+│   │   │   ├── EmailAuthScreen.tsx
+│   │   │   └── WhatsAppOtpScreen.tsx     ← OTP via WAHA
+│   │   ├── chat/
+│   │   │   ├── ChatListScreen.tsx        ← liste conversations
+│   │   │   ├── ChatScreen.tsx            ← bulles type WhatsApp
+│   │   │   └── components/
+│   │   │       ├── MessageBubble.tsx
+│   │   │       ├── VoiceRecorder.tsx
+│   │   │       └── MediaPicker.tsx
+│   │   ├── bots/
+│   │   │   ├── BotsListScreen.tsx
+│   │   │   └── CreateBotWizard.tsx       ← 4 étapes
+│   │   ├── whatsapp/
+│   │   │   ├── WhatsAppConnectScreen.tsx ← scan QR ML Kit
+│   │   │   └── WhatsAppChatsScreen.tsx
+│   │   ├── diffusion/
+│   │   │   ├── CampaignsListScreen.tsx
+│   │   │   ├── NewCampaignScreen.tsx
+│   │   │   └── ContactsImportScreen.tsx  ← lit contacts natifs
+│   │   └── partner/
+│   │       ├── PartnerDashboardScreen.tsx
+│   │       ├── ProductsScreen.tsx
+│   │       ├── SalesScreen.tsx
+│   │       └── PayoutsScreen.tsx
+│   ├── hooks/
+│   │   ├── useIsNative.ts            ← détecte runtime Capacitor
+│   │   ├── usePushNotifications.ts
+│   │   └── useNativeContacts.ts
+│   └── theme/
+│       └── mobile-theme.css          ← design WhatsApp-like
+└── App.tsx                  ← branche /app/* sur MobileShell
 ```
 
-### 3. Points d'appel à mettre à jour
+### Routing intelligent
+```tsx
+// Détection runtime : web bot.bj OU app native
+import { Capacitor } from '@capacitor/core';
+const isNative = Capacitor.isNativePlatform();
 
-- `waouh-negotiation-router/index.ts` (déjà branché) → passer `article_id` aux 2 appels resolver.
-- `waouh-radar-process/index.ts` → quand on notifie un vendeur scrappé, utiliser le resolver avec `article_id` pour récupérer le seller_phone depuis `external_listings`.
-- `waouh-channel-in/index.ts` → idem pour enrichir `waouh_users` stub des leads radar (déjà via `ensureWaouhVendorStub`, mais sans seller_phone radar).
-- `waouh-webhook/index.ts` (recherche acheteur) → quand on envoie le contact d'un vendeur trouvé, passer par le resolver.
+// Dans App.tsx :
+{isNative ? <MobileShell /> : <WebRouter />}
+```
 
-### 4. Job de back-fill (one-shot SQL migration)
+L'app native démarre directement sur `MobileShell` → bottom tabs WhatsApp-like.
+Le web continue de servir bot.bj normalement.
 
-Mettre à jour `waouh_users.phone_number` en remontant depuis :
-- `waouh_partner_businesses.whatsapp/telephone` (si stub user lié)
-- `waouh_external_listings.seller_phone` (pour stubs créés depuis radar)
+## Design — feeling WhatsApp/Telegram
 
-Cela évite que les anciens accords affichent encore des `@lid` ou numéros vides.
+- **Couleurs** : palette inspirée WhatsApp (#075E54 vert profond, #25D366 vert action, #DCF8C6 bulle envoyée), avec accent bot.bj (orange Bénin) sur les CTAs commerce
+- **Typo** : SF Pro / Roboto (système natif) pour le feeling OS
+- **Bottom Tab Bar** : 5 onglets avec icônes Lucide, badge unread rouge, transitions Framer Motion
+- **Listes de conversations** : avatar circulaire, nom gras, dernier message tronqué, heure à droite, badge unread
+- **Écran chat** : bulles arrondies (sent à droite primary, received à gauche muted), timestamps discrets, indicateur "vu" (✓✓ bleu), bouton micro long-press pour vocal, swipe-to-reply
+- **Haptics** : vibration courte à l'envoi/réception (via `@capacitor/haptics`)
+- **Pull-to-refresh** sur listes
+- **Splash screen** avec logo Waouh animé
+- **Mode sombre** complet
+- **Safe areas** iOS/Android (notch, gestures)
 
-### 5. Centralisation outbound
+## Périmètre v1 (validé)
 
-Dans `waouh-outbound-dispatch/index.ts`, avant tout envoi WhatsApp :
-- Si `to_phone` est un `@lid`, le résoudre via le mapping.
-- Si introuvable, basculer le message vers le chat web (`channel = "web"`) et logger l'incident dans `waouh_lid_sync_runs` pour relance sync contacts.
+5 onglets bottom bar :
+1. **Chat** — conversations Waouh (1-1, groupes, bots) + temps réel Supabase
+2. **Bots** — wizard création + liste + stats
+3. **WhatsApp IA** — connexion QR WAHA + bascule manuel/IA
+4. **Diffusion** — campagnes + import contacts natifs Android
+5. **Partenaire** — dashboard, produits, ventes, payouts
 
-## Fichiers modifiés
+Auth : email/password **ou** numéro WhatsApp via OTP WAHA (2 nouvelles edge functions).
 
-- `supabase/functions/_shared/waouh-format.ts` (resolver enrichi)
-- `supabase/functions/waouh-negotiation-router/index.ts`
-- `supabase/functions/waouh-radar-process/index.ts`
-- `supabase/functions/waouh-channel-in/index.ts`
-- `supabase/functions/waouh-webhook/index.ts`
-- `supabase/functions/waouh-outbound-dispatch/index.ts`
-- 1 migration SQL : back-fill `waouh_users.phone_number` depuis partenaires + radar.
+**Hors scope v1** : Mobile Money, ElevenLabs, NLLB, Radar inline, vocal Kpakpato, modules admin (qui restent sur le web).
 
-## Résultat attendu
+## Backend — ajouts minimes côté Supabase bot.bj
 
-- Plus jamais de `@lid` ou de "Contact privé" dans les messages "Accord conclu" / "Accord enregistré".
-- Les acheteurs/vendeurs reçoivent toujours le **vrai** numéro de l'autre partie + lien `wa.me/`.
-- Les notifications partent vers le **bon canal** (WhatsApp si numéro résolu, sinon chat web bot.bj).
-- Un seul point de vérité (`resolveRealPhoneE164`) — pas de duplication.
+1. **2 nouvelles edge functions** :
+   - `whatsapp-otp-send` → génère code 6 chiffres + envoie via `waha-send-message`
+   - `whatsapp-otp-verify` → vérifie code + crée/login user via `auth.admin`
 
-Aucun changement UI requis. Prêt à passer en build après validation.
+2. **1 nouvelle table** :
+   - `whatsapp_otp_codes` (phone, code_hash, expires_at, attempts, used)
+
+3. **Push notifications** :
+   - Table `device_tokens` (user_id, fcm_token, platform)
+   - Edge function `register-device-token`
+   - Trigger sur nouveaux messages → push FCM
+
+Aucune modification breaking côté web bot.bj. RLS partagée via `auth.uid()`.
+
+## Phases de livraison (~6 semaines au lieu de 10)
+
+```text
+Phase 0 — Setup Capacitor (3 jours)
+  • Install @capacitor/core, cli, android
+  • npx cap init (appId: bj.bot.waouhapp, name: WaouhApp)
+  • npx cap add android
+  • Splash + icônes + manifest
+  • Détection isNative + MobileShell + bottom tabs
+
+Phase 1 — Auth & Chat (1.5 sem)
+  • 2 edge functions OTP WhatsApp
+  • Écrans auth (email + WhatsApp OTP)
+  • Liste conversations + écran chat realtime Supabase
+  • Envoi texte/photo/vocal/doc avec plugins Capacitor
+
+Phase 2 — Bots & WhatsApp IA (1.5 sem)
+  • Wizard création bot 4 étapes
+  • Liste mes bots + stats
+  • Scan QR ML Kit pour WhatsApp WAHA
+  • Bascule manuel/IA
+
+Phase 3 — Diffusion & Partenaire (1.5 sem)
+  • Import contacts natifs Android
+  • Création campagne + suivi live
+  • Dashboard partenaire mobile
+  • Produits/ventes/payouts adaptés mobile
+
+Phase 4 — Polish & Play Store (1 sem)
+  • Animations Framer Motion
+  • Push FCM + table device_tokens
+  • Mode sombre, safe areas, haptics
+  • Build release signé, ASO Play Store
+```
+
+## Workflow utilisateur (toi)
+
+1. **Tu codes dans Lovable** comme d'habitude (React/TS)
+2. **Tu vois en live dans le navigateur** (preview Lovable)
+3. **Pour tester sur téléphone Android** :
+   - Tu exportes le repo vers GitHub
+   - Tu fais `git pull` localement
+   - `npm install` puis `npx cap add android`
+   - `npm run build && npx cap sync`
+   - `npx cap run android` (émulateur ou téléphone branché)
+4. **Hot reload sur téléphone** : grâce à la config `server.url` qui pointe vers le sandbox Lovable, l'app sur ton téléphone se met à jour en live quand tu modifies dans Lovable
+5. **Publier sur Play Store** : `npx cap open android` → Android Studio → Build → Generate Signed APK → upload Play Console
+
+## Comparatif final : pourquoi Capacitor gagne ici
+
+| Critère | Capacitor (recommandé) | Kotlin natif (plan précédent) |
+|---|---|---|
+| Reste dans Lovable | ✅ | ❌ |
+| Réutilise 100% du code React déjà écrit | ✅ | ❌ (tout à réécrire) |
+| Vraie app native publiable Play Store | ✅ | ✅ |
+| Accès caméra/contacts/QR/push | ✅ (via plugins) | ✅ |
+| Délai v1 | 6 semaines | 10 semaines |
+| Coût maintenance (1 base de code) | ✅ Web + Android = 1 codebase | ❌ Web + Android = 2 codebases |
+| iOS plus tard | ✅ `npx cap add ios` | ❌ Tout réécrire Swift |
+| Performance perçue | ✅ Excellente sur Android moderne (WebView v100+) | ✅ Optimale |
+
+**Verdict** : pour WaouhApp v1 (chat + bots + WhatsApp + diffusion + partenaire), Capacitor offre **95% de l'expérience native pour 50% du temps et 30% du coût**, tout en restant dans Lovable. Le natif Kotlin n'apporte un gain réel que si on a besoin de calculs lourds, jeux 3D, ou animations ultra-complexes — ce qui n'est pas notre cas.
+
+## Prochaine étape (à valider avant build)
+
+Si tu valides Capacitor, on enchaîne ainsi :
+
+1. **Setup Capacitor** dans ce repo (install plugins + config + premier APK)
+2. **Création des 2 edge functions OTP WhatsApp** + table `whatsapp_otp_codes`
+3. **Création du `MobileShell` + bottom tabs + écrans auth**
+4. Puis Chat, Bots, WhatsApp IA, Diffusion, Partenaire dans l'ordre
+
+**Une question avant de lancer la phase 0** :
+
+L'icône de l'app et le splash screen — tu veux qu'on génère un logo "Waouh" dédié (style WhatsApp/Telegram, vert ou orange), ou tu fournis un logo existant ?

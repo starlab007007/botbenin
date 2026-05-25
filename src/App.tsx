@@ -144,6 +144,14 @@ const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage")
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+// WaouhApp — Mobile native shell (Capacitor)
+const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
+const MobileChat = lazy(() => import("./app-mobile/screens/ChatListScreen"));
+const MobileBots = lazy(() => import("./app-mobile/screens/BotsScreen"));
+const MobileWhatsApp = lazy(() => import("./app-mobile/screens/WhatsAppScreen"));
+const MobileDiffusion = lazy(() => import("./app-mobile/screens/DiffusionScreen"));
+const MobilePartner = lazy(() => import("./app-mobile/screens/PartnerScreen"));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -260,6 +268,16 @@ const AppContent = () => {
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
                   <Route path="/yovo-gallery" element={<YovoGallery />} />
                   <Route path="/waouh-chat" element={<WaouhChatPage />} />
+
+                  {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
+                  <Route path="/app" element={<MobileShell />}>
+                    <Route index element={<Navigate to="/app/chat" replace />} />
+                    <Route path="chat" element={<MobileChat />} />
+                    <Route path="bots" element={<MobileBots />} />
+                    <Route path="whatsapp" element={<MobileWhatsApp />} />
+                    <Route path="diffusion" element={<MobileDiffusion />} />
+                    <Route path="partner" element={<MobilePartner />} />
+                  </Route>
 
                   {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
                   <Route path="/sigdsts" element={<SupportTechniquePage />} />
