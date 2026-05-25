@@ -44,9 +44,16 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler') || id.includes('react-router')) return 'react';
+          // React core strictement isolé (évite tout cycle avec d'autres chunks)
+          if (
+            id.includes('/node_modules/react/') ||
+            id.includes('/node_modules/react-dom/') ||
+            id.includes('/node_modules/scheduler/') ||
+            id.includes('/node_modules/object-assign/')
+          ) return 'react';
+          if (id.includes('react-router')) return 'router';
           if (id.includes('@radix-ui') || id.includes('cmdk') || id.includes('vaul')) return 'radix';
-          if (id.includes('recharts') || id.includes('d3-')) return 'charts';
+          if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'charts';
           if (id.includes('leaflet') || id.includes('mapbox')) return 'maps';
           if (id.includes('@huggingface') || id.includes('onnxruntime')) return 'ai-hf';
           if (id.includes('@ffmpeg')) return 'ffmpeg';
@@ -60,6 +67,8 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('date-fns')) return 'date';
           if (id.includes('embla-carousel')) return 'carousel';
           if (id.includes('react-hook-form') || id.includes('zod') || id.includes('@hookform')) return 'forms';
+          // Tout le reste -> vendor (évite que des helpers communs remontent dans 'charts')
+          return 'vendor';
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
