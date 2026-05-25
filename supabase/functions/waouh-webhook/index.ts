@@ -697,7 +697,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_seller_outreach",
               p_payload: {
-                text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez « OUI » pour le mettre en relation via WAOUH (paiement sécurisé escrow, 0 fraude).`,
+                text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez *OUI* pour être mis en relation directement avec lui via WAOUH.`,
                 radar_signal_id: r.id,
                 source_url: r.raw_url,
               },
