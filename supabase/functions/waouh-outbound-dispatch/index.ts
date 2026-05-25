@@ -106,15 +106,15 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   if (r.ok) return r;
   r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
-  // Legacy simple format
+  // Legacy simple format (boutons WAHA encore acceptés). Si échec, on tombe en
+  // texte simple SANS jamais ré-injecter de liste numérotée « 1./2./3. ».
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
-  const lines = actions.map((a, i) => `${i + 1}. ${a.label}${a.url ? ` → ${a.url}` : a.phone ? ` ☎ ${a.phone}` : ""}`).join("\n");
-  // Final fallback : garder une seule bulle WhatsApp. Avec image, les choix sont dans la légende.
-  if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, `${text}\n\n${lines}`, headers);
-  return sendWahaText(base, session, chatId, `${text}\n\n${lines}`, headers);
+  if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, text, headers);
+  return sendWahaText(base, session, chatId, text, headers);
 }
+
 
 function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
   switch (template) {
