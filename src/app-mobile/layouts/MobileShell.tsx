@@ -1,15 +1,24 @@
 import { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { BottomTabBar } from './BottomTabBar';
 import '../theme/mobile-theme.css';
 
 /**
  * Mobile shell — renders the 5-tab WhatsApp-like layout for WaouhApp.
- * Used both inside the Capacitor native build AND when visiting /app/* on the web.
+ * On drill-in routes (chat detail, partner sub-pages) we hide the bottom
+ * tab bar so the page is fullscreen, exactly like WhatsApp.
  */
 export const MobileShell = () => {
+  const { pathname } = useLocation();
+
+  // Fullscreen routes — no bottom tab bar, no bottom padding.
+  // /app/chat/:id or /app/chat/waouh, and any /app/partner/sub-route.
+  const fullscreen =
+    /^\/app\/chat\/.+/.test(pathname) ||
+    /^\/app\/partner\/.+/.test(pathname) ||
+    /^\/app\/bots\/.+/.test(pathname);
+
   useEffect(() => {
-    // Bootstrap native plugins only when running natively.
     (async () => {
       try {
         const { Capacitor } = await import('@capacitor/core');
@@ -22,7 +31,6 @@ export const MobileShell = () => {
         const { SplashScreen } = await import('@capacitor/splash-screen');
         await SplashScreen.hide();
       } catch (e) {
-        // Plugins not available on web — safe to ignore.
         console.debug('[MobileShell] native bootstrap skipped:', e);
       }
     })();
@@ -30,10 +38,10 @@ export const MobileShell = () => {
 
   return (
     <div className="mobile-shell flex flex-col min-h-[100dvh]">
-      <main className="flex-1 pb-[64px]">
+      <main className={fullscreen ? 'flex-1' : 'flex-1 pb-[64px]'}>
         <Outlet />
       </main>
-      <BottomTabBar />
+      {!fullscreen && <BottomTabBar />}
     </div>
   );
 };
