@@ -163,6 +163,13 @@ Deno.serve(async (req) => {
       const targetReply = isBuyer ? replyToSeller : replyToBuyer; // l'autre partie
       const myReply = isBuyer ? replyToBuyer : replyToSeller;
 
+      // Photos de l'article pour les deux parties (synthèse finale enrichie)
+      const articlePhotos: string[] = Array.isArray((article as any)?.photos) ? (article as any).photos.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u)) : [];
+      const replyAttachments = articlePhotos.slice(0, 4).map((url, k) => ({
+        url, type: "image/jpeg",
+        caption: `${title}${articlePhotos.length > 1 ? ` — photo ${k + 1}/${articlePhotos.length}` : ""}`,
+      }));
+
       if (otherUserId) {
         await pushToOther(
           otherUserId,
@@ -173,15 +180,29 @@ Deno.serve(async (req) => {
           null,
           [],
           `neg:${neg.id}:contact:${otherUserId}`,
-          "contact_exchange"
+          "contact_exchange",
+          replyAttachments
         );
       }
+
+      // Persiste aussi la synthèse côté requester web (avec photos)
+      if (user.web_session_id) {
+        try {
+          await sb.from("waouh_messages").insert({
+            user_id: user.id, channel: "web", direction: "out",
+            text: myReply, web_session_id: user.web_session_id,
+            attachments: replyAttachments,
+            meta: { intent: "contact_exchange", negotiation_id: neg.id },
+          });
+        } catch (e) { console.warn("[neg-router] requester msg", e); }
+      }
+
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
-      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "contact_exchange", actions: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "contact_exchange", actions: [], attachments: replyAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
 
