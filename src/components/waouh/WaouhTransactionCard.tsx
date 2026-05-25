@@ -77,7 +77,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
     })();
 
     const ch = supabase
-      .channel(`waouh_tx_${transactionId}`)
+      .channel(`waouh_tx_${transactionId}_${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes",
         { event: "UPDATE", schema: "public", table: "waouh_transactions", filter: `id=eq.${transactionId}` },
         (p) => setTx(p.new as any))
