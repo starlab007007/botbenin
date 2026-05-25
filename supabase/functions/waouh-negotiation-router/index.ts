@@ -185,17 +185,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Persiste aussi la synthèse côté requester web (avec photos)
-      if (user.web_session_id) {
-        try {
-          await sb.from("waouh_messages").insert({
-            user_id: user.id, channel: "web", direction: "out",
-            text: myReply, web_session_id: user.web_session_id,
-            attachments: replyAttachments,
-            meta: { intent: "contact_exchange", negotiation_id: neg.id },
-          });
-        } catch (e) { console.warn("[neg-router] requester msg", e); }
-      }
+      // Note: l'insertion côté requester est faite par waouh-channel-in via les attachments retournés.
 
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
         method: "POST",
