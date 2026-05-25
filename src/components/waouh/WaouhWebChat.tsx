@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, X, Loader2, Camera, Image as ImageIcon } from "lucide-react";
+import { MessageCircle, Send, X, Loader2, Camera, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
@@ -60,7 +60,9 @@ const QUICK_PROMPTS: Record<Exclude<QuickAction, "sell" | "pay">, string> = {
 };
 
 
-export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }> = ({ embedded = false, fullscreen = false }) => {
+export type WaouhWebChatHandle = { triggerQuickAction: (a: QuickAction) => void; focusInput: () => void };
+
+export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native" }>(({ embedded = false, fullscreen = false, variant = "web" }, externalRef) => {
   const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -239,6 +241,12 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  useImperativeHandle(externalRef, () => ({
+    triggerQuickAction: handleQuickAction,
+    focusInput: () => inputRef.current?.focus(),
+  }), []);
+
+
 
   const [paymentTx, setPaymentTx] = useState<{ id: string; amount: number } | null>(null);
   const [pendingPaymentTx, setPendingPaymentTx] = useState<{ id: string; amount: number } | null>(null);
@@ -272,23 +280,25 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
       )}
     >
-      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <MessageCircle className="w-5 h-5 shrink-0" />
-          <div className="min-w-0">
-            <div className="font-semibold leading-tight truncate">WAOUH</div>
-            <div className="text-xs opacity-90 truncate">Achetez · Vendez · Négociez · Payez</div>
+      {variant !== "native" && (
+        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <MessageCircle className="w-5 h-5 shrink-0" />
+            <div className="min-w-0">
+              <div className="font-semibold leading-tight truncate">WAOUH</div>
+              <div className="text-xs opacity-90 truncate">Achetez · Vendez · Négociez · Payez</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
+            {!embedded && !fullscreen && (
+              <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => setOpen(false)}>
+                <X className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
-          {!embedded && !fullscreen && (
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/20 h-8 w-8" onClick={() => setOpen(false)}>
-              <X className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-      </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/30 min-h-0">
         {messages.length === 0 && (
@@ -412,7 +422,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
         </div>
       )}
 
-      <WaouhQuickActions onAction={handleQuickAction} disabled={sending} />
+      {variant !== "native" && <WaouhQuickActions onAction={handleQuickAction} disabled={sending} />}
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
@@ -436,7 +446,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
           aria-label="Choisir depuis la galerie"
           title={`Galerie (${pendingAtts.length}/${MAX_PHOTOS})`}
         >
-          <ImageIcon className="w-4 h-4" />
+          <Paperclip className="w-4 h-4" />
         </Button>
         <Textarea
           ref={inputRef}
@@ -492,6 +502,7 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
       </Button>
     </>
   );
-};
+});
+WaouhWebChat.displayName = "WaouhWebChat";
 
 export default WaouhWebChat;

@@ -1,75 +1,72 @@
+## Objectif
 
-# Sync complète WaouhApp ↔ Web
+Sur `/app/chat`, remplacer la double-barre actuelle (header vert mobile + header bleu du `WaouhWebChat`) par **une seule fenêtre de chat native**, ultra-moderne, avec :
+- 1 seul header compact (identité WAOUH + ville + profil + notifications)
+- Une **barre de payloads** (Vendre · Acheter · Négocier) tout en haut juste sous le header, façon "chips" iOS/Android
+- Une **zone de messages** plein écran
+- Un **composer natif** : textarea auto-grow, bouton trombone (galerie) + bouton appareil photo, **max 2 photos** en preview au-dessus du champ, bouton envoyer rond animé
 
-Objectif : qu'après connexion (email ou OTP WhatsApp), l'utilisateur retrouve dans l'app mobile **exactement** les mêmes données que sur bot.bj (profil, bots, conversations, sessions WhatsApp, partenaire, diffusions), et que **tous les boutons** des 5 écrans fonctionnent réellement, avec en priorité le **démarrage d'un Waouh Chat**.
+Pas de logique métier modifiée (auth, IA, paiement, escrow, géoloc, notifs restent identiques) — uniquement la couche présentation mobile.
 
-## 1. Profil partagé après connexion
+## Changements
 
-- Hook `useMobileProfile()` qui lit `profiles` (table déjà utilisée par le web) via `user_id = auth.uid()`.
-- Si la ligne n'existe pas (premier login OTP WhatsApp), création automatique avec `phone_number` + `display_name` par défaut.
-- Affichage du nom + avatar dans le header de `ChatListScreen`, `BotsScreen`, `PartnerScreen` (au lieu du titre statique "WaouhApp").
-- Ajout d'un écran `/app/profile` (accessible via tap sur l'avatar) : nom, téléphone, langue, bouton **Se déconnecter**.
-- Garantie : la même ligne `profiles` est lue par le web → toute modification est instantanément visible des deux côtés.
+### 1. Nouveau composant `WaouhWebChat` en mode `native`
+Ajouter un prop `variant?: "web" | "native"` (par défaut `web` pour ne rien casser sur desktop / pages existantes). En mode `native` :
+- Masquer le header interne bleu (`WAOUH · Achetez · Vendez…`) → le header mobile devient l'unique chrome
+- Masquer le `WaouhQuickActions` du bas
+- Exposer la fonction `triggerQuickAction(key)` via un ref (forwardRef + useImperativeHandle) pour que la barre de payloads externe puisse déclencher Vendre/Acheter/Négocier
+- Limiter `pendingAtts` à **2** (au lieu d'illimité aujourd'hui) avec toast si dépassement
+- Remplacer le composer interne par un composer "native" (voir §3) quand `variant=native`
 
-## 2. Démarrage d'un Waouh Chat (priorité)
+### 2. Refonte `WaouhChatScreen.tsx`
+Structure finale :
+```
+┌─────────────────────────────────────┐
+│ [logo] WAOUH · IA   📍Cotonou  🔔 👤│  ← header unique (vert)
+├─────────────────────────────────────┤
+│  [🛍 Vendre] [🔍 Acheter] [🤝 Négo.]│  ← chips payload sticky
+├─────────────────────────────────────┤
+│                                     │
+│         messages (flex-1)           │
+│                                     │
+├─────────────────────────────────────┤
+│ [📷] [📎]  écrire un message…  [➤] │  ← composer natif
+│ [photo1][photo2]                    │
+└─────────────────────────────────────┘
+```
+- Intégrer la `WaouhCityBadge` (déplacée depuis l'ancien header bleu) dans le header vert, à droite
+- Ajouter la barre de chips ronds (h-9, rounded-full, gradient subtil sur l'actif, ombre douce, scroll-x si besoin)
+- Passer `variant="native"` à `<WaouhWebChat />` et brancher les chips sur `chatRef.current.triggerQuickAction(...)`
 
-Le bouton `+` du header `ChatListScreen` est aujourd'hui inerte. À implémenter :
+### 3. Composer natif (nouveau sous-composant `WaouhNativeComposer`)
+- Conteneur sticky bottom avec `pb-[env(safe-area-inset-bottom)]`
+- Boutons icône ronds 40×40 : `Camera` (capture directe via `<input capture="environment">`) et `Paperclip` (galerie, `accept="image/*"`)
+- `Textarea` auto-resize (1 → 5 lignes), placeholder « Écrivez en français, Fon, Yoruba… »
+- Bouton **Send** : rond 44×44, gradient WAOUH (vert→cyan), scale-tap animation, désactivé tant que `(input.trim() === "" && atts.length === 0)`
+- **Previews photos** au-dessus du champ : 2 miniatures 64×64 arrondies avec croix de suppression, compteur `1/2` ou `2/2`
+- Indicateur d'upload (spinner) et indicateur de frappe "WAOUH écrit…" au-dessus du composer pendant `sending`
 
-- Nouveau composant `NewChatSheet` (bottom sheet) avec 2 modes :
-  1. **Nouveau numéro** : saisie d'un numéro (E.164, validation `lib/phone.ts`) + choix du canal (`web`, `whatsapp`).
-  2. **Depuis contacts** (natif Capacitor déjà installé) : sélection rapide d'un contact.
-- À la validation : `INSERT` dans `waouh_conversations` (user_id, phone_number, channel, last_message=null) → navigation immédiate vers `/app/chat/{id}`.
-- Sur `ChatScreen`, premier message envoyé : si `channel='whatsapp'` → routage WAHA déjà câblé ; si `channel='web'` → simple insert (déjà ok).
-- Indicateur de présence + statut "envoyé / livré / lu" via colonne `status` de `waouh_messages` (déjà présente côté realtime).
+### 4. Styles
+- Réutiliser les tokens existants `--wa-green` et la palette mobile (`src/app-mobile/theme/mobile-theme.css`)
+- Ajouter (si absents) tokens `--waouh-chip-bg`, `--waouh-chip-active`, `--waouh-composer-bg` dans le thème mobile, en HSL
+- Aucune couleur en dur dans les composants
 
-## 3. Activation des boutons existants
+### 5. Fichiers touchés
+- **Créés** : `src/app-mobile/components/WaouhNativeComposer.tsx`, `src/app-mobile/components/WaouhPayloadChips.tsx`
+- **Modifiés** :
+  - `src/components/waouh/WaouhWebChat.tsx` (ajout prop `variant`, ref impératif, cap 2 photos, branche composer alternatif)
+  - `src/app-mobile/screens/WaouhChatScreen.tsx` (nouvelle structure, intègre chips + city badge dans header)
+  - `src/app-mobile/theme/mobile-theme.css` (tokens chips/composer)
 
-| Écran | Bouton actuellement inerte | Action à câbler |
-|---|---|---|
-| ChatList | `+` header | Ouvre `NewChatSheet` (§2) |
-| ChatScreen | Trombone (Paperclip) | Sheet: photo (caméra), document (filesystem), localisation |
-| ChatScreen | Header (tap sur nom) | Ouvre `ConversationInfoSheet` (numéro, canal, archiver, supprimer) |
-| Bots | Carte bot (tap) | Navigation vers `/app/bots/:id` (détail + toggle actif/inactif + lien conversations) |
-| WhatsApp | Carte session | Tap = actions (logout WAHA, renommer, voir messages) |
-| Diffusion | "Importer contacts" / "Nouvelle campagne" | Importation déjà partielle → finaliser INSERT dans `waouh_campaigns` + envoi via `whatsapp-diffusion-send` |
-| Partner | KPIs | Tap KPI = écran détail (ventes, payouts) déjà présents côté web → réutilisation des hooks `useWaouhPartner*` |
-| Tab bar | — | Badge non-lus (count via `waouh_messages` realtime) sur l'onglet Chat |
+## Non-objectifs
+- Pas de changement à l'IA, à `chat-message-process`, à l'escrow, ni à la table `waouh_*`
+- Pas de modification de `WaouhWebChat` en mode web (rétro-compatible)
+- Le `/app/conversations` (liste WhatsApp) et le `WaouhNotificationsBell` restent tels quels
 
-## 4. Sync realtime web ↔ mobile
-
-Vérification (et ajout si manquant) que les canaux Supabase Realtime sont activés sur :
-- `waouh_conversations`, `waouh_messages` (déjà ok)
-- `bots` (filtre `owner_id=eq.{user.id}`) → ajout dans `BotsScreen`
-- `waha_sessions_data` → ajout dans `WhatsAppScreen`
-- `waouh_partner_sales`, `waouh_partner_payouts` → ajout dans `PartnerScreen`
-
-Résultat : créer un bot sur le web le fait apparaître instantanément sur le mobile, et inversement.
-
-## 5. Garde d'authentification et bootstrap session
-
-- `MobileShell` wrap dans un `<RequireMobileAuth>` qui redirige vers `/app/auth` si pas de session, sinon précharge en parallèle : profil + 50 dernières conversations + bots actifs + sessions WAHA → écran de skeleton 300 ms max puis app prête.
-- Token JWT Supabase persisté via `@capacitor/preferences` (déjà installé) pour reconnexion silencieuse au démarrage natif.
-- Bouton "Se déconnecter" appelle `supabase.auth.signOut()` + `Preferences.clear()`.
-
-## 6. Détails techniques
-
-- Fichiers créés :
-  - `src/app-mobile/hooks/useMobileProfile.ts`
-  - `src/app-mobile/hooks/useUnreadCount.ts`
-  - `src/app-mobile/components/NewChatSheet.tsx`
-  - `src/app-mobile/components/ConversationInfoSheet.tsx`
-  - `src/app-mobile/components/AttachmentSheet.tsx`
-  - `src/app-mobile/screens/ProfileScreen.tsx`
-  - `src/app-mobile/screens/BotDetailScreen.tsx`
-  - `src/app-mobile/guards/RequireMobileAuth.tsx`
-- Fichiers édités : `MobileShell.tsx`, `BottomTabBar.tsx` (badge), les 5 screens, `App.tsx` (routes `/app/profile`, `/app/bots/:id`).
-- Backend : aucune migration nécessaire — toutes les tables (`profiles`, `waouh_conversations`, `waouh_messages`, `bots`, `waha_sessions_data`, `waouh_partner_*`) existent déjà et sont partagées avec le web. RLS déjà en place sur `user_id`/`owner_id`.
-- Edge functions : réutilisation de `waha-send-message`, `waha-connect`, `whatsapp-diffusion-send` (déjà déployées). Aucune nouvelle fonction.
-
-## Critère d'acceptation
-
-1. Login OTP WhatsApp → header affiche le nom du profil.
-2. Tap `+` sur Chat → saisie numéro → conversation créée, visible aussi sur le web en < 1 s.
-3. Envoi d'un message → réception côté web instantanée (et inversement).
-4. Création d'un bot sur le web → apparaît sur l'app sans refresh.
-5. Aucun bouton inerte sur les 5 écrans principaux.
+## Critères d'acceptation
+1. Sur `/app/chat`, **un seul header** visible (vert), pas de bandeau bleu
+2. Chips Vendre/Acheter/Négocier visibles en haut, cliquables, déclenchent l'action existante (wizard vendre / préfixe acheter / préfixe négocier)
+3. Composer en bas avec icônes 📷 et 📎 fonctionnelles, max **2 photos** en preview avec compteur
+4. Bouton Send rond animé, désactivé quand vide
+5. Aucune régression sur desktop / `WaouhChatPage` (variant par défaut = web)
+6. Tout fonctionne en safe-area (notch iOS, gesture bar Android)

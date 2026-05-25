@@ -32,3 +32,13 @@
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Hide scrollbars on horizontally scrolling chip rows */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+

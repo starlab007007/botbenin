@@ -1,14 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShoppingBag, Info, User, MessageSquareText } from "lucide-react";
+import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, MapPin } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import WaouhWebChat from "@/components/waouh/WaouhWebChat";
+import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
+import { WaouhCityBadge } from "@/components/waouh/WaouhCityBadge";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
+import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
 import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useIsNative } from "../hooks/useIsNative";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 const SESSION_KEY = "waouh_web_session_id";
 function getSessionId() {
@@ -20,16 +23,23 @@ function getSessionId() {
   return id;
 }
 
+const PAYLOADS: { key: "sell" | "buy" | "negotiate"; label: string; Icon: any; tint: string }[] = [
+  { key: "sell", label: "Vendre", Icon: ShoppingBag, tint: "from-emerald-500 to-teal-600" },
+  { key: "buy", label: "Acheter", Icon: Search, tint: "from-sky-500 to-blue-600" },
+  { key: "negotiate", label: "Négocier", Icon: Handshake, tint: "from-amber-500 to-orange-600" },
+];
+
 /**
- * Native-style Waouh chat — same chat engine as the web (WaouhWebChat),
- * wrapped in a mobile-first WhatsApp-style chrome. Supports photo capture,
- * notifications and (on native) push token registration.
+ * Native-style Waouh chat — single unified header, payload chips, fullscreen messages
+ * and native composer (handled inside WaouhWebChat variant="native").
  */
 export default function WaouhChatScreen() {
   const navigate = useNavigate();
   const { profile } = useMobileProfile();
   const isNative = useIsNative();
   const sessionId = getSessionId();
+  const chatRef = useRef<WaouhWebChatHandle>(null);
+  const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } =
     useWaouhMatchNotifications(sessionId);
 
@@ -75,12 +85,13 @@ export default function WaouhChatScreen() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background overflow-hidden mobile-shell">
+      {/* Unified native header */}
       <header
-        className="flex items-center justify-between gap-2 px-3 h-14 bg-[hsl(var(--wa-green))] text-white shrink-0"
+        className="flex items-center justify-between gap-2 px-3 h-14 bg-[hsl(var(--wa-green))] text-white shrink-0 shadow-md z-10"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0 backdrop-blur">
             <ShoppingBag className="w-5 h-5 text-white" />
           </div>
           <div className="min-w-0">
@@ -97,7 +108,8 @@ export default function WaouhChatScreen() {
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
+          <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
             <WaouhNotificationsBell
               permission={permission}
@@ -153,8 +165,40 @@ export default function WaouhChatScreen() {
         </div>
       </header>
 
+      {/* Payload chips */}
+      <div className="px-3 py-2.5 bg-gradient-to-b from-background to-muted/30 border-b border-border/50 shrink-0">
+        <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1">
+          {PAYLOADS.map(({ key, label, Icon, tint }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => chatRef.current?.triggerQuickAction(key)}
+              className={cn(
+                "group flex items-center gap-2 pl-3 pr-4 py-2 rounded-full shrink-0",
+                "bg-card border border-border/60 shadow-sm",
+                "hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200"
+              )}
+            >
+              <span
+                className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center bg-gradient-to-br text-white shadow-inner",
+                  tint
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+              </span>
+              <span className="text-sm font-semibold text-foreground">{label}</span>
+            </button>
+          ))}
+          <div className="ml-auto flex items-center gap-1 px-2 text-[11px] text-muted-foreground shrink-0">
+            <MapPin className="w-3 h-3" /> {geo.city}
+          </div>
+        </div>
+      </div>
+
+      {/* Chat — fullscreen messages + native composer (cap 2 photos enforced inside) */}
       <div className="flex-1 min-h-0">
-        <WaouhWebChat fullscreen />
+        <WaouhWebChat ref={chatRef} fullscreen variant="native" />
       </div>
     </div>
   );
