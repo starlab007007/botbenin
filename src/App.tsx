@@ -146,7 +146,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 // WaouhApp — Mobile native shell (Capacitor)
 const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
-const MobileChat = lazy(() => import("./app-mobile/screens/ChatListScreen"));
+const MobileWaouhChat = lazy(() => import("./app-mobile/screens/WaouhChatScreen"));
+const MobileConversations = lazy(() => import("./app-mobile/screens/ChatListScreen"));
 const MobileChatThread = lazy(() => import("./app-mobile/screens/ChatScreen"));
 const MobileBots = lazy(() => import("./app-mobile/screens/BotsScreen"));
 const MobileCreateBot = lazy(() => import("./app-mobile/screens/CreateBotWizard"));
@@ -282,7 +283,8 @@ const AppContent = () => {
                   <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
                   <Route path="/app" element={<RequireMobileAuth><MobileShell /></RequireMobileAuth>}>
                     <Route index element={<Navigate to="/app/chat" replace />} />
-                    <Route path="chat" element={<MobileChat />} />
+                    <Route path="chat" element={<MobileWaouhChat />} />
+                    <Route path="conversations" element={<MobileConversations />} />
                     <Route path="chat/:id" element={<MobileChatThread />} />
                     <Route path="bots" element={<MobileBots />} />
                     <Route path="bots/new" element={<MobileCreateBot />} />
