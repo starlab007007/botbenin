@@ -223,14 +223,14 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
   };
 
   const handleQuickAction = (a: QuickAction) => {
-    if (a === "sell") {
-      setSellOpen(true);
-      return;
-    }
-    const prompt = QUICK_PROMPTS[a];
+    if (a === "sell") { setSellOpen(true); return; }
+    if (a === "pay") return; // Plus de paiement dans le nouveau parcours
+    const prompt = QUICK_PROMPTS[a as Exclude<QuickAction, "sell" | "pay">];
+    if (!prompt) return;
     setInput((cur) => (cur ? cur : prompt));
     setTimeout(() => inputRef.current?.focus(), 0);
   };
+
 
   const [paymentTx, setPaymentTx] = useState<{ id: string; amount: number } | null>(null);
   const [pendingPaymentTx, setPendingPaymentTx] = useState<{ id: string; amount: number } | null>(null);
