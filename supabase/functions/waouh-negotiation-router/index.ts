@@ -1,19 +1,17 @@
-// WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match
+// WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match.
+// Modèle: PAS DE PAIEMENT. Quand un OUI est exprimé par l'une des parties,
+// les coordonnées sont automatiquement échangées et la négociation est close.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance } from "../_shared/waouh-format.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
-const paymentCard = (amount: number, txId?: string | null) =>
-  `\n\n💳 *Carte de paiement WAOUH*\n• *Montant* : ${fmt(amount)}\n• *Sécurité* : escrow WAOUH (fonds bloqués)\n• *Statut* : en attente\n• *Référence* : ${txId ? String(txId).slice(0, 8).toUpperCase() : "créée"}`;
-const payInstructions =
-  `\n\nPayer maintenant :` +
-  `\n📱 Choisissez selon votre opérateur Mobile Money (MTN ou Moov) envoyer MTN + numéro ou Moov + Numéro ( Ex: MTN 0197-------) puis validez la notification reçue sur votre téléphone.` +
-  `\n🔒 Les fonds restent en escrow jusqu'à confirmation de réception.`;
 const negotiationActions = (_negId: string) => [] as Array<{ id: string; label: string }>;
+
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
   const lower = (text || "").toLowerCase();
@@ -108,37 +106,86 @@ Deno.serve(async (req) => {
     const amount = Number(neg.last_offer_price || 0);
 
     if (intent.kind === "yes") {
-      await sb.from("waouh_negotiations").update({ state: "accepted", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
-      let txId = neg.transaction_id;
-      if (!txId) {
-        const { data: tx } = await sb.from("waouh_transactions").insert({
-          article_id: neg.article_id, seller_id: neg.seller_user_id, buyer_id: neg.buyer_user_id,
-          amount, commission: Math.round(amount * 0.05),
-          payment_method: "mobile_money", negotiated_price: amount,
-          status: "payment_pending", escrow_status: "pending",
-        }).select().single();
-        txId = tx?.id ?? null;
-        if (txId) await sb.from("waouh_negotiations").update({ transaction_id: txId }).eq("id", neg.id);
-      }
-      // Notifie l'autre partie avec la carte paiement + boutons interactifs
+      // 🎉 Accord conclu : on échange les coordonnées et on clôt.
+      const nowIso = new Date().toISOString();
+      await sb.from("waouh_negotiations").update({
+        state: "accepted",
+        last_actor: isBuyer ? "buyer" : "seller",
+        closed_at: nowIso,
+        contact_shared_at: nowIso,
+      }).eq("id", neg.id);
+
+      // Charge les deux parties + article (pour photos et titre)
+      const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.buyer_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.seller_user_id).maybeSingle(),
+        sb.from("waouh_articles").select("id, title, photos").eq("id", neg.article_id).maybeSingle(),
+      ]);
+
+      // Distance live via PostGIS ST_X/ST_Y
+      let distKm: number | null = null;
+      try {
+        const { data: pts } = await sb.rpc as any;
+        // Fallback: récupère les coordonnées via une requête SQL via supabase.sql
+        const { data: bRow } = await sb.from("waouh_users").select("id").eq("id", neg.buyer_user_id).maybeSingle();
+        if (bRow) {
+          const { data: distRow } = await sb
+            .from("waouh_users")
+            .select("id");
+          // ignored: on calcule via une RPC dédiée si dispo
+        }
+      } catch {}
+      // Best-effort: appel une RPC si elle existe, sinon on ne met pas de distance
+      try {
+        const { data: distData } = await sb.rpc("waouh_user_pair_distance_km", {
+          p_user_a: neg.buyer_user_id,
+          p_user_b: neg.seller_user_id,
+        });
+        if (typeof distData === "number") distKm = Math.round(distData * 10) / 10;
+      } catch {}
+
+      const title = article?.title || "votre annonce";
+      const synthese =
+        `${waouhHeader("🎉 Accord conclu !")}\n\n` +
+        `📦 *${title}*\n` +
+        `💰 *Prix final* : ${fmt(amount)}\n\n`;
+
+      const replyToBuyer =
+        synthese +
+        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm }) +
+        `\n\n_Vous pouvez maintenant convenir directement de la livraison et du règlement avec le vendeur._\n\n` +
+        waouhFooter("Merci d'avoir utilisé WAOUH ✨");
+
+      const replyToSeller =
+        synthese +
+        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm }) +
+        `\n\n_Vous pouvez maintenant convenir directement de la livraison et du règlement avec l'acheteur._\n\n` +
+        waouhFooter("Merci d'avoir utilisé WAOUH ✨");
+
+      const targetReply = isBuyer ? replyToSeller : replyToBuyer; // l'autre partie
+      const myReply = isBuyer ? replyToBuyer : replyToSeller;
+
       if (otherUserId) {
-        const targetIsBuyer = otherUserId === neg.buyer_user_id;
-        const txt = targetIsBuyer
-          ? `✅ *Le vendeur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez maintenant payer en Mobile Money.` + paymentCard(amount, txId) + payInstructions
-          : `✅ *L'acheteur a accepté*\n\n💰 *Prix final* : ${fmt(amount)}\n\nLe paiement va être lancé. Vous recevrez une notification dès que l'argent est bloqué en escrow.` + paymentCard(amount, txId);
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, accepted: true, transaction_id: txId, price: amount, from_user_id: user.id }, txt, { intent: "negotiation_accepted", negotiation_id: neg.id, transaction_id: txId }, txId, [], `neg:${neg.id}:accepted:${otherUserId}`, "negotiation_accepted");
+        await pushToOther(
+          otherUserId,
+          "contact_exchange",
+          { neg_id: neg.id, accepted: true, price: amount, from_user_id: user.id },
+          targetReply,
+          { intent: "contact_exchange", negotiation_id: neg.id },
+          null,
+          [],
+          `neg:${neg.id}:contact:${otherUserId}`,
+          "contact_exchange"
+        );
       }
-      const reply = isBuyer
-        ? `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nVous pouvez finaliser le paiement maintenant.` + paymentCard(amount, txId) + payInstructions
-        : `✅ *Accord enregistré*\n\n💰 *Prix final* : ${fmt(amount)}\n\nL'acheteur va lancer le paiement.` + paymentCard(amount, txId);
-      // Fire-and-forget dispatch
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
-      return new Response(JSON.stringify({ ok: true, reply, transaction_id: txId, intent: "negotiation_accepted", actions: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "contact_exchange", actions: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
 
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);

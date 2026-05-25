@@ -85,26 +85,90 @@ export function stripLegacyPaymentText(text: string): string {
     .trim();
 }
 
-/** Build contact + geoloc block to send between buyer/seller after payment. */
+/** Header décoratif WAOUH (avec lignes de séparation). */
+export function waouhHeader(title: string): string {
+  return `━━━━━━━━━━━━━━━━━━\n*${title}*\n━━━━━━━━━━━━━━━━━━`;
+}
+
+/** Pied de page / signature WAOUH. */
+export function waouhFooter(tagline = "WAOUH — Achetez · Vendez · Négociez en confiance"): string {
+  return `━━━━━━━━━━━━━━━━━━\n_✨ ${tagline}_`;
+}
+
+/** Séparateur léger entre blocs. */
+export const waouhSep = "━━━━━━━━━━━━━━━━━━";
+
+/** Calcule la distance Haversine en km (1 décimale). */
+export function distanceKm(lat1: number | null | undefined, lng1: number | null | undefined, lat2: number | null | undefined, lng2: number | null | undefined): number | null {
+  if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLng = toRad(Number(lng2) - Number(lng1));
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(Number(lat1))) * Math.cos(toRad(Number(lat2))) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+export function formatDistance(km: number | null): string {
+  if (km == null) return "";
+  if (km < 1) return `📏 *à ${Math.round(km * 1000)} m de vous*`;
+  return `📏 *à ${km.toString().replace(".", ",")} km de vous*`;
+}
+
+/**
+ * Analyse marché IA réelle, synthétique (1 phrase max 25 mots).
+ * Best-effort, ne lève jamais — renvoie "" en cas d'erreur. Cache 10 min.
+ */
+const _marketCache = new Map<string, { at: number; text: string }>();
+export async function marketAnalysisAI(opts: { title: string; price: number; min: number; max: number; city?: string | null; apiKey?: string | null }): Promise<string> {
+  const key = `${(opts.title || "").toLowerCase()}|${opts.price}|${opts.min}|${opts.max}|${(opts.city || "").toLowerCase()}`;
+  const cached = _marketCache.get(key);
+  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.text;
+  const apiKey = opts.apiKey || (typeof Deno !== "undefined" ? (Deno as any).env.get("LOVABLE_API_KEY") : "");
+  if (!apiKey) return "";
+  try {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: 'Tu es analyste marché Bénin (Cotonou et environs). Donne UNE seule phrase factuelle (≤25 mots), neutre et chiffrée, qui qualifie le prix proposé par rapport à la fourchette marché et à la ville. Pas de bla-bla. JSON: {"note": string}.' },
+          { role: "user", content: `Produit: ${opts.title}\nPrix proposé: ${opts.price} FCFA\nFourchette marché: ${opts.min} – ${opts.max} FCFA\nVille: ${opts.city || "Cotonou"}` },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    const d = await r.json();
+    const note = (() => { try { return JSON.parse(d?.choices?.[0]?.message?.content ?? "{}")?.note || ""; } catch { return ""; } })();
+    const text = typeof note === "string" ? note.trim() : "";
+    _marketCache.set(key, { at: Date.now(), text });
+    return text;
+  } catch { return ""; }
+}
+
+/**
+ * Build contact + geoloc block to share between buyer/seller after agreement.
+ * Pas de lien Maps — affichage direct ville + distance live.
+ */
 export function contactExchangeText(
   role: "buyer_to_seller" | "seller_to_buyer",
-  other: { display_name?: string | null; phone_number?: string | null; city?: string | null; lat?: number | null; lng?: number | null }
+  other: { display_name?: string | null; phone_number?: string | null; city?: string | null; distance_km?: number | null }
 ): string {
   const who = role === "buyer_to_seller" ? "vendeur" : "acheteur";
   const name = other.display_name || `Contact ${who}`;
   const rawPhone = (other.phone_number || "").replace(/@(?:c\.us|lid|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
   const formatted = rawPhone ? `+${rawPhone}` : "";
-  const phone = formatted ? `\n📞 *WhatsApp* : ${formatted}` : "";
-  const city = other.city ? `\n📍 *Ville* : ${other.city}` : "";
-  const maps = (other.lat != null && other.lng != null)
-    ? `\n🗺️ *Localisation* : https://maps.google.com/?q=${other.lat},${other.lng}`
-    : "";
+  const phoneLine = formatted ? `\n📞 *Téléphone* : ${formatted}\n🟢 *WhatsApp* : ${formatted}` : "";
+  const cityLine = other.city ? `\n🏙️ *Ville* : ${other.city}` : "";
+  const distLine = other.distance_km != null ? `\n${formatDistance(other.distance_km)}` : "";
   return (
-    `📬 *Coordonnées du ${who}*\n━━━━━━━━━━━━━━━\n` +
+    `📇 *Contact ${who}*\n${waouhSep}\n` +
     `👤 ${name}` +
-    phone +
-    city +
-    maps +
-    `\n━━━━━━━━━━━━━━━\n✅ Vous pouvez désormais convenir de la livraison.`
+    phoneLine +
+    cityLine +
+    distLine
   );
 }
+
