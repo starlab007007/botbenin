@@ -296,6 +296,12 @@ const AppContent = () => {
                     <Route path="whatsapp" element={<MobileWhatsApp />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
+                    <Route path="partner/businesses" element={<MobilePartnerBusinesses />} />
+                    <Route path="partner/businesses/:businessId/products" element={<MobilePartnerProducts />} />
+                    <Route path="partner/b/:code/produits" element={<MobilePartnerProducts />} />
+                    <Route path="partner/sales" element={<MobilePartnerSales />} />
+                    <Route path="partner/payouts" element={<MobilePartnerPayouts />} />
+                    <Route path="partner/payments" element={<MobilePartnerPayments />} />
                     <Route path="profile" element={<MobileProfile />} />
                   </Route>
 
