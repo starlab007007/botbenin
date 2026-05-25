@@ -38,7 +38,7 @@ export function useWaouhPartnerStats(partnerId?: string) {
 
   useEffect(() => {
     if (!partnerId) return;
-    const ch = supabase.channel(`stats-${partnerId}`)
+    const ch = supabase.channel(`stats-${partnerId}-${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_partner_sales', filter: `partner_id=eq.${partnerId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_partner_products', filter: `partner_id=eq.${partnerId}` }, refresh)
       .subscribe();
@@ -62,7 +62,7 @@ export function useAllPartnerStats() {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    const ch = supabase.channel('all-stats')
+    const ch = supabase.channel(`all-stats-${Math.random().toString(36).slice(2, 8)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_partner_sales' }, refresh)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
