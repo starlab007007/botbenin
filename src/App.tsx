@@ -280,7 +280,7 @@ const AppContent = () => {
                   <Route path="/app/auth" element={<MobileAuthHome />} />
                   <Route path="/app/auth/email" element={<MobileAuthEmail />} />
                   <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
-                  <Route path="/app" element={<MobileShell />}>
+                  <Route path="/app" element={<RequireMobileAuth><MobileShell /></RequireMobileAuth>}>
                     <Route index element={<Navigate to="/app/chat" replace />} />
                     <Route path="chat" element={<MobileChat />} />
                     <Route path="chat/:id" element={<MobileChatThread />} />
@@ -289,6 +289,7 @@ const AppContent = () => {
                     <Route path="whatsapp" element={<MobileWhatsApp />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
+                    <Route path="profile" element={<MobileProfile />} />
                   </Route>
 
                   {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
