@@ -125,8 +125,8 @@ Deno.serve(async (req) => {
 
       // Résolution des vrais numéros WhatsApp E.164 (LID → phone, auth → phone, …)
       const [buyerPhoneE164, sellerPhoneE164] = await Promise.all([
-        resolveRealPhoneE164(sb, buyer),
-        resolveRealPhoneE164(sb, seller),
+        resolveRealPhoneE164(sb, buyer, { article_id: neg.article_id }),
+        resolveRealPhoneE164(sb, seller, { article_id: neg.article_id }),
       ]);
 
       // Distance live entre acheteur et vendeur (via RPC PostGIS)

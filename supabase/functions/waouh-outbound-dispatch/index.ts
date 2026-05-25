@@ -181,7 +181,33 @@ Deno.serve(async (req) => {
 
       const rawText = compose(it.template, it.payload || {});
       const text = stripLegacyPaymentText(rawText);
-      const phone = normalizeBeninPhone(it.to_phone);
+      let toPhone = it.to_phone as string;
+
+      // 🔁 LID anonyme → résolution via waouh_lid_phone_map avant tout envoi.
+      if (typeof toPhone === "string" && /@lid/i.test(toPhone)) {
+        const lid = toPhone.replace(/@lid$/i, "");
+        try {
+          const { data: map } = await sb
+            .from("waouh_lid_phone_map")
+            .select("phone_e164, phone")
+            .or(`lid.eq.${lid},lid.eq.${toPhone}`)
+            .maybeSingle();
+          const resolved = (map?.phone_e164 || map?.phone || "").toString().replace(/\D/g, "");
+          if (resolved && resolved.length >= 10) {
+            toPhone = resolved;
+          } else {
+            // Pas de mapping → bascule en web si possible, sinon échec propre.
+            await sb.from("waouh_outbound_queue").update({
+              status: it.web_session_id ? "sent" : "failed",
+              last_error: it.web_session_id ? "lid unresolved → fallback web" : "lid unresolved (no phone)",
+              sent_at: new Date().toISOString(),
+            }).eq("id", it.id);
+            skipped++; continue;
+          }
+        } catch (_) { /* ignore et continue avec phone brut */ }
+      }
+
+      const phone = normalizeBeninPhone(toPhone);
       if (!phone || (phone.includes("@") && !phone.includes("@lid"))) {
         await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "invalid phone" }).eq("id", it.id);
         failed++; continue;

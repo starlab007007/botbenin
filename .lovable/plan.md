@@ -1,135 +1,79 @@
 ## Objectif
 
-Nettoyer définitivement les messages WAOUH (WhatsApp + web chat) : supprimer toute mention de paiement/escrow/carte WAOUH, retirer les listes numérotées « 1./2./3. » et soigner la mise en forme + l'affichage des photos dans le web chat.
+Garantir que dans **tout message** (recherche, annonce, accord, notification), le contact affiché et destinataire soit le **vrai numéro WhatsApp / téléphone** de la personne — peu importe la source d'origine. Un seul resolver, appliqué partout.
 
-## 1. Supprimer toutes les listes « 1./2./3. » sur WhatsApp
+## Les 4 sources à couvrir
 
-Aujourd'hui, le fallback de `sendWahaButtons` (`supabase/functions/waouh-outbound-dispatch/index.ts`) ré-écrit `1. label\n2. label\n3. label` quand l'envoi de boutons natifs échoue. C'est ce qui produit les listes visibles sur les captures 3, 4 et 5.
+| # | Source | Table / champ | Cas d'usage |
+|---|--------|---------------|------------|
+| 1 | **Radar IA** (scraping web, groupes WhatsApp, Facebook, Marketplace) | `waouh_external_listings.seller_phone` (+ enrichissement IA depuis description) | Annonces externes captées par le radar |
+| 2 | **Partenaire** (entreprise enregistrée avant publication produits) | `waouh_partner_businesses.whatsapp` et `.telephone` (liée à `seller_id` via `waouh_articles`) | Vendeurs partenaires bot.bj |
+| 3 | **Chat WhatsApp direct** (annonceur/acheteur depuis son propre WhatsApp) | `waouh_users.phone_number` (E.164) ou résolution `waouh_lid_phone_map` si LID | Utilisateurs natifs WhatsApp |
+| 4 | **Web bot.bj** (acheteurs/vendeurs connectés) | `waouh_users.auth_user_id` → `auth.users.phone` ; fallback `profiles.phone` | Utilisateurs web authentifiés |
 
-Action :
-- Dans `sendWahaButtons`, supprimer entièrement le fallback texte « 1. … 2. … 3. … » (lignes ~110-117). Si l'envoi de boutons natifs échoue, on retombe simplement sur `sendWahaText` / `sendWahaImage` avec le texte brut, sans ajouter de liste numérotée.
-- Dans `defaultActionsForTemplate`, vider les cas `match_seller`, `negotiation_open` et `match_buyer` (retourner `[]`) pour ne plus jamais joindre de boutons d'action « Accepter / Contre-offre / Refuser » ni « Oui, mettre en contact / Non merci ». Ces actions ne seront plus proposées : le parcours est désormais 100 % conversationnel (OUI / NON / Je propose X).
-- Supprimer le cas `payment_card` / `payment_link` (plus utilisés).
+## Architecture proposée
 
-## 2. Réécrire les 4 messages-clés (web + WhatsApp)
+### 1. Resolver unique enrichi : `resolveRealPhoneE164(sb, user, opts?)`
 
-Tous les textes proviennent de `supabase/functions/waouh-webhook/index.ts` et `supabase/functions/waouh-negotiation-router/index.ts`. Le web chat les ré-affiche tels quels via ReactMarkdown.
+Étendre la fonction existante dans `_shared/waouh-format.ts` pour parcourir les sources dans cet **ordre de priorité** :
 
-### a) « Nouvel acheteur intéressé » (capture 4) — `waouh-webhook/index.ts` ligne ~779
-Remplacer par :
-```
-━━━━━━━━━━━━━━━━━━
-📩 *Nouvel acheteur intéressé*
-━━━━━━━━━━━━━━━━━━
-
-📦 *{title}*
-💰 *Prix demandé* : {fmt(askPrice)}
-📏 *à {distKm} km de vous*
-🏙️ *Acheteur* : {city}
-
-Répondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose {prix} FCFA*.
-
-━━━━━━━━━━━━━━━━━━
-_✨ WAOUH — Achetez · Vendez · Négociez en confiance_
-```
-→ Plus de bloc « 1./2./3. ».
-
-### b) « Nouvelle offre acheteur » / « Contre-offre vendeur » (capture 5) — `waouh-webhook/index.ts` ligne ~850
-Identique : retirer la liste à puces, garder uniquement la phrase de réponse OUI / NON / Je propose.
-
-### c) « Accord enregistré » / « Le vendeur a accepté » (captures 1 & 2) — `waouh-negotiation-router/index.ts` branche `intent.kind === "yes"`
-
-Réécrire intégralement la synthèse. Plus aucune mention de paiement, escrow, carte WAOUH, Mobile Money, MTN/Moov.
-
-Message envoyé à l'acheteur :
-```
-━━━━━━━━━━━━━━━━━━
-🎉 *Le vendeur a accepté !*
-━━━━━━━━━━━━━━━━━━
-
-📦 *{title}*
-💰 *Prix final* : {fmt(amount)}
-
-📇 *Contact vendeur*
-👤 {seller.display_name}
-📞 {seller.phone}
-🟢 WhatsApp : {seller.phone}
-🏙️ {seller.city} — {quartier si dispo}
-📏 *à {distKm} km de vous*
-
-Félicitations 🎊 Vous pouvez maintenant convenir directement de la livraison avec le vendeur.
-
-━━━━━━━━━━━━━━━━━━
-_✨ WAOUH — Merci de votre confiance_
+```text
+1. user.phone_number (si E.164 valide, non-@lid)
+2. waouh_lid_phone_map (si @lid)
+3. auth.users.phone (si auth_user_id)              [NEW: source web]
+4. profiles.phone (via auth_user_id)               [NEW: fallback web]
+5. waouh_partner_businesses (via opts.article_id → seller_id) [NEW: source partenaire]
+6. waouh_external_listings.seller_phone (via opts.article_id → origin_signal_id) [NEW: source radar]
 ```
 
-Message envoyé au vendeur (symétrique) :
-```
-━━━━━━━━━━━━━━━━━━
-🎉 *Accord conclu — Acheteur confirmé*
-━━━━━━━━━━━━━━━━━━
+Renvoie `""` si rien — l'appelant affiche alors un fallback "communiquez via WAOUH".
 
-📦 *{title}*
-💰 *Prix final* : {fmt(amount)}
+### 2. Signature étendue
 
-📇 *Contact acheteur*
-👤 {buyer.display_name}
-📞 {buyer.phone}
-🟢 WhatsApp : {buyer.phone}
-🏙️ {buyer.city}
-📏 *à {distKm} km de vous*
-
-Félicitations 🎊 Convenez librement de la livraison avec l'acheteur.
-
-━━━━━━━━━━━━━━━━━━
-_✨ WAOUH — Merci de votre confiance_
+```ts
+resolveRealPhoneE164(sb, user, {
+  article_id?: string,        // pour remonter partenaire ou radar
+  fallback_to_partner?: bool, // default true
+  fallback_to_radar?: bool,   // default true
+})
 ```
 
-Adapter `contactExchangeText` dans `_shared/waouh-format.ts` pour inclure quartier/adresse si présents dans `users.location` (champ JSON) en plus de la ville.
+### 3. Points d'appel à mettre à jour
 
-### d) Texte « match_buyer » initial — `waouh-webhook/index.ts` ligne ~523
-Retirer la mention « (paiement sécurisé escrow) ». Texte cible :
-```
-🎯 WAOUH a trouvé pour vous : *{title}* à {prix} ({ville}, à {distKm} km).
-Répondez *OUI* pour être mis en relation avec le vendeur.
-```
+- `waouh-negotiation-router/index.ts` (déjà branché) → passer `article_id` aux 2 appels resolver.
+- `waouh-radar-process/index.ts` → quand on notifie un vendeur scrappé, utiliser le resolver avec `article_id` pour récupérer le seller_phone depuis `external_listings`.
+- `waouh-channel-in/index.ts` → idem pour enrichir `waouh_users` stub des leads radar (déjà via `ensureWaouhVendorStub`, mais sans seller_phone radar).
+- `waouh-webhook/index.ts` (recherche acheteur) → quand on envoie le contact d'un vendeur trouvé, passer par le resolver.
 
-### e) Texte radar vendeur (ligne ~700 + `waouh-radar-process`)
-Retirer toute mention « paiement sécurisé escrow / 0 fraude ». Garder : « Répondez OUI pour recevoir les acheteurs et négocier en direct via WAOUH. »
+### 4. Job de back-fill (one-shot SQL migration)
 
-## 3. Nettoyer les helpers legacy de paiement
+Mettre à jour `waouh_users.phone_number` en remontant depuis :
+- `waouh_partner_businesses.whatsapp/telephone` (si stub user lié)
+- `waouh_external_listings.seller_phone` (pour stubs créés depuis radar)
 
-Dans `supabase/functions/_shared/waouh-format.ts` :
-- Supprimer `paymentCard`, `paymentInstructions`, `paymentActions` (plus utilisés une fois 1./2. retirés).
-- Garder `stripLegacyPaymentText` et l'appliquer dans `waouh-outbound-dispatch` juste avant l'envoi, pour purger toute trace de carte de paiement qui subsisterait dans la file `waouh_outbound_queue` déjà créée.
+Cela évite que les anciens accords affichent encore des `@lid` ou numéros vides.
 
-## 4. Web chat — photos et mise en forme
+### 5. Centralisation outbound
 
-Dans `src/components/waouh/WaouhWebChat.tsx` :
-- Les attachements sont déjà rendus, mais ils ne s'affichent pas car le webhook insère le message texte avant que `replyAttachments` ne soit propagé sur l'enregistrement `waouh_messages`. Vérifier la branche d'écriture du message « out » dans `waouh-webhook/index.ts` (insert `waouh_messages` final) et y inclure `attachments: replyAttachments` quand non vide (notamment pour les blocs de résultats de recherche et le bloc « Demande envoyée au vendeur »).
-- Améliorer la mise en forme Markdown dans `WaouhWebChat.tsx` :
-  - `hr` → trait dégradé `bg-gradient-to-r from-transparent via-primary/40 to-transparent`
-  - `strong` → `text-foreground font-semibold`
-  - `h1`/`h2`/`h3` → titres stylés (taille, weight, color)
-  - `ul` → puces vertes (•) avec espacement
-  - `em` → couleur muted italique (utilisé par le footer WAOUH)
-  - Ajouter le rendu des emojis localisation/contact avec un fond pill discret via un composant `p` custom détectant les lignes commençant par `📞`, `🟢`, `🏙️`, `📏`.
-- Pour les résultats de recherche multi-produits, chaque produit est séparé par `━━━━━━━━`. S'assurer que le `ReactMarkdown` reçoit bien `remark-gfm` (vérifier import) pour que les séparateurs s'affichent en `<hr>`.
+Dans `waouh-outbound-dispatch/index.ts`, avant tout envoi WhatsApp :
+- Si `to_phone` est un `@lid`, le résoudre via le mapping.
+- Si introuvable, basculer le message vers le chat web (`channel = "web"`) et logger l'incident dans `waouh_lid_sync_runs` pour relance sync contacts.
 
-## 5. Vérifications finales
+## Fichiers modifiés
 
-- Tester un parcours complet en preview : recherche → intéressé 1 → contre-offre → OUI → réception des coordonnées sur les 2 sessions web.
-- Vérifier dans les logs `waouh-outbound-dispatch` qu'aucun message sortant ne contient « 1. », « Carte de paiement », « escrow » ou « MTN / Moov ».
-- Vérifier sur le web chat que la photo du produit s'affiche dans la bulle « Demande envoyée au vendeur ».
+- `supabase/functions/_shared/waouh-format.ts` (resolver enrichi)
+- `supabase/functions/waouh-negotiation-router/index.ts`
+- `supabase/functions/waouh-radar-process/index.ts`
+- `supabase/functions/waouh-channel-in/index.ts`
+- `supabase/functions/waouh-webhook/index.ts`
+- `supabase/functions/waouh-outbound-dispatch/index.ts`
+- 1 migration SQL : back-fill `waouh_users.phone_number` depuis partenaires + radar.
 
-## Détails techniques
+## Résultat attendu
 
-- Fichiers modifiés :
-  - `supabase/functions/waouh-outbound-dispatch/index.ts` (suppression fallback + actions par défaut)
-  - `supabase/functions/waouh-webhook/index.ts` (textes a, b, d, e + insert attachments)
-  - `supabase/functions/waouh-negotiation-router/index.ts` (texte c)
-  - `supabase/functions/waouh-radar-process/index.ts` (texte e)
-  - `supabase/functions/_shared/waouh-format.ts` (cleanup helpers + `contactExchangeText` enrichi)
-  - `src/components/waouh/WaouhWebChat.tsx` (markdown components + remark-gfm)
-- Aucune migration SQL nécessaire.
-- Aucune nouvelle dépendance.
+- Plus jamais de `@lid` ou de "Contact privé" dans les messages "Accord conclu" / "Accord enregistré".
+- Les acheteurs/vendeurs reçoivent toujours le **vrai** numéro de l'autre partie + lien `wa.me/`.
+- Les notifications partent vers le **bon canal** (WhatsApp si numéro résolu, sinon chat web bot.bj).
+- Un seul point de vérité (`resolveRealPhoneE164`) — pas de duplication.
+
+Aucun changement UI requis. Prêt à passer en build après validation.
