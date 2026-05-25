@@ -117,9 +117,15 @@ Deno.serve(async (req) => {
 
       // Charge les deux parties + article (pour photos et titre)
       const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.buyer_user_id).maybeSingle(),
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.seller_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location, auth_user_id").eq("id", neg.buyer_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location, auth_user_id").eq("id", neg.seller_user_id).maybeSingle(),
         sb.from("waouh_articles").select("id, title, photos").eq("id", neg.article_id).maybeSingle(),
+      ]);
+
+      // Résolution des vrais numéros WhatsApp E.164 (LID → phone, auth → phone, …)
+      const [buyerPhoneE164, sellerPhoneE164] = await Promise.all([
+        resolveRealPhoneE164(sb, buyer),
+        resolveRealPhoneE164(sb, seller),
       ]);
 
       // Distance live entre acheteur et vendeur (via RPC PostGIS)
@@ -142,13 +148,13 @@ Deno.serve(async (req) => {
 
       const replyToBuyer =
         buildSynthese("🎉 Le vendeur a accepté !") +
-        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm, location: (seller as any)?.location }) +
+        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_e164: sellerPhoneE164, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm, location: (seller as any)?.location }) +
         `\n\n🎊 *Félicitations !* Vous pouvez maintenant convenir directement de la livraison avec le vendeur.\n\n` +
         waouhFooter("WAOUH — Merci de votre confiance ✨");
 
       const replyToSeller =
         buildSynthese("🎉 Accord conclu — Acheteur confirmé") +
-        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm, location: (buyer as any)?.location }) +
+        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_e164: buyerPhoneE164, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm, location: (buyer as any)?.location }) +
         `\n\n🎊 *Félicitations !* Convenez librement de la livraison avec l'acheteur.\n\n` +
         waouhFooter("WAOUH — Merci de votre confiance ✨");
 
