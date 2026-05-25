@@ -776,7 +776,7 @@ serve(async (req) => {
         }
         const vendorPhoneForPush = phonesToPush[0] || null;
         const distLineSeller = distKm != null ? `\n${fmtDistance(distKm)}` : "";
-        const sellerText = `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n📦 *${pick.title}*\n💰 *Prix demandé* : ${fmt(askPrice)}${distLineSeller}\n🏙️ Acheteur : ${user!.city || "?"}\n\nRépondez :\n• *OUI* pour accepter\n• *NON* pour refuser\n• *Je propose ${fmt(Math.round(askPrice * 0.9))}* pour contre-offrir\n\n${waouhFooter()}`;
+        const sellerText = `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n📦 *${pick.title}*\n💰 *Prix demandé* : ${fmt(askPrice)}${distLineSeller}\n🏙️ *Acheteur* : ${user!.city || "?"}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose ${fmt(Math.round(askPrice * 0.9))}* pour contre-offrir.\n\n${waouhFooter()}`;
         if (seller?.id || phonesToPush.length > 0 || vendorContacts.web_sessions.length > 0) {
           try {
             await pushToOther({
