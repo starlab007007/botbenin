@@ -308,32 +308,43 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
                 )}
               >
                 {Array.isArray(m.attachments) && m.attachments.length > 0 && (
-                  <div className={cn("grid gap-1 mb-1 not-prose", m.attachments.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+                  <div className={cn("grid gap-2 mb-2 not-prose", m.attachments.length === 1 ? "grid-cols-1" : m.attachments.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
                     {m.attachments.map((a, i) => (
-                      <img key={i} src={a.url} alt="" loading="lazy" className="rounded-md aspect-square object-cover w-full" />
+                      <figure key={i} className="relative rounded-lg overflow-hidden border border-border bg-muted">
+                        <img src={a.url} alt={a.caption || ""} loading="lazy" className="aspect-square object-cover w-full" />
+                        {a.caption && (
+                          <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[11px] leading-tight px-2 py-1.5 line-clamp-2">
+                            {a.caption}
+                          </figcaption>
+                        )}
+                      </figure>
                     ))}
                   </div>
                 )}
-                {m.text && m.text !== "(image)" && <ReactMarkdown>{stripLegacy(m.text)}</ReactMarkdown>}
+                {m.text && m.text !== "(image)" && (
+                  <ReactMarkdown
+                    components={{
+                      hr: () => <div className="my-2 h-px bg-gradient-to-r from-cyan-500/40 via-blue-500/40 to-cyan-500/40" />,
+                      strong: ({ children }) => <strong className="text-cyan-700 dark:text-cyan-300 font-semibold">{children}</strong>,
+                      em: ({ children }) => <em className="text-muted-foreground not-italic text-xs">{children}</em>,
+                    }}
+                  >
+                    {stripLegacy(m.text)}
+                  </ReactMarkdown>
+                )}
                 {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
                     {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
                       <Button
                         key={i}
                         size="sm"
-                        variant={/pay/i.test(a.id) ? "default" : "secondary"}
-                        className={cn("h-7 text-xs", /pay_open|^pay:/i.test(a.id) && "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90")}
+                        variant="secondary"
+                        className="h-7 text-xs"
                         onClick={() => {
                           if (a.url) { window.open(a.url, "_blank"); return; }
-                          if (/^pay/i.test(a.id) && m.meta?.transaction_id) {
-                            onPay({ id: m.meta.transaction_id, amount: 0 } as any);
-                            return;
-                          }
                           const kw = /accept/i.test(a.id) ? "OUI"
                             : /refuse/i.test(a.id) ? "NON"
                             : /counter|negociat/i.test(a.id) ? "Je propose "
-                            : /mtn/i.test(a.id) ? "mtn"
-                            : /moov/i.test(a.id) ? "moov"
                             : a.id.startsWith("intéressé") ? a.id
                             : a.label;
                           if (kw.endsWith(" ")) { setInput(kw); setTimeout(() => inputRef.current?.focus(), 0); }
@@ -345,11 +356,12 @@ export const WaouhWebChat: React.FC<{ embedded?: boolean; fullscreen?: boolean }
                 )}
               </div>
             </div>
-            {m.meta?.transaction_id && (
+            {m.meta?.transaction_id && m.meta?.intent !== "contact_exchange" && m.meta?.intent !== "negotiation_open" && m.meta?.intent !== "match_seller" && (
               <div className="flex justify-start mt-1">
                 <WaouhTransactionCard transactionId={m.meta.transaction_id} onPay={onPay} />
               </div>
             )}
+
           </div>
         ))}
         {sending && (
