@@ -1,6 +1,7 @@
-// Service Worker — notifications push + cache assets statiques
-const STATIC_CACHE = 'static-v2';
-const HTML_CACHE = 'html-v2';
+// Service Worker — notifications push only. Les assets restent gérés par Vite/Nginx
+// pour éviter de servir un ancien bundle après redéploiement.
+const STATIC_CACHE = 'static-v3-disabled';
+const HTML_CACHE = 'html-v3-disabled';
 const DB_NAME = 'NotificationsDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'notifications';
@@ -28,7 +29,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => ![STATIC_CACHE, HTML_CACHE].includes(k) && k !== 'notifications-v1')
+          .filter((k) => k !== 'notifications-v1')
           .map((k) => caches.delete(k))
       )
     ).then(() => self.clients.claim())
@@ -42,24 +43,6 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-
-  // Cache-first immutable pour assets hashés
-  if (url.pathname.startsWith('/assets/')) {
-    event.respondWith(
-      caches.open(STATIC_CACHE).then(async (cache) => {
-        const cached = await cache.match(req);
-        if (cached) return cached;
-        try {
-          const res = await fetch(req);
-          if (res.ok) cache.put(req, res.clone());
-          return res;
-        } catch (e) {
-          return cached || Response.error();
-        }
-      })
-    );
-    return;
-  }
 
   // Network-first pour HTML/navigation
   if (req.mode === 'navigate' || req.destination === 'document') {
