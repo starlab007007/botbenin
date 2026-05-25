@@ -147,10 +147,15 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 // WaouhApp — Mobile native shell (Capacitor)
 const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
 const MobileChat = lazy(() => import("./app-mobile/screens/ChatListScreen"));
+const MobileChatThread = lazy(() => import("./app-mobile/screens/ChatScreen"));
 const MobileBots = lazy(() => import("./app-mobile/screens/BotsScreen"));
+const MobileCreateBot = lazy(() => import("./app-mobile/screens/CreateBotWizard"));
 const MobileWhatsApp = lazy(() => import("./app-mobile/screens/WhatsAppScreen"));
 const MobileDiffusion = lazy(() => import("./app-mobile/screens/DiffusionScreen"));
 const MobilePartner = lazy(() => import("./app-mobile/screens/PartnerScreen"));
+const MobileAuthHome = lazy(() => import("./app-mobile/screens/auth/AuthHomeScreen"));
+const MobileAuthEmail = lazy(() => import("./app-mobile/screens/auth/EmailAuthScreen"));
+const MobileAuthOtp = lazy(() => import("./app-mobile/screens/auth/WhatsAppOtpScreen"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -270,10 +275,15 @@ const AppContent = () => {
                   <Route path="/waouh-chat" element={<WaouhChatPage />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
+                  <Route path="/app/auth" element={<MobileAuthHome />} />
+                  <Route path="/app/auth/email" element={<MobileAuthEmail />} />
+                  <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
                   <Route path="/app" element={<MobileShell />}>
                     <Route index element={<Navigate to="/app/chat" replace />} />
                     <Route path="chat" element={<MobileChat />} />
+                    <Route path="chat/:id" element={<MobileChatThread />} />
                     <Route path="bots" element={<MobileBots />} />
+                    <Route path="bots/new" element={<MobileCreateBot />} />
                     <Route path="whatsapp" element={<MobileWhatsApp />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
