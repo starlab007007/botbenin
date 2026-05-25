@@ -168,14 +168,19 @@ export async function marketAnalysisAI(opts: { title: string; price: number; min
  */
 export function contactExchangeText(
   role: "buyer_to_seller" | "seller_to_buyer",
-  other: { display_name?: string | null; phone_number?: string | null; city?: string | null; distance_km?: number | null }
+  other: { display_name?: string | null; phone_number?: string | null; city?: string | null; distance_km?: number | null; location?: any }
 ): string {
   const who = role === "buyer_to_seller" ? "vendeur" : "acheteur";
   const name = other.display_name || `Contact ${who}`;
   const rawPhone = (other.phone_number || "").replace(/@(?:c\.us|lid|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
   const formatted = rawPhone ? `+${rawPhone}` : "";
   const phoneLine = formatted ? `\n📞 *Téléphone* : ${formatted}\n🟢 *WhatsApp* : ${formatted}` : "";
-  const cityLine = other.city ? `\n🏙️ *Ville* : ${other.city}` : "";
+  // Compose adresse : ville + quartier/adresse si dispo (depuis location JSON)
+  const loc = other.location && typeof other.location === "object" ? other.location : null;
+  const quartier = loc?.quartier || loc?.neighborhood || loc?.district || null;
+  const adresse = loc?.address || loc?.adresse || loc?.street || null;
+  const cityParts = [other.city, quartier, adresse].filter(Boolean);
+  const cityLine = cityParts.length ? `\n🏙️ *Adresse* : ${cityParts.join(" — ")}` : "";
   const distLine = other.distance_km != null ? `\n${formatDistance(other.distance_km)}` : "";
   return (
     `📇 *Contact ${who}*\n${waouhSep}\n` +
@@ -185,4 +190,5 @@ export function contactExchangeText(
     distLine
   );
 }
+
 
