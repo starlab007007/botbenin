@@ -169,9 +169,105 @@ export async function marketAnalysisAI(opts: { title: string; price: number; min
 /** Normalise un numéro brut en E.164 si plausible (10–15 chiffres). */
 function toE164OrEmpty(raw: string | null | undefined): string {
   if (!raw) return "";
-  const digits = String(raw).replace(/@(?:c\.us|s\.whatsapp\.net|lid)$/i, "").replace(/\D/g, "");
-  if (digits.length < 10 || digits.length > 15) return "";
-  return `+${digits}`;
+  let digits = String(raw).replace(/@(?:c\.us|s\.whatsapp\.net|lid)$/i, "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00229")) digits = digits.slice(2);
+  if (digits.startsWith("229")) return digits.length >= 11 && digits.length <= 15 ? `+${digits}` : "";
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `+229${digits}`;
+  if (digits.length >= 10 && digits.length <= 15) return `+${digits}`;
+  return "";
+}
+
+function firstE164(...values: Array<string | null | undefined>): string {
+  for (const value of values) {
+    const phone = toE164OrEmpty(value);
+    if (phone) return phone;
+  }
+  return "";
+}
+
+async function resolveProductOwnerPhoneE164(sb: any, articleId: string | null | undefined, expectedSellerUserId?: string | null): Promise<string> {
+  if (!articleId) return "";
+
+  try {
+    const { data: art } = await sb
+      .from("waouh_articles")
+      .select("seller_id, origin_signal_id")
+      .eq("id", articleId)
+      .maybeSingle();
+
+    if (art) {
+      if (expectedSellerUserId && art.seller_id && art.seller_id !== expectedSellerUserId) return "";
+
+      if (art.origin_signal_id) {
+        const { data: ext } = await sb
+          .from("waouh_external_listings")
+          .select("seller_phone")
+          .eq("id", art.origin_signal_id)
+          .maybeSingle();
+        const radarPhone = firstE164(ext?.seller_phone);
+        if (radarPhone) return radarPhone;
+      }
+
+      if (art.seller_id) {
+        const { data: sellerUser } = await sb
+          .from("waouh_users")
+          .select("auth_user_id")
+          .eq("id", art.seller_id)
+          .maybeSingle();
+        if (sellerUser?.auth_user_id) {
+          const { data: partner } = await sb
+            .from("waouh_partners")
+            .select("id, whatsapp, telephone, mobile_money_number")
+            .eq("user_id", sellerUser.auth_user_id)
+            .maybeSingle();
+          const partnerPhone = firstE164(partner?.whatsapp, partner?.telephone, partner?.mobile_money_number);
+          if (partnerPhone) return partnerPhone;
+          if (partner?.id) {
+            const { data: biz } = await sb
+              .from("waouh_partner_businesses")
+              .select("whatsapp, telephone, mobile_money_number")
+              .eq("partner_id", partner.id)
+              .limit(1)
+              .maybeSingle();
+            const businessPhone = firstE164(biz?.whatsapp, biz?.telephone, biz?.mobile_money_number);
+            if (businessPhone) return businessPhone;
+          }
+        }
+      }
+    }
+  } catch (_) { /* fallback unified catalog below */ }
+
+  try {
+    const { data: item } = await sb
+      .from("waouh_unified_catalog")
+      .select("vendeur_whatsapp, vendeur_phone, business_id, partner_id")
+      .eq("id", articleId)
+      .maybeSingle();
+    const catalogPhone = firstE164(item?.vendeur_whatsapp, item?.vendeur_phone);
+    if (catalogPhone) return catalogPhone;
+    if (item?.business_id) {
+      const { data: biz } = await sb
+        .from("waouh_partner_businesses")
+        .select("whatsapp, telephone, mobile_money_number, partner_id")
+        .eq("id", item.business_id)
+        .maybeSingle();
+      const businessPhone = firstE164(biz?.whatsapp, biz?.telephone, biz?.mobile_money_number);
+      if (businessPhone) return businessPhone;
+      if (!item.partner_id && biz?.partner_id) item.partner_id = biz.partner_id;
+    }
+    if (item?.partner_id) {
+      const { data: partner } = await sb
+        .from("waouh_partners")
+        .select("whatsapp, telephone, mobile_money_number")
+        .eq("id", item.partner_id)
+        .maybeSingle();
+      const partnerPhone = firstE164(partner?.whatsapp, partner?.telephone, partner?.mobile_money_number);
+      if (partnerPhone) return partnerPhone;
+    }
+  } catch (_) { /* ignore */ }
+
+  return "";
 }
 
 /**
@@ -191,9 +287,16 @@ function toE164OrEmpty(raw: string | null | undefined): string {
 export async function resolveRealPhoneE164(
   sb: any,
   user: { id?: string | null; phone_number?: string | null; auth_user_id?: string | null } | null | undefined,
-  opts?: { article_id?: string | null }
+  opts?: { article_id?: string | null; role?: "buyer" | "seller" | "contact" }
 ): Promise<string> {
-  if (!user) return "";
+  if (!user) return opts?.role === "seller" ? await resolveProductOwnerPhoneE164(sb, opts?.article_id, null) : "";
+
+  // Pour un vendeur, le contact attaché AU PRODUIT/ANNONCE prime sur le profil générique.
+  if (opts?.role === "seller") {
+    const productPhone = await resolveProductOwnerPhoneE164(sb, opts?.article_id, user.id ?? null);
+    if (productPhone) return productPhone;
+  }
+
   const raw = (user.phone_number || "").trim();
 
   // 1) Numéro direct E.164 (pas un LID anonyme)
@@ -243,58 +346,8 @@ export async function resolveRealPhoneE164(
 
   // 6 & 7) Sources liées à l'article (partenaire business + radar externe)
   const articleId = opts?.article_id || null;
-  if (articleId) {
-    try {
-      const { data: art } = await sb
-        .from("waouh_articles")
-        .select("seller_id, origin, origin_signal_id")
-        .eq("id", articleId)
-        .maybeSingle();
-
-      // 6) Partenaire — chercher un business du partenaire correspondant au seller
-      if (art?.seller_id) {
-        try {
-          const { data: sellerUser } = await sb
-            .from("waouh_users")
-            .select("auth_user_id")
-            .eq("id", art.seller_id)
-            .maybeSingle();
-          if (sellerUser?.auth_user_id) {
-            const { data: partner } = await sb
-              .from("waouh_partners")
-              .select("id, whatsapp, telephone")
-              .eq("user_id", sellerUser.auth_user_id)
-              .maybeSingle();
-            const pp = toE164OrEmpty(partner?.whatsapp) || toE164OrEmpty(partner?.telephone);
-            if (pp) return pp;
-            if (partner?.id) {
-              const { data: biz } = await sb
-                .from("waouh_partner_businesses")
-                .select("whatsapp, telephone")
-                .eq("partner_id", partner.id)
-                .limit(1)
-                .maybeSingle();
-              const bp = toE164OrEmpty(biz?.whatsapp) || toE164OrEmpty(biz?.telephone);
-              if (bp) return bp;
-            }
-          }
-        } catch (_) { /* ignore */ }
-      }
-
-      // 7) Radar IA — seller_phone scrappé depuis source externe
-      if (art?.origin_signal_id) {
-        try {
-          const { data: ext } = await sb
-            .from("waouh_external_listings")
-            .select("seller_phone")
-            .eq("id", art.origin_signal_id)
-            .maybeSingle();
-          const xp = toE164OrEmpty(ext?.seller_phone);
-          if (xp) return xp;
-        } catch (_) { /* ignore */ }
-      }
-    } catch (_) { /* ignore */ }
-  }
+  const productPhone = await resolveProductOwnerPhoneE164(sb, articleId, opts?.role === "seller" ? user.id ?? null : null);
+  if (productPhone) return productPhone;
 
   return "";
 }
