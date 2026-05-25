@@ -8,6 +8,9 @@ export const GoogleAnalytics = () => {
   const location = useLocation();
 
   useEffect(() => {
+    // Skip if GA ID is not configured (placeholder)
+    if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.includes('XXXX')) return;
+
     // Charger le script GA4
     if (!window.gtag) {
       const script = document.createElement('script');
