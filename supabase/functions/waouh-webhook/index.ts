@@ -241,10 +241,10 @@ serve(async (req) => {
     const offerMatch = (!payKw && (explicitOffer || fcfaOffer)) || null;
 
     let intent: any = {};
-    if (receivedKw) intent = { intent: "CONFIRM_RECEIVED" };
-    else if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
+    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
-    else if (payKw || operatorOnlyPay) intent = { intent: "PAY", payment_phone: paymentPhone || (operatorOnlyPay ? "0165653468" : null), operator: operatorKw };
+
     else if (sellKw) intent = { intent: "SELL" };
     else if (buyKw) intent = { intent: "BUY" };
     else if (negotiateKw) intent = { intent: "NEGOTIATE" };
