@@ -1,71 +1,186 @@
-# Vérification end-to-end des chats Waouh + affichage images
+## Objectif
 
-## Résultat du diagnostic
+Remplacer le parcours actuel (intérêt → négociation → paiement escrow) par :
 
-J'ai inspecté la base, les buckets Storage, les edge functions et le front. Voici l'état réel.
+**Intéressé X → notif vendeur → négociation libre prix (OUI / NON / contre‑offre) → accord → échange automatique des contacts vendeur ↔ acheteur → fin.**
 
-### Ce qui fonctionne déjà
-- **Buckets Storage**: `waouh-media` et `waouh-uploads` sont **publics** (lecture anonyme OK).
-- **Table `waouh_messages`** a bien les colonnes `attachments` (jsonb), `text`, `direction`, `channel`, `web_session_id`, `phone_number`.
-- **Front `WaouhWebChat.tsx`** lit `attachments` et rend `<img src={a.url}>` (l. 310-316).
-- **Upload depuis le web** (annonces vendeur) → bucket `waouh-uploads` public → URLs `supabase.co/storage/v1/object/public/...` qui s'affichent correctement (vérifié dans la DB sur les messages du 25/05 00:08).
-- **Ingestion WhatsApp** dans `waouh-channel-in/index.ts` (l. 60-90, 260-285): télécharge le média depuis WAHA, ré-upload dans `waouh-media`, stocke l'URL publique. OK.
-
-### Problème confirmé: images cassées dans le « Top 5 annonces »
-Le message « 🎯 Top 5 annonces trouvées » du 25/05 10:50 contient des `attachments` avec des URLs **non publiques**:
-```
-https://waha.bot.bj/api/files/WaouhApp/false_..._3A....jpeg
-```
-Ces URLs WAHA nécessitent un header `X-Api-Key`. Le navigateur du chat web ne peut **pas** les charger → images cassées dans le chat web (mais OK sur WhatsApp côté téléphone car WAHA fait l'envoi natif).
-
-**Source du bug**: `supabase/functions/waouh-webhook/index.ts` lignes 624-627 et `waouh-radar-process/index.ts` ligne 231. Les photos des matches Radar/SerpAPI sont reprises **telles quelles** depuis `waouh_radar_matches.photos` (qui contient des URLs WAHA brutes) et placées dans `directAtts` → passées à `waouh-channel-in` → stockées dans `waouh_messages.attachments` sans ré-upload.
-
-### Autres points à vérifier (non confirmés à ce stade)
-- Vue admin conversations bot (`src/components/bot-conversation/components/MessageItem.tsx`) **n'affiche pas** les images des messages — seulement le texte via `SafeText`. À enrichir si attendu.
-- WhatsApp diffusion admin (`useWhatsAppMessages.ts`) retourne `media_url` mais aucun composant UI ne le rend.
-- Top 5 envoyé sur WhatsApp via `sendWahaImage`: si une URL Radar est cassée, fallback texte uniquement (déjà géré dans `waouh-channel-in` l. 160-162).
+Plus aucun paiement Mobile Money / escrow / commission n'est déclenché.
+La présentation des messages web chat devient professionnelle (couleurs, séparateurs, en‑tête, signature WAOUH), affiche toutes les photos avec légendes, géolocalisation en live et analyse marché IA réelle.
 
 ---
 
-## Plan de correction (à exécuter en mode build après validation)
+## 1. Fichiers à modifier
 
-### Étape 1 — Normaliser les URLs d'images du Top 5 (bug principal)
-Dans `supabase/functions/waouh-webhook/index.ts`, avant de pousser `directAtts` (vers l. 624-650):
-- Filtrer chaque URL: si elle commence par `https://waha.bot.bj/` ou contient `/api/files/`, soit la **ré-uploader** dans `waouh-media` (réutiliser `uploadToBucket` logique de `waouh-channel-in`), soit la **retirer** du tableau d'attachments envoyés au chat web (la garder uniquement pour WhatsApp).
-- Option simple et rapide: ne pas attacher les photos Radar/SerpAPI au message web s'il n'y a pas d'URL publique; garder seulement les photos d'articles officiels et partenaires (déjà publiques sur `waouh-uploads`).
-- Option robuste: ajouter un helper `ensurePublicUrl(url)` partagé qui upload-or-passthrough.
+### Backend (edge functions)
 
-### Étape 2 — Nettoyer les données existantes
-Migration SQL one-shot pour vider les `attachments` non-publics dans les messages déjà en base (sinon les vieux Top 5 resteront cassés à l'affichage):
+- `supabase/functions/waouh-webhook/index.ts`
+  - Bloc `MATCH` (lignes ~587–656) : retirer **nom vendeur**, **contact**, **whatsapp partenaire** du listing initial. Conserver titre, prix, ville/quartier, condition, # photos, badge ✅/🏪/🛰️.
+  - Bloc `CONFIRM` (lignes ~685–828) : ne plus créer de `waouh_transactions`, supprimer `paymentCard`, garder uniquement `waouh_negotiations` (état `proposed`), prix de référence = `askPrice`, notif vendeur "Nouvel acheteur intéressé" avec **photo + distance live**.
+  - Bloc `NEGOTIATE` (lignes ~829–874) : ne plus toucher `waouh_transactions`. Mettre à jour uniquement `last_offer_price`, push contre‑offre au pair.
+  - Bloc `PAY` / `CONFIRM_RECEIVED` (lignes 875–940) : supprimer totalement (intent retiré).
+  - Bloc `HELP` (ligne 942) : retirer "Je paye".
+  - Helpers `paymentCard`, `payInstructions` (lignes 272–273) : supprimer.
+  - Nouvelle fonction `buildSearchResultBlock(p, idx, distKm, photos)` qui formate un produit avec séparateur `━━━━━━━━` et `📍 à X,X km de vous`.
+  - Nouvelle fonction `buildContactExchange(buyer, seller, article, finalPrice)` qui produit la synthèse finale + carte contact (sans liens, juste texte).
+  - Calcul distance live (Haversine) à partir de `lat/lng` acheteur (passé par `waouh-channel-in`) et `geo_location` vendeur déjà stocké.
+
+- `supabase/functions/waouh-negotiation-router/index.ts`
+  - Cas `kind === "yes"` (lignes 110–141) : remplacer toute la logique paiement par :
+    1. `state = "accepted"`, `closed_at = now()`
+    2. Charger acheteur + vendeur (`waouh_users` : phone, name, city, geo) + article (title, price, photos)
+    3. Envoyer à l'acheteur la **carte contact vendeur** (nom, téléphone, ville, distance) + synthèse + signature WAOUH
+    4. Envoyer au vendeur la **carte contact acheteur** + synthèse
+    5. Retirer `paymentCard`, `payInstructions`
+  - Cas `kind === "no"` et `kind === "price"` : conserver (déjà sans paiement).
+
+- `supabase/functions/waouh-channel-in/index.ts`
+  - Passer `lat`/`lng` acheteur jusqu'à `waouh-webhook` (déjà fait pour `geo.lat/lng`, vérifier qu'ils arrivent intacts dans `body.lat/lng`).
+
+- Nouveau helper `supabase/functions/_shared/waouh-format.ts`
+  - `formatHeader(title)` → "━━━━━━━━━━━━━━━━━━\n*🎯 {title}*\n━━━━━━━━━━━━━━━━━━"
+  - `formatFooter()` → "━━━━━━━━━━━━━━━━━━\n_✨ WAOUH — Achetez, vendez, négociez en confiance_"
+  - `formatPriceBadge(price)`, `formatDistance(km)`, `formatProductCard({...})`
+  - `marketAnalysis(title, price, min, max, city)` : appel Gemini synthétique (1–2 phrases factuelles, ex. "Prix dans la fourchette basse marché Cotonou. Bonne affaire si état neuf.").
+
+### Frontend
+
+- `src/components/waouh/WaouhWebChat.tsx`
+  - Améliorer le rendu Markdown : composants `ReactMarkdown` custom (h2 bleu, hr coloré, blockquote vert pour synthèse, strong en couleur primaire).
+  - Galerie photos : ne plus limiter à 2 par produit côté affichage — afficher **toutes** les photos transmises dans `attachments` avec légende (alt = caption). Grid 2/3 colonnes selon nombre.
+  - Caption visible sous chaque image (overlay bas, fond noir/50, texte blanc) à partir du champ `caption` ajouté à `Att`.
+  - Adresse vendeur en bloc encadré (Card border-l-4 emerald) inline dans le message au lieu d'un lien.
+  - Badge "📍 à X km" stylé (pill emerald).
+
+- `src/components/waouh/WaouhTransactionCard.tsx`
+  - Plus utilisé après accord → conditionner l'affichage : si `meta.intent === "contact_exchange"`, afficher une **Card contact** (nom, téléphone cliquable `tel:`, WhatsApp `wa.me/`, ville, distance).
+  - Sinon (négociation en cours) garder un mini résumé prix sans bouton "Payer".
+
+- `src/components/waouh/WaouhQuickActions.tsx`
+  - Retirer l'action "pay" du `QUICK_PROMPTS` dans `WaouhWebChat.tsx` (ligne 49–53).
+
+- `src/hooks/useWaouhMatchNotifications.ts`
+  - Ajouter template `contact_exchange` → titre "🎉 Accord conclu — contact partagé".
+  - Retirer `payment_link`.
+
+- `src/components/waouh/WaouhPaymentDialog.tsx` et `WaouhPaymentForm.tsx`
+  - Conserver en place mais ne plus être ouverts (mort code toléré pour rollback rapide). Pas de suppression de fichier.
+
+### Géolocalisation (vérification)
+
+- `src/hooks/useWaouhGeolocation.ts` : vérifier `watchPosition` actif (sinon le passer à watch) pour rester live.
+- `supabase/functions/waouh-channel-in/index.ts` : confirmer écriture `lat/lng` dans `waouh_users.geo_location` à chaque message.
+- Côté vendeur : à la publication "Je vends", `waouh-webhook` doit déjà persister la position vendeur sur `waouh_articles.geo_location` (à vérifier dans bloc SELL).
+
+### Base de données
+
+Migration légère (non destructive) :
+
 ```sql
-UPDATE public.waouh_messages
-SET attachments = '[]'::jsonb
-WHERE attachments::text LIKE '%waha.bot.bj%';
+-- Marquer les négociations conclues sans paiement
+ALTER TABLE public.waouh_negotiations
+  ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS contact_shared_at TIMESTAMPTZ;
 ```
 
-### Étape 3 — Tests end-to-end manuels à faire ensemble
-1. Ouvrir `/waouh/chat` connecté.
-2. Envoyer « Je vends : Test, Prix : 5000, Ville : Cotonou » + 2 photos → vérifier que les 2 photos s'affichent dans la bulle « Annonce publiée ».
-3. Envoyer « J'achète une voiture à Cotonou » → vérifier que le « Top 5 » s'affiche **sans images cassées**.
-4. Côté WhatsApp (téléphone), répéter le scénario achat → confirmer que les images arrivent bien sur WhatsApp.
-5. Vérifier l'historique partenaire (`/partner`): activité, ventes, paiements visibles.
-
-### Étape 4 (optionnel) — Affichage images dans la vue admin bot
-Si tu veux voir les images aussi dans `MessageItem.tsx` (vue admin générique des bots), ajouter le rendu `<img>` quand `media_url` existe. Sinon on laisse.
+Aucune suppression de table : `waouh_transactions` reste pour l'historique, simplement plus alimenté.
 
 ---
 
-## Fichiers concernés (par étape)
+## 2. Nouveau format des messages (web chat)
 
-| Étape | Fichiers |
-|---|---|
-| 1. Fix Top 5 URLs | `supabase/functions/waouh-webhook/index.ts` (l. 595-650), éventuellement helper partagé dans `supabase/functions/_shared/` |
-| 2. Nettoyage data | Migration SQL via outil `supabase--migration` |
-| 3. Tests | Aucun fichier, manuel |
-| 4. Admin bot images | `src/components/bot-conversation/components/MessageItem.tsx`, `src/components/conversation-manager/MessageView.tsx`, `src/hooks/useWhatsAppMessages.ts` consommateurs |
+### Annonce trouvée (liste Top N)
 
-Aucun changement à `.github/`, `Dockerfile`, `docker-compose.yml`, `vite.config.ts`.
+```
+━━━━━━━━━━━━━━━━━━
+*🎯 Top 3 annonces trouvées*
+━━━━━━━━━━━━━━━━━━
+
+*1. Honda Civic 2018*
+💰 *3 200 000 FCFA*
+📍 Cotonou · Cadjèhoun
+📏 *à 2,4 km de vous*
+📸 4 photos
+🧠 Prix correct vs marché local (3,0–3,6 M)
+
+━━━━━━━━━━━━━━━━━━
+
+*2. ...*
+
+━━━━━━━━━━━━━━━━━━
+
+💡 Pour discuter avec un vendeur : *intéressé 1*, *intéressé 2*…
+
+_✨ WAOUH_
+```
+
+Pas de nom / téléphone / nom d'entreprise visibles.
+
+### Notification vendeur (après "intéressé X")
+
+```
+━━━━━━━━━━━━━━━━━━
+*📩 Nouvel acheteur intéressé*
+━━━━━━━━━━━━━━━━━━
+
+📦 *Honda Civic 2018*
+💰 *Prix demandé : 3 200 000 FCFA*
+📏 *Acheteur à 2,4 km de vous*
+🏙️ Cotonou
+
+Répondez :
+• *OUI* pour accepter
+• *NON* pour refuser
+• *Je propose 2 900 000 FCFA* pour contre‑offrir
+
+_✨ WAOUH_
+```
+
+### Accord conclu (envoyé aux deux parties)
+
+```
+━━━━━━━━━━━━━━━━━━
+*🎉 Accord conclu !*
+━━━━━━━━━━━━━━━━━━
+
+📦 *Honda Civic 2018*
+💰 *Prix final : 3 000 000 FCFA*
+
+📇 *Contact {vendeur|acheteur}*
+👤 Komlan A.
+📞 +229 01 65 65 34 68
+🟢 WhatsApp : +229 01 65 65 34 68
+🏙️ Cotonou · Cadjèhoun
+📏 à 2,4 km
+
+Vous pouvez maintenant convenir directement de la livraison et du paiement.
+
+_Merci d'avoir utilisé WAOUH ✨_
+```
 
 ---
 
-**Question avant build**: tu veux que je fasse **Étape 1 + 2** maintenant (le vrai correctif images Top 5), ou aussi **Étape 4** (afficher les images dans la vue admin) ?
+## 3. Analyse marché IA (réelle)
+
+Implémenter `marketAnalysis()` dans `_shared/waouh-format.ts` :
+- Appel `google/gemini-2.5-flash` via `LOVABLE_API_KEY`
+- Prompt synthétique :
+  > "Tu es analyste marché Bénin. Donne en 1 phrase (max 25 mots) une appréciation factuelle : prix vs fourchette, contexte ville, conseil. Pas de bla‑bla."
+- Cache mémoire 10 min par (titre, ville, fourchette) pour éviter répétition.
+
+---
+
+## 4. Hors‑scope (non touché)
+
+- `.github/`, `Dockerfile`, `docker-compose.yml`, `vite.config.ts` : **inchangés**.
+- `waouh-payment*`, `qosic-*`, `mtn-momo-*` : conservés mais non appelés.
+- Authentification, profils, partenaires : aucun changement.
+
+---
+
+## 5. Vérification end‑to‑end
+
+1. `/waouh-chat` : "Je cherche une voiture" → liste sans nom ni contact, distance affichée, photos visibles, analyse IA présente.
+2. "intéressé 1" → vendeur (autre session) reçoit notif avec photo + distance.
+3. Vendeur "Je propose 2 900 000" → acheteur reçoit contre‑offre.
+4. Acheteur "OUI" → les deux parties reçoivent la carte contact de l'autre, état `accepted`, `contact_shared_at` rempli.
+5. Aucune transaction `payment_pending` créée pendant le parcours.
