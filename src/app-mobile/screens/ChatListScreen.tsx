@@ -126,11 +126,6 @@ export default function ChatListScreen() {
             <Button onClick={openWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
               <Plus className="h-4 w-4 mr-1" /> Nouveau chat WAOUH
             </Button>
-            <div className="mt-4">
-              <button onClick={() => setNewOpen(true)} className="text-xs text-[hsl(165_91%_25%)] underline">
-                Discuter avec un numéro WhatsApp
-              </button>
-            </div>
           </div>
         )}
 
