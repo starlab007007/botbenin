@@ -148,11 +148,12 @@ export default function PartnerProductsNativeScreen() {
         type="button"
         onClick={() => { setEditing(null); setFormOpen(true); }}
         disabled={!businessId}
-        className="fixed right-4 z-40 h-14 px-5 rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform flex items-center gap-2 font-semibold disabled:opacity-50"
+        aria-label="Ajouter un produit"
+        title="Ajouter un produit"
+        className="fixed left-1/2 -translate-x-1/2 z-40 p-2 active:scale-90 transition-transform flex items-center justify-center bg-transparent disabled:opacity-40"
         style={{ bottom: 'calc(env(safe-area-inset-bottom) + 5rem)' }}
       >
-        <Plus className="h-5 w-5" />
-        Ajouter
+        <Plus className="h-12 w-12 text-[#2563eb]" strokeWidth={3} />
       </button>
 
       {formOpen && businessId && (
