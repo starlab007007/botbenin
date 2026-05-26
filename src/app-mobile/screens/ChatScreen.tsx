@@ -35,10 +35,11 @@ export default function ChatScreen() {
       if (!mounted) return;
       setMeta(c as any);
       setMsgs((m as any) ?? []);
+      markConversationRead(convId);
     })();
     const ch = supabase.channel(`mobile-conv-${convId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `conversation_id=eq.${convId}` },
-        (p) => setMsgs((cur) => [...cur, p.new as any]))
+        (p) => { setMsgs((cur) => [...cur, p.new as any]); markConversationRead(convId); })
       .subscribe();
     return () => { mounted = false; supabase.removeChannel(ch); };
   }, [convId, user]);
@@ -70,7 +71,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[#ECE5DD] dark:bg-background">
+    <div className="min-h-[100dvh] flex flex-col waouh-chat-bg">
       <header className="bg-[hsl(165_91%_18%)] text-white px-2 py-2 flex items-center gap-2 sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => navigate("/app/chat")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
         <div className="flex-1 min-w-0">
