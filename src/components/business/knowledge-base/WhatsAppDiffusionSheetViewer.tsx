@@ -10,11 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   RefreshCw, Plus, Trash2, Edit, Search, MessageCircle,
-  ExternalLink, Loader2,
+  ExternalLink, Loader2, Upload,
 } from 'lucide-react';
 import { useWhatsAppDiffusionGoogleSheets, WhatsAppDiffusionRow } from '@/hooks/useWhatsAppDiffusionGoogleSheets';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeBeninWhatsApp } from '@/lib/phone';
+import { ImportWhatsAppContactsDialog } from './ImportWhatsAppContactsDialog';
 
 interface Props { knowledgeBaseId: string; }
 
@@ -25,11 +27,13 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'actif' | 'inactif'>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<WhatsAppDiffusionRow | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [phoneError, setPhoneError] = useState<string>('');
   const isMobile = useIsMobile();
 
-  const { data, isLoading, isWriting, connectionStatus, lastSync, loadSheet, addRow, updateRow, deleteRow, spreadsheetId } =
+  const { data, isLoading, isWriting, connectionStatus, lastSync, loadSheet, addRow, addRows, updateRow, deleteRow, spreadsheetId } =
     useWhatsAppDiffusionGoogleSheets(userId);
 
   useEffect(() => {
@@ -61,7 +65,7 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
       id_campagne: `CAMP_${userId?.slice(0, 8) || 'usr'}_${Date.now()}`,
       nom_campagne: lastCampaignName,
       nom_contact: '',
-      contact_whatsapp: '+229',
+      contact_whatsapp: '',
       statut: 'Actif',
     };
   };
@@ -69,31 +73,38 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
   const handleOpenAdd = () => {
     setEditingRow(null);
     setFormData(buildDefaults());
+    setPhoneError('');
     setIsDialogOpen(true);
   };
 
   const handleOpenEdit = (row: WhatsAppDiffusionRow) => {
     setEditingRow(row);
     setFormData({ ...row });
+    setPhoneError('');
     setIsDialogOpen(true);
   };
 
-  const validatePhone = (phone: string) => /^\+229\d{8}$/.test((phone || '').replace(/\s/g, ''));
-
   const handleSave = async () => {
-    if (!formData.nom_contact?.trim()) return;
-    if (!validatePhone(formData.contact_whatsapp)) {
-      alert('Numéro WhatsApp invalide. Format attendu : +229 suivi de 8 chiffres');
+    if (!formData.nom_contact?.trim()) {
+      setPhoneError('Nom requis');
       return;
     }
-    const cleanPhone = (formData.contact_whatsapp || '').replace(/\s/g, '');
-    const payload = { ...formData, contact_whatsapp: cleanPhone };
+    const norm = normalizeBeninWhatsApp(formData.contact_whatsapp);
+    if (!norm.valid) {
+      setPhoneError(norm.reason || 'Numéro invalide. Acceptés : 8 chiffres (97XXXXXX) ou 10 chiffres (0197XXXXXX)');
+      return;
+    }
+    setPhoneError('');
+    // Stocke le format canonique 10 chiffres (post-réforme)
+    const payload = { ...formData, contact_whatsapp: norm.e164_10 };
     if (editingRow) await updateRow(editingRow.id, payload);
     else await addRow(payload);
     setIsDialogOpen(false);
     setFormData({});
     setEditingRow(null);
   };
+
+  const handleImport = async (rows: any[]) => addRows(rows);
 
   const handleDelete = async (rowId: string) => {
     if (confirm('Supprimer ce contact ?')) await deleteRow(rowId);
@@ -156,6 +167,10 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
               <SelectItem value="inactif">Inactifs</SelectItem>
             </SelectContent>
           </Select>
+          <Button onClick={() => setIsImportOpen(true)} disabled={isWriting} size="sm" variant="outline" className="h-9">
+            <Upload className="w-3.5 h-3.5" />
+            <span className="ml-1">Importer</span>
+          </Button>
           <Button onClick={handleOpenAdd} disabled={isWriting} size="sm" className="h-9">
             <Plus className="w-3.5 h-3.5" />
             <span className="ml-1">Ajouter</span>
@@ -324,13 +339,21 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
               </div>
 
               <div>
-                <Label className="text-xs font-medium">WhatsApp * (format +229XXXXXXXX)</Label>
-                <Input
-                  value={formData.contact_whatsapp || ''}
-                  onChange={(e) => setFormData({ ...formData, contact_whatsapp: e.target.value })}
-                  placeholder="+22997XXXXXXX"
-                  className="mt-1 font-mono"
-                />
+                <Label className="text-xs font-medium">WhatsApp * <span className="text-muted-foreground">(8 ou 10 chiffres Bénin)</span></Label>
+                <div className="flex items-stretch mt-1 rounded-md border overflow-hidden">
+                  <span className="flex items-center px-2.5 bg-muted text-xs font-medium border-r">🇧🇯 +229</span>
+                  <Input
+                    value={(formData.contact_whatsapp || '').replace(/^\+229/, '')}
+                    onChange={(e) => {
+                      setFormData({ ...formData, contact_whatsapp: '+229' + e.target.value.replace(/\D/g, '') });
+                      setPhoneError('');
+                    }}
+                    placeholder="0197XXXXXX ou 97XXXXXX"
+                    inputMode="numeric"
+                    className="flex-1 border-0 font-mono rounded-none focus-visible:ring-0"
+                  />
+                </div>
+                {phoneError && <p className="text-[11px] text-destructive mt-1">{phoneError}</p>}
               </div>
 
               <div className="flex items-center justify-between rounded-lg border p-3">
@@ -362,6 +385,18 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImportWhatsAppContactsDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        existingPhones={data.map(d => d.contact_whatsapp || '').filter(Boolean)}
+        defaultCampaign={{
+          id: `CAMP_${userId?.slice(0, 8) || 'usr'}_${Date.now()}`,
+          name: (userId && localStorage.getItem(`last_campaign_name_${userId}`)) || '',
+        }}
+        onImport={handleImport}
+        isWriting={isWriting}
+      />
     </Card>
   );
 };

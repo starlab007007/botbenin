@@ -147,3 +147,48 @@ export function normalizePhone(
   }
   return { e164: toE164(local, country), valid: true };
 }
+
+/**
+ * Normalisation WhatsApp Bénin (réforme 2021).
+ * Accepte: 8 chiffres (97XXXXXX), 10 chiffres (0197XXXXXX), avec/sans +229 / 00229 / 229.
+ * Retourne le format canonique 10 chiffres `+22901XXXXXXXX` (préféré WhatsApp),
+ * + variante 8 chiffres `+229XXXXXXXX` pour rétro-compatibilité.
+ */
+export function normalizeBeninWhatsApp(raw: string | null | undefined): {
+  e164_10: string; // +22901XXXXXXXX (10 chiffres locaux)
+  e164_8: string;  // +229XXXXXXXX (8 chiffres legacy, vide si non convertible)
+  display: string; // affichage lisible
+  valid: boolean;
+  reason?: string;
+} {
+  if (!raw || !String(raw).trim()) {
+    return { e164_10: '', e164_8: '', display: '', valid: false, reason: 'Numéro requis' };
+  }
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return { e164_10: '', e164_8: '', display: '', valid: false, reason: 'Aucun chiffre' };
+
+  // Strip 00 prefix
+  if (digits.startsWith('00229')) digits = digits.slice(2);
+  // Now strip country code if present
+  let local = digits.startsWith('229') ? digits.slice(3) : digits;
+
+  // Heuristiques:
+  // - 10 chiffres commençant par 01 = nouveau format
+  // - 8 chiffres commençant par opérateur valide [4-9] = ancien format → préfixer 01
+  let local8 = '';
+  let local10 = '';
+  if (local.length === 10 && local.startsWith('01')) {
+    local10 = local;
+    local8 = local.slice(2);
+  } else if (local.length === 8 && /^[4-9]/.test(local)) {
+    local8 = local;
+    local10 = '01' + local;
+  } else {
+    return { e164_10: '', e164_8: '', display: '', valid: false, reason: 'Format invalide (attendu : 8 ou 10 chiffres)' };
+  }
+
+  const e164_10 = `+229${local10}`;
+  const e164_8 = `+229${local8}`;
+  const display = `+229 ${local10.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5')}`;
+  return { e164_10, e164_8, display, valid: true };
+}
