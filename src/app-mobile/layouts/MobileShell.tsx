@@ -1,18 +1,13 @@
 import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { BottomTabBar } from './BottomTabBar';
+import { useGlobalChatSync } from '../hooks/useGlobalChatSync';
 import '../theme/mobile-theme.css';
 
-/**
- * Mobile shell — renders the 5-tab WhatsApp-like layout for WaouhApp.
- * On drill-in routes (chat detail, partner sub-pages) we hide the bottom
- * tab bar so the page is fullscreen, exactly like WhatsApp.
- */
 export const MobileShell = () => {
   const { pathname } = useLocation();
+  const { totalUnread } = useGlobalChatSync();
 
-  // Fullscreen routes — no bottom tab bar, no bottom padding.
-  // /app/chat/:id or /app/chat/waouh, and any /app/partner/sub-route.
   const fullscreen =
     /^\/app\/chat\/.+/.test(pathname) ||
     /^\/app\/partner\/.+/.test(pathname) ||
@@ -41,7 +36,7 @@ export const MobileShell = () => {
       <main className={fullscreen ? 'flex-1' : 'flex-1 pb-[64px]'}>
         <Outlet />
       </main>
-      {!fullscreen && <BottomTabBar />}
+      {!fullscreen && <BottomTabBar unreadChat={totalUnread} />}
     </div>
   );
 };
