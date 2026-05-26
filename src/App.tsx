@@ -145,6 +145,8 @@ const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ def
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // WaouhApp — Mobile native shell (Capacitor)
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { MobileErrorFallback } from "./app-mobile/components/MobileErrorFallback";
 const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
 const MobileWaouhChat = lazy(() => import("./app-mobile/screens/WaouhChatScreen"));
 const MobileConversations = lazy(() => import("./app-mobile/screens/ChatListScreen"));
