@@ -28,12 +28,15 @@ export default defineConfig(({ mode }) => {
     ],
   },
   build: {
-    outDir: 'dist',
+    outDir: isMobile ? 'dist-mobile' : 'dist',
     assetsDir: 'assets',
     sourcemap: false,
     cssCodeSplit: true,
     minify: mode === 'production' ? 'esbuild' : false,
     rollupOptions: {
+      input: isMobile
+        ? path.resolve(__dirname, 'index.mobile.html')
+        : path.resolve(__dirname, 'index.html'),
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
@@ -111,4 +114,5 @@ export default defineConfig(({ mode }) => {
     port: 8080,
     strictPort: true,
   },
-}));
+  });
+});
