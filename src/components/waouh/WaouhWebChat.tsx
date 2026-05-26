@@ -107,16 +107,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         setMessages(unique as any);
       }
 
-      // Best-effort: backfill user_id on past session messages so future fetches
-      // by user_id include the full local history. Also link the waouh_users row
-      // and waouh_conversations rows so realtime filters work after login.
+      // Link this device's anonymous waouh_users row to the freshly authenticated
+      // account so future realtime filters (per waouh_users.id) catch messages
+      // initially sent before login.
       if (uid) {
-        supabase
-          .from("waouh_messages")
-          .update({ user_id: uid })
-          .eq("web_session_id", sessionId)
-          .is("user_id", null)
-          .then(() => {}, () => {});
         supabase
           .from("waouh_users")
           .update({ auth_user_id: uid })
