@@ -196,7 +196,10 @@ export default function WaouhChatScreen() {
 
       {/* Chat fills remaining space — composer is at bottom with chips sitting right above it */}
       <div className="flex-1 min-h-0">
-        <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
+        <ErrorBoundary fallback={<MobileErrorFallback />}>
+          <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
+        </ErrorBoundary>
+      </div>
       </div>
     </div>
   );
