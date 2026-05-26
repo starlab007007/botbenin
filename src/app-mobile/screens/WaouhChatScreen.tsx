@@ -12,6 +12,8 @@ import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useIsNative } from "../hooks/useIsNative";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { MobileErrorFallback } from "../components/MobileErrorFallback";
 
 const SESSION_KEY = "waouh_web_session_id";
 function getSessionId() {
