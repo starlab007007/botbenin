@@ -165,7 +165,7 @@ export default function ChatListScreen() {
         </ul>
       </main>
 
-      <NewChatSheet open={newOpen} onOpenChange={setNewOpen} />
+      
     </div>
   );
 }
