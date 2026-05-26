@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
+import { useCustomCategories } from '@/hooks/useCustomCategories';
 import { SmartCombobox } from '@/components/ui/smart-combobox';
 import { ProductPhotoUploader } from '@/components/waouh/ProductPhotoUploader';
 import { BUSINESS_CATEGORIES, PRODUCT_UNITS } from '@/data/beninLocations';
@@ -22,7 +23,7 @@ import { Plus, Loader2, ArrowLeft, Trash2, Sparkles, Wand2, Pencil, ImageOff } f
 const PRODUCT_CATEGORIES = [
   'Alimentation', 'Boissons', 'Électronique', 'Mode & Vêtements', 'Maison & Décoration',
   'Beauté & Cosmétiques', 'Bureautique & Papeterie', 'Auto & Moto', 'Téléphonie & Accessoires',
-  'Bébé & Enfants', 'Sport & Loisirs', 'Bricolage & Jardin', 'Services', 'Autre',
+  'Bébé & Enfants', 'Sport & Loisirs', 'Bricolage & Jardin', 'Services',
 ];
 
 type ProductForm = {
@@ -43,6 +44,7 @@ export default function PartnerProductsPage() {
   const { partner } = useWaouhPartner();
   const { toast } = useToast();
   const ai = useWaouhAI();
+  const { all: productCategories, add: addProductCategory } = useCustomCategories('product', PRODUCT_CATEGORIES);
   const [business, setBusiness] = useState<any>(null);
   const [businessId, setBusinessId] = useState<string | null>(businessIdParam || null);
   const [products, setProducts] = useState<any[]>([]);
@@ -54,18 +56,25 @@ export default function PartnerProductsPage() {
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [addingPicked, setAddingPicked] = useState(false);
 
   const load = async () => {
-    let bQuery = supabase.from('waouh_partner_businesses' as any).select('*');
-    if (codeParam) bQuery = bQuery.eq('code_court', codeParam.toUpperCase());
-    else if (businessIdParam) bQuery = bQuery.eq('id', businessIdParam);
-    else return;
-    const { data: b } = await bQuery.maybeSingle();
-    if (!b) { setBusiness(null); setProducts([]); return; }
-    setBusiness(b);
-    setBusinessId((b as any).id);
-    const { data: p } = await supabase.from('waouh_partner_products' as any).select('*').eq('business_id', (b as any).id).order('created_at', { ascending: false });
-    setProducts((p as any) || []);
+    try {
+      let bQuery = supabase.from('waouh_partner_businesses' as any).select('*');
+      if (codeParam) bQuery = bQuery.eq('code_court', codeParam.toUpperCase());
+      else if (businessIdParam) bQuery = bQuery.eq('id', businessIdParam);
+      else return;
+      const { data: b, error: bErr } = await bQuery.maybeSingle();
+      if (bErr) throw bErr;
+      if (!b) { setBusiness(null); setProducts([]); return; }
+      setBusiness(b);
+      setBusinessId((b as any).id);
+      const { data: p, error: pErr } = await supabase.from('waouh_partner_products' as any).select('*').eq('business_id', (b as any).id).order('created_at', { ascending: false });
+      if (pErr) throw pErr;
+      setProducts((p as any) || []);
+    } catch (e: any) {
+      toast({ title: 'Erreur de chargement', description: e?.message || 'Réessaie dans un instant.', variant: 'destructive' });
+    }
   };
   useEffect(() => { load(); }, [codeParam, businessIdParam]);
 
@@ -104,19 +113,26 @@ export default function PartnerProductsPage() {
   };
 
   const addPicked = async () => {
-    if (!partner || !businessId) return;
-    const rows = Array.from(picked).map(i => ({
-      partner_id: partner.id, business_id: businessId,
-      nom: suggestions[i].nom, description: suggestions[i].description || null,
-      categorie: suggestions[i].categorie || null,
-      prix_min: suggestions[i].prix_min, prix_max: suggestions[i].prix_max,
-      unite: suggestions[i].unite, disponible: true,
-    }));
-    const { error } = await supabase.from('waouh_partner_products' as any).insert(rows);
-    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
-    toast({ title: `✅ ${rows.length} produit(s) ajouté(s)` });
-    setSuggestOpen(false); setSuggestions([]); setPicked(new Set());
-    load();
+    if (!partner || !businessId || addingPicked) return;
+    setAddingPicked(true);
+    try {
+      const rows = Array.from(picked).map(i => ({
+        partner_id: partner.id, business_id: businessId,
+        nom: suggestions[i].nom, description: suggestions[i].description || null,
+        categorie: suggestions[i].categorie || null,
+        prix_min: suggestions[i].prix_min, prix_max: suggestions[i].prix_max,
+        unite: suggestions[i].unite, disponible: true,
+      }));
+      const { error } = await supabase.from('waouh_partner_products' as any).insert(rows);
+      if (error) throw error;
+      toast({ title: `✅ ${rows.length} produit(s) ajouté(s)` });
+      setSuggestOpen(false); setSuggestions([]); setPicked(new Set());
+      load();
+    } catch (e: any) {
+      toast({ title: 'Erreur', description: e?.message || 'Insertion impossible', variant: 'destructive' });
+    } finally {
+      setAddingPicked(false);
+    }
   };
 
   const save = async () => {
