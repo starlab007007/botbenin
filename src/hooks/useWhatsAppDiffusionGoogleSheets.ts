@@ -286,6 +286,7 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
       if (result?.success) {
         setData(prev => prev.filter(r => r.id !== rowId));
         toast({ title: '✅ Supprimé', description: 'Contact supprimé' });
+        setTimeout(() => { loadSheet(); }, 1500);
         return true;
       }
       return false;
@@ -296,7 +297,20 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
     } finally {
       setIsWriting(false);
     }
-  }, [isUserValid, userId, toast, activeSheetName]);
+  }, [isUserValid, userId, toast, activeSheetName, loadSheet]);
+
+  // Polling 30s pour récupérer les modifs faites directement dans Google Sheets
+  const pollingRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isUserValid) return;
+    if (pollingRef.current) window.clearInterval(pollingRef.current);
+    pollingRef.current = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && !isWriting) {
+        loadSheet();
+      }
+    }, 30000);
+    return () => { if (pollingRef.current) window.clearInterval(pollingRef.current); };
+  }, [isUserValid, isWriting, loadSheet]);
 
   return {
     data,
@@ -306,6 +320,7 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
     lastSync,
     loadSheet,
     addRow,
+    addRows,
     updateRow,
     deleteRow,
     spreadsheetId: DEFAULT_SPREADSHEET_ID,
