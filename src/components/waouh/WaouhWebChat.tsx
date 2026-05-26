@@ -431,8 +431,20 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                         size="sm"
                         variant="secondary"
                         className="h-7 text-xs"
-                        onClick={() => {
-                          if (a.url) { window.open(a.url, "_blank"); return; }
+                        onClick={async () => {
+                          if (a.url) {
+                            // In Capacitor, opening wa.me kicks the user to WhatsApp.
+                            // Keep the user inside the app by ignoring WhatsApp deep-links.
+                            try {
+                              const { Capacitor } = await import("@capacitor/core");
+                              if (Capacitor.isNativePlatform() && /(?:wa\.me|api\.whatsapp\.com|whatsapp:)/i.test(a.url)) {
+                                toast({ title: "Action désactivée dans l'app", description: "Continuez la conversation ici." });
+                                return;
+                              }
+                            } catch {}
+                            window.open(a.url, "_blank");
+                            return;
+                          }
                           const kw = /accept/i.test(a.id) ? "OUI"
                             : /refuse/i.test(a.id) ? "NON"
                             : /counter|negociat/i.test(a.id) ? "Je propose "
