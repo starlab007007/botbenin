@@ -1,47 +1,107 @@
 ## Objectif
 
-Rendre le module Chat de l'application mobile 100% natif (UI Android autonome, sans WebView, sans ouverture de lien web), tout en restant synchronisé avec le backend Supabase existant (mêmes tables `waouh_conversations` / `waouh_messages`, mêmes données que le web).
+Produire un APK Android Capacitor qui n'embarque **que** l'app `src/app-mobile/*` (et ses dépendances partagées dans `src/components`, `src/hooks`, `src/integrations`, `src/contexts`, `src/lib`), sans le site web marketing/admin (HomePage, Dashboard, Modules, Admin, WAOUH web, etc.).
 
-## Comportement attendu
+Le build web actuel (`bun run build` → `dist/`) reste intact pour bot.bj. On ajoute un build parallèle `build:mobile` → `dist-mobile/` que Capacitor utilisera comme `webDir`.
 
-1. **Arrière-plan style WhatsApp adapté Waouh** — pattern doodle subtil teinté vert Waouh (`hsl(165 91% 18%)`) en très faible opacité sur la liste et l'écran de conversation, light & dark mode.
-2. **Header natif** déjà en place (vert Waouh, avatar, recherche) — conservé tel quel.
-3. **WAOUH épinglé en tête** de la liste (comme aujourd'hui), avec badge IA et "Toujours actif".
-4. **Sous WAOUH : liste des notifications de chats** (autres conversations `waouh_conversations` de l'utilisateur), triées par `updated_at desc`, avec :
-   - Avatar / initiales
-   - Nom ou numéro
-   - Dernier message tronqué
-   - Heure (aujourd'hui) ou date
-   - **Bulle verte avec le nombre de messages non lus** par chat (style WhatsApp)
-5. **Compteur de non-lus** : pas de colonne `read_at` en base → on stocke `lastReadAt` par `conversation_id` dans `localStorage` (clé `waouh_chat_read_v1`). À l'ouverture de `/app/chat/:id`, on met à jour `lastReadAt = now()`. Le compteur = nb de `waouh_messages` où `direction='in'` ET `created_at > lastReadAt`. Calculé en une requête groupée au chargement + maintenu via Realtime.
-6. **Bouton "Nouveau chat" (header + FAB + état vide)** → ouvre directement le chat WAOUH (`/app/chat/waouh`), plus la `NewChatSheet` (qui demandait un numéro). La création de conversations WhatsApp/téléphone reste accessible via un petit lien secondaire "Discuter avec un numéro" dans l'état vide, mais l'action primaire est WAOUH.
-7. **Écran de conversation** (`ChatScreen`) : applique le même fond doodle Waouh, bulles style WhatsApp (déjà ok), marque la conversation comme lue à l'ouverture.
-8. **Realtime déjà branché** sur `waouh_conversations` et `waouh_messages` → conservé, étendu pour incrémenter le badge non-lu en live quand un message `in` arrive sur une conv non ouverte.
+## Architecture cible
 
-## Détails techniques
+```text
+src/
+├── main.tsx              ← entry WEB (existant, inchangé)
+├── App.tsx               ← routeur WEB complet (inchangé)
+├── main.mobile.tsx       ← NOUVEAU entry mobile
+├── AppMobile.tsx         ← NOUVEAU routeur mobile (uniquement routes /app/*)
+└── app-mobile/           ← inchangé, source de vérité APK
 
-**Fichiers modifiés**
-- `src/app-mobile/screens/ChatListScreen.tsx`
-  - Ajout fond doodle (`bg-[url(...)] bg-repeat` + tint), via classe utilitaire.
-  - Nouvelle requête `select id, count(*)` sur `waouh_messages` (direction=in, created_at > lastReadAt par conv) groupée côté client après fetch des convs.
-  - Hook local `useUnreadCounts(convs)` qui lit `localStorage`, calcule les non-lus, et écoute Realtime INSERT sur `waouh_messages` pour incrémenter.
-  - Bulle non-lus à droite de chaque ligne (`bg-[hsl(165_91%_35%)] text-white rounded-full min-w-5 h-5 px-1.5 text-[11px]`).
-  - Bouton `+` du header et CTA "Nouveau chat" de l'état vide → `navigate("/app/chat/waouh")` (au lieu d'ouvrir `NewChatSheet`).
-  - État vide : message "Aucune autre conversation — démarrez avec WAOUH ☝️" + petit lien texte "Discuter avec un numéro WhatsApp" qui ouvre encore `NewChatSheet` (option secondaire conservée).
-- `src/app-mobile/screens/ChatScreen.tsx`
-  - Remplace `bg-[#ECE5DD]` par le fond doodle Waouh.
-  - `useEffect` : à l'ouverture, écrit `lastReadAt = new Date().toISOString()` pour `convId` dans `localStorage`.
+index.html                ← WEB (inchangé)
+index.mobile.html         ← NOUVEAU, charge /src/main.mobile.tsx
 
-**Fichiers créés**
-- `src/app-mobile/hooks/useUnreadCounts.ts` — lecture/écriture localStorage, calcul des non-lus, abonnement Realtime.
-- `src/app-mobile/theme/chat-bg.css` — pattern SVG doodle Waouh (inline base64, très léger), classe `.waouh-chat-bg` appliquée sur les écrans chat. Importé depuis `mobile-theme.css`.
+vite.config.ts            ← branche sur MOBILE_BUILD env
+                              - input = index.mobile.html
+                              - outDir = dist-mobile
+                              - manualChunks simplifiés (pas de pdf/ffmpeg/mapbox/leaflet)
 
-**Pas de changement backend** : aucune migration, mêmes tables, mêmes RLS, même flux d'envoi (`waouh_messages` insert + edge function `waha-send-message` pour WhatsApp). Synchronisation web ⇄ mobile inchangée.
+capacitor.config.ts       ← webDir: 'dist-mobile' (au lieu de 'dist')
 
-**Pas de WebView** : tout est React natif rendu par Capacitor. Aucun `window.open`, aucun lien externe ouvert depuis ces écrans.
+package.json              ← scripts:
+                              - "build:mobile": "MOBILE_BUILD=1 vite build"
+                              - "cap:sync":   "npm run build:mobile && cap sync android"
+                              - "cap:open":   "cap open android"
+```
 
-## Hors scope
+## AppMobile.tsx — routeur mobile minimal
 
-- Pas de modification de `WaouhChatScreen` (déjà natif).
-- Pas de modification des tables Supabase ni des edge functions.
-- Pas de push notifications nouvelles (le système existant `useWaouhMatchNotifications` reste).
+Reprend uniquement les providers nécessaires (`QueryClientProvider`, `AuthProvider`, `UserProvider`, `LanguageProvider`, `TooltipProvider`, `Toaster`, `Sonner`, `BrowserRouter`) et déclare seulement les routes `/app/*` déjà présentes dans `App.tsx` lignes 288-310 environ (auth, shell, chat, bots, partner, profile). Toute URL inconnue redirige vers `/app/chat`. Pas de `HomePage`, `DashboardPage`, modules, admin, WAOUH web, blog, FAQ, pricing, etc.
+
+Avantage : tree-shaking automatique — les pages web ne sont jamais importées, donc absentes du bundle APK.
+
+## index.mobile.html
+
+Copie minimaliste de `index.html` :
+- garde viewport, theme-color, manifest, polices
+- supprime tout le SEO marketing (OG, JSON-LD, GTM, GA, hreflang, sitemap hints)
+- charge `<script type="module" src="/src/main.mobile.tsx">`
+
+## vite.config.ts — branchement conditionnel
+
+```ts
+const isMobile = process.env.MOBILE_BUILD === '1';
+
+return {
+  build: {
+    outDir: isMobile ? 'dist-mobile' : 'dist',
+    rollupOptions: {
+      input: isMobile
+        ? path.resolve(__dirname, 'index.mobile.html')
+        : path.resolve(__dirname, 'index.html'),
+      output: { /* manualChunks allégé en mode mobile */ },
+    },
+  },
+};
+```
+
+En mode mobile : `manualChunks` retire `ai-hf`, `ffmpeg`, `mapbox`, `leaflet`, `pdf`, `charts`, `xlsx` (non utilisés par app-mobile) — tout reste dans `vendor`.
+
+## capacitor.config.ts
+
+- `webDir: 'dist-mobile'`
+- `server.url` retiré (déjà conditionné `isDev` mais on confirme : APK release = no server.url)
+- StatusBar/SplashScreen inchangés
+
+## Pages partagées conservées
+
+`src/app-mobile/*` continue d'importer librement `@/components/ui/*`, `@/hooks/*`, `@/integrations/supabase/client`, `@/contexts/*`, `@/lib/*`. Aucun refactor. Le tree-shaking de Rollup garantit que seuls les modules réellement atteints depuis `AppMobile.tsx` sont inclus.
+
+## Étapes d'implémentation
+
+1. Créer `src/AppMobile.tsx` (routeur réduit, copie ciblée des routes /app/* de App.tsx)
+2. Créer `src/main.mobile.tsx` (rend `<AppMobile />`)
+3. Créer `index.mobile.html` à la racine
+4. Modifier `vite.config.ts` (input + outDir + manualChunks conditionnés)
+5. Modifier `capacitor.config.ts` (`webDir: 'dist-mobile'`)
+6. Ajouter scripts `build:mobile`, `cap:sync`, `cap:open` dans `package.json`
+7. Vérifier qu'aucune route /app n'importe accidentellement une page web (`rg "from.*pages/(?!waouh)" src/app-mobile`)
+
+## Pour générer l'APK (instructions utilisateur, exécutées en local)
+
+```bash
+git pull
+npm install
+npm run build:mobile         # produit dist-mobile/
+npx cap sync android
+npx cap open android         # Android Studio → Build → Build APK(s)
+```
+
+ou en CLI :
+```bash
+cd android && ./gradlew assembleDebug
+# APK : android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Hors-périmètre
+
+- Pas de refactor des composants partagés
+- Pas de modification des routes web
+- Pas de pipeline CI/CD APK (peut être ajouté plus tard via GitHub Actions)
+- Pas de signing release/Play Store (debug APK suffit pour test ; signing à configurer séparément)
