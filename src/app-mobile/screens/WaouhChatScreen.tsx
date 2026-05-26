@@ -200,7 +200,6 @@ export default function WaouhChatScreen() {
           <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
         </ErrorBoundary>
       </div>
-      </div>
     </div>
   );
 }
