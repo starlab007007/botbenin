@@ -301,30 +301,6 @@ export default function PartnerHomeScreen() {
               </Badge>
             }
           />
-          <MobileSectionTile
-            to="/app/partner/businesses"
-            icon={<Store className="h-5 w-5" />}
-            title="Enrôler un commerce"
-            subtitle="Voix · GPS · IA"
-          />
-          <MobileSectionTile
-            to="/app/partner/sales"
-            icon={<TrendingUp className="h-5 w-5" />}
-            title="Mes ventes & commissions"
-            subtitle="Suivi temps réel"
-          />
-          <MobileSectionTile
-            to="/app/partner/payouts"
-            icon={<Wallet className="h-5 w-5" />}
-            title="Mes versements"
-            subtitle="Mobile Money"
-          />
-          <MobileSectionTile
-            to="/app/partner/payments"
-            icon={<Receipt className="h-5 w-5" />}
-            title="Historique paiements"
-            subtitle="Toutes vos transactions"
-          />
         </div>
 
         {/* Activité */}
