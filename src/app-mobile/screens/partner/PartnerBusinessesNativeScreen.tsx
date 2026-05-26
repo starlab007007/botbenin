@@ -138,16 +138,16 @@ export default function PartnerBusinessesNativeScreen() {
         ))}
       </div>
 
-      {/* FAB — centered round blue + icon */}
+      {/* FAB — simple blue + icon, no background */}
       <button
         type="button"
         onClick={() => { setEditing(null); setFormOpen(true); }}
         aria-label="Enrôler une entreprise"
         title="Enrôler une entreprise"
-        className="fixed left-1/2 -translate-x-1/2 z-40 h-14 w-14 rounded-full bg-[#2563eb] text-white shadow-xl shadow-blue-600/30 active:scale-90 hover:scale-105 transition-transform flex items-center justify-center"
+        className="fixed left-1/2 -translate-x-1/2 z-40 p-2 active:scale-90 transition-transform flex items-center justify-center bg-transparent"
         style={{ bottom: 'calc(env(safe-area-inset-bottom) + 5rem)' }}
       >
-        <Plus className="h-7 w-7" strokeWidth={2.5} />
+        <Plus className="h-12 w-12 text-[#2563eb]" strokeWidth={3} />
       </button>
 
       {formOpen && (

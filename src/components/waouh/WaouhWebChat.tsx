@@ -107,14 +107,15 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         setMessages(unique as any);
       }
 
-      // Best-effort: backfill user_id on past session messages so future fetches
-      // by user_id include the full local history.
+      // Link this device's anonymous waouh_users row to the freshly authenticated
+      // account so future realtime filters (per waouh_users.id) catch messages
+      // initially sent before login.
       if (uid) {
         supabase
-          .from("waouh_messages")
-          .update({ user_id: uid })
+          .from("waouh_users")
+          .update({ auth_user_id: uid })
           .eq("web_session_id", sessionId)
-          .is("user_id", null)
+          .is("auth_user_id", null)
           .then(() => {}, () => {});
       }
     })();
@@ -395,6 +396,33 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   </ReactMarkdown>
                 )}
 
+                {/* Catalogue produits renvoyés par WAOUH */}
+                {Array.isArray((m as any).meta?.products) && (m as any).meta.products.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mt-2 not-prose">
+                    {((m as any).meta.products as any[]).slice(0, 6).map((p, i) => {
+                      const photo = Array.isArray(p.photos) ? p.photos[0] : (p.photo || p.image || null);
+                      const price = p.prix_min && p.prix_max && p.prix_min !== p.prix_max
+                        ? `${Number(p.prix_min).toLocaleString()} - ${Number(p.prix_max).toLocaleString()} F`
+                        : (p.prix_min || p.prix_max) ? `${Number(p.prix_min || p.prix_max).toLocaleString()} F` : "";
+                      return (
+                        <div key={i} className="rounded-lg overflow-hidden border border-border bg-card">
+                          <div className="aspect-square bg-muted relative">
+                            {photo ? (
+                              <img src={photo} alt={p.nom} loading="lazy" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">Pas d'image</div>
+                            )}
+                          </div>
+                          <div className="p-1.5">
+                            <div className="text-[11px] font-semibold truncate text-foreground">{p.nom}</div>
+                            {price && <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{price}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
                     {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
@@ -403,8 +431,20 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                         size="sm"
                         variant="secondary"
                         className="h-7 text-xs"
-                        onClick={() => {
-                          if (a.url) { window.open(a.url, "_blank"); return; }
+                        onClick={async () => {
+                          if (a.url) {
+                            // In Capacitor, opening wa.me kicks the user to WhatsApp.
+                            // Keep the user inside the app by ignoring WhatsApp deep-links.
+                            try {
+                              const { Capacitor } = await import("@capacitor/core");
+                              if (Capacitor.isNativePlatform() && /(?:wa\.me|api\.whatsapp\.com|whatsapp:)/i.test(a.url)) {
+                                toast({ title: "Action désactivée dans l'app", description: "Continuez la conversation ici." });
+                                return;
+                              }
+                            } catch {}
+                            window.open(a.url, "_blank");
+                            return;
+                          }
                           const kw = /accept/i.test(a.id) ? "OUI"
                             : /refuse/i.test(a.id) ? "NON"
                             : /counter|negociat/i.test(a.id) ? "Je propose "

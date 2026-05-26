@@ -12,6 +12,8 @@ import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useIsNative } from "../hooks/useIsNative";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { MobileErrorFallback } from "../components/MobileErrorFallback";
 
 const SESSION_KEY = "waouh_web_session_id";
 function getSessionId() {
@@ -194,7 +196,9 @@ export default function WaouhChatScreen() {
 
       {/* Chat fills remaining space — composer is at bottom with chips sitting right above it */}
       <div className="flex-1 min-h-0">
-        <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
+        <ErrorBoundary fallback={<MobileErrorFallback />}>
+          <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
+        </ErrorBoundary>
       </div>
     </div>
   );

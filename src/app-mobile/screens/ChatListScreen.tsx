@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useUnreadCounts } from "../hooks/useUnreadCounts";
+import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Plus, ShoppingBag } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -33,29 +34,63 @@ export default function ChatListScreen() {
   const navigate = useNavigate();
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
+  const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
   const [convs, setConvs] = useState<Conv[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   
 
   useEffect(() => {
-    if (!user) return;
+    if (!ready) return;
     let mounted = true;
     const load = async () => {
-      const { data } = await supabase
-        .from("waouh_conversations")
-        .select("id,phone_number,channel,last_message,updated_at")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(50);
-      if (mounted) { setConvs((data as any) ?? []); setLoading(false); }
+      const fields = "id,phone_number,channel,last_message,updated_at";
+      const all: Record<string, Conv> = {};
+      if (waouhUserIds.length) {
+        const { data } = await supabase
+          .from("waouh_conversations")
+          .select(fields)
+          .in("user_id", waouhUserIds)
+          .order("updated_at", { ascending: false })
+          .limit(50);
+        (data ?? []).forEach((c: any) => { all[c.id] = c; });
+      }
+      // Also surface conversations reachable from this device's session messages
+      if (sessionId) {
+        const { data: msgs } = await supabase
+          .from("waouh_messages")
+          .select("conversation_id")
+          .eq("web_session_id", sessionId)
+          .not("conversation_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(200);
+        const ids = Array.from(new Set((msgs ?? []).map((m: any) => m.conversation_id).filter(Boolean)));
+        const missing = ids.filter((id) => !all[id]);
+        if (missing.length) {
+          const { data: extra } = await supabase
+            .from("waouh_conversations")
+            .select(fields)
+            .in("id", missing)
+            .limit(50);
+          (extra ?? []).forEach((c: any) => { all[c.id] = c; });
+        }
+      }
+      const list = Object.values(all).sort((a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+      if (mounted) { setConvs(list); setLoading(false); }
     };
     load();
-    const ch = supabase.channel("mobile-conv-list")
-      .on("postgres_changes", { event: "*", schema: "public", table: "waouh_conversations", filter: `user_id=eq.${user.id}` }, load)
-      .subscribe();
-    return () => { mounted = false; supabase.removeChannel(ch); };
-  }, [user]);
+    const channels: any[] = [];
+    for (const uid of waouhUserIds) {
+      channels.push(
+        supabase.channel(`mobile-conv-list-${uid}`)
+          .on("postgres_changes", { event: "*", schema: "public", table: "waouh_conversations", filter: `user_id=eq.${uid}` }, load)
+          .subscribe()
+      );
+    }
+    return () => { mounted = false; channels.forEach((c) => supabase.removeChannel(c)); };
+  }, [ready, waouhUserIds.join("|"), sessionId]);
 
   const filtered = useMemo(
     () => convs.filter(c => !q || (c.phone_number ?? "").includes(q) || (c.last_message ?? "").toLowerCase().includes(q.toLowerCase())),
