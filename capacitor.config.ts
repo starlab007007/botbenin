@@ -5,7 +5,7 @@ const isDev = process.env.NODE_ENV === 'development' || process.env.LOVABLE_DEV 
 const config: CapacitorConfig = {
   appId: 'bj.bot.waouhapp',
   appName: 'WaouhApp',
-  webDir: 'dist',
+  webDir: 'dist-mobile',
   // DEV ONLY: hot-reload from Lovable sandbox.
   // COMMENT OUT server.url for native APK builds.
   ...(isDev && {

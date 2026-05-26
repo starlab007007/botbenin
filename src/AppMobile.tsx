@@ -44,7 +44,7 @@ const Fallback = () => (
 
 const AppMobile = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light" storageKey="waouh-theme">
+    <ThemeProvider defaultTheme="light">
       <LanguageProvider>
         <AuthProvider>
           <UserProvider>
