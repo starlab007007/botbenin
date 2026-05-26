@@ -17,6 +17,7 @@ import { formatPhoneDisplay } from '@/lib/phone';
 import { businessSchema, flattenZodErrors } from '@/lib/validation/waouh';
 import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
+import { useCustomCategories } from '@/hooks/useCustomCategories';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, MapPin, Loader2, Package, Sparkles, Mic, MicOff, Wand2, Eye, Pencil, Trash2 } from 'lucide-react';
@@ -41,6 +42,7 @@ export default function PartnerBusinessesPage() {
   const { partner, loading } = useWaouhPartner();
   const { toast } = useToast();
   const ai = useWaouhAI();
+  const { all: businessCategories, add: addBusinessCategory } = useCustomCategories('business', BUSINESS_CATEGORIES);
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -52,9 +54,18 @@ export default function PartnerBusinessesPage() {
 
   const load = useCallback(async () => {
     if (!partner) return;
-    const { data } = await supabase.from('waouh_partner_businesses' as any).select('*').eq('partner_id', partner.id).order('created_at', { ascending: false });
-    setBusinesses((data as any) || []);
-  }, [partner]);
+    try {
+      const { data, error } = await supabase
+        .from('waouh_partner_businesses' as any)
+        .select('*')
+        .eq('partner_id', partner.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setBusinesses((data as any) || []);
+    } catch (e: any) {
+      toast({ title: 'Erreur de chargement', description: e?.message || 'Réessaie dans un instant.', variant: 'destructive' });
+    }
+  }, [partner, toast]);
   useEffect(() => { load(); }, [load]);
 
   const detail = businesses.find(b => b.id === detailId) || null;
@@ -186,7 +197,7 @@ export default function PartnerBusinessesPage() {
         </div>
         <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild><Button onClick={resetForm}><Plus className="h-4 w-4 mr-2" />Enrôler une entreprise</Button></DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Modifier' : 'Nouvelle'} entreprise</DialogTitle>
               <CardDescription>Dictée vocale, GPS et IA pour aller 10× plus vite.</CardDescription>
@@ -210,21 +221,14 @@ export default function PartnerBusinessesPage() {
               <div>
                 <Label>Catégorie *</Label>
                 <SmartCombobox
-                  value={BUSINESS_CATEGORIES.includes(form.categorie) ? form.categorie : (form.categorie ? 'Autre' : '')}
-                  onChange={v => setForm({ ...form, categorie: v === 'Autre' ? ' ' : v })}
-                  options={[...BUSINESS_CATEGORIES, 'Autre']}
-                  placeholder="Type d'activité"
-                  allowCustom invalid={!!errors.categorie} errorMessage={errors.categorie}
+                  value={form.categorie}
+                  onChange={v => { setForm({ ...form, categorie: v }); if (v) addBusinessCategory(v); }}
+                  options={businessCategories}
+                  placeholder="Type d'activité (tape pour chercher ou créer)"
+                  allowCustom
+                  invalid={!!errors.categorie}
+                  errorMessage={errors.categorie}
                 />
-                {(form.categorie === ' ' || (form.categorie && !BUSINESS_CATEGORIES.includes(form.categorie))) && (
-                  <Input
-                    className="mt-2"
-                    placeholder="Précisez votre type d'activité"
-                    value={form.categorie.trim()}
-                    onChange={e => setForm({ ...form, categorie: e.target.value })}
-                    autoFocus
-                  />
-                )}
               </div>
               <LocationAutocomplete
                 ville={form.ville} quartier={form.quartier}
