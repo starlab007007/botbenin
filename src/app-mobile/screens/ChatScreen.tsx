@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
+import { markConversationRead } from "../hooks/useUnreadCounts";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Send, Paperclip } from "lucide-react";
 import { cn } from "@/lib/utils";

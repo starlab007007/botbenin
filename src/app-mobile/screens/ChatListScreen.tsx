@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
+import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Plus, ShoppingBag } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,16 @@ type Conv = {
   last_message: string | null;
   updated_at: string;
 };
+
+function formatStamp(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const diff = (now.getTime() - d.getTime()) / 86400000;
+  if (diff < 7) return d.toLocaleDateString([], { weekday: "short" });
+  return d.toLocaleDateString();
+}
 
 export default function ChatListScreen() {
   const navigate = useNavigate();
@@ -46,11 +57,20 @@ export default function ChatListScreen() {
     return () => { mounted = false; supabase.removeChannel(ch); };
   }, [user]);
 
-  const filtered = convs.filter(c => !q || (c.phone_number ?? "").includes(q) || (c.last_message ?? "").toLowerCase().includes(q.toLowerCase()));
+  const filtered = useMemo(
+    () => convs.filter(c => !q || (c.phone_number ?? "").includes(q) || (c.last_message ?? "").toLowerCase().includes(q.toLowerCase())),
+    [convs, q]
+  );
+
+  const convIds = useMemo(() => convs.map(c => c.id), [convs]);
+  const unread = useUnreadCounts(convIds, user?.id);
+
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
+  const openWaouh = () => navigate("/app/chat/waouh");
+
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-[100dvh] waouh-chat-list-bg">
       <header className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white">
         <div className="px-4 py-3 flex items-center justify-between">
           <button onClick={() => navigate("/app/profile")} className="flex items-center gap-2 active:opacity-70">
@@ -63,7 +83,7 @@ export default function ChatListScreen() {
               <div className="text-[11px] text-white/70 leading-tight">{profile?.phone ?? "Mon compte"}</div>
             </div>
           </button>
-          <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => setNewOpen(true)}>
+          <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openWaouh} aria-label="Nouveau chat WAOUH">
             <Plus className="h-5 w-5" />
           </Button>
         </div>
@@ -78,7 +98,7 @@ export default function ChatListScreen() {
       <main>
         {/* Pinned WAOUH conversation — default AI assistant chat */}
         <button
-          onClick={() => navigate("/app/chat/waouh")}
+          onClick={openWaouh}
           className="w-full flex items-center gap-3 px-4 py-3 active:bg-muted border-b bg-gradient-to-r from-emerald-50 to-transparent dark:from-emerald-950/20"
         >
           <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-md">
@@ -98,30 +118,55 @@ export default function ChatListScreen() {
         </button>
 
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
+
         {!loading && filtered.length === 0 && (
-          <div className="p-12 text-center text-muted-foreground">
+          <div className="p-10 text-center text-muted-foreground">
             <p className="font-medium mb-1">Aucune autre conversation</p>
-            <p className="text-sm mb-4">Démarrez un chat WhatsApp ou web.</p>
-            <Button onClick={() => setNewOpen(true)} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
-              <Plus className="h-4 w-4 mr-1" /> Nouveau chat
+            <p className="text-sm mb-4">Démarrez avec WAOUH ☝️</p>
+            <Button onClick={openWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
+              <Plus className="h-4 w-4 mr-1" /> Nouveau chat WAOUH
             </Button>
+            <div className="mt-4">
+              <button onClick={() => setNewOpen(true)} className="text-xs text-[hsl(165_91%_25%)] underline">
+                Discuter avec un numéro WhatsApp
+              </button>
+            </div>
           </div>
         )}
+
         <ul className="divide-y">
-          {filtered.map(c => (
-            <li key={c.id} onClick={() => navigate(`/app/chat/${c.id}`)} className="flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer">
-              <Avatar className="h-12 w-12">
-                <AvatarFallback className="bg-[hsl(165_91%_25%)] text-white">{(c.phone_number ?? "?").slice(-2)}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-baseline">
-                  <span className="font-semibold truncate">{c.phone_number ?? "Inconnu"}</span>
-                  <span className="text-xs text-muted-foreground shrink-0 ml-2">{new Date(c.updated_at).toLocaleDateString()}</span>
+          {filtered.map(c => {
+            const n = unread[c.id] ?? 0;
+            return (
+              <li
+                key={c.id}
+                onClick={() => navigate(`/app/chat/${c.id}`)}
+                className="flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer bg-background/70 backdrop-blur-sm"
+              >
+                <Avatar className="h-12 w-12">
+                  <AvatarFallback className="bg-[hsl(165_91%_25%)] text-white">{(c.phone_number ?? "?").slice(-2)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline">
+                    <span className={"truncate " + (n > 0 ? "font-bold" : "font-semibold")}>{c.phone_number ?? "Inconnu"}</span>
+                    <span className={"text-xs shrink-0 ml-2 " + (n > 0 ? "text-[hsl(165_91%_30%)] font-semibold" : "text-muted-foreground")}>
+                      {formatStamp(c.updated_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className={"text-sm truncate flex-1 " + (n > 0 ? "text-foreground" : "text-muted-foreground")}>
+                      {c.last_message ?? `Canal: ${c.channel ?? "—"}`}
+                    </p>
+                    {n > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-[hsl(165_91%_35%)] text-white text-[11px] font-bold shrink-0">
+                        {n > 99 ? "99+" : n}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground truncate">{c.last_message ?? `Canal: ${c.channel ?? "—"}`}</p>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       </main>
 
