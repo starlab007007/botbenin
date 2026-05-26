@@ -1,78 +1,77 @@
-# Espace Partenaire — version mobile native
+## Objectif
 
-Objectif : remplacer l'écran `PartnerScreen` minimaliste actuel par un véritable Espace Partenaire mobile, avec toutes les fonctionnalités du web (`/partner/*`), dans une UI 100% native (header sticky vert WAOUH, cards arrondies, sheets plein écran, FAB, bottom-tab préservé), en partageant les mêmes hooks/tables Supabase pour une synchro temps réel parfaite avec le web.
+Stabiliser le module **Waouh Partenaire** et rendre la sélection de **catégorie** (Nouvelle entreprise + Ajout produit) plus fluide, défilable, et permettre d'ajouter une nouvelle catégorie manuellement — sur web et mobile (les écrans mobile réutilisant déjà les pages web via `lazy import`, une seule correction profite aux deux).
 
-## Périmètre fonctionnel (parité web)
+## Problèmes constatés
 
-1. **Demande d'inscription partenaire** (si pas encore partenaire) — formulaire natif avec `PhoneInput`, `SmartCombobox`, validation Zod (`partnerEnrollmentSchema`).
-2. **Tableau de bord** — stats live (`useWaouhPartnerStats`) : entreprises, produits, CA 24h/7j/30j, commission due/totale, badges statut/niveau/KYC, toast temps réel "Nouvelle vente".
-3. **Mes entreprises** — liste, création/édition (dictée vocale, GPS, enrichissement IA via `useWaouhAI`), suppression/désactivation intelligente.
-4. **Enrôler un commerce** — bouton FAB direct vers le formulaire entreprise.
-5. **Produits par entreprise** — liste + ajout (réutilise la logique de `PartnerProductsPage`).
-6. **Mes ventes & commissions** — liste cards mobile (au lieu du tableau web), filtres simples.
-7. **Mes versements** — liste cards mobile (statut, montant, période, réf MoMo).
-8. **Historique paiements** — réutilise `PaymentHistoryView` existant dans un sheet/screen natif.
-9. **Activité temps réel** — `PartnerActivityFeed` intégré au dashboard.
+1. **SmartCombobox** : le `PopoverContent` n'a pas de hauteur max explicite, la liste de 40+ catégories peut sortir de l'écran sur mobile et le scroll tactile est capricieux dans un `Dialog` à `overflow-y-auto`.
+2. **Pattern « Autre » redondant** : dans `PartnerBusinessesPage` et `PartnerProductsPage`, après avoir choisi « Autre » on affiche un second `Input` — alors que le combobox accepte déjà la saisie libre (`allowCustom`). Confus et bugué (valeur sentinelle `" "` espace).
+3. **Catégories personnalisées non mémorisées** : si le partenaire saisit « Vente de pagne », elle disparaît au prochain produit.
+4. **Stabilité** :
+   - `load()` ne gère pas les erreurs Supabase.
+   - États incohérents si `partner` est `null` (écran blanc au lieu d'un message clair sur mobile).
+   - Pas de garde anti double-clic sur boutons de sauvegarde (déjà via `saving` mais pas sur suggestions IA / suppression).
+   - Dialog mobile peut dépasser `100dvh` quand le clavier s'ouvre.
 
-## Architecture mobile
+## Changements
 
-Navigation interne au tab "Partenaire" via sous-routes nested (pas de nouvelle bottom-tab) :
+### 1. `src/components/ui/smart-combobox.tsx` — fluidité & mobile
+- Donner au `CommandList` une `max-h-[280px] sm:max-h-[320px] overflow-y-auto overscroll-contain` pour un défilement tactile propre.
+- Ajouter `sideOffset={4} collisionPadding={12}` au `PopoverContent` et `w-[min(--radix-popover-trigger-width,calc(100vw-2rem))]` pour ne jamais déborder sur petit écran.
+- Quand `allowCustom` et qu'aucun item ne correspond, **transformer le `CommandEmpty`** en CTA cliquable « + Créer la catégorie « X » » (plus visible que l'actuel groupe « Personnalisé »).
+- Forcer `inputMode="search"` et `autoComplete="off"` sur le champ de recherche.
+- Garder la rétro-compatibilité de l'API (props inchangées).
+
+### 2. Hook `useCustomCategories` (nouveau)
+- Fichier : `src/hooks/useCustomCategories.ts`.
+- Stocke les catégories personnalisées en `localStorage` par bucket (`waouh:custom-cat:business` / `waouh:custom-cat:product`) et fusionne avec la liste de base sans doublons (insensible à la casse/espaces).
+- API : `{ all: string[], add: (value: string) => void }`.
+- Léger, zéro backend — décision assumée (les catégories restent personnelles à l'appareil, suffisant pour le besoin « avoir la sienne sous la main »).
+
+### 3. `src/pages/partner/PartnerBusinessesPage.tsx`
+- Remplacer le bloc combobox + `Input` secondaire par **un seul** `SmartCombobox` :
+  ```tsx
+  const { all: categories, add: addCategory } = useCustomCategories('business', BUSINESS_CATEGORIES);
+  <SmartCombobox
+    value={form.categorie}
+    onChange={v => { setForm({ ...form, categorie: v }); addCategory(v); }}
+    options={categories}
+    placeholder="Type d'activité (tape pour chercher ou créer)"
+    allowCustom
+    invalid={!!errors.categorie}
+    errorMessage={errors.categorie}
+  />
+  ```
+- Supprimer la valeur sentinelle `" "` et toute la logique « Autre → input ».
+- Robustesse `load()` : try/catch + toast d'erreur, état `loadError` affiché si Supabase échoue.
+- Garde claire si `!partner` (déjà présent, on garde).
+
+### 4. `src/pages/partner/PartnerProductsPage.tsx`
+- Même remplacement pour la catégorie produit, via `useCustomCategories('product', PRODUCT_CATEGORIES)`.
+- Idem : un seul combobox, suppression du `Input` « Précisez votre catégorie ».
+- `load()` enrobé try/catch + toast.
+- Empêcher double-clic sur `addPicked` (flag `adding`).
+
+### 5. Polissage Dialog mobile
+- Sur les deux pages, remplacer `max-h-[90dvh]` par `max-h-[92dvh] sm:max-h-[90vh]` et ajouter `pb-[env(safe-area-inset-bottom)]` sur le contenu pour iOS/Android avec clavier ouvert.
+
+## Hors-scope (à confirmer si tu veux que je l'ajoute)
+- Persistance serveur des catégories personnalisées (table Supabase partagée entre appareils).
+- Renommage / suppression d'une catégorie custom.
+- Refonte visuelle des cartes entreprise/produit.
+
+## Détails techniques
+
+- Aucun changement de schéma DB.
+- Aucune nouvelle dépendance npm.
+- Les écrans mobile `PartnerBusinessesScreen` et `PartnerProductsScreen` important `PartnerBusinessesPage`/`PartnerProductsPage` en lazy : **toutes les améliorations sont automatiquement visibles dans l'APK** sans toucher au dossier `src/app-mobile/`.
+- `SmartCombobox` est utilisé ailleurs (operator MoMo, unité, etc.) — l'API restant identique, aucun appel existant n'est cassé.
+
+## Fichiers touchés
 
 ```text
-/app/partner                       → PartnerHomeScreen  (dashboard ou form d'inscription)
-/app/partner/businesses            → PartnerBusinessesScreen
-/app/partner/businesses/new        → PartnerBusinessFormScreen
-/app/partner/businesses/:id/edit   → PartnerBusinessFormScreen
-/app/partner/businesses/:id/products → PartnerProductsScreen
-/app/partner/sales                 → PartnerSalesScreen
-/app/partner/payouts               → PartnerPayoutsScreen
-/app/partner/payments              → PartnerPaymentsScreen
+src/components/ui/smart-combobox.tsx        (modifié)
+src/hooks/useCustomCategories.ts            (nouveau)
+src/pages/partner/PartnerBusinessesPage.tsx (modifié — bloc catégorie + load)
+src/pages/partner/PartnerProductsPage.tsx   (modifié — bloc catégorie + load + addPicked)
 ```
-
-Chaque écran utilise un header sticky natif (back, titre, action) + `pb-[calc(64px+env(safe-area-inset-bottom))]` pour ne pas être masqué par la `BottomTabBar`.
-
-## Composants natifs partagés
-
-- `MobileScreenHeader` — header vert sticky avec back/title/action (extrait du pattern `WaouhChatScreen`).
-- `MobileStatCard` — carte stat compacte (icône + label + valeur).
-- `MobileSectionTile` — tuile navigation (icône, titre, sous-titre, chevron).
-- `MobileEmpty` — empty state cohérent.
-- `MobileFab` — bouton flottant en bas à droite (au-dessus de la tabbar).
-
-## Fichiers à créer
-
-- `src/app-mobile/screens/partner/PartnerHomeScreen.tsx` (remplace `PartnerScreen.tsx`)
-- `src/app-mobile/screens/partner/PartnerEnrollScreen.tsx` (formulaire candidature, intégré dans Home si pas partenaire)
-- `src/app-mobile/screens/partner/PartnerBusinessesScreen.tsx`
-- `src/app-mobile/screens/partner/PartnerBusinessFormScreen.tsx` (création + édition, voix/GPS/IA)
-- `src/app-mobile/screens/partner/PartnerProductsScreen.tsx`
-- `src/app-mobile/screens/partner/PartnerSalesScreen.tsx`
-- `src/app-mobile/screens/partner/PartnerPayoutsScreen.tsx`
-- `src/app-mobile/screens/partner/PartnerPaymentsScreen.tsx`
-- `src/app-mobile/components/MobileScreenHeader.tsx`
-- `src/app-mobile/components/MobileStatCard.tsx`
-- `src/app-mobile/components/MobileSectionTile.tsx`
-- `src/app-mobile/components/MobileFab.tsx`
-
-## Fichiers à modifier
-
-- `src/App.tsx` — ajouter les sous-routes `/app/partner/*` (lazy imports), supprimer l'ancien `PartnerScreen`.
-- `src/app-mobile/screens/PartnerScreen.tsx` — supprimer (remplacé par `partner/PartnerHomeScreen.tsx`).
-
-## Réutilisation existante
-
-- Hooks : `useWaouhPartner`, `useWaouhPartnerStats`, `useWaouhPartnerActivity`, `useWaouhAI`, `useMobileAuth`.
-- Validation : `partnerEnrollmentSchema`, `businessSchema` (`@/lib/validation/waouh`).
-- Composants : `PhoneInput`, `SmartCombobox`, `LocationAutocomplete`, `PartnerActivityFeed`, `PaymentHistoryView`.
-- Données : `BENIN_CITY_NAMES`, `BUSINESS_CATEGORIES`, `MOMO_OPERATORS`.
-- Tables Supabase : `waouh_partners`, `waouh_partner_businesses`, `waouh_partner_products`, `waouh_partner_sales`, `waouh_partner_payouts`, `waouh_partner_activity` — déjà en place avec RLS, donc synchro web ↔ mobile automatique.
-
-## UI/UX natif
-
-- Header vert sticky `hsl(var(--wa-green))` avec `safe-area-inset-top`.
-- Cards arrondies `rounded-2xl`, ombres douces, pas de tableaux (transformés en cards).
-- Sheets plein écran (`max-h-[100dvh]`) pour les formulaires, pas de dialogs centrés.
-- FAB vert flottant `fixed bottom-[calc(64px+env(safe-area-inset-bottom)+16px)] right-4` pour les actions principales.
-- Empty states avec icône + message + CTA.
-- Toasts pour feedback (déjà en place).
-- Pas de modifications business/backend : 100% UI mobile par-dessus la même donnée.

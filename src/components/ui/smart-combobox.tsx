@@ -59,11 +59,36 @@ export const SmartCombobox = React.memo(function SmartCombobox({
             <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+        <PopoverContent
+          className="p-0 w-[--radix-popover-trigger-width] max-w-[calc(100vw-1.5rem)]"
+          align="start"
+          sideOffset={4}
+          collisionPadding={12}
+        >
           <Command shouldFilter={true}>
-            <CommandInput placeholder="Rechercher..." value={search} onValueChange={setSearch} />
-            <CommandList>
-              <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandInput
+              placeholder="Rechercher ou créer..."
+              value={search}
+              onValueChange={setSearch}
+              // @ts-expect-error forwarded to underlying input
+              inputMode="search"
+              autoComplete="off"
+            />
+            <CommandList className="max-h-[280px] sm:max-h-[320px] overflow-y-auto overscroll-contain">
+              <CommandEmpty>
+                {showCustom ? (
+                  <button
+                    type="button"
+                    onClick={() => select(deferredSearch.trim())}
+                    className="w-full flex items-center gap-2 px-2 py-2 text-sm rounded-md hover:bg-accent text-left"
+                  >
+                    <Plus className="h-4 w-4 shrink-0" />
+                    <span>Créer la catégorie <strong>« {deferredSearch.trim()} »</strong></span>
+                  </button>
+                ) : (
+                  <span className="text-sm text-muted-foreground">{emptyText}</span>
+                )}
+              </CommandEmpty>
               <CommandGroup>
                 {options.map(o => (
                   <CommandItem key={o} value={o} onSelect={() => select(o)}>
@@ -73,10 +98,10 @@ export const SmartCombobox = React.memo(function SmartCombobox({
                 ))}
               </CommandGroup>
               {showCustom && (
-                <CommandGroup heading="Personnalisé">
+                <CommandGroup heading="Nouvelle catégorie">
                   <CommandItem value={`__custom_${deferredSearch}`} onSelect={() => select(deferredSearch.trim())}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Utiliser « {deferredSearch.trim()} »
+                    Ajouter « {deferredSearch.trim()} »
                   </CommandItem>
                 </CommandGroup>
               )}
