@@ -9,7 +9,7 @@ import { Search, Plus, ShoppingBag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { NewChatSheet } from "../components/NewChatSheet";
+
 
 type Conv = {
   id: string;
@@ -36,7 +36,7 @@ export default function ChatListScreen() {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [newOpen, setNewOpen] = useState(false);
+  
 
   useEffect(() => {
     if (!user) return;
@@ -126,11 +126,6 @@ export default function ChatListScreen() {
             <Button onClick={openWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
               <Plus className="h-4 w-4 mr-1" /> Nouveau chat WAOUH
             </Button>
-            <div className="mt-4">
-              <button onClick={() => setNewOpen(true)} className="text-xs text-[hsl(165_91%_25%)] underline">
-                Discuter avec un numéro WhatsApp
-              </button>
-            </div>
           </div>
         )}
 
@@ -170,7 +165,7 @@ export default function ChatListScreen() {
         </ul>
       </main>
 
-      <NewChatSheet open={newOpen} onOpenChange={setNewOpen} />
+      
     </div>
   );
 }
