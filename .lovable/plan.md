@@ -1,118 +1,47 @@
 ## Objectif
 
-Rendre les écrans **"Enrôler une entreprise"** et **"Ajouter un produit"** 100% natifs dans l'app mobile Android (Capacitor) : plus aucun rendu de la page web réutilisée, plus aucun popover/dialog de bureau. Le backend Supabase, les champs, les règles de validation et le comportement restent **strictement identiques** au web — seule l'UI est réécrite en composants natifs mobiles.
+Rendre le module Chat de l'application mobile 100% natif (UI Android autonome, sans WebView, sans ouverture de lien web), tout en restant synchronisé avec le backend Supabase existant (mêmes tables `waouh_conversations` / `waouh_messages`, mêmes données que le web).
 
-## Périmètre
+## Comportement attendu
 
-- `src/app-mobile/screens/partner/PartnerBusinessesScreen.tsx` — ne plus lazy-load `PartnerBusinessesPage` ; afficher la liste + bouton "Enrôler" en natif.
-- `src/app-mobile/screens/partner/PartnerProductsScreen.tsx` — pareil pour les produits.
-- Aucune modification des pages web (`src/pages/partner/PartnerBusinessesPage.tsx`, `PartnerProductsPage.tsx`) : le web continue de fonctionner à l'identique.
-- Aucune modification de schéma DB, ni d'edge function, ni du hook `useWaouhPartner`, `useWaouhAI`, `useCustomCategories`, ni du composant `ProductPhotoUploader` (déjà compatible Capacitor).
+1. **Arrière-plan style WhatsApp adapté Waouh** — pattern doodle subtil teinté vert Waouh (`hsl(165 91% 18%)`) en très faible opacité sur la liste et l'écran de conversation, light & dark mode.
+2. **Header natif** déjà en place (vert Waouh, avatar, recherche) — conservé tel quel.
+3. **WAOUH épinglé en tête** de la liste (comme aujourd'hui), avec badge IA et "Toujours actif".
+4. **Sous WAOUH : liste des notifications de chats** (autres conversations `waouh_conversations` de l'utilisateur), triées par `updated_at desc`, avec :
+   - Avatar / initiales
+   - Nom ou numéro
+   - Dernier message tronqué
+   - Heure (aujourd'hui) ou date
+   - **Bulle verte avec le nombre de messages non lus** par chat (style WhatsApp)
+5. **Compteur de non-lus** : pas de colonne `read_at` en base → on stocke `lastReadAt` par `conversation_id` dans `localStorage` (clé `waouh_chat_read_v1`). À l'ouverture de `/app/chat/:id`, on met à jour `lastReadAt = now()`. Le compteur = nb de `waouh_messages` où `direction='in'` ET `created_at > lastReadAt`. Calculé en une requête groupée au chargement + maintenu via Realtime.
+6. **Bouton "Nouveau chat" (header + FAB + état vide)** → ouvre directement le chat WAOUH (`/app/chat/waouh`), plus la `NewChatSheet` (qui demandait un numéro). La création de conversations WhatsApp/téléphone reste accessible via un petit lien secondaire "Discuter avec un numéro" dans l'état vide, mais l'action primaire est WAOUH.
+7. **Écran de conversation** (`ChatScreen`) : applique le même fond doodle Waouh, bulles style WhatsApp (déjà ok), marque la conversation comme lue à l'ouverture.
+8. **Realtime déjà branché** sur `waouh_conversations` et `waouh_messages` → conservé, étendu pour incrémenter le badge non-lu en live quand un message `in` arrive sur une conv non ouverte.
 
-## Composants natifs à créer
+## Détails techniques
 
-Dossier nouveau : `src/app-mobile/components/native/`
+**Fichiers modifiés**
+- `src/app-mobile/screens/ChatListScreen.tsx`
+  - Ajout fond doodle (`bg-[url(...)] bg-repeat` + tint), via classe utilitaire.
+  - Nouvelle requête `select id, count(*)` sur `waouh_messages` (direction=in, created_at > lastReadAt par conv) groupée côté client après fetch des convs.
+  - Hook local `useUnreadCounts(convs)` qui lit `localStorage`, calcule les non-lus, et écoute Realtime INSERT sur `waouh_messages` pour incrémenter.
+  - Bulle non-lus à droite de chaque ligne (`bg-[hsl(165_91%_35%)] text-white rounded-full min-w-5 h-5 px-1.5 text-[11px]`).
+  - Bouton `+` du header et CTA "Nouveau chat" de l'état vide → `navigate("/app/chat/waouh")` (au lieu d'ouvrir `NewChatSheet`).
+  - État vide : message "Aucune autre conversation — démarrez avec WAOUH ☝️" + petit lien texte "Discuter avec un numéro WhatsApp" qui ouvre encore `NewChatSheet` (option secondaire conservée).
+- `src/app-mobile/screens/ChatScreen.tsx`
+  - Remplace `bg-[#ECE5DD]` par le fond doodle Waouh.
+  - `useEffect` : à l'ouverture, écrit `lastReadAt = new Date().toISOString()` pour `convId` dans `localStorage`.
 
-1. **`NativeFormScreen.tsx`** — conteneur plein écran style Android : header sticky "Retour / Titre / Action", `pb-[env(safe-area-inset-bottom)]`, scroll fluide, bouton "Enregistrer" sticky en bas (FAB-like full-width).
-2. **`NativeCategoryPicker.tsx`** — déclencheur type `<input>` natif (chevron à droite), ouvre une **bottom-sheet plein écran** (`Sheet side="bottom"` shadcn, hauteur `h-[92dvh]`) contenant :
-   - Champ recherche sticky en haut (avec `inputMode="search"`),
-   - Liste **virtuellement scrollable** (`overflow-y-auto overscroll-contain`, momentum iOS/Android),
-   - CTA permanent en bas : **"➕ Créer la catégorie « X »"** dès que la recherche ne matche rien,
-   - Tap = sélection + fermeture immédiate.
-   - Props : `value`, `onChange`, `options`, `allowCustom`, `onCreate(custom)`.
-3. **`NativeSelectSheet.tsx`** — variante minimaliste sans "créer" pour Opérateur MoMo et Unité produit (kg, pièce, sac…).
-4. **`NativeVilleQuartierPicker.tsx`** — deux pickers natifs basés sur `beninLocations` (ville → liste quartiers filtrée). Sans dépendance sur `LocationAutocomplete` (qui est un combobox web).
-5. **`NativePhoneInput.tsx`** — wrapper léger : drapeau 🇧🇯 +229 figé + `<input type="tel" inputMode="numeric">`, formatage à la frappe via `formatPhoneDisplay` existant. (Évite le `PopoverContent` du `PhoneInput` web.)
+**Fichiers créés**
+- `src/app-mobile/hooks/useUnreadCounts.ts` — lecture/écriture localStorage, calcul des non-lus, abonnement Realtime.
+- `src/app-mobile/theme/chat-bg.css` — pattern SVG doodle Waouh (inline base64, très léger), classe `.waouh-chat-bg` appliquée sur les écrans chat. Importé depuis `mobile-theme.css`.
 
-Tous ces composants utilisent uniquement `Sheet`/`Input`/`Button` shadcn et tokens du design system — aucun `Popover` (qui se comporte mal sur WebView Android).
+**Pas de changement backend** : aucune migration, mêmes tables, mêmes RLS, même flux d'envoi (`waouh_messages` insert + edge function `waha-send-message` pour WhatsApp). Synchronisation web ⇄ mobile inchangée.
 
-## Nouvelles vues mobiles
+**Pas de WebView** : tout est React natif rendu par Capacitor. Aucun `window.open`, aucun lien externe ouvert depuis ces écrans.
 
-### `src/app-mobile/screens/partner/PartnerBusinessesNativeScreen.tsx`
+## Hors scope
 
-- Liste verticale de cartes entreprises (1 col, photo facultative, badges statut).
-- FAB "+ Enrôler" en bas droit qui pousse vers `BusinessFormNativeScreen` (route enfant ou état local plein écran).
-- Mêmes appels Supabase : `select * from waouh_partner_businesses where partner_id = ...`.
-- Pull-to-refresh simple (bouton "↻" dans le header faute de gesture natif fiable en WebView).
-
-### `src/app-mobile/screens/partner/BusinessFormNativeScreen.tsx`
-
-Mêmes champs que la capture 1, dans l'ordre exact, mais 100% natifs :
-
-| Champ | Composant natif |
-|---|---|
-| Détecter ma position | `Button` plein largeur, appelle `navigator.geolocation` + `ai.run('reverse_geocode')` (logique copiée du web) |
-| Nom de l'entreprise * | `Input` standard |
-| Catégorie * | `NativeCategoryPicker` avec `useCustomCategories('business', BUSINESS_CATEGORIES)` |
-| Ville / Quartier | `NativeVilleQuartierPicker` |
-| Téléphone / WhatsApp | `NativePhoneInput` |
-| Opérateur MoMo | `NativeSelectSheet` (MTN/Moov/Celtiis) |
-| Numéro MoMo | `NativePhoneInput` |
-| Enregistrer | bouton sticky bas + `businessSchema.safeParse` (validation identique au web) |
-
-Mode édition : même écran, pré-rempli, titre "Modifier".
-
-### `src/app-mobile/screens/partner/PartnerProductsNativeScreen.tsx` + `ProductFormNativeScreen.tsx`
-
-Mêmes champs que la capture 2 :
-
-| Champ | Composant natif |
-|---|---|
-| Photos (3 max) | `ProductPhotoUploader` existant (déjà supporte file input mobile) |
-| Nom * | `Input` |
-| Catégorie | `NativeCategoryPicker` avec `useCustomCategories('product', PRODUCT_CATEGORIES)` |
-| Unité | `NativeSelectSheet` (kg, pièce, sac, litre…) |
-| Prix (FCFA) | `Input type="number" inputMode="decimal"` |
-| Stock estimé | `Input type="number" inputMode="numeric"` |
-| Disponible | `Switch` shadcn |
-| Enregistrer | bouton sticky bas |
-
-La feuille "Suggérer produits IA" est conservée mais montée en `Sheet side="bottom"` plein écran natif au lieu du `Dialog` centré.
-
-## Routage / branchement
-
-Dans `PartnerBusinessesScreen.tsx` et `PartnerProductsScreen.tsx` :
-
-```ts
-// avant : lazy(() => import('@/pages/partner/PartnerBusinessesPage'))
-// après :
-import PartnerBusinessesNative from './PartnerBusinessesNativeScreen';
-return <PartnerMobileWrap title="Mes entreprises" back="/app/partner">
-  <PartnerBusinessesNative />
-</PartnerMobileWrap>;
-```
-
-Le bouton **"Produits"** d'une carte entreprise navigue vers `/app/partner/businesses/:code/products` (déjà câblé) qui rend désormais `PartnerProductsNative`.
-
-## Parité backend (vérifiée)
-
-Toutes les écritures réutilisent les mêmes tables / mêmes payloads que les pages web :
-- `waouh_partner_businesses` (insert/update/delete + soft-pause si ventes liées)
-- `waouh_partner_products` (insert/update/delete)
-- Mêmes edge functions IA via `useWaouhAI` (`reverse_geocode`, `enrich_business`, `parse_voice_business`, `parse_product_free_text`, `suggest_products`)
-- Catégories custom partagées via `localStorage` (`waouh:custom-cat:business` / `…:product`) — déjà compatible web ↔ APK puisque c'est le même bundle.
-
-## Hors périmètre
-
-- Pas d'intégration Capacitor Camera/Geolocation natifs (les APIs web fonctionnent déjà dans la WebView Android).
-- Pas de refonte des autres écrans partenaire (ventes, payouts).
-- Pas de migration DB.
-
-## Livrables (fichiers)
-
-**Créés**
-- `src/app-mobile/components/native/NativeFormScreen.tsx`
-- `src/app-mobile/components/native/NativeCategoryPicker.tsx`
-- `src/app-mobile/components/native/NativeSelectSheet.tsx`
-- `src/app-mobile/components/native/NativeVilleQuartierPicker.tsx`
-- `src/app-mobile/components/native/NativePhoneInput.tsx`
-- `src/app-mobile/screens/partner/PartnerBusinessesNativeScreen.tsx`
-- `src/app-mobile/screens/partner/BusinessFormNativeScreen.tsx`
-- `src/app-mobile/screens/partner/PartnerProductsNativeScreen.tsx`
-- `src/app-mobile/screens/partner/ProductFormNativeScreen.tsx`
-
-**Modifiés**
-- `src/app-mobile/screens/partner/PartnerBusinessesScreen.tsx` (utilise la version native au lieu de lazy-load web)
-- `src/app-mobile/screens/partner/PartnerProductsScreen.tsx` (idem)
-
-Aucun autre fichier touché. Web inchangé.
+- Pas de modification de `WaouhChatScreen` (déjà natif).
+- Pas de modification des tables Supabase ni des edge functions.
+- Pas de push notifications nouvelles (le système existant `useWaouhMatchNotifications` reste).

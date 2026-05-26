@@ -1,4 +1,5 @@
 /* WaouhApp mobile theme — WhatsApp/Telegram inspired */
+@import "./chat-bg.css";
 
 .mobile-shell {
   --wa-green: 142 70% 24%;        /* #075E54 */
