@@ -65,7 +65,7 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
       id_campagne: `CAMP_${userId?.slice(0, 8) || 'usr'}_${Date.now()}`,
       nom_campagne: lastCampaignName,
       nom_contact: '',
-      contact_whatsapp: '+229',
+      contact_whatsapp: '',
       statut: 'Actif',
     };
   };
