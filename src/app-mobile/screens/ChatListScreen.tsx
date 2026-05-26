@@ -36,7 +36,7 @@ export default function ChatListScreen() {
   const [convs, setConvs] = useState<Conv[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [newOpen, setNewOpen] = useState(false);
+  
 
   useEffect(() => {
     if (!user) return;
