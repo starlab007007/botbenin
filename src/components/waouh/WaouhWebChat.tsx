@@ -395,6 +395,33 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   </ReactMarkdown>
                 )}
 
+                {/* Catalogue produits renvoyés par WAOUH */}
+                {Array.isArray((m as any).meta?.products) && (m as any).meta.products.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mt-2 not-prose">
+                    {((m as any).meta.products as any[]).slice(0, 6).map((p, i) => {
+                      const photo = Array.isArray(p.photos) ? p.photos[0] : (p.photo || p.image || null);
+                      const price = p.prix_min && p.prix_max && p.prix_min !== p.prix_max
+                        ? `${Number(p.prix_min).toLocaleString()} - ${Number(p.prix_max).toLocaleString()} F`
+                        : (p.prix_min || p.prix_max) ? `${Number(p.prix_min || p.prix_max).toLocaleString()} F` : "";
+                      return (
+                        <div key={i} className="rounded-lg overflow-hidden border border-border bg-card">
+                          <div className="aspect-square bg-muted relative">
+                            {photo ? (
+                              <img src={photo} alt={p.nom} loading="lazy" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">Pas d'image</div>
+                            )}
+                          </div>
+                          <div className="p-1.5">
+                            <div className="text-[11px] font-semibold truncate text-foreground">{p.nom}</div>
+                            {price && <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{price}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
                     {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
