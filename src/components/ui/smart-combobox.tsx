@@ -70,8 +70,6 @@ export const SmartCombobox = React.memo(function SmartCombobox({
               placeholder="Rechercher ou créer..."
               value={search}
               onValueChange={setSearch}
-              // @ts-expect-error forwarded to underlying input
-              inputMode="search"
               autoComplete="off"
             />
             <CommandList className="max-h-[280px] sm:max-h-[320px] overflow-y-auto overscroll-contain">
