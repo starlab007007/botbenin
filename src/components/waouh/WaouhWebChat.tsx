@@ -86,30 +86,61 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   useEffect(() => {
     if (!open) return;
     let active = true;
+    const uid = user?.id ?? null;
+
     (async () => {
+      // Load history: by web_session_id OR by authenticated user_id
+      // (covers cross-device login & WhatsApp-bridged messages tied to the account)
+      const filter = uid
+        ? `web_session_id.eq.${sessionId},user_id.eq.${uid}`
+        : `web_session_id.eq.${sessionId}`;
       const { data } = await supabase
         .from("waouh_messages")
         .select("id,direction,text,created_at,attachments,meta")
-        .eq("web_session_id", sessionId)
+        .or(filter)
         .order("created_at", { ascending: true })
-        .limit(100);
-      if (active && data) setMessages(data as any);
+        .limit(200);
+      if (active && data) {
+        // dedupe by id (session + user filters can overlap)
+        const seen = new Set<string>();
+        const unique = (data as any[]).filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
+        setMessages(unique as any);
+      }
+
+      // Best-effort: backfill user_id on past session messages so future fetches
+      // by user_id include the full local history.
+      if (uid) {
+        supabase
+          .from("waouh_messages")
+          .update({ user_id: uid })
+          .eq("web_session_id", sessionId)
+          .is("user_id", null)
+          .then(() => {}, () => {});
+      }
     })();
 
-    const ch = supabase
-      .channel(`waouh_msgs_${sessionId}_${Math.random().toString(36).slice(2, 8)}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
-        (payload) => {
-          const m = payload.new as any;
-          setMessages((prev) => (prev.find((x) => x.id === m.id) ? prev : [...prev, m]));
-        }
-      )
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const onInsert = (payload: any) => {
+      const m = payload.new as any;
+      setMessages((prev) => (prev.find((x) => x.id === m.id) ? prev : [...prev, m]));
+    };
+    const chSession = supabase
+      .channel(`waouh_msgs_s_${sessionId}_${suffix}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` }, onInsert)
       .subscribe();
+    const chUser = uid
+      ? supabase
+          .channel(`waouh_msgs_u_${uid}_${suffix}`)
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${uid}` }, onInsert)
+          .subscribe()
+      : null;
 
-    return () => { active = false; supabase.removeChannel(ch); };
-  }, [open, sessionId]);
+    return () => {
+      active = false;
+      supabase.removeChannel(chSession);
+      if (chUser) supabase.removeChannel(chUser);
+    };
+  }, [open, sessionId, user?.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
