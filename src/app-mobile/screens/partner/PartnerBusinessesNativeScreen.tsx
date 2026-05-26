@@ -138,13 +138,13 @@ export default function PartnerBusinessesNativeScreen() {
         ))}
       </div>
 
-      {/* FAB — round + icon only (WhatsApp/Material style) */}
+      {/* FAB — centered round blue + icon */}
       <button
         type="button"
         onClick={() => { setEditing(null); setFormOpen(true); }}
         aria-label="Enrôler une entreprise"
         title="Enrôler une entreprise"
-        className="fixed right-4 z-40 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl shadow-primary/30 active:scale-90 hover:scale-105 transition-transform flex items-center justify-center ring-4 ring-primary/10"
+        className="fixed left-1/2 -translate-x-1/2 z-40 h-14 w-14 rounded-full bg-[#2563eb] text-white shadow-xl shadow-blue-600/30 active:scale-90 hover:scale-105 transition-transform flex items-center justify-center"
         style={{ bottom: 'calc(env(safe-area-inset-bottom) + 5rem)' }}
       >
         <Plus className="h-7 w-7" strokeWidth={2.5} />
