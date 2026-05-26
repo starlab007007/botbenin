@@ -10,11 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   RefreshCw, Plus, Trash2, Edit, Search, MessageCircle,
-  ExternalLink, Loader2,
+  ExternalLink, Loader2, Upload,
 } from 'lucide-react';
 import { useWhatsAppDiffusionGoogleSheets, WhatsAppDiffusionRow } from '@/hooks/useWhatsAppDiffusionGoogleSheets';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeBeninWhatsApp } from '@/lib/phone';
+import { ImportWhatsAppContactsDialog } from './ImportWhatsAppContactsDialog';
 
 interface Props { knowledgeBaseId: string; }
 
