@@ -15,6 +15,7 @@ import { WaouhAuthGate } from "./WaouhAuthGate";
 import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
 import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
+import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -478,13 +479,23 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           amount={paymentTx.amount}
         />
       )}
-      <WaouhSellWizard
-        open={sellOpen}
-        onOpenChange={setSellOpen}
-        sessionId={sessionId}
-        defaultCity={geo.city}
-        onSubmit={async (text, atts) => { await sendCore(text, atts); }}
-      />
+      {variant === "native" ? (
+        <NativeSellSheet
+          open={sellOpen}
+          onOpenChange={setSellOpen}
+          sessionId={sessionId}
+          defaultCity={geo.city}
+          onSubmit={async (text, atts) => { await sendCore(text, atts); }}
+        />
+      ) : (
+        <WaouhSellWizard
+          open={sellOpen}
+          onOpenChange={setSellOpen}
+          sessionId={sessionId}
+          defaultCity={geo.city}
+          onSubmit={async (text, atts) => { await sendCore(text, atts); }}
+        />
+      )}
     </Card>
   );
 
