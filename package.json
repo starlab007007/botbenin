@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "build:mobile": "cross-env MOBILE_BUILD=1 vite build",
+    "build:mobile": "MOBILE_BUILD=1 vite build",
     "cap:build": "npm run build:mobile && npx cap sync android",
     "lint": "eslint .",
     "preview": "vite preview",
