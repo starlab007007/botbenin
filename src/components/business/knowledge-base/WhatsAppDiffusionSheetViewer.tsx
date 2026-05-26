@@ -27,11 +27,13 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'actif' | 'inactif'>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<WhatsAppDiffusionRow | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [phoneError, setPhoneError] = useState<string>('');
   const isMobile = useIsMobile();
 
-  const { data, isLoading, isWriting, connectionStatus, lastSync, loadSheet, addRow, updateRow, deleteRow, spreadsheetId } =
+  const { data, isLoading, isWriting, connectionStatus, lastSync, loadSheet, addRow, addRows, updateRow, deleteRow, spreadsheetId } =
     useWhatsAppDiffusionGoogleSheets(userId);
 
   useEffect(() => {
