@@ -248,6 +248,8 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
       });
       if (result?.success) {
         toast({ title: '✅ Mis à jour', description: 'Contact mis à jour' });
+        // Refresh debounced to confirm sheet alignment
+        setTimeout(() => { loadSheet(); }, 1500);
         return true;
       }
       // Rollback on failure
