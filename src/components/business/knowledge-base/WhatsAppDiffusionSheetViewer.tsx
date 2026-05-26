@@ -73,31 +73,38 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
   const handleOpenAdd = () => {
     setEditingRow(null);
     setFormData(buildDefaults());
+    setPhoneError('');
     setIsDialogOpen(true);
   };
 
   const handleOpenEdit = (row: WhatsAppDiffusionRow) => {
     setEditingRow(row);
     setFormData({ ...row });
+    setPhoneError('');
     setIsDialogOpen(true);
   };
 
-  const validatePhone = (phone: string) => /^\+229\d{8}$/.test((phone || '').replace(/\s/g, ''));
-
   const handleSave = async () => {
-    if (!formData.nom_contact?.trim()) return;
-    if (!validatePhone(formData.contact_whatsapp)) {
-      alert('Numéro WhatsApp invalide. Format attendu : +229 suivi de 8 chiffres');
+    if (!formData.nom_contact?.trim()) {
+      setPhoneError('Nom requis');
       return;
     }
-    const cleanPhone = (formData.contact_whatsapp || '').replace(/\s/g, '');
-    const payload = { ...formData, contact_whatsapp: cleanPhone };
+    const norm = normalizeBeninWhatsApp(formData.contact_whatsapp);
+    if (!norm.valid) {
+      setPhoneError(norm.reason || 'Numéro invalide. Acceptés : 8 chiffres (97XXXXXX) ou 10 chiffres (0197XXXXXX)');
+      return;
+    }
+    setPhoneError('');
+    // Stocke le format canonique 10 chiffres (post-réforme)
+    const payload = { ...formData, contact_whatsapp: norm.e164_10 };
     if (editingRow) await updateRow(editingRow.id, payload);
     else await addRow(payload);
     setIsDialogOpen(false);
     setFormData({});
     setEditingRow(null);
   };
+
+  const handleImport = async (rows: any[]) => addRows(rows);
 
   const handleDelete = async (rowId: string) => {
     if (confirm('Supprimer ce contact ?')) await deleteRow(rowId);
