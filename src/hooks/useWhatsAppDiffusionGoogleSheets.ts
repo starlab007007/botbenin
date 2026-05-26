@@ -178,6 +178,45 @@ export const useWhatsAppDiffusionGoogleSheets = (userId?: string) => {
     }
   }, [isUserValid, isWriting, userId, loadSheet, toast, activeSheetName]);
 
+  /** Batch append (import). Renvoie le nombre de lignes ajoutées. */
+  const addRows = useCallback(async (rows: Record<string, any>[]): Promise<number> => {
+    if (!isUserValid || rows.length === 0) return 0;
+    setIsWriting(true);
+    try {
+      const payload = rows.map((row, idx) => ({
+        ...buildEditablePayload(row),
+        id: `row_${userId}_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 8)}`,
+        user_id: userId!,
+      }));
+      const result = await queueGoogleSheetsOperation(async () => {
+        const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
+          body: {
+            spreadsheetId: DEFAULT_SPREADSHEET_ID,
+            sheetName: activeSheetName,
+            data: payload,
+            operation: 'append',
+            userId,
+          },
+        });
+        if (error) throw new Error(error.message);
+        if (res?.error) throw new Error(res.details || res.error);
+        return res;
+      });
+      if (result?.success) {
+        toast({ title: '✅ Import réussi', description: `${payload.length} contact(s) ajouté(s)` });
+        await loadSheet();
+        return payload.length;
+      }
+      return 0;
+    } catch (err) {
+      console.error('❌ addRows error:', err);
+      toast({ title: '❌ Import échoué', description: err instanceof Error ? err.message : 'Erreur', variant: 'destructive' });
+      return 0;
+    } finally {
+      setIsWriting(false);
+    }
+  }, [isUserValid, userId, loadSheet, toast, activeSheetName]);
+
   const updateRow = useCallback(async (rowId: string, updatedFields: Record<string, any>) => {
     if (!isUserValid || isWriting) return false;
     setIsWriting(true);
