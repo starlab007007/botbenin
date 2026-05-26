@@ -183,7 +183,7 @@ export default function PartnerProductsPage() {
 
       {/* Dialog création / édition */}
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditId(null); setForm({ ...emptyForm }); } }}>
-        <DialogContent className="max-w-xl max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           <DialogHeader><DialogTitle>{editId ? 'Modifier le produit' : 'Ajouter un produit'}</DialogTitle></DialogHeader>
 
 
@@ -197,20 +197,12 @@ export default function PartnerProductsPage() {
               <div>
                 <Label>Catégorie</Label>
                 <SmartCombobox
-                  value={PRODUCT_CATEGORIES.includes(form.categorie) ? form.categorie : (form.categorie ? 'Autre' : '')}
-                  onChange={v => setForm({ ...form, categorie: v === 'Autre' ? ' ' : v })}
-                  options={PRODUCT_CATEGORIES}
-                  placeholder="Choisir une catégorie"
+                  value={form.categorie}
+                  onChange={v => { setForm({ ...form, categorie: v }); if (v) addProductCategory(v); }}
+                  options={productCategories}
+                  placeholder="Choisir ou créer..."
+                  allowCustom
                 />
-                {(form.categorie === ' ' || (form.categorie && !PRODUCT_CATEGORIES.includes(form.categorie))) && (
-                  <Input
-                    className="mt-2"
-                    placeholder="Précisez votre catégorie"
-                    value={form.categorie.trim()}
-                    onChange={e => setForm({ ...form, categorie: e.target.value })}
-                    autoFocus
-                  />
-                )}
               </div>
               <div>
                 <Label>Unité</Label>
@@ -235,7 +227,7 @@ export default function PartnerProductsPage() {
 
       {/* Dialog Suggestions IA */}
       <Dialog open={suggestOpen} onOpenChange={setSuggestOpen}>
-        <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           <DialogHeader>
             <DialogTitle>✨ Produits suggérés par IA</DialogTitle>
             <CardDescription>Cochez ceux à ajouter, les prix peuvent être édités après</CardDescription>
@@ -254,7 +246,10 @@ export default function PartnerProductsPage() {
             ))}
           </div>
           {suggestions.length > 0 && (
-            <Button onClick={addPicked} className="w-full">Ajouter {picked.size} produit(s)</Button>
+            <Button onClick={addPicked} disabled={addingPicked || picked.size === 0} className="w-full">
+              {addingPicked && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+              Ajouter {picked.size} produit(s)
+            </Button>
           )}
         </DialogContent>
       </Dialog>
