@@ -339,13 +339,21 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
               </div>
 
               <div>
-                <Label className="text-xs font-medium">WhatsApp * (format +229XXXXXXXX)</Label>
-                <Input
-                  value={formData.contact_whatsapp || ''}
-                  onChange={(e) => setFormData({ ...formData, contact_whatsapp: e.target.value })}
-                  placeholder="+22997XXXXXXX"
-                  className="mt-1 font-mono"
-                />
+                <Label className="text-xs font-medium">WhatsApp * <span className="text-muted-foreground">(8 ou 10 chiffres Bénin)</span></Label>
+                <div className="flex items-stretch mt-1 rounded-md border overflow-hidden">
+                  <span className="flex items-center px-2.5 bg-muted text-xs font-medium border-r">🇧🇯 +229</span>
+                  <Input
+                    value={(formData.contact_whatsapp || '').replace(/^\+229/, '')}
+                    onChange={(e) => {
+                      setFormData({ ...formData, contact_whatsapp: '+229' + e.target.value.replace(/\D/g, '') });
+                      setPhoneError('');
+                    }}
+                    placeholder="0197XXXXXX ou 97XXXXXX"
+                    inputMode="numeric"
+                    className="flex-1 border-0 font-mono rounded-none focus-visible:ring-0"
+                  />
+                </div>
+                {phoneError && <p className="text-[11px] text-destructive mt-1">{phoneError}</p>}
               </div>
 
               <div className="flex items-center justify-between rounded-lg border p-3">
