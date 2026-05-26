@@ -167,6 +167,10 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
               <SelectItem value="inactif">Inactifs</SelectItem>
             </SelectContent>
           </Select>
+          <Button onClick={() => setIsImportOpen(true)} disabled={isWriting} size="sm" variant="outline" className="h-9">
+            <Upload className="w-3.5 h-3.5" />
+            <span className="ml-1">Importer</span>
+          </Button>
           <Button onClick={handleOpenAdd} disabled={isWriting} size="sm" className="h-9">
             <Plus className="w-3.5 h-3.5" />
             <span className="ml-1">Ajouter</span>
