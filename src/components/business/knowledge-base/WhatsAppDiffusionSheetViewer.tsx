@@ -385,6 +385,18 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImportWhatsAppContactsDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        existingPhones={data.map(d => d.contact_whatsapp || '').filter(Boolean)}
+        defaultCampaign={{
+          id: `CAMP_${userId?.slice(0, 8) || 'usr'}_${Date.now()}`,
+          name: (userId && localStorage.getItem(`last_campaign_name_${userId}`)) || '',
+        }}
+        onImport={handleImport}
+        isWriting={isWriting}
+      />
     </Card>
   );
 };
