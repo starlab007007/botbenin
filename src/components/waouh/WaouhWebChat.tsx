@@ -64,7 +64,7 @@ const QUICK_PROMPTS: Record<Exclude<QuickAction, "sell" | "pay">, string> = {
 export type WaouhWebChatHandle = { triggerQuickAction: (a: QuickAction) => void; focusInput: () => void };
 
 export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot }, externalRef) => {
-  const [open, setOpen] = useState(embedded);
+  const [open, setOpen] = useState(embedded || fullscreen);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
