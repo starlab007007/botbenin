@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Download, MoreVertical, Save } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Cloud, Download, MoreVertical, RefreshCw, Save } from 'lucide-react';
 import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
 import { useKnowledgeBaseTemplates } from '@/hooks/useKnowledgeBaseTemplates';
 import { KnowledgeBase } from '@/types/knowledge-base';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import NativeFieldRenderer from '../../components/bots/NativeFieldRenderer';
+import { useSheetCrud } from '../../hooks/useSheetCrud';
+import { getSheetNameForTable, isGoogleSheetTemplate } from '../../utils/sheetMapping';
 import { toast } from 'sonner';
+
 
 export default function KnowledgeBaseDetailScreen() {
   const { id } = useParams();
