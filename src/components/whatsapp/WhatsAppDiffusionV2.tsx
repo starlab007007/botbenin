@@ -408,6 +408,7 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
 
 const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaign: any; d: any }> = ({ open, onClose, campaign, d }) => {
   const [name, setName] = useState(campaign.name ?? '');
+  const [type, setType] = useState(campaign.type ?? 'text');
   const [body, setBody] = useState(campaign.body ?? '');
   const [mediaUrl, setMediaUrl] = useState(campaign.media_url ?? '');
   const [throttle, setThrottle] = useState(campaign.throttle_per_hour ?? 30);
@@ -418,6 +419,7 @@ const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaig
   React.useEffect(() => {
     if (open) {
       setName(campaign.name ?? '');
+      setType(campaign.type ?? 'text');
       setBody(campaign.body ?? '');
       setMediaUrl(campaign.media_url ?? '');
       setThrottle(campaign.throttle_per_hour ?? 30);
@@ -428,9 +430,14 @@ const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaig
 
   const save = async () => {
     if (!name.trim() || !body.trim()) { toast.error('Nom et message obligatoires'); return; }
+    if (type !== 'text' && !mediaUrl.trim()) {
+      toast.error(`URL du média requise pour le type « ${type} ». Indiquez une URL ou basculez en « Texte ».`);
+      return;
+    }
     setSaving(true);
     const ok = await d.updateCampaign(campaign.id, {
       name: name.trim(),
+      type,
       body,
       media_url: mediaUrl || null,
       throttle_per_hour: Number(throttle) || 30,
@@ -451,14 +458,27 @@ const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaig
             <Input value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div>
+            <Label>Type</Label>
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="text">Texte</SelectItem>
+                <SelectItem value="photo">Photo + texte</SelectItem>
+                <SelectItem value="video">Vidéo + texte</SelectItem>
+                <SelectItem value="audio">Audio</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
             <Label>Message</Label>
             <Textarea value={body} onChange={e => setBody(e.target.value)} rows={8} />
             <p className="text-xs text-muted-foreground mt-1">Variables : {'{nom}'}, {'{prenom}'}, {'{tag}'}</p>
           </div>
-          {(campaign.type !== 'text') && (
+          {(type !== 'text') && (
             <div>
-              <Label>URL du média ({campaign.type})</Label>
+              <Label>URL du média ({type}) <span className="text-destructive">*</span></Label>
               <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://..." />
+              <p className="text-[11px] text-muted-foreground mt-1">URL publique https. Sans média, basculez en « Texte ».</p>
             </div>
           )}
           <div className="grid grid-cols-3 gap-3">
