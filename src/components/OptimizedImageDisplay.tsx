@@ -224,6 +224,9 @@ export const OptimizedImageDisplay: React.FC<OptimizedImageDisplayProps> = ({
           )}
         </div>
       )}
+      {lightboxOpen && finalImageUrl && (
+        <ChatImageLightbox images={[{ url: finalImageUrl, caption: detectedPrice || undefined }]} index={0} onClose={() => setLightboxOpen(false)} />
+      )}
     </div>
   );
 };
