@@ -55,8 +55,11 @@ export default function ChatListScreen() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
+  const isGuest = !user;
+
   useEffect(() => {
     if (!ready) return;
+    if (isGuest) { setConvs([]); setUsers({}); setLoading(false); return; }
     let mounted = true;
     const load = async () => {
       const fields = "id,phone_number,channel,last_message,updated_at,user_id";
@@ -117,7 +120,7 @@ export default function ChatListScreen() {
       );
     }
     return () => { mounted = false; channels.forEach((c) => supabase.removeChannel(c)); };
-  }, [ready, waouhUserIds.join("|"), sessionId]);
+  }, [ready, waouhUserIds.join("|"), sessionId, isGuest]);
 
   const enriched = useMemo(
     () => convs.map((c) => {
