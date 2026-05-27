@@ -6,7 +6,8 @@ import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, ShoppingBag } from "lucide-react";
+import { Search, Plus, ShoppingBag, Bell } from "lucide-react";
+import { useNotifications } from "../hooks/useNotifications";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +147,7 @@ export default function ChatListScreen() {
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
   const openWaouh = () => navigate("/app/chat/waouh");
+  const { unread: notifUnread } = useNotifications();
 
   return (
     <div className="min-h-[100dvh] waouh-chat-list-bg">
@@ -161,9 +163,23 @@ export default function ChatListScreen() {
               <div className="text-[11px] text-white/70 leading-tight">{profile?.phone ?? "Mon compte"}</div>
             </div>
           </button>
-          <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openWaouh} aria-label="Nouveau chat WAOUH">
-            <Plus className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigate("/app/notifications")}
+              className="relative p-2 rounded-full hover:bg-white/15 active:bg-white/20"
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+              {notifUnread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow">
+                  {notifUnread > 99 ? "99+" : notifUnread}
+                </span>
+              )}
+            </button>
+            <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openWaouh} aria-label="Nouveau chat WAOUH">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
         <div className="px-4 pb-3">
           <div className="relative">
