@@ -11,13 +11,30 @@ import { formatConvLabel, channelBadge, type WaouhUserLike } from "../utils/chat
 import { buildChatGroups } from "../utils/chatGrouping";
 import { ChatBubble } from "../components/ChatBubble";
 import { ChatDaySeparator } from "../components/ChatDaySeparator";
+import { ChatImage } from "../components/ChatImage";
 
+type Att = { url: string; caption?: string | null; type?: string | null };
 type Msg = {
   id: string;
   direction: "in" | "out" | string;
   text: string | null;
   created_at: string;
+  attachments?: Att[] | null;
 };
+
+const IMG_URL_RE = /(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|bmp|svg|avif)(?:\?[^\s]*)?)/gi;
+function extractImageUrls(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const out = new Set<string>();
+  let m: RegExpExecArray | null;
+  const re = new RegExp(IMG_URL_RE.source, "gi");
+  while ((m = re.exec(text))) out.add(m[1]);
+  return Array.from(out);
+}
+function stripImageUrls(text: string | null | undefined): string {
+  if (!text) return "";
+  return text.replace(IMG_URL_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+}
 
 type ConvMeta = {
   id: string;
@@ -66,11 +83,11 @@ export default function ChatScreen() {
       // Run inclusive queries in parallel — covers legacy rows missing conversation_id.
       const webSessionMatch = conv?.phone_number?.startsWith("web:") ? conv.phone_number.slice(4) : null;
       const queries: Promise<{ data: any[] | null }>[] = [
-        supabase.from("waouh_messages").select("id,direction,text,created_at").eq("conversation_id", convId).order("created_at", { ascending: true }).limit(500) as any,
+        supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("conversation_id", convId).order("created_at", { ascending: true }).limit(500) as any,
       ];
-      if (conv?.phone_number) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("phone_number", conv.phone_number).order("created_at", { ascending: true }).limit(500) as any);
-      if (conv?.user_id) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("user_id", conv.user_id).order("created_at", { ascending: true }).limit(500) as any);
-      if (webSessionMatch) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("web_session_id", webSessionMatch).order("created_at", { ascending: true }).limit(500) as any);
+      if (conv?.phone_number) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("phone_number", conv.phone_number).order("created_at", { ascending: true }).limit(500) as any);
+      if (conv?.user_id) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("user_id", conv.user_id).order("created_at", { ascending: true }).limit(500) as any);
+      if (webSessionMatch) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("web_session_id", webSessionMatch).order("created_at", { ascending: true }).limit(500) as any);
       const results = await Promise.all(queries);
       if (!mounted) return;
       const seen = new Set<string>();
@@ -187,15 +204,41 @@ export default function ChatScreen() {
           it.kind === "day" ? (
             <ChatDaySeparator key={it.key} label={it.label} />
           ) : (
-            <ChatBubble
-              key={it.key}
-              direction={it.msg.direction}
-              createdAt={it.msg.created_at}
-              grouped={it.grouped}
-              showMeta={it.showMeta}
-            >
-              <p className="whitespace-pre-wrap">{it.msg.text}</p>
-            </ChatBubble>
+            (() => {
+              const m: any = it.msg;
+              const atts: Att[] = Array.isArray(m.attachments) ? m.attachments.filter((a: any) => a && a.url) : [];
+              const inlineImgs = extractImageUrls(m.text);
+              const gallery: { url: string; caption?: string }[] = [
+                ...atts.map((a) => ({ url: a.url, caption: a.caption || undefined })),
+                ...inlineImgs.map((u) => ({ url: u, caption: undefined as string | undefined })),
+              ];
+              const cleanText = inlineImgs.length ? stripImageUrls(m.text) : (m.text ?? "");
+              return (
+                <ChatBubble
+                  key={it.key}
+                  direction={it.msg.direction}
+                  createdAt={it.msg.created_at}
+                  grouped={it.grouped}
+                  showMeta={it.showMeta}
+                >
+                  {gallery.length > 0 && (
+                    <div className={`grid gap-1.5 ${cleanText ? "mb-2" : ""} ${gallery.length === 1 ? "grid-cols-1" : gallery.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                      {gallery.map((g, i) => (
+                        <ChatImage
+                          key={`${m.id}-img-${i}`}
+                          src={g.url}
+                          caption={g.caption}
+                          gallery={gallery}
+                          index={i}
+                          imgClassName={gallery.length === 1 ? "max-h-72" : "aspect-square"}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {cleanText && <p className="whitespace-pre-wrap">{cleanText}</p>}
+                </ChatBubble>
+              );
+            })()
           )
         )}
         <div ref={endRef} />
