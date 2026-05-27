@@ -359,14 +359,14 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 {Array.isArray(m.attachments) && m.attachments.length > 0 && (
                   <div className={cn("grid gap-2 mb-2 not-prose", m.attachments.length === 1 ? "grid-cols-1" : m.attachments.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
                     {m.attachments.map((a, i) => (
-                      <figure key={i} className="relative rounded-lg overflow-hidden border border-border bg-muted">
-                        <img src={a.url} alt={a.caption || ""} loading="lazy" className="aspect-square object-cover w-full" />
-                        {a.caption && (
-                          <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[11px] leading-tight px-2 py-1.5 line-clamp-2">
-                            {a.caption}
-                          </figcaption>
-                        )}
-                      </figure>
+                      <ChatImage
+                        key={i}
+                        src={a.url}
+                        caption={a.caption || undefined}
+                        gallery={m.attachments!.map((x) => ({ url: x.url, caption: x.caption || undefined }))}
+                        index={i}
+                        className="aspect-square border border-border"
+                      />
                     ))}
                   </div>
                 )}
