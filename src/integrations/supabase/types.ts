@@ -4925,6 +4925,367 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_campaign_events: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          level: string
+          message: string
+          payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          level?: string
+          message: string
+          payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string
+          payload?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_campaign_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "wa_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_campaign_messages: {
+        Row: {
+          body: string
+          campaign_id: string
+          created_at: string
+          id: string
+          media_url: string | null
+          variant_index: number
+        }
+        Insert: {
+          body: string
+          campaign_id: string
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          variant_index?: number
+        }
+        Update: {
+          body?: string
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          variant_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_campaign_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "wa_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_campaigns: {
+        Row: {
+          active_hours_end: string
+          active_hours_start: string
+          ai_prompt: string | null
+          ai_variation: boolean
+          body: string
+          created_at: string
+          extra_contact_ids: string[]
+          id: string
+          list_ids: string[]
+          max_delay_s: number
+          media_mime: string | null
+          media_url: string | null
+          min_delay_s: number
+          name: string
+          scheduled_at: string | null
+          session_id: string | null
+          stats: Json
+          status: string
+          throttle_per_hour: number
+          timezone: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_hours_end?: string
+          active_hours_start?: string
+          ai_prompt?: string | null
+          ai_variation?: boolean
+          body?: string
+          created_at?: string
+          extra_contact_ids?: string[]
+          id?: string
+          list_ids?: string[]
+          max_delay_s?: number
+          media_mime?: string | null
+          media_url?: string | null
+          min_delay_s?: number
+          name: string
+          scheduled_at?: string | null
+          session_id?: string | null
+          stats?: Json
+          status?: string
+          throttle_per_hour?: number
+          timezone?: string
+          type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_hours_end?: string
+          active_hours_start?: string
+          ai_prompt?: string | null
+          ai_variation?: boolean
+          body?: string
+          created_at?: string
+          extra_contact_ids?: string[]
+          id?: string
+          list_ids?: string[]
+          max_delay_s?: number
+          media_mime?: string | null
+          media_url?: string | null
+          min_delay_s?: number
+          name?: string
+          scheduled_at?: string | null
+          session_id?: string | null
+          stats?: Json
+          status?: string
+          throttle_per_hour?: number
+          timezone?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wa_contact_list_members: {
+        Row: {
+          added_at: string
+          contact_id: string
+          list_id: string
+        }
+        Insert: {
+          added_at?: string
+          contact_id: string
+          list_id: string
+        }
+        Update: {
+          added_at?: string
+          contact_id?: string
+          list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contact_list_members_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_contact_list_members_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contact_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_contact_lists: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wa_contacts: {
+        Row: {
+          archived: boolean
+          created_at: string
+          display_name: string | null
+          id: string
+          is_whatsapp: boolean | null
+          last_validated_at: string | null
+          notes: string | null
+          opt_out: boolean
+          phone_10: string | null
+          phone_8: string | null
+          phone_e164: string
+          source: string
+          tags: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_whatsapp?: boolean | null
+          last_validated_at?: string | null
+          notes?: string | null
+          opt_out?: boolean
+          phone_10?: string | null
+          phone_8?: string | null
+          phone_e164: string
+          source?: string
+          tags?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_whatsapp?: boolean | null
+          last_validated_at?: string | null
+          notes?: string | null
+          opt_out?: boolean
+          phone_10?: string | null
+          phone_8?: string | null
+          phone_e164?: string
+          source?: string
+          tags?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wa_rate_buckets: {
+        Row: {
+          count: number
+          session_id: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          session_id: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          session_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      wa_send_jobs: {
+        Row: {
+          attempt: number
+          campaign_id: string
+          contact_id: string | null
+          created_at: string
+          delivered_at: string | null
+          id: string
+          last_error: string | null
+          read_at: string | null
+          rendered_body: string | null
+          replied_at: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          to_phone: string
+          updated_at: string
+          user_id: string
+          waha_message_id: string | null
+        }
+        Insert: {
+          attempt?: number
+          campaign_id: string
+          contact_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          last_error?: string | null
+          read_at?: string | null
+          rendered_body?: string | null
+          replied_at?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          to_phone: string
+          updated_at?: string
+          user_id: string
+          waha_message_id?: string | null
+        }
+        Update: {
+          attempt?: number
+          campaign_id?: string
+          contact_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          last_error?: string | null
+          read_at?: string | null
+          rendered_body?: string | null
+          replied_at?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          to_phone?: string
+          updated_at?: string
+          user_id?: string
+          waha_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_send_jobs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "wa_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_send_jobs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "wa_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waha_message_logs: {
         Row: {
           created_at: string
