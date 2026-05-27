@@ -36,6 +36,7 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [meta, setMeta] = useState<ConvMeta | null>(null);
   const [convUser, setConvUser] = useState<WaouhUserLike | null>(null);
+  const [loading, setLoading] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
