@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import NativeFormScreen from '@/app-mobile/components/native/NativeFormScreen';
 import NativeCategoryPicker from '@/app-mobile/components/native/NativeCategoryPicker';
-import NativeSelectSheet from '@/app-mobile/components/native/NativeSelectSheet';
 import NativeVilleQuartierPicker from '@/app-mobile/components/native/NativeVilleQuartierPicker';
 import NativePhoneInput from '@/app-mobile/components/native/NativePhoneInput';
-import { BUSINESS_CATEGORIES, MOMO_OPERATORS } from '@/data/beninLocations';
+import { BUSINESS_CATEGORIES } from '@/data/beninLocations';
 import { businessSchema, flattenZodErrors } from '@/lib/validation/waouh';
 import { useCustomCategories } from '@/hooks/useCustomCategories';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
@@ -22,18 +23,14 @@ export type BusinessFormState = {
   adresse_complete: string;
   ville: string;
   quartier: string;
-  telephone: string;
   whatsapp: string;
-  mobile_money_number: string;
-  mobile_money_operator: string;
   lat: number | null;
   lng: number | null;
 };
 
 const empty: BusinessFormState = {
   nom_entreprise: '', categorie: '', description: '', adresse_complete: '',
-  ville: '', quartier: '', telephone: '', whatsapp: '',
-  mobile_money_number: '', mobile_money_operator: 'MTN', lat: null, lng: null,
+  ville: '', quartier: '', whatsapp: '', lat: null, lng: null,
 };
 
 interface Props {
@@ -51,6 +48,7 @@ export default function BusinessFormNativeScreen({ initial, onClose, onSaved }: 
   const [form, setForm] = useState<BusinessFormState>(empty);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
   useEffect(() => {
     if (initial) {
@@ -61,10 +59,7 @@ export default function BusinessFormNativeScreen({ initial, onClose, onSaved }: 
         adresse_complete: initial.adresse_complete || '',
         ville: initial.ville || '',
         quartier: initial.quartier || '',
-        telephone: initial.telephone || '',
         whatsapp: initial.whatsapp || '',
-        mobile_money_number: initial.mobile_money_number || '',
-        mobile_money_operator: initial.mobile_money_operator || 'MTN',
         lat: initial.lat ?? null,
         lng: initial.lng ?? null,
       });
@@ -74,28 +69,72 @@ export default function BusinessFormNativeScreen({ initial, onClose, onSaved }: 
     setErrors({});
   }, [initial]);
 
-  const detectLocation = () => {
-    if (!navigator.geolocation) return toast({ title: 'GPS indisponible', variant: 'destructive' });
-    toast({ title: '📍 Détection en cours...' });
-    navigator.geolocation.getCurrentPosition(
-      async pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setForm(f => ({ ...f, lat, lng }));
-        const geo = await ai.run<any>('reverse_geocode', { lat, lng });
-        if (geo) {
-          setForm(f => ({
-            ...f, lat, lng,
-            ville: f.ville || geo.ville || '',
-            quartier: f.quartier || geo.quartier || '',
-            adresse_complete: f.adresse_complete || geo.adresse_complete || '',
-          }));
-          toast({ title: '✅ Position trouvée', description: `${geo.ville || ''}${geo.quartier ? ' · ' + geo.quartier : ''}` });
+  const applyPosition = async (lat: number, lng: number) => {
+    setForm(f => ({ ...f, lat, lng }));
+    try {
+      const geo = await ai.run<any>('reverse_geocode', { lat, lng });
+      if (geo) {
+        setForm(f => ({
+          ...f, lat, lng,
+          ville: f.ville || geo.ville || '',
+          quartier: f.quartier || geo.quartier || '',
+          adresse_complete: f.adresse_complete || geo.adresse_complete || '',
+        }));
+        toast({
+          title: '✅ Position trouvée',
+          description: `${geo.ville || ''}${geo.quartier ? ' · ' + geo.quartier : ''}`,
+        });
+      } else {
+        toast({ title: '✅ Position GPS enregistrée' });
+      }
+    } catch (e: any) {
+      toast({ title: '✅ Position GPS enregistrée', description: e?.message });
+    }
+  };
+
+  const detectLocation = async () => {
+    if (gpsLoading) return;
+    setGpsLoading(true);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const perm = await Geolocation.checkPermissions();
+        let granted = perm.location === 'granted' || perm.coarseLocation === 'granted';
+        if (!granted) {
+          const req = await Geolocation.requestPermissions({ permissions: ['location'] });
+          granted = req.location === 'granted' || req.coarseLocation === 'granted';
         }
-      },
-      err => toast({ title: 'Erreur GPS', description: err.message, variant: 'destructive' }),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
+        if (!granted) {
+          toast({ title: 'Permission refusée', description: 'Autorisez la localisation dans les paramètres.', variant: 'destructive' });
+          return;
+        }
+        toast({ title: '📍 Détection en cours...' });
+        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 });
+        await applyPosition(pos.coords.latitude, pos.coords.longitude);
+      } else {
+        if (!navigator.geolocation) {
+          toast({ title: 'GPS indisponible', variant: 'destructive' });
+          return;
+        }
+        toast({ title: '📍 Détection en cours...' });
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              await applyPosition(pos.coords.latitude, pos.coords.longitude);
+              resolve();
+            },
+            (err) => {
+              toast({ title: 'Erreur GPS', description: err.message, variant: 'destructive' });
+              resolve();
+            },
+            { enableHighAccuracy: true, timeout: 15000 },
+          );
+        });
+      }
+    } catch (e: any) {
+      toast({ title: 'Erreur GPS', description: e?.message || 'Impossible de récupérer la position', variant: 'destructive' });
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   const save = async () => {
@@ -119,6 +158,8 @@ export default function BusinessFormNativeScreen({ initial, onClose, onSaved }: 
     onClose();
   };
 
+  const gpsBusy = gpsLoading || ai.loading === 'reverse_geocode';
+
   return (
     <NativeFormScreen
       title={initial ? 'Modifier l\'entreprise' : 'Nouvelle entreprise'}
@@ -132,10 +173,10 @@ export default function BusinessFormNativeScreen({ initial, onClose, onSaved }: 
         type="button"
         variant="outline"
         onClick={detectLocation}
-        disabled={ai.loading === 'reverse_geocode'}
+        disabled={gpsBusy}
         className="w-full h-12 justify-center"
       >
-        {ai.loading === 'reverse_geocode'
+        {gpsBusy
           ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           : <MapPin className="h-4 w-4 mr-2" />}
         Détecter ma position
@@ -175,33 +216,11 @@ export default function BusinessFormNativeScreen({ initial, onClose, onSaved }: 
       />
 
       <NativePhoneInput
-        label="Téléphone"
-        value={form.telephone}
-        onChange={v => setForm({ ...form, telephone: v })}
-        invalid={!!errors.telephone}
-        errorMessage={errors.telephone}
-      />
-      <NativePhoneInput
         label="WhatsApp"
         value={form.whatsapp}
         onChange={v => setForm({ ...form, whatsapp: v })}
         invalid={!!errors.whatsapp}
         errorMessage={errors.whatsapp}
-      />
-
-      <NativeSelectSheet
-        label="Opérateur Mobile Money"
-        value={form.mobile_money_operator}
-        onChange={v => setForm({ ...form, mobile_money_operator: v })}
-        options={MOMO_OPERATORS.map(o => o.value)}
-        placeholder="MTN"
-      />
-      <NativePhoneInput
-        label="Numéro Mobile Money"
-        value={form.mobile_money_number}
-        onChange={v => setForm({ ...form, mobile_money_number: v })}
-        invalid={!!errors.mobile_money_number}
-        errorMessage={errors.mobile_money_number}
       />
 
       {form.lat && (
