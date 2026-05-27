@@ -245,6 +245,7 @@ export default function WhatsAppScreen() {
         sessionName={qrSession}
         onOpenChange={(o) => { if (!o) { setQrSession(null); loadDb(); } }}
         getQRCode={getQRCode}
+        startSession={startSession}
         sessions={merged}
       />
       <ActionsSheet
