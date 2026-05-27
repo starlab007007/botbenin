@@ -255,19 +255,57 @@ export default function ChatScreen() {
         <div ref={endRef} />
       </main>
 
-      <footer className="bg-background border-t p-2 flex items-end gap-2 sticky bottom-0">
-        <Button variant="ghost" size="icon"><Paperclip /></Button>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Message"
-          rows={1}
-          className="flex-1 resize-none rounded-2xl border bg-muted px-3 py-2 text-sm max-h-32 outline-none"
-        />
-        <Button onClick={send} disabled={sending || !text.trim()} size="icon" className="bg-[#25D366] hover:bg-[#1da851] text-white rounded-full">
-          <Send className="h-4 w-4" />
-        </Button>
+      <footer className="bg-background border-t p-2 sticky bottom-0 space-y-2">
+        {pendingAtts.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto px-1">
+            {pendingAtts.map((a, i) => (
+              <div key={a.url + i} className="relative shrink-0">
+                <img src={a.url} alt="" className="h-14 w-14 object-cover rounded-md border" />
+                <button
+                  type="button"
+                  aria-label="Retirer"
+                  onClick={() => setPendingAtts((cur) => cur.filter((_, idx) => idx !== i))}
+                  className="absolute -top-1 -right-1 bg-black/70 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center"
+                >×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            aria-label="Joindre une image"
+          >
+            <Paperclip className={uploading ? "animate-pulse" : ""} />
+          </Button>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder="Message"
+            rows={1}
+            className="flex-1 resize-none rounded-2xl border bg-muted px-3 py-2 text-sm max-h-32 outline-none"
+          />
+          <Button
+            onClick={send}
+            disabled={sending || (!text.trim() && pendingAtts.length === 0)}
+            size="icon"
+            className="bg-[#25D366] hover:bg-[#1da851] text-white rounded-full"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </footer>
     </div>
   );
