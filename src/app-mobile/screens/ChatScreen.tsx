@@ -60,22 +60,22 @@ export default function ChatScreen() {
         if (mounted) setConvUser((u as WaouhUserLike) ?? null);
       }
 
-      // Build inclusive OR for messages — covers legacy rows missing conversation_id
-      const ors: string[] = [`conversation_id.eq.${convId}`];
-      if (conv?.phone_number) ors.push(`phone_number.eq.${encodeURIComponent(conv.phone_number)}`);
-      if (conv?.user_id) ors.push(`user_id.eq.${conv.user_id}`);
+      // Run inclusive queries in parallel — covers legacy rows missing conversation_id.
       const webSessionMatch = conv?.phone_number?.startsWith("web:") ? conv.phone_number.slice(4) : null;
-      if (webSessionMatch) ors.push(`web_session_id.eq.${webSessionMatch}`);
-
-      const { data: m } = await supabase
-        .from("waouh_messages")
-        .select("id,direction,text,created_at")
-        .or(ors.join(","))
-        .order("created_at", { ascending: true })
-        .limit(500);
+      const queries: Promise<{ data: any[] | null }>[] = [
+        supabase.from("waouh_messages").select("id,direction,text,created_at").eq("conversation_id", convId).order("created_at", { ascending: true }).limit(500) as any,
+      ];
+      if (conv?.phone_number) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("phone_number", conv.phone_number).order("created_at", { ascending: true }).limit(500) as any);
+      if (conv?.user_id) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("user_id", conv.user_id).order("created_at", { ascending: true }).limit(500) as any);
+      if (webSessionMatch) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("web_session_id", webSessionMatch).order("created_at", { ascending: true }).limit(500) as any);
+      const results = await Promise.all(queries);
       if (!mounted) return;
       const seen = new Set<string>();
-      const unique = ((m as any[]) ?? []).filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+      const unique: any[] = [];
+      results.forEach(({ data }) => {
+        (data ?? []).forEach((x: any) => { if (!seen.has(x.id)) { seen.add(x.id); unique.push(x); } });
+      });
+      unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       setMsgs(unique);
       markConversationRead(convId);
     })();
