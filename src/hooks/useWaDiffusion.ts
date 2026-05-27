@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { normalizeBeninWhatsApp } from '@/lib/phone';
+import { normalizeBeninWhatsApp, normalizePhone } from '@/lib/phone';
 import { toast } from 'sonner';
 
 export interface WaContact {
