@@ -204,15 +204,41 @@ export default function ChatScreen() {
           it.kind === "day" ? (
             <ChatDaySeparator key={it.key} label={it.label} />
           ) : (
-            <ChatBubble
-              key={it.key}
-              direction={it.msg.direction}
-              createdAt={it.msg.created_at}
-              grouped={it.grouped}
-              showMeta={it.showMeta}
-            >
-              <p className="whitespace-pre-wrap">{it.msg.text}</p>
-            </ChatBubble>
+            (() => {
+              const m: any = it.msg;
+              const atts: Att[] = Array.isArray(m.attachments) ? m.attachments.filter((a: any) => a && a.url) : [];
+              const inlineImgs = extractImageUrls(m.text);
+              const gallery = [
+                ...atts.map((a) => ({ url: a.url, caption: a.caption || undefined })),
+                ...inlineImgs.map((u) => ({ url: u })),
+              ];
+              const cleanText = inlineImgs.length ? stripImageUrls(m.text) : (m.text ?? "");
+              return (
+                <ChatBubble
+                  key={it.key}
+                  direction={it.msg.direction}
+                  createdAt={it.msg.created_at}
+                  grouped={it.grouped}
+                  showMeta={it.showMeta}
+                >
+                  {gallery.length > 0 && (
+                    <div className={`grid gap-1.5 ${cleanText ? "mb-2" : ""} ${gallery.length === 1 ? "grid-cols-1" : gallery.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                      {gallery.map((g, i) => (
+                        <ChatImage
+                          key={`${m.id}-img-${i}`}
+                          src={g.url}
+                          caption={g.caption}
+                          gallery={gallery}
+                          index={i}
+                          imgClassName={gallery.length === 1 ? "max-h-72" : "aspect-square"}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {cleanText && <p className="whitespace-pre-wrap">{cleanText}</p>}
+                </ChatBubble>
+              );
+            })()
           )
         )}
         <div ref={endRef} />
