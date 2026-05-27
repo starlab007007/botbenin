@@ -174,6 +174,14 @@ export default function PartnerProductsNativeScreen() {
           onSaved={load}
         />
       )}
+
+      <ProductViewerDialog
+        product={viewing}
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        onUpdated={load}
+        onEditFull={() => { setEditing(viewing); setViewing(null); setFormOpen(true); }}
+      />
     </>
   );
 }
