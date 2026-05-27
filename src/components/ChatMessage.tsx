@@ -90,11 +90,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
             </div>
           )}
 
-          <div className={`rounded-2xl px-4 py-3 shadow-sm ${
-            message.isUser 
-              ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-lg border border-blue-500' 
-              : 'bg-white text-gray-900 rounded-bl-lg border border-gray-200'
-          }`}>
+          <div className={`chat-bubble ${message.isUser ? 'chat-bubble-out' : 'chat-bubble-in'}`}>
             <div className="text-sm leading-relaxed break-words">
               {isTyping ? (
                 <div className="whitespace-pre-wrap">
