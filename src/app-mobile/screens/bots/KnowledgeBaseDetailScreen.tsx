@@ -10,6 +10,19 @@ import { useSheetCrud } from '../../hooks/useSheetCrud';
 import { getSheetNameForTable, isGoogleSheetTemplate } from '../../utils/sheetMapping';
 import { toast } from 'sonner';
 
+const getRowValue = (row: Record<string, any>, fieldName?: string) => {
+  if (!fieldName) return undefined;
+  const direct = row[fieldName];
+  if (direct !== undefined && direct !== null && String(direct).trim() !== '') return direct;
+  const normalized = fieldName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+  return row[normalized];
+};
+
 
 export default function KnowledgeBaseDetailScreen() {
   const { id } = useParams();
@@ -169,17 +182,17 @@ export default function KnowledgeBaseDetailScreen() {
                   onClick={() => navigate(entryHref(row, idx))}
                   className="w-full text-left rounded-xl border bg-card p-3.5 flex items-center gap-3 active:bg-accent/40 transition"
                 >
-                  {primary?.type === 'image' && row[primary.name] ? (
-                    <img src={row[primary.name]} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                  {primary?.type === 'image' && getRowValue(row, primary.name) ? (
+                    <img src={getRowValue(row, primary.name)} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                   ) : (
                     <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-primary font-semibold text-sm">{(row[primary?.name] || '?').toString().charAt(0).toUpperCase()}</span>
+                      <span className="text-primary font-semibold text-sm">{(getRowValue(row, primary?.name) || '?').toString().charAt(0).toUpperCase()}</span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[15px] truncate">{row[primary?.name] || 'Sans nom'}</div>
+                    <div className="font-medium text-[15px] truncate">{getRowValue(row, primary?.name) || 'Sans nom'}</div>
                     {secondary && (
-                      <div className="text-xs text-muted-foreground truncate">{row[secondary.name] || ''}</div>
+                      <div className="text-xs text-muted-foreground truncate">{getRowValue(row, secondary.name) || ''}</div>
                     )}
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />

@@ -40,9 +40,23 @@ export function useSheetCrud(
   const [isLoading, setIsLoading] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [authUserId, setAuthUserId] = useState<string | undefined>();
+  const [authReady, setAuthReady] = useState(false);
   const writingRef = useRef(false);
 
-  const isValid = !!spreadsheetId && !!sheetName && !!userId;
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
+      setAuthUserId(data.user?.id);
+    }).finally(() => {
+      if (mounted) setAuthReady(true);
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  const effectiveUserId = authUserId || (authReady ? userId : undefined);
+  const isValid = !!spreadsheetId && !!sheetName && !!effectiveUserId;
 
   const load = useCallback(async () => {
     if (!isValid) return [] as SheetRow[];
@@ -57,11 +71,11 @@ export function useSheetCrud(
         ? result.data
             .map((it: any) => normalizeRowKeys(it))
             .filter((it: any) => !it._isOrphan)
-            .filter((it: any) => String(it.user_id || '').trim() === String(userId))
+            .filter((it: any) => !it.user_id || String(it.user_id || '').trim() === String(effectiveUserId))
             .map((it: any) => ({
               ...it,
               id: String(it.id || `row_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
-              user_id: String(it.user_id || userId),
+              user_id: String(it.user_id || effectiveUserId),
             }))
             .filter((it: any) => !!it.id)
         : [];
@@ -77,7 +91,7 @@ export function useSheetCrud(
     } finally {
       setIsLoading(false);
     }
-  }, [isValid, spreadsheetId, sheetName, userId]);
+  }, [isValid, spreadsheetId, sheetName, effectiveUserId]);
 
   useEffect(() => {
     if (isValid) load();
@@ -90,12 +104,12 @@ export function useSheetCrud(
     try {
       const newRow = {
         ...row,
-        id: `row_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        user_id: userId!,
+        id: `row_${effectiveUserId}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        user_id: effectiveUserId!,
       };
       const result = await queueGoogleSheetsOperation(async () => {
         const { data: res, error } = await supabase.functions.invoke('google-sheets-writer', {
-          body: { spreadsheetId, sheetName, data: [newRow], operation: 'append', userId }
+          body: { spreadsheetId, sheetName, data: [newRow], operation: 'append', userId: effectiveUserId }
         });
         if (error) throw new Error(error.message);
         if (res?.error) throw new Error(res.details || res.error);
@@ -114,7 +128,7 @@ export function useSheetCrud(
       writingRef.current = false;
       setIsWriting(false);
     }
-  }, [isValid, spreadsheetId, sheetName, userId, load]);
+  }, [isValid, spreadsheetId, sheetName, effectiveUserId, load]);
 
   const updateRow = useCallback(async (rowId: string, fields: Record<string, any>) => {
     if (!isValid || writingRef.current) return false;
@@ -128,8 +142,8 @@ export function useSheetCrud(
             spreadsheetId, sheetName,
             operation: 'update_row',
             prospectId: rowId,
-            rowData: { ...fields, user_id: userId },
-            userId
+            rowData: { ...fields, user_id: effectiveUserId },
+            userId: effectiveUserId
           }
         });
         if (error) throw new Error(error.message);
@@ -151,7 +165,7 @@ export function useSheetCrud(
       writingRef.current = false;
       setIsWriting(false);
     }
-  }, [isValid, spreadsheetId, sheetName, userId, load]);
+  }, [isValid, spreadsheetId, sheetName, effectiveUserId, load]);
 
   const deleteRow = useCallback(async (rowId: string) => {
     if (!isValid) return false;
@@ -163,7 +177,7 @@ export function useSheetCrud(
             spreadsheetId, sheetName,
             operation: 'delete_by_id',
             prospectId: rowId,
-            userId
+            userId: effectiveUserId
           }
         });
         if (error) throw new Error(error.message);
@@ -183,7 +197,7 @@ export function useSheetCrud(
     } finally {
       setIsWriting(false);
     }
-  }, [isValid, spreadsheetId, sheetName, userId, load]);
+  }, [isValid, spreadsheetId, sheetName, effectiveUserId, load]);
 
   return { rows, isLoading, isWriting, lastSync, load, addRow, updateRow, deleteRow };
 }
