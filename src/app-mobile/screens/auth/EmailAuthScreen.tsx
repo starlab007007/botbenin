@@ -139,10 +139,11 @@ export default function EmailAuthScreen() {
 
       {/* Scrollable content */}
       <form
+        id="auth-form"
         onSubmit={submit}
-        className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-5 pt-4"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 120px)" }}
+        className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-5 pt-4 pb-6"
       >
+
         <div className="max-w-md mx-auto space-y-5">
           <SegmentedTabs
             tabs={[
@@ -254,19 +255,20 @@ export default function EmailAuthScreen() {
 
       {/* Sticky bottom CTA */}
       <div
-        className="absolute bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t px-5 pt-3"
+        className="shrink-0 bg-background/95 backdrop-blur border-t px-5 pt-3"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
       >
         <button
           type="submit"
-          onClick={submit}
+          form="auth-form"
           disabled={loading}
-          className="w-full h-13 rounded-2xl bg-primary text-primary-foreground font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-60"
+          className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-60"
         >
           {loading && <Loader2 className="h-5 w-5 animate-spin" />}
           {cta}
         </button>
       </div>
+
     </div>
   );
 }
