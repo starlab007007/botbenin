@@ -80,8 +80,9 @@ export default function ChatScreen() {
       });
       unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       setMsgs(unique);
+      setLoading(false);
       markConversationRead(convId);
-    })();
+    })().catch(() => { if (mounted) setLoading(false); });
 
     const suffix = Math.random().toString(36).slice(2, 6);
     const onInsert = (p: any) => {
