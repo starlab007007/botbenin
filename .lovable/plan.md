@@ -1,35 +1,88 @@
-## Diagnostic
+# Diffusion mobile 100% native
 
-J'ai analysé les logs et la base de données. La campagne « ok » (et plusieurs précédentes en attente/échec) a le `type = photo` mais **aucune `media_url`**. Le worker `whatsapp-diffusion-worker` lève alors l'erreur **« Média photo manquant »** sur chaque destinataire (vu dans `wa_send_jobs.last_error` x3).
+Refonte complète de `/app/diffusion` pour une expérience Android native, branchée sur exactement le même backend Supabase (tables `wa_contacts`, `wa_campaigns`, `wa_send_jobs`, `whatsapp_accounts`) et les mêmes edge functions que la version web.
 
-Cause racine :
-1. Le formulaire « Nouvelle campagne » (`NewCampaignDialog`) n'oblige pas l'URL média quand le type est `photo / video / audio` → l'utilisateur sélectionne « Photo + texte » par défaut visuel mais laisse l'URL vide.
-2. Le worker échoue brutalement au lieu de basculer en envoi texte si le média manque mais qu'un body existe.
-3. Côté UI Destinataires, le statut affiché reste « En attente » visuellement car la couleur destructive n'est pas claire — l'erreur réelle est masquée.
+## Principe
 
-## Corrections à apporter
+- Aucune ouverture de lien web, aucun Dialog modal web. Chaque action ouvre un **écran natif plein écran** (style Activity Android), inspiré de `NativeFormScreen`.
+- Réutilisation à 100 % du hook `useWaDiffusion` et `useDiffusionSessions` → mêmes données, mêmes contrôles serveur (worker, enqueue, AI variants, vérification numéros).
+- Composants natifs `NativeSelectSheet`, `NativePhoneInput` déjà existants pour les sélecteurs.
 
-### 1. Worker (`supabase/functions/whatsapp-diffusion-worker/index.ts`)
-- Si `type ∈ {photo, video, audio}` mais `media_url` absent **et** `body` non vide → **fallback automatique en envoi texte** (au lieu de throw). Logger un warning dans `wa_campaign_events`.
-- Garder l'échec uniquement si body ET media sont vides.
+## Architecture des écrans
 
-### 2. Formulaire nouvelle campagne (`WhatsAppDiffusionV2.tsx` → `NewCampaignDialog`)
-- Validation client : si `type ≠ text` et `mediaUrl` vide → toast d'erreur bloquant « URL du média requise pour ce type ».
-- Ajouter un bouton **Upload** à côté du champ URL (utilise le bucket Supabase Storage existant) pour éviter la saisie manuelle d'URL.
-- Marquer le champ « URL du média » avec `*` quand requis.
+```
+/app/diffusion                       → Tabs natifs (Contacts | Campagnes | Sessions | Suivi)
+/app/diffusion/contacts/new          → Form natif ajouter contact
+/app/diffusion/contacts/import       → Form natif import (textarea + preview)
+/app/diffusion/campaigns/new         → Wizard natif 4 étapes (Type & nom · Message & média · Audience & session · Anti-ban)
+/app/diffusion/campaigns/:id         → Détails campagne (stats live + actions)
+/app/diffusion/campaigns/:id/edit    → Form natif édition (mêmes champs que web)
+/app/diffusion/sessions/new          → Form natif création session WAHA + QR
+/app/diffusion/sessions/:id          → Détails/QR/scan session
+```
 
-### 3. EditCampaignDialog
-- Même validation média obligatoire si type non-text.
-- Permettre de changer le type vers `text` pour les anciennes campagnes ratées.
+Tous accessibles via `react-router-dom` sous le shell mobile existant.
 
-### 4. UI Destinataires (`CampaignDetailsDialog`)
-- Quand `j.status === 'failed'`, afficher clairement le badge **Échec** en rouge à la place de l'horloge « En attente » (le composant le fait déjà, mais l'icône `Clock` apparaît si `status` est vide — vérifier que `j.status` est bien transmis depuis `useCampaignDetails`).
-- Toujours afficher `j.last_error` même tronqué.
+## Fonctionnalités couvertes (parité web)
 
-### 5. Action de récupération
-- Pour la campagne « ok » (failed) actuellement bloquée : un simple clic sur **Relancer** dans le menu devra repasser en texte (via fallback du worker) et envoyer correctement.
+**Contacts**
+- Ajout manuel avec `NativePhoneInput` (drapeau + indicatif Bénin par défaut, support pays via `COUNTRIES`)
+- Import en masse (textarea, parse Bénin 8/10 chiffres, preview valides/invalides)
+- Liste scrollable virtuelle, recherche, toggle archives
+- Vérification WhatsApp (edge `whatsapp-check-numbers`)
+- Actions par contact : opt-out, archive, supprimer (via bottom-sheet d'actions)
 
-## Résultat attendu
-- Plus aucune campagne ne peut être créée en `photo` sans média.
-- Les anciennes campagnes ratées « Média photo manquant » peuvent être relancées (fallback texte automatique).
-- L'onglet Destinataires montre clairement Échec + raison au lieu de « En attente » trompeur.
+**Campagnes**
+- Liste avec badges statut, `Progress` envoyés/total, ACK live (livrés/lus)
+- Wizard de création 4 étapes plein écran avec persistance d'état :
+  1. Nom + Type (text, photo, vidéo, audio, document, lien) via `NativeSelectSheet`
+  2. Message (Textarea native) + pièce jointe native (file picker via `<input type=file>` toujours OK en Capacitor WebView ; sinon Capacitor Filesystem si présent) → upload vers `public-media` bucket
+  3. Audience : sélection multi-contacts dans une liste native + session WAHA via `NativeSelectSheet`
+  4. Anti-ban : envois/h, plage horaire, switch variantes IA
+- Actions row : Lancer, Envoyer maintenant, Pause/Reprendre, Dupliquer, Relancer, Supprimer, Modifier — via bottom-sheet `Sheet` natif (pas DropdownMenu web)
+- Édition complète (nom, type, body, média, throttle, plages) → écran natif
+
+**Sessions WAHA**
+- Liste mes sessions + sessions partagées admin
+- Création/configuration via écran natif (réutilise logique de `WaSessionDialog`)
+- Affichage QR + statut live (poll 20 s)
+
+**Suivi (Stats)**
+- Reprise du `StatsTab` web : totaux, succès, échecs, ACK livrés/lus via realtime sur `wa_send_jobs`
+
+## Détails techniques
+
+- **Backend identique** : aucun changement de schéma, RLS, edge functions. Le mobile lit/écrit les mêmes tables avec le même `user_id`.
+- **Synchronisation** : `useWaDiffusion` re-fetch après chaque mutation + abonnement realtime Supabase sur `wa_campaigns` et `wa_send_jobs` pour stats live.
+- **File picker natif** : sur Android, `<input type="file" accept="image/*">` ouvre le sélecteur Android natif depuis la WebView Capacitor — pas besoin de plugin. Optionnel : ajouter `@capacitor/camera` plus tard pour capture directe.
+- **Aucun composant web modal** : remplacement de `Dialog` par routes plein écran et de `Select`/`DropdownMenu` par `NativeSelectSheet` + `Sheet` bottom.
+- **Header sticky vert** (`hsl(var(--wa-green))`) + bouton retour Android + bouton submit sticky bas, conformes au pattern `NativeFormScreen`.
+- **Tabs** en barre horizontale sticky avec scroll snap, style chip.
+- **Toaster** : `sonner` déjà disponible dans `AppMobile`.
+
+## Fichiers à créer
+
+- `src/app-mobile/screens/diffusion/DiffusionHomeScreen.tsx` (remplace l'actuel `DiffusionScreen.tsx`)
+- `src/app-mobile/screens/diffusion/tabs/NativeContactsTab.tsx`
+- `src/app-mobile/screens/diffusion/tabs/NativeCampaignsTab.tsx`
+- `src/app-mobile/screens/diffusion/tabs/NativeSessionsTab.tsx`
+- `src/app-mobile/screens/diffusion/tabs/NativeStatsTab.tsx`
+- `src/app-mobile/screens/diffusion/ContactAddScreen.tsx`
+- `src/app-mobile/screens/diffusion/ContactImportScreen.tsx`
+- `src/app-mobile/screens/diffusion/CampaignWizardScreen.tsx`
+- `src/app-mobile/screens/diffusion/CampaignDetailsScreen.tsx`
+- `src/app-mobile/screens/diffusion/CampaignEditScreen.tsx`
+- `src/app-mobile/screens/diffusion/SessionFormScreen.tsx`
+- `src/app-mobile/components/diffusion/NativeMediaPicker.tsx` (upload Supabase Storage avec progress)
+- `src/app-mobile/components/diffusion/CampaignActionsSheet.tsx` (bottom-sheet d'actions)
+
+## Fichiers modifiés
+
+- `src/AppMobile.tsx` : enregistrement des nouvelles routes `diffusion/*`
+- `src/app-mobile/layouts/BottomTabBar.tsx` (vérif présence onglet Diffusion)
+
+## Hors-périmètre
+
+- Pas de modif backend (tables, RLS, edge functions inchangées)
+- Pas de modif de la version web `/whatsapp-diffusion`
+- Pas d'ajout de plugins Capacitor (file picker via input HTML — fonctionne nativement Android)
