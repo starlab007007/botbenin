@@ -1,76 +1,52 @@
-## Objectif
+## Module Partenaire mobile — simplification du parcours
 
-Refondre `src/app-mobile/screens/auth/EmailAuthScreen.tsx` pour qu'il offre une **expérience 100% native Android** (sans iframe, sans `window.open`, sans dialog web) tout en ayant la **parité fonctionnelle complète** avec `/auth` (web).
+### 1. Bypass des écrans "Devenir Partenaire" et "Espace Partenaire"
+Auto-créer silencieusement un enregistrement `waouh_partners` minimal dès qu'un utilisateur authentifié arrive sur `/app/partner`, puis rediriger immédiatement vers `/app/partner/businesses`.
 
-## Parité fonctionnelle requise (depuis `AuthPage.tsx`)
+**Fichier : `src/app-mobile/screens/partner/PartnerHomeScreen.tsx`** (réécriture minimale)
+- Supprimer tout le formulaire d'enrôlement (Nom, Téléphone, WhatsApp, Ville, Mobile Money) et tout le dashboard (badges, stats, activité, tuile "Mes entreprises").
+- Nouveau comportement :
+  - Si `authLoading || loading` → spinner plein écran.
+  - Si pas de `partner` → appeler `apply({ nom: user.email || 'Partenaire', ville: '—', telephone: '', mobile_money_operator: 'MTN', mobile_money_number: '' })` une seule fois, puis `navigate('/app/partner/businesses', { replace: true })`.
+  - Si `partner` existe → `navigate('/app/partner/businesses', { replace: true })`.
 
-3 onglets segmentés natifs :
-1. **Connexion** — email + mot de passe + bouton Google
-2. **Inscription** — nom complet + email + mot de passe + confirmation + Google
-3. **Mot de passe** — email pour reset
+**Fichier : `src/lib/validation/waouh.ts`**
+- Assouplir `partnerEnrollmentSchema` pour permettre la création auto :
+  - `telephone` : passer de `phoneRequired` à `phoneOptional`.
+  - `mobile_money_number` : passer de `phoneRequired` à `phoneOptional`.
+  - `mobile_money_operator` : `.optional().default('MTN')`.
+  - `ville` : `.optional().default('')`.
+- (Le `useWaouhPartner.apply` insère directement, donc le schéma n'est plus appelé côté mobile — l'assouplissement reste utile pour éviter les régressions web et n'affecte pas la version web qui valide en amont.)
+- Si on préfère ne pas toucher la version web, alternative : ne pas modifier le schéma et faire l'insert directement sans validation dans le nouveau `PartnerHomeScreen`.
 
-Toutes les actions passent par le même `AuthContext` (`login`, `register`, `resetPassword`, `loginWithGoogle`) → backend Supabase identique au web.
+### 2. Formulaire entreprise — retirer 3 champs
 
-## Design natif Android
+**Fichier : `src/app-mobile/screens/partner/BusinessFormNativeScreen.tsx`**
+- Retirer du JSX et du state :
+  - `<NativePhoneInput label="Téléphone" />`
+  - `<NativeSelectSheet label="Opérateur Mobile Money" />`
+  - `<NativePhoneInput label="Numéro Mobile Money" />`
+- Garder `whatsapp` (seul champ contact conservé).
+- Nettoyer `BusinessFormState` (retirer `telephone`, `mobile_money_number`, `mobile_money_operator`), `empty`, et le `useEffect` d'initialisation.
+- Retirer l'import `MOMO_OPERATORS` et `NativeSelectSheet` devenus inutiles.
 
-- Plein écran `fixed inset-0` avec `safe-area` (status bar + nav bar)
-- **Header sticky** vert WaouhApp avec flèche retour + titre
-- **SegmentedControl** custom (3 onglets, pill animé, haptic au tap)
-- **TextField natif** : label flottant, icône préfixe (Mail/Lock/User), toggle œil pour password, `inputMode` adapté (`email`, `text`), `autoComplete` (`email`, `current-password`, `new-password`, `name`), `enterKeyHint`
-- **Bouton Google** : carte blanche avec logo SVG, ripple effect tactile
-- **Séparateur "OU PAR EMAIL"** avec lignes fines
-- **Bouton primaire** sticky en bas avec safe-area, état loading (spinner inline)
-- **Validation inline** sous chaque champ (rouge si erreur, vert check si valide)
-- **Indicateur force mot de passe** (faible/moyen/fort) sur l'onglet Inscription
-- Transitions fluides entre onglets (`framer-motion` slide horizontal)
-- **Haptic feedback** via `@capacitor/haptics` (sélection onglet, submit, erreur)
-- Scroll fluide `[-webkit-overflow-scrolling:touch]` + `overscroll-contain`
-- Clavier-aware : `pb-[env(keyboard-inset-height)]` pour que le bouton reste visible
+### 3. Fix "Détecter ma position" sur mobile natif
 
-## Fichiers à créer
+**Fichier : `src/app-mobile/screens/partner/BusinessFormNativeScreen.tsx`** — fonction `detectLocation`
+- Détecter Capacitor via `Capacitor.isNativePlatform()`.
+- Sur natif : utiliser `@capacitor/geolocation` (déjà installé) :
+  ```ts
+  import { Geolocation } from '@capacitor/geolocation';
+  const perm = await Geolocation.requestPermissions();
+  if (perm.location !== 'granted') { toast(...); return; }
+  const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 });
+  ```
+- Sur web : garder `navigator.geolocation.getCurrentPosition` actuel.
+- Unifier le traitement post-position (set state + appel `ai.run('reverse_geocode', …)`) dans une fonction interne `applyPosition(lat, lng)`.
+- Ajouter un état `gpsLoading` pour désactiver le bouton et afficher le spinner pendant toute la durée (permission + position + reverse geocode).
+- Toasts d'erreur explicites : permission refusée, timeout, GPS désactivé.
 
-- `src/app-mobile/components/auth/SegmentedTabs.tsx` — pill segmenté animé
-- `src/app-mobile/components/auth/NativeTextField.tsx` — input natif avec icône, toggle, validation
-- `src/app-mobile/components/auth/PasswordStrengthBar.tsx` — barre force mot de passe
-- `src/app-mobile/components/auth/GoogleButton.tsx` — bouton Google natif réutilisable
-
-## Fichier à réécrire
-
-- `src/app-mobile/screens/auth/EmailAuthScreen.tsx` — nouvelle implémentation native
-
-## Backend & intégrations
-
-- **Aucune nouvelle table, aucune nouvelle edge function.**
-- Réutilise `useAuth()` du `AuthContext` web pour `login`, `register`, `resetPassword`, `loginWithGoogle`.
-- Google OAuth : `signInWithOAuth({ redirectTo: ${origin}/app/chat })` → mêmes données utilisateurs que le web.
-- Après succès → `navigate('/app/chat')`.
-
-## Détails techniques
-
-```text
-EmailAuthScreen
-├── Header sticky (back + title dynamique)
-├── SegmentedTabs (Connexion | Inscription | Reset)
-├── AnimatePresence (slide horizontal entre tabs)
-│   ├── LoginPanel  → GoogleButton + Email + Password + Submit + lien Reset
-│   ├── SignupPanel → GoogleButton + Name + Email + Password + Confirm + Strength + Submit
-│   └── ResetPanel  → Alert info + Email + Submit + lien retour
-└── Footer sticky safe-area (bouton primaire de l'onglet actif)
-```
-
-- Validation zod côté client (email, password ≥ 6, match confirm).
-- Messages d'erreur Supabase mappés en français (déjà géré par AuthContext).
-- Pas de `<Dialog>`, pas de `min-h-screen` (utilise `100dvh` + `fixed inset-0`).
-
-## Vérification
-
-- Build mobile OK (typecheck).
-- Aucun `window.open` / iframe / lien externe.
-- Login, signup, reset et Google fonctionnent et créent les mêmes lignes Supabase que `/auth`.
-- Session synchronisée : se connecter sur `/app/auth/email` ouvre une session valide aussi sur `/auth`.
-
-## Hors scope
-
-- Aucune modification de la page web `/auth`.
-- Aucune nouvelle route, ni changement de navigation.
-- Pas de modification de `WhatsAppOtpScreen` ni `AuthHomeScreen`.
+### Détails techniques
+- Aucune migration DB nécessaire (les colonnes Mobile Money/téléphone du partenaire et de l'entreprise restent dans la base, simplement non remplies depuis le mobile).
+- `index.mobile.html` / `capacitor.config.ts` : la permission `ACCESS_FINE_LOCATION` doit être déclarée. Le plugin `@capacitor/geolocation` l'ajoute automatiquement via gradle — rien à patcher.
+- Web (route `/partner`) : aucun changement, conserve le flux complet existant.
