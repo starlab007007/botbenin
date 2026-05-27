@@ -407,7 +407,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                         <div key={i} className="rounded-lg overflow-hidden border border-border bg-card">
                           <div className="aspect-square bg-muted relative">
                             {photo ? (
-                              <img src={photo} alt={p.nom} loading="lazy" className="w-full h-full object-cover" />
+                              <ChatImage src={photo} caption={p.nom} className="w-full h-full" imgClassName="aspect-square" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">Pas d'image</div>
                             )}
