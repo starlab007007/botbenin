@@ -83,11 +83,11 @@ export default function ChatScreen() {
       // Run inclusive queries in parallel — covers legacy rows missing conversation_id.
       const webSessionMatch = conv?.phone_number?.startsWith("web:") ? conv.phone_number.slice(4) : null;
       const queries: Promise<{ data: any[] | null }>[] = [
-        supabase.from("waouh_messages").select("id,direction,text,created_at").eq("conversation_id", convId).order("created_at", { ascending: true }).limit(500) as any,
+        supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("conversation_id", convId).order("created_at", { ascending: true }).limit(500) as any,
       ];
-      if (conv?.phone_number) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("phone_number", conv.phone_number).order("created_at", { ascending: true }).limit(500) as any);
-      if (conv?.user_id) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("user_id", conv.user_id).order("created_at", { ascending: true }).limit(500) as any);
-      if (webSessionMatch) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at").eq("web_session_id", webSessionMatch).order("created_at", { ascending: true }).limit(500) as any);
+      if (conv?.phone_number) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("phone_number", conv.phone_number).order("created_at", { ascending: true }).limit(500) as any);
+      if (conv?.user_id) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("user_id", conv.user_id).order("created_at", { ascending: true }).limit(500) as any);
+      if (webSessionMatch) queries.push(supabase.from("waouh_messages").select("id,direction,text,created_at,attachments").eq("web_session_id", webSessionMatch).order("created_at", { ascending: true }).limit(500) as any);
       const results = await Promise.all(queries);
       if (!mounted) return;
       const seen = new Set<string>();
