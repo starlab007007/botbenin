@@ -8,37 +8,28 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Pause, Play, RefreshCw } from 'lucide-react';
+import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Play, RefreshCw, Settings, Smartphone, Share2 } from 'lucide-react';
 import { useWaDiffusion } from '@/hooks/useWaDiffusion';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useDiffusionSessions, type DiffSession } from '@/hooks/useDiffusionSessions';
+import { WaSessionDialog } from '@/components/whatsapp/WaSessionDialog';
 import { toast } from 'sonner';
 import { normalizeBeninWhatsApp } from '@/lib/phone';
 
-interface Session { id: string; session_name: string; phone_number: string | null; status: string; }
-
 export const WhatsAppDiffusionV2: React.FC = () => {
-  const { user } = useAuth();
   const d = useWaDiffusion();
+  const s = useDiffusionSessions();
   const [tab, setTab] = useState('contacts');
-  const [sessions, setSessions] = useState<Session[]>([]);
-
-  React.useEffect(() => {
-    if (!user) return;
-    supabase.from('whatsapp_accounts')
-      .select('id, session_name, phone_number, status').eq('user_id', user.id)
-      .then(({ data }) => setSessions((data ?? []) as any));
-  }, [user]);
 
   return (
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto">
+        <TabsList className="grid grid-cols-4 w-full max-w-2xl mx-auto">
           <TabsTrigger value="contacts"><Users className="w-4 h-4 mr-1.5" /> Contacts</TabsTrigger>
           <TabsTrigger value="campaigns"><Send className="w-4 h-4 mr-1.5" /> Campagnes</TabsTrigger>
+          <TabsTrigger value="sessions"><Smartphone className="w-4 h-4 mr-1.5" /> Sessions</TabsTrigger>
           <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-1.5" /> Suivi</TabsTrigger>
         </TabsList>
 
@@ -46,13 +37,83 @@ export const WhatsAppDiffusionV2: React.FC = () => {
           <ContactsTab d={d} />
         </TabsContent>
         <TabsContent value="campaigns" className="mt-4">
-          <CampaignsTab d={d} sessions={sessions} />
+          <CampaignsTab d={d} s={s} onGotoSessions={() => setTab('sessions')} />
+        </TabsContent>
+        <TabsContent value="sessions" className="mt-4">
+          <SessionsTab s={s} />
         </TabsContent>
         <TabsContent value="stats" className="mt-4">
           <StatsTab d={d} />
         </TabsContent>
       </Tabs>
     </div>
+  );
+};
+
+// ============ SESSIONS ============
+const SessionsTab: React.FC<{ s: ReturnType<typeof useDiffusionSessions> }> = ({ s }) => {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<DiffSession | null>(null);
+
+  const openNew = () => { setEditing(null); setOpen(true); };
+  const openEdit = (row: DiffSession) => { setEditing(row); setOpen(true); };
+
+  const renderRow = (row: DiffSession) => {
+    const connected = row.status === 'WORKING' || row.status === 'connected';
+    return (
+      <div key={row.id} className="border rounded-lg p-3 flex items-center gap-3 hover:bg-muted/30">
+        <Smartphone className="w-5 h-5 text-green-600 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm flex items-center gap-2">
+            {row.session_name}
+            {row.is_admin_shared && <Badge variant="secondary" className="text-[10px]"><Share2 className="w-3 h-3 mr-0.5" />Partagée</Badge>}
+            {connected && <Badge className="bg-green-500 text-white text-[10px]">connectée</Badge>}
+            {!connected && <Badge variant="outline" className="text-[10px]">{row.status}</Badge>}
+          </div>
+          <div className="text-xs text-muted-foreground font-mono">{row.phone_number ?? '— numéro non renseigné —'}</div>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
+          <Settings className="w-4 h-4 mr-1" /> Configurer
+        </Button>
+      </div>
+    );
+  };
+
+  return (
+    <Card className="border-green-200">
+      <CardHeader className="pb-3 flex flex-row justify-between items-center">
+        <CardTitle className="flex items-center gap-2 text-green-700"><Smartphone className="w-5 h-5" /> Sessions WAHA</CardTitle>
+        <Button className="bg-green-600 hover:bg-green-700" onClick={openNew}><Plus className="w-4 h-4 mr-1" /> Nouvelle session</Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Mes sessions ({s.mine.length})</div>
+          {s.mine.length === 0 && (
+            <div className="text-sm text-muted-foreground border border-dashed rounded p-4 text-center">
+              Aucune session personnelle. Cliquez sur « Nouvelle session » pour scanner un QR WhatsApp.
+            </div>
+          )}
+          <div className="space-y-2">{s.mine.map(renderRow)}</div>
+        </div>
+
+        <div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase mb-2 flex items-center gap-1">
+            <Share2 className="w-3 h-3" /> Partagées par l'admin ({s.shared.length})
+          </div>
+          {s.shared.length === 0 && (
+            <div className="text-sm text-muted-foreground border border-dashed rounded p-4 text-center">
+              Aucune session partagée disponible pour l'instant.
+            </div>
+          )}
+          <div className="space-y-2">{s.shared.map(renderRow)}</div>
+        </div>
+
+        <div className="text-[11px] text-muted-foreground border-t pt-2">
+          💡 Une session = un téléphone WhatsApp scanné. Vos campagnes envoient les messages via la session choisie. Les sessions partagées (ex. WaouhApp) sont gérées par l'administrateur Bot Bj.
+        </div>
+      </CardContent>
+      <WaSessionDialog open={open} onClose={() => setOpen(false)} onSaved={s.refresh} initial={editing} />
+    </Card>
   );
 };
 
@@ -195,7 +256,7 @@ const ImportDialog: React.FC<{ open: boolean; onClose: () => void; onImport: (it
 };
 
 // ============ CAMPAIGNS ============
-const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; sessions: Session[] }> = ({ d, sessions }) => {
+const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; s: ReturnType<typeof useDiffusionSessions>; onGotoSessions: () => void }> = ({ d, s, onGotoSessions }) => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -212,7 +273,7 @@ const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; sessions: S
           ))}
         </div>
       </CardContent>
-      <NewCampaignDialog open={open} onClose={() => setOpen(false)} d={d} sessions={sessions} />
+      <NewCampaignDialog open={open} onClose={() => setOpen(false)} d={d} s={s} onGotoSessions={onGotoSessions} />
     </Card>
   );
 };
@@ -248,7 +309,7 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
   );
 };
 
-const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; sessions: Session[] }> = ({ open, onClose, d, sessions }) => {
+const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; s: ReturnType<typeof useDiffusionSessions>; onGotoSessions: () => void }> = ({ open, onClose, d, s, onGotoSessions }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState('text');
   const [body, setBody] = useState('');
@@ -302,12 +363,38 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
             </div>
             <div>
               <Label>Session WAHA *</Label>
-              <Select value={sessionId} onValueChange={setSessionId}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                <SelectContent>
-                  {sessions.map(s => <SelectItem key={s.id} value={s.id}>{s.session_name} {s.phone_number ?? ''} {s.status === 'connected' && '✅'}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {s.all.length === 0 ? (
+                <div className="border border-dashed rounded p-2 text-xs text-center bg-amber-50">
+                  Aucune session disponible.
+                  <Button type="button" size="sm" variant="link" className="px-1 h-auto" onClick={onGotoSessions}>Créer une session</Button>
+                </div>
+              ) : (
+                <Select value={sessionId} onValueChange={setSessionId}>
+                  <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectContent>
+                    {s.mine.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Mes sessions</SelectLabel>
+                        {s.mine.map(x => (
+                          <SelectItem key={x.id} value={x.id}>
+                            {x.session_name} {x.phone_number ?? ''} {(x.status === 'WORKING' || x.status === 'connected') && '✅'}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {s.shared.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Partagées (admin)</SelectLabel>
+                        {s.shared.map(x => (
+                          <SelectItem key={x.id} value={x.id}>
+                            {x.session_name} {x.phone_number ?? ''} {(x.status === 'WORKING' || x.status === 'connected') && '✅'}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
           {(type === 'photo' || type === 'video' || type === 'audio') && (
