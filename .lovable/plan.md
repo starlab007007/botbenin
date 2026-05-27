@@ -1,84 +1,103 @@
-# Refonte UI/UX des messages de chat — direction "Vivante & Futuriste"
+# Stabilisation bout-en-bout du chat (App ⇄ WhatsApp ⇄ Notifications)
 
-## Objectif
+## Diagnostic actuel
 
-Donner à TOUS les messages de chat de l'app (ChatScreen mobile, WaouhChatScreen, WaouhWebChat, ChatMessage web) un langage visuel **unifié, moderne et vivant**, avec une typographie soignée, des séparateurs élégants, des bulles affinées et une hiérarchie de contenu claire — sans toucher à la logique d'envoi/réception.
-
-## Direction visuelle proposée
-
-**Concept : "Living Glass"** — bulles glassmorphiques légères, micro-relief, accent vert WAOUH électrique, typographie éditoriale + sans-serif technique.
-
-- **Police principale** : `Inter` (corps, UI) — déjà chargée
-- **Police accent / titres dans bulles bot** : `Fraunces` (serif moderne) — déjà chargée
-- **Police mono pour codes/IDs/horaires** : `JetBrains Mono` (à ajouter)
-- **Palette bulles** :
-  - Sortant (out) : dégradé subtil `hsl(142 65% 88%) → hsl(150 70% 82%)`, bord interne lumineux, ombre verte douce
-  - Entrant (in) : verre dépoli `hsl(0 0% 100% / 0.92)` light / `hsl(165 25% 14% / 0.85)` dark, ring 1px `hsl(165 30% 88%)`
-  - Système/info : pilule centrée `hsl(165 30% 95%)` texte petite-caps
-- **Séparateurs de jour** : pilule horodatée centrée style WhatsApp moderne ("Aujourd'hui", "Hier", "12 mai") avec micro-divider en losange
-- **Séparateurs intra-bulle** : ligne en dégradé radial avec losange ◆ central (déjà présent dans `.waouh-bot-bubble hr`, à généraliser)
-
-## Mise en forme du texte
-
-- **Paragraphes** : `font-size: 14.5px`, `line-height: 1.55`, `letter-spacing: -0.005em`
-- **Gras** (`**texte**`) : poids 600, accent vert `hsl(165 70% 26%)`
-- **Italique** : devient petite-cap tagline (uppercase 11px, tracking 0.08em) — déjà présent pour bot, à étendre
-- **Liens** : couleur verte WAOUH, underline offset 3px, hover : surbrillance douce
-- **Listes** : puces • vertes alignées, espacement aéré
-- **Emojis** : taille +2px, alignement vertical médian
-- **Mentions @user / #tag** : badge pill couleur accent
-- **Code inline** `\`code\`` : fond `hsl(165 20% 94%)`, mono, 13px
-- **Citation `> texte`** : barre verticale verte 3px, texte légèrement muté
-- **URLs auto-détectées** : preview compact (favicon + titre) si possible, sinon lien stylé
-- **Numéros, montants FCFA, dates** : `font-variant-numeric: tabular-nums`
-
-## Bulles & micro-détails
-
-- Coins : `rounded-2xl` avec coin "queue" `rounded-br-sm` (out) / `rounded-bl-sm` (in)
-- Ombre multi-couche : highlight blanc 1px inset + ombre verte diffuse `0 8px 24px -12px hsl(165 60% 30% / 0.18)`
-- Animation d'entrée : `translateY(4px) → 0` + `opacity 0 → 1` en 180ms cubic-bezier
-- Tail/queue SVG optionnelle pour la première bulle d'une rafale
-- Regroupement : bulles consécutives du même expéditeur dans une fenêtre de 2 min → coins arrondis uniformes, avatar/horodatage seulement sur la dernière
-- **Horodatage** : 10.5px, mono, tabular-nums, opacité 0.55, position bottom-right avec mini-icône ✓/✓✓ pour les sortants
-- **État** : envoi (cadran ⏱), envoyé (✓), reçu (✓✓), lu (✓✓ vert)
-
-## Séparateurs de jour & système
-
-```text
-─────  ◆  Aujourd'hui  ◆  ─────
 ```
-- Pilule centrée avec léger backdrop-blur, fond `hsl(0 0% 100% / 0.7)`
-- Messages système ("X a rejoint", "Conversation chiffrée") en italique 11px centré, opacité 0.6
+                 ┌───────────────────────────────┐
+INBOUND          │                               │
+WhatsApp ─► waha-webhook ─► waouh-channel-in ──► waouh-webhook (bot)
+                 │            │ ✓ dédup            │
+                 │            │ ✓ rehost média     │ ✓ persist waouh_messages
+                 │            │ ✓ persist in       │ ✓ envoi WAHA outbound
+                 ▼            │                    │ ✗ pas de notif push/in-app
+            whatsapp_messages │                    │ ✗ conversation_id pas tjs liée
+            (doublon legacy)  └────────────────────┘
 
-## Fichiers à modifier
+Web widget ─► waouh-channel-in (idem, OK)
 
-### Nouveau
-- `src/app-mobile/theme/chat-message.css` — design tokens et classes `.chat-bubble`, `.chat-bubble-out`, `.chat-bubble-in`, `.chat-day-separator`, `.chat-time`, `.chat-status` + animations
-- `src/app-mobile/utils/chatGrouping.ts` — regroupement par expéditeur + insertion séparateurs de jour
-- `src/app-mobile/components/ChatBubble.tsx` — composant unique réutilisé partout (props : direction, text, time, status, grouped, channel)
-- `src/app-mobile/components/ChatDaySeparator.tsx`
+App mobile ChatScreen (operateur) ─┐
+                                   ├── INSERT direct waouh_messages (court-circuit)
+                                   ├── invoke waha-send-message (sessionName="default" ❌)
+                                   │       └─ exige whatsapp_accounts du user (KO pour WAOUH)
+                                   └── invoke waouh-webhook (au lieu de channel-in)
+                                       └─ pas d'idempotence, pas d'attachements, pas de notif
 
-### Mis à jour
-- `src/app-mobile/theme/mobile-theme.css` — `@import "./chat-message.css"`, ajout `JetBrains Mono` au lien Google Fonts
-- `src/app-mobile/theme/bot-prose.css` — promouvoir certaines règles (séparateur ◆, em small-caps) au niveau `.chat-bubble` pour usage universel
-- `src/app-mobile/screens/ChatScreen.tsx` — remplacer la div bulle inline (l. 173-185) par `<ChatBubble>` + insertion `<ChatDaySeparator>`
-- `src/components/waouh/WaouhWebChat.tsx` — même remplacement autour de la l. 358
-- `src/components/ChatMessage.tsx` — adopter `ChatBubble` (variante web), conserver l'animation de frappe
-- `src/components/bot-conversation/components/MessageItem.tsx` — adopter le style unifié (admin)
+Pas d'upload photo dans ChatScreen mobile (📎 inactif).
+Realtime ChatScreen filtre uniquement sur conversation_id → messages WhatsApp
+non liés n'apparaissent pas.
+```
 
-### Non touché
-- Logique d'envoi, hooks, Supabase, realtime, services chat. Aucune migration SQL.
+Problèmes confirmés
+- Mobile op → WhatsApp : non délivré (mauvais session/endpoint, route auth).
+- Mobile op → Web user : pas d'idempotence, pas d'attachements.
+- Mobile op → 📎 image : aucune action.
+- Inbound WhatsApp avec images : rehost OK côté `waouh_messages`, mais `whatsapp_messages` duplique avec URL WAHA non publique.
+- Aucune notification (push/in‑app) lors d'un nouveau message entrant.
+- `conversation_id` souvent NULL pour messages WhatsApp → onglet conversation ne reçoit pas le realtime.
+
+## Plan de correction
+
+### 1) Unifier la sortie côté app mobile (ChatScreen)
+- Remplacer `send()` par un appel unique à une nouvelle edge function `waouh-operator-send` (voir §3) avec : `conversation_id`, `text`, `attachments[]`, `channel` déduit du meta.
+- Activer le bouton 📎 : ajouter `handleFiles` (caméra + galerie) qui upload vers le bucket `waouh-uploads` (déjà utilisé par le widget web) puis envoie l'URL publique en attachment.
+- Aperçu local optimiste de la bulle envoyée + état `sending/sent/failed`.
+- Realtime : élargir le filtre (en plus de `conversation_id`, écouter aussi `phone_number=eq.<n>` ou `web_session_id` quand `conversation_id` est NULL pour cette conv).
+
+### 2) Lier systématiquement `conversation_id`
+- Dans `waouh-channel-in`, après upsert user, upsert `waouh_conversations` (key = user_id + channel) et inclure `conversation_id` sur tous les INSERT `waouh_messages` (in et out).
+- Mettre à jour `last_message`, `updated_at`, `unread_count` sur chaque inbound.
+
+### 3) Nouvelle edge `waouh-operator-send`
+Centralise l'envoi opérateur (mobile ou admin) :
+1. Vérifie auth user + permission sur la conversation.
+2. Upload n'est pas refait ici (les URLs publiques arrivent prêtes).
+3. INSERT `waouh_messages` (direction=out, attachments, conversation_id, channel).
+4. Si `channel = whatsapp` et `phone_number` présent → appelle WAHA via le même helper que `waouh-channel-in` (`sendWahaReply` avec `WAHA_SESSION = WaouhApp`, support image + texte combinés).
+5. Met à jour `waouh_conversations.last_message/updated_at`.
+6. Retourne `{ ok, waha_status }` pour feedback UI.
+
+### 4) Inbound WhatsApp : nettoyage et idempotence
+- Dans `waha-webhook`, ne plus dupliquer dans `whatsapp_messages` si la session correspond à WAOUH (déjà persisté par `waouh-channel-in`).
+- Pour les autres sessions (bots WhatsApp utilisateurs), conserver `whatsapp_messages` mais réhoster aussi le média via le helper partagé (extraire `rehostMedia` dans `_shared/wahaMedia.ts`).
+
+### 5) Notifications automatiques
+- Trigger Postgres `AFTER INSERT ON waouh_messages WHEN direction='in'` → `pg_net` POST vers `notify-new-message` (nouvelle edge légère) qui :
+  - Crée une `notifications` (in-app) pour le propriétaire de la conversation (op WAOUH + utilisateur si auth).
+  - Si push tokens enregistrés (`register-device-token`) → envoie une push (fallback silencieux).
+- Compteur `unread_count` mis à jour côté `waouh_conversations` (déjà partiellement présent côté `useUnreadCounts`).
+
+### 6) UI mobile chat — robustesse et fluidité
+- Optimistic UI : bulles envoyées affichent ⏱ puis ✓ (sent) puis ✓✓ (delivered via ack WAHA pour WhatsApp).
+- Reconnexion realtime : recréer le channel sur visibilitychange + retry exponentiel.
+- Skeletons d'images en chargement (déjà partiel) + cache lightbox.
+- `markConversationRead` appelé à l'ouverture ET à chaque arrivée de message visible.
+
+### 7) Tests de bout-en-bout
+- `supabase/functions/waouh-operator-send/index_test.ts` : auth refusée, envoi web OK, envoi WhatsApp OK (mock WAHA), envoi image OK.
+- Script `waouh-e2e-test` étendu : envoie message web → vérifie persistance + notif + (si phone lié) appel WAHA mocké.
 
 ## Détails techniques
 
-- Tokens HSL ajoutés dans `index.css` `:root` et `.dark` : `--chat-out-bg-from`, `--chat-out-bg-to`, `--chat-in-bg`, `--chat-bubble-ring`, `--chat-accent`, `--chat-time`, `--chat-quote`, `--chat-code-bg`
-- Classes utilitaires Tailwind via plugin inline dans les composants (pas de modif `tailwind.config.ts`) — tout via classes CSS dans `chat-message.css`
-- Markdown léger : on garde le rendu existant (`MediaRenderer` / texte brut). Le styling agit via la classe parente `.chat-bubble` qui cible `p, strong, em, a, ul, li, hr, code, blockquote`
-- Le fond `.waouh-chat-bg` (doodle) reste — il vient juste d'être unifié
-- Animations limitées à `prefers-reduced-motion: no-preference`
+Tables touchées
+- `waouh_messages` : pas de migration de schéma, juste s'assurer que tous les INSERT incluent `conversation_id` et `attachments`.
+- `waouh_conversations` : ajouter colonne `unread_count_op int default 0` si absente, et trigger d'incrément.
+- `notifications` : déjà existante, on s'appuie dessus.
 
-## Hors scope
+Edge functions
+- Nouvelle : `waouh-operator-send`, `notify-new-message`.
+- Modifiées : `waha-webhook` (dédup WAOUH), `waouh-channel-in` (toujours injecter conversation_id), `waha-send-message` (gardée pour bots utilisateurs uniquement).
+- Shared : `_shared/wahaMedia.ts` (rehostMedia), `_shared/wahaClient.ts` (sendText/Image/Buttons unifiés).
 
-- Pas de changement de structure des données messages
-- Pas de nouveau provider markdown
-- Pas de modification des écrans Bots / WhatsApp / Partenaire
+Frontend
+- `src/app-mobile/screens/ChatScreen.tsx` : refactor `send` + ajout upload + realtime élargi + optimistic.
+- `src/components/waouh/WaouhWebChat.tsx` : continue d'utiliser `waouh-channel-in` (déjà OK), juste lecture du nouveau `attachments` enrichi.
+
+Secrets requis (déjà présents)
+- `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION` (= `WaouhApp`), `WAOUH_BUSINESS_PHONE`.
+- Aucun nouveau secret nécessaire.
+
+## Livrables
+1. Pipeline unique opérateur → app/WhatsApp (texte + image) qui n'échoue plus silencieusement.
+2. Réception WhatsApp (texte + image) qui apparaît instantanément dans l'app et déclenche une notif.
+3. Idempotence et déduplication garanties dans les deux sens.
+4. Tests automatisés couvrant les 4 chemins (web↔app, whatsapp↔app).
