@@ -11,13 +11,30 @@ import { formatConvLabel, channelBadge, type WaouhUserLike } from "../utils/chat
 import { buildChatGroups } from "../utils/chatGrouping";
 import { ChatBubble } from "../components/ChatBubble";
 import { ChatDaySeparator } from "../components/ChatDaySeparator";
+import { ChatImage } from "../components/ChatImage";
 
+type Att = { url: string; caption?: string | null; type?: string | null };
 type Msg = {
   id: string;
   direction: "in" | "out" | string;
   text: string | null;
   created_at: string;
+  attachments?: Att[] | null;
 };
+
+const IMG_URL_RE = /(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|bmp|svg|avif)(?:\?[^\s]*)?)/gi;
+function extractImageUrls(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const out = new Set<string>();
+  let m: RegExpExecArray | null;
+  const re = new RegExp(IMG_URL_RE.source, "gi");
+  while ((m = re.exec(text))) out.add(m[1]);
+  return Array.from(out);
+}
+function stripImageUrls(text: string | null | undefined): string {
+  if (!text) return "";
+  return text.replace(IMG_URL_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+}
 
 type ConvMeta = {
   id: string;
