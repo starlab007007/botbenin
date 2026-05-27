@@ -90,15 +90,15 @@ export default function NativeEntryFormScreen() {
     try {
       if (isGsMode) {
         const ok = await sheet.deleteRow(gsIdParam!);
-        if (ok) navigate(-1);
+        if (ok) backToDetail();
       } else {
-        const all = { ...(kb.data as any) };
+        const all = { ...((kb.data as any) || {}) };
         const list = [...(all[table.id] || [])];
         list.splice(editIdx, 1);
         all[table.id] = list;
-        const newCompletion = calculateCompletion(all, kb.structural_info as any, template);
+        const newCompletion = calculateCompletion(all, (kb.structural_info as any) || {}, template);
         const ok = await updateKnowledgeBase(kb.id, { data: all, completion_percentage: newCompletion });
-        if (ok) { toast.success('Entrée supprimée'); navigate(-1); }
+        if (ok) { toast.success('Entrée supprimée'); backToDetail(); }
       }
     } finally { setSaving(false); }
   };
