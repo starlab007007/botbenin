@@ -1,52 +1,66 @@
-## Module Partenaire mobile — simplification du parcours
+## Objectif
 
-### 1. Bypass des écrans "Devenir Partenaire" et "Espace Partenaire"
-Auto-créer silencieusement un enregistrement `waouh_partners` minimal dès qu'un utilisateur authentifié arrive sur `/app/partner`, puis rediriger immédiatement vers `/app/partner/businesses`.
+Unifier l'expérience chat de l'app mobile :
+1. Liste de conversations avec libellés humains (au lieu de `web:<uuid>`).
+2. Page conversation `/app/chat/:id` qui charge réellement l'historique et permet de répondre, peu importe la source.
+3. Page WAOUH `/app/chat/waouh` qui charge l'historique complet de l'utilisateur, avec le même fond doodle que les autres chats.
 
-**Fichier : `src/app-mobile/screens/partner/PartnerHomeScreen.tsx`** (réécriture minimale)
-- Supprimer tout le formulaire d'enrôlement (Nom, Téléphone, WhatsApp, Ville, Mobile Money) et tout le dashboard (badges, stats, activité, tuile "Mes entreprises").
-- Nouveau comportement :
-  - Si `authLoading || loading` → spinner plein écran.
-  - Si pas de `partner` → appeler `apply({ nom: user.email || 'Partenaire', ville: '—', telephone: '', mobile_money_operator: 'MTN', mobile_money_number: '' })` une seule fois, puis `navigate('/app/partner/businesses', { replace: true })`.
-  - Si `partner` existe → `navigate('/app/partner/businesses', { replace: true })`.
+---
 
-**Fichier : `src/lib/validation/waouh.ts`**
-- Assouplir `partnerEnrollmentSchema` pour permettre la création auto :
-  - `telephone` : passer de `phoneRequired` à `phoneOptional`.
-  - `mobile_money_number` : passer de `phoneRequired` à `phoneOptional`.
-  - `mobile_money_operator` : `.optional().default('MTN')`.
-  - `ville` : `.optional().default('')`.
-- (Le `useWaouhPartner.apply` insère directement, donc le schéma n'est plus appelé côté mobile — l'assouplissement reste utile pour éviter les régressions web et n'affecte pas la version web qui valide en amont.)
-- Si on préfère ne pas toucher la version web, alternative : ne pas modifier le schéma et faire l'insert directement sans validation dans le nouveau `PartnerHomeScreen`.
+## 1. `ChatListScreen.tsx` — libellés et centralisation
 
-### 2. Formulaire entreprise — retirer 3 champs
+Remplacer l'affichage brut `c.phone_number ?? "Inconnu"` (qui tombe sur l'UUID parce que `phone_number` contient `web:<uuid>` pour les sessions web) par un libellé dérivé de `channel` + jointure légère sur `waouh_users` :
 
-**Fichier : `src/app-mobile/screens/partner/BusinessFormNativeScreen.tsx`**
-- Retirer du JSX et du state :
-  - `<NativePhoneInput label="Téléphone" />`
-  - `<NativeSelectSheet label="Opérateur Mobile Money" />`
-  - `<NativePhoneInput label="Numéro Mobile Money" />`
-- Garder `whatsapp` (seul champ contact conservé).
-- Nettoyer `BusinessFormState` (retirer `telephone`, `mobile_money_number`, `mobile_money_operator`), `empty`, et le `useEffect` d'initialisation.
-- Retirer l'import `MOMO_OPERATORS` et `NativeSelectSheet` devenus inutiles.
+- Étendre le `select` pour récupérer `user_id` puis charger en lot `waouh_users(id, display_name, phone_number, channel, auth_user_id)` pour tous les `user_id` distincts.
+- Fonction `formatConvLabel(conv, user)` :
+  - `channel === "whatsapp"` → numéro WhatsApp formaté (`+229 97 12 34 56`), avatar avec initiales du numéro.
+  - `channel === "app"` / utilisateur authentifié → `display_name` ou e‑mail du profil, avatar avec initiales du nom.
+  - `channel === "web"` ou fallback → ID court stable : `Web #` + 6 derniers caractères de l'UUID en majuscules (ex. `Web #5AB`), avatar coloré.
+- Le sous-titre reste `last_message`, l'horodatage reste `formatStamp(updated_at)`.
+- Forcer le listing exhaustif : conserver la fusion `waouhUserIds` + sessionId, mais augmenter `limit` à 200 et inclure aussi les conversations où `auth_user_id` du `waouh_users` lié = `user.id` (déjà couvert par `waouhUserIds`, on s'assure juste que le hook renvoie bien tous les `waouh_users` du compte, y compris ceux à canal `whatsapp` et `app`).
+- Recherche : étendre le filtre à label + last_message.
 
-### 3. Fix "Détecter ma position" sur mobile natif
+## 2. `ChatScreen.tsx` — historique visible et réponses universelles
 
-**Fichier : `src/app-mobile/screens/partner/BusinessFormNativeScreen.tsx`** — fonction `detectLocation`
-- Détecter Capacitor via `Capacitor.isNativePlatform()`.
-- Sur natif : utiliser `@capacitor/geolocation` (déjà installé) :
-  ```ts
-  import { Geolocation } from '@capacitor/geolocation';
-  const perm = await Geolocation.requestPermissions();
-  if (perm.location !== 'granted') { toast(...); return; }
-  const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 });
-  ```
-- Sur web : garder `navigator.geolocation.getCurrentPosition` actuel.
-- Unifier le traitement post-position (set state + appel `ai.run('reverse_geocode', …)`) dans une fonction interne `applyPosition(lat, lng)`.
-- Ajouter un état `gpsLoading` pour désactiver le bouton et afficher le spinner pendant toute la durée (permission + position + reverse geocode).
-- Toasts d'erreur explicites : permission refusée, timeout, GPS désactivé.
+La page est blanche parce qu'aucune ligne `waouh_messages` n'a `conversation_id` rempli pour les vieilles conversations web. Correctifs :
 
-### Détails techniques
-- Aucune migration DB nécessaire (les colonnes Mobile Money/téléphone du partenaire et de l'entreprise restent dans la base, simplement non remplies depuis le mobile).
-- `index.mobile.html` / `capacitor.config.ts` : la permission `ACCESS_FINE_LOCATION` doit être déclarée. Le plugin `@capacitor/geolocation` l'ajoute automatiquement via gradle — rien à patcher.
-- Web (route `/partner`) : aucun changement, conserve le flux complet existant.
+- Étendre le `select` : `direction,text,created_at,attachments,channel,phone_number,web_session_id,user_id`.
+- Charger l'historique avec un `OR` :
+  - `conversation_id.eq.<id>`
+  - `phone_number.eq.<meta.phone_number>` (couvre WhatsApp et web où l'id de session est stocké dans `phone_number` comme `web:<uuid>`)
+  - `web_session_id.eq.<sessionId>` quand `meta.phone_number` ressemble à `web:<sessionId>`
+  - `user_id.eq.<meta.user_id>` (waouh_users.id de la conversation)
+- Trier `created_at asc`, dédupliquer par `id`.
+- Réabonnements realtime : un canal par filtre actif (`conversation_id`, `phone_number`, `user_id`) pour capter les nouveaux messages quelle que soit la source.
+- En-tête : afficher le même `formatConvLabel` que la liste + badge canal (Web / WhatsApp / App).
+- Envoi : conserver la logique actuelle, mais router selon `meta.channel` :
+  - `whatsapp` → edge function `waha-send-message` (déjà présent).
+  - `web` / `app` → insert dans `waouh_messages` + appel `waouh-webhook` pour que l'IA réponde (même mécanique que WAOUH).
+- Appliquer la classe `waouh-chat-bg` (déjà en place) — vérifier que `min-h-[100dvh]` n'écrase pas le fond.
+
+## 3. `WaouhChatScreen.tsx` — historique + fond unifié
+
+- Passer un fond `waouh-chat-bg` au conteneur de `WaouhWebChat` (variant native) en remplaçant la photo de fond actuelle.
+- Dans `WaouhWebChat.tsx` (chargement historique L86–144) :
+  - Remplacer le filtre `user_id.eq.<auth.uid()>` par `user_id.in.(<waouhUserIds>)` en utilisant le hook `useWaouhIdentity` (la colonne `user_id` référence `waouh_users.id`, pas `auth.users.id` — d'où l'historique vide).
+  - Conserver le filtre session, fusionner les deux résultats, dédupliquer par `id`, trier `created_at asc`, `limit 500`.
+  - Abonnements realtime : un canal par `waouh_users.id` + un canal session.
+- Vider l'affichage "vide" uniquement quand `loading=false && messages.length===0`.
+
+## 4. Fond chat par défaut
+
+- Conserver `src/app-mobile/theme/chat-bg.css` (`waouh-chat-bg`) comme fond officiel.
+- L'appliquer dans : `ChatScreen` (déjà), `WaouhChatScreen` (nouveau), et au panneau `WaouhWebChat` variant `native` (remplacer le fond image actuel).
+- Ne pas modifier `waouh-chat-list-bg` (fond plus léger de la liste).
+
+---
+
+## Fichiers touchés
+
+- `src/app-mobile/screens/ChatListScreen.tsx`
+- `src/app-mobile/screens/ChatScreen.tsx`
+- `src/app-mobile/screens/WaouhChatScreen.tsx`
+- `src/components/waouh/WaouhWebChat.tsx` (uniquement le chargement historique + fond panel native)
+- `src/app-mobile/hooks/useWaouhIdentity.ts` (exposer aussi les `waouh_users` complets pour récupérer `display_name`/`phone_number`/`channel` côté liste)
+
+Aucune migration SQL nécessaire — toutes les colonnes utilisées existent déjà (`waouh_users.display_name`, `phone_number`, `channel`, `auth_user_id`).
