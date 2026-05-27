@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { normalizeBeninWhatsApp } from '@/lib/phone';
+import { normalizeBeninWhatsApp, normalizePhone } from '@/lib/phone';
 import { toast } from 'sonner';
 
 export interface WaContact {
@@ -55,15 +55,26 @@ export function useWaDiffusion() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const addContact = useCallback(async (input: { phone: string; display_name?: string; tags?: string[] }) => {
+  const addContact = useCallback(async (input: { phone: string; display_name?: string; tags?: string[]; countryCode?: string }) => {
     if (!user) return;
-    const norm = normalizeBeninWhatsApp(input.phone);
-    if (!norm.valid) { toast.error('Numéro Bénin invalide'); return; }
+    const cc = input.countryCode || 'BJ';
+    let phone_e164 = '';
+    let phone_8: string | null = null;
+    let phone_10: string | null = null;
+    if (cc === 'BJ') {
+      const norm = normalizeBeninWhatsApp(input.phone);
+      if (!norm.valid) { toast.error(norm.reason || 'Numéro Bénin invalide'); return; }
+      phone_e164 = norm.e164_10 || norm.e164_8;
+      phone_8 = norm.e164_8 || null;
+      phone_10 = norm.e164_10 || null;
+    } else {
+      const n = normalizePhone(input.phone, cc);
+      if (!n.valid) { toast.error(n.reason || 'Numéro invalide'); return; }
+      phone_e164 = n.e164;
+    }
     const { error } = await supabase.from('wa_contacts').insert({
       user_id: user.id,
-      phone_e164: norm.e164_10 || norm.e164_8,
-      phone_8: norm.e164_8 || null,
-      phone_10: norm.e164_10 || null,
+      phone_e164, phone_8, phone_10,
       display_name: input.display_name ?? null,
       tags: input.tags ?? [],
       source: 'manual',
@@ -77,20 +88,28 @@ export function useWaDiffusion() {
     await refresh();
   }, [user, refresh]);
 
-  const bulkAdd = useCallback(async (items: Array<{ phone: string; name?: string }>) => {
+  const bulkAdd = useCallback(async (items: Array<{ phone: string; name?: string; countryCode?: string }>) => {
     if (!user) return { added: 0, dup: 0, invalid: 0 };
     let added = 0, dup = 0, invalid = 0;
     const rows: any[] = [];
     const seen = new Set(contacts.map(c => c.phone_e164));
     for (const it of items) {
-      const n = normalizeBeninWhatsApp(it.phone);
-      if (!n.valid) { invalid++; continue; }
-      const key = n.e164_10 || n.e164_8;
+      const cc = it.countryCode || 'BJ';
+      let key = ''; let p8: string | null = null; let p10: string | null = null;
+      if (cc === 'BJ') {
+        const n = normalizeBeninWhatsApp(it.phone);
+        if (!n.valid) { invalid++; continue; }
+        key = n.e164_10 || n.e164_8; p8 = n.e164_8 || null; p10 = n.e164_10 || null;
+      } else {
+        const n = normalizePhone(it.phone, cc);
+        if (!n.valid) { invalid++; continue; }
+        key = n.e164;
+      }
       if (seen.has(key)) { dup++; continue; }
       seen.add(key);
       rows.push({
         user_id: user.id, phone_e164: key,
-        phone_8: n.e164_8 || null, phone_10: n.e164_10 || null,
+        phone_8: p8, phone_10: p10,
         display_name: it.name ?? null, source: 'import',
       });
     }

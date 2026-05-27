@@ -5,16 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, QrCode, RefreshCw, Power, Trash2 } from 'lucide-react';
+import { Loader2, QrCode, RefreshCw, Power, Trash2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { toast } from 'sonner';
 import { normalizeBeninWhatsApp } from '@/lib/phone';
+import { useWAHADashboard } from '@/hooks/useWAHADashboard';
 import type { DiffSession } from '@/hooks/useDiffusionSessions';
-
-const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-const CHANNEL_IN_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/waouh-channel-in`;
 
 interface Props {
   open: boolean;
@@ -23,9 +21,12 @@ interface Props {
   initial?: DiffSession | null;
 }
 
+const ACTIVE = new Set(['WORKING', 'connected']);
+
 export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initial }) => {
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
+  const waha = useWAHADashboard();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [isShared, setIsShared] = useState(false);
@@ -46,33 +47,38 @@ export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initi
     }
   }, [open, initial]);
 
-  const callWaha = async (action: string, payload?: any) => {
-    const { data, error } = await supabase.functions.invoke('waouh-waha-control', {
-      body: { action, session: name, ...payload },
-    });
-    if (error) throw new Error(error.message || 'Erreur WAHA');
-    return data;
-  };
+  // Sync live status from WAHA when dialog opens / sessions list refreshes
+  useEffect(() => {
+    if (!open || !name) return;
+    const live = waha.sessions.find(s => s.name === name);
+    if (live && live.status !== status) {
+      setStatus(live.status);
+      if (initial?.id) {
+        supabase.from('whatsapp_accounts').update({ status: live.status, last_activity: new Date().toISOString() }).eq('id', initial.id).then(() => {});
+      }
+      if (ACTIVE.has(live.status)) setQr(null);
+    }
+  }, [open, name, waha.sessions, status, initial?.id]);
 
   const refreshStatus = async () => {
     if (!name) return;
+    setBusy(true);
     try {
-      const data = await callWaha('session-status');
-      if (data?.status) {
-        setStatus(data.status);
-        await supabase.from('whatsapp_accounts').update({ status: data.status }).eq('id', initial?.id ?? '');
-      }
-    } catch (e: any) { /* silent */ }
+      await waha.refreshSessions();
+      const live = waha.sessions.find(s => s.name === name);
+      if (live) setStatus(live.status);
+    } finally { setBusy(false); }
   };
 
   const loadQr = async () => {
+    if (!name) return;
+    if (ACTIVE.has(status)) { toast.info('Session déjà connectée — aucun QR nécessaire.'); return; }
     setBusy(true);
     try {
-      const data = await callWaha('get-qr');
-      const img = data?.qr || data?.image;
-      if (img) setQr(img);
-      else toast.info(status === 'WORKING' ? 'Session déjà connectée' : 'QR indisponible');
-    } catch (e: any) { toast.error(e.message); }
+      const data = await waha.getQRCode(name);
+      if (data?.qr) setQr(data.qr);
+      else toast.info('QR indisponible');
+    } catch (e: any) { toast.error(e.message || 'Erreur QR'); }
     finally { setBusy(false); }
   };
 
@@ -109,17 +115,18 @@ export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initi
         row = upd.data as any;
       }
 
-      // 2) Create + start WAHA session with webhook
-      try {
-        await callWaha('session-create', {
-          config: { webhooks: [{ url: CHANNEL_IN_URL, events: ['message'] }] },
-        });
-      } catch (e) { /* may already exist */ }
-      await callWaha('session-start');
+      // 2) Create + start WAHA session (idempotent — ignore "already exists")
+      try { await waha.createSession(name.trim()); } catch { /* may already exist */ }
+      try { await waha.startSession(name.trim()); } catch { /* may already running */ }
 
-      // 3) Try loading QR
-      setTimeout(loadQr, 1500);
-      toast.success(`Session « ${name} » prête. Scannez le QR.`);
+      // 3) Refresh status, attempt QR if not connected
+      await waha.refreshSessions();
+      const live = waha.sessions.find(s => s.name === name.trim());
+      if (live) setStatus(live.status);
+      if (!live || !ACTIVE.has(live.status)) {
+        setTimeout(loadQr, 1500);
+      }
+      toast.success(`Session « ${name} » prête.`);
       onSaved();
     } catch (e: any) {
       toast.error(e.message || 'Erreur');
@@ -130,7 +137,7 @@ export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initi
 
   const stop = async () => {
     setBusy(true);
-    try { await callWaha('session-stop'); setQr(null); toast.success('Session arrêtée'); refreshStatus(); }
+    try { await waha.stopSession(name); setQr(null); setStatus('STOPPED'); }
     catch (e: any) { toast.error(e.message); }
     finally { setBusy(false); }
   };
@@ -140,7 +147,7 @@ export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initi
     if (!confirm(`Supprimer la session « ${initial.session_name} » ?`)) return;
     setBusy(true);
     try {
-      try { await callWaha('session-stop'); } catch { /* ignore */ }
+      try { await waha.deleteSession(initial.session_name); } catch { /* ignore */ }
       await supabase.from('whatsapp_accounts').delete().eq('id', initial.id);
       toast.success('Session supprimée');
       onSaved(); onClose();
@@ -148,15 +155,17 @@ export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initi
     finally { setBusy(false); }
   };
 
-  const statusColor = status === 'WORKING' || status === 'connected' ? 'bg-green-500' : status === 'SCAN_QR_CODE' ? 'bg-yellow-500' : 'bg-gray-400';
+  const isConnected = ACTIVE.has(status);
+  const statusColor = isConnected ? 'bg-green-500' : status === 'SCAN_QR_CODE' ? 'bg-yellow-500' : status === 'STARTING' ? 'bg-blue-500' : 'bg-gray-400';
+  const statusLabel = isConnected ? 'Connecté ✓' : status;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90dvh] overflow-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             {initial ? 'Configurer la session WAHA' : 'Nouvelle session WAHA'}
-            <Badge className={statusColor + ' text-white'}>{status}</Badge>
+            <Badge className={statusColor + ' text-white'}>{statusLabel}</Badge>
           </DialogTitle>
         </DialogHeader>
         <div className="grid md:grid-cols-2 gap-4">
@@ -186,7 +195,7 @@ export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initi
                 {busy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Power className="w-4 h-4 mr-1" />}
                 {initial ? 'Enregistrer & redémarrer' : 'Créer & démarrer'}
               </Button>
-              <Button variant="outline" onClick={loadQr} disabled={busy || !name}><QrCode className="w-4 h-4 mr-1" /> QR</Button>
+              <Button variant="outline" onClick={loadQr} disabled={busy || !name || isConnected}><QrCode className="w-4 h-4 mr-1" /> QR</Button>
               <Button variant="outline" onClick={refreshStatus} disabled={busy || !name}><RefreshCw className="w-4 h-4 mr-1" /> Statut</Button>
               {initial && (
                 <>
@@ -198,14 +207,18 @@ export const WaSessionDialog: React.FC<Props> = ({ open, onClose, onSaved, initi
           </div>
 
           <div className="flex flex-col items-center justify-center p-4 bg-muted/30 rounded-lg min-h-[280px]">
-            {busy && !qr ? <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            {isConnected ? (
+              <div className="text-center text-sm">
+                <CheckCircle2 className="w-14 h-14 mx-auto mb-2 text-green-600" />
+                <div className="font-semibold text-green-700">Session WhatsApp connectée</div>
+                <div className="text-muted-foreground mt-1">Aucun QR nécessaire. Vous pouvez lancer vos campagnes.</div>
+              </div>
+            ) : busy && !qr ? <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               : qr ? <img src={qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`} alt="QR WhatsApp" className="max-w-full max-h-72" />
               : (
                 <div className="text-center text-sm text-muted-foreground">
                   <QrCode className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  {status === 'WORKING' || status === 'connected'
-                    ? 'Session connectée. Aucun QR nécessaire.'
-                    : 'Lancez la session puis cliquez sur QR pour scanner avec WhatsApp.'}
+                  Lancez la session puis cliquez sur QR pour scanner avec WhatsApp.
                 </div>
               )}
           </div>
