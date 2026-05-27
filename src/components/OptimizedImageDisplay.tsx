@@ -18,6 +18,7 @@ export const OptimizedImageDisplay: React.FC<OptimizedImageDisplayProps> = ({
   showPrice = false 
 }) => {
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [finalImageUrl, setFinalImageUrl] = useState<string>('');
   const [detectedPrice, setDetectedPrice] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
