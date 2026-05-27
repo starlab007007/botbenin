@@ -314,7 +314,7 @@ function CreateSessionSheet({ open, onOpenChange, onCreate }: any) {
   const [name, setName] = useState("");
   useEffect(() => { if (open) setName(`session-${Date.now().toString().slice(-6)}`); }, [open]);
   return (
-    <SheetShell open={open} onOpenChange={onOpenChange} title="Nouvelle session WhatsApp">
+    <SheetShell open={open} onOpenChange={onOpenChange} title="Nouvelle session WhatsApp IA">
       <div className="space-y-4">
         <div>
           <label className="text-sm font-medium mb-1.5 block">Nom de la session</label>
