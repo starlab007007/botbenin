@@ -1,86 +1,126 @@
-## Contexte
+## Objectif
 
-Aujourd'hui, le composant `WhatsAppDiffusionV2` lit les sessions depuis la table `whatsapp_accounts` filtrée par `user_id = auth.uid()`. Chaque utilisateur ne voit donc que **ses propres** sessions WAHA. Le worker (`whatsapp-diffusion-worker`) récupère ensuite `session_name` + `phone_number` dans cette même table pour appeler WAHA (`/api/sendText`, `sendImage`, etc.) via `WAHA_BASE_URL` + `WAHA_API_KEY`.
+Transformer l'onglet "Campagnes" de WhatsApp Diffusion en un véritable centre de pilotage : vérifier que chaque numéro est bien sur WhatsApp (double check avec et sans le préfixe `01`), suivre chaque envoi individuellement (envoyé / livré ✓✓ / lu ✓✓ bleu / répondu / erreur), et offrir des actions intelligentes (voir, simuler, modifier, supprimer, relancer les erreurs).
 
-La session « WaouhApp » créée dans `WaouhWhatsAppPanel` est en réalité une session **globale partagée** côté WAHA (le nom est codé en dur dans le panneau), mais elle n'est **pas enregistrée** comme ligne dans `whatsapp_accounts` → elle n'apparaît donc dans aucun sélecteur de campagne.
+La base de données est déjà prête (`wa_send_jobs` contient `sent_at`, `delivered_at`, `read_at`, `replied_at`, `status`, `last_error`, `attempt`). Il reste à brancher la vérification WhatsApp, le webhook de statuts WAHA, et à construire l'UI.
 
-## Comment fonctionnera une session WAHA liée à la diffusion
+---
 
-```text
-Compte utilisateur          whatsapp_accounts            Serveur WAHA
-  (auth.uid)        ──►   { id, session_name,    ──►   Session WhatsApp
-                            phone_number,                (QR scanné)
-                            status }
-                                                       │
-Campagne ─► session_id ──► session_name ───► POST /api/sendText
-                                                       │
-                                              Téléphone WhatsApp
-                                              (envoi réel)
-```
+## 1. Vérification "Est-ce un numéro WhatsApp ?"
 
-- Une **session WAHA** = un téléphone WhatsApp scanné une fois via QR.
-- Une ligne dans `whatsapp_accounts` = le pont entre l'utilisateur Lovable et cette session WAHA (porte le `session_name`).
-- Au lancement d'une campagne, le worker prend `campaign.session_id` → lit `session_name` → l'utilise dans tous les appels `POST {WAHA_BASE_URL}/api/sendText {session, chatId, text}`.
-- L'anti-ban (throttle/h, délais 25-75 s, heures actives) s'applique **par session** : on ne dépasse pas le quota d'un même numéro.
+Au lieu d'envoyer aveuglément, chaque contact reçoit un statut WhatsApp visible.
 
-## Ce qui change
+- Nouveau bouton **"Vérifier WhatsApp"** sur l'onglet Contacts et dans le wizard de campagne (étape ciblage).
+- Edge function `whatsapp-check-numbers` qui appelle `POST /api/contacts/check-exists` de WAHA pour chaque numéro :
+  1. Essai 1 : format **avec `01`** → `22901XXXXXXXX`
+  2. Essai 2 (si KO) : format **sans `01`** → `229XXXXXXXX`
+  3. Le format gagnant est mémorisé dans `wa_contacts.phone_e164` et `is_whatsapp = true/false`, `last_validated_at = now()`.
+- Badge couleur dans la liste de contacts :
+  - 🟢 Vert "WhatsApp ✓"
+  - 🔴 Rouge "Pas sur WhatsApp"
+  - ⚪ Gris "Non vérifié"
+- Au lancement d'une campagne : alerte si des contacts ne sont pas vérifiés, avec un bouton "Vérifier maintenant" (batch en arrière-plan).
 
-### 1. Rattacher la session « WaouhApp » au compte admin Bot Bj
-Insertion d'une ligne dans `whatsapp_accounts` :
-- `user_id` = UUID de `bot.bjdata@gmail.com` (récupéré via `auth.users`)
-- `session_name = 'WaouhApp'`, `phone_number` = à renseigner par l'admin, `status = 'connected'`
-- Marquée `is_admin_shared = true` (nouvelle colonne booléenne) pour la rendre visible à tous les utilisateurs comme session partagée.
+## 2. Suivi des statuts d'envoi (✓ ✓✓ ✓✓ bleu)
 
-### 2. Sélecteur de sessions enrichi dans la diffusion
-Le hook `useWaDiffusion` (ou un nouveau `useDiffusionSessions`) chargera :
-- Les sessions personnelles : `whatsapp_accounts where user_id = me`
-- + Les sessions partagées admin : `where is_admin_shared = true`
+- Nouvelle edge function `whatsapp-waha-webhook` (publique, `verify_jwt = false`) qui reçoit les events WAHA : `message.ack` (sent / delivered / read), `message.failed`, `message.reply`.
+- Mapping ACK WAHA → colonnes de `wa_send_jobs` :
+  - `ACK_SENT` → `sent_at` + status `sent` → icône ✓ gris
+  - `ACK_DEVICE`/`DELIVERED` → `delivered_at` + status `delivered` → ✓✓ gris
+  - `ACK_READ` → `read_at` + status `read` → **✓✓ bleu**
+  - `ACK_REPLIED` ou message entrant matchant → `replied_at` → 💬 bleu
+  - `failed` → `last_error` + status `failed`
+- L'URL du webhook est ajoutée automatiquement à la session WAHA via `waouh-waha-control` (event `session.create` / `session.update`).
+- Realtime Supabase sur `wa_send_jobs` pour rafraîchir la vue campagne sans rechargement.
 
-Affichage groupé dans le `Select` de `NewCampaignDialog` :
-```text
-── Mes sessions ──
-  Pro 01 6X XX XX XX  ✅
-── Partagées (Bot Bj) ──
-  WaouhApp 01 4X XX XX XX  ✅
-```
+## 3. Dashboard campagne (nouvelle vue détaillée)
 
-### 3. Création / configuration de session depuis la page Diffusion
-Ajout d'un **4ᵉ onglet** « Sessions WAHA » dans `WhatsAppDiffusionV2` avec :
-- Liste des sessions accessibles (mêmes que le sélecteur, badges statut)
-- Bouton **« + Nouvelle session »** → dialogue qui :
-  1. demande un nom (ex. « Diffusion-Promo ») + numéro Bénin (normalisé 10 chiffres)
-  2. appelle `waouh-waha-control` action `session-create` puis `session-start`
-  3. crée la ligne `whatsapp_accounts` correspondante
-  4. affiche le **QR** inline (réutilise la logique de `WaouhWhatsAppPanel`)
-- Bouton **« Configurer »** sur chaque ligne → édition `session_name`, `phone_number`, redémarrage/arrêt, regénération QR, suppression.
+Remplace la simple ligne de campagne par une **Card cliquable** qui ouvre un dialog plein écran `CampaignDetailsDialog.tsx` avec 4 onglets :
 
-### 4. Flux UX lors de la création d'une campagne
-Dans `NewCampaignDialog`, si l'utilisateur n'a **aucune** session disponible :
-- Bloc d'appel à l'action : *« Vous n'avez pas encore de session WhatsApp. »*
-- Bouton **« Créer une session »** (ouvre le même dialogue que l'onglet Sessions)
-- Bouton **« Utiliser la session partagée WaouhApp »** (si disponible)
+### Onglet "Vue d'ensemble"
+KPIs en cartes colorées :
+- 👥 Cibles : N
+- 📤 Envoyés : N (%)
+- ✓✓ Livrés : N (%)
+- 👁️ Lus : N (%) ← compteur bleu
+- 💬 Répondus : N
+- ❌ Erreurs : N (avec bouton "Tout relancer")
 
-S'il en a déjà → le `Select` actuel est conservé, avec groupes Mes / Partagées.
+Graphique progression dans le temps (recharts, ligne envois/livrés/lus).
+
+### Onglet "Destinataires"
+Tableau dynamique des `wa_send_jobs` :
+| Numéro | Nom | Statut visuel | Heure d'envoi | Heure de lecture | Erreur | Actions |
+
+Statut visuel = jeu d'icônes WhatsApp natives :
+- ⏳ En attente · ✓ Envoyé · ✓✓ Livré · **✓✓ bleu** Lu · 💬 Répondu · ❌ Échec
+
+Actions par ligne : **Relancer**, **Voir la réponse**, **Voir conversation** (si message entrant reçu).
+
+### Onglet "Aperçu / Simulation"
+Reprend `WhatsAppCampaignPreview` existant en mode "mockup téléphone" :
+- Bulle WhatsApp avec le rendu réel du message (texte + média)
+- Variantes IA défilantes si activées
+- Bandeau "Aperçu chez le destinataire"
+
+### Onglet "Erreurs"
+Liste regroupée par type d'erreur (`number_not_on_whatsapp`, `rate_limited`, `session_disconnected`, etc.) avec :
+- Message clair en français
+- Suggestion de correction
+- Bouton **"Réessayer ces N envois"** → remet `status = queued`, `attempt += 1`, `scheduled_at = now()`
+
+## 4. Actions sur la carte campagne
+
+Menu contextuel sur chaque campagne dans la liste :
+- 👁️ **Voir** → ouvre le dialog ci-dessus
+- ✏️ **Modifier** → réouvre le wizard (uniquement si `status in ('draft','scheduled')`)
+- 📋 **Dupliquer**
+- ⏸️ **Mettre en pause** / ▶️ Reprendre (modifie status + arrête le worker)
+- 🔁 **Relancer les échecs**
+- 🗑️ **Supprimer** (confirmation, cascade sur `wa_send_jobs`)
+
+## 5. Hook & realtime
+
+Nouveau hook `useCampaignDetails(campaignId)` :
+- Charge la campagne + tous ses `wa_send_jobs` (+ jointure `wa_contacts` pour nom)
+- Abonnement realtime `postgres_changes` sur `wa_send_jobs` filtré par `campaign_id`
+- Calcule les stats dérivées (counts par statut, %)
+- Expose `retryFailed()`, `retryOne(jobId)`, `pause()`, `resume()`, `remove()`
+
+---
 
 ## Détails techniques
 
-- **Migration SQL** :
-  - `ALTER TABLE whatsapp_accounts ADD COLUMN is_admin_shared boolean NOT NULL DEFAULT false;`
-  - Policy RLS additionnelle : `SELECT` autorisé aussi quand `is_admin_shared = true`.
-  - Seul un admin (table `user_roles` role `admin`) peut `UPDATE`/`INSERT` une ligne avec `is_admin_shared = true`.
-  - Insertion de la ligne WaouhApp pour l'utilisateur `bot.bjdata@gmail.com` (via `insert tool`, pas migration).
+**Nouvelles tables / colonnes** : aucune. `wa_contacts.is_whatsapp` et `wa_send_jobs` existent déjà.
 
-- **Frontend** :
-  - Nouveau hook `useDiffusionSessions.ts` retournant `{ mine: [], shared: [] }`.
-  - Nouveau composant `WaDiffusionSessionsTab.tsx` (liste + actions).
-  - Nouveau composant `WaSessionDialog.tsx` (création/édition avec QR).
-  - Mise à jour `WhatsAppDiffusionV2.tsx` : 4 onglets (Contacts, Campagnes, Sessions, Stats) + groupes dans le sélecteur de `NewCampaignDialog`.
+**Nouvelles edge functions** :
+- `whatsapp-check-numbers` (POST, JWT requis) — input `{ contactIds[] }`, output `{ checked, onWhatsApp, notOnWhatsApp }`.
+- `whatsapp-waha-webhook` (POST, public) — reçoit les ACK et update `wa_send_jobs`.
 
-- **Edge function** : aucune nouvelle ; on réutilise `waouh-waha-control` (actions `session-create`, `session-start`, `session-stop`, `get-qr`, `session-status`, `set-webhook`).
+**Edge functions modifiées** :
+- `waouh-waha-control` : auto-enregistrer le webhook ACK à la création de session.
+- `whatsapp-diffusion-worker` : sur succès, stocker `waha_message_id` (déjà prévu), sur échec stocker un `error_code` machine-friendly.
 
-- **Worker** : aucune modification — il lit déjà `session_name` depuis `whatsapp_accounts`, donc compatible avec sessions perso et partagées.
+**Nouveaux composants** :
+- `src/components/whatsapp/CampaignDetailsDialog.tsx` (4 onglets)
+- `src/components/whatsapp/CampaignSendStatus.tsx` (jeu d'icônes ✓ ✓✓ ✓✓-bleu)
+- `src/components/whatsapp/CampaignSimulator.tsx` (mockup téléphone)
+- `src/components/whatsapp/ContactsWhatsAppCheck.tsx` (badge + bouton vérifier)
 
-## Hors scope
+**Composants modifiés** :
+- `WhatsAppDiffusionV2.tsx` : carte campagne enrichie + menu actions.
+- `WhatsAppCampaignPreview.tsx` : réutilisé dans l'onglet Aperçu.
 
-- Pas de changement du moteur d'envoi, de l'anti-ban, ni de la logique IA-variants.
-- Pas de modification du mode « legacy webhook » (déjà supprimé).
+**Hooks** :
+- `src/hooks/useCampaignDetails.ts` (nouveau)
+- `src/hooks/useWaDiffusion.ts` : ajout de `retryFailed`, `pauseCampaign`, `resumeCampaign`, `deleteCampaign`, `verifyContacts`.
+
+**Secret requis** : `WAHA_WEBHOOK_TOKEN` (signature partagée pour valider que le webhook vient bien de WAHA).
+
+---
+
+## Livraison en 3 étapes
+
+1. **Backend & vérification** — edge function `whatsapp-check-numbers`, webhook ACK, mise à jour de `waouh-waha-control` pour enregistrer le webhook.
+2. **UI Détails campagne** — dialog 4 onglets, hook realtime, icônes de statut WhatsApp natives.
+3. **Actions intelligentes** — relance erreurs, pause/reprise, édition, duplication, suppression, simulation chez le destinataire.
