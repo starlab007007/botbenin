@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Loader2, Plus, Pencil, Trash2, ArrowLeft, ImageOff } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, ArrowLeft, ImageOff, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import ProductFormNativeScreen from './ProductFormNativeScreen';
+import ProductViewerDialog from './ProductViewerDialog';
 
 export default function PartnerProductsNativeScreen() {
   const params = useParams();
@@ -22,6 +23,7 @@ export default function PartnerProductsNativeScreen() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [viewing, setViewing] = useState<any>(null);
 
   const load = async () => {
     setLoading(true);
@@ -83,7 +85,12 @@ export default function PartnerProductsNativeScreen() {
           return (
             <div key={p.id} className="rounded-xl border bg-card overflow-hidden shadow-sm">
               <div className="flex gap-3 p-3">
-                <div className="w-20 h-20 bg-muted rounded-lg overflow-hidden shrink-0 relative">
+                <button
+                  type="button"
+                  onClick={() => setViewing(p)}
+                  className="w-20 h-20 bg-muted rounded-lg overflow-hidden shrink-0 relative active:scale-95 transition-transform"
+                  aria-label="Voir le produit"
+                >
                   {photos[0] ? (
                     <img src={photos[0]} alt={p.nom} loading="lazy" className="w-full h-full object-cover" />
                   ) : (
@@ -91,7 +98,7 @@ export default function PartnerProductsNativeScreen() {
                       <ImageOff className="h-6 w-6" />
                     </div>
                   )}
-                </div>
+                </button>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <h3 className="font-medium truncate">{p.nom}</h3>
@@ -109,6 +116,9 @@ export default function PartnerProductsNativeScreen() {
                     </p>
                   )}
                   <div className="flex gap-1 mt-2">
+                    <Button size="sm" variant="secondary" className="h-8" onClick={() => setViewing(p)}>
+                      <Eye className="h-3 w-3 mr-1" />Voir
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -164,6 +174,14 @@ export default function PartnerProductsNativeScreen() {
           onSaved={load}
         />
       )}
+
+      <ProductViewerDialog
+        product={viewing}
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        onUpdated={load}
+        onEditFull={() => { setEditing(viewing); setViewing(null); setFormOpen(true); }}
+      />
     </>
   );
 }
