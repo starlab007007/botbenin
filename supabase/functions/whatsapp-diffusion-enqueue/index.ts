@@ -9,6 +9,39 @@ const corsHeaders = {
 
 const ACTIVE_STATUSES = new Set(["WORKING", "connected"]);
 
+function buildWahaHeaderVariants() {
+  const variants: Record<string, string>[] = [];
+  const plain = Deno.env.get("WAHA_API_KEY_PLAIN")?.trim();
+  const rawKey = Deno.env.get("WAHA_API_KEY")?.trim();
+  const key = plain || (rawKey && !rawKey.startsWith("sha512:") ? rawKey : "");
+  if (key) {
+    variants.push(
+      { "X-Api-Key": key, "Content-Type": "application/json", Accept: "application/json" },
+      { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+    );
+  }
+  const user = Deno.env.get("WAHA_DASHBOARD_USERNAME");
+  const pass = Deno.env.get("WAHA_DASHBOARD_PASSWORD");
+  if (user && pass) variants.push({ Authorization: `Basic ${btoa(`${user}:${pass}`)}`, "Content-Type": "application/json", Accept: "application/json" });
+  if (variants.length === 0) variants.push({ "Content-Type": "application/json", Accept: "application/json" });
+  return variants;
+}
+
+async function fetchLiveStatus(base: string, sessionName: string): Promise<string | null> {
+  if (!base) return null;
+  for (const headers of buildWahaHeaderVariants()) {
+    try {
+      const res = await fetch(`${base}/api/sessions/${encodeURIComponent(sessionName)}`, { method: "GET", headers });
+      if (res.ok) {
+        const j = await res.json().catch(() => ({}));
+        return (j?.status ?? j?.data?.status ?? j?.state ?? null) as string | null;
+      }
+      if (res.status !== 401 && res.status !== 403) return null;
+    } catch (_) { /* try next */ }
+  }
+  return null;
+}
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -74,16 +107,29 @@ serve(async (req) => {
       return json({ ok: false, code: "NO_SESSION", error: "La campagne n’a pas de session WhatsApp valide." });
     }
 
-    if (!ACTIVE_STATUSES.has(session.status)) {
+    // Live status check (DB may be stale)
+    const wahaBase = (Deno.env.get("WAHA_BASE_URL") || "").replace(/\/+$/, "").replace(/\/dashboard$/, "");
+    let liveStatus: string | null = session.status;
+    try {
+      const live = await fetchLiveStatus(wahaBase, session.session_name);
+      if (live) {
+        liveStatus = live;
+        if (live !== session.status) {
+          await admin.from("whatsapp_accounts").update({ status: live, last_activity: new Date().toISOString() }).eq("id", session.id);
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    if (!ACTIVE_STATUSES.has(liveStatus || "")) {
       await admin.from("wa_campaigns").update({ status: "failed", stats: { total: 0, failed: 0, queued: 0, sent: 0 } }).eq("id", campaign.id);
       await admin.from("wa_campaign_events").insert({
         campaign_id: campaign.id,
         user_id: userId,
         level: "error",
-        message: `Session ${session.session_name} déconnectée (${session.status})`,
-        payload: { sessionId: session.id, status: session.status },
+        message: `Session ${session.session_name} déconnectée (${liveStatus})`,
+        payload: { sessionId: session.id, status: liveStatus },
       });
-      return json({ ok: false, code: "SESSION_DISCONNECTED", error: `La session ${session.session_name} est ${session.status}. Reconnectez-la avant de lancer la campagne.` });
+      return json({ ok: false, code: "SESSION_DISCONNECTED", error: `La session ${session.session_name} est ${liveStatus}. Reconnectez-la avant de lancer la campagne.` });
     }
 
     const { count: existingCount } = await admin

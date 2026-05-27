@@ -255,6 +255,20 @@ export function useWaDiffusion() {
     await refresh();
   }, [user, refresh]);
 
+  // Relance complète : purge jobs + reset stats + re-enqueue + worker immédiat
+  const relaunchCampaign = useCallback(async (campaignId: string) => {
+    toast.loading('Relance en cours…', { id: 'relaunch' });
+    await supabase.from('wa_send_jobs').delete().eq('campaign_id', campaignId);
+    await supabase.from('wa_campaigns').update({
+      status: 'draft',
+      stats: { total: 0, queued: 0, sent: 0, failed: 0, delivered: 0, read: 0, replied: 0, skipped: 0, sending: 0, pending: 0 },
+    }).eq('id', campaignId);
+    toast.dismiss('relaunch');
+    const { data: c } = await supabase.from('wa_campaigns').select('*').eq('id', campaignId).single();
+    if (!c) { toast.error('Campagne introuvable'); return false; }
+    return launchCampaign(campaignId, { generateVariants: (c as any).ai_variation, body: (c as any).body });
+  }, [launchCampaign]);
+
   const verifyContacts = useCallback(async (contactIds: string[], sessionId?: string) => {
     if (!contactIds.length) { toast.error('Aucun contact sélectionné'); return; }
     toast.loading(`Vérification de ${contactIds.length} numéro(s)…`, { id: 'verify' });
@@ -279,6 +293,6 @@ export function useWaDiffusion() {
     loading, contacts, lists, campaigns, refresh,
     addContact, bulkAdd, toggleOptOut, toggleArchive, removeContact,
     createList, addToList, createCampaign, launchCampaign, runWorker,
-    deleteCampaign, pauseCampaign, resumeCampaign, updateCampaign, duplicateCampaign, verifyContacts,
+    deleteCampaign, pauseCampaign, resumeCampaign, updateCampaign, duplicateCampaign, relaunchCampaign, verifyContacts,
   };
 }

@@ -107,16 +107,42 @@ serve(async (req) => {
     const sessionId: string | null = body.sessionId ?? null;
     if (!contactIds.length) return json({ ok: false, error: "Aucun contact sélectionné", checked: 0, onWhatsApp: 0, notOnWhatsApp: 0 });
 
+    const base = (Deno.env.get("WAHA_BASE_URL") || "").replace(/\/+$/, "").replace(/\/dashboard$/, "");
+    if (!base) {
+      return json({ ok: false, code: "WAHA_NOT_CONFIGURED", error: "WAHA_BASE_URL n’est pas configuré", checked: 0, onWhatsApp: 0, notOnWhatsApp: 0 });
+    }
+
+    async function liveStatusOf(name: string): Promise<string | null> {
+      try {
+        const sres = await wahaFetch(base, `/api/sessions/${encodeURIComponent(name)}`, { method: "GET" });
+        if (sres && sres.ok) {
+          const sdata = JSON.parse((await sres.text()) || "{}");
+          return (sdata?.status ?? sdata?.state ?? null) as string | null;
+        }
+      } catch (_) { /* ignore */ }
+      return null;
+    }
+
     let sessionRow: any = null;
+
+    // 1) Explicit sessionId — only use if live-connected
     if (sessionId) {
       const { data } = await admin
         .from("whatsapp_accounts")
         .select("id, user_id, is_admin_shared, session_name, status")
         .eq("id", sessionId)
         .maybeSingle();
-      if (data && (data.user_id === u.user.id || data.is_admin_shared)) sessionRow = data;
+      if (data && (data.user_id === u.user.id || data.is_admin_shared)) {
+        const live = await liveStatusOf(data.session_name);
+        if (live && live !== data.status) {
+          await admin.from("whatsapp_accounts").update({ status: live, last_activity: new Date().toISOString() }).eq("id", data.id);
+          data.status = live;
+        }
+        if (ACTIVE_STATUSES.has(data.status)) sessionRow = data;
+      }
     }
 
+    // 2) Auto-pick: load candidates, live-check each, prefer first live-connected
     if (!sessionRow) {
       const { data } = await admin
         .from("whatsapp_accounts")
@@ -124,41 +150,21 @@ serve(async (req) => {
         .or(`user_id.eq.${u.user.id},is_admin_shared.eq.true`)
         .order("created_at", { ascending: false })
         .limit(20);
-      sessionRow = (data ?? []).find((s: any) => ACTIVE_STATUSES.has(s.status)) ?? (data ?? [])[0] ?? null;
+      for (const cand of data ?? []) {
+        const live = await liveStatusOf(cand.session_name);
+        if (live && live !== cand.status) {
+          await admin.from("whatsapp_accounts").update({ status: live, last_activity: new Date().toISOString() }).eq("id", cand.id);
+          (cand as any).status = live;
+        }
+        if (ACTIVE_STATUSES.has((cand as any).status)) { sessionRow = cand; break; }
+      }
     }
 
     if (!sessionRow) {
       return json({
         ok: false,
         code: "NO_ACTIVE_SESSION",
-        error: "Aucune session WhatsApp trouvée. Créez-en une dans l’onglet Sessions.",
-        checked: 0, onWhatsApp: 0, notOnWhatsApp: 0,
-      });
-    }
-
-    const base = (Deno.env.get("WAHA_BASE_URL") || "").replace(/\/+$/, "").replace(/\/dashboard$/, "");
-    if (!base) {
-      return json({ ok: false, code: "WAHA_NOT_CONFIGURED", error: "WAHA_BASE_URL n’est pas configuré", checked: 0, onWhatsApp: 0, notOnWhatsApp: 0 });
-    }
-
-    // Live status check (DB may be stale)
-    try {
-      const sres = await wahaFetch(base, `/api/sessions/${encodeURIComponent(sessionRow.session_name)}`, { method: "GET" });
-      if (sres && sres.ok) {
-        const sdata = JSON.parse((await sres.text()) || "{}");
-        const liveStatus: string = sdata?.status ?? sdata?.state ?? sessionRow.status;
-        if (liveStatus && liveStatus !== sessionRow.status) {
-          await admin.from("whatsapp_accounts").update({ status: liveStatus, last_activity: new Date().toISOString() }).eq("id", sessionRow.id);
-          sessionRow.status = liveStatus;
-        }
-      }
-    } catch (_) { /* ignore, fallback to DB */ }
-
-    if (!ACTIVE_STATUSES.has(sessionRow.status)) {
-      return json({
-        ok: false,
-        code: "SESSION_DISCONNECTED",
-        error: `La session « ${sessionRow.session_name} » est ${sessionRow.status}. Reconnectez-la (scan QR) avant la vérification.`,
+        error: "Aucune session WhatsApp connectée. Scannez le QR d’une session dans l’onglet Sessions.",
         checked: 0, onWhatsApp: 0, notOnWhatsApp: 0,
       });
     }
