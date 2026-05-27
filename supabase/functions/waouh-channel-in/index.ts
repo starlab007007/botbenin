@@ -321,8 +321,32 @@ serve(async (req) => {
     }
     log("user", { id: user?.id });
 
+    // Upsert conversation so the operator-side app can subscribe by conversation_id.
+    // We key on user_id + channel (one open conversation per user/channel).
+    const convPhone = phone || (sessionId ? `web:${sessionId}` : "unknown");
+    let convId: string | null = null;
+    {
+      const { data: existingConv } = await sb
+        .from("waouh_conversations")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("phone_number", convPhone)
+        .maybeSingle();
+      if (existingConv?.id) {
+        convId = existingConv.id;
+      } else {
+        const { data: createdConv } = await sb
+          .from("waouh_conversations")
+          .insert({ user_id: user.id, phone_number: convPhone, state: "active" })
+          .select("id")
+          .single();
+        convId = createdConv?.id ?? null;
+      }
+    }
+
     // Persist incoming
     await sb.from("waouh_messages").insert({
+      conversation_id: convId,
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
