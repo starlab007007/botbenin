@@ -116,6 +116,9 @@ export default function PartnerProductsNativeScreen() {
                     </p>
                   )}
                   <div className="flex gap-1 mt-2">
+                    <Button size="sm" variant="secondary" className="h-8" onClick={() => setViewing(p)}>
+                      <Eye className="h-3 w-3 mr-1" />Voir
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
