@@ -166,15 +166,8 @@ export default function EmailAuthScreen() {
             </>
           )}
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={tab}
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -12 }}
-              transition={{ duration: 0.18 }}
-              className="space-y-4"
-            >
+          <div key={tab} className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-200">
+
               {tab === "register" && (
                 <NativeTextField
                   label="Nom complet"
@@ -250,8 +243,8 @@ export default function EmailAuthScreen() {
                   Mot de passe oublié ?
                 </button>
               )}
-            </motion.div>
-          </AnimatePresence>
+          </div>
+
 
           <p className="text-[11px] text-center text-muted-foreground pt-4">
             En continuant, vous acceptez nos conditions d'utilisation.
