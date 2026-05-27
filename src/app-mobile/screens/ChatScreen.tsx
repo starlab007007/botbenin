@@ -129,47 +129,55 @@ export default function ChatScreen() {
     [meta, convUser]
   );
 
-  const send = async () => {
-    if (!text.trim() || !convId) return;
-    setSending(true);
-    const body = text.trim();
-    setText("");
+  const handleFiles = async (files: FileList | null) => {
+    const list = Array.from(files ?? []);
+    if (!list.length || !convId) return;
+    setUploading(true);
     try {
-      const channel = meta?.channel ?? "web";
-      await supabase.from("waouh_messages").insert({
-        conversation_id: convId,
-        user_id: meta?.user_id ?? null,
-        phone_number: meta?.phone_number ?? null,
-        channel,
-        direction: "out",
-        text: body,
-        web_session_id: channel === "web" ? sessionId : null,
-      });
-      await supabase
-        .from("waouh_conversations")
-        .update({ last_message: body, updated_at: new Date().toISOString() })
-        .eq("id", convId);
-
-      if (channel === "whatsapp" && meta?.phone_number) {
-        await supabase.functions
-          .invoke("waha-send-message", {
-            body: { sessionName: "default", to: meta.phone_number.replace(/^\+/, ""), message: body },
-          })
-          .catch(() => {});
-      } else {
-        // Web / app → ask the WAOUH bot to reply
-        await supabase.functions
-          .invoke("waouh-webhook", {
-            body: {
-              phone_number: meta?.phone_number ?? `web:${sessionId}`,
-              text: body,
-              channel,
-              conversation_id: convId,
-              web_session_id: channel === "web" ? sessionId : undefined,
-            },
-          })
-          .catch(() => {});
+      const uploaded: Att[] = [];
+      for (const file of list.slice(0, 4)) {
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const path = `operator/${convId}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage
+          .from("waouh-uploads")
+          .upload(path, file, { contentType: file.type || "image/jpeg" });
+        if (error) throw error;
+        const { data: pub } = supabase.storage.from("waouh-uploads").getPublicUrl(path);
+        uploaded.push({ url: pub.publicUrl, type: file.type || "image/jpeg" });
       }
+      setPendingAtts((cur) => [...cur, ...uploaded]);
+    } catch (e) {
+      console.error("upload failed", e);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const send = async () => {
+    const body = text.trim();
+    if ((!body && pendingAtts.length === 0) || !convId || sending) return;
+    setSending(true);
+    const atts = pendingAtts;
+    setText("");
+    setPendingAtts([]);
+    // Optimistic bubble
+    const tempId = `temp-${Date.now()}`;
+    setMsgs((cur) => [...cur, {
+      id: tempId, direction: "out", text: body || "(image)",
+      created_at: new Date().toISOString(), attachments: atts,
+    }]);
+    try {
+      const { error } = await supabase.functions.invoke("waouh-operator-send", {
+        body: { conversation_id: convId, text: body, attachments: atts },
+      });
+      if (error) throw error;
+    } catch (e) {
+      console.error("send failed", e);
+      // Roll back optimistic message on failure
+      setMsgs((cur) => cur.filter((m) => m.id !== tempId));
+      setText(body);
+      setPendingAtts(atts);
     } finally {
       setSending(false);
     }
