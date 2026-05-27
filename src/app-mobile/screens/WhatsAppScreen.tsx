@@ -395,7 +395,7 @@ function QrSheet({ open, onOpenChange, sessionName, getQRCode, startSession, ses
   }, [open]);
 
   return (
-    <SheetShell open={open} onOpenChange={onOpenChange} title="Connecter WhatsApp">
+    <SheetShell open={open} onOpenChange={onOpenChange} title="Connecter WhatsApp IA">
       <div className="space-y-5">
         {isWorking ? (
           <div className="text-center py-8">
