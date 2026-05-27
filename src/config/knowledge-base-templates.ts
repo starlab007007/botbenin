@@ -26,7 +26,7 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
       {
         id: 'menu',
         name: 'Menu',
-        description: 'Liste complète des plats et boissons (synchronisé Google Sheets)',
+        description: 'Liste complète des plats et boissons (synchronisé)',
         required: true,
         icon: 'UtensilsCrossed',
         fields: [
@@ -241,7 +241,7 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
       {
         id: 'produits',
         name: 'Produits',
-        description: 'Catalogue de produits (synchronisé Google Sheets)',
+        description: 'Catalogue de produits (synchronisé)',
         required: true,
         icon: 'Package',
         fields: [
@@ -545,7 +545,7 @@ export const KNOWLEDGE_BASE_TEMPLATES: KnowledgeBaseTemplate[] = [
       {
         id: 'contacts',
         name: 'Contacts',
-        description: 'Liste des contacts WhatsApp pour campagnes (synchronisé Google Sheets)',
+        description: 'Liste des contacts WhatsApp pour campagnes (synchronisé)',
         required: true,
         icon: 'MessageCircle',
         fields: [

@@ -106,7 +106,7 @@ export default function NativeEntryFormScreen() {
   return (
     <NativeFormScreen
       title={isEdit ? 'Modifier' : 'Ajouter'}
-      subtitle={`${table.name}${isGsMode ? ' · Google Sheets' : ''}`}
+      subtitle={`${table.name}`}
       saving={saving || sheet.isWriting}
       canSubmit={requiredOk}
       submitLabel={isEdit ? 'Enregistrer' : 'Ajouter'}

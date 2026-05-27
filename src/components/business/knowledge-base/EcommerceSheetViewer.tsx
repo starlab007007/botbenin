@@ -256,7 +256,7 @@ export const EcommerceSheetViewer: React.FC<EcommerceSheetViewerProps> = ({ know
           <div className="shrink-0 p-4 sm:p-6 pb-3 border-b bg-background">
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg pr-8">{editingRow ? 'Modifier' : 'Ajouter'} — {currentConfig?.label}</DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm">Synchronisé avec Google Sheets</DialogDescription>
+              <DialogDescription className="text-xs sm:text-sm">Synchronisé</DialogDescription>
             </DialogHeader>
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6">
