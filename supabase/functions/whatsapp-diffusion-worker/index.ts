@@ -311,7 +311,7 @@ serve(async (req) => {
               prenom: (contact.display_name ?? "").split(" ")[0] ?? "",
               tag: (contact.tags ?? []).join(", "),
             };
-            const rendered = renderTemplate(variant.body, vars);
+            let rendered = renderTemplate(variant.body, vars);
             const mediaUrl = variant.media_url ?? campaign.media_url;
             const baseDigits = job.to_phone.replace(/[^\d]/g, "");
             // Bénin (229) : générer variantes — format WhatsApp correct est SANS le "01" → prioritaire.
