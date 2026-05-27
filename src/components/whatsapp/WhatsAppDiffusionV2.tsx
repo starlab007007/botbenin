@@ -363,12 +363,38 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
             </div>
             <div>
               <Label>Session WAHA *</Label>
-              <Select value={sessionId} onValueChange={setSessionId}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                <SelectContent>
-                  {sessions.map(s => <SelectItem key={s.id} value={s.id}>{s.session_name} {s.phone_number ?? ''} {s.status === 'connected' && '✅'}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {s.all.length === 0 ? (
+                <div className="border border-dashed rounded p-2 text-xs text-center bg-amber-50">
+                  Aucune session disponible.
+                  <Button type="button" size="sm" variant="link" className="px-1 h-auto" onClick={onGotoSessions}>Créer une session</Button>
+                </div>
+              ) : (
+                <Select value={sessionId} onValueChange={setSessionId}>
+                  <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectContent>
+                    {s.mine.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Mes sessions</SelectLabel>
+                        {s.mine.map(x => (
+                          <SelectItem key={x.id} value={x.id}>
+                            {x.session_name} {x.phone_number ?? ''} {(x.status === 'WORKING' || x.status === 'connected') && '✅'}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {s.shared.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Partagées (admin)</SelectLabel>
+                        {s.shared.map(x => (
+                          <SelectItem key={x.id} value={x.id}>
+                            {x.session_name} {x.phone_number ?? ''} {(x.status === 'WORKING' || x.status === 'connected') && '✅'}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
           {(type === 'photo' || type === 'video' || type === 'audio') && (
