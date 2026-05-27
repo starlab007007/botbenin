@@ -29,11 +29,19 @@ type Conv = {
 function formatStamp(iso: string) {
   const d = new Date(iso);
   const now = new Date();
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (sameDay) return `Aujourd'hui · ${time}`;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return `Hier · ${time}`;
   const diff = (now.getTime() - d.getTime()) / 86400000;
-  if (diff < 7) return d.toLocaleDateString([], { weekday: "short" });
-  return d.toLocaleDateString();
+  if (diff < 7) return `${d.toLocaleDateString("fr-FR", { weekday: "short" })} · ${time}`;
+  const datePart = d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: d.getFullYear() === now.getFullYear() ? undefined : "2-digit",
+  });
+  return `${datePart} · ${time}`;
 }
 
 export default function ChatListScreen() {
