@@ -321,8 +321,32 @@ serve(async (req) => {
     }
     log("user", { id: user?.id });
 
+    // Upsert conversation so the operator-side app can subscribe by conversation_id.
+    // We key on user_id + channel (one open conversation per user/channel).
+    const convPhone = phone || (sessionId ? `web:${sessionId}` : "unknown");
+    let convId: string | null = null;
+    {
+      const { data: existingConv } = await sb
+        .from("waouh_conversations")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("phone_number", convPhone)
+        .maybeSingle();
+      if (existingConv?.id) {
+        convId = existingConv.id;
+      } else {
+        const { data: createdConv } = await sb
+          .from("waouh_conversations")
+          .insert({ user_id: user.id, phone_number: convPhone, state: "active" })
+          .select("id")
+          .single();
+        convId = createdConv?.id ?? null;
+      }
+    }
+
     // Persist incoming
     await sb.from("waouh_messages").insert({
+      conversation_id: convId,
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
@@ -354,11 +378,17 @@ serve(async (req) => {
       const negActions: WaouhAction[] = Array.isArray(negData?.actions) ? negData.actions : [];
       const negAttachments = Array.isArray(negData?.attachments) ? negData.attachments : [];
       await sb.from("waouh_messages").insert({
+        conversation_id: convId,
         user_id: user.id, channel, direction: "out", text: negReply,
         web_session_id: sessionId, phone_number: phone,
         attachments: negAttachments,
         meta: { intent: negIntent, transaction_id: negTxId, actions: negActions },
       });
+      if (convId) {
+        await sb.from("waouh_conversations")
+          .update({ last_message: negReply, updated_at: new Date().toISOString() })
+          .eq("id", convId);
+      }
       if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
         try {
           const firstImage = negAttachments.find((a: any) => a?.url)?.url || null;
@@ -388,11 +418,17 @@ serve(async (req) => {
 
     // Persist outgoing
     await sb.from("waouh_messages").insert({
+      conversation_id: convId,
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null, actions },
     });
+    if (convId) {
+      await sb.from("waouh_conversations")
+        .update({ last_message: reply, last_intent: core.intent ?? null, updated_at: new Date().toISOString() })
+        .eq("id", convId);
+    }
 
     // WAHA send — UN SEUL message par réponse (image + texte + boutons combinés si possible)
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
