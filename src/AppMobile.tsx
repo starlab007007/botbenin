@@ -57,9 +57,27 @@ const AppMobile = () => (
               <BrowserRouter>
                 <Suspense fallback={<Fallback />}>
                   <Routes>
+                    <Route path="/" element={<Navigate to="/app/chat" replace />} />
                     <Route path="/app/auth" element={<MobileAuthHome />} />
                     <Route path="/app/auth/email" element={<MobileAuthEmail />} />
                     <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
+
+                    {/* Public mobile shell — chat list + WAOUH chat accessible sans connexion */}
+                    <Route
+                      path="/app"
+                      element={
+                        <ErrorBoundary fallback={<MobileErrorFallback />}>
+                          <MobileShell />
+                        </ErrorBoundary>
+                      }
+                    >
+                      <Route index element={<Navigate to="/app/chat" replace />} />
+                      <Route path="chat" element={<MobileConversations />} />
+                      <Route path="chat/waouh" element={<MobileWaouhChat />} />
+                      <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
+                    </Route>
+
+                    {/* Authenticated mobile shell — tout le reste exige une connexion */}
                     <Route
                       path="/app"
                       element={
@@ -70,10 +88,6 @@ const AppMobile = () => (
                         </RequireMobileAuth>
                       }
                     >
-                      <Route index element={<Navigate to="/app/chat" replace />} />
-                      <Route path="chat" element={<MobileConversations />} />
-                      <Route path="chat/waouh" element={<MobileWaouhChat />} />
-                      <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
                       <Route path="chat/:id" element={<MobileChatThread />} />
                       <Route path="bots" element={<MobileBots />} />
                       <Route path="bots/new" element={<MobileCreateBot />} />
