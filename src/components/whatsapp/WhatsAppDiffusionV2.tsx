@@ -11,10 +11,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Play, RefreshCw, Settings, Smartphone, Share2 } from 'lucide-react';
+import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Play, RefreshCw, Settings, Smartphone, Share2, Eye, Pause, Copy, MoreVertical, ShieldCheck, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import { useWaDiffusion } from '@/hooks/useWaDiffusion';
 import { useDiffusionSessions, type DiffSession } from '@/hooks/useDiffusionSessions';
 import { WaSessionDialog } from '@/components/whatsapp/WaSessionDialog';
+import { CampaignDetailsDialog } from '@/components/whatsapp/CampaignDetailsDialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { normalizeBeninWhatsApp } from '@/lib/phone';
 
@@ -162,13 +164,23 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
           </Button>
         </div>
 
-        {/* Filtre + toggle archives */}
-        <div className="flex gap-2 items-center">
-          <Input placeholder="Rechercher (nom, numéro, tag)…" value={filter} onChange={e => setFilter(e.target.value)} />
+        {/* Filtre + toggle archives + bouton vérifier */}
+        <div className="flex gap-2 items-center flex-wrap">
+          <Input placeholder="Rechercher (nom, numéro, tag)…" value={filter} onChange={e => setFilter(e.target.value)} className="flex-1 min-w-[180px]" />
           <div className="flex items-center gap-2">
             <Switch checked={showArchived} onCheckedChange={setShowArchived} id="arch" />
             <Label htmlFor="arch" className="text-xs">Archives</Label>
           </div>
+          <Button
+            size="sm" variant="outline"
+            onClick={() => {
+              const ids = filtered.filter(c => c.is_whatsapp === null || c.is_whatsapp === undefined).map(c => c.id);
+              if (!ids.length) { toast.info('Tous les contacts filtrés sont déjà vérifiés'); return; }
+              d.verifyContacts(ids);
+            }}
+          >
+            <ShieldCheck className="w-4 h-4 mr-1" /> Vérifier WhatsApp
+          </Button>
         </div>
 
         <div className="text-xs text-muted-foreground">
@@ -181,7 +193,12 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
             {filtered.map(c => (
               <div key={c.id} className="p-3 flex items-center gap-3 hover:bg-muted/40">
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{c.display_name || '—'}</div>
+                  <div className="font-medium text-sm truncate flex items-center gap-2">
+                    {c.display_name || '—'}
+                    {c.is_whatsapp === true && <Badge className="bg-green-500 text-white text-[10px] gap-0.5"><CheckCircle2 className="w-3 h-3" />WhatsApp</Badge>}
+                    {c.is_whatsapp === false && <Badge variant="destructive" className="text-[10px] gap-0.5"><XCircle className="w-3 h-3" />Pas WA</Badge>}
+                    {(c.is_whatsapp === null || c.is_whatsapp === undefined) && <Badge variant="outline" className="text-[10px] gap-0.5"><HelpCircle className="w-3 h-3" />Non vérifié</Badge>}
+                  </div>
                   <div className="text-xs text-muted-foreground font-mono">{c.phone_e164}</div>
                   {c.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -191,6 +208,9 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
                 </div>
                 {c.opt_out && <Badge variant="destructive" className="text-[10px]">OPT-OUT</Badge>}
                 {c.archived && <Badge variant="outline" className="text-[10px]">Archivé</Badge>}
+                <Button size="icon" variant="ghost" title="Vérifier WhatsApp" onClick={() => d.verifyContacts([c.id])}>
+                  <ShieldCheck className="w-4 h-4" />
+                </Button>
                 <Button size="icon" variant="ghost" title="Opt-out" onClick={() => d.toggleOptOut(c.id, !c.opt_out)}>
                   <Ban className={`w-4 h-4 ${c.opt_out ? 'text-destructive' : ''}`} />
                 </Button>
@@ -279,6 +299,7 @@ const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; s: ReturnTy
 };
 
 const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const total = c.stats?.total ?? 0;
   const sent = c.stats?.sent ?? 0;
   const pct = total ? Math.round((sent / total) * 100) : 0;
@@ -286,26 +307,57 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
     draft: 'secondary', scheduled: 'outline', running: 'default', paused: 'outline', done: 'secondary', failed: 'destructive',
   };
   return (
-    <div className="border rounded-lg p-3 hover:bg-muted/30">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-semibold">{c.name}</div>
-          <div className="text-xs text-muted-foreground capitalize">{c.type} · {new Date(c.created_at).toLocaleString('fr-FR')}</div>
+    <>
+      <div className="border rounded-lg p-3 hover:bg-muted/30 cursor-pointer" onClick={() => setDetailsOpen(true)}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold truncate">{c.name}</div>
+            <div className="text-xs text-muted-foreground capitalize">{c.type} · {new Date(c.created_at).toLocaleString('fr-FR')}</div>
+          </div>
+          <Badge variant={(statusColor[c.status] ?? 'secondary') as any}>{c.status}</Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7"><MoreVertical className="w-4 h-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={() => setDetailsOpen(true)}><Eye className="w-4 h-4 mr-2" />Voir détails</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => d.duplicateCampaign(c)}><Copy className="w-4 h-4 mr-2" />Dupliquer</DropdownMenuItem>
+              {c.status === 'running' && (
+                <DropdownMenuItem onClick={() => d.pauseCampaign(c.id)}><Pause className="w-4 h-4 mr-2" />Mettre en pause</DropdownMenuItem>
+              )}
+              {c.status === 'paused' && (
+                <DropdownMenuItem onClick={() => d.resumeCampaign(c.id)}><Play className="w-4 h-4 mr-2" />Reprendre</DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => { if (confirm(`Supprimer "${c.name}" ?`)) d.deleteCampaign(c.id); }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />Supprimer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <Badge variant={(statusColor[c.status] ?? 'secondary') as any}>{c.status}</Badge>
+        {total > 0 && (
+          <div className="mt-2 space-y-1">
+            <Progress value={pct} />
+            <div className="text-xs text-muted-foreground flex justify-between">
+              <span>{sent}/{total} envoyés ({pct}%)</span>
+              {c.stats?.failed > 0 && <span className="text-destructive">{c.stats.failed} échecs</span>}
+            </div>
+          </div>
+        )}
+        {c.status === 'draft' && (
+          <Button
+            size="sm" className="mt-2 bg-green-600 hover:bg-green-700"
+            onClick={(e) => { e.stopPropagation(); d.launchCampaign(c.id, { generateVariants: c.ai_variation, body: c.body }); }}
+          >
+            <Play className="w-3 h-3 mr-1" /> Lancer
+          </Button>
+        )}
       </div>
-      {total > 0 && (
-        <div className="mt-2 space-y-1">
-          <Progress value={pct} />
-          <div className="text-xs text-muted-foreground">{sent}/{total} envoyés ({pct}%)</div>
-        </div>
-      )}
-      {c.status === 'draft' && (
-        <Button size="sm" className="mt-2 bg-green-600 hover:bg-green-700" onClick={() => d.launchCampaign(c.id, { generateVariants: c.ai_variation, body: c.body })}>
-          <Play className="w-3 h-3 mr-1" /> Lancer
-        </Button>
-      )}
-    </div>
+      <CampaignDetailsDialog open={detailsOpen} onClose={() => setDetailsOpen(false)} campaign={c} />
+    </>
   );
 };
 
