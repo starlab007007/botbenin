@@ -107,16 +107,29 @@ serve(async (req) => {
       return json({ ok: false, code: "NO_SESSION", error: "La campagne n’a pas de session WhatsApp valide." });
     }
 
-    if (!ACTIVE_STATUSES.has(session.status)) {
+    // Live status check (DB may be stale)
+    const wahaBase = (Deno.env.get("WAHA_BASE_URL") || "").replace(/\/+$/, "").replace(/\/dashboard$/, "");
+    let liveStatus: string | null = session.status;
+    try {
+      const live = await fetchLiveStatus(wahaBase, session.session_name);
+      if (live) {
+        liveStatus = live;
+        if (live !== session.status) {
+          await admin.from("whatsapp_accounts").update({ status: live, last_activity: new Date().toISOString() }).eq("id", session.id);
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    if (!ACTIVE_STATUSES.has(liveStatus || "")) {
       await admin.from("wa_campaigns").update({ status: "failed", stats: { total: 0, failed: 0, queued: 0, sent: 0 } }).eq("id", campaign.id);
       await admin.from("wa_campaign_events").insert({
         campaign_id: campaign.id,
         user_id: userId,
         level: "error",
-        message: `Session ${session.session_name} déconnectée (${session.status})`,
-        payload: { sessionId: session.id, status: session.status },
+        message: `Session ${session.session_name} déconnectée (${liveStatus})`,
+        payload: { sessionId: session.id, status: liveStatus },
       });
-      return json({ ok: false, code: "SESSION_DISCONNECTED", error: `La session ${session.session_name} est ${session.status}. Reconnectez-la avant de lancer la campagne.` });
+      return json({ ok: false, code: "SESSION_DISCONNECTED", error: `La session ${session.session_name} est ${liveStatus}. Reconnectez-la avant de lancer la campagne.` });
     }
 
     const { count: existingCount } = await admin
