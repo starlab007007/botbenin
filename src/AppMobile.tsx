@@ -89,6 +89,7 @@ const AppMobile = () => (
                       <Route path="partner/payouts" element={<MobilePartnerPayouts />} />
                       <Route path="partner/payments" element={<MobilePartnerPayments />} />
                       <Route path="profile" element={<MobileProfile />} />
+                      <Route path="notifications" element={<MobileNotifications />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/app/chat" replace />} />
                   </Routes>
