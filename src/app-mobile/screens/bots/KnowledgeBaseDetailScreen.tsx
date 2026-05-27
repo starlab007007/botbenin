@@ -48,8 +48,17 @@ export default function KnowledgeBaseDetailScreen() {
     );
   }
 
-  const isGoogleSheetMode = !!template.googleSheetConfig &&
-    (template.id === 'ecommerce' || template.id === 'restaurant' || template.id === 'whatsapp_diffusion');
+  const isGoogleSheetMode = isGoogleSheetTemplate(template);
+  const currentTable = tab !== 'structural' ? template.tables.find(t => t.id === tab) : null;
+  const sheetName = isGoogleSheetMode && currentTable
+    ? getSheetNameForTable(template, currentTable.id)
+    : null;
+  const sheet = useSheetCrud(
+    template.googleSheetConfig?.spreadsheetId,
+    sheetName,
+    kb.user_id
+  );
+
 
   const save = async () => {
     const ok = await updateKnowledgeBase(kb.id, {
