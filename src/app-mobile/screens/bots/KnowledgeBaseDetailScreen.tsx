@@ -40,6 +40,17 @@ export default function KnowledgeBaseDetailScreen() {
     [template, tablesData, structural, calculateCompletion]
   );
 
+  const isGoogleSheetMode = template ? isGoogleSheetTemplate(template) : false;
+  const currentTable = template && tab !== 'structural' ? template.tables.find(t => t.id === tab) : null;
+  const sheetName = isGoogleSheetMode && currentTable
+    ? getSheetNameForTable(template, currentTable.id)
+    : null;
+  const sheet = useSheetCrud(
+    template?.googleSheetConfig?.spreadsheetId,
+    sheetName,
+    kb?.user_id
+  );
+
   if (!kb || !template) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-background">
@@ -47,17 +58,6 @@ export default function KnowledgeBaseDetailScreen() {
       </div>
     );
   }
-
-  const isGoogleSheetMode = isGoogleSheetTemplate(template);
-  const currentTable = tab !== 'structural' ? template.tables.find(t => t.id === tab) : null;
-  const sheetName = isGoogleSheetMode && currentTable
-    ? getSheetNameForTable(template, currentTable.id)
-    : null;
-  const sheet = useSheetCrud(
-    template.googleSheetConfig?.spreadsheetId,
-    sheetName,
-    kb.user_id
-  );
 
 
   const save = async () => {
