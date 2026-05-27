@@ -7416,6 +7416,7 @@ export type Database = {
           created_at: string
           dashboard_authenticated: boolean | null
           id: string
+          is_admin_shared: boolean
           last_activity: string | null
           last_auth_attempt: string | null
           phone_number: string | null
@@ -7432,6 +7433,7 @@ export type Database = {
           created_at?: string
           dashboard_authenticated?: boolean | null
           id?: string
+          is_admin_shared?: boolean
           last_activity?: string | null
           last_auth_attempt?: string | null
           phone_number?: string | null
@@ -7448,6 +7450,7 @@ export type Database = {
           created_at?: string
           dashboard_authenticated?: boolean | null
           id?: string
+          is_admin_shared?: boolean
           last_activity?: string | null
           last_auth_attempt?: string | null
           phone_number?: string | null
