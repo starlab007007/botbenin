@@ -16,7 +16,9 @@ export type Country = {
 // gardent des règles strictes (longueur/préfixe). Les autres acceptent une plage souple.
 export const COUNTRIES: Country[] = [
   // ───────── Afrique de l'Ouest (règles strictes) ─────────
-  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 10, groups: [2, 2, 2, 2, 2], prefixes: ['01'] },
+  // Bénin : accepte 8 chiffres (ancien format) OU 10 chiffres avec 01 (nouveau format)
+  // Certains comptes WhatsApp sont encore enregistrés sans le 01 → ne pas forcer le préfixe.
+  { code: 'BJ', name: 'Bénin', dial: '+229', flag: '🇧🇯', length: 10, lengthMin: 8, lengthMax: 10, groups: [2, 2, 2, 2, 2] },
   { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬', length: 8, groups: [2, 2, 2, 2] },
   { code: 'CI', name: "Côte d'Ivoire", dial: '+225', flag: '🇨🇮', length: 10, groups: [2, 2, 2, 2, 2] },
   { code: 'SN', name: 'Sénégal', dial: '+221', flag: '🇸🇳', length: 9, groups: [3, 3, 3] },
@@ -216,20 +218,16 @@ export function parsePhone(value: string | null | undefined): { country: Country
   if (v.startsWith('+')) {
     const match = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find(c => v.startsWith(c.dial));
     if (match) {
-      let local = v.slice(match.dial.length).replace(/\D/g, '');
-      // Bénin : ancien format 8 chiffres → préfixer 01
-      if (match.code === 'BJ' && local.length === 8 && /^[4-9]/.test(local)) local = '01' + local;
+      const local = v.slice(match.dial.length).replace(/\D/g, '');
+      // Bénin : on garde le format saisi (8 ou 10 chiffres) — pas d'auto-préfixe 01
       return { country: match, local };
     }
   }
   let local = v.replace(/\D/g, '');
-  // Cas WhatsApp JID style: peut contenir l'indicatif 229 collé
+  // Cas WhatsApp JID style: indicatif 229 collé
   if (local.startsWith('229') && (local.length === 11 || local.length === 13)) {
-    let rest = local.slice(3);
-    if (rest.length === 8 && /^[4-9]/.test(rest)) rest = '01' + rest;
-    return { country: DEFAULT_COUNTRY, local: rest };
+    return { country: DEFAULT_COUNTRY, local: local.slice(3) };
   }
-  if (local.length === 8 && /^[4-9]/.test(local)) local = '01' + local;
   return { country: DEFAULT_COUNTRY, local };
 }
 
