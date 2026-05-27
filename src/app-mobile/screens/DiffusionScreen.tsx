@@ -36,9 +36,9 @@ function NativeScreen({
   children: React.ReactNode; footer?: React.ReactNode; headerRight?: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col">
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col overscroll-contain">
       <header
-        className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white shadow-sm"
+        className="shrink-0 bg-[hsl(165_91%_18%)] text-white shadow-sm"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="flex items-center gap-2 px-3 py-3">
@@ -52,10 +52,13 @@ function NativeScreen({
           {headerRight}
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-32 space-y-4">{children}</main>
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pt-4 pb-8 space-y-4 [-webkit-overflow-scrolling:touch]">
+        {children}
+        {!footer && <div style={{ height: "env(safe-area-inset-bottom)" }} />}
+      </main>
       {footer && (
         <footer
-          className="sticky bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-4 py-3"
+          className="shrink-0 border-t bg-background/95 backdrop-blur px-4 py-3"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
         >
           {footer}
@@ -91,9 +94,9 @@ export default function DiffusionScreen() {
   }, [user, authLoading, navigate]);
 
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col">
+    <div className="fixed inset-0 bg-background flex flex-col overscroll-contain">
       <header
-        className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white"
+        className="shrink-0 bg-[hsl(165_91%_18%)] text-white"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="flex items-center gap-2 px-4 py-3">
@@ -132,7 +135,10 @@ export default function DiffusionScreen() {
         </nav>
       </header>
 
-      <main className="flex-1 pb-24">
+      <main
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5.5rem)" }}
+      >
         {tab === "campaigns" && (
           <CampaignsTab
             d={d} s={s}
@@ -577,25 +583,25 @@ function AudiencePickerSheet({
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="bottom" className="p-0 h-[92dvh] rounded-t-2xl flex flex-col">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+      <SheetContent side="bottom" className="p-0 h-[92dvh] max-h-[92dvh] rounded-t-2xl flex flex-col">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
           <h2 className="text-base font-semibold">Choisir des destinataires</h2>
-          <button onClick={onClose} className="p-2 -mr-2 rounded-full active:bg-accent"><X className="h-5 w-5" /></button>
+          <button onClick={onClose} className="p-2 -mr-2 rounded-full active:bg-accent" aria-label="Fermer"><X className="h-5 w-5" /></button>
         </div>
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 shrink-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher…" className="h-11 pl-9" />
           </div>
         </div>
-        <div className="flex items-center justify-between px-4 pb-2 gap-2">
+        <div className="flex items-center justify-between px-4 pb-2 gap-2 shrink-0">
           <span className="text-xs text-muted-foreground">{selected.size}/{contacts.length} sélectionné(s)</span>
           <div className="flex gap-2">
             <button onClick={() => onChange(new Set(contacts.map(c => c.id)))} className="text-xs underline">Tous</button>
             <button onClick={() => onChange(new Set())} className="text-xs underline">Aucun</button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain divide-y">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain divide-y [-webkit-overflow-scrolling:touch]">
           {filtered.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-8">Aucun contact</p>
           )}
