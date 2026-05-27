@@ -254,6 +254,22 @@ serve(async (req) => {
           continue;
         }
 
+        // S'assurer que la session WAHA envoie bien les events ack (livré/lu)
+        try {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+          const hookUrl = `${supabaseUrl}/functions/v1/waha-webhook`;
+          await wahaFetch(wahaBaseUrl, `/api/sessions/${encodeURIComponent(session.session_name)}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              config: {
+                webhooks: [
+                  { url: hookUrl, events: ["message", "message.any", "message.ack", "message.reaction", "session.status"] },
+                ],
+              },
+            }),
+          }).catch(() => null);
+        } catch (_) { /* non bloquant */ }
+
         if (!ACTIVE_STATUSES.has(liveStatus)) {
           await failJobs(
             admin,

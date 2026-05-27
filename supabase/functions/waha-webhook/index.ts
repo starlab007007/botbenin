@@ -84,6 +84,59 @@ serve(async (req) => {
       return new Response('OK', { headers: corsHeaders });
     }
 
+    // ===== ACK events: update wa_send_jobs delivery / read status =====
+    // WAHA ack codes: -1=ERROR, 0=PENDING, 1=SERVER(sent), 2=DEVICE(delivered), 3=READ, 4=PLAYED
+    if (webhookData.event === 'message.ack' || String(webhookData.event || '').includes('ack')) {
+      const p: any = webhookData.payload || {};
+      const msgId: string | null =
+        (typeof p.id === 'string' ? p.id : null) ??
+        p?.id?._serialized ?? p?.messageId ?? p?.ack?.id ?? null;
+      const ackRaw = p?.ack ?? p?.ackName ?? p?.status;
+      const ackNum = typeof ackRaw === 'string' ? parseInt(ackRaw) : ackRaw;
+      const ackName = String(p?.ackName ?? '').toLowerCase();
+
+      let status: string | null = null;
+      const update: any = {};
+      if (ackNum === 1 || ackName === 'server' || ackName === 'sent') { status = 'sent'; update.sent_at = new Date().toISOString(); }
+      else if (ackNum === 2 || ackName === 'device' || ackName === 'delivered') { status = 'delivered'; update.delivered_at = new Date().toISOString(); }
+      else if (ackNum === 3 || ackNum === 4 || ackName === 'read' || ackName === 'played') { status = 'read'; update.read_at = new Date().toISOString(); update.delivered_at = update.delivered_at ?? new Date().toISOString(); }
+      else if (ackNum === -1 || ackName === 'error') { status = 'failed'; update.last_error = 'WAHA ack error'; }
+
+      if (status && msgId) {
+        update.status = status;
+        const { error: ackErr } = await supabase
+          .from('wa_send_jobs')
+          .update(update)
+          .eq('waha_message_id', msgId);
+        if (ackErr) console.error('ack update failed:', ackErr);
+        else console.log(`ACK ${status} applied to message ${msgId}`);
+      }
+      return new Response('OK', { headers: corsHeaders });
+    }
+
+    // ===== Inbound message (reply detection) =====
+    if (
+      (webhookData.event === 'message' || webhookData.event === 'message.any') &&
+      webhookData.payload && webhookData.payload.fromMe === false
+    ) {
+      const from = String(webhookData.payload.from || '').replace(/@c\.us|@lid/g, '').replace(/\D/g, '');
+      if (from) {
+        const { data: rj } = await supabase
+          .from('wa_send_jobs')
+          .select('id')
+          .or(`to_phone.eq.${from},to_phone.eq.+${from}`)
+          .in('status', ['sent', 'delivered', 'read'])
+          .order('sent_at', { ascending: false })
+          .limit(1);
+        if (rj && rj[0]) {
+          await supabase.from('wa_send_jobs').update({
+            status: 'replied',
+            replied_at: new Date().toISOString(),
+          }).eq('id', rj[0].id);
+        }
+      }
+    }
+
     // Find the WhatsApp account for this session
     const { data: account, error: accountError } = await supabase
       .from('whatsapp_accounts')
@@ -92,7 +145,7 @@ serve(async (req) => {
       .single();
 
     if (accountError || !account) {
-      console.error('Account not found for session:', sessionName);
+      console.log('No whatsapp_account for session (ok for diffusion-only):', sessionName);
       return new Response('OK', { headers: corsHeaders });
     }
 
