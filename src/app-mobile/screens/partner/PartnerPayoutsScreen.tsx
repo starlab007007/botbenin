@@ -28,7 +28,7 @@ export default function PartnerPayoutsScreen() {
       <MobileScreenHeader
         title="Mes versements"
         subtitle={`${payouts.length} versement(s)`}
-        back="/app/partner"
+        back="/app/partner/businesses"
       />
       <div className="p-3 space-y-3">
         {loading ? (
