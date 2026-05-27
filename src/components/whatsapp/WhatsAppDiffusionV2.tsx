@@ -309,7 +309,7 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
   );
 };
 
-const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; sessions: Session[] }> = ({ open, onClose, d, sessions }) => {
+const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; s: ReturnType<typeof useDiffusionSessions>; onGotoSessions: () => void }> = ({ open, onClose, d, s, onGotoSessions }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState('text');
   const [body, setBody] = useState('');
