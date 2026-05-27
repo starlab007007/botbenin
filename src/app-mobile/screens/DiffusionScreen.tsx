@@ -36,9 +36,9 @@ function NativeScreen({
   children: React.ReactNode; footer?: React.ReactNode; headerRight?: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col">
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col overscroll-contain">
       <header
-        className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white shadow-sm"
+        className="shrink-0 bg-[hsl(165_91%_18%)] text-white shadow-sm"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="flex items-center gap-2 px-3 py-3">
@@ -52,10 +52,13 @@ function NativeScreen({
           {headerRight}
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-32 space-y-4">{children}</main>
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pt-4 pb-8 space-y-4 [-webkit-overflow-scrolling:touch]">
+        {children}
+        {!footer && <div style={{ height: "env(safe-area-inset-bottom)" }} />}
+      </main>
       {footer && (
         <footer
-          className="sticky bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur px-4 py-3"
+          className="shrink-0 border-t bg-background/95 backdrop-blur px-4 py-3"
           style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
         >
           {footer}
