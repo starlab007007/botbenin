@@ -89,27 +89,34 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const uid = user?.id ?? null;
 
     (async () => {
-      // Load history: by web_session_id OR by authenticated user_id
-      // (covers cross-device login & WhatsApp-bridged messages tied to the account)
-      const filter = uid
-        ? `web_session_id.eq.${sessionId},user_id.eq.${uid}`
-        : `web_session_id.eq.${sessionId}`;
+      // Resolve all waouh_users.id linked to this device (session) + auth account.
+      // waouh_messages.user_id references waouh_users.id (NOT auth.users.id),
+      // so we MUST query by these IDs to get full history.
+      const ors: string[] = [`web_session_id.eq.${sessionId}`];
+      if (uid) ors.push(`auth_user_id.eq.${uid}`);
+      const { data: wusers } = await supabase
+        .from("waouh_users")
+        .select("id")
+        .or(ors.join(","))
+        .limit(50);
+      const waouhIds = Array.from(new Set((wusers ?? []).map((u: any) => u.id)));
+
+      // Load history: by web_session_id OR by any of the resolved waouh_users.id
+      const msgOrs: string[] = [`web_session_id.eq.${sessionId}`];
+      if (waouhIds.length) msgOrs.push(`user_id.in.(${waouhIds.join(",")})`);
       const { data } = await supabase
         .from("waouh_messages")
         .select("id,direction,text,created_at,attachments,meta")
-        .or(filter)
+        .or(msgOrs.join(","))
         .order("created_at", { ascending: true })
-        .limit(200);
+        .limit(500);
       if (active && data) {
-        // dedupe by id (session + user filters can overlap)
         const seen = new Set<string>();
         const unique = (data as any[]).filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
         setMessages(unique as any);
       }
 
-      // Link this device's anonymous waouh_users row to the freshly authenticated
-      // account so future realtime filters (per waouh_users.id) catch messages
-      // initially sent before login.
+      // Link this device's anonymous waouh_users row to the freshly authenticated account
       if (uid) {
         supabase
           .from("waouh_users")
@@ -129,17 +136,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       .channel(`waouh_msgs_s_${sessionId}_${suffix}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` }, onInsert)
       .subscribe();
-    const chUser = uid
-      ? supabase
-          .channel(`waouh_msgs_u_${uid}_${suffix}`)
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${uid}` }, onInsert)
-          .subscribe()
-      : null;
 
     return () => {
       active = false;
       supabase.removeChannel(chSession);
-      if (chUser) supabase.removeChannel(chUser);
     };
   }, [open, sessionId, user?.id]);
 
@@ -333,7 +333,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/30 min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 waouh-chat-bg min-h-0">
         {messages.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-8 px-4">
             👋 Bonjour ! Utilisez les boutons ci-dessous, ou tapez « Je vends … » / « Je cherche … ».
