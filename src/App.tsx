@@ -298,6 +298,8 @@ const AppContent = () => {
                     <Route path="chat/:id" element={<MobileChatThread />} />
                     <Route path="bots" element={<MobileBots />} />
                     <Route path="bots/new" element={<MobileCreateBot />} />
+                    <Route path="bots/:id" element={<MobileBotDetail />} />
+                    <Route path="bots/:id/table/:tableId/entry/:index" element={<MobileBotEntryForm />} />
                     <Route path="whatsapp" element={<MobileWhatsApp />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
