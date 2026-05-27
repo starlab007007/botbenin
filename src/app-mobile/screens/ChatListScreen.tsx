@@ -10,7 +10,12 @@ import { Search, Plus, ShoppingBag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
+import {
+  formatConvLabel,
+  convInitials,
+  channelBadge,
+  type WaouhUserLike,
+} from "../utils/chatLabel";
 
 type Conv = {
   id: string;
@@ -18,6 +23,7 @@ type Conv = {
   channel: string | null;
   last_message: string | null;
   updated_at: string;
+  user_id: string | null;
 };
 
 function formatStamp(iso: string) {
@@ -36,15 +42,15 @@ export default function ChatListScreen() {
   const { profile } = useMobileProfile();
   const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
   const [convs, setConvs] = useState<Conv[]>([]);
+  const [users, setUsers] = useState<Record<string, WaouhUserLike>>({});
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  
 
   useEffect(() => {
     if (!ready) return;
     let mounted = true;
     const load = async () => {
-      const fields = "id,phone_number,channel,last_message,updated_at";
+      const fields = "id,phone_number,channel,last_message,updated_at,user_id";
       const all: Record<string, Conv> = {};
       if (waouhUserIds.length) {
         const { data } = await supabase
@@ -52,7 +58,7 @@ export default function ChatListScreen() {
           .select(fields)
           .in("user_id", waouhUserIds)
           .order("updated_at", { ascending: false })
-          .limit(50);
+          .limit(200);
         (data ?? []).forEach((c: any) => { all[c.id] = c; });
       }
       // Also surface conversations reachable from this device's session messages
@@ -63,7 +69,7 @@ export default function ChatListScreen() {
           .eq("web_session_id", sessionId)
           .not("conversation_id", "is", null)
           .order("created_at", { ascending: false })
-          .limit(200);
+          .limit(500);
         const ids = Array.from(new Set((msgs ?? []).map((m: any) => m.conversation_id).filter(Boolean)));
         const missing = ids.filter((id) => !all[id]);
         if (missing.length) {
@@ -71,14 +77,26 @@ export default function ChatListScreen() {
             .from("waouh_conversations")
             .select(fields)
             .in("id", missing)
-            .limit(50);
+            .limit(200);
           (extra ?? []).forEach((c: any) => { all[c.id] = c; });
         }
       }
       const list = Object.values(all).sort((a, b) =>
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       );
-      if (mounted) { setConvs(list); setLoading(false); }
+
+      // Fetch user metadata for friendly labels
+      const userIds = Array.from(new Set(list.map((c) => c.user_id).filter(Boolean))) as string[];
+      const userMap: Record<string, WaouhUserLike> = {};
+      if (userIds.length) {
+        const { data: us } = await supabase
+          .from("waouh_users")
+          .select("id,display_name,phone_number,channel,auth_user_id")
+          .in("id", userIds);
+        (us ?? []).forEach((u: any) => { userMap[u.id] = u; });
+      }
+
+      if (mounted) { setConvs(list); setUsers(userMap); setLoading(false); }
     };
     load();
     const channels: any[] = [];
@@ -92,12 +110,29 @@ export default function ChatListScreen() {
     return () => { mounted = false; channels.forEach((c) => supabase.removeChannel(c)); };
   }, [ready, waouhUserIds.join("|"), sessionId]);
 
-  const filtered = useMemo(
-    () => convs.filter(c => !q || (c.phone_number ?? "").includes(q) || (c.last_message ?? "").toLowerCase().includes(q.toLowerCase())),
-    [convs, q]
+  const enriched = useMemo(
+    () => convs.map((c) => {
+      const u = c.user_id ? users[c.user_id] : null;
+      const label = formatConvLabel(c, u);
+      return { ...c, _label: label, _user: u, _badge: channelBadge(c.channel ?? u?.channel) };
+    }),
+    [convs, users]
   );
 
-  const convIds = useMemo(() => convs.map(c => c.id), [convs]);
+  const filtered = useMemo(
+    () => enriched.filter((c) => {
+      if (!q) return true;
+      const needle = q.toLowerCase();
+      return (
+        c._label.toLowerCase().includes(needle) ||
+        (c.last_message ?? "").toLowerCase().includes(needle) ||
+        (c.phone_number ?? "").toLowerCase().includes(needle)
+      );
+    }),
+    [enriched, q]
+  );
+
+  const convIds = useMemo(() => convs.map((c) => c.id), [convs]);
   const unread = useUnreadCounts(convIds, user?.id);
 
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
@@ -125,7 +160,7 @@ export default function ChatListScreen() {
         <div className="px-4 pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
-            <Input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Rechercher" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
           </div>
         </div>
       </header>
@@ -165,7 +200,7 @@ export default function ChatListScreen() {
         )}
 
         <ul className="divide-y">
-          {filtered.map(c => {
+          {filtered.map((c) => {
             const n = unread[c.id] ?? 0;
             return (
               <li
@@ -174,11 +209,14 @@ export default function ChatListScreen() {
                 className="flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer bg-background/70 backdrop-blur-sm"
               >
                 <Avatar className="h-12 w-12">
-                  <AvatarFallback className="bg-[hsl(165_91%_25%)] text-white">{(c.phone_number ?? "?").slice(-2)}</AvatarFallback>
+                  <AvatarFallback className="bg-[hsl(165_91%_25%)] text-white">{convInitials(c._label)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline">
-                    <span className={"truncate " + (n > 0 ? "font-bold" : "font-semibold")}>{c.phone_number ?? "Inconnu"}</span>
+                  <div className="flex justify-between items-baseline gap-2">
+                    <span className={"truncate flex items-center gap-1.5 " + (n > 0 ? "font-bold" : "font-semibold")}>
+                      {c._label}
+                      <Badge className={`${c._badge.tint} border-0 text-[9px] py-0 px-1.5 h-4`}>{c._badge.label}</Badge>
+                    </span>
                     <span className={"text-xs shrink-0 ml-2 " + (n > 0 ? "text-[hsl(165_91%_30%)] font-semibold" : "text-muted-foreground")}>
                       {formatStamp(c.updated_at)}
                     </span>
@@ -199,8 +237,6 @@ export default function ChatListScreen() {
           })}
         </ul>
       </main>
-
-      
     </div>
   );
 }
