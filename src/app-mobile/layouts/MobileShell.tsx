@@ -8,9 +8,10 @@ export const MobileShell = () => {
   const { pathname } = useLocation();
   const { totalUnread } = useGlobalChatSync();
 
+  // Bottom tab bar visible on Partner screens (parity with other modules).
+  // Only hide on deep chat threads and bot editors.
   const fullscreen =
     /^\/app\/chat\/.+/.test(pathname) ||
-    /^\/app\/partner\/.+/.test(pathname) ||
     /^\/app\/bots\/.+/.test(pathname);
 
   useEffect(() => {
