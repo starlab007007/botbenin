@@ -76,14 +76,9 @@ const WhatsAppDiffusionPage: React.FC = () => {
             Créez et envoyez vos campagnes WhatsApp
           </p>
         </div>
-        <Tabs defaultValue="v2" className="w-full max-w-5xl mx-auto">
-          <TabsList className="grid grid-cols-2 w-full max-w-md mx-auto mb-4">
-            <TabsTrigger value="v2">🚀 Diffusion WAHA</TabsTrigger>
-            <TabsTrigger value="legacy">Mode webhook (legacy)</TabsTrigger>
-          </TabsList>
-          <TabsContent value="v2"><WhatsAppDiffusionV2 /></TabsContent>
-          <TabsContent value="legacy"><WhatsAppCampaignForm /></TabsContent>
-        </Tabs>
+        <div className="w-full max-w-5xl mx-auto">
+          <WhatsAppDiffusionV2 />
+        </div>
       </div>
     </div>
   );
