@@ -29,7 +29,7 @@ export const NativeTextField = forwardRef<HTMLInputElement, Props>(
           <input
             ref={ref}
             type={inputType}
-            className={`flex-1 bg-transparent h-13 px-3 py-3.5 text-base outline-none placeholder:text-muted-foreground/60 ${className ?? ""}`}
+            className={`flex-1 bg-transparent h-14 px-3 py-3.5 text-base outline-none placeholder:text-muted-foreground/60 ${className ?? ""}`}
             {...rest}
           />
           {togglePassword && (

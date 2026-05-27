@@ -12,7 +12,7 @@ export function GoogleButton({ onClick, loading, label = "Continuer avec Google"
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="w-full h-13 flex items-center justify-center gap-3 rounded-2xl border-2 border-border bg-background font-semibold text-foreground active:scale-[0.98] transition-transform disabled:opacity-60"
+      className="w-full h-14 flex items-center justify-center gap-3 rounded-2xl border-2 border-border bg-background font-semibold text-foreground active:scale-[0.98] transition-transform disabled:opacity-60"
     >
       {loading ? (
         <Loader2 className="h-5 w-5 animate-spin" />
