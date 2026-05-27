@@ -320,6 +320,7 @@ const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; s: ReturnTy
 
 const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const total = c.stats?.total ?? 0;
   const sent = c.stats?.sent ?? 0;
   const failed = c.stats?.failed ?? 0;
