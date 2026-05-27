@@ -628,6 +628,8 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
                   <SelectItem value="photo"><span className="flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Photo + texte</span></SelectItem>
                   <SelectItem value="video"><span className="flex items-center gap-2"><Video className="w-4 h-4"/> Vidéo + texte</span></SelectItem>
                   <SelectItem value="audio"><span className="flex items-center gap-2"><Phone className="w-4 h-4"/> Audio</span></SelectItem>
+                  <SelectItem value="file"><span className="flex items-center gap-2"><FileIcon className="w-4 h-4"/> Document + texte</span></SelectItem>
+                  <SelectItem value="link"><span className="flex items-center gap-2"><LinkIcon className="w-4 h-4"/> Lien + texte</span></SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -667,11 +669,17 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
               )}
             </div>
           </div>
-          {(type === 'photo' || type === 'video' || type === 'audio') && (
+          {(type === 'photo' || type === 'video' || type === 'audio' || type === 'file') && (
             <div>
-              <Label>URL du média <span className="text-destructive">*</span></Label>
-              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://exemple.com/photo.jpg" />
-              <p className="text-[11px] text-muted-foreground mt-1">L'URL doit être publiquement accessible (https). Sans média, sélectionnez plutôt « Texte ».</p>
+              <Label>Pièce jointe ({type}) <span className="text-xs text-muted-foreground">(facultative)</span></Label>
+              <MediaUploader type={type} value={mediaUrl} onChange={setMediaUrl} />
+            </div>
+          )}
+          {type === 'link' && (
+            <div>
+              <Label>URL du lien <span className="text-xs text-muted-foreground">(facultative)</span></Label>
+              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://exemple.com/page" />
+              <p className="text-[11px] text-muted-foreground mt-1">L'URL sera ajoutée au message pour générer un aperçu WhatsApp.</p>
             </div>
           )}
           <div>
