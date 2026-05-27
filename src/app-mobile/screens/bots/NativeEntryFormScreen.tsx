@@ -115,13 +115,13 @@ export default function NativeEntryFormScreen() {
       {table.fields.map(f => (
         <div key={f.name} className="space-y-1.5">
           <label className="text-sm font-medium block">
-            {f.name}
+            {(f as any).description || f.name}
             {f.required && <span className="text-destructive ml-1">*</span>}
           </label>
           <NativeFieldRenderer
             field={f as any}
             value={form[f.name]}
-            onChange={(v) => setForm({ ...form, [f.name]: v })}
+            onChange={(v) => setForm(prev => ({ ...prev, [f.name]: v }))}
           />
         </div>
       ))}
