@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UrlInfo } from '@/utils/urlDetection';
 import { imageCache } from '@/utils/imageCache';
+import { ChatImageLightbox } from '@/app-mobile/components/ChatImageLightbox';
 
 interface OptimizedImageDisplayProps {
   urlInfo: UrlInfo;
@@ -17,6 +18,7 @@ export const OptimizedImageDisplay: React.FC<OptimizedImageDisplayProps> = ({
   showPrice = false 
 }) => {
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [finalImageUrl, setFinalImageUrl] = useState<string>('');
   const [detectedPrice, setDetectedPrice] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -176,20 +178,22 @@ export const OptimizedImageDisplay: React.FC<OptimizedImageDisplayProps> = ({
 
       {/* Image display */}
       {imageStatus === 'loaded' && finalImageUrl && (
-        <div className="relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300 group">
+        <div className="relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300 group cursor-zoom-in"
+          role="button"
+          tabIndex={0}
+          onClick={() => setLightboxOpen(true)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setLightboxOpen(true); }}
+        >
           <img
             ref={imgRef}
             src={finalImageUrl}
-            alt="Image optimisée"
+            alt="Image"
             className={`w-full h-auto object-contain max-h-[400px] transition-all duration-300 group-hover:scale-[1.02] ${className}`}
             loading="lazy"
             decoding="async"
             onLoad={handleImageLoad}
             onError={handleImageError}
-            style={{ 
-              imageRendering: 'auto',
-              transform: 'translateZ(0)' // Force hardware acceleration
-            }}
+            style={{ imageRendering: 'auto', transform: 'translateZ(0)' }}
           />
           
           {/* Price overlay */}
@@ -219,6 +223,9 @@ export const OptimizedImageDisplay: React.FC<OptimizedImageDisplayProps> = ({
             </div>
           )}
         </div>
+      )}
+      {lightboxOpen && finalImageUrl && (
+        <ChatImageLightbox images={[{ url: finalImageUrl, caption: detectedPrice || undefined }]} index={0} onClose={() => setLightboxOpen(false)} />
       )}
     </div>
   );

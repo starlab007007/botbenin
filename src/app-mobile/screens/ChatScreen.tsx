@@ -36,6 +36,7 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [meta, setMeta] = useState<ConvMeta | null>(null);
   const [convUser, setConvUser] = useState<WaouhUserLike | null>(null);
+  const [loading, setLoading] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,8 +80,9 @@ export default function ChatScreen() {
       });
       unique.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       setMsgs(unique);
+      setLoading(false);
       markConversationRead(convId);
-    })();
+    })().catch(() => { if (mounted) setLoading(false); });
 
     const suffix = Math.random().toString(36).slice(2, 6);
     const onInsert = (p: any) => {
@@ -96,7 +98,7 @@ export default function ChatScreen() {
     return () => { mounted = false; supabase.removeChannel(ch); };
   }, [convId]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: msgs.length > 30 ? "auto" : "smooth" }); }, [msgs.length]);
 
   const headerLabel = useMemo(
     () => (meta ? formatConvLabel(meta, convUser) : "Conversation"),
@@ -167,7 +169,16 @@ export default function ChatScreen() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-3 py-3">
-        {msgs.length === 0 && (
+        {loading && msgs.length === 0 && (
+          <div className="space-y-3 py-2" aria-hidden>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className={`flex ${i % 2 ? "justify-end" : "justify-start"}`}>
+                <div className={`chat-bubble ${i % 2 ? "chat-bubble-out" : "chat-bubble-in"} animate-pulse`} style={{ width: `${50 + (i * 7) % 30}%`, height: 38 }} />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && msgs.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-8">
             Aucun message pour l'instant. Écrivez un message pour démarrer.
           </div>
