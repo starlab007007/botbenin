@@ -184,7 +184,7 @@ export default function WhatsAppScreen() {
         {!loading && merged.length === 0 && (
           <div className="text-center py-16">
             <Smartphone className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">Aucune session WhatsApp</p>
+            <p className="text-sm text-muted-foreground mb-4">Aucune session WhatsApp IA</p>
             <Button onClick={() => setOpenCreate(true)} className="bg-[#25D366] hover:bg-[#1da851]">
               <Plus className="h-4 w-4 mr-1" /> Créer ma première session
             </Button>
