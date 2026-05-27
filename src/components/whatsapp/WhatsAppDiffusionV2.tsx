@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Play, RefreshCw, Settings, Smartphone, Share2, Eye, Pause, Copy, MoreVertical, ShieldCheck, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
+import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, File as FileIcon, Link as LinkIcon, Play, RefreshCw, Settings, Smartphone, Share2, Eye, Pause, Copy, MoreVertical, ShieldCheck, CheckCircle2, XCircle, HelpCircle, Loader2 } from 'lucide-react';
 import { useWaDiffusion } from '@/hooks/useWaDiffusion';
 import { useDiffusionSessions, type DiffSession } from '@/hooks/useDiffusionSessions';
 import { WaSessionDialog } from '@/components/whatsapp/WaSessionDialog';
@@ -20,6 +20,70 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { toast } from 'sonner';
 import { COUNTRIES as PHONE_COUNTRIES } from '@/lib/phone';
 import { normalizeBeninWhatsApp } from '@/lib/phone';
+import { supabase } from '@/integrations/supabase/client';
+
+// Accept attribute per campaign type
+const ACCEPT_BY_TYPE: Record<string, string> = {
+  photo: 'image/*',
+  video: 'video/*',
+  audio: 'audio/*',
+  file: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv',
+};
+
+const MediaUploader: React.FC<{ type: string; value: string; onChange: (url: string) => void }> = ({ type, value, onChange }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = React.useState(false);
+
+  const handleFile = async (file: File) => {
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) { toast.error('Fichier trop volumineux (max 50 Mo)'); return; }
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop() || 'bin';
+      const path = `wa-diffusion/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from('public-media').upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from('public-media').getPublicUrl(path);
+      onChange(data.publicUrl);
+      toast.success('Fichier téléversé');
+    } catch (e: any) {
+      toast.error(e?.message || 'Échec du téléversement');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const labels: Record<string, string> = {
+    photo: 'photo', video: 'vidéo', audio: 'audio', file: 'document',
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={`URL de la ${labels[type] || 'média'} (optionnelle)`}
+          className="flex-1"
+        />
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPT_BY_TYPE[type] || '*/*'}
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.currentTarget.value = ''; }}
+        />
+        <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          <span className="ml-1.5 hidden sm:inline">{uploading ? 'Envoi…' : 'Joindre'}</span>
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Facultatif. Téléversez un fichier ou collez une URL publique (https). Sans média, seul le texte sera envoyé.
+      </p>
+    </div>
+  );
+};
 
 export const WhatsAppDiffusionV2: React.FC = () => {
   const d = useWaDiffusion();
