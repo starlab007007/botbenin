@@ -54,27 +54,31 @@ export default function NativeEntryFormScreen() {
     return v !== undefined && v !== null && String(v).trim() !== '';
   });
 
+  const backToDetail = () => {
+    if (kb) navigate(`/app/bots/${kb.id}`, { replace: true });
+    else navigate(-1);
+  };
+
   const save = async () => {
     setSaving(true);
     try {
       if (isGsMode) {
-        // Strip readonly fields
         const { id: _omit, user_id: _omit2, _isOrphan, ...payload } = form;
         const ok = isEdit
           ? await sheet.updateRow(gsIdParam!, payload)
           : await sheet.addRow(payload);
-        if (ok) navigate(-1);
+        if (ok) backToDetail();
       } else {
-        const all = { ...(kb.data as any) };
+        const all = { ...((kb.data as any) || {}) };
         const list = [...(all[table.id] || [])];
         if (isEdit) list[editIdx] = form;
         else list.push(form);
         all[table.id] = list;
-        const newCompletion = calculateCompletion(all, kb.structural_info as any, template);
+        const newCompletion = calculateCompletion(all, (kb.structural_info as any) || {}, template);
         const ok = await updateKnowledgeBase(kb.id, { data: all, completion_percentage: newCompletion });
         if (ok) {
           toast.success(isEdit ? 'Entrée modifiée' : 'Entrée ajoutée');
-          navigate(-1);
+          backToDetail();
         }
       }
     } finally { setSaving(false); }
