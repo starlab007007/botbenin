@@ -149,6 +149,18 @@ export function useWaDiffusion() {
     return row;
   }, [user, refresh]);
 
+  const runWorker = useCallback(async (campaignId?: string) => {
+    const { data, error } = await supabase.functions.invoke('whatsapp-diffusion-worker', {
+      body: campaignId ? { campaignId } : {},
+    });
+    if (error) { toast.error(error.message); return null; }
+    if (data && (data as any).ok === false) {
+      toast.error((data as any).error ?? 'Échec du worker');
+      return data;
+    }
+    return data;
+  }, []);
+
   const launchCampaign = useCallback(async (campaignId: string, opts?: { generateVariants?: boolean; body?: string }) => {
     if (opts?.generateVariants && opts.body) {
       const { data: ai } = await supabase.functions.invoke('whatsapp-diffusion-ai-variants', {
@@ -160,11 +172,20 @@ export function useWaDiffusion() {
       await supabase.from('wa_campaign_messages').insert(rows);
     }
     const { data, error } = await supabase.functions.invoke('whatsapp-diffusion-enqueue', { body: { campaignId } });
-    if (error) { toast.error(error.message); return false; }
-    toast.success(`Campagne lancée : ${data?.scheduled} envois`);
+    if (error) {
+      toast.error((data as any)?.error || error.message || 'Erreur lors du lancement');
+      return false;
+    }
+    if (data && (data as any).ok === false) {
+      toast.error((data as any).error ?? 'Lancement impossible');
+      await refresh();
+      return false;
+    }
+    toast.success(`Campagne lancée : ${(data as any)?.scheduled ?? 0} envois`);
+    runWorker(campaignId).catch(() => {});
     await refresh();
     return true;
-  }, [refresh]);
+  }, [refresh, runWorker]);
 
   const deleteCampaign = useCallback(async (campaignId: string) => {
     await supabase.from('wa_send_jobs').delete().eq('campaign_id', campaignId);
@@ -177,7 +198,6 @@ export function useWaDiffusion() {
 
   const pauseCampaign = useCallback(async (campaignId: string) => {
     await supabase.from('wa_campaigns').update({ status: 'paused' }).eq('id', campaignId);
-    // Annule les jobs encore en file
     await supabase.from('wa_send_jobs').update({ status: 'skipped', last_error: 'campaign paused' })
       .eq('campaign_id', campaignId).eq('status', 'queued');
     toast.success('Campagne en pause');
@@ -189,8 +209,9 @@ export function useWaDiffusion() {
     await supabase.from('wa_send_jobs').update({ status: 'queued', last_error: null, scheduled_at: new Date().toISOString() })
       .eq('campaign_id', campaignId).eq('status', 'skipped').eq('last_error', 'campaign paused');
     toast.success('Campagne reprise');
+    runWorker(campaignId).catch(() => {});
     await refresh();
-  }, [refresh]);
+  }, [refresh, runWorker]);
 
   const updateCampaign = useCallback(async (campaignId: string, patch: Partial<WaCampaign>) => {
     const { error } = await supabase.from('wa_campaigns').update(patch as any).eq('id', campaignId);
@@ -222,15 +243,23 @@ export function useWaDiffusion() {
       body: { contactIds, sessionId },
     });
     toast.dismiss('verify');
-    if (error) { toast.error(error.message); return; }
-    toast.success(`${data?.onWhatsApp ?? 0} sur WhatsApp · ${data?.notOnWhatsApp ?? 0} non`);
+    if (error) {
+      const msg = (data as any)?.error || error.message || 'Erreur de vérification';
+      toast.error(msg);
+      return;
+    }
+    if (data && (data as any).ok === false) {
+      toast.error((data as any).error ?? 'Vérification impossible');
+      return;
+    }
+    toast.success(`${(data as any)?.onWhatsApp ?? 0} sur WhatsApp · ${(data as any)?.notOnWhatsApp ?? 0} non`);
     await refresh();
   }, [refresh]);
 
   return {
     loading, contacts, lists, campaigns, refresh,
     addContact, bulkAdd, toggleOptOut, toggleArchive, removeContact,
-    createList, addToList, createCampaign, launchCampaign,
+    createList, addToList, createCampaign, launchCampaign, runWorker,
     deleteCampaign, pauseCampaign, resumeCampaign, updateCampaign, duplicateCampaign, verifyContacts,
   };
 }
