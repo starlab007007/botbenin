@@ -164,13 +164,23 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
           </Button>
         </div>
 
-        {/* Filtre + toggle archives */}
-        <div className="flex gap-2 items-center">
-          <Input placeholder="Rechercher (nom, numéro, tag)…" value={filter} onChange={e => setFilter(e.target.value)} />
+        {/* Filtre + toggle archives + bouton vérifier */}
+        <div className="flex gap-2 items-center flex-wrap">
+          <Input placeholder="Rechercher (nom, numéro, tag)…" value={filter} onChange={e => setFilter(e.target.value)} className="flex-1 min-w-[180px]" />
           <div className="flex items-center gap-2">
             <Switch checked={showArchived} onCheckedChange={setShowArchived} id="arch" />
             <Label htmlFor="arch" className="text-xs">Archives</Label>
           </div>
+          <Button
+            size="sm" variant="outline"
+            onClick={() => {
+              const ids = filtered.filter(c => c.is_whatsapp === null || c.is_whatsapp === undefined).map(c => c.id);
+              if (!ids.length) { toast.info('Tous les contacts filtrés sont déjà vérifiés'); return; }
+              d.verifyContacts(ids);
+            }}
+          >
+            <ShieldCheck className="w-4 h-4 mr-1" /> Vérifier WhatsApp
+          </Button>
         </div>
 
         <div className="text-xs text-muted-foreground">
@@ -183,7 +193,12 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
             {filtered.map(c => (
               <div key={c.id} className="p-3 flex items-center gap-3 hover:bg-muted/40">
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{c.display_name || '—'}</div>
+                  <div className="font-medium text-sm truncate flex items-center gap-2">
+                    {c.display_name || '—'}
+                    {c.is_whatsapp === true && <Badge className="bg-green-500 text-white text-[10px] gap-0.5"><CheckCircle2 className="w-3 h-3" />WhatsApp</Badge>}
+                    {c.is_whatsapp === false && <Badge variant="destructive" className="text-[10px] gap-0.5"><XCircle className="w-3 h-3" />Pas WA</Badge>}
+                    {(c.is_whatsapp === null || c.is_whatsapp === undefined) && <Badge variant="outline" className="text-[10px] gap-0.5"><HelpCircle className="w-3 h-3" />Non vérifié</Badge>}
+                  </div>
                   <div className="text-xs text-muted-foreground font-mono">{c.phone_e164}</div>
                   {c.tags?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -193,6 +208,9 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
                 </div>
                 {c.opt_out && <Badge variant="destructive" className="text-[10px]">OPT-OUT</Badge>}
                 {c.archived && <Badge variant="outline" className="text-[10px]">Archivé</Badge>}
+                <Button size="icon" variant="ghost" title="Vérifier WhatsApp" onClick={() => d.verifyContacts([c.id])}>
+                  <ShieldCheck className="w-4 h-4" />
+                </Button>
                 <Button size="icon" variant="ghost" title="Opt-out" onClick={() => d.toggleOptOut(c.id, !c.opt_out)}>
                   <Ban className={`w-4 h-4 ${c.opt_out ? 'text-destructive' : ''}`} />
                 </Button>
