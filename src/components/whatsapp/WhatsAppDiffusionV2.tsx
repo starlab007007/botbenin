@@ -123,9 +123,26 @@ const SessionsTab: React.FC<{ s: ReturnType<typeof useDiffusionSessions> }> = ({
 const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) => {
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
+  const [countryCode, setCountryCode] = useState('BJ');
   const [filter, setFilter] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+
+  const COUNTRIES = [
+    { code: 'BJ', flag: '🇧🇯', dial: '+229', name: 'Bénin' },
+    { code: 'TG', flag: '🇹🇬', dial: '+228', name: 'Togo' },
+    { code: 'CI', flag: '🇨🇮', dial: '+225', name: "Côte d'Ivoire" },
+    { code: 'SN', flag: '🇸🇳', dial: '+221', name: 'Sénégal' },
+    { code: 'BF', flag: '🇧🇫', dial: '+226', name: 'Burkina Faso' },
+    { code: 'NG', flag: '🇳🇬', dial: '+234', name: 'Nigeria' },
+    { code: 'GH', flag: '🇬🇭', dial: '+233', name: 'Ghana' },
+    { code: 'ML', flag: '🇲🇱', dial: '+223', name: 'Mali' },
+    { code: 'NE', flag: '🇳🇪', dial: '+227', name: 'Niger' },
+    { code: 'CM', flag: '🇨🇲', dial: '+237', name: 'Cameroun' },
+    { code: 'GA', flag: '🇬🇦', dial: '+241', name: 'Gabon' },
+    { code: 'FR', flag: '🇫🇷', dial: '+33', name: 'France' },
+  ];
+  const current = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[0];
 
   const filtered = useMemo(() => {
     return d.contacts.filter(c => {
@@ -145,10 +162,24 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
         {/* Ajout manuel */}
         <div className="flex flex-col sm:flex-row gap-2 items-end">
           <div className="flex-1">
-            <Label className="text-xs">🇧🇯 Numéro WhatsApp</Label>
+            <Label className="text-xs">Numéro WhatsApp</Label>
             <div className="flex">
-              <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 bg-muted text-sm">+229</span>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="01 XX XX XX XX" className="rounded-l-none" />
+              <select
+                value={countryCode}
+                onChange={e => setCountryCode(e.target.value)}
+                className="inline-flex items-center px-2 rounded-l-md border border-r-0 bg-muted text-sm h-10 focus:outline-none"
+                title="Pays"
+              >
+                {COUNTRIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
+                ))}
+              </select>
+              <Input
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder={countryCode === 'BJ' ? '01 XX XX XX XX' : `${current.name} sans indicatif`}
+                className="rounded-l-none"
+              />
             </div>
           </div>
           <div className="flex-1">
@@ -156,13 +187,14 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="Aïssa Dossou" />
           </div>
           <Button className="bg-green-600 hover:bg-green-700"
-            onClick={async () => { await d.addContact({ phone, display_name: name || undefined }); setPhone(''); setName(''); }}>
+            onClick={async () => { await d.addContact({ phone, display_name: name || undefined, countryCode }); setPhone(''); setName(''); }}>
             <Plus className="w-4 h-4 mr-1" /> Ajouter
           </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <Upload className="w-4 h-4 mr-1" /> Importer
           </Button>
         </div>
+
 
         {/* Filtre + toggle archives + bouton vérifier */}
         <div className="flex gap-2 items-center flex-wrap">
