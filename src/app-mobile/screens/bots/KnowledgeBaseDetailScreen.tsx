@@ -42,8 +42,8 @@ export default function KnowledgeBaseDetailScreen() {
     const found = knowledgeBases.find(k => k.id === id);
     if (found) {
       setKb(found);
-      setStructural(found.structural_info as any);
-      setTablesData(found.data as any);
+      setStructural((found.structural_info as any) || {});
+      setTablesData((found.data as any) || {});
     }
   }, [id, knowledgeBases]);
 
@@ -85,9 +85,11 @@ export default function KnowledgeBaseDetailScreen() {
   const tabs = [{ id: 'structural', label: 'Infos' }, ...template.tables.map(t => ({ id: t.id, label: t.name }))];
 
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col">
-      <header className="sticky top-0 z-30 bg-[hsl(var(--wa-green))] text-white shadow-sm"
+    <div className="fixed inset-0 z-40 bg-background flex flex-col">
+      <header
+        className="sticky top-0 z-30 bg-[hsl(var(--wa-green))] text-white shadow-sm"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+
         <div className="flex items-center gap-2 px-3 py-3">
           <button onClick={() => navigate('/app/bots')} className="p-2 -ml-2 rounded-full active:bg-white/10" aria-label="Retour">
             <ArrowLeft className="h-5 w-5" />

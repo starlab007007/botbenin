@@ -54,7 +54,7 @@ export default function NativeFormScreen({
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-32 space-y-5">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pt-4 pb-32 space-y-5 [-webkit-overflow-scrolling:touch]">
         {children}
       </main>
 

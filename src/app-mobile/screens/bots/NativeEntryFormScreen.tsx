@@ -19,9 +19,10 @@ export default function NativeEntryFormScreen() {
   const template = kb ? getTemplateById(kb.template_id) : undefined;
   const table = template?.tables.find(t => t.id === tableId);
 
-  // Google Sheet mode detection: index starts with "gs:" OR query gs=1
-  const gsIdParam = index && index.startsWith('gs:') ? decodeURIComponent(index.slice(3)) : null;
-  const isNew = index === 'new' || index === undefined;
+  // Google Sheet mode detection: index starts with "gs:" (handles encoded ":" too) OR query gs=1
+  const rawIndex = index ? decodeURIComponent(index) : '';
+  const gsIdParam = rawIndex.startsWith('gs:') ? rawIndex.slice(3) : null;
+  const isNew = !index || index === 'new';
   const isGsMode = !!(template && isGoogleSheetTemplate(template) && (gsIdParam || search.get('gs') === '1'));
   const isEdit = !isNew && (gsIdParam !== null || (index !== 'new' && index !== undefined));
   const editIdx = !isGsMode && isEdit ? parseInt(index!, 10) : -1;
@@ -53,27 +54,31 @@ export default function NativeEntryFormScreen() {
     return v !== undefined && v !== null && String(v).trim() !== '';
   });
 
+  const backToDetail = () => {
+    if (kb) navigate(`/app/bots/${kb.id}`, { replace: true });
+    else navigate(-1);
+  };
+
   const save = async () => {
     setSaving(true);
     try {
       if (isGsMode) {
-        // Strip readonly fields
         const { id: _omit, user_id: _omit2, _isOrphan, ...payload } = form;
         const ok = isEdit
           ? await sheet.updateRow(gsIdParam!, payload)
           : await sheet.addRow(payload);
-        if (ok) navigate(-1);
+        if (ok) backToDetail();
       } else {
-        const all = { ...(kb.data as any) };
+        const all = { ...((kb.data as any) || {}) };
         const list = [...(all[table.id] || [])];
         if (isEdit) list[editIdx] = form;
         else list.push(form);
         all[table.id] = list;
-        const newCompletion = calculateCompletion(all, kb.structural_info as any, template);
+        const newCompletion = calculateCompletion(all, (kb.structural_info as any) || {}, template);
         const ok = await updateKnowledgeBase(kb.id, { data: all, completion_percentage: newCompletion });
         if (ok) {
           toast.success(isEdit ? 'Entrée modifiée' : 'Entrée ajoutée');
-          navigate(-1);
+          backToDetail();
         }
       }
     } finally { setSaving(false); }
@@ -85,15 +90,15 @@ export default function NativeEntryFormScreen() {
     try {
       if (isGsMode) {
         const ok = await sheet.deleteRow(gsIdParam!);
-        if (ok) navigate(-1);
+        if (ok) backToDetail();
       } else {
-        const all = { ...(kb.data as any) };
+        const all = { ...((kb.data as any) || {}) };
         const list = [...(all[table.id] || [])];
         list.splice(editIdx, 1);
         all[table.id] = list;
-        const newCompletion = calculateCompletion(all, kb.structural_info as any, template);
+        const newCompletion = calculateCompletion(all, (kb.structural_info as any) || {}, template);
         const ok = await updateKnowledgeBase(kb.id, { data: all, completion_percentage: newCompletion });
-        if (ok) { toast.success('Entrée supprimée'); navigate(-1); }
+        if (ok) { toast.success('Entrée supprimée'); backToDetail(); }
       }
     } finally { setSaving(false); }
   };
@@ -110,13 +115,13 @@ export default function NativeEntryFormScreen() {
       {table.fields.map(f => (
         <div key={f.name} className="space-y-1.5">
           <label className="text-sm font-medium block">
-            {f.name}
+            {(f as any).description || f.name}
             {f.required && <span className="text-destructive ml-1">*</span>}
           </label>
           <NativeFieldRenderer
             field={f as any}
             value={form[f.name]}
-            onChange={(v) => setForm({ ...form, [f.name]: v })}
+            onChange={(v) => setForm(prev => ({ ...prev, [f.name]: v }))}
           />
         </div>
       ))}

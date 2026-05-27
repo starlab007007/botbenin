@@ -54,7 +54,7 @@ export default function KnowledgeBaseCreateWizard() {
   };
 
   const requiredStructuralOk = template
-    ? template.structuralInfo.filter(f => f.required).every(f => (structural[f.name] || '').trim().length > 0)
+    ? template.structuralInfo.filter(f => f.required).every(f => String(structural[f.name] ?? '').trim().length > 0)
     : false;
 
   return (
