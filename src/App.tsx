@@ -167,6 +167,7 @@ const MobileAuthHome = lazy(() => import("./app-mobile/screens/auth/AuthHomeScre
 const MobileAuthEmail = lazy(() => import("./app-mobile/screens/auth/EmailAuthScreen"));
 const MobileAuthOtp = lazy(() => import("./app-mobile/screens/auth/WhatsAppOtpScreen"));
 const MobileProfile = lazy(() => import("./app-mobile/screens/ProfileScreen"));
+const MobileNotifications = lazy(() => import("./app-mobile/screens/NotificationsScreen"));
 const RequireMobileAuth = lazy(() => import("./app-mobile/guards/RequireMobileAuth"));
 
 const queryClient = new QueryClient({
@@ -310,6 +311,7 @@ const AppContent = () => {
                     <Route path="partner/payouts" element={<MobilePartnerPayouts />} />
                     <Route path="partner/payments" element={<MobilePartnerPayments />} />
                     <Route path="profile" element={<MobileProfile />} />
+                    <Route path="notifications" element={<MobileNotifications />} />
                   </Route>
 
                   {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
