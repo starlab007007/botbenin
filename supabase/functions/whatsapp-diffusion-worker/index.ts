@@ -311,7 +311,7 @@ serve(async (req) => {
               prenom: (contact.display_name ?? "").split(" ")[0] ?? "",
               tag: (contact.tags ?? []).join(", "),
             };
-            const rendered = renderTemplate(variant.body, vars);
+            let rendered = renderTemplate(variant.body, vars);
             const mediaUrl = variant.media_url ?? campaign.media_url;
             const baseDigits = job.to_phone.replace(/[^\d]/g, "");
             // Bénin (229) : générer variantes — format WhatsApp correct est SANS le "01" → prioritaire.
@@ -367,6 +367,13 @@ serve(async (req) => {
                 throw new Error(`Média ${effectiveType} manquant et aucun texte de secours`);
               }
             }
+            // Lien : on envoie en texte en ajoutant l'URL pour générer un aperçu WhatsApp
+            if (effectiveType === "link") {
+              effectiveType = "text";
+              if (mediaUrl) {
+                rendered = `${rendered ? rendered.trim() + "\n\n" : ""}${mediaUrl}`;
+              }
+            }
             switch (effectiveType) {
               case "photo":
                 endpoint = "/api/sendImage";
@@ -389,6 +396,7 @@ serve(async (req) => {
                 break;
               default:
                 basePayload.text = rendered;
+                basePayload.linkPreview = true;
             }
 
             const payload = { ...basePayload, chatId: chosenChatId };
