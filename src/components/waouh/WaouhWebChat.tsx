@@ -352,10 +352,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
-                  "max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm prose prose-sm dark:prose-invert prose-p:my-1 break-words",
-                  m.direction === "in"
-                    ? "bg-primary text-primary-foreground rounded-br-sm"
-                    : "bg-card border rounded-bl-sm waouh-bot-bubble"
+                  "chat-bubble",
+                  m.direction === "in" ? "chat-bubble-out" : "chat-bubble-in waouh-bot-bubble"
                 )}
               >
                 {Array.isArray(m.attachments) && m.attachments.length > 0 && (

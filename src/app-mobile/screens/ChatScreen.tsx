@@ -7,8 +7,10 @@ import { markConversationRead } from "../hooks/useUnreadCounts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Send, Paperclip } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { formatConvLabel, channelBadge, type WaouhUserLike } from "../utils/chatLabel";
+import { buildChatGroups } from "../utils/chatGrouping";
+import { ChatBubble } from "../components/ChatBubble";
+import { ChatDaySeparator } from "../components/ChatDaySeparator";
 
 type Msg = {
   id: string;
@@ -164,25 +166,27 @@ export default function ChatScreen() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+      <main className="flex-1 overflow-y-auto px-3 py-3">
         {msgs.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-8">
             Aucun message pour l'instant. Écrivez un message pour démarrer.
           </div>
         )}
-        {msgs.map((m) => (
-          <div key={m.id} className={cn("flex", m.direction === "out" ? "justify-end" : "justify-start")}>
-            <div className={cn(
-              "max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm",
-              m.direction === "out" ? "bg-[#DCF8C6] dark:bg-primary/20 text-foreground rounded-br-sm" : "bg-white dark:bg-card text-foreground rounded-bl-sm"
-            )}>
-              <p className="whitespace-pre-wrap break-words">{m.text}</p>
-              <div className="text-[10px] text-muted-foreground text-right mt-0.5">
-                {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </div>
-            </div>
-          </div>
-        ))}
+        {buildChatGroups(msgs).map((it) =>
+          it.kind === "day" ? (
+            <ChatDaySeparator key={it.key} label={it.label} />
+          ) : (
+            <ChatBubble
+              key={it.key}
+              direction={it.msg.direction}
+              createdAt={it.msg.created_at}
+              grouped={it.grouped}
+              showMeta={it.showMeta}
+            >
+              <p className="whitespace-pre-wrap">{it.msg.text}</p>
+            </ChatBubble>
+          )
+        )}
         <div ref={endRef} />
       </main>
 

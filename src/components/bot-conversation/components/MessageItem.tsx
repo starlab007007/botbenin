@@ -19,20 +19,15 @@ interface MessageItemProps {
 }
 
 export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
+  const isUser = message.message_type === "user";
   return (
-    <div
-      className={cn(
-        "p-3 rounded-lg shadow-sm my-2 border flex items-start gap-2",
-        message.message_type === "user"
-          ? "bg-blue-50 border-blue-200"
-          : "bg-green-50 border-green-200"
-      )}
-    >
-      <div className="flex-shrink-0 mt-1">
-        {message.message_type === "user" ? (
-          <User className="w-4 h-4 text-blue-600" />
+    <div className={cn("flex my-2", isUser ? "justify-end" : "justify-start")}>
+      <div className={cn("chat-bubble", isUser ? "chat-bubble-out" : "chat-bubble-in", "flex items-start gap-2 max-w-[88%]")}>
+        <div className="flex-shrink-0 mt-1">
+        {isUser ? (
+          <User className="w-4 h-4 text-[hsl(var(--chat-accent))]" />
         ) : (
-          <Bot className="w-4 h-4 text-green-600" />
+          <Bot className="w-4 h-4 text-[hsl(var(--chat-accent))]" />
         )}
       </div>
       
@@ -60,6 +55,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             </span>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
