@@ -166,9 +166,71 @@ export function useWaDiffusion() {
     return true;
   }, [refresh]);
 
+  const deleteCampaign = useCallback(async (campaignId: string) => {
+    await supabase.from('wa_send_jobs').delete().eq('campaign_id', campaignId);
+    await supabase.from('wa_campaign_messages').delete().eq('campaign_id', campaignId);
+    const { error } = await supabase.from('wa_campaigns').delete().eq('id', campaignId);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Campagne supprimée');
+    await refresh();
+  }, [refresh]);
+
+  const pauseCampaign = useCallback(async (campaignId: string) => {
+    await supabase.from('wa_campaigns').update({ status: 'paused' }).eq('id', campaignId);
+    // Annule les jobs encore en file
+    await supabase.from('wa_send_jobs').update({ status: 'skipped', last_error: 'campaign paused' })
+      .eq('campaign_id', campaignId).eq('status', 'queued');
+    toast.success('Campagne en pause');
+    await refresh();
+  }, [refresh]);
+
+  const resumeCampaign = useCallback(async (campaignId: string) => {
+    await supabase.from('wa_campaigns').update({ status: 'running' }).eq('id', campaignId);
+    await supabase.from('wa_send_jobs').update({ status: 'queued', last_error: null, scheduled_at: new Date().toISOString() })
+      .eq('campaign_id', campaignId).eq('status', 'skipped').eq('last_error', 'campaign paused');
+    toast.success('Campagne reprise');
+    await refresh();
+  }, [refresh]);
+
+  const updateCampaign = useCallback(async (campaignId: string, patch: Partial<WaCampaign>) => {
+    const { error } = await supabase.from('wa_campaigns').update(patch as any).eq('id', campaignId);
+    if (error) { toast.error(error.message); return false; }
+    toast.success('Campagne mise à jour');
+    await refresh();
+    return true;
+  }, [refresh]);
+
+  const duplicateCampaign = useCallback(async (c: WaCampaign) => {
+    if (!user) return;
+    const { error } = await supabase.from('wa_campaigns').insert({
+      user_id: user.id, name: `${c.name} (copie)`, type: c.type, body: c.body,
+      media_url: c.media_url, media_mime: c.media_mime, session_id: c.session_id,
+      list_ids: c.list_ids, extra_contact_ids: c.extra_contact_ids,
+      throttle_per_hour: c.throttle_per_hour, min_delay_s: c.min_delay_s, max_delay_s: c.max_delay_s,
+      active_hours_start: c.active_hours_start, active_hours_end: c.active_hours_end,
+      ai_variation: c.ai_variation,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success('Campagne dupliquée');
+    await refresh();
+  }, [user, refresh]);
+
+  const verifyContacts = useCallback(async (contactIds: string[], sessionId?: string) => {
+    if (!contactIds.length) { toast.error('Aucun contact sélectionné'); return; }
+    toast.loading(`Vérification de ${contactIds.length} numéro(s)…`, { id: 'verify' });
+    const { data, error } = await supabase.functions.invoke('whatsapp-check-numbers', {
+      body: { contactIds, sessionId },
+    });
+    toast.dismiss('verify');
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${data?.onWhatsApp ?? 0} sur WhatsApp · ${data?.notOnWhatsApp ?? 0} non`);
+    await refresh();
+  }, [refresh]);
+
   return {
     loading, contacts, lists, campaigns, refresh,
     addContact, bulkAdd, toggleOptOut, toggleArchive, removeContact,
     createList, addToList, createCampaign, launchCampaign,
+    deleteCampaign, pauseCampaign, resumeCampaign, updateCampaign, duplicateCampaign, verifyContacts,
   };
 }
