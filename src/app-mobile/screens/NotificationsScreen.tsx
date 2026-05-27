@@ -98,7 +98,7 @@ export default function NotificationsScreen() {
           <div className="p-10 text-center text-muted-foreground">
             <Bell className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="font-medium">{showAll ? "Aucune notification" : "Aucun message non lu"}</p>
-            <p className="text-sm">Les nouveaux messages (App & WhatsApp) apparaîtront ici.</p>
+            <p className="text-sm">Les nouveaux messages (App & WhatsApp IA) apparaîtront ici.</p>
           </div>
         )}
         <ul className="divide-y">
@@ -121,7 +121,7 @@ export default function NotificationsScreen() {
                     {n.content && <p className="text-sm text-muted-foreground line-clamp-2">{n.content}</p>}
                     {channel && (
                       <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">
-                        {channel === "whatsapp" ? "WhatsApp" : "App"}
+                        {channel === "whatsapp" ? "WhatsApp IA" : "App"}
                       </span>
                     )}
                   </div>

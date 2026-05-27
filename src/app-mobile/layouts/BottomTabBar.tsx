@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 const tabs = [
   { to: '/app/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/app/bots', icon: Bot, label: 'Bots' },
-  { to: '/app/whatsapp', icon: Smartphone, label: 'WhatsApp' },
+  { to: '/app/whatsapp', icon: Smartphone, label: 'WhatsApp IA' },
   { to: '/app/diffusion', icon: Megaphone, label: 'Diffusion' },
   { to: '/app/partner', icon: Store, label: 'Partenaire' },
 ];

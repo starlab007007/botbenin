@@ -57,20 +57,24 @@ export default function WhatsAppScreen() {
     if (!user?.id) return;
     const { data } = await supabase
       .from("whatsapp_accounts")
-      .select("id, session_name, status, phone_number, is_admin_shared, user_id, created_at")
-      .or(`user_id.eq.${user.id},is_admin_shared.eq.true`)
+      .select("id, session_name, status, phone_number, user_id, created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     setDbSessions(data ?? []);
   }, [user]);
 
   useEffect(() => { loadDb(); }, [loadDb]);
 
-  // Realtime
+  // Realtime — strictly scoped to current user
   useEffect(() => {
     if (!user?.id) return;
     const ch = supabase
       .channel(`wa_mobile_${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_accounts" }, () => loadDb())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_accounts", filter: `user_id=eq.${user.id}` },
+        () => loadDb()
+      )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user, loadDb]);
@@ -180,7 +184,7 @@ export default function WhatsAppScreen() {
         {!loading && merged.length === 0 && (
           <div className="text-center py-16">
             <Smartphone className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">Aucune session WhatsApp</p>
+            <p className="text-sm text-muted-foreground mb-4">Aucune session WhatsApp IA</p>
             <Button onClick={() => setOpenCreate(true)} className="bg-[#25D366] hover:bg-[#1da851]">
               <Plus className="h-4 w-4 mr-1" /> Créer ma première session
             </Button>
@@ -310,7 +314,7 @@ function CreateSessionSheet({ open, onOpenChange, onCreate }: any) {
   const [name, setName] = useState("");
   useEffect(() => { if (open) setName(`session-${Date.now().toString().slice(-6)}`); }, [open]);
   return (
-    <SheetShell open={open} onOpenChange={onOpenChange} title="Nouvelle session WhatsApp">
+    <SheetShell open={open} onOpenChange={onOpenChange} title="Nouvelle session WhatsApp IA">
       <div className="space-y-4">
         <div>
           <label className="text-sm font-medium mb-1.5 block">Nom de la session</label>
@@ -391,7 +395,7 @@ function QrSheet({ open, onOpenChange, sessionName, getQRCode, startSession, ses
   }, [open]);
 
   return (
-    <SheetShell open={open} onOpenChange={onOpenChange} title="Connecter WhatsApp">
+    <SheetShell open={open} onOpenChange={onOpenChange} title="Connecter WhatsApp IA">
       <div className="space-y-5">
         {isWorking ? (
           <div className="text-center py-8">

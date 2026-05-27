@@ -55,8 +55,11 @@ export default function ChatListScreen() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
+  const isGuest = !user;
+
   useEffect(() => {
     if (!ready) return;
+    if (isGuest) { setConvs([]); setUsers({}); setLoading(false); return; }
     let mounted = true;
     const load = async () => {
       const fields = "id,phone_number,channel,last_message,updated_at,user_id";
@@ -117,7 +120,7 @@ export default function ChatListScreen() {
       );
     }
     return () => { mounted = false; channels.forEach((c) => supabase.removeChannel(c)); };
-  }, [ready, waouhUserIds.join("|"), sessionId]);
+  }, [ready, waouhUserIds.join("|"), sessionId, isGuest]);
 
   const enriched = useMemo(
     () => convs.map((c) => {
@@ -153,40 +156,62 @@ export default function ChatListScreen() {
     <div className="min-h-[100dvh] waouh-chat-list-bg">
       <header className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white">
         <div className="px-4 py-3 flex items-center justify-between">
-          <button onClick={() => navigate("/app/profile")} className="flex items-center gap-2 active:opacity-70">
-            <Avatar className="h-9 w-9">
-              <AvatarImage src={profile?.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-white/20 text-white text-sm">{initials}</AvatarFallback>
-            </Avatar>
-            <div className="text-left">
-              <div className="text-sm font-semibold leading-tight">{profile?.full_name ?? "WaouhApp"}</div>
-              <div className="text-[11px] text-white/70 leading-tight">{profile?.phone ?? "Mon compte"}</div>
+          {isGuest ? (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="bg-white/20 text-white text-sm">W</AvatarFallback>
+              </Avatar>
+              <div className="text-left">
+                <div className="text-sm font-semibold leading-tight">WaouhApp</div>
+                <div className="text-[11px] text-white/70 leading-tight">Invité</div>
+              </div>
             </div>
-          </button>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => navigate("/app/notifications")}
-              className="relative p-2 rounded-full hover:bg-white/15 active:bg-white/20"
-              aria-label="Notifications"
-            >
-              <Bell className="h-5 w-5" />
-              {notifUnread > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow">
-                  {notifUnread > 99 ? "99+" : notifUnread}
-                </span>
-              )}
+          ) : (
+            <button onClick={() => navigate("/app/profile")} className="flex items-center gap-2 active:opacity-70">
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={profile?.avatar_url ?? undefined} />
+                <AvatarFallback className="bg-white/20 text-white text-sm">{initials}</AvatarFallback>
+              </Avatar>
+              <div className="text-left">
+                <div className="text-sm font-semibold leading-tight">{profile?.full_name ?? "WaouhApp"}</div>
+                <div className="text-[11px] text-white/70 leading-tight">{profile?.phone ?? "Mon compte"}</div>
+              </div>
             </button>
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openWaouh} aria-label="Nouveau chat WAOUH">
-              <Plus className="h-5 w-5" />
-            </Button>
+          )}
+          <div className="flex items-center gap-1">
+            {isGuest ? (
+              <Button size="sm" className="bg-white text-[hsl(165_91%_18%)] hover:bg-white/90 h-8" onClick={() => navigate("/app/auth")}>
+                Se connecter
+              </Button>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate("/app/notifications")}
+                  className="relative p-2 rounded-full hover:bg-white/15 active:bg-white/20"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-5 w-5" />
+                  {notifUnread > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow">
+                      {notifUnread > 99 ? "99+" : notifUnread}
+                    </span>
+                  )}
+                </button>
+                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openWaouh} aria-label="Nouveau chat WAOUH">
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
+        {!isGuest && (
+          <div className="px-4 pb-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
+            </div>
           </div>
-        </div>
+        )}
       </header>
 
       <main>
