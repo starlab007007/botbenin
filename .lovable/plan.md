@@ -1,126 +1,35 @@
-## Objectif
+## Diagnostic
 
-Transformer l'onglet "Campagnes" de WhatsApp Diffusion en un véritable centre de pilotage : vérifier que chaque numéro est bien sur WhatsApp (double check avec et sans le préfixe `01`), suivre chaque envoi individuellement (envoyé / livré ✓✓ / lu ✓✓ bleu / répondu / erreur), et offrir des actions intelligentes (voir, simuler, modifier, supprimer, relancer les erreurs).
+J'ai analysé les logs et la base de données. La campagne « ok » (et plusieurs précédentes en attente/échec) a le `type = photo` mais **aucune `media_url`**. Le worker `whatsapp-diffusion-worker` lève alors l'erreur **« Média photo manquant »** sur chaque destinataire (vu dans `wa_send_jobs.last_error` x3).
 
-La base de données est déjà prête (`wa_send_jobs` contient `sent_at`, `delivered_at`, `read_at`, `replied_at`, `status`, `last_error`, `attempt`). Il reste à brancher la vérification WhatsApp, le webhook de statuts WAHA, et à construire l'UI.
+Cause racine :
+1. Le formulaire « Nouvelle campagne » (`NewCampaignDialog`) n'oblige pas l'URL média quand le type est `photo / video / audio` → l'utilisateur sélectionne « Photo + texte » par défaut visuel mais laisse l'URL vide.
+2. Le worker échoue brutalement au lieu de basculer en envoi texte si le média manque mais qu'un body existe.
+3. Côté UI Destinataires, le statut affiché reste « En attente » visuellement car la couleur destructive n'est pas claire — l'erreur réelle est masquée.
 
----
+## Corrections à apporter
 
-## 1. Vérification "Est-ce un numéro WhatsApp ?"
+### 1. Worker (`supabase/functions/whatsapp-diffusion-worker/index.ts`)
+- Si `type ∈ {photo, video, audio}` mais `media_url` absent **et** `body` non vide → **fallback automatique en envoi texte** (au lieu de throw). Logger un warning dans `wa_campaign_events`.
+- Garder l'échec uniquement si body ET media sont vides.
 
-Au lieu d'envoyer aveuglément, chaque contact reçoit un statut WhatsApp visible.
+### 2. Formulaire nouvelle campagne (`WhatsAppDiffusionV2.tsx` → `NewCampaignDialog`)
+- Validation client : si `type ≠ text` et `mediaUrl` vide → toast d'erreur bloquant « URL du média requise pour ce type ».
+- Ajouter un bouton **Upload** à côté du champ URL (utilise le bucket Supabase Storage existant) pour éviter la saisie manuelle d'URL.
+- Marquer le champ « URL du média » avec `*` quand requis.
 
-- Nouveau bouton **"Vérifier WhatsApp"** sur l'onglet Contacts et dans le wizard de campagne (étape ciblage).
-- Edge function `whatsapp-check-numbers` qui appelle `POST /api/contacts/check-exists` de WAHA pour chaque numéro :
-  1. Essai 1 : format **avec `01`** → `22901XXXXXXXX`
-  2. Essai 2 (si KO) : format **sans `01`** → `229XXXXXXXX`
-  3. Le format gagnant est mémorisé dans `wa_contacts.phone_e164` et `is_whatsapp = true/false`, `last_validated_at = now()`.
-- Badge couleur dans la liste de contacts :
-  - 🟢 Vert "WhatsApp ✓"
-  - 🔴 Rouge "Pas sur WhatsApp"
-  - ⚪ Gris "Non vérifié"
-- Au lancement d'une campagne : alerte si des contacts ne sont pas vérifiés, avec un bouton "Vérifier maintenant" (batch en arrière-plan).
+### 3. EditCampaignDialog
+- Même validation média obligatoire si type non-text.
+- Permettre de changer le type vers `text` pour les anciennes campagnes ratées.
 
-## 2. Suivi des statuts d'envoi (✓ ✓✓ ✓✓ bleu)
+### 4. UI Destinataires (`CampaignDetailsDialog`)
+- Quand `j.status === 'failed'`, afficher clairement le badge **Échec** en rouge à la place de l'horloge « En attente » (le composant le fait déjà, mais l'icône `Clock` apparaît si `status` est vide — vérifier que `j.status` est bien transmis depuis `useCampaignDetails`).
+- Toujours afficher `j.last_error` même tronqué.
 
-- Nouvelle edge function `whatsapp-waha-webhook` (publique, `verify_jwt = false`) qui reçoit les events WAHA : `message.ack` (sent / delivered / read), `message.failed`, `message.reply`.
-- Mapping ACK WAHA → colonnes de `wa_send_jobs` :
-  - `ACK_SENT` → `sent_at` + status `sent` → icône ✓ gris
-  - `ACK_DEVICE`/`DELIVERED` → `delivered_at` + status `delivered` → ✓✓ gris
-  - `ACK_READ` → `read_at` + status `read` → **✓✓ bleu**
-  - `ACK_REPLIED` ou message entrant matchant → `replied_at` → 💬 bleu
-  - `failed` → `last_error` + status `failed`
-- L'URL du webhook est ajoutée automatiquement à la session WAHA via `waouh-waha-control` (event `session.create` / `session.update`).
-- Realtime Supabase sur `wa_send_jobs` pour rafraîchir la vue campagne sans rechargement.
+### 5. Action de récupération
+- Pour la campagne « ok » (failed) actuellement bloquée : un simple clic sur **Relancer** dans le menu devra repasser en texte (via fallback du worker) et envoyer correctement.
 
-## 3. Dashboard campagne (nouvelle vue détaillée)
-
-Remplace la simple ligne de campagne par une **Card cliquable** qui ouvre un dialog plein écran `CampaignDetailsDialog.tsx` avec 4 onglets :
-
-### Onglet "Vue d'ensemble"
-KPIs en cartes colorées :
-- 👥 Cibles : N
-- 📤 Envoyés : N (%)
-- ✓✓ Livrés : N (%)
-- 👁️ Lus : N (%) ← compteur bleu
-- 💬 Répondus : N
-- ❌ Erreurs : N (avec bouton "Tout relancer")
-
-Graphique progression dans le temps (recharts, ligne envois/livrés/lus).
-
-### Onglet "Destinataires"
-Tableau dynamique des `wa_send_jobs` :
-| Numéro | Nom | Statut visuel | Heure d'envoi | Heure de lecture | Erreur | Actions |
-
-Statut visuel = jeu d'icônes WhatsApp natives :
-- ⏳ En attente · ✓ Envoyé · ✓✓ Livré · **✓✓ bleu** Lu · 💬 Répondu · ❌ Échec
-
-Actions par ligne : **Relancer**, **Voir la réponse**, **Voir conversation** (si message entrant reçu).
-
-### Onglet "Aperçu / Simulation"
-Reprend `WhatsAppCampaignPreview` existant en mode "mockup téléphone" :
-- Bulle WhatsApp avec le rendu réel du message (texte + média)
-- Variantes IA défilantes si activées
-- Bandeau "Aperçu chez le destinataire"
-
-### Onglet "Erreurs"
-Liste regroupée par type d'erreur (`number_not_on_whatsapp`, `rate_limited`, `session_disconnected`, etc.) avec :
-- Message clair en français
-- Suggestion de correction
-- Bouton **"Réessayer ces N envois"** → remet `status = queued`, `attempt += 1`, `scheduled_at = now()`
-
-## 4. Actions sur la carte campagne
-
-Menu contextuel sur chaque campagne dans la liste :
-- 👁️ **Voir** → ouvre le dialog ci-dessus
-- ✏️ **Modifier** → réouvre le wizard (uniquement si `status in ('draft','scheduled')`)
-- 📋 **Dupliquer**
-- ⏸️ **Mettre en pause** / ▶️ Reprendre (modifie status + arrête le worker)
-- 🔁 **Relancer les échecs**
-- 🗑️ **Supprimer** (confirmation, cascade sur `wa_send_jobs`)
-
-## 5. Hook & realtime
-
-Nouveau hook `useCampaignDetails(campaignId)` :
-- Charge la campagne + tous ses `wa_send_jobs` (+ jointure `wa_contacts` pour nom)
-- Abonnement realtime `postgres_changes` sur `wa_send_jobs` filtré par `campaign_id`
-- Calcule les stats dérivées (counts par statut, %)
-- Expose `retryFailed()`, `retryOne(jobId)`, `pause()`, `resume()`, `remove()`
-
----
-
-## Détails techniques
-
-**Nouvelles tables / colonnes** : aucune. `wa_contacts.is_whatsapp` et `wa_send_jobs` existent déjà.
-
-**Nouvelles edge functions** :
-- `whatsapp-check-numbers` (POST, JWT requis) — input `{ contactIds[] }`, output `{ checked, onWhatsApp, notOnWhatsApp }`.
-- `whatsapp-waha-webhook` (POST, public) — reçoit les ACK et update `wa_send_jobs`.
-
-**Edge functions modifiées** :
-- `waouh-waha-control` : auto-enregistrer le webhook ACK à la création de session.
-- `whatsapp-diffusion-worker` : sur succès, stocker `waha_message_id` (déjà prévu), sur échec stocker un `error_code` machine-friendly.
-
-**Nouveaux composants** :
-- `src/components/whatsapp/CampaignDetailsDialog.tsx` (4 onglets)
-- `src/components/whatsapp/CampaignSendStatus.tsx` (jeu d'icônes ✓ ✓✓ ✓✓-bleu)
-- `src/components/whatsapp/CampaignSimulator.tsx` (mockup téléphone)
-- `src/components/whatsapp/ContactsWhatsAppCheck.tsx` (badge + bouton vérifier)
-
-**Composants modifiés** :
-- `WhatsAppDiffusionV2.tsx` : carte campagne enrichie + menu actions.
-- `WhatsAppCampaignPreview.tsx` : réutilisé dans l'onglet Aperçu.
-
-**Hooks** :
-- `src/hooks/useCampaignDetails.ts` (nouveau)
-- `src/hooks/useWaDiffusion.ts` : ajout de `retryFailed`, `pauseCampaign`, `resumeCampaign`, `deleteCampaign`, `verifyContacts`.
-
-**Secret requis** : `WAHA_WEBHOOK_TOKEN` (signature partagée pour valider que le webhook vient bien de WAHA).
-
----
-
-## Livraison en 3 étapes
-
-1. **Backend & vérification** — edge function `whatsapp-check-numbers`, webhook ACK, mise à jour de `waouh-waha-control` pour enregistrer le webhook.
-2. **UI Détails campagne** — dialog 4 onglets, hook realtime, icônes de statut WhatsApp natives.
-3. **Actions intelligentes** — relance erreurs, pause/reprise, édition, duplication, suppression, simulation chez le destinataire.
+## Résultat attendu
+- Plus aucune campagne ne peut être créée en `photo` sans média.
+- Les anciennes campagnes ratées « Média photo manquant » peuvent être relancées (fallback texte automatique).
+- L'onglet Destinataires montre clairement Échec + raison au lieu de « En attente » trompeur.
