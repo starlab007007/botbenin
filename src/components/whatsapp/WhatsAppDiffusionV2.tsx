@@ -11,10 +11,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectGroup, SelectLabel, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Play, RefreshCw, Settings, Smartphone, Share2 } from 'lucide-react';
+import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Play, RefreshCw, Settings, Smartphone, Share2, Eye, Pause, Copy, MoreVertical, ShieldCheck, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import { useWaDiffusion } from '@/hooks/useWaDiffusion';
 import { useDiffusionSessions, type DiffSession } from '@/hooks/useDiffusionSessions';
 import { WaSessionDialog } from '@/components/whatsapp/WaSessionDialog';
+import { CampaignDetailsDialog } from '@/components/whatsapp/CampaignDetailsDialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { normalizeBeninWhatsApp } from '@/lib/phone';
 
