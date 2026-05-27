@@ -599,12 +599,8 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
   const submit = async () => {
     if (!name || !body || !sessionId) { toast.error('Nom, message et session obligatoires'); return; }
     if (selectedContacts.size === 0) { toast.error('Sélectionnez au moins un contact'); return; }
-    if (type !== 'text' && !mediaUrl.trim()) {
-      toast.error(`URL du média requise pour le type « ${type} ». Indiquez une URL ou choisissez « Texte ».`);
-      return;
-    }
     const row = await d.createCampaign({
-      name, type, body, media_url: mediaUrl || null, session_id: sessionId,
+      name, type, body, media_url: mediaUrl.trim() || null, session_id: sessionId,
       extra_contact_ids: [...selectedContacts],
       throttle_per_hour: throttle,
       active_hours_start: `${hStart}:00`, active_hours_end: `${hEnd}:00`,
