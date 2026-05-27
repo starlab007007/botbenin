@@ -185,69 +185,40 @@ export const useWAHADashboard = () => {
     }
   }, [makeWAHARequest, loadSessions]);
 
-  // Obtenir le QR code avec priorité à l’edge function waha-session-manager
+  // Obtenir le QR — délègue au proxy WAHA qui gère lui-même les fallbacks d'endpoints
   const getQRCode = useCallback(async (sessionName: string): Promise<QRCodeData> => {
     try {
       console.log('Getting QR code for session:', sessionName);
 
-      // 1) Essayer via l’edge function dédiée (meilleure compatibilité WAHA)
+      // 1) Edge function dédiée (compatibilité maximale, gère plusieurs variantes WAHA)
       try {
         const { data, error } = await supabase.functions.invoke('waha-session-manager', {
           body: { action: 'qr', sessionName }
         });
-        if (error) throw error;
-        const qrCandidate = data?.qrCode || data?.data?.qr || data?.data?.base64 || data?.qr || data?.base64;
-        if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
-          return { qr: normalizeQr(qrCandidate), url: data?.data?.url || data?.url || `whatsapp://connect/${sessionName}` };
+        if (!error) {
+          const qrCandidate = data?.qrCode || data?.data?.qr || data?.data?.base64 || data?.data?.data || data?.qr || data?.base64;
+          if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
+            return { qr: normalizeQr(qrCandidate), url: data?.data?.url || data?.url || `whatsapp://connect/${sessionName}` };
+          }
         }
       } catch (e) {
         console.warn('Edge function qr failed, fallback to proxy:', e);
       }
 
-      // 2) Fallback via proxy avec plusieurs endpoints pris en charge
-      const tryPaths: { path: string; method: 'POST' | 'GET' }[] = [
-        // Doc officielle: POST /api/{session}/auth/qr
-        { path: `/api/${sessionName}/auth/qr`, method: 'POST' },
-        { path: `/api/${sessionName}/auth/qr?format=base64`, method: 'POST' },
-        { path: `/api/v2/${sessionName}/auth/qr`, method: 'POST' },
-        { path: `/api/v2/${sessionName}/auth/qr?format=base64`, method: 'POST' },
-        // Fallbacks anciens
-        { path: `/api/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
-        { path: `/api/sessions/${sessionName}/auth/qr`, method: 'GET' },
-        { path: `/api/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
-        { path: `/api/sessions/${sessionName}/qr`, method: 'GET' },
-        { path: `/api/v2/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
-        { path: `/api/v2/sessions/${sessionName}/auth/qr`, method: 'GET' },
-        { path: `/api/v2/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
-        { path: `/api/v2/sessions/${sessionName}/qr`, method: 'GET' },
-      ];
-
-      let lastErr: any = null;
-      for (const cfg of tryPaths) {
-        try {
-          const data = await makeWAHARequest(cfg.path, { method: cfg.method });
-          if (!data) continue;
-          const qrCandidate = data.qr || data.base64 || data.image || data.qrcode;
-          if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
-            return { qr: normalizeQr(qrCandidate), url: data.url || `whatsapp://connect/${sessionName}` };
-          }
-          if (typeof data.data === 'string' && data.data.length > 0) {
-            return { qr: normalizeQr(data.data), url: `whatsapp://connect/${sessionName}` };
-          }
-        } catch (e) {
-          lastErr = e;
-          console.warn('QR attempt failed for', cfg.path, e);
-          continue;
-        }
+      // 2) Proxy : un seul appel — la fonction edge teste elle-même toutes les variantes
+      const data = await makeWAHARequest(`/api/${sessionName}/auth/qr?format=image`, { method: 'GET' });
+      const qrCandidate = data?.qr || data?.base64 || data?.image || data?.qrcode || data?.data;
+      if (typeof qrCandidate === 'string' && qrCandidate.length > 0) {
+        return { qr: normalizeQr(qrCandidate), url: data?.url || `whatsapp://connect/${sessionName}` };
       }
-
-      throw lastErr || new Error('QR non disponible pour cette session');
+      throw new Error('QR non disponible (session probablement déjà connectée ou en cours de démarrage)');
     } catch (error) {
       console.error('Error getting QR code:', error);
-      toast.error('Erreur lors de la récupération du QR code');
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de la récupération du QR code');
       throw error;
     }
   }, [makeWAHARequest]);
+
 
   // Normalise une valeur QR en Data URL image/png
   function normalizeQr(value: string): string {

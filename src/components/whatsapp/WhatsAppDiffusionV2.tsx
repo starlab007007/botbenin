@@ -18,6 +18,7 @@ import { WaSessionDialog } from '@/components/whatsapp/WaSessionDialog';
 import { CampaignDetailsDialog } from '@/components/whatsapp/CampaignDetailsDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { COUNTRIES as PHONE_COUNTRIES } from '@/lib/phone';
 import { normalizeBeninWhatsApp } from '@/lib/phone';
 
 export const WhatsAppDiffusionV2: React.FC = () => {
@@ -128,20 +129,7 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
   const [importOpen, setImportOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  const COUNTRIES = [
-    { code: 'BJ', flag: '🇧🇯', dial: '+229', name: 'Bénin' },
-    { code: 'TG', flag: '🇹🇬', dial: '+228', name: 'Togo' },
-    { code: 'CI', flag: '🇨🇮', dial: '+225', name: "Côte d'Ivoire" },
-    { code: 'SN', flag: '🇸🇳', dial: '+221', name: 'Sénégal' },
-    { code: 'BF', flag: '🇧🇫', dial: '+226', name: 'Burkina Faso' },
-    { code: 'NG', flag: '🇳🇬', dial: '+234', name: 'Nigeria' },
-    { code: 'GH', flag: '🇬🇭', dial: '+233', name: 'Ghana' },
-    { code: 'ML', flag: '🇲🇱', dial: '+223', name: 'Mali' },
-    { code: 'NE', flag: '🇳🇪', dial: '+227', name: 'Niger' },
-    { code: 'CM', flag: '🇨🇲', dial: '+237', name: 'Cameroun' },
-    { code: 'GA', flag: '🇬🇦', dial: '+241', name: 'Gabon' },
-    { code: 'FR', flag: '🇫🇷', dial: '+33', name: 'France' },
-  ];
+  const COUNTRIES = PHONE_COUNTRIES;
   const current = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[0];
 
   const filtered = useMemo(() => {
@@ -171,7 +159,7 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
                 title="Pays"
               >
                 {COUNTRIES.map(c => (
-                  <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
+                  <option key={c.code} value={c.code}>{c.flag} {c.dial} — {c.name}</option>
                 ))}
               </select>
               <Input
