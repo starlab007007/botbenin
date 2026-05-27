@@ -494,16 +494,12 @@ const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaig
 
   const save = async () => {
     if (!name.trim() || !body.trim()) { toast.error('Nom et message obligatoires'); return; }
-    if (type !== 'text' && !mediaUrl.trim()) {
-      toast.error(`URL du média requise pour le type « ${type} ». Indiquez une URL ou basculez en « Texte ».`);
-      return;
-    }
     setSaving(true);
     const ok = await d.updateCampaign(campaign.id, {
       name: name.trim(),
       type,
       body,
-      media_url: mediaUrl || null,
+      media_url: mediaUrl.trim() || null,
       throttle_per_hour: Number(throttle) || 30,
       active_hours_start: hStart,
       active_hours_end: hEnd,
