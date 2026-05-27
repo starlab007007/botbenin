@@ -310,6 +310,7 @@ const AppContent = () => {
                     <Route path="partner/payouts" element={<MobilePartnerPayouts />} />
                     <Route path="partner/payments" element={<MobilePartnerPayments />} />
                     <Route path="profile" element={<MobileProfile />} />
+                    <Route path="notifications" element={<MobileNotifications />} />
                   </Route>
 
                   {/* Module Support Technique SIGDSTS — ISOLÉ, sans sidebar/header */}
