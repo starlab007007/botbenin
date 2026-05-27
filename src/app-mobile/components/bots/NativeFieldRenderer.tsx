@@ -4,6 +4,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import NativeSelectSheet from '../native/NativeSelectSheet';
 import { cn } from '@/lib/utils';
+import {
+  detectSmartKind,
+  PhoneBjInput,
+  HoursRangeInput,
+  DeliveryDelayInput,
+  PaymentModesInput,
+  DaysRangeInput,
+} from './SmartFields';
 
 interface Field {
   name: string;
@@ -57,6 +65,24 @@ export default function NativeFieldRenderer({ field, value, onChange }: Props) {
 
   const baseInput =
     'w-full h-12 px-3 rounded-lg border border-input bg-background text-[15px] outline-none focus:border-primary';
+
+  // -------------------- Smart detection (téléphone, horaires, etc.) --------------------
+  const smart = detectSmartKind(field);
+  if (smart === 'phone-bj') {
+    return <PhoneBjInput value={value || ''} onChange={onChange} placeholder={field.placeholder} />;
+  }
+  if (smart === 'hours-range') {
+    return <HoursRangeInput value={value || ''} onChange={onChange} />;
+  }
+  if (smart === 'delivery-delay') {
+    return <DeliveryDelayInput value={value || ''} onChange={onChange} placeholder={field.placeholder} />;
+  }
+  if (smart === 'payment-modes') {
+    return <PaymentModesInput value={value} onChange={onChange} />;
+  }
+  if (smart === 'days-range') {
+    return <DaysRangeInput value={value || ''} onChange={onChange} placeholder={field.placeholder} />;
+  }
 
   if (field.type === 'select') {
     return (
