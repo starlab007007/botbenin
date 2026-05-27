@@ -255,6 +255,19 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const send = async () => {
     const text = input.trim();
     if ((!text && pendingAtts.length === 0) || sending) return;
+    // Guest paywall: after 10 messages without auth, force login
+    if (!user) {
+      const GUEST_KEY = "waouh_guest_msg_count";
+      const count = parseInt(localStorage.getItem(GUEST_KEY) || "0", 10) || 0;
+      if (count >= 10) {
+        toast({ title: "Connectez-vous pour continuer", description: "Vous avez atteint la limite de 10 messages invité." });
+        window.location.href = "/app/auth";
+        return;
+      }
+      localStorage.setItem(GUEST_KEY, String(count + 1));
+    } else {
+      localStorage.removeItem("waouh_guest_msg_count");
+    }
     const atts = pendingAtts;
     setInput("");
     setPendingAtts([]);
