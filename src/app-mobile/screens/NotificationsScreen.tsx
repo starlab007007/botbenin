@@ -121,7 +121,7 @@ export default function NotificationsScreen() {
                     {n.content && <p className="text-sm text-muted-foreground line-clamp-2">{n.content}</p>}
                     {channel && (
                       <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase tracking-wide">
-                        {channel === "whatsapp" ? "WhatsApp" : "App"}
+                        {channel === "whatsapp" ? "WhatsApp IA" : "App"}
                       </span>
                     )}
                   </div>
