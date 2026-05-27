@@ -298,15 +298,45 @@ serve(async (req) => {
             const rendered = renderTemplate(variant.body, vars);
             const mediaUrl = variant.media_url ?? campaign.media_url;
             const baseDigits = job.to_phone.replace(/[^\d]/g, "");
-            // Bénin : générer variantes 01 / sans 01 pour tenter les 2 formats WhatsApp
-            const phoneVariants: string[] = [baseDigits];
+            // Bénin (229) : générer variantes — format WhatsApp correct est SANS le "01" → prioritaire.
+            const phoneVariants: string[] = [];
             if (baseDigits.startsWith("229")) {
               const local = baseDigits.slice(3);
               if (local.startsWith("01") && local.length === 10) {
-                phoneVariants.push("229" + local.slice(2)); // sans 01
+                phoneVariants.push("229" + local.slice(2)); // sans 01 (PRIORITAIRE)
+                phoneVariants.push(baseDigits);              // avec 01 (fallback)
               } else if (local.length === 8) {
-                phoneVariants.push("22901" + local); // avec 01
+                phoneVariants.push(baseDigits);              // sans 01 (PRIORITAIRE)
+                phoneVariants.push("22901" + local);         // avec 01 (fallback)
+              } else {
+                phoneVariants.push(baseDigits);
               }
+            } else {
+              phoneVariants.push(baseDigits);
+            }
+
+            // Pré-vérifie l'existence WhatsApp pour choisir le bon chatId (évite les "sent" silencieux)
+            let chosenChatId: string | null = null;
+            let usedPhone = phoneVariants[0];
+            for (const v of phoneVariants) {
+              try {
+                const chk = await wahaFetch(
+                  wahaBaseUrl,
+                  `/api/contacts/check-exists?phone=${encodeURIComponent(v)}&session=${encodeURIComponent(session.session_name)}`,
+                  { method: "GET" },
+                );
+                if (chk && chk.ok) {
+                  const cd = await chk.json().catch(() => ({} as any));
+                  if (cd?.numberExists === true) {
+                    chosenChatId = cd?.chatId ?? `${v}@c.us`;
+                    usedPhone = v;
+                    break;
+                  }
+                }
+              } catch { /* tente la suivante */ }
+            }
+            if (!chosenChatId) {
+              throw new Error(`Numéro non inscrit sur WhatsApp (essayé: ${phoneVariants.join(", ")})`);
             }
 
             let endpoint = "/api/sendText";
@@ -339,22 +369,13 @@ serve(async (req) => {
                 basePayload.text = rendered;
             }
 
-            let lastErr = "";
+            const payload = { ...basePayload, chatId: chosenChatId };
+            const res = await wahaFetch(wahaBaseUrl, endpoint, { method: "POST", body: JSON.stringify(payload) });
+            if (!res) throw new Error("WAHA ne répond pas pendant l'envoi");
+            const text = await res.text();
             let parsed: any = null;
-            let sentOk = false;
-            let usedPhone = baseDigits;
-            for (const v of phoneVariants) {
-              const payload = { ...basePayload, chatId: `${v}@c.us` };
-              const res = await wahaFetch(wahaBaseUrl, endpoint, { method: "POST", body: JSON.stringify(payload) });
-              if (!res) { lastErr = "WAHA ne répond pas pendant l’envoi"; continue; }
-              const text = await res.text();
-              try { parsed = JSON.parse(text || "{}"); } catch { parsed = null; }
-              if (res.ok) { sentOk = true; usedPhone = v; break; }
-              lastErr = `WAHA ${res.status}: ${text.slice(0, 300)}`;
-              // Si erreur "not a WhatsApp user" / 404 → essayer variante suivante
-              if (res.status !== 404 && res.status !== 422 && !/not.*whatsapp|not.*registered|exist/i.test(text)) break;
-            }
-            if (!sentOk) throw new Error(lastErr || "Échec d’envoi WAHA");
+            try { parsed = JSON.parse(text || "{}"); } catch { parsed = null; }
+            if (!res.ok) throw new Error(`WAHA ${res.status}: ${text.slice(0, 300)}`);
 
             await admin.from("wa_send_jobs").update({
               status: "sent",
