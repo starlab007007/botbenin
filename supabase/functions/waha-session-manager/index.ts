@@ -237,7 +237,7 @@ serve(async (req) => {
             name: sessionName,
             config: {
               webhooks: [
-                { url: `${supabaseUrl}/functions/v1/waha-webhook`, events: ['message', 'session.status'] },
+                { url: `${supabaseUrl}/functions/v1/waha-webhook`, events: ['message', 'message.any', 'message.ack', 'message.reaction', 'session.status'] },
               ],
             },
           }),
