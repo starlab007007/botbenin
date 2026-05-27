@@ -281,6 +281,7 @@ const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; s: ReturnTy
 };
 
 const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const total = c.stats?.total ?? 0;
   const sent = c.stats?.sent ?? 0;
   const pct = total ? Math.round((sent / total) * 100) : 0;
@@ -288,26 +289,57 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
     draft: 'secondary', scheduled: 'outline', running: 'default', paused: 'outline', done: 'secondary', failed: 'destructive',
   };
   return (
-    <div className="border rounded-lg p-3 hover:bg-muted/30">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-semibold">{c.name}</div>
-          <div className="text-xs text-muted-foreground capitalize">{c.type} · {new Date(c.created_at).toLocaleString('fr-FR')}</div>
+    <>
+      <div className="border rounded-lg p-3 hover:bg-muted/30 cursor-pointer" onClick={() => setDetailsOpen(true)}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold truncate">{c.name}</div>
+            <div className="text-xs text-muted-foreground capitalize">{c.type} · {new Date(c.created_at).toLocaleString('fr-FR')}</div>
+          </div>
+          <Badge variant={(statusColor[c.status] ?? 'secondary') as any}>{c.status}</Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7"><MoreVertical className="w-4 h-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={() => setDetailsOpen(true)}><Eye className="w-4 h-4 mr-2" />Voir détails</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => d.duplicateCampaign(c)}><Copy className="w-4 h-4 mr-2" />Dupliquer</DropdownMenuItem>
+              {c.status === 'running' && (
+                <DropdownMenuItem onClick={() => d.pauseCampaign(c.id)}><Pause className="w-4 h-4 mr-2" />Mettre en pause</DropdownMenuItem>
+              )}
+              {c.status === 'paused' && (
+                <DropdownMenuItem onClick={() => d.resumeCampaign(c.id)}><Play className="w-4 h-4 mr-2" />Reprendre</DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => { if (confirm(`Supprimer "${c.name}" ?`)) d.deleteCampaign(c.id); }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />Supprimer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <Badge variant={(statusColor[c.status] ?? 'secondary') as any}>{c.status}</Badge>
+        {total > 0 && (
+          <div className="mt-2 space-y-1">
+            <Progress value={pct} />
+            <div className="text-xs text-muted-foreground flex justify-between">
+              <span>{sent}/{total} envoyés ({pct}%)</span>
+              {c.stats?.failed > 0 && <span className="text-destructive">{c.stats.failed} échecs</span>}
+            </div>
+          </div>
+        )}
+        {c.status === 'draft' && (
+          <Button
+            size="sm" className="mt-2 bg-green-600 hover:bg-green-700"
+            onClick={(e) => { e.stopPropagation(); d.launchCampaign(c.id, { generateVariants: c.ai_variation, body: c.body }); }}
+          >
+            <Play className="w-3 h-3 mr-1" /> Lancer
+          </Button>
+        )}
       </div>
-      {total > 0 && (
-        <div className="mt-2 space-y-1">
-          <Progress value={pct} />
-          <div className="text-xs text-muted-foreground">{sent}/{total} envoyés ({pct}%)</div>
-        </div>
-      )}
-      {c.status === 'draft' && (
-        <Button size="sm" className="mt-2 bg-green-600 hover:bg-green-700" onClick={() => d.launchCampaign(c.id, { generateVariants: c.ai_variation, body: c.body })}>
-          <Play className="w-3 h-3 mr-1" /> Lancer
-        </Button>
-      )}
-    </div>
+      <CampaignDetailsDialog open={detailsOpen} onClose={() => setDetailsOpen(false)} campaign={c} />
+    </>
   );
 };
 
