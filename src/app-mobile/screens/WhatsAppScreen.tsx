@@ -109,12 +109,14 @@ export default function WhatsAppScreen() {
       );
       await loadDb();
       setOpenCreate(false);
-      setQrSession(clean); // start QR flow immediately
+      // Auto-start so WAHA reaches SCAN_QR_CODE before requesting QR
+      try { await startSession(clean); } catch { /* ignore */ }
+      setQrSession(clean);
     } catch { /* toasts handled in hook */ }
   };
 
   const handleStart = async (name: string) => {
-    await startSession(name);
+    try { await startSession(name); } catch { /* ignore */ }
     setQrSession(name);
   };
 
