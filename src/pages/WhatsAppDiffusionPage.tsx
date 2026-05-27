@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Users, Zap, Shield, Target, CheckCircle2 } from 'lucide-react';
 import whatsappLogo from '@/assets/whatsapp-icon-official.png';
 import { WhatsAppCampaignForm } from '@/components/whatsapp/WhatsAppCampaignForm';
+import { WhatsAppDiffusionV2 } from '@/components/whatsapp/WhatsAppDiffusionV2';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const WhatsAppDiffusionPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -76,7 +78,14 @@ const WhatsAppDiffusionPage: React.FC = () => {
             Créez et envoyez vos campagnes WhatsApp
           </p>
         </div>
-        <WhatsAppCampaignForm />
+        <Tabs defaultValue="v2" className="w-full max-w-5xl mx-auto">
+          <TabsList className="grid grid-cols-2 w-full max-w-md mx-auto mb-4">
+            <TabsTrigger value="v2">🚀 Diffusion WAHA</TabsTrigger>
+            <TabsTrigger value="legacy">Mode webhook (legacy)</TabsTrigger>
+          </TabsList>
+          <TabsContent value="v2"><WhatsAppDiffusionV2 /></TabsContent>
+          <TabsContent value="legacy"><WhatsAppCampaignForm /></TabsContent>
+        </Tabs>
       </div>
     </div>
   );

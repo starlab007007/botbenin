@@ -1,0 +1,391 @@
+import React, { useMemo, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Send, Users, BarChart3, Plus, Trash2, Archive, Ban, Upload, Sparkles, Phone, Image as ImageIcon, Video, FileText, Pause, Play, RefreshCw } from 'lucide-react';
+import { useWaDiffusion } from '@/hooks/useWaDiffusion';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { normalizeBeninWhatsApp } from '@/lib/phone';
+
+interface Session { id: string; session_name: string; phone_number: string | null; status: string; }
+
+export const WhatsAppDiffusionV2: React.FC = () => {
+  const { user } = useAuth();
+  const d = useWaDiffusion();
+  const [tab, setTab] = useState('contacts');
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  React.useEffect(() => {
+    if (!user) return;
+    supabase.from('whatsapp_accounts')
+      .select('id, session_name, phone_number, status').eq('user_id', user.id)
+      .then(({ data }) => setSessions((data ?? []) as any));
+  }, [user]);
+
+  return (
+    <div className="space-y-4">
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="grid grid-cols-3 w-full max-w-md mx-auto">
+          <TabsTrigger value="contacts"><Users className="w-4 h-4 mr-1.5" /> Contacts</TabsTrigger>
+          <TabsTrigger value="campaigns"><Send className="w-4 h-4 mr-1.5" /> Campagnes</TabsTrigger>
+          <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-1.5" /> Suivi</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="contacts" className="mt-4">
+          <ContactsTab d={d} />
+        </TabsContent>
+        <TabsContent value="campaigns" className="mt-4">
+          <CampaignsTab d={d} sessions={sessions} />
+        </TabsContent>
+        <TabsContent value="stats" className="mt-4">
+          <StatsTab d={d} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+// ============ CONTACTS ============
+const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) => {
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [filter, setFilter] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const filtered = useMemo(() => {
+    return d.contacts.filter(c => {
+      if (!showArchived && c.archived) return false;
+      if (!filter) return true;
+      const q = filter.toLowerCase();
+      return (c.display_name?.toLowerCase().includes(q) || c.phone_e164.includes(q) || (c.tags ?? []).some(t => t.toLowerCase().includes(q)));
+    });
+  }, [d.contacts, filter, showArchived]);
+
+  return (
+    <Card className="border-green-200">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-green-700"><Users className="w-5 h-5" /> Mes contacts WhatsApp</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Ajout manuel */}
+        <div className="flex flex-col sm:flex-row gap-2 items-end">
+          <div className="flex-1">
+            <Label className="text-xs">🇧🇯 Numéro WhatsApp</Label>
+            <div className="flex">
+              <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 bg-muted text-sm">+229</span>
+              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="01 XX XX XX XX" className="rounded-l-none" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <Label className="text-xs">Nom (optionnel)</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Aïssa Dossou" />
+          </div>
+          <Button className="bg-green-600 hover:bg-green-700"
+            onClick={async () => { await d.addContact({ phone, display_name: name || undefined }); setPhone(''); setName(''); }}>
+            <Plus className="w-4 h-4 mr-1" /> Ajouter
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="w-4 h-4 mr-1" /> Importer
+          </Button>
+        </div>
+
+        {/* Filtre + toggle archives */}
+        <div className="flex gap-2 items-center">
+          <Input placeholder="Rechercher (nom, numéro, tag)…" value={filter} onChange={e => setFilter(e.target.value)} />
+          <div className="flex items-center gap-2">
+            <Switch checked={showArchived} onCheckedChange={setShowArchived} id="arch" />
+            <Label htmlFor="arch" className="text-xs">Archives</Label>
+          </div>
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          {filtered.length} contact(s) {d.contacts.filter(c => c.opt_out).length > 0 && `· ${d.contacts.filter(c => c.opt_out).length} opt-out`}
+        </div>
+
+        <ScrollArea className="h-[420px] border rounded-md">
+          <div className="divide-y">
+            {filtered.length === 0 && <div className="p-6 text-center text-muted-foreground text-sm">Aucun contact</div>}
+            {filtered.map(c => (
+              <div key={c.id} className="p-3 flex items-center gap-3 hover:bg-muted/40">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">{c.display_name || '—'}</div>
+                  <div className="text-xs text-muted-foreground font-mono">{c.phone_e164}</div>
+                  {c.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {c.tags.map(t => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                    </div>
+                  )}
+                </div>
+                {c.opt_out && <Badge variant="destructive" className="text-[10px]">OPT-OUT</Badge>}
+                {c.archived && <Badge variant="outline" className="text-[10px]">Archivé</Badge>}
+                <Button size="icon" variant="ghost" title="Opt-out" onClick={() => d.toggleOptOut(c.id, !c.opt_out)}>
+                  <Ban className={`w-4 h-4 ${c.opt_out ? 'text-destructive' : ''}`} />
+                </Button>
+                <Button size="icon" variant="ghost" title="Archiver" onClick={() => d.toggleArchive(c.id, !c.archived)}>
+                  <Archive className="w-4 h-4" />
+                </Button>
+                <Button size="icon" variant="ghost" title="Supprimer" onClick={() => d.removeContact(c.id)}>
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </CardContent>
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImport={d.bulkAdd} />
+    </Card>
+  );
+};
+
+const ImportDialog: React.FC<{ open: boolean; onClose: () => void; onImport: (items: { phone: string; name?: string }[]) => Promise<any> }> = ({ open, onClose, onImport }) => {
+  const [text, setText] = useState('');
+  const preview = useMemo(() => {
+    if (!text.trim()) return { valid: [], invalid: 0 };
+    const lines = text.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    const valid: { phone: string; name?: string }[] = []; let invalid = 0;
+    for (const line of lines) {
+      // détection "Nom +229XXX" ou juste numéro
+      const m = line.match(/^(.*?)([\+\d][\d\s.\-]+)$/);
+      const phone = m?.[2]?.trim() ?? line;
+      const name = m?.[1]?.trim() || undefined;
+      const n = normalizeBeninWhatsApp(phone);
+      if (n.valid) valid.push({ phone, name }); else invalid++;
+    }
+    return { valid, invalid };
+  }, [text]);
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90dvh] overflow-auto">
+        <DialogHeader><DialogTitle>Importer des contacts WhatsApp</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">Collez un numéro par ligne, ou "Nom +229XXX". Format accepté : 8 chiffres (01 préfixé auto) ou 10 chiffres avec 01.</p>
+          <Textarea rows={10} value={text} onChange={e => setText(e.target.value)} placeholder={`Aïssa +22901XX XX XX XX\n+229XXXXXXXX\n...`} />
+          <div className="text-sm flex gap-3">
+            <Badge variant="default">{preview.valid.length} valides</Badge>
+            <Badge variant="destructive">{preview.invalid} invalides</Badge>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Annuler</Button>
+          <Button className="bg-green-600 hover:bg-green-700" disabled={preview.valid.length === 0}
+            onClick={async () => {
+              const r = await onImport(preview.valid);
+              toast.success(`${r.added} ajoutés · ${r.dup} doublons · ${r.invalid} invalides`);
+              setText(''); onClose();
+            }}>
+            Importer {preview.valid.length}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ============ CAMPAIGNS ============
+const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; sessions: Session[] }> = ({ d, sessions }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Card className="border-green-200">
+      <CardHeader className="pb-3 flex flex-row justify-between items-center">
+        <CardTitle className="flex items-center gap-2 text-green-700"><Send className="w-5 h-5" /> Campagnes</CardTitle>
+        <Button className="bg-green-600 hover:bg-green-700" onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> Nouvelle</Button>
+      </CardHeader>
+      <CardContent>
+        {d.campaigns.length === 0 && <div className="text-center py-8 text-muted-foreground">Aucune campagne. Créez-en une.</div>}
+        <div className="space-y-3">
+          {d.campaigns.map(c => (
+            <CampaignRow key={c.id} c={c} d={d} />
+          ))}
+        </div>
+      </CardContent>
+      <NewCampaignDialog open={open} onClose={() => setOpen(false)} d={d} sessions={sessions} />
+    </Card>
+  );
+};
+
+const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
+  const total = c.stats?.total ?? 0;
+  const sent = c.stats?.sent ?? 0;
+  const pct = total ? Math.round((sent / total) * 100) : 0;
+  const statusColor: Record<string, string> = {
+    draft: 'secondary', scheduled: 'outline', running: 'default', paused: 'outline', done: 'secondary', failed: 'destructive',
+  };
+  return (
+    <div className="border rounded-lg p-3 hover:bg-muted/30">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-semibold">{c.name}</div>
+          <div className="text-xs text-muted-foreground capitalize">{c.type} · {new Date(c.created_at).toLocaleString('fr-FR')}</div>
+        </div>
+        <Badge variant={(statusColor[c.status] ?? 'secondary') as any}>{c.status}</Badge>
+      </div>
+      {total > 0 && (
+        <div className="mt-2 space-y-1">
+          <Progress value={pct} />
+          <div className="text-xs text-muted-foreground">{sent}/{total} envoyés ({pct}%)</div>
+        </div>
+      )}
+      {c.status === 'draft' && (
+        <Button size="sm" className="mt-2 bg-green-600 hover:bg-green-700" onClick={() => d.launchCampaign(c.id, { generateVariants: c.ai_variation, body: c.body })}>
+          <Play className="w-3 h-3 mr-1" /> Lancer
+        </Button>
+      )}
+    </div>
+  );
+};
+
+const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; sessions: Session[] }> = ({ open, onClose, d, sessions }) => {
+  const [name, setName] = useState('');
+  const [type, setType] = useState('text');
+  const [body, setBody] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [aiVariation, setAiVariation] = useState(true);
+  const [throttle, setThrottle] = useState(30);
+  const [hStart, setHStart] = useState('08:00');
+  const [hEnd, setHEnd] = useState('20:00');
+
+  const reset = () => {
+    setName(''); setType('text'); setBody(''); setSessionId(''); setMediaUrl(''); setSelectedContacts(new Set());
+    setAiVariation(true); setThrottle(30); setHStart('08:00'); setHEnd('20:00');
+  };
+
+  const submit = async () => {
+    if (!name || !body || !sessionId) { toast.error('Nom, message et session obligatoires'); return; }
+    if (selectedContacts.size === 0) { toast.error('Sélectionnez au moins un contact'); return; }
+    const row = await d.createCampaign({
+      name, type, body, media_url: mediaUrl || null, session_id: sessionId,
+      extra_contact_ids: [...selectedContacts],
+      throttle_per_hour: throttle,
+      active_hours_start: `${hStart}:00`, active_hours_end: `${hEnd}:00`,
+      ai_variation: aiVariation,
+    });
+    if (row) { toast.success('Campagne créée (brouillon)'); reset(); onClose(); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90dvh] overflow-auto">
+        <DialogHeader><DialogTitle>Nouvelle campagne WhatsApp</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Nom de la campagne *</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Promo Tabaski" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Type *</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text"><span className="flex items-center gap-2"><FileText className="w-4 h-4"/> Texte</span></SelectItem>
+                  <SelectItem value="photo"><span className="flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Photo + texte</span></SelectItem>
+                  <SelectItem value="video"><span className="flex items-center gap-2"><Video className="w-4 h-4"/> Vidéo + texte</span></SelectItem>
+                  <SelectItem value="audio"><span className="flex items-center gap-2"><Phone className="w-4 h-4"/> Audio</span></SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Session WAHA *</Label>
+              <Select value={sessionId} onValueChange={setSessionId}>
+                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
+                <SelectContent>
+                  {sessions.map(s => <SelectItem key={s.id} value={s.id}>{s.session_name} {s.phone_number ?? ''} {s.status === 'connected' && '✅'}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {(type === 'photo' || type === 'video' || type === 'audio') && (
+            <div>
+              <Label>URL du média</Label>
+              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://…" />
+            </div>
+          )}
+          <div>
+            <Label>Message * <span className="text-xs text-muted-foreground">(variables : {'{nom}'}, {'{prenom}'}, {'{tag}'})</span></Label>
+            <Textarea rows={4} value={body} onChange={e => setBody(e.target.value.slice(0, 1024))} placeholder="Bonjour {prenom}, ..." />
+            <div className="text-xs text-right text-muted-foreground">{body.length}/1024</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={aiVariation} onCheckedChange={setAiVariation} id="ai" />
+            <Label htmlFor="ai" className="text-sm flex items-center gap-1"><Sparkles className="w-4 h-4 text-amber-500" /> Variantes IA anti-spam</Label>
+          </div>
+
+          <div className="border rounded p-3 space-y-2 bg-muted/30">
+            <div className="text-sm font-medium">⚙️ Anti-ban</div>
+            <div className="grid grid-cols-3 gap-2">
+              <div><Label className="text-xs">Envois max/h</Label><Input type="number" value={throttle} onChange={e => setThrottle(Number(e.target.value))} /></div>
+              <div><Label className="text-xs">Début actif</Label><Input type="time" value={hStart} onChange={e => setHStart(e.target.value)} /></div>
+              <div><Label className="text-xs">Fin active</Label><Input type="time" value={hEnd} onChange={e => setHEnd(e.target.value)} /></div>
+            </div>
+          </div>
+
+          <div>
+            <Label>Audience ({selectedContacts.size} sélectionnés)</Label>
+            <ScrollArea className="h-[180px] border rounded">
+              <div className="divide-y">
+                {d.contacts.filter((c: any) => !c.opt_out && !c.archived).map((c: any) => (
+                  <label key={c.id} className="flex items-center gap-2 p-2 hover:bg-muted/40 cursor-pointer text-sm">
+                    <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={(e) => {
+                      const s = new Set(selectedContacts);
+                      if (e.target.checked) s.add(c.id); else s.delete(c.id);
+                      setSelectedContacts(s);
+                    }} />
+                    <span className="flex-1">{c.display_name || '—'}</span>
+                    <span className="text-xs font-mono text-muted-foreground">{c.phone_e164}</span>
+                  </label>
+                ))}
+              </div>
+            </ScrollArea>
+            <div className="flex gap-2 mt-2">
+              <Button size="sm" variant="outline" onClick={() => setSelectedContacts(new Set(d.contacts.filter((c: any) => !c.opt_out && !c.archived).map((c: any) => c.id)))}>Tout sélectionner</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedContacts(new Set())}>Aucun</Button>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Annuler</Button>
+          <Button className="bg-green-600 hover:bg-green-700" onClick={submit}>Créer la campagne</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ============ STATS ============
+const StatsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) => {
+  const totals = d.campaigns.reduce((acc, c) => {
+    acc.total += c.stats?.total ?? 0;
+    acc.sent += c.stats?.sent ?? 0;
+    return acc;
+  }, { total: 0, sent: 0 });
+
+  return (
+    <Card className="border-green-200">
+      <CardHeader><CardTitle className="text-green-700">Suivi global</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="border rounded p-3"><div className="text-xs text-muted-foreground">Contacts</div><div className="text-2xl font-bold">{d.contacts.length}</div></div>
+          <div className="border rounded p-3"><div className="text-xs text-muted-foreground">Campagnes</div><div className="text-2xl font-bold">{d.campaigns.length}</div></div>
+          <div className="border rounded p-3"><div className="text-xs text-muted-foreground">Messages envoyés</div><div className="text-2xl font-bold">{totals.sent}/{totals.total}</div></div>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => d.refresh()}><RefreshCw className="w-4 h-4 mr-1" /> Actualiser</Button>
+      </CardContent>
+    </Card>
+  );
+};
