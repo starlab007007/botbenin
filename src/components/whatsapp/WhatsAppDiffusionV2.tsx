@@ -302,6 +302,8 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const total = c.stats?.total ?? 0;
   const sent = c.stats?.sent ?? 0;
+  const failed = c.stats?.failed ?? 0;
+  const pending = c.stats?.pending ?? (c.stats?.queued ?? 0) + (c.stats?.sending ?? 0);
   const pct = total ? Math.round((sent / total) * 100) : 0;
   const statusColor: Record<string, string> = {
     draft: 'secondary', scheduled: 'outline', running: 'default', paused: 'outline', done: 'secondary', failed: 'destructive',
@@ -321,6 +323,11 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => setDetailsOpen(true)}><Eye className="w-4 h-4 mr-2" />Voir détails</DropdownMenuItem>
+              {(c.status === 'running' || c.status === 'failed') && pending > 0 && (
+                <DropdownMenuItem onClick={async () => { await d.runWorker(c.id); toast.success('Worker déclenché'); }}>
+                  <Send className="w-4 h-4 mr-2" />Envoyer maintenant
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => d.duplicateCampaign(c)}><Copy className="w-4 h-4 mr-2" />Dupliquer</DropdownMenuItem>
               {c.status === 'running' && (
                 <DropdownMenuItem onClick={() => d.pauseCampaign(c.id)}><Pause className="w-4 h-4 mr-2" />Mettre en pause</DropdownMenuItem>
@@ -343,7 +350,7 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
             <Progress value={pct} />
             <div className="text-xs text-muted-foreground flex justify-between">
               <span>{sent}/{total} envoyés ({pct}%)</span>
-              {c.stats?.failed > 0 && <span className="text-destructive">{c.stats.failed} échecs</span>}
+              {failed > 0 && <span className="text-destructive">{failed} échec(s)</span>}
             </div>
           </div>
         )}
@@ -355,11 +362,20 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
             <Play className="w-3 h-3 mr-1" /> Lancer
           </Button>
         )}
+        {c.status === 'running' && pending > 0 && (
+          <Button
+            size="sm" variant="outline" className="mt-2"
+            onClick={(e) => { e.stopPropagation(); d.runWorker(c.id).then(() => toast.success('Worker déclenché')); }}
+          >
+            <Send className="w-3 h-3 mr-1" /> Envoyer maintenant ({pending})
+          </Button>
+        )}
       </div>
       <CampaignDetailsDialog open={detailsOpen} onClose={() => setDetailsOpen(false)} campaign={c} />
     </>
   );
 };
+
 
 const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; s: ReturnType<typeof useDiffusionSessions>; onGotoSessions: () => void }> = ({ open, onClose, d, s, onGotoSessions }) => {
   const [name, setName] = useState('');
