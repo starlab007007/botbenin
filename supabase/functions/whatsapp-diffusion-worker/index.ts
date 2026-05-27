@@ -297,51 +297,71 @@ serve(async (req) => {
             };
             const rendered = renderTemplate(variant.body, vars);
             const mediaUrl = variant.media_url ?? campaign.media_url;
-            const chatId = `${job.to_phone.replace(/[^\d]/g, "")}@c.us`;
+            const baseDigits = job.to_phone.replace(/[^\d]/g, "");
+            // Bénin : générer variantes 01 / sans 01 pour tenter les 2 formats WhatsApp
+            const phoneVariants: string[] = [baseDigits];
+            if (baseDigits.startsWith("229")) {
+              const local = baseDigits.slice(3);
+              if (local.startsWith("01") && local.length === 10) {
+                phoneVariants.push("229" + local.slice(2)); // sans 01
+              } else if (local.length === 8) {
+                phoneVariants.push("22901" + local); // avec 01
+              }
+            }
 
             let endpoint = "/api/sendText";
-            const payload: any = { session: session.session_name, chatId };
+            const basePayload: any = { session: session.session_name };
             switch (campaign.type) {
               case "photo":
                 if (!mediaUrl) throw new Error("Média photo manquant");
                 endpoint = "/api/sendImage";
-                payload.file = { url: mediaUrl };
-                payload.caption = rendered;
+                basePayload.file = { url: mediaUrl };
+                basePayload.caption = rendered;
                 break;
               case "video":
                 if (!mediaUrl) throw new Error("Média vidéo manquant");
                 endpoint = "/api/sendVideo";
-                payload.file = { url: mediaUrl };
-                payload.caption = rendered;
+                basePayload.file = { url: mediaUrl };
+                basePayload.caption = rendered;
                 break;
               case "audio":
                 if (!mediaUrl) throw new Error("Média audio manquant");
                 endpoint = "/api/sendVoice";
-                payload.file = { url: mediaUrl };
+                basePayload.file = { url: mediaUrl };
                 break;
               case "file":
                 if (!mediaUrl) throw new Error("Fichier manquant");
                 endpoint = "/api/sendFile";
-                payload.file = { url: mediaUrl };
-                payload.caption = rendered;
+                basePayload.file = { url: mediaUrl };
+                basePayload.caption = rendered;
                 break;
               default:
-                payload.text = rendered;
+                basePayload.text = rendered;
             }
 
-            const res = await wahaFetch(wahaBaseUrl, endpoint, { method: "POST", body: JSON.stringify(payload) });
-            if (!res) throw new Error("WAHA ne répond pas pendant l’envoi");
-            const text = await res.text();
+            let lastErr = "";
             let parsed: any = null;
-            try { parsed = JSON.parse(text || "{}"); } catch { parsed = null; }
-
-            if (!res.ok) throw new Error(`WAHA ${res.status}: ${text.slice(0, 300)}`);
+            let sentOk = false;
+            let usedPhone = baseDigits;
+            for (const v of phoneVariants) {
+              const payload = { ...basePayload, chatId: `${v}@c.us` };
+              const res = await wahaFetch(wahaBaseUrl, endpoint, { method: "POST", body: JSON.stringify(payload) });
+              if (!res) { lastErr = "WAHA ne répond pas pendant l’envoi"; continue; }
+              const text = await res.text();
+              try { parsed = JSON.parse(text || "{}"); } catch { parsed = null; }
+              if (res.ok) { sentOk = true; usedPhone = v; break; }
+              lastErr = `WAHA ${res.status}: ${text.slice(0, 300)}`;
+              // Si erreur "not a WhatsApp user" / 404 → essayer variante suivante
+              if (res.status !== 404 && res.status !== 422 && !/not.*whatsapp|not.*registered|exist/i.test(text)) break;
+            }
+            if (!sentOk) throw new Error(lastErr || "Échec d’envoi WAHA");
 
             await admin.from("wa_send_jobs").update({
               status: "sent",
               sent_at: new Date().toISOString(),
               waha_message_id: messageIdFromWaha(parsed),
               rendered_body: rendered,
+              to_phone: usedPhone.startsWith("+") ? usedPhone : `+${usedPhone}`,
               last_error: null,
             }).eq("id", job.id);
             sent++;
