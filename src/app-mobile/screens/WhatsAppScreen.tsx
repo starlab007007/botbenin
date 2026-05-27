@@ -57,20 +57,24 @@ export default function WhatsAppScreen() {
     if (!user?.id) return;
     const { data } = await supabase
       .from("whatsapp_accounts")
-      .select("id, session_name, status, phone_number, is_admin_shared, user_id, created_at")
-      .or(`user_id.eq.${user.id},is_admin_shared.eq.true`)
+      .select("id, session_name, status, phone_number, user_id, created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     setDbSessions(data ?? []);
   }, [user]);
 
   useEffect(() => { loadDb(); }, [loadDb]);
 
-  // Realtime
+  // Realtime — strictly scoped to current user
   useEffect(() => {
     if (!user?.id) return;
     const ch = supabase
       .channel(`wa_mobile_${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_accounts" }, () => loadDb())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_accounts", filter: `user_id=eq.${user.id}` },
+        () => loadDb()
+      )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user, loadDb]);
