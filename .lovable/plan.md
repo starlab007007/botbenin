@@ -1,66 +1,84 @@
+# Refonte UI/UX des messages de chat — direction "Vivante & Futuriste"
+
 ## Objectif
 
-Unifier l'expérience chat de l'app mobile :
-1. Liste de conversations avec libellés humains (au lieu de `web:<uuid>`).
-2. Page conversation `/app/chat/:id` qui charge réellement l'historique et permet de répondre, peu importe la source.
-3. Page WAOUH `/app/chat/waouh` qui charge l'historique complet de l'utilisateur, avec le même fond doodle que les autres chats.
+Donner à TOUS les messages de chat de l'app (ChatScreen mobile, WaouhChatScreen, WaouhWebChat, ChatMessage web) un langage visuel **unifié, moderne et vivant**, avec une typographie soignée, des séparateurs élégants, des bulles affinées et une hiérarchie de contenu claire — sans toucher à la logique d'envoi/réception.
 
----
+## Direction visuelle proposée
 
-## 1. `ChatListScreen.tsx` — libellés et centralisation
+**Concept : "Living Glass"** — bulles glassmorphiques légères, micro-relief, accent vert WAOUH électrique, typographie éditoriale + sans-serif technique.
 
-Remplacer l'affichage brut `c.phone_number ?? "Inconnu"` (qui tombe sur l'UUID parce que `phone_number` contient `web:<uuid>` pour les sessions web) par un libellé dérivé de `channel` + jointure légère sur `waouh_users` :
+- **Police principale** : `Inter` (corps, UI) — déjà chargée
+- **Police accent / titres dans bulles bot** : `Fraunces` (serif moderne) — déjà chargée
+- **Police mono pour codes/IDs/horaires** : `JetBrains Mono` (à ajouter)
+- **Palette bulles** :
+  - Sortant (out) : dégradé subtil `hsl(142 65% 88%) → hsl(150 70% 82%)`, bord interne lumineux, ombre verte douce
+  - Entrant (in) : verre dépoli `hsl(0 0% 100% / 0.92)` light / `hsl(165 25% 14% / 0.85)` dark, ring 1px `hsl(165 30% 88%)`
+  - Système/info : pilule centrée `hsl(165 30% 95%)` texte petite-caps
+- **Séparateurs de jour** : pilule horodatée centrée style WhatsApp moderne ("Aujourd'hui", "Hier", "12 mai") avec micro-divider en losange
+- **Séparateurs intra-bulle** : ligne en dégradé radial avec losange ◆ central (déjà présent dans `.waouh-bot-bubble hr`, à généraliser)
 
-- Étendre le `select` pour récupérer `user_id` puis charger en lot `waouh_users(id, display_name, phone_number, channel, auth_user_id)` pour tous les `user_id` distincts.
-- Fonction `formatConvLabel(conv, user)` :
-  - `channel === "whatsapp"` → numéro WhatsApp formaté (`+229 97 12 34 56`), avatar avec initiales du numéro.
-  - `channel === "app"` / utilisateur authentifié → `display_name` ou e‑mail du profil, avatar avec initiales du nom.
-  - `channel === "web"` ou fallback → ID court stable : `Web #` + 6 derniers caractères de l'UUID en majuscules (ex. `Web #5AB`), avatar coloré.
-- Le sous-titre reste `last_message`, l'horodatage reste `formatStamp(updated_at)`.
-- Forcer le listing exhaustif : conserver la fusion `waouhUserIds` + sessionId, mais augmenter `limit` à 200 et inclure aussi les conversations où `auth_user_id` du `waouh_users` lié = `user.id` (déjà couvert par `waouhUserIds`, on s'assure juste que le hook renvoie bien tous les `waouh_users` du compte, y compris ceux à canal `whatsapp` et `app`).
-- Recherche : étendre le filtre à label + last_message.
+## Mise en forme du texte
 
-## 2. `ChatScreen.tsx` — historique visible et réponses universelles
+- **Paragraphes** : `font-size: 14.5px`, `line-height: 1.55`, `letter-spacing: -0.005em`
+- **Gras** (`**texte**`) : poids 600, accent vert `hsl(165 70% 26%)`
+- **Italique** : devient petite-cap tagline (uppercase 11px, tracking 0.08em) — déjà présent pour bot, à étendre
+- **Liens** : couleur verte WAOUH, underline offset 3px, hover : surbrillance douce
+- **Listes** : puces • vertes alignées, espacement aéré
+- **Emojis** : taille +2px, alignement vertical médian
+- **Mentions @user / #tag** : badge pill couleur accent
+- **Code inline** `\`code\`` : fond `hsl(165 20% 94%)`, mono, 13px
+- **Citation `> texte`** : barre verticale verte 3px, texte légèrement muté
+- **URLs auto-détectées** : preview compact (favicon + titre) si possible, sinon lien stylé
+- **Numéros, montants FCFA, dates** : `font-variant-numeric: tabular-nums`
 
-La page est blanche parce qu'aucune ligne `waouh_messages` n'a `conversation_id` rempli pour les vieilles conversations web. Correctifs :
+## Bulles & micro-détails
 
-- Étendre le `select` : `direction,text,created_at,attachments,channel,phone_number,web_session_id,user_id`.
-- Charger l'historique avec un `OR` :
-  - `conversation_id.eq.<id>`
-  - `phone_number.eq.<meta.phone_number>` (couvre WhatsApp et web où l'id de session est stocké dans `phone_number` comme `web:<uuid>`)
-  - `web_session_id.eq.<sessionId>` quand `meta.phone_number` ressemble à `web:<sessionId>`
-  - `user_id.eq.<meta.user_id>` (waouh_users.id de la conversation)
-- Trier `created_at asc`, dédupliquer par `id`.
-- Réabonnements realtime : un canal par filtre actif (`conversation_id`, `phone_number`, `user_id`) pour capter les nouveaux messages quelle que soit la source.
-- En-tête : afficher le même `formatConvLabel` que la liste + badge canal (Web / WhatsApp / App).
-- Envoi : conserver la logique actuelle, mais router selon `meta.channel` :
-  - `whatsapp` → edge function `waha-send-message` (déjà présent).
-  - `web` / `app` → insert dans `waouh_messages` + appel `waouh-webhook` pour que l'IA réponde (même mécanique que WAOUH).
-- Appliquer la classe `waouh-chat-bg` (déjà en place) — vérifier que `min-h-[100dvh]` n'écrase pas le fond.
+- Coins : `rounded-2xl` avec coin "queue" `rounded-br-sm` (out) / `rounded-bl-sm` (in)
+- Ombre multi-couche : highlight blanc 1px inset + ombre verte diffuse `0 8px 24px -12px hsl(165 60% 30% / 0.18)`
+- Animation d'entrée : `translateY(4px) → 0` + `opacity 0 → 1` en 180ms cubic-bezier
+- Tail/queue SVG optionnelle pour la première bulle d'une rafale
+- Regroupement : bulles consécutives du même expéditeur dans une fenêtre de 2 min → coins arrondis uniformes, avatar/horodatage seulement sur la dernière
+- **Horodatage** : 10.5px, mono, tabular-nums, opacité 0.55, position bottom-right avec mini-icône ✓/✓✓ pour les sortants
+- **État** : envoi (cadran ⏱), envoyé (✓), reçu (✓✓), lu (✓✓ vert)
 
-## 3. `WaouhChatScreen.tsx` — historique + fond unifié
+## Séparateurs de jour & système
 
-- Passer un fond `waouh-chat-bg` au conteneur de `WaouhWebChat` (variant native) en remplaçant la photo de fond actuelle.
-- Dans `WaouhWebChat.tsx` (chargement historique L86–144) :
-  - Remplacer le filtre `user_id.eq.<auth.uid()>` par `user_id.in.(<waouhUserIds>)` en utilisant le hook `useWaouhIdentity` (la colonne `user_id` référence `waouh_users.id`, pas `auth.users.id` — d'où l'historique vide).
-  - Conserver le filtre session, fusionner les deux résultats, dédupliquer par `id`, trier `created_at asc`, `limit 500`.
-  - Abonnements realtime : un canal par `waouh_users.id` + un canal session.
-- Vider l'affichage "vide" uniquement quand `loading=false && messages.length===0`.
+```text
+─────  ◆  Aujourd'hui  ◆  ─────
+```
+- Pilule centrée avec léger backdrop-blur, fond `hsl(0 0% 100% / 0.7)`
+- Messages système ("X a rejoint", "Conversation chiffrée") en italique 11px centré, opacité 0.6
 
-## 4. Fond chat par défaut
+## Fichiers à modifier
 
-- Conserver `src/app-mobile/theme/chat-bg.css` (`waouh-chat-bg`) comme fond officiel.
-- L'appliquer dans : `ChatScreen` (déjà), `WaouhChatScreen` (nouveau), et au panneau `WaouhWebChat` variant `native` (remplacer le fond image actuel).
-- Ne pas modifier `waouh-chat-list-bg` (fond plus léger de la liste).
+### Nouveau
+- `src/app-mobile/theme/chat-message.css` — design tokens et classes `.chat-bubble`, `.chat-bubble-out`, `.chat-bubble-in`, `.chat-day-separator`, `.chat-time`, `.chat-status` + animations
+- `src/app-mobile/utils/chatGrouping.ts` — regroupement par expéditeur + insertion séparateurs de jour
+- `src/app-mobile/components/ChatBubble.tsx` — composant unique réutilisé partout (props : direction, text, time, status, grouped, channel)
+- `src/app-mobile/components/ChatDaySeparator.tsx`
 
----
+### Mis à jour
+- `src/app-mobile/theme/mobile-theme.css` — `@import "./chat-message.css"`, ajout `JetBrains Mono` au lien Google Fonts
+- `src/app-mobile/theme/bot-prose.css` — promouvoir certaines règles (séparateur ◆, em small-caps) au niveau `.chat-bubble` pour usage universel
+- `src/app-mobile/screens/ChatScreen.tsx` — remplacer la div bulle inline (l. 173-185) par `<ChatBubble>` + insertion `<ChatDaySeparator>`
+- `src/components/waouh/WaouhWebChat.tsx` — même remplacement autour de la l. 358
+- `src/components/ChatMessage.tsx` — adopter `ChatBubble` (variante web), conserver l'animation de frappe
+- `src/components/bot-conversation/components/MessageItem.tsx` — adopter le style unifié (admin)
 
-## Fichiers touchés
+### Non touché
+- Logique d'envoi, hooks, Supabase, realtime, services chat. Aucune migration SQL.
 
-- `src/app-mobile/screens/ChatListScreen.tsx`
-- `src/app-mobile/screens/ChatScreen.tsx`
-- `src/app-mobile/screens/WaouhChatScreen.tsx`
-- `src/components/waouh/WaouhWebChat.tsx` (uniquement le chargement historique + fond panel native)
-- `src/app-mobile/hooks/useWaouhIdentity.ts` (exposer aussi les `waouh_users` complets pour récupérer `display_name`/`phone_number`/`channel` côté liste)
+## Détails techniques
 
-Aucune migration SQL nécessaire — toutes les colonnes utilisées existent déjà (`waouh_users.display_name`, `phone_number`, `channel`, `auth_user_id`).
+- Tokens HSL ajoutés dans `index.css` `:root` et `.dark` : `--chat-out-bg-from`, `--chat-out-bg-to`, `--chat-in-bg`, `--chat-bubble-ring`, `--chat-accent`, `--chat-time`, `--chat-quote`, `--chat-code-bg`
+- Classes utilitaires Tailwind via plugin inline dans les composants (pas de modif `tailwind.config.ts`) — tout via classes CSS dans `chat-message.css`
+- Markdown léger : on garde le rendu existant (`MediaRenderer` / texte brut). Le styling agit via la classe parente `.chat-bubble` qui cible `p, strong, em, a, ul, li, hr, code, blockquote`
+- Le fond `.waouh-chat-bg` (doodle) reste — il vient juste d'être unifié
+- Animations limitées à `prefers-reduced-motion: no-preference`
+
+## Hors scope
+
+- Pas de changement de structure des données messages
+- Pas de nouveau provider markdown
+- Pas de modification des écrans Bots / WhatsApp / Partenaire
