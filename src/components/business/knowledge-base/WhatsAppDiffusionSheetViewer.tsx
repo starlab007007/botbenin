@@ -302,7 +302,7 @@ export const WhatsAppDiffusionSheetViewer: React.FC<Props> = () => {
                 {editingRow ? 'Modifier le contact' : 'Ajouter un contact'}
               </DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">
-                Synchronisé avec Google Sheets (vos données uniquement)
+                Synchronisé (vos données uniquement)
               </DialogDescription>
             </DialogHeader>
           </div>

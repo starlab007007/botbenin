@@ -157,7 +157,7 @@ export default function KnowledgeBaseDetailScreen() {
                   <div className="flex items-center gap-2 min-w-0">
                     <Cloud className="h-3.5 w-3.5 text-primary shrink-0" />
                     <span className="text-[11px] text-muted-foreground truncate">
-                      Synchronisé Google Sheets · {sheet.lastSync ? sheet.lastSync.toLocaleTimeString() : '—'}
+                      Synchronisé · {sheet.lastSync ? sheet.lastSync.toLocaleTimeString() : '—'}
                     </span>
                   </div>
                   <button
