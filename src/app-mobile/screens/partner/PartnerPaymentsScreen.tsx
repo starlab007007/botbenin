@@ -10,7 +10,7 @@ const PaymentHistoryView = lazy(() =>
 
 export default function PartnerPaymentsScreen() {
   return (
-    <PartnerMobileWrap title="Historique paiements" subtitle="Toutes vos transactions" back="/app/partner">
+    <PartnerMobileWrap title="Historique paiements" subtitle="Toutes vos transactions" back="/app/partner/businesses">
       <div className="p-3">
         <Suspense fallback={<div className="p-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>}>
           <PaymentHistoryView />

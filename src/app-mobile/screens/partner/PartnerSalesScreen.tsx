@@ -57,7 +57,7 @@ export default function PartnerSalesScreen() {
       <MobileScreenHeader
         title="Mes ventes & commissions"
         subtitle={`${sales.length} vente(s)`}
-        back="/app/partner"
+        back="/app/partner/businesses"
       />
       <div className="p-3 space-y-3">
         <div className="rounded-2xl border bg-gradient-to-br from-[hsl(var(--wa-green)/0.08)] to-transparent p-4">
