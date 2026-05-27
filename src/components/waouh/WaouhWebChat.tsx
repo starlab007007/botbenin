@@ -15,6 +15,7 @@ import { WaouhAuthGate } from "./WaouhAuthGate";
 import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
 import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
+import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
