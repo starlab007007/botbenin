@@ -313,8 +313,11 @@ export function normalizePhone(
     }
   }
   if (!isValidPhone(local, country)) {
-    if (local.length !== country.length) {
-      return { e164: '', valid: false, reason: `${country.length} chiffres requis pour ${country.name}` };
+    const min = country.lengthMin ?? country.length;
+    const max = country.lengthMax ?? country.length;
+    if (local.length < min || local.length > max) {
+      const range = min === max ? `${min}` : `${min}-${max}`;
+      return { e164: '', valid: false, reason: `${range} chiffres requis pour ${country.name}` };
     }
     if (country.prefixes) {
       return { e164: '', valid: false, reason: `Préfixe invalide (attendu : ${country.prefixes.join('/')})` };
