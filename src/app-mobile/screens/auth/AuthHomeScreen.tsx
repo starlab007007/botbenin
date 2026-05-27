@@ -30,7 +30,7 @@ export default function AuthHomeScreen() {
             <br />
             <span className="italic text-emerald-300">Le monde achète.</span>
           </h2>
-          <p className="text-white/60 text-sm pt-1">Discutez en français, Fon, Yoruba.</p>
+          
         </div>
 
         <div className="w-full flex flex-col gap-2.5">
