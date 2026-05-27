@@ -1,85 +1,82 @@
-## Problème
-
-Dans `/app/bots/:id`, pour les bases en mode Google Sheets (Restauration, E-commerce, WhatsApp Diffusion), les onglets de tables (Menu, Promotions, Commandes, etc.) affichent uniquement le message "Synchronisé via Google Sheets — lecture seule". Aucune donnée n'est chargée, ni modifiable, ni supprimable.
-
-La cause: `KnowledgeBaseDetailScreen.tsx` (lignes 116-124) court-circuite l'affichage avec un placeholder dès que `isGoogleSheetMode` est vrai, alors que les hooks existants (`useEcommerceGoogleSheets`, `useRestaurationGoogleSheets`, `useWhatsAppDiffusionGoogleSheets`) supportent déjà `loadSheet`, `addRow`, `updateRow`, `deleteRow` synchronisés bidirectionnellement avec le Sheet via les edge functions `google-sheets-reader` / `google-sheets-writer`.
-
 ## Objectif
 
-Pour **toutes** les feuilles Google Sheets (Restauration, E-commerce, WhatsApp Diffusion), permettre depuis l'application mobile native:
-- Voir la liste des lignes de la feuille
-- Ajouter une nouvelle ligne (FAB `+`)
-- Modifier une ligne (tap → form natif plein écran)
-- Supprimer une ligne (swipe ou bouton dans le form)
-- Synchronisation automatique avec Google Sheets après chaque opération
-- UI 100% native (pas de WebView, pas de tableau web)
+Refondre l'écran mobile `/app/whatsapp` pour offrir, en 100% UI native Android (sans iframe, sans lien web, sans modal web), la totalité des fonctionnalités de la page web `/whatsapp-connect` (composant `SmartWhatsAppInterface` → `SimpleSessionManager`), branchée sur le même backend (table `whatsapp_accounts` + edge functions `waha-dashboard-proxy`, `waha-session-manager`, `waha-connect`, `waouh-waha-control`).
 
-## Architecture
+## Périmètre fonctionnel à porter (parité web ↔ mobile)
 
-### Nouveau hook unifié
+1. Liste des sessions WhatsApp de l'utilisateur (DB `whatsapp_accounts` + statut live WAHA fusionné)
+2. Création d'une session (nom personnalisé)
+3. Actions par session : Démarrer, Arrêter, Redémarrer, Supprimer, Rafraîchir
+4. Affichage du QR code en plein écran natif (sheet) avec polling auto jusqu'à `WORKING`
+5. Statut temps-réel (badge : STOPPED / STARTING / SCAN_QR / WORKING / FAILED) + dernier ping
+6. Numéro WhatsApp connecté + nom du compte
+7. Envoi d'un message test (numéro + texte)
+8. Liaison à un bot (BotWebhookLinker) — sélection bot existant → webhook auto
+9. Configuration du webhook personnalisé (URL + events)
+10. Diagnostic rapide (health WAHA + permissions) condensé en carte
+11. Sessions partagées admin (lecture seule) si présentes
+12. Synchronisation : realtime Supabase sur `whatsapp_accounts` + refresh live WAHA toutes les 20 s
 
-`src/app-mobile/hooks/useSheetCrud.ts` — wrapper qui sélectionne dynamiquement le bon hook selon `template.id`:
+## Architecture mobile native
 
-```ts
-useSheetCrud(templateId, userId) → {
-  data, isLoading, isWriting,
-  loadSheet(sheetName),
-  addRow(sheetName, row),
-  updateRow(sheetName, rowId, fields),
-  deleteRow(sheetName, rowId)
-}
+Nouveaux fichiers sous `src/app-mobile/` :
+
+```text
+src/app-mobile/
+├── screens/whatsapp/
+│   ├── WhatsAppHomeScreen.tsx         (remplace WhatsAppScreen.tsx, liste + entête)
+│   ├── SessionDetailScreen.tsx        (push-screen actions + infos)
+│   ├── CreateSessionSheet.tsx         (BottomSheet native)
+│   ├── QrScanSheet.tsx                (sheet plein écran QR + polling)
+│   ├── SendTestMessageSheet.tsx
+│   ├── LinkBotSheet.tsx
+│   └── WebhookConfigSheet.tsx
+├── components/whatsapp/
+│   ├── SessionCard.tsx                (carte native swipe-actions)
+│   ├── StatusBadge.tsx
+│   ├── ActionRow.tsx
+│   └── DiagnosticCard.tsx
+└── hooks/
+    └── useMobileWhatsApp.ts           (wrapper unifié : DB + WAHA proxy)
 ```
 
-### Mapping table.id → sheetName
+Mutualisation : le hook `useMobileWhatsApp.ts` réutilise la même logique que `useWAHADashboard` et `useWhatsAppAccounts` (mêmes edge functions, mêmes tables) — pas de duplication backend, seulement une couche d'appels adaptée mobile (pas de toasts desktop, gestion d'erreurs Capacitor-friendly).
 
-Utiliser l'ordre de `template.tables` ↔ `template.googleSheetConfig.sheets`:
-- Restaurant: menu→Menu, commandes→Commandes, clients→Clients, reservations→Reservations, faq→(pas de sheet, fallback local)
-- Ecommerce: produits→Produits, commandes→Commandes, promotions→Promotions, clients→Clients, infos→Infos_Boutique
-- WhatsApp Diffusion: → Sheet1
+Routage : ajouter les sous-routes dans `AppMobile.tsx`
+- `/app/whatsapp` → `WhatsAppHomeScreen`
+- `/app/whatsapp/:sessionName` → `SessionDetailScreen`
 
-Helper `getSheetNameForTable(template, tableId)` centralisé.
+## UI native Android (style)
 
-### Modifications de `KnowledgeBaseDetailScreen.tsx`
+- Header sticky vert WhatsApp (`hsl(165 91% 18%)`) déjà utilisé dans l'app
+- Pull-to-refresh natif (overscroll) sur la liste
+- BottomSheet (`Sheet` shadcn déjà natif tactile) avec `h-[92dvh]`, drag handle, safe-area
+- Listes : cartes empilées, tap → push detail screen, swipe-left → actions
+- Boutons d'action gros tactiles (min 44 px), feedback haptique via `@capacitor/haptics` quand dispo
+- QR : sheet plein écran fond blanc, image centrée 280×280, bouton "Régénérer" + spinner polling
+- Aucun iframe (`WAHADashboardIframe`, `WAHADashboardViewer` exclus), aucun `window.open`, aucun lien externe
+- Champs (numéro, message test) avec composants natifs déjà créés (`PhoneBjInput`, `NativeSelectSheet`, textarea full-width)
+- Safe-area : `paddingBottom: calc(env(safe-area-inset-bottom) + 5.5rem)` pour ne pas masquer la BottomTabBar
+- Scroll : `overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]` sur toutes les zones défilantes
 
-Remplacer le bloc placeholder par un rendu natif identique au mode non-Sheet:
-- Liste de cards (réutiliser le composant existant)
-- FAB "+ Ajouter une entrée"
-- Tap sur une card → écran d'édition
-- Chargement automatique de `loadSheet(sheetName)` au changement d'onglet
-- État de chargement + pull-to-refresh
-- Badge discret "🔄 Synchronisé Google Sheets" en haut du contenu (au lieu du gros placeholder bloquant)
+## Backend / intégrations
 
-### Modifications de `NativeEntryFormScreen.tsx`
+Aucune nouvelle table, aucune nouvelle edge function. Utilisation existante :
+- Table `whatsapp_accounts` (RLS déjà en place)
+- Edge functions : `waha-dashboard-proxy` (liste/statut live), `waha-session-manager` (CRUD session), `waha-connect` (QR), `waouh-waha-control` (webhook)
+- Realtime Supabase channel sur `whatsapp_accounts` filtré par `user_id`
+- Polling QR : 2 s tant que statut ≠ `WORKING` (max 90 s)
 
-Détecter si la base est en mode Google Sheets:
-- Si oui → appeler `addRow` / `updateRow` / `deleteRow` du hook Sheets au lieu d'écrire dans `kb.data`
-- Si non → comportement actuel (sauvegarde dans la table `knowledge_bases`)
-- Bouton "Supprimer" dans le form en mode édition
+## Vérifications de fin
 
-### Composants natifs
+- Build mobile OK (`dist-mobile`)
+- Aucune importation d'iframe / dashboard web dans les nouveaux fichiers
+- Sessions créées sur mobile visibles sur web (même DB) et inversement
+- QR scanné sur mobile → statut `WORKING` propagé partout via realtime
+- Scroll fluide, sheets ne dépassent pas la safe-area, tabs toujours visibles
 
-- `SheetRowCard` — card mobile native pour afficher une ligne (titre + sous-titre + image éventuelle, chevron, swipe-to-delete optionnel)
-- `SheetEmptyState` — état vide avec illustration et CTA
-- `SheetSyncBadge` — petit badge animé indiquant le statut de sync
+## Hors périmètre
 
-## Fichiers à créer
-
-- `src/app-mobile/hooks/useSheetCrud.ts`
-- `src/app-mobile/utils/sheetMapping.ts` (helper `getSheetNameForTable`)
-- `src/app-mobile/components/bots/SheetRowCard.tsx`
-- `src/app-mobile/components/bots/SheetSyncBadge.tsx`
-
-## Fichiers à modifier
-
-- `src/app-mobile/screens/bots/KnowledgeBaseDetailScreen.tsx` — retirer le placeholder, intégrer `useSheetCrud`, charger sheet à l'ouverture de l'onglet
-- `src/app-mobile/screens/bots/NativeEntryFormScreen.tsx` — brancher add/update/delete sur le hook Sheets quand `isGoogleSheetMode`
-
-## Backend
-
-Aucune modification. Les edge functions `google-sheets-reader` et `google-sheets-writer` (opérations `append`, `update_row`, `delete_by_id`) sont déjà en place et testées par les modules web.
-
-## Hors scope
-
-- Modifications du module web
-- Modifications des templates ou de la structure des feuilles Google Sheets
-- Création de nouvelles edge functions
+- Pas de modification du backend
+- Pas de modification de la page web `/whatsapp-connect`
+- Pas de nouvel onglet de navigation
