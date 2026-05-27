@@ -320,6 +320,7 @@ const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; s: ReturnTy
 
 const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const total = c.stats?.total ?? 0;
   const sent = c.stats?.sent ?? 0;
   const failed = c.stats?.failed ?? 0;
@@ -343,10 +344,9 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => setDetailsOpen(true)}><Eye className="w-4 h-4 mr-2" />Voir détails</DropdownMenuItem>
-              <DropdownMenuItem onClick={async () => {
-                const newName = window.prompt('Renommer la campagne :', c.name);
-                if (newName && newName !== c.name) await d.updateCampaign(c.id, { name: newName });
-              }}><Settings className="w-4 h-4 mr-2" />Modifier le nom</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                <Settings className="w-4 h-4 mr-2" />Modifier la campagne
+              </DropdownMenuItem>
               {(c.status === 'failed' || c.status === 'done') && (
                 <DropdownMenuItem onClick={async () => { await d.relaunchCampaign(c.id); }}>
                   <RefreshCw className="w-4 h-4 mr-2" />Relancer la campagne
@@ -401,7 +401,92 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
         )}
       </div>
       <CampaignDetailsDialog open={detailsOpen} onClose={() => setDetailsOpen(false)} campaign={c} />
+      <EditCampaignDialog open={editOpen} onClose={() => setEditOpen(false)} campaign={c} d={d} />
     </>
+  );
+};
+
+const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaign: any; d: any }> = ({ open, onClose, campaign, d }) => {
+  const [name, setName] = useState(campaign.name ?? '');
+  const [body, setBody] = useState(campaign.body ?? '');
+  const [mediaUrl, setMediaUrl] = useState(campaign.media_url ?? '');
+  const [throttle, setThrottle] = useState(campaign.throttle_per_hour ?? 30);
+  const [hStart, setHStart] = useState(campaign.active_hours_start ?? '08:00');
+  const [hEnd, setHEnd] = useState(campaign.active_hours_end ?? '20:00');
+  const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (open) {
+      setName(campaign.name ?? '');
+      setBody(campaign.body ?? '');
+      setMediaUrl(campaign.media_url ?? '');
+      setThrottle(campaign.throttle_per_hour ?? 30);
+      setHStart(campaign.active_hours_start ?? '08:00');
+      setHEnd(campaign.active_hours_end ?? '20:00');
+    }
+  }, [open, campaign]);
+
+  const save = async () => {
+    if (!name.trim() || !body.trim()) { toast.error('Nom et message obligatoires'); return; }
+    setSaving(true);
+    const ok = await d.updateCampaign(campaign.id, {
+      name: name.trim(),
+      body,
+      media_url: mediaUrl || null,
+      throttle_per_hour: Number(throttle) || 30,
+      active_hours_start: hStart,
+      active_hours_end: hEnd,
+    });
+    setSaving(false);
+    if (ok) onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Modifier la campagne</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div>
+            <Label>Nom</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div>
+            <Label>Message</Label>
+            <Textarea value={body} onChange={e => setBody(e.target.value)} rows={8} />
+            <p className="text-xs text-muted-foreground mt-1">Variables : {'{nom}'}, {'{prenom}'}, {'{tag}'}</p>
+          </div>
+          {(campaign.type !== 'text') && (
+            <div>
+              <Label>URL du média ({campaign.type})</Label>
+              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://..." />
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Envois / heure</Label>
+              <Input type="number" min={1} value={throttle} onChange={e => setThrottle(Number(e.target.value))} />
+            </div>
+            <div>
+              <Label>Début</Label>
+              <Input type="time" value={hStart} onChange={e => setHStart(e.target.value)} />
+            </div>
+            <div>
+              <Label>Fin</Label>
+              <Input type="time" value={hEnd} onChange={e => setHEnd(e.target.value)} />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Astuce : après modification du message, vous pouvez « Relancer la campagne » depuis le menu pour renvoyer aux contacts avec le nouveau contenu.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Annuler</Button>
+          <Button onClick={save} disabled={saving} className="bg-green-600 hover:bg-green-700">
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
