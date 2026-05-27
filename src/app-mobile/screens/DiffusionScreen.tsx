@@ -595,24 +595,13 @@ function AudiencePickerSheet({
           </div>
         </div>
         <div className="flex items-center justify-between px-4 pb-2 gap-2 shrink-0">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <h2 className="text-base font-semibold">Choisir des destinataires</h2>
-          <button onClick={onClose} className="p-2 -mr-2 rounded-full active:bg-accent"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="px-4 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher…" className="h-11 pl-9" />
-          </div>
-        </div>
-        <div className="flex items-center justify-between px-4 pb-2 gap-2">
           <span className="text-xs text-muted-foreground">{selected.size}/{contacts.length} sélectionné(s)</span>
           <div className="flex gap-2">
             <button onClick={() => onChange(new Set(contacts.map(c => c.id)))} className="text-xs underline">Tous</button>
             <button onClick={() => onChange(new Set())} className="text-xs underline">Aucun</button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain divide-y">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain divide-y [-webkit-overflow-scrolling:touch]">
           {filtered.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-8">Aucun contact</p>
           )}
