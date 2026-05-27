@@ -585,8 +585,9 @@ const NewCampaignDialog: React.FC<{ open: boolean; onClose: () => void; d: any; 
           </div>
           {(type === 'photo' || type === 'video' || type === 'audio') && (
             <div>
-              <Label>URL du média</Label>
-              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://…" />
+              <Label>URL du média <span className="text-destructive">*</span></Label>
+              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://exemple.com/photo.jpg" />
+              <p className="text-[11px] text-muted-foreground mt-1">L'URL doit être publiquement accessible (https). Sans média, sélectionnez plutôt « Texte ».</p>
             </div>
           )}
           <div>
