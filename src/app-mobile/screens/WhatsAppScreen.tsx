@@ -109,12 +109,14 @@ export default function WhatsAppScreen() {
       );
       await loadDb();
       setOpenCreate(false);
-      setQrSession(clean); // start QR flow immediately
+      // Auto-start so WAHA reaches SCAN_QR_CODE before requesting QR
+      try { await startSession(clean); } catch { /* ignore */ }
+      setQrSession(clean);
     } catch { /* toasts handled in hook */ }
   };
 
   const handleStart = async (name: string) => {
-    await startSession(name);
+    try { await startSession(name); } catch { /* ignore */ }
     setQrSession(name);
   };
 
@@ -243,6 +245,7 @@ export default function WhatsAppScreen() {
         sessionName={qrSession}
         onOpenChange={(o) => { if (!o) { setQrSession(null); loadDb(); } }}
         getQRCode={getQRCode}
+        startSession={startSession}
         sessions={merged}
       />
       <ActionsSheet
@@ -335,33 +338,57 @@ function CreateSessionSheet({ open, onOpenChange, onCreate }: any) {
   );
 }
 
-function QrSheet({ open, onOpenChange, sessionName, getQRCode, sessions }: any) {
+function QrSheet({ open, onOpenChange, sessionName, getQRCode, startSession, sessions }: any) {
   const [qr, setQr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const timer = useRef<any>(null);
+  const startedRef = useRef<string | null>(null);
 
   const current = sessions.find((s: WAHASession) => s.name === sessionName);
-  const isWorking = current?.status === "WORKING";
+  const status = current?.status;
+  const isWorking = status === "WORKING";
 
   const fetchQr = useCallback(async () => {
     if (!sessionName) return;
+    // If session is stopped, auto-start once
+    if (status === "STOPPED" && startedRef.current !== sessionName) {
+      startedRef.current = sessionName;
+      setBusy(true);
+      setHint("Démarrage de la session…");
+      try { await startSession(sessionName); } catch { /* ignore */ }
+      setBusy(false);
+      return; // wait for next tick / status refresh
+    }
+    // Only ask QR when WAHA is ready or unknown
+    if (status === "STARTING") {
+      setHint("Préparation de la session…");
+      return;
+    }
     setBusy(true);
+    setHint(null);
     try {
       const data = await getQRCode(sessionName);
       setQr(data.qr);
-    } catch { /* toast in hook */ }
-    finally { setBusy(false); }
-  }, [sessionName, getQRCode]);
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (msg.includes("422") || msg.toLowerCase().includes("status")) {
+        setHint("Session pas encore prête, nouvel essai…");
+      }
+    } finally { setBusy(false); }
+  }, [sessionName, status, getQRCode, startSession]);
 
   useEffect(() => {
     if (open && sessionName && !isWorking) {
       fetchQr();
-      timer.current = setInterval(fetchQr, 20000); // refresh QR every 20s
+      timer.current = setInterval(fetchQr, 4000);
     }
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [open, sessionName, isWorking, fetchQr]);
 
-  useEffect(() => { if (!open) setQr(null); }, [open]);
+  useEffect(() => {
+    if (!open) { setQr(null); setHint(null); startedRef.current = null; }
+  }, [open]);
 
   return (
     <SheetShell open={open} onOpenChange={onOpenChange} title="Connecter WhatsApp">
@@ -377,15 +404,22 @@ function QrSheet({ open, onOpenChange, sessionName, getQRCode, sessions }: any) 
         ) : (
           <>
             <div className="bg-white rounded-2xl p-6 flex items-center justify-center min-h-[300px] border-2 border-dashed">
-              {busy && !qr ? (
-                <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-              ) : qr ? (
+              {qr ? (
                 <img src={qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`}
                   alt="QR WhatsApp" className="w-64 h-64 object-contain" />
               ) : (
                 <div className="text-center text-muted-foreground text-sm">
-                  <QrCode className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  QR indisponible
+                  {busy || hint ? (
+                    <>
+                      <Loader2 className="h-10 w-10 animate-spin mx-auto mb-2" />
+                      <p>{hint ?? "Récupération du QR…"}</p>
+                    </>
+                  ) : (
+                    <>
+                      <QrCode className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>QR indisponible</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -408,6 +442,7 @@ function QrSheet({ open, onOpenChange, sessionName, getQRCode, sessions }: any) 
     </SheetShell>
   );
 }
+
 
 function ActionsSheet({ open, onOpenChange, sessionName, session, onStart, onStop, onQr, onTest, onLink, onWebhook, onDelete }: any) {
   if (!sessionName) return null;
