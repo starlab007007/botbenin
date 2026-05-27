@@ -159,7 +159,7 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
                 title="Pays"
               >
                 {COUNTRIES.map(c => (
-                  <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
+                  <option key={c.code} value={c.code}>{c.flag} {c.dial} — {c.name}</option>
                 ))}
               </select>
               <Input
