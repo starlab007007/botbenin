@@ -9,6 +9,39 @@ const corsHeaders = {
 
 const ACTIVE_STATUSES = new Set(["WORKING", "connected"]);
 
+function buildWahaHeaderVariants() {
+  const variants: Record<string, string>[] = [];
+  const plain = Deno.env.get("WAHA_API_KEY_PLAIN")?.trim();
+  const rawKey = Deno.env.get("WAHA_API_KEY")?.trim();
+  const key = plain || (rawKey && !rawKey.startsWith("sha512:") ? rawKey : "");
+  if (key) {
+    variants.push(
+      { "X-Api-Key": key, "Content-Type": "application/json", Accept: "application/json" },
+      { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
+    );
+  }
+  const user = Deno.env.get("WAHA_DASHBOARD_USERNAME");
+  const pass = Deno.env.get("WAHA_DASHBOARD_PASSWORD");
+  if (user && pass) variants.push({ Authorization: `Basic ${btoa(`${user}:${pass}`)}`, "Content-Type": "application/json", Accept: "application/json" });
+  if (variants.length === 0) variants.push({ "Content-Type": "application/json", Accept: "application/json" });
+  return variants;
+}
+
+async function fetchLiveStatus(base: string, sessionName: string): Promise<string | null> {
+  if (!base) return null;
+  for (const headers of buildWahaHeaderVariants()) {
+    try {
+      const res = await fetch(`${base}/api/sessions/${encodeURIComponent(sessionName)}`, { method: "GET", headers });
+      if (res.ok) {
+        const j = await res.json().catch(() => ({}));
+        return (j?.status ?? j?.data?.status ?? j?.state ?? null) as string | null;
+      }
+      if (res.status !== 401 && res.status !== 403) return null;
+    } catch (_) { /* try next */ }
+  }
+  return null;
+}
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
