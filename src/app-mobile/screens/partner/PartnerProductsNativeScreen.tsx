@@ -23,6 +23,7 @@ export default function PartnerProductsNativeScreen() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [viewing, setViewing] = useState<any>(null);
 
   const load = async () => {
     setLoading(true);
