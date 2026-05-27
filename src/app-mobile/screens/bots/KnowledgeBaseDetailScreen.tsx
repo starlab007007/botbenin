@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Download, MoreVertical, Save } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Cloud, Download, MoreVertical, RefreshCw, Save } from 'lucide-react';
 import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
 import { useKnowledgeBaseTemplates } from '@/hooks/useKnowledgeBaseTemplates';
 import { KnowledgeBase } from '@/types/knowledge-base';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import NativeFieldRenderer from '../../components/bots/NativeFieldRenderer';
+import { useSheetCrud } from '../../hooks/useSheetCrud';
+import { getSheetNameForTable, isGoogleSheetTemplate } from '../../utils/sheetMapping';
 import { toast } from 'sonner';
+
 
 export default function KnowledgeBaseDetailScreen() {
   const { id } = useParams();
@@ -45,8 +48,17 @@ export default function KnowledgeBaseDetailScreen() {
     );
   }
 
-  const isGoogleSheetMode = !!template.googleSheetConfig &&
-    (template.id === 'ecommerce' || template.id === 'restaurant' || template.id === 'whatsapp_diffusion');
+  const isGoogleSheetMode = isGoogleSheetTemplate(template);
+  const currentTable = tab !== 'structural' ? template.tables.find(t => t.id === tab) : null;
+  const sheetName = isGoogleSheetMode && currentTable
+    ? getSheetNameForTable(template, currentTable.id)
+    : null;
+  const sheet = useSheetCrud(
+    template.googleSheetConfig?.spreadsheetId,
+    sheetName,
+    kb.user_id
+  );
+
 
   const save = async () => {
     const ok = await updateKnowledgeBase(kb.id, {
@@ -113,30 +125,48 @@ export default function KnowledgeBaseDetailScreen() {
         {tab !== 'structural' && (() => {
           const table = template.tables.find(t => t.id === tab);
           if (!table) return null;
-          if (isGoogleSheetMode) {
-            return (
-              <div className="rounded-xl border bg-card p-4">
-                <h3 className="font-semibold text-sm mb-1">Synchronisé via Google Sheets</h3>
-                <p className="text-xs text-muted-foreground">
-                  Les données de « {table.name} » proviennent directement de Google Sheets et sont en lecture seule depuis l'application.
-                </p>
-              </div>
-            );
-          }
-          const entries = tablesData[table.id] || [];
+          const useSheet = isGoogleSheetMode && !!sheetName;
+          const entries: any[] = useSheet ? sheet.rows : (tablesData[table.id] || []);
           const primary = table.fields[0];
           const secondary = table.fields[1];
+          const newHref = useSheet
+            ? `/app/bots/${kb.id}/table/${table.id}/entry/new?gs=1`
+            : `/app/bots/${kb.id}/table/${table.id}/entry/new`;
+          const entryHref = (row: any, idx: number) => useSheet
+            ? `/app/bots/${kb.id}/table/${table.id}/entry/gs:${encodeURIComponent(row.id)}`
+            : `/app/bots/${kb.id}/table/${table.id}/entry/${idx}`;
           return (
             <>
-              {entries.length === 0 && (
+              {useSheet && (
+                <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 mb-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Cloud className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="text-[11px] text-muted-foreground truncate">
+                      Synchronisé Google Sheets · {sheet.lastSync ? sheet.lastSync.toLocaleTimeString() : '—'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => sheet.load()}
+                    disabled={sheet.isLoading}
+                    className="p-1.5 -mr-1 rounded-full active:bg-accent disabled:opacity-50"
+                    aria-label="Actualiser"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${sheet.isLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              )}
+              {useSheet && sheet.isLoading && entries.length === 0 && (
+                <div className="text-center py-10 text-sm text-muted-foreground">Chargement…</div>
+              )}
+              {!(useSheet && sheet.isLoading) && entries.length === 0 && (
                 <div className="text-center py-10 text-sm text-muted-foreground">
                   Aucune entrée. Ajoutez votre première donnée.
                 </div>
               )}
               {entries.map((row, idx) => (
                 <button
-                  key={idx}
-                  onClick={() => navigate(`/app/bots/${kb.id}/table/${table.id}/entry/${idx}`)}
+                  key={(row.id ?? idx).toString()}
+                  onClick={() => navigate(entryHref(row, idx))}
                   className="w-full text-left rounded-xl border bg-card p-3.5 flex items-center gap-3 active:bg-accent/40 transition"
                 >
                   {primary?.type === 'image' && row[primary.name] ? (
@@ -156,7 +186,7 @@ export default function KnowledgeBaseDetailScreen() {
                 </button>
               ))}
               <button
-                onClick={() => navigate(`/app/bots/${kb.id}/table/${table.id}/entry/new`)}
+                onClick={() => navigate(newHref)}
                 className="w-full h-12 mt-2 rounded-lg border-2 border-dashed border-primary/40 text-primary font-medium active:bg-primary/5"
               >
                 + Ajouter une entrée
