@@ -208,9 +208,9 @@ export default function ChatScreen() {
               const m: any = it.msg;
               const atts: Att[] = Array.isArray(m.attachments) ? m.attachments.filter((a: any) => a && a.url) : [];
               const inlineImgs = extractImageUrls(m.text);
-              const gallery = [
+              const gallery: { url: string; caption?: string }[] = [
                 ...atts.map((a) => ({ url: a.url, caption: a.caption || undefined })),
-                ...inlineImgs.map((u) => ({ url: u })),
+                ...inlineImgs.map((u) => ({ url: u, caption: undefined as string | undefined })),
               ];
               const cleanText = inlineImgs.length ? stripImageUrls(m.text) : (m.text ?? "");
               return (
