@@ -344,10 +344,9 @@ const CampaignRow: React.FC<{ c: any; d: any }> = ({ c, d }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => setDetailsOpen(true)}><Eye className="w-4 h-4 mr-2" />Voir détails</DropdownMenuItem>
-              <DropdownMenuItem onClick={async () => {
-                const newName = window.prompt('Renommer la campagne :', c.name);
-                if (newName && newName !== c.name) await d.updateCampaign(c.id, { name: newName });
-              }}><Settings className="w-4 h-4 mr-2" />Modifier le nom</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                <Settings className="w-4 h-4 mr-2" />Modifier la campagne
+              </DropdownMenuItem>
               {(c.status === 'failed' || c.status === 'done') && (
                 <DropdownMenuItem onClick={async () => { await d.relaunchCampaign(c.id); }}>
                   <RefreshCw className="w-4 h-4 mr-2" />Relancer la campagne
