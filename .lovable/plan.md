@@ -1,88 +1,98 @@
-# Diffusion mobile 100% native
 
-Refonte complète de `/app/diffusion` pour une expérience Android native, branchée sur exactement le même backend Supabase (tables `wa_contacts`, `wa_campaigns`, `wa_send_jobs`, `whatsapp_accounts`) et les mêmes edge functions que la version web.
+## Objectif
 
-## Principe
+Sur `/app/bots` (app mobile), remplacer l'écran actuel (qui ne liste que les `bots`) par une vraie expérience **Création de Bots = Bases de Connaissances**, identique en fonctionnalité au web (`/modules/knowledge-bases`), mais en UI 100% native style Android : chaque action ouvre un écran plein écran (Activity), pas de Dialog/Popover/Accordéon web. Aucune ouverture de WebView externe. Backend, table, hooks, validations, exports : strictement identiques au web.
 
-- Aucune ouverture de lien web, aucun Dialog modal web. Chaque action ouvre un **écran natif plein écran** (style Activity Android), inspiré de `NativeFormScreen`.
-- Réutilisation à 100 % du hook `useWaDiffusion` et `useDiffusionSessions` → mêmes données, mêmes contrôles serveur (worker, enqueue, AI variants, vérification numéros).
-- Composants natifs `NativeSelectSheet`, `NativePhoneInput` déjà existants pour les sélecteurs.
+## Périmètre fonctionnel (parité web → mobile)
 
-## Architecture des écrans
+1. **Liste des bases de connaissances** (Mes Bots / Bases) — équiv. `KnowledgeBaseManager`
+   - Cartes empilées (1 col) : badge secteur, nom, description, barre de complétion, badge "Bot actif", date.
+   - FAB orange `+` en bas-droite (style Android) pour créer.
+   - Tap carte → ouvre l'écran "Détail/Édition".
+   - Long-press carte → bottom-sheet d'actions (Visualiser, Modifier, Exporter JSON/Excel/CSV/PDF, Supprimer).
 
+2. **Wizard de création** — équiv. `KnowledgeBaseCreator` (3 étapes plein écran)
+   - **Étape 1 — Secteur** : grille de templates (1 col mobile), cartes tactiles, icône secteur + couleur, badges tables.
+   - **Étape 2 — Nom + Infos essentielles** : champ "Nom de la base" + tous les `structuralInfo` rendus avec inputs natifs typés (text/email/tel/url/date/time).
+   - **Étape 3 — Tables de données** : liste de tables (au lieu d'Accordion). Tap sur une table → ouvre un écran plein écran listant les entrées (cards) avec FAB `+`.
+   - En bas sticky : barre de progression + boutons "Précédent / Suivant / Enregistrer".
+
+3. **Éditeur d'entrée de table** — équiv. `DataTableEditor` Dialog
+   - Écran plein écran (`NativeFormScreen`), un champ par ligne, types natifs :
+     - `text/number/email/phone/url/price` → `<input>` typé natif (clavier Android adapté).
+     - `date/time/datetime` → `<input type=date|time|datetime-local>` (picker natif Android).
+     - `textarea` → `<textarea>` plein largeur.
+     - `select/multiselect` → bottom-sheet `NativeSelectSheet` (déjà existante).
+     - `image/file` → bouton ouvrant le file picker natif (`<input type=file accept>` géré par Capacitor WebView → ouvre le sélecteur Android), upload vers bucket `knowledge_bases` Supabase, preview thumbnail.
+     - `address` → champ texte + bouton "Utiliser ma position" (geolocation API).
+   - Footer sticky : Annuler / Enregistrer.
+
+4. **Visualisation / Édition d'une base existante** — équiv. `KnowledgeBaseViewer`
+   - Header sticky vert : nom + badge secteur + bouton menu (export, supprimer).
+   - Tabs scrollables horizontalement (chips) : "Infos" + une chip par table.
+   - Contenu : `StructuralInfoForm` natif ou liste de cards d'entrées avec FAB `+`.
+   - Bouton "Enregistrer" sticky bas (visible si modifications).
+   - Mode **Google Sheet** (ecommerce/restaurant/whatsapp_diffusion) : afficher un écran natif lecture seule listant les entrées synchronisées (réutiliser hooks `useEcommerceGoogleSheets`, `useRestaurationGoogleSheets`, `useWhatsAppDiffusionGoogleSheets`), sans iframe ni WebView.
+
+5. **Export** : JSON / Excel / CSV / PDF — réutiliser `exportKnowledgeBase` du hook (génère et télécharge via Blob/`URL.createObjectURL`). Sur Android Capacitor, le blob déclenche le téléchargement natif.
+
+6. **Suppression** : bottom-sheet de confirmation native (au lieu d'`AlertDialog`).
+
+## Architecture
+
+```text
+/app/bots                   → KnowledgeBasesListScreen (remplace BotsScreen actuel)
+/app/bots/new               → KnowledgeBaseCreateWizard (étapes 1→2→3, plein écran)
+/app/bots/:id               → KnowledgeBaseDetailScreen (édition/visualisation)
+/app/bots/:id/table/:tableId → NativeTableEntriesScreen (liste des entrées d'une table)
+/app/bots/:id/table/:tableId/entry/:index? → NativeEntryFormScreen (ajout/édition d'entrée)
 ```
-/app/diffusion                       → Tabs natifs (Contacts | Campagnes | Sessions | Suivi)
-/app/diffusion/contacts/new          → Form natif ajouter contact
-/app/diffusion/contacts/import       → Form natif import (textarea + preview)
-/app/diffusion/campaigns/new         → Wizard natif 4 étapes (Type & nom · Message & média · Audience & session · Anti-ban)
-/app/diffusion/campaigns/:id         → Détails campagne (stats live + actions)
-/app/diffusion/campaigns/:id/edit    → Form natif édition (mêmes champs que web)
-/app/diffusion/sessions/new          → Form natif création session WAHA + QR
-/app/diffusion/sessions/:id          → Détails/QR/scan session
-```
 
-Tous accessibles via `react-router-dom` sous le shell mobile existant.
+Tous les écrans utilisent :
+- `MobileScreenHeader` (sticky vert, safe-area-inset-top) pour l'en-tête.
+- `NativeFormScreen` pour les écrans-formulaires (footer sticky bouton primaire).
+- `NativeSelectSheet` pour les selects et menus d'actions.
+- Pas de `Dialog`, `Popover`, `AlertDialog`, `Accordion`, `DropdownMenu`.
 
-## Fonctionnalités couvertes (parité web)
+## Backend & synchro
 
-**Contacts**
-- Ajout manuel avec `NativePhoneInput` (drapeau + indicatif Bénin par défaut, support pays via `COUNTRIES`)
-- Import en masse (textarea, parse Bénin 8/10 chiffres, preview valides/invalides)
-- Liste scrollable virtuelle, recherche, toggle archives
-- Vérification WhatsApp (edge `whatsapp-check-numbers`)
-- Actions par contact : opt-out, archive, supprimer (via bottom-sheet d'actions)
-
-**Campagnes**
-- Liste avec badges statut, `Progress` envoyés/total, ACK live (livrés/lus)
-- Wizard de création 4 étapes plein écran avec persistance d'état :
-  1. Nom + Type (text, photo, vidéo, audio, document, lien) via `NativeSelectSheet`
-  2. Message (Textarea native) + pièce jointe native (file picker via `<input type=file>` toujours OK en Capacitor WebView ; sinon Capacitor Filesystem si présent) → upload vers `public-media` bucket
-  3. Audience : sélection multi-contacts dans une liste native + session WAHA via `NativeSelectSheet`
-  4. Anti-ban : envois/h, plage horaire, switch variantes IA
-- Actions row : Lancer, Envoyer maintenant, Pause/Reprendre, Dupliquer, Relancer, Supprimer, Modifier — via bottom-sheet `Sheet` natif (pas DropdownMenu web)
-- Édition complète (nom, type, body, média, throttle, plages) → écran natif
-
-**Sessions WAHA**
-- Liste mes sessions + sessions partagées admin
-- Création/configuration via écran natif (réutilise logique de `WaSessionDialog`)
-- Affichage QR + statut live (poll 20 s)
-
-**Suivi (Stats)**
-- Reprise du `StatsTab` web : totaux, succès, échecs, ACK livrés/lus via realtime sur `wa_send_jobs`
+- **Aucun changement DB** : utilise `knowledge_bases` existante + bucket `knowledge_bases`.
+- Réutilise les hooks tels quels : `useKnowledgeBases`, `useKnowledgeBaseTemplates`, `useEcommerceGoogleSheets`, `useRestaurationGoogleSheets`, `useWhatsAppDiffusionGoogleSheets`.
+- Realtime : ajouter un abonnement `postgres_changes` sur `knowledge_bases` filtré sur `user_id` pour live-update la liste (parité avec `BotsScreen` actuel).
 
 ## Détails techniques
 
-- **Backend identique** : aucun changement de schéma, RLS, edge functions. Le mobile lit/écrit les mêmes tables avec le même `user_id`.
-- **Synchronisation** : `useWaDiffusion` re-fetch après chaque mutation + abonnement realtime Supabase sur `wa_campaigns` et `wa_send_jobs` pour stats live.
-- **File picker natif** : sur Android, `<input type="file" accept="image/*">` ouvre le sélecteur Android natif depuis la WebView Capacitor — pas besoin de plugin. Optionnel : ajouter `@capacitor/camera` plus tard pour capture directe.
-- **Aucun composant web modal** : remplacement de `Dialog` par routes plein écran et de `Select`/`DropdownMenu` par `NativeSelectSheet` + `Sheet` bottom.
-- **Header sticky vert** (`hsl(var(--wa-green))`) + bouton retour Android + bouton submit sticky bas, conformes au pattern `NativeFormScreen`.
-- **Tabs** en barre horizontale sticky avec scroll snap, style chip.
-- **Toaster** : `sonner` déjà disponible dans `AppMobile`.
+- **File picker natif** : `<input type=file>` est intercepté par Capacitor sur Android → ouvre le sélecteur natif (galerie/fichiers). Pas besoin de plugin si ça reste un upload simple ; pas de WebView externe.
+- **Pickers date/heure natifs** : `<input type=date|time|datetime-local>` rendent les pickers Android natifs sur Capacitor WebView.
+- **Géoloc** : `navigator.geolocation.getCurrentPosition` (déjà utilisé dans le projet).
+- **Validation** : reprise stricte des règles du web (`required`, `pattern`, `min/max`).
+- **Mode Google Sheet** : pas d'iframe — on liste les entrées renvoyées par les hooks dans des cards natives, plus bouton "Rafraîchir".
 
 ## Fichiers à créer
 
-- `src/app-mobile/screens/diffusion/DiffusionHomeScreen.tsx` (remplace l'actuel `DiffusionScreen.tsx`)
-- `src/app-mobile/screens/diffusion/tabs/NativeContactsTab.tsx`
-- `src/app-mobile/screens/diffusion/tabs/NativeCampaignsTab.tsx`
-- `src/app-mobile/screens/diffusion/tabs/NativeSessionsTab.tsx`
-- `src/app-mobile/screens/diffusion/tabs/NativeStatsTab.tsx`
-- `src/app-mobile/screens/diffusion/ContactAddScreen.tsx`
-- `src/app-mobile/screens/diffusion/ContactImportScreen.tsx`
-- `src/app-mobile/screens/diffusion/CampaignWizardScreen.tsx`
-- `src/app-mobile/screens/diffusion/CampaignDetailsScreen.tsx`
-- `src/app-mobile/screens/diffusion/CampaignEditScreen.tsx`
-- `src/app-mobile/screens/diffusion/SessionFormScreen.tsx`
-- `src/app-mobile/components/diffusion/NativeMediaPicker.tsx` (upload Supabase Storage avec progress)
-- `src/app-mobile/components/diffusion/CampaignActionsSheet.tsx` (bottom-sheet d'actions)
+- `src/app-mobile/screens/bots/KnowledgeBasesListScreen.tsx`
+- `src/app-mobile/screens/bots/KnowledgeBaseCreateWizard.tsx`
+- `src/app-mobile/screens/bots/KnowledgeBaseDetailScreen.tsx`
+- `src/app-mobile/screens/bots/NativeTableEntriesScreen.tsx`
+- `src/app-mobile/screens/bots/NativeEntryFormScreen.tsx`
+- `src/app-mobile/components/bots/NativeSectorPicker.tsx` (grille de secteurs)
+- `src/app-mobile/components/bots/NativeStructuralInfoForm.tsx`
+- `src/app-mobile/components/bots/NativeFieldRenderer.tsx` (rend un champ selon son type, version mobile)
+- `src/app-mobile/components/bots/NativeKbActionsSheet.tsx` (bottom-sheet actions)
+- `src/app-mobile/components/bots/NativeGoogleSheetView.tsx` (lecture seule pour modes Sheet)
 
-## Fichiers modifiés
+## Fichiers à modifier
 
-- `src/AppMobile.tsx` : enregistrement des nouvelles routes `diffusion/*`
-- `src/app-mobile/layouts/BottomTabBar.tsx` (vérif présence onglet Diffusion)
+- `src/AppMobile.tsx` :
+  - Remplace `MobileBots` lazy import par `KnowledgeBasesListScreen`.
+  - Remplace `MobileCreateBot` par `KnowledgeBaseCreateWizard`.
+  - Ajoute routes `/app/bots/:id`, `/app/bots/:id/table/:tableId`, `/app/bots/:id/table/:tableId/entry/:index?`.
+- `src/app-mobile/layouts/BottomTabBar.tsx` : libellé "Bots" inchangé (le tab pointe déjà `/app/bots`).
 
-## Hors-périmètre
+## Hors périmètre
 
-- Pas de modif backend (tables, RLS, edge functions inchangées)
-- Pas de modif de la version web `/whatsapp-diffusion`
-- Pas d'ajout de plugins Capacitor (file picker via input HTML — fonctionne nativement Android)
+- Pas de changement backend, pas de migration SQL.
+- Pas de modification du web `/modules/knowledge-bases`.
+- Pas d'ajout de plugin Capacitor (file picker / date picker fonctionnent via WebView).
+- L'ancien `CreateBotWizard` (4 étapes "bot simple") est retiré au profit du wizard Bases de Connaissances, qui est le vrai équivalent web "Création Bots".
+

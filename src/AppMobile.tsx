@@ -16,8 +16,10 @@ const MobileShell = lazy(() => import('./app-mobile/layouts/MobileShell'));
 const MobileWaouhChat = lazy(() => import('./app-mobile/screens/WaouhChatScreen'));
 const MobileConversations = lazy(() => import('./app-mobile/screens/ChatListScreen'));
 const MobileChatThread = lazy(() => import('./app-mobile/screens/ChatScreen'));
-const MobileBots = lazy(() => import('./app-mobile/screens/BotsScreen'));
-const MobileCreateBot = lazy(() => import('./app-mobile/screens/CreateBotWizard'));
+const MobileBots = lazy(() => import('./app-mobile/screens/bots/KnowledgeBasesListScreen'));
+const MobileCreateBot = lazy(() => import('./app-mobile/screens/bots/KnowledgeBaseCreateWizard'));
+const MobileBotDetail = lazy(() => import('./app-mobile/screens/bots/KnowledgeBaseDetailScreen'));
+const MobileBotEntryForm = lazy(() => import('./app-mobile/screens/bots/NativeEntryFormScreen'));
 const MobileWhatsApp = lazy(() => import('./app-mobile/screens/WhatsAppScreen'));
 const MobileDiffusion = lazy(() => import('./app-mobile/screens/DiffusionScreen'));
 const MobilePartner = lazy(() => import('./app-mobile/screens/partner/PartnerHomeScreen'));
@@ -74,6 +76,8 @@ const AppMobile = () => (
                       <Route path="chat/:id" element={<MobileChatThread />} />
                       <Route path="bots" element={<MobileBots />} />
                       <Route path="bots/new" element={<MobileCreateBot />} />
+                      <Route path="bots/:id" element={<MobileBotDetail />} />
+                      <Route path="bots/:id/table/:tableId/entry/:index" element={<MobileBotEntryForm />} />
                       <Route path="whatsapp" element={<MobileWhatsApp />} />
                       <Route path="diffusion" element={<MobileDiffusion />} />
                       <Route path="partner" element={<MobilePartner />} />
