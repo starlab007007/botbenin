@@ -128,20 +128,7 @@ const ContactsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion> }> = ({ d }) 
   const [importOpen, setImportOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
-  const COUNTRIES = [
-    { code: 'BJ', flag: '🇧🇯', dial: '+229', name: 'Bénin' },
-    { code: 'TG', flag: '🇹🇬', dial: '+228', name: 'Togo' },
-    { code: 'CI', flag: '🇨🇮', dial: '+225', name: "Côte d'Ivoire" },
-    { code: 'SN', flag: '🇸🇳', dial: '+221', name: 'Sénégal' },
-    { code: 'BF', flag: '🇧🇫', dial: '+226', name: 'Burkina Faso' },
-    { code: 'NG', flag: '🇳🇬', dial: '+234', name: 'Nigeria' },
-    { code: 'GH', flag: '🇬🇭', dial: '+233', name: 'Ghana' },
-    { code: 'ML', flag: '🇲🇱', dial: '+223', name: 'Mali' },
-    { code: 'NE', flag: '🇳🇪', dial: '+227', name: 'Niger' },
-    { code: 'CM', flag: '🇨🇲', dial: '+237', name: 'Cameroun' },
-    { code: 'GA', flag: '🇬🇦', dial: '+241', name: 'Gabon' },
-    { code: 'FR', flag: '🇫🇷', dial: '+33', name: 'France' },
-  ];
+  const COUNTRIES = PHONE_COUNTRIES;
   const current = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[0];
 
   const filtered = useMemo(() => {
