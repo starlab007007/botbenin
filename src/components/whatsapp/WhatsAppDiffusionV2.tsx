@@ -526,6 +526,8 @@ const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaig
                 <SelectItem value="photo">Photo + texte</SelectItem>
                 <SelectItem value="video">Vidéo + texte</SelectItem>
                 <SelectItem value="audio">Audio</SelectItem>
+                <SelectItem value="file">Document + texte</SelectItem>
+                <SelectItem value="link">Lien + texte</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -534,11 +536,17 @@ const EditCampaignDialog: React.FC<{ open: boolean; onClose: () => void; campaig
             <Textarea value={body} onChange={e => setBody(e.target.value)} rows={8} />
             <p className="text-xs text-muted-foreground mt-1">Variables : {'{nom}'}, {'{prenom}'}, {'{tag}'}</p>
           </div>
-          {(type !== 'text') && (
+          {type === 'link' && (
             <div>
-              <Label>URL du média ({type}) <span className="text-destructive">*</span></Label>
-              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://..." />
-              <p className="text-[11px] text-muted-foreground mt-1">URL publique https. Sans média, basculez en « Texte ».</p>
+              <Label>URL du lien (optionnelle)</Label>
+              <Input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://exemple.com/page" />
+              <p className="text-[11px] text-muted-foreground mt-1">L'URL sera ajoutée à la fin du message pour générer un aperçu sur WhatsApp.</p>
+            </div>
+          )}
+          {(type === 'photo' || type === 'video' || type === 'audio' || type === 'file') && (
+            <div>
+              <Label>Pièce jointe ({type})</Label>
+              <MediaUploader type={type} value={mediaUrl} onChange={setMediaUrl} />
             </div>
           )}
           <div className="grid grid-cols-3 gap-3">
