@@ -94,9 +94,9 @@ export default function DiffusionScreen() {
   }, [user, authLoading, navigate]);
 
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col">
+    <div className="fixed inset-0 bg-background flex flex-col overscroll-contain">
       <header
-        className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white"
+        className="shrink-0 bg-[hsl(165_91%_18%)] text-white"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="flex items-center gap-2 px-4 py-3">
@@ -135,7 +135,10 @@ export default function DiffusionScreen() {
         </nav>
       </header>
 
-      <main className="flex-1 pb-24">
+      <main
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5.5rem)" }}
+      >
         {tab === "campaigns" && (
           <CampaignsTab
             d={d} s={s}
