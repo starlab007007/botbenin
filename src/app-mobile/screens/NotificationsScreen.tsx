@@ -98,7 +98,7 @@ export default function NotificationsScreen() {
           <div className="p-10 text-center text-muted-foreground">
             <Bell className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p className="font-medium">{showAll ? "Aucune notification" : "Aucun message non lu"}</p>
-            <p className="text-sm">Les nouveaux messages (App & WhatsApp) apparaîtront ici.</p>
+            <p className="text-sm">Les nouveaux messages (App & WhatsApp IA) apparaîtront ici.</p>
           </div>
         )}
         <ul className="divide-y">
