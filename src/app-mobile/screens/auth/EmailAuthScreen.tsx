@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+
 import { ArrowLeft, Mail, Lock, User, Loader2, Info } from "lucide-react";
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
 import { toast } from "sonner";
