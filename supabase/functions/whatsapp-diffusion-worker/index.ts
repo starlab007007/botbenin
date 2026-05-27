@@ -341,26 +341,32 @@ serve(async (req) => {
 
             let endpoint = "/api/sendText";
             const basePayload: any = { session: session.session_name };
-            switch (campaign.type) {
+            // Fallback automatique : si type média mais URL manquante et qu'on a un body → envoi texte
+            let effectiveType = campaign.type;
+            if (["photo", "video", "audio", "file"].includes(effectiveType) && !mediaUrl) {
+              if (rendered && rendered.trim().length > 0) {
+                await logEvent(admin, campaign, "warning", `Média ${effectiveType} manquant → fallback texte`, { jobId: job.id });
+                effectiveType = "text";
+              } else {
+                throw new Error(`Média ${effectiveType} manquant et aucun texte de secours`);
+              }
+            }
+            switch (effectiveType) {
               case "photo":
-                if (!mediaUrl) throw new Error("Média photo manquant");
                 endpoint = "/api/sendImage";
                 basePayload.file = { url: mediaUrl };
                 basePayload.caption = rendered;
                 break;
               case "video":
-                if (!mediaUrl) throw new Error("Média vidéo manquant");
                 endpoint = "/api/sendVideo";
                 basePayload.file = { url: mediaUrl };
                 basePayload.caption = rendered;
                 break;
               case "audio":
-                if (!mediaUrl) throw new Error("Média audio manquant");
                 endpoint = "/api/sendVoice";
                 basePayload.file = { url: mediaUrl };
                 break;
               case "file":
-                if (!mediaUrl) throw new Error("Fichier manquant");
                 endpoint = "/api/sendFile";
                 basePayload.file = { url: mediaUrl };
                 basePayload.caption = rendered;
