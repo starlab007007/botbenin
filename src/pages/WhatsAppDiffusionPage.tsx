@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Users, Zap, Shield, Target, CheckCircle2 } from 'lucide-react';
 import whatsappLogo from '@/assets/whatsapp-icon-official.png';
 import { WhatsAppCampaignForm } from '@/components/whatsapp/WhatsAppCampaignForm';
+import { WhatsAppDiffusionV2 } from '@/components/whatsapp/WhatsAppDiffusionV2';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const WhatsAppDiffusionPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
