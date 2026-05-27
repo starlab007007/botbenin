@@ -293,6 +293,6 @@ export function useWaDiffusion() {
     loading, contacts, lists, campaigns, refresh,
     addContact, bulkAdd, toggleOptOut, toggleArchive, removeContact,
     createList, addToList, createCampaign, launchCampaign, runWorker,
-    deleteCampaign, pauseCampaign, resumeCampaign, updateCampaign, duplicateCampaign, verifyContacts,
+    deleteCampaign, pauseCampaign, resumeCampaign, updateCampaign, duplicateCampaign, relaunchCampaign, verifyContacts,
   };
 }
