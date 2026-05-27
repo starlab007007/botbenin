@@ -86,8 +86,10 @@ export default function KnowledgeBaseDetailScreen() {
 
   return (
     <div className="fixed inset-0 z-40 bg-background flex flex-col">
-
+      <header
+        className="sticky top-0 z-30 bg-[hsl(var(--wa-green))] text-white shadow-sm"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+
         <div className="flex items-center gap-2 px-3 py-3">
           <button onClick={() => navigate('/app/bots')} className="p-2 -ml-2 rounded-full active:bg-white/10" aria-label="Retour">
             <ArrowLeft className="h-5 w-5" />
