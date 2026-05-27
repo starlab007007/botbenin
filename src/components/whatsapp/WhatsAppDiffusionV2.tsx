@@ -18,6 +18,7 @@ import { WaSessionDialog } from '@/components/whatsapp/WaSessionDialog';
 import { CampaignDetailsDialog } from '@/components/whatsapp/CampaignDetailsDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { COUNTRIES as PHONE_COUNTRIES } from '@/lib/phone';
 import { normalizeBeninWhatsApp } from '@/lib/phone';
 
 export const WhatsAppDiffusionV2: React.FC = () => {
