@@ -42,8 +42,8 @@ export default function KnowledgeBaseDetailScreen() {
     const found = knowledgeBases.find(k => k.id === id);
     if (found) {
       setKb(found);
-      setStructural(found.structural_info as any);
-      setTablesData(found.data as any);
+      setStructural((found.structural_info as any) || {});
+      setTablesData((found.data as any) || {});
     }
   }, [id, knowledgeBases]);
 
