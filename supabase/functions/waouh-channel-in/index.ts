@@ -418,11 +418,17 @@ serve(async (req) => {
 
     // Persist outgoing
     await sb.from("waouh_messages").insert({
+      conversation_id: convId,
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null, actions },
     });
+    if (convId) {
+      await sb.from("waouh_conversations")
+        .update({ last_message: reply, last_intent: core.intent ?? null, updated_at: new Date().toISOString() })
+        .eq("id", convId);
+    }
 
     // WAHA send — UN SEUL message par réponse (image + texte + boutons combinés si possible)
     if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
