@@ -191,7 +191,8 @@ const AppContent = () => {
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     {/* Route d'accueil */}
-                    <Route path="/" element={<Index />} />
+                    <Route path="/" element={<Navigate to="/app/chat" replace />} />
+                    <Route path="/legacy" element={<Index />} />
                     <Route path="/home" element={<HomePage />} />
                     <Route path="/chat" element={<KpakpatoPage />} />
                     <Route path="/dashboard" element={<DashboardPage />} />
