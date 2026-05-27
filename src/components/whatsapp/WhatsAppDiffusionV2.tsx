@@ -256,7 +256,7 @@ const ImportDialog: React.FC<{ open: boolean; onClose: () => void; onImport: (it
 };
 
 // ============ CAMPAIGNS ============
-const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; sessions: Session[] }> = ({ d, sessions }) => {
+const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; s: ReturnType<typeof useDiffusionSessions>; onGotoSessions: () => void }> = ({ d, s, onGotoSessions }) => {
   const [open, setOpen] = useState(false);
 
   return (
@@ -273,7 +273,7 @@ const CampaignsTab: React.FC<{ d: ReturnType<typeof useWaDiffusion>; sessions: S
           ))}
         </div>
       </CardContent>
-      <NewCampaignDialog open={open} onClose={() => setOpen(false)} d={d} sessions={sessions} />
+      <NewCampaignDialog open={open} onClose={() => setOpen(false)} d={d} s={s} onGotoSessions={onGotoSessions} />
     </Card>
   );
 };
