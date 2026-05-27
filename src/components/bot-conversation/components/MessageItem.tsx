@@ -56,6 +56,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           )}
         </div>
       </div>
+      </div>
     </div>
   );
 };
