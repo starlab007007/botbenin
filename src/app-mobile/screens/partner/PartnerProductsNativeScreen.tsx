@@ -85,7 +85,12 @@ export default function PartnerProductsNativeScreen() {
           return (
             <div key={p.id} className="rounded-xl border bg-card overflow-hidden shadow-sm">
               <div className="flex gap-3 p-3">
-                <div className="w-20 h-20 bg-muted rounded-lg overflow-hidden shrink-0 relative">
+                <button
+                  type="button"
+                  onClick={() => setViewing(p)}
+                  className="w-20 h-20 bg-muted rounded-lg overflow-hidden shrink-0 relative active:scale-95 transition-transform"
+                  aria-label="Voir le produit"
+                >
                   {photos[0] ? (
                     <img src={photos[0]} alt={p.nom} loading="lazy" className="w-full h-full object-cover" />
                   ) : (
@@ -93,7 +98,7 @@ export default function PartnerProductsNativeScreen() {
                       <ImageOff className="h-6 w-6" />
                     </div>
                   )}
-                </div>
+                </button>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <h3 className="font-medium truncate">{p.nom}</h3>
