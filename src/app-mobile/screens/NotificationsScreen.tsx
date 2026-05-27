@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Check, MessageCircle } from "lucide-react";
 import { MobileScreenHeader } from "../components/MobileScreenHeader";
@@ -16,10 +17,14 @@ function timeAgo(iso: string) {
 export default function NotificationsScreen() {
   const navigate = useNavigate();
   const { items, unread, loading, markRead, markAllRead } = useNotifications();
+  const [showAll, setShowAll] = useState(false);
+
+  const visible = showAll ? items : items.filter((n) => !n.read);
 
   const onOpen = async (n: AppNotification) => {
-    if (!n.read) await markRead(n.id);
+    if (!n.read) markRead(n.id); // fire-and-forget; navigate immediately for fluid UX
     if (n.action_url) navigate(n.action_url);
+    else navigate("/app/chat");
   };
 
   return (
@@ -36,21 +41,36 @@ export default function NotificationsScreen() {
           ) : null
         }
       />
+
+      <div className="flex gap-2 px-4 py-2 border-b bg-muted/30">
+        <Button
+          size="sm"
+          variant={showAll ? "ghost" : "default"}
+          className={!showAll ? "bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)] text-white" : ""}
+          onClick={() => setShowAll(false)}
+        >
+          Non lues {unread > 0 && <span className="ml-1.5 px-1.5 rounded-full bg-white/20 text-[10px] font-bold">{unread}</span>}
+        </Button>
+        <Button size="sm" variant={showAll ? "default" : "ghost"} className={showAll ? "bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)] text-white" : ""} onClick={() => setShowAll(true)}>
+          Toutes
+        </Button>
+      </div>
+
       <main className="pb-20">
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
-        {!loading && items.length === 0 && (
+        {!loading && visible.length === 0 && (
           <div className="p-10 text-center text-muted-foreground">
             <Bell className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p className="font-medium">Aucune notification</p>
+            <p className="font-medium">{showAll ? "Aucune notification" : "Aucun message non lu"}</p>
             <p className="text-sm">Vous serez alerté à chaque nouveau message.</p>
           </div>
         )}
         <ul className="divide-y">
-          {items.map((n) => (
+          {visible.map((n) => (
             <li
               key={n.id}
               onClick={() => onOpen(n)}
-              className={`flex gap-3 px-4 py-3 cursor-pointer active:bg-muted ${n.read ? "" : "bg-emerald-50/60 dark:bg-emerald-950/20"}`}
+              className={`flex gap-3 px-4 py-3 cursor-pointer active:bg-muted transition-colors ${n.read ? "" : "bg-emerald-50/60 dark:bg-emerald-950/20"}`}
             >
               <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${n.type === "chat" ? "bg-emerald-500 text-white" : "bg-muted text-foreground"}`}>
                 {n.type === "chat" ? <MessageCircle className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
