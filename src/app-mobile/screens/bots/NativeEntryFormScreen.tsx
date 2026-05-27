@@ -19,9 +19,10 @@ export default function NativeEntryFormScreen() {
   const template = kb ? getTemplateById(kb.template_id) : undefined;
   const table = template?.tables.find(t => t.id === tableId);
 
-  // Google Sheet mode detection: index starts with "gs:" OR query gs=1
-  const gsIdParam = index && index.startsWith('gs:') ? decodeURIComponent(index.slice(3)) : null;
-  const isNew = index === 'new' || index === undefined;
+  // Google Sheet mode detection: index starts with "gs:" (handles encoded ":" too) OR query gs=1
+  const rawIndex = index ? decodeURIComponent(index) : '';
+  const gsIdParam = rawIndex.startsWith('gs:') ? rawIndex.slice(3) : null;
+  const isNew = !index || index === 'new';
   const isGsMode = !!(template && isGoogleSheetTemplate(template) && (gsIdParam || search.get('gs') === '1'));
   const isEdit = !isNew && (gsIdParam !== null || (index !== 'new' && index !== undefined));
   const editIdx = !isGsMode && isEdit ? parseInt(index!, 10) : -1;
