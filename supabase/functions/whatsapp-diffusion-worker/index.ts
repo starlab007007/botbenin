@@ -367,6 +367,13 @@ serve(async (req) => {
                 throw new Error(`Média ${effectiveType} manquant et aucun texte de secours`);
               }
             }
+            // Lien : on envoie en texte en ajoutant l'URL pour générer un aperçu WhatsApp
+            if (effectiveType === "link") {
+              effectiveType = "text";
+              if (mediaUrl) {
+                rendered = `${rendered ? rendered.trim() + "\n\n" : ""}${mediaUrl}`;
+              }
+            }
             switch (effectiveType) {
               case "photo":
                 endpoint = "/api/sendImage";
@@ -389,6 +396,7 @@ serve(async (req) => {
                 break;
               default:
                 basePayload.text = rendered;
+                basePayload.linkPreview = true;
             }
 
             const payload = { ...basePayload, chatId: chosenChatId };
