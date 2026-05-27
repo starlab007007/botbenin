@@ -292,11 +292,13 @@ const AppContent = () => {
                   <Route path="/app/auth" element={<MobileAuthHome />} />
                   <Route path="/app/auth/email" element={<MobileAuthEmail />} />
                   <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
-                  <Route path="/app" element={<RequireMobileAuth><ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary></RequireMobileAuth>}>
+                  <Route path="/app" element={<ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary>}>
                     <Route index element={<Navigate to="/app/chat" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<MobileWaouhChat />} />
                     <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
+                  </Route>
+                  <Route path="/app" element={<RequireMobileAuth><ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary></RequireMobileAuth>}>
                     <Route path="chat/:id" element={<MobileChatThread />} />
                     <Route path="bots" element={<MobileBots />} />
                     <Route path="bots/new" element={<MobileCreateBot />} />
