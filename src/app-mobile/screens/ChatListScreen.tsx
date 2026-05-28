@@ -17,6 +17,7 @@ import {
   channelBadge,
   type WaouhUserLike,
 } from "../utils/chatLabel";
+import WaouhDemoMockup from "../components/WaouhDemoMockup";
 
 type Conv = {
   id: string;
@@ -235,6 +236,8 @@ export default function ChatListScreen() {
             <p className="text-sm text-muted-foreground truncate">Achetez · Vendez · Négociez par message</p>
           </div>
         </button>
+
+        {isGuest && <WaouhDemoMockup />}
 
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
 
