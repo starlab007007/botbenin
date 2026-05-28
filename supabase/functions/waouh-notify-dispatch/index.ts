@@ -140,21 +140,36 @@ serve(async (req) => {
 
     // Insert notification row (in-app card carries the same photos[])
     if (notifTargetUserId) {
-      await sb.from("waouh_notifications").insert({
+      // Resolve a web_session_id so the app can pull this notif without auth
+      let notifSession: string | null = null;
+      try {
+        const { data: u } = await sb
+          .from("waouh_users")
+          .select("web_session_id")
+          .eq("id", notifTargetUserId)
+          .maybeSingle();
+        notifSession = u?.web_session_id ?? null;
+      } catch {}
+
+      const { error: notifErr } = await sb.from("waouh_notifications").insert({
         user_id: notifTargetUserId,
         article_id,
         notification_type: kind,
         photos,
+        web_session_id: notifSession,
         payload: {
           text,
           recipient,
           buyer_profile_id: buyer_profile_id ?? null,
+          article_id,
+          photos,
           contact: { channel: target.channel, whatsapp: target.whatsapp, partner_id: target.partnerId },
         },
         channel: channelUsed,
         delivered_at: waResult?.ok ? new Date().toISOString() : null,
         delivery_status: waResult?.ok ? "delivered" : (waResult?.skipped ? "queued" : "failed"),
       });
+      if (notifErr) console.error("[waouh-notify-dispatch] notif insert error", notifErr);
     }
 
     return new Response(JSON.stringify({
