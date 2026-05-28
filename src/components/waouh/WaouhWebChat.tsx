@@ -108,15 +108,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     setMessages((prev) => {
       const fresh = data as any[];
       const seen = new Set<string>(fresh.map((m) => m.id));
-      // Keep optimistic temp-* messages that aren't yet in DB
+      // Keep optimistic temp-in messages until backend has persisted them
       const keepOptimistic = prev.filter(
-        (m) => (m.id.startsWith("temp-") && !seen.has(m.id))
+        (m) => m.id.startsWith("temp-in-") && !fresh.some(
+          (f) => f.direction === "in" && f.text === m.text &&
+                 Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
+        )
       );
-      return [...fresh, ...keepOptimistic].sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
-    });
-  };
 
   useEffect(() => {
     if (!open) return;
