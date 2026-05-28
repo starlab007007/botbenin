@@ -559,7 +559,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_buyer_outreach",
               p_payload: {
-                text: `🎯 WAOUH a trouvé pour vous : *${product.title}* à ${fmt(product.price)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
+                text: `🎯 WAOUH a trouvé pour vous : *${product.title || fallbackTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
                 article_id: art?.id,
                 radar_signal_id: b.id,
               },
