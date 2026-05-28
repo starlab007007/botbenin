@@ -91,16 +91,31 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const loadHistory = async (ids: string[]) => {
     const msgOrs: string[] = [`web_session_id.eq.${sessionId}`];
     if (ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("waouh_messages")
       .select("id,direction,text,created_at,attachments,meta")
       .or(msgOrs.join(","))
       .order("created_at", { ascending: true })
       .limit(500);
-    if (!data) return;
-    const seen = new Set<string>();
-    const unique = (data as any[]).filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
-    setMessages(unique as any);
+    if (error) {
+      console.warn("[waouh-chat] history load error", error);
+      return; // Don't wipe existing UI (incl. optimistic msgs) on failure
+    }
+    if (!data || data.length === 0) {
+      // Nothing fetched yet — keep optimistic messages, just drop temp duplicates
+      return;
+    }
+    setMessages((prev) => {
+      const fresh = data as any[];
+      const seen = new Set<string>(fresh.map((m) => m.id));
+      // Keep optimistic temp-* messages that aren't yet in DB
+      const keepOptimistic = prev.filter(
+        (m) => (m.id.startsWith("temp-") && !seen.has(m.id))
+      );
+      return [...fresh, ...keepOptimistic].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+    });
   };
 
   useEffect(() => {
