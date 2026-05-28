@@ -151,8 +151,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
       const fromUnified: WaouhNotification[] = unified.map((row: any) => ({
         id: row.id,
-        title: TEMPLATE_TITLES[row.notification_type === "match" ? "match_buyer" : "match_seller"]
-          || (row.payload?.text?.split("\n")?.[0] ?? "WAOUH"),
+        title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
         body: row.payload?.text || "Mise à jour WAOUH",
         template: row.notification_type,
         created_at: row.sent_at,
