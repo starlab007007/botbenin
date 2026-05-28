@@ -513,13 +513,30 @@ serve(async (req) => {
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
         const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""} jointe${photoUrls.length > 1 ? "s" : ""}` : "";
-        const min = product.market_price_min || product.price * 0.8;
-        const max = product.market_price_max || product.price * 1.2;
-        const aiNote = await marketNote(product.title || "", product.price, min, max, user!.city || "");
+        const min = product.market_price_min || inferredPrice * 0.8;
+        const max = product.market_price_max || inferredPrice * 1.2;
+        const aiNote = await marketNote(product.title || fallbackTitle, inferredPrice, min, max, user!.city || "");
         const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title}*\n💰 *Prix* : ${fmt(product.price)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title || fallbackTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
+
+        // 🔔 Dispatch in-app + WhatsApp confirmation notification (same photos)
+        if (art?.id) {
+          fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ kind: "sale_published", article_id: art.id, recipient: "seller" }),
+          }).catch((e) => console.warn("[sell] notify-dispatch failed", e));
+
+          // 🎯 Match buyer profiles and fan-out alerts via the unified dispatcher
+          fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-buyers`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ article_id: art.id }),
+          }).catch((e) => console.warn("[sell] notify-buyers failed", e));
+        }
+
 
         // 🛰️ Radar IA: contacter les acheteurs (signaux BUY) qui correspondent
         try {
