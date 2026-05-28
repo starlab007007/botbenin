@@ -36,7 +36,7 @@ function NativeScreen({
   children: React.ReactNode; footer?: React.ReactNode; headerRight?: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col overscroll-contain">
+    <div className="fixed inset-0 z-[100] bg-background flex flex-col overscroll-contain">
       <header
         className="shrink-0 bg-[hsl(165_91%_18%)] text-white shadow-sm"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
