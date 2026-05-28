@@ -1,130 +1,78 @@
-## Diagnostic
+## Objectifs
 
-Les symptômes viennent probablement d’une combinaison de problèmes côté base, backend et frontend :
+1. Supprimer le doublon d'envoi des messages "Je cherche…" / "Je vends…" (côté WhatsApp + côté app).
+2. Pour chaque notification "nouvel acheteur trouvé" ou "annonce trouvée", ouvrir automatiquement une nouvelle fenêtre de chat dédiée SOUS la fenêtre WAOUH, avec historique persistant jusqu'à finalisation.
+3. Garantir parité simultanée des notifs/messages entre l'app et les comptes WhatsApp liés (annonce publiée, nouvel acheteur, annonce trouvée, contre‑offre vendeur/acheteur).
 
-1. **Realtime incomplet**
-   - `waouh_messages` et `waouh_outbound_queue` sont dans `supabase_realtime`.
-   - `waouh_notifications` n’y est pas, donc les nouvelles notifications d’annonce publiée / acheteur trouvé ne peuvent pas arriver instantanément dans l’application.
+## 1. Correction du doublon d'envoi
 
-2. **Permissions Data API manquantes ou insuffisantes**
-   - Les tables WAOUH critiques (`waouh_messages`, `waouh_notifications`, `waouh_outbound_queue`, `waouh_users`) n’ont pas de GRANT visibles pour `anon` / `authenticated`.
-   - Résultat probable : le frontend interroge Supabase mais reçoit des erreurs silencieuses ou des listes vides, donc l’historique, les messages envoyés, les notifications et les photos ne remontent pas correctement.
+Cause identifiée :
+- `waouh-channel-in` insère le message `out` du bot + l'envoie déjà à WAHA (`sendWahaReply`, ligne 437).
+- `waouh-webhook` (intent SELL / BUY) déclenche en parallèle `pushToOther` qui ré‑enqueue parfois vers l'expéditeur lui‑même (mirror web/whatsapp), produisant un 2e affichage in‑app et une 2e bulle WhatsApp.
+- Côté UI, l'optimistic `temp-in-…` n'est pas dédupliqué par `id` réel quand le persistant arrive via Realtime avant `loadHistory` → 2 bulles "Je vends".
 
-3. **Politiques RLS incohérentes avec le frontend**
-   - Des policies utilisent un header `x-waouh-session`, mais le client Supabase actuel n’envoie pas ce header.
-   - Le frontend essaie aussi de lire par `waouh_users.id` et `auth_user_id`, mais les policies ne couvrent pas correctement ce cas pour l’utilisateur connecté.
+Correctifs :
+- **`waouh-webhook` → `pushToOther`** : skipper proprement si `target.id === user.id` OU si `target.web_session_id === current sessionId` OU si `outboundPhone === phone` (déjà partiellement présent, à durcir et appliquer AVANT chaque `insert`/`enqueue`).
+- **`waouh-channel-in`** : ne plus appeler `sendWahaReply` quand le webhook retourne `delivered_whatsapp: true` (nouveau flag), pour confier l'envoi WA à un seul endroit (le dispatcher d'outbound). Variante mini : ajouter un `dedupe_key` basé sur `message_id` à l'enqueue, et conserver `sendWahaReply` direct UNIQUEMENT pour le canal `web`.
+- **`WaouhWebChat.tsx`** : remplacer le `temp-in-` par l'`id` réel renvoyé par `waouh-channel-in` (le faire renvoyer `inbound_message_id`), et matcher la dédup par `id` au lieu de `text + 30s`.
 
-4. **Notifications in-app pas assez liées à la session/app**
-   - `waouh_notifications` stocke `user_id`, `photos`, `payload`, etc., mais pas de `web_session_id` direct.
-   - Pour l’app, il faut pouvoir retrouver les notifications à la fois par session web, compte connecté et identité WhatsApp liée.
+## 2. Fenêtres de chat par match (sous WAOUH)
 
-5. **Photos stockées mais pas toujours affichées**
-   - Les derniers messages et articles montrent bien des URLs de photos dans `attachments`, `photos` ou `waouh_notifications.photos`.
-   - Le problème semble donc plutôt être le chargement/autorisation/synchronisation côté application, plus que la création des photos.
+Nouveau composant `WaouhMatchChats.tsx` :
+- Liste empilée verticalement, juste sous `WaouhWebChat`, une carte/fenêtre par "match" (= `waouh_negotiations.id` ou `waouh_notifications` de type `match_seller` / `match_buyer` / `new_buyer`).
+- Chaque fenêtre = mini chat (header avec photo article + titre + prix + autre partie, fil de messages, composer) connectée à `waouh_messages` filtré par `conversation_id` (à créer si absent) ou `negotiation_id`.
+- Restent ouvertes jusqu'à `state === 'closed' | 'paid' | 'cancelled'` ; on garde l'historique en base (déjà persistant) et un cache local pour le tri.
 
-## Plan de correction
+Création/ouverture :
+- Dans `useWaouhMatchNotifications`, à la réception d'une notif `match_*` ou `new_buyer`, dispatch d'un évènement `waouh:open-match-chat` avec `{ article_id, negotiation_id, counterpart_user_id, photos, title, price }`.
+- `WaouhChatScreen` écoute cet évènement et insère/épingle la mini‑fenêtre dans `WaouhMatchChats`.
+- Persistance des fenêtres ouvertes via `localStorage` (`waouh_open_matches_<sessionId>`) pour survivre au refresh.
 
-### 1. Corriger la base Supabase
+Backend mini :
+- Réutiliser `waouh_conversations` avec un champ existant `negotiation_id` (ajouter si manquant) pour cloisonner les messages par match.
+- Tous les envois passent par `waouh-channel-in` avec un `match_id` → routé vers `waouh-negotiation-router` qui répond et notifie l'autre partie (WA + app) via le pipeline unifié.
 
-Créer une migration pour :
+## 3. Parité app ↔ WhatsApp
 
-- Ajouter `waouh_notifications` à `supabase_realtime` avec protection contre les doublons.
-- Ajouter `web_session_id` à `waouh_notifications` pour que l’application puisse charger les notifications par session.
-- Ajouter les index utiles :
-  - notifications par `user_id + sent_at`
-  - notifications par `web_session_id + sent_at`
-  - messages par `user_id + created_at`
-- Ajouter les GRANT nécessaires pour que l’app puisse lire les données WAOUH :
-  - `waouh_messages`
-  - `waouh_notifications`
-  - `waouh_outbound_queue`
-  - `waouh_users`
-- Ajuster les policies RLS pour autoriser :
-  - lecture des messages de la session courante
-  - lecture des messages des `waouh_users` liés au compte connecté
-  - lecture des notifications de la session courante
-  - lecture des notifications des `waouh_users` liés au compte connecté
-  - lecture limitée de `waouh_users` uniquement pour résoudre les identités de la session ou du compte connecté
+Audit des 5 évènements clés et vérification qu'ils empruntent tous le même chemin unique :
 
-### 2. Corriger `waouh-notify-dispatch`
+```
+event → waouh-notify-dispatch
+          ├─ insert waouh_notifications (in-app, +photos[])
+          ├─ enqueue waouh_outbound_queue (web mirror si session)
+          └─ send WAHA (sendImage+caption || sendText)
+```
 
-- Lors de l’insertion dans `waouh_notifications`, renseigner aussi `web_session_id` quand la cible a une session app/web.
-- Inclure dans `payload` :
-  - `article_id`
-  - `buyer_profile_id`
-  - `message_id` si disponible
-  - `photos`
-  - le canal résolu (`waouh_app`, `whatsapp`, `radar_ia`, `partner`)
-- Vérifier explicitement les erreurs d’insertion Supabase au lieu de les ignorer.
+Évènements à valider/uniformiser :
+- `sale_published` → vendeur (déjà via dispatcher).
+- `new_buyer` / `match_seller` → vendeur.
+- `match_buyer` / `match` → acheteur.
+- `negotiation_open` (contre‑offre) → autre partie. Forcer le passage par `waouh-notify-dispatch` au lieu d'envoyer direct depuis `waouh-negotiation-router`.
+- `negotiation_closed` / `contact_exchange` → les deux parties.
 
-### 3. Corriger `waouh-channel-in`
+Pour chaque évènement :
+- Supprimer les envois WhatsApp directs depuis les handlers (`waouh-sell-handler`, `waouh-buy-handler`, `waouh-negotiation-router`) et appeler uniquement `waouh-notify-dispatch` avec `recipient` et `kind`.
+- Le dispatcher résout déjà `web_session_id` du destinataire → la notif in‑app arrive en Realtime ; il envoie WA via `resolveContact` → numéro réel (app, business produit, radar IA).
+- Ajouter un `dedupe_key` (`${kind}:${article_id}:${recipient_user_id}:${day}`) côté `waouh_notifications` et `waouh_outbound_queue` pour empêcher double émission si plusieurs déclencheurs.
 
-- Après l’appel à `waouh-webhook`, retourner aussi au frontend :
-  - `attachments`
-  - `article_id`
-  - `transaction_id`
-  - `actions`
-- Aujourd’hui le message est persisté avec attachments, mais la réponse HTTP ne renvoie pas toutes ces données : si le refresh échoue à cause des permissions, l’UI peut perdre l’affichage immédiat.
-- En cas d’erreur de persistence du message entrant ou sortant, logger et retourner une erreur claire.
+## Fichiers impactés
 
-### 4. Corriger `WaouhWebChat.tsx`
+Backend :
+- `supabase/functions/waouh-channel-in/index.ts` (déléguer envoi WA, renvoyer `inbound_message_id`)
+- `supabase/functions/waouh-webhook/index.ts` (durcir `pushToOther`, plus de double mirror vers l'expéditeur)
+- `supabase/functions/waouh-negotiation-router/index.ts` (router via `waouh-notify-dispatch`)
+- `supabase/functions/waouh-notify-dispatch/index.ts` (ajouter `dedupe_key`, gérer `negotiation_open|closed|contact_exchange`)
+- Migration : index unique partiel `(dedupe_key)` sur `waouh_notifications` et `waouh_outbound_queue` ; colonne `negotiation_id` sur `waouh_conversations` si manquante.
 
-- Ne plus supprimer le message optimiste si le refresh historique échoue silencieusement.
-- Vérifier les erreurs Supabase dans `loadHistory`; afficher un toast/log clair si la lecture est refusée.
-- Après envoi, fusionner :
-  - message optimiste utilisateur
-  - réponse backend
-  - historique Supabase
-  au lieu de remplacer brutalement par une liste potentiellement vide.
-- Quand la réponse backend contient des `attachments`, les afficher immédiatement.
-- Recalculer/charger les `waouhIds` juste après création d’un nouvel utilisateur WAOUH, pas seulement au montage.
+Frontend :
+- `src/components/waouh/WaouhWebChat.tsx` (dédup `id` réel, drop matching `temp-in-` par id)
+- `src/hooks/useWaouhMatchNotifications.ts` (émettre `waouh:open-match-chat`)
+- `src/components/waouh/WaouhMatchChats.tsx` (NEW – pile de mini‑chats persistants)
+- `src/components/waouh/WaouhMatchChatWindow.tsx` (NEW – un chat individuel)
+- `src/app-mobile/screens/WaouhChatScreen.tsx` (afficher `WaouhMatchChats` sous `WaouhWebChat`, layout scrollable empilé)
 
-### 5. Corriger `useWaouhMatchNotifications.ts`
+## Critères de validation
 
-- Charger l’historique depuis :
-  - `waouh_notifications`
-  - `waouh_outbound_queue`
-  - et fallback localStorage
-- Vérifier les erreurs Supabase au lieu d’ignorer `error`.
-- Lire les photos depuis :
-  - `row.photos[0]`
-  - `row.payload.photos[0]`
-  - `row.image_url`
-- Pour Realtime, s’abonner à :
-  - `waouh_notifications` par `web_session_id`
-  - `waouh_notifications` par chaque `user_id`
-  - `waouh_outbound_queue` par `web_session_id`
-  - `waouh_outbound_queue` par chaque `user_id`
-
-### 6. Vérification
-
-Tester ensuite :
-
-- Publier une annonce dans l’application avec photo.
-  - Le message envoyé reste visible.
-  - Le retour “Annonce publiée” apparaît.
-  - La photo s’affiche dans la bulle.
-  - La notification “Annonce publiée” apparaît avec photo.
-
-- Rechercher l’annonce dans l’application.
-  - Les annonces trouvées affichent les mêmes photos que celles stockées.
-
-- Publier/rechercher depuis WhatsApp.
-  - Le message WhatsApp est stocké.
-  - Le retour WhatsApp est aussi visible dans l’application quand l’identité est liée.
-  - Les notifications `match`, `new_buyer`, `sale_published` apparaissent avec les photos.
-
-- Vérifier en base :
-  - lignes dans `waouh_messages`
-  - lignes dans `waouh_notifications`
-  - photos dans `attachments` / `photos`
-  - `web_session_id` ou `user_id` correct pour chaque notification.
-
-## Fichiers à modifier
-
-- `supabase/migrations/...sql`
-- `supabase/functions/waouh-notify-dispatch/index.ts`
-- `supabase/functions/waouh-channel-in/index.ts`
-- `src/components/waouh/WaouhWebChat.tsx`
-- `src/hooks/useWaouhMatchNotifications.ts`
-- éventuellement `src/components/waouh/WaouhNotificationsBell.tsx` pour mieux afficher les miniatures si nécessaire.
+- Envoyer "Je vends iPhone…" depuis l'app → 1 seule bulle in‑app, 1 seul message WhatsApp côté business, 1 seule notif `sale_published`.
+- Lorsqu'un acheteur matche, une fenêtre apparaît automatiquement sous WAOUH côté vendeur (et symétriquement côté acheteur), persiste après refresh, et toute la conversation se déroule dedans.
+- Une contre‑offre envoyée depuis l'app arrive simultanément dans la fenêtre dédiée ET sur WhatsApp du destinataire (numéro réel résolu : compte app, business produit ou radar IA).
