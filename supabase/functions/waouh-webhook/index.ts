@@ -473,7 +473,20 @@ serve(async (req) => {
         text
       );
       const productCategory = normalizeCategory(product.category);
-      if ((product.confidence ?? 0) < 0.5 || !product.price) {
+      // Fallback: try to recover a price from the raw text when the AI missed it.
+      let inferredPrice: number | null = typeof product.price === "number" && product.price > 0 ? product.price : null;
+      if (!inferredPrice) {
+        const m = String(text || "").match(/(\d{2,}(?:[ .]\d{3})*)\s*(?:fcfa|cfa|xof|f\b)?/i);
+        if (m) {
+          const n = parseInt(m[1].replace(/[ .]/g, ""), 10);
+          if (!Number.isNaN(n) && n >= 100) inferredPrice = n;
+        }
+      }
+      const fallbackTitle = String(text || "")
+        .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
+        .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
+      const accepted = (product.confidence ?? 0) >= 0.3 && !!inferredPrice;
+      if (!accepted) {
         reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
       } else {
         const photoUrls = attachments
@@ -482,18 +495,20 @@ serve(async (req) => {
           .filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
-          title: product.title || "Annonce",
+          title: product.title || fallbackTitle,
           description: product.description,
           category: productCategory,
           brand: product.brand, model: product.model,
           condition: product.condition || "good",
-          price: product.price, currency: "XOF",
+          price: inferredPrice, currency: "XOF",
           city: user!.city,
           location: `SRID=4326;POINT(${lng} ${lat})` as any,
           photos: photoUrls,
           market_price_min: product.market_price_min,
           market_price_max: product.market_price_max,
           origin: channel === "whatsapp" ? "whatsapp" : "chat",
+          source_channel: channel === "whatsapp" ? "whatsapp" : "waouh_app",
+          contact_whatsapp: user?.phone_number ?? null,
         }).select().single();
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
