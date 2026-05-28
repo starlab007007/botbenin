@@ -81,6 +81,40 @@ serve(async (req) => {
         body: JSON.stringify(webhookData),
       });
       console.log('Forwarded WAOUH WhatsApp message:', waouhRes.status);
+
+      // Bridge: insert in-app notification for this WhatsApp inbound message.
+      try {
+        const waouhJson: any = await waouhRes.json().catch(() => ({}));
+        const wahaMsgId: string = String(webhookData.payload?.id || '');
+        const fromPhone = normalizeBeninPhone(webhookData.payload?.from || '');
+        const text = webhookData.payload?.body || '';
+        const convId = waouhJson?.conversation_id || null;
+        const targetUserId = waouhJson?.user_id || null;
+
+        if (wahaMsgId && targetUserId) {
+          const dedupeKey = `wa_inbound:${wahaMsgId}`;
+          const { error: notifErr } = await supabase.from('waouh_notifications').insert({
+            user_id: targetUserId,
+            conversation_id: convId,
+            notification_type: 'wa_inbound',
+            channel: 'whatsapp',
+            dedupe_key: dedupeKey,
+            payload: {
+              text,
+              from_phone: fromPhone,
+              waha_message_id: wahaMsgId,
+              conversation_id: convId,
+              inbound_message_id: waouhJson?.inbound_message_id || null,
+            },
+          });
+          if (notifErr && notifErr.code !== '23505') {
+            console.error('wa_inbound notif insert failed:', notifErr);
+          }
+        }
+      } catch (e) {
+        console.error('wa_inbound notif bridge failed:', e);
+      }
+
       return new Response('OK', { headers: corsHeaders });
     }
 
