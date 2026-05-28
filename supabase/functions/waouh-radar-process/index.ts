@@ -78,9 +78,19 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
       status: "active",
       origin: "radar",
       origin_signal_id: sig.id,
+      source_channel: "radar_ia",
+      contact_whatsapp: phone ?? sig.contact_phone ?? null,
     }).select("id").single();
     if (error) console.warn("[radar-process] promote article", error);
-    if (art?.id) await sb.from("waouh_radar_signals").update({ promoted_article_id: art.id, waouh_user_id: userId, contact_phone: phone ?? sig.contact_phone }).eq("id", sig.id);
+    if (art?.id) {
+      await sb.from("waouh_radar_signals").update({ promoted_article_id: art.id, waouh_user_id: userId, contact_phone: phone ?? sig.contact_phone }).eq("id", sig.id);
+      // Trigger unified dispatch (match buyers + confirmation)
+      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-notify-buyers`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ article_id: art.id }),
+      }).catch(() => {});
+    }
     return { kind: "article", id: art?.id ?? null };
   }
 
@@ -96,6 +106,8 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
       is_active: true,
       origin: "radar",
       origin_signal_id: sig.id,
+      source_channel: "radar_ia",
+      contact_whatsapp: phone ?? sig.contact_phone ?? null,
     }).select("id").single();
     if (error) console.warn("[radar-process] promote buyer", error);
     if (buyer?.id) await sb.from("waouh_radar_signals").update({ promoted_buyer_profile_id: buyer.id, waouh_user_id: userId, contact_phone: phone ?? sig.contact_phone }).eq("id", sig.id);
