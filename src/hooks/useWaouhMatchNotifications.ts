@@ -109,31 +109,34 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       // Resolve waouh_users.id linked to this device or auth account
       const ors: string[] = [`web_session_id.eq.${sessionId}`];
       if (authUserId) ors.push(`auth_user_id.eq.${authUserId}`);
-      const { data: wusers } = await supabase
+      const { data: wusers, error: wuErr } = await supabase
         .from("waouh_users").select("id").or(ors.join(",")).limit(50);
+      if (wuErr) console.warn("[waouh-notifs] users lookup error", wuErr);
       const waouhIds = Array.from(new Set((wusers ?? []).map((u: any) => u.id)));
 
       // 1) Outbound queue (legacy templated notifs)
       const qOrs: string[] = [`web_session_id.eq.${sessionId}`];
       if (waouhIds.length) qOrs.push(`user_id.in.(${waouhIds.join(",")})`);
-      const { data: queue } = await supabase
+      const { data: queue, error: qErr } = await supabase
         .from("waouh_outbound_queue" as any)
         .select("id,template,payload,created_at,image_url,message_id,transaction_id")
         .or(qOrs.join(","))
         .order("created_at", { ascending: false })
         .limit(50);
+      if (qErr) console.warn("[waouh-notifs] queue load error", qErr);
 
-      // 2) Unified in-app notifications (waouh_notifications) for the same users
+      // 2) Unified in-app notifications: by session OR by linked user_id
       let unified: any[] = [];
-      if (waouhIds.length) {
-        const { data } = await supabase
-          .from("waouh_notifications" as any)
-          .select("id,notification_type,payload,photos,sent_at,article_id,opened")
-          .in("user_id", waouhIds)
-          .order("sent_at", { ascending: false })
-          .limit(50);
-        unified = data ?? [];
-      }
+      const uOrs: string[] = [`web_session_id.eq.${sessionId}`];
+      if (waouhIds.length) uOrs.push(`user_id.in.(${waouhIds.join(",")})`);
+      const { data: uData, error: uErr } = await supabase
+        .from("waouh_notifications" as any)
+        .select("id,notification_type,payload,photos,sent_at,article_id,opened,web_session_id,user_id")
+        .or(uOrs.join(","))
+        .order("sent_at", { ascending: false })
+        .limit(50);
+      if (uErr) console.warn("[waouh-notifs] notifications load error", uErr);
+      unified = uData ?? [];
 
       if (!active) return;
 
@@ -149,6 +152,13 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         transaction_id: row.transaction_id ?? row.payload?.transaction_id ?? null,
       }));
 
+      const pickPhoto = (row: any): string | null => {
+        if (Array.isArray(row.photos) && row.photos[0]) return row.photos[0];
+        if (Array.isArray(row.payload?.photos) && row.payload.photos[0]) return row.payload.photos[0];
+        if (row.payload?.image_url) return row.payload.image_url;
+        return null;
+      };
+
       const fromUnified: WaouhNotification[] = unified.map((row: any) => ({
         id: row.id,
         title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
@@ -156,7 +166,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         template: row.notification_type,
         created_at: row.sent_at,
         read: !!row.opened,
-        image_url: Array.isArray(row.photos) && row.photos[0] ? row.photos[0] : null,
+        image_url: pickPhoto(row),
         message_id: null,
         transaction_id: null,
       }));
