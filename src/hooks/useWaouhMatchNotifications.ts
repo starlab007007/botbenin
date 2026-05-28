@@ -7,6 +7,9 @@ const TEMPLATE_TITLES: Record<string, string> = {
   match_buyer: "🎯 Annonce trouvée pour vous",
   negotiation_open: "🤝 Nouvelle offre reçue",
   contact_exchange: "🎉 Accord conclu — contact partagé",
+  sale_published: "✅ Annonce publiée",
+  new_buyer: "🛒 Nouvel acheteur intéressé",
+  match: "🎯 Annonce trouvée pour vous",
 };
 
 
