@@ -441,9 +441,10 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, inbound_message_id: inboundMessageId, article_id: core.article_id ?? null, transaction_id: core.transaction_id ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (e: any) {
     console.error("[waouh-channel-in] error", e);
     return new Response(JSON.stringify({ error: e.message }), {
