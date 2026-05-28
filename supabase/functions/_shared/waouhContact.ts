@@ -55,10 +55,10 @@ export async function resolveContact(
   if (channel === "radar_ia" && row?.origin_signal_id) {
     const { data: sig } = await sb
       .from("waouh_radar_signals")
-      .select("contact_whatsapp, contact_phone, payload")
+      .select("contact_phone, raw_payload")
       .eq("id", row.origin_signal_id)
       .maybeSingle();
-    const wa = normalizeBeninPhone(sig?.contact_whatsapp || sig?.contact_phone || sig?.payload?.phone);
+    const wa = normalizeBeninPhone(sig?.contact_phone || sig?.raw_payload?.phone);
     return { channel, whatsapp: wa || rowWa, waouhUserId: userId ?? null, partnerId: null };
   }
 
