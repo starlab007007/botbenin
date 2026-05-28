@@ -227,6 +227,11 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
     const onUnifiedInsert = (payload: any) => {
       const row: any = payload.new;
+      const pickPhoto =
+        (Array.isArray(row.photos) && row.photos[0]) ||
+        (Array.isArray(row.payload?.photos) && row.payload.photos[0]) ||
+        row.payload?.image_url ||
+        null;
       const notif: WaouhNotification = {
         id: row.id,
         title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
@@ -234,7 +239,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         template: row.notification_type,
         created_at: row.sent_at ?? new Date().toISOString(),
         read: !!row.opened,
-        image_url: Array.isArray(row.photos) && row.photos[0] ? row.photos[0] : null,
+        image_url: pickPhoto,
       };
       upsertNotif(notif);
     };
@@ -243,6 +248,13 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       supabase
         .channel(`waouh_outbound_${sessionId}_${suffix}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_outbound_queue", filter: `web_session_id=eq.${sessionId}` }, onQueueInsert)
+        .subscribe()
+    );
+    // Realtime for unified notifications scoped to this session
+    channels.push(
+      supabase
+        .channel(`waouh_notifs_s_${sessionId}_${suffix}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_notifications", filter: `web_session_id=eq.${sessionId}` }, onUnifiedInsert)
         .subscribe()
     );
 
