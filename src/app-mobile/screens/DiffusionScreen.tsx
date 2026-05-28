@@ -1065,8 +1065,13 @@ function ContactAddScreen({ d, onClose }: { d: ReturnType<typeof useWaDiffusion>
       <Field label="Nom (optionnel)">
         <Input value={name} onChange={e => setName(e.target.value)} placeholder="Aïssa Dossou" className="h-12 text-base" />
       </Field>
+
+      <Button onClick={save} disabled={saving} className="w-full h-12 bg-[hsl(165_91%_18%)] text-base font-semibold mt-2">
+        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Enregistrer le contact
+      </Button>
     </NativeScreen>
   );
+
 }
 
 /* ============================================================
@@ -1118,9 +1123,15 @@ function ContactImportScreen({ d, onClose }: { d: ReturnType<typeof useWaDiffusi
         <Badge>{preview.valid.length} valides</Badge>
         <Badge variant="destructive">{preview.invalid} invalides</Badge>
       </div>
+
+      <Button onClick={submit} disabled={saving || preview.valid.length === 0}
+        className="w-full h-12 bg-[hsl(165_91%_18%)] text-base font-semibold mt-2">
+        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Importer {preview.valid.length} contact(s)
+      </Button>
     </NativeScreen>
   );
 }
+
 
 /* ============================================================
    SESSIONS TAB
