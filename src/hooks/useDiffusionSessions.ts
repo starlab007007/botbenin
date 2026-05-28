@@ -36,7 +36,7 @@ async function fetchLiveSessions(): Promise<Record<string, string>> {
 export function useDiffusionSessions() {
   const { user } = useAuth();
   const [mine, setMine] = useState<DiffSession[]>([]);
-  const [shared, setShared] = useState<DiffSession[]>([]);
+
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
