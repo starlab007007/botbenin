@@ -84,6 +84,25 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Resolved waouh_users.id list for this device + auth account.
+  // Kept in state so realtime + post-send refresh always re-query the FULL union.
+  const [waouhIds, setWaouhIds] = useState<string[]>([]);
+
+  const loadHistory = async (ids: string[]) => {
+    const msgOrs: string[] = [`web_session_id.eq.${sessionId}`];
+    if (ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
+    const { data } = await supabase
+      .from("waouh_messages")
+      .select("id,direction,text,created_at,attachments,meta")
+      .or(msgOrs.join(","))
+      .order("created_at", { ascending: true })
+      .limit(500);
+    if (!data) return;
+    const seen = new Set<string>();
+    const unique = (data as any[]).filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
+    setMessages(unique as any);
+  };
+
   useEffect(() => {
     if (!open) return;
     let active = true;
@@ -100,22 +119,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         .select("id")
         .or(ors.join(","))
         .limit(50);
-      const waouhIds = Array.from(new Set((wusers ?? []).map((u: any) => u.id)));
+      const ids = Array.from(new Set((wusers ?? []).map((u: any) => u.id)));
+      if (!active) return;
+      setWaouhIds(ids);
 
-      // Load history: by web_session_id OR by any of the resolved waouh_users.id
-      const msgOrs: string[] = [`web_session_id.eq.${sessionId}`];
-      if (waouhIds.length) msgOrs.push(`user_id.in.(${waouhIds.join(",")})`);
-      const { data } = await supabase
-        .from("waouh_messages")
-        .select("id,direction,text,created_at,attachments,meta")
-        .or(msgOrs.join(","))
-        .order("created_at", { ascending: true })
-        .limit(500);
-      if (active && data) {
-        const seen = new Set<string>();
-        const unique = (data as any[]).filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
-        setMessages(unique as any);
-      }
+      await loadHistory(ids);
 
       // Link this device's anonymous waouh_users row to the freshly authenticated account
       if (uid) {
@@ -133,16 +141,28 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const m = payload.new as any;
       setMessages((prev) => (prev.find((x) => x.id === m.id) ? prev : [...prev, m]));
     };
-    const chSession = supabase
-      .channel(`waouh_msgs_s_${sessionId}_${suffix}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` }, onInsert)
-      .subscribe();
+    const channels: any[] = [];
+    channels.push(
+      supabase
+        .channel(`waouh_msgs_s_${sessionId}_${suffix}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` }, onInsert)
+        .subscribe()
+    );
+    // Realtime postgres_changes filter doesn't support `in`, so subscribe per waouh_users.id
+    waouhIds.forEach((wid) => {
+      channels.push(
+        supabase
+          .channel(`waouh_msgs_u_${wid}_${suffix}`)
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${wid}` }, onInsert)
+          .subscribe()
+      );
+    });
 
     return () => {
       active = false;
-      supabase.removeChannel(chSession);
+      channels.forEach((ch) => supabase.removeChannel(ch));
     };
-  }, [open, sessionId, user?.id]);
+  }, [open, sessionId, user?.id, waouhIds.join(",")]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
