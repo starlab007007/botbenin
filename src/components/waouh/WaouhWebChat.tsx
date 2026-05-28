@@ -242,26 +242,26 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         },
       });
       if (error) throw error;
-      const { data: fresh } = await supabase
-        .from("waouh_messages")
-        .select("id,direction,text,created_at,attachments,meta")
-        .eq("web_session_id", sessionId)
-        .order("created_at", { ascending: true })
-        .limit(100);
-      if (fresh && fresh.length > 0) {
-        setMessages(fresh as any);
-      } else if ((data as any)?.reply) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `temp-out-${Date.now()}`,
-            direction: "out",
-            text: (data as any).reply,
-            created_at: new Date().toISOString(),
-            attachments: null,
-            meta: { intent: (data as any).intent ?? null, transaction_id: (data as any).transaction_id ?? null },
-          },
-        ]);
+      // Force-refresh full history (session + all resolved waouh_users.id) so
+      // every message persisted by the backend appears, regardless of channel.
+      await loadHistory(waouhIds);
+      if ((data as any)?.reply) {
+        setMessages((prev) => {
+          // If the backend already persisted a reply, loadHistory got it; skip optimistic.
+          const hasFresh = prev.some((m) => m.direction === "out" && m.created_at && new Date(m.created_at).getTime() > Date.now() - 15000);
+          if (hasFresh) return prev;
+          return [
+            ...prev,
+            {
+              id: `temp-out-${Date.now()}`,
+              direction: "out",
+              text: (data as any).reply,
+              created_at: new Date().toISOString(),
+              attachments: null,
+              meta: { intent: (data as any).intent ?? null, transaction_id: (data as any).transaction_id ?? null },
+            },
+          ];
+        });
       }
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== tempInId));
