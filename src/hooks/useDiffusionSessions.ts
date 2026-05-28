@@ -45,7 +45,7 @@ export function useDiffusionSessions() {
     const { data } = await supabase
       .from('whatsapp_accounts')
       .select('id, user_id, session_name, phone_number, status, is_admin_shared, qr_code')
-      .or(`user_id.eq.${user.id},is_admin_shared.eq.true`)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     let rows = (data ?? []) as any as DiffSession[];
 

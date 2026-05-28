@@ -36,7 +36,7 @@ function NativeScreen({
   children: React.ReactNode; footer?: React.ReactNode; headerRight?: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col overscroll-contain">
+    <div className="fixed inset-0 z-[100] bg-background flex flex-col overscroll-contain">
       <header
         className="shrink-0 bg-[hsl(165_91%_18%)] text-white shadow-sm"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
@@ -401,7 +401,7 @@ function CampaignFormScreen({
     return s.all[idx]?.id ?? "";
   };
 
-  const submit = async () => {
+  const doSubmit = async (launchAfter: boolean) => {
     if (!name.trim()) { toast.error("Nom obligatoire"); return; }
     if (!body.trim()) { toast.error("Message obligatoire"); return; }
     if (!isEdit && !sessionId) { toast.error("Sélectionnez une session"); return; }
@@ -426,10 +426,20 @@ function CampaignFormScreen({
           active_hours_start: `${hStart}:00`, active_hours_end: `${hEnd}:00`,
           ai_variation: aiVariation,
         });
-        if (row) { toast.success("Campagne créée (brouillon)"); onClose(); }
+        if (row) {
+          if (launchAfter) {
+            const launched = await d.launchCampaign((row as any).id, { generateVariants: aiVariation, body });
+            if (launched) toast.success("🚀 Campagne lancée !");
+          } else {
+            toast.success("Campagne créée (brouillon)");
+          }
+          onClose();
+        }
       }
     } finally { setSaving(false); }
   };
+  const submit = () => doSubmit(false);
+  const submitAndLaunch = () => doSubmit(true);
 
   return (
     <NativeScreen
@@ -437,10 +447,22 @@ function CampaignFormScreen({
       subtitle="WhatsApp · Diffusion"
       onBack={onClose}
       footer={
-        <Button onClick={submit} disabled={saving} className="w-full h-12 text-base font-semibold bg-[hsl(165_91%_18%)]">
-          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          {isEdit ? "Enregistrer" : "Créer la campagne"}
-        </Button>
+        isEdit ? (
+          <Button onClick={submit} disabled={saving} className="w-full h-12 text-base font-semibold bg-[hsl(165_91%_18%)]">
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Enregistrer
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <Button onClick={submitAndLaunch} disabled={saving} className="w-full h-12 text-base font-semibold bg-[hsl(165_91%_18%)] hover:bg-[hsl(165_91%_15%)]">
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+              Créer & Lancer maintenant
+            </Button>
+            <Button onClick={submit} disabled={saving} variant="outline" className="w-full h-11 text-sm font-medium">
+              Enregistrer comme brouillon
+            </Button>
+          </div>
+        )
       }
     >
       <Field label="Nom de la campagne">
