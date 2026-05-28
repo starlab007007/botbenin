@@ -345,13 +345,15 @@ serve(async (req) => {
     }
 
     // Persist incoming
-    await sb.from("waouh_messages").insert({
+    const { data: inboundRow } = await sb.from("waouh_messages").insert({
       conversation_id: convId,
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
       meta: { to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
-    });
+    }).select("id").maybeSingle();
+    const inboundMessageId: string | null = inboundRow?.id ?? null;
+
 
     // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router
     const { data: openNeg } = await sb
