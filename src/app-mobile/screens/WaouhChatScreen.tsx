@@ -43,7 +43,7 @@ export default function WaouhChatScreen() {
   const chatRef = useRef<WaouhWebChatHandle>(null);
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } =
-    useWaouhMatchNotifications(sessionId);
+    useWaouhMatchNotifications(sessionId, profile?.id ?? null);
 
   useEffect(() => {
     document.title = "WAOUH Chat — bot.bj";
