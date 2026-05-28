@@ -6079,6 +6079,7 @@ export type Database = {
         Row: {
           article_id: string | null
           channel: string | null
+          dedupe_key: string | null
           delivered_at: string | null
           delivery_status: string | null
           id: string
@@ -6093,6 +6094,7 @@ export type Database = {
         Insert: {
           article_id?: string | null
           channel?: string | null
+          dedupe_key?: string | null
           delivered_at?: string | null
           delivery_status?: string | null
           id?: string
@@ -6107,6 +6109,7 @@ export type Database = {
         Update: {
           article_id?: string | null
           channel?: string | null
+          dedupe_key?: string | null
           delivered_at?: string | null
           delivery_status?: string | null
           id?: string
