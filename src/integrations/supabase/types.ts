@@ -5452,6 +5452,7 @@ export type Database = {
           category: string
           city: string | null
           condition: string
+          contact_whatsapp: string | null
           created_at: string
           currency: string
           description: string | null
@@ -5464,10 +5465,12 @@ export type Database = {
           model: string | null
           origin: string
           origin_signal_id: string | null
+          partner_id: string | null
           photos: string[]
           price: number
           radius_km: number
           seller_id: string
+          source_channel: string | null
           status: string
           title: string
           updated_at: string
@@ -5479,6 +5482,7 @@ export type Database = {
           category: string
           city?: string | null
           condition?: string
+          contact_whatsapp?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -5491,10 +5495,12 @@ export type Database = {
           model?: string | null
           origin?: string
           origin_signal_id?: string | null
+          partner_id?: string | null
           photos?: string[]
           price: number
           radius_km?: number
           seller_id: string
+          source_channel?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -5506,6 +5512,7 @@ export type Database = {
           category?: string
           city?: string | null
           condition?: string
+          contact_whatsapp?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -5518,10 +5525,12 @@ export type Database = {
           model?: string | null
           origin?: string
           origin_signal_id?: string | null
+          partner_id?: string | null
           photos?: string[]
           price?: number
           radius_km?: number
           seller_id?: string
+          source_channel?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -5536,6 +5545,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "waouh_articles_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_articles_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "waouh_articles_seller_id_fkey"
             columns: ["seller_id"]
             isOneToOne: false
@@ -5547,6 +5570,7 @@ export type Database = {
       waouh_buyer_profiles: {
         Row: {
           category: string | null
+          contact_whatsapp: string | null
           created_at: string
           id: string
           is_active: boolean
@@ -5560,10 +5584,13 @@ export type Database = {
           price_min: number | null
           query_text: string
           radius_km: number
+          reference_photos: string[] | null
+          source_channel: string | null
           user_id: string
         }
         Insert: {
           category?: string | null
+          contact_whatsapp?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -5577,10 +5604,13 @@ export type Database = {
           price_min?: number | null
           query_text: string
           radius_km?: number
+          reference_photos?: string[] | null
+          source_channel?: string | null
           user_id: string
         }
         Update: {
           category?: string | null
+          contact_whatsapp?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -5594,6 +5624,8 @@ export type Database = {
           price_min?: number | null
           query_text?: string
           radius_km?: number
+          reference_photos?: string[] | null
+          source_channel?: string | null
           user_id?: string
         }
         Relationships: [
@@ -6046,25 +6078,40 @@ export type Database = {
       waouh_notifications: {
         Row: {
           article_id: string | null
+          channel: string | null
+          delivered_at: string | null
+          delivery_status: string | null
           id: string
           notification_type: string
           opened: boolean
+          payload: Json | null
+          photos: string[] | null
           sent_at: string
           user_id: string
         }
         Insert: {
           article_id?: string | null
+          channel?: string | null
+          delivered_at?: string | null
+          delivery_status?: string | null
           id?: string
           notification_type: string
           opened?: boolean
+          payload?: Json | null
+          photos?: string[] | null
           sent_at?: string
           user_id: string
         }
         Update: {
           article_id?: string | null
+          channel?: string | null
+          delivered_at?: string | null
+          delivery_status?: string | null
           id?: string
           notification_type?: string
           opened?: boolean
+          payload?: Json | null
+          photos?: string[] | null
           sent_at?: string
           user_id?: string
         }
