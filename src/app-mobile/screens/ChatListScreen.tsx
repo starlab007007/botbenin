@@ -237,14 +237,29 @@ export default function ChatListScreen() {
           </div>
         </button>
 
+        {isGuest && (
+          <div className="px-4 pt-5 pb-2 flex flex-col items-center text-center">
+            <Button
+              onClick={openWaouh}
+              size="lg"
+              className="w-full max-w-sm bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)] shadow-md"
+            >
+              <Plus className="h-5 w-5 mr-1" /> Nouveau chat WAOUH
+            </Button>
+            <p className="text-sm text-muted-foreground mt-3">
+              Envoyez un message à WAOUH et le Monde achète. ☝️
+            </p>
+          </div>
+        )}
+
         {isGuest && <WaouhDemoMockup />}
 
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
 
-        {!loading && filtered.length === 0 && (
+        {!loading && !isGuest && filtered.length === 0 && (
           <div className="p-10 text-center text-muted-foreground">
             <p className="font-medium mb-1">Aucune autre conversation</p>
-            <p className="text-sm mb-4">Démarrez avec WAOUH ☝️</p>
+            <p className="text-sm mb-4">Envoyez un message à WAOUH et le Monde achète. ☝️</p>
             <Button onClick={openWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
               <Plus className="h-4 w-4 mr-1" /> Nouveau chat WAOUH
             </Button>
