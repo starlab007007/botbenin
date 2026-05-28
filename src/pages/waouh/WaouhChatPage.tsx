@@ -71,7 +71,7 @@ export default function WaouhChatPage() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
-  const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } = useWaouhMatchNotifications(sessionId);
+  const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
