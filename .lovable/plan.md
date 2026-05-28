@@ -1,76 +1,117 @@
 
-## Objectif
+# Photos + Contacts unifiés sur tout le cycle WAOUH
 
-Sur `/app/chat`, pour un utilisateur **non connecté / invité uniquement**, afficher sous le bouton "Nouveau chat WAOUH" une démo animée (~10s, en boucle) de deux téléphones côte à côte montrant une transaction marketplace au Bénin (gourde). La démo disparaît dès que l'utilisateur se connecte ou clique sur "Nouveau chat WAOUH".
+Objectif : qu'une annonce, une recherche, une notification de match et une notification "nouvel acheteur" portent **toujours les mêmes photos** et soient **toujours livrées sur le bon canal** (WhatsApp, App WAOUH, Radar IA, Partenaire), peu importe l'origine.
 
-## Fichiers à créer / modifier
+## 1. Modèle de contact unifié (source of truth)
 
-### 1. `src/assets/gourde.jpg` (nouveau)
-Copier l'image fournie `user-uploads://gourde.jpg` dans les assets pour pouvoir l'importer en ES6 (gourde réaliste demandée).
+Ajouter sur `waouh_articles` (vendeur) et `waouh_buyer_profiles` (acheteur) un bloc "identité de canal" normalisé :
 
-### 2. `src/app-mobile/components/WaouhDemoMockup.tsx` (nouveau)
-Composant autonome qui rend les 2 téléphones côte à côte avec animation séquentielle.
+- `source_channel` : `whatsapp` | `waouh_app` | `radar_ia` | `partner`
+- `contact_whatsapp` : MSISDN normalisé Bénin (ex `22965653468`), nullable
+- `contact_waouh_user_id` : `waouh_users.id` (déjà existant via `seller_id` / `user_id`)
+- `partner_id` : `waouh_partners.id` (nullable)
+- `radar_signal_id` : `origin_signal_id` (déjà présent, on le renomme côté résolution)
 
-**Structure visuelle :**
+Règle de résolution du contact à utiliser pour notifier :
 ```text
-┌─────────────┐   ┌─────────────┐
-│ ▔ encoche ▔ │   │ ▔ encoche ▔ │
-│ 09:41 BOT.BJ│   │ 09:41 BOT.BJ│
-│─────────────│   │─────────────│
-│ Vendeur 🏪  │   │ WAOUH 🤖    │
-│             │   │             │
-│  [bulles]   │   │  [bulles]   │
-│             │   │             │
-└─────────────┘   └─────────────┘
-   Vendeur          Acheteur IA
+1. source_channel == 'whatsapp'  → contact_whatsapp (extrait du webhook WAHA)
+2. source_channel == 'partner'   → waouh_partners.whatsapp (lié à partner_id)
+3. source_channel == 'radar_ia'  → contact_whatsapp du signal radar (s'il existe)
+4. source_channel == 'waouh_app' → contact_waouh_user_id (in-app push + websocket)
+Fallback : waouh_users du seller_id/user_id
 ```
 
-**Scénario chronologique (~10s, boucle infinie) :**
+Cette résolution est centralisée dans un helper Deno partagé `_shared/resolveContact.ts` réutilisé par `waouh-sell-handler`, `waouh-buy-handler`, `waouh-notify-buyers`, `waouh-channel-in`, `waouh-radar-process`, `waouh-partner-ai`.
 
-| t (s) | Téléphone Vendeur | Téléphone WAOUH |
-|-------|-------------------|-----------------|
-| 0.5 | Publie annonce (carte avec photo gourde + "Gourde 2L · 3 500 CFA · Cotonou") | — |
-| 1.5 | — | Saisie recherche: "je cherche gourde Cotonou" |
-| 2.5 | — | Carte résultat: photo gourde, 3 500 CFA, ⭐ 4.8 |
-| 3.5 | 🔔 "Nouvel acheteur trouvé !" (toast animé) | Msg out: "Bonjour, gourde dispo ?" |
-| 4.5 | Msg in: "Bonjour, gourde dispo ?" / out: "Oui, disponible ✅" | Msg in: "Oui, disponible ✅" |
-| 5.5 | Msg in: "Je propose 3 000 CFA" | Msg out: "Je propose 3 000 CFA" |
-| 6.5 | Msg out: "OK pour 3 200 CFA 🤝" | Msg in: "OK pour 3 200 CFA 🤝" |
-| 7.5 | Msg in: "Marché conclu 👍" | Msg out: "Marché conclu 👍" |
-| 8.5 | 🛵 "Livraison Express Cotonou en route" | ✅ "Livreur assigné · Suivi activé" |
-| 9.5 | Pause | Pause |
-| 10  | Reset → boucle | Reset → boucle |
+## 2. Photos unifiées (même URL partout)
 
-**Implémentation animation :**
-- `framer-motion` (déjà disponible) : `AnimatePresence` + `motion.div` pour l'apparition progressive des bulles (fade+slide-up).
-- État local `step` (0→10) avancé par un `setInterval` toutes les ~1s.
-- Reset automatique à la fin → effet boucle.
-- Bulles vert WhatsApp (`bg-[hsl(165_91%_25%)]` pour out, `bg-white` pour in) réutilisant le style chat existant.
-- Photo gourde : import ES6 de `@/assets/gourde.jpg`, affichée en `aspect-square` arrondi dans la carte annonce et la carte résultat.
+Aujourd'hui :
+- `waouh-sell-handler` accepte `photos[]` mais ne rehoste rien quand l'origine est l'App.
+- `waouh-channel-in` rehoste déjà les médias WhatsApp dans le bucket public `waouh-media` (helper `rehostMedia`).
+- `waouh-notify-buyers` n'envoie **aucune photo** dans la notif.
 
-**Frame téléphone (CSS pur) :**
-- Conteneur arrondi `rounded-[2rem]` avec bordure épaisse `border-[8px] border-slate-900`
-- Encoche : pseudo-élément ou div absolue en haut `w-20 h-5 bg-slate-900 rounded-b-2xl`
-- Barre de statut : "09:41" gauche, "BOT.BJ" centre, icônes batterie/wifi droite
-- Header chat vert avec avatar + nom (Vendeur / WAOUH)
-- Zone messages avec fond chat (réutiliser pattern `waouh-chat-list-bg` ou similaire)
+Règle : **toute photo entrante est rehostée dans `waouh-media`** et l'URL publique stable est stockée dans `waouh_articles.photos[]` / `waouh_buyer_profiles.reference_photos[]` (nouvelle colonne nullable).
 
-**Responsive :**
-- Desktop : 2 téléphones côte à côte, largeur ~260px chacun
-- Mobile (<640px) : 2 téléphones côte à côte mais scaled (`scale-75`) ou largeur réduite ~150px
-- Container `max-w-2xl mx-auto px-4`
+Ainsi :
+- Annonce publiée App → photo upload Storage → URL publique → utilisée pour WhatsApp `sendImage` et carte in-app.
+- Annonce publiée WhatsApp → rehost WAHA → même URL → utilisée pour la carte in-app.
+- Recherche avec photo (radar / WhatsApp) → idem dans `reference_photos[]`.
 
-### 3. `src/app-mobile/screens/ChatListScreen.tsx` (modifier)
-- Importer `useMobileAuth` (déjà importé) + `WaouhDemoMockup`.
-- Détecter "invité / non connecté" : `!user` (déjà fourni par `useMobileAuth`).
-- Ajouter le mockup **juste après le bouton "Nouveau chat WAOUH"** dans le bloc `<main>`, conditionné par `!user`.
-- Le mockup disparaît automatiquement quand l'utilisateur se connecte (re-render via `user`). Pas de logique de dismiss manuel nécessaire — quand l'utilisateur clique "Nouveau chat WAOUH", il navigue vers `/app/chat/waouh` donc le mockup est démonté.
+## 3. Flux notifications uniformes
 
-## Notes techniques
+Centraliser l'envoi dans une nouvelle edge function `waouh-notify-dispatch` :
+- Entrée : `{ kind: 'match' | 'new_buyer' | 'sale_published', article_id, buyer_profile_id?, recipient: 'seller'|'buyer' }`
+- Charge l'entité, résout le contact via le helper §1, charge `photos[]`.
+- Si `whatsapp` → `sendWahaImage` (1ʳᵉ photo en header + carrousel ≤4) + boutons WAOUH.
+- Si `waouh_app` → insert `waouh_notifications` avec `photos[]` (nouvelle colonne) et `payload jsonb` pour la carte riche, push realtime.
+- Si `partner` → idem WhatsApp via numéro partenaire.
 
-- Aucun changement backend, aucune migration.
-- Aucun changement de routing.
-- Tous les textes en français, prix affichés en **CFA**.
-- Tokens couleurs : réutiliser le vert existant `hsl(165 91% 25%)` / `hsl(165 91% 18%)` du header chat.
-- L'animation tourne en boucle tant que l'invité est sur la page (charge CPU négligeable, juste des transitions framer-motion).
-- Le mockup est purement décoratif/présentation — pas d'interaction utilisateur attendue, juste à regarder.
+Tous les appels existants (`waouh-sell-handler` → notify-buyers, `waouh-buy-handler` → seller match, `waouh-radar-process`, `waouh-channel-in` actions) passent désormais par `waouh-notify-dispatch`. Plus de double code d'envoi.
+
+## 4. Schéma DB (migration)
+
+```sql
+-- waouh_articles
+ALTER TABLE waouh_articles
+  ADD COLUMN source_channel text DEFAULT 'waouh_app',
+  ADD COLUMN contact_whatsapp text,
+  ADD COLUMN partner_id uuid REFERENCES waouh_partners(id);
+
+-- waouh_buyer_profiles
+ALTER TABLE waouh_buyer_profiles
+  ADD COLUMN source_channel text DEFAULT 'waouh_app',
+  ADD COLUMN contact_whatsapp text,
+  ADD COLUMN reference_photos text[] DEFAULT '{}';
+
+-- waouh_notifications : enrichissement carte
+ALTER TABLE waouh_notifications
+  ADD COLUMN photos text[] DEFAULT '{}',
+  ADD COLUMN payload jsonb DEFAULT '{}'::jsonb,
+  ADD COLUMN channel text,           -- whatsapp|waouh_app|partner
+  ADD COLUMN delivered_at timestamptz,
+  ADD COLUMN delivery_status text;   -- queued|sent|delivered|failed
+
+CREATE INDEX ON waouh_articles (contact_whatsapp);
+CREATE INDEX ON waouh_buyer_profiles (contact_whatsapp);
+```
+
+Aucune nouvelle table → pas de GRANT à ajouter.
+
+## 5. Code App (frontend)
+
+- `useWaouhSell` / formulaire publication : envoyer explicitement `source_channel: 'waouh_app'` et `contact_waouh_user_id`.
+- Carte notification (`/app/chat`, page WAOUH) : afficher `photos[]` venues de `waouh_notifications.photos`.
+- Page partenaire : pré-remplir `contact_whatsapp` depuis `waouh_partners.whatsapp` lors d'une publication.
+
+## 6. Tests E2E
+
+Étendre `waouh-e2e-test` avec 4 scénarios :
+1. Annonce App + photo → match acheteur WhatsApp (acheteur reçoit photo).
+2. Annonce WhatsApp + photo → match acheteur App (carte in-app avec photo).
+3. Annonce Radar IA + photo scrappée → match acheteur App + WhatsApp.
+4. Annonce Partenaire → notif envoyée au numéro `waouh_partners.whatsapp`.
+
+Chaque test vérifie : photos[] identiques côté annonce/recherche/notif, contact correctement résolu, `waouh_notifications.delivery_status='delivered'`.
+
+## Détails techniques
+
+- Helper `_shared/resolveContact.ts` exporté `resolveContact({articleOrProfile})` → `{ channel, whatsapp, waouhUserId, partnerId }`.
+- `rehostMedia` actuel (`waouh-channel-in`) extrait dans `_shared/media.ts` et appelé aussi par `waouh-sell-handler` (cas upload App + cas radar/url externe).
+- `waouh-notify-dispatch` remplace l'envoi inline dans `waouh-notify-buyers` (qui devient un simple "matcher" appelant le dispatch).
+- Realtime in-app : table `waouh_notifications` déjà exposée ; le front s'abonne à `photos`/`payload` automatiquement.
+- Compat ascendante : `source_channel` default `waouh_app` couvre les lignes existantes ; backfill SQL pour `whatsapp` quand `origin='whatsapp'` (champ déjà présent).
+
+## Fichiers impactés
+
+- Migration SQL (1 fichier, §4)
+- `supabase/functions/_shared/resolveContact.ts` (nouveau)
+- `supabase/functions/_shared/media.ts` (nouveau, extraction de `rehostMedia`)
+- `supabase/functions/waouh-notify-dispatch/index.ts` (nouveau)
+- `supabase/functions/waouh-sell-handler/index.ts` (rehost + source_channel + dispatch)
+- `supabase/functions/waouh-buy-handler/index.ts` (rehost reference_photos + dispatch)
+- `supabase/functions/waouh-notify-buyers/index.ts` (devient matcher pur)
+- `supabase/functions/waouh-channel-in/index.ts` (utilise helper partagé)
+- `supabase/functions/waouh-radar-process/index.ts` (set source_channel='radar_ia' + rehost)
+- `supabase/functions/waouh-e2e-test/index.ts` (4 scénarios)
+- Front : composant carte notification WAOUH + form publication App (2-3 fichiers `src/pages/waouh/*`)
