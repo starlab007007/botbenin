@@ -397,7 +397,7 @@ serve(async (req) => {
           await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId }), {
+      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
@@ -441,7 +441,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, inbound_message_id: inboundMessageId, article_id: core.article_id ?? null, transaction_id: core.transaction_id ?? null }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, article_id: core.article_id ?? null, transaction_id: core.transaction_id ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
