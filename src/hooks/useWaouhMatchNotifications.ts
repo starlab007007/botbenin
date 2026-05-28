@@ -219,7 +219,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       const row: any = payload.new;
       const notif: WaouhNotification = {
         id: row.id,
-        title: TEMPLATE_TITLES[row.notification_type === "match" ? "match_buyer" : "match_seller"] || "WAOUH",
+        title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
         body: row.payload?.text || "Mise à jour WAOUH",
         template: row.notification_type,
         created_at: row.sent_at ?? new Date().toISOString(),
