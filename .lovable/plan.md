@@ -1,117 +1,52 @@
+# Diagnostic — messages de vente & notifications manquantes
 
-# Photos + Contacts unifiés sur tout le cycle WAOUH
+## Ce que j'ai constaté en lisant le code + la base
 
-Objectif : qu'une annonce, une recherche, une notification de match et une notification "nouvel acheteur" portent **toujours les mêmes photos** et soient **toujours livrées sur le bon canal** (WhatsApp, App WAOUH, Radar IA, Partenaire), peu importe l'origine.
+1. **Le SELL est traité 100 % dans `waouh-webhook`** (intent SELL, lignes ~470–540). Il crée bien la ligne `waouh_articles` et renvoie le texte `✅ Annonce publiée`. Ce texte est ensuite persisté dans `waouh_messages` par `waouh-channel-in` et — sur WhatsApp — renvoyé via WAHA. C'est pour ça que **WhatsApp reçoit bien** la confirmation : c'est le même message d'IA, dans le même canal.
 
-## 1. Modèle de contact unifié (source of truth)
+2. **Sur l'app (chat web/mobile), la confirmation EST persistée** dans `waouh_messages` (vérifié en base : ex. id `1cca86cd…` "✅ Annonce publiée" à 21:24). Donc si l'utilisateur ne la voit pas, c'est purement un problème d'affichage/realtime, pas de backend.
 
-Ajouter sur `waouh_articles` (vendeur) et `waouh_buyer_profiles` (acheteur) un bloc "identité de canal" normalisé :
+3. **Aucune `waouh_notifications` n'est créée pour la publication**. La fonction `waouh-webhook` ne fait JAMAIS appel à `waouh-notify-dispatch` ni à `waouh-notify-buyers`. Conséquence directe :
+   - La cloche 🔔 (`WaouhNotificationsBell`) reste vide après une publication.
+   - Aucun acheteur correspondant n'est notifié quand une annonce est publiée via le chat (le matching tourne uniquement quand `waouh-sell-handler` est appelé, ce qui n'arrive pas pour les ventes faites depuis le chat web ou WhatsApp).
+   - Le vendeur ne reçoit pas non plus de "nouvel acheteur intéressé" tant que personne n'invoque `notify-buyers`.
 
-- `source_channel` : `whatsapp` | `waouh_app` | `radar_ia` | `partner`
-- `contact_whatsapp` : MSISDN normalisé Bénin (ex `22965653468`), nullable
-- `contact_waouh_user_id` : `waouh_users.id` (déjà existant via `seller_id` / `user_id`)
-- `partner_id` : `waouh_partners.id` (nullable)
-- `radar_signal_id` : `origin_signal_id` (déjà présent, on le renomme côté résolution)
+4. **Les messages "Je vends …" peu détaillés** retombent sur `🤔 Je n'ai pas tous les détails` parce que le seuil `confidence < 0.5 || !price` est strict (cf. ligne 476). En base on voit "Je vends tira à 3000" → rejet. C'est le même code des deux côtés, mais ça donne l'impression que "l'app passe moins bien" car en WhatsApp on enchaîne plus naturellement.
 
-Règle de résolution du contact à utiliser pour notifier :
-```text
-1. source_channel == 'whatsapp'  → contact_whatsapp (extrait du webhook WAHA)
-2. source_channel == 'partner'   → waouh_partners.whatsapp (lié à partner_id)
-3. source_channel == 'radar_ia'  → contact_whatsapp du signal radar (s'il existe)
-4. source_channel == 'waouh_app' → contact_waouh_user_id (in-app push + websocket)
-Fallback : waouh_users du seller_id/user_id
-```
+5. Le hook `useWaouhMatchNotifications` ne connaît que `match` / `match_buyer` / `match_seller` ; il ignore `sale_published` et `new_buyer` même quand ils existent.
 
-Cette résolution est centralisée dans un helper Deno partagé `_shared/resolveContact.ts` réutilisé par `waouh-sell-handler`, `waouh-buy-handler`, `waouh-notify-buyers`, `waouh-channel-in`, `waouh-radar-process`, `waouh-partner-ai`.
+## Plan de correction
 
-## 2. Photos unifiées (même URL partout)
+### A. Backend — `supabase/functions/waouh-webhook/index.ts`
+Dans la branche `intent.intent === "SELL"`, après l'insert de l'article et avant le `return` :
+1. **Fire-and-forget `waouh-notify-dispatch`** avec `{ kind: 'sale_published', article_id: art.id, recipient: 'seller' }` pour créer une notif in-app avec photos.
+2. **Fire-and-forget `waouh-notify-buyers`** avec `{ article_id: art.id }` pour lancer le matching et notifier les acheteurs intéressés.
+3. Si on est sur le canal `web` et qu'on connaît un `phone_number` du vendeur (ou inversement sur WhatsApp avec un `auth_user_id`), ajouter `contact_whatsapp` / `partner_id` lors de l'insert pour que `resolveContact` puisse aussi router la confirmation sur l'autre canal.
+4. **Assouplir la tolérance IA** : accepter dès `confidence >= 0.3` et tenter de récupérer un prix depuis la regex `/(\d[\d\s]{2,})\s*(?:FCFA|CFA|XOF|F)?/i` du texte brut si l'IA n'a pas extrait `price`. Ne renvoyer `🤔 Je n'ai pas tous les détails` que si on n'a vraiment ni titre ni prix.
 
-Aujourd'hui :
-- `waouh-sell-handler` accepte `photos[]` mais ne rehoste rien quand l'origine est l'App.
-- `waouh-channel-in` rehoste déjà les médias WhatsApp dans le bucket public `waouh-media` (helper `rehostMedia`).
-- `waouh-notify-buyers` n'envoie **aucune photo** dans la notif.
+### B. Backend — `supabase/functions/waouh-notify-dispatch/index.ts`
+- Pour `sale_published`, si on a à la fois un `phone` vendeur ET un `waouh_user.auth_user_id`, créer **deux** notifications : une in-app + un message WhatsApp (déjà géré par `resolveContact` côté `whatsapp`, mais on veut systématiquement insérer la ligne `waouh_notifications` pour la cloche, même quand on envoie aussi sur WhatsApp). Le code actuel le fait déjà — vérifier que `notifTargetUserId` n'est jamais nul pour SELL (fallback sur `article.seller_id`).
 
-Règle : **toute photo entrante est rehostée dans `waouh-media`** et l'URL publique stable est stockée dans `waouh_articles.photos[]` / `waouh_buyer_profiles.reference_photos[]` (nouvelle colonne nullable).
+### C. Frontend — `src/hooks/useWaouhMatchNotifications.ts`
+- Ajouter `sale_published` et `new_buyer` aux templates connus avec leurs titres ("✅ Annonce publiée", "🛒 Nouvel acheteur intéressé") et icônes, pour qu'ils apparaissent dans la cloche avec les photos `photos[]`.
+- S'assurer que le polling DB initial filtre `notification_type in ('match','sale_published','new_buyer','radar_match')`.
 
-Ainsi :
-- Annonce publiée App → photo upload Storage → URL publique → utilisée pour WhatsApp `sendImage` et carte in-app.
-- Annonce publiée WhatsApp → rehost WAHA → même URL → utilisée pour la carte in-app.
-- Recherche avec photo (radar / WhatsApp) → idem dans `reference_photos[]`.
+### D. Frontend — affichage chat (sécurité)
+- Vérifier que `WaouhWebChat.loadHistory` est bien rappelé après `sendCore` (déjà fait en ligne 247). Rien d'autre à changer.
 
-## 3. Flux notifications uniformes
+## Test
 
-Centraliser l'envoi dans une nouvelle edge function `waouh-notify-dispatch` :
-- Entrée : `{ kind: 'match' | 'new_buyer' | 'sale_published', article_id, buyer_profile_id?, recipient: 'seller'|'buyer' }`
-- Charge l'entité, résout le contact via le helper §1, charge `photos[]`.
-- Si `whatsapp` → `sendWahaImage` (1ʳᵉ photo en header + carrousel ≤4) + boutons WAOUH.
-- Si `waouh_app` → insert `waouh_notifications` avec `photos[]` (nouvelle colonne) et `payload jsonb` pour la carte riche, push realtime.
-- Si `partner` → idem WhatsApp via numéro partenaire.
+1. Depuis l'app (`/app/chat/waouh`), envoyer `Je vends iPhone 13 256Go à 250000 FCFA` avec 2 photos.
+   - ✅ Bulle "Annonce publiée" affichée avec les photos.
+   - ✅ Une `waouh_notifications` `sale_published` apparaît, cloche +1, mêmes photos.
+   - ✅ Si un `waouh_buyer_profiles` matche, on voit aussi une `match` côté acheteur.
+2. Depuis WhatsApp, envoyer `Je vends Samsung A14 80000` + 1 photo.
+   - ✅ Confirmation WhatsApp inchangée.
+   - ✅ Si le compte WhatsApp est lié à un `auth_user_id`, la cloche in-app reçoit aussi `sale_published`.
+3. Envoyer un message vague `Je vends truc 3000`.
+   - ✅ Article créé (prix=3000, titre=truc) au lieu du message d'erreur.
+4. Vérifier les logs `waouh-webhook` + `waouh-notify-dispatch` : pas d'erreur, photos rehostées, `delivery_status = delivered` quand WhatsApp.
 
-Tous les appels existants (`waouh-sell-handler` → notify-buyers, `waouh-buy-handler` → seller match, `waouh-radar-process`, `waouh-channel-in` actions) passent désormais par `waouh-notify-dispatch`. Plus de double code d'envoi.
+## Risque
 
-## 4. Schéma DB (migration)
-
-```sql
--- waouh_articles
-ALTER TABLE waouh_articles
-  ADD COLUMN source_channel text DEFAULT 'waouh_app',
-  ADD COLUMN contact_whatsapp text,
-  ADD COLUMN partner_id uuid REFERENCES waouh_partners(id);
-
--- waouh_buyer_profiles
-ALTER TABLE waouh_buyer_profiles
-  ADD COLUMN source_channel text DEFAULT 'waouh_app',
-  ADD COLUMN contact_whatsapp text,
-  ADD COLUMN reference_photos text[] DEFAULT '{}';
-
--- waouh_notifications : enrichissement carte
-ALTER TABLE waouh_notifications
-  ADD COLUMN photos text[] DEFAULT '{}',
-  ADD COLUMN payload jsonb DEFAULT '{}'::jsonb,
-  ADD COLUMN channel text,           -- whatsapp|waouh_app|partner
-  ADD COLUMN delivered_at timestamptz,
-  ADD COLUMN delivery_status text;   -- queued|sent|delivered|failed
-
-CREATE INDEX ON waouh_articles (contact_whatsapp);
-CREATE INDEX ON waouh_buyer_profiles (contact_whatsapp);
-```
-
-Aucune nouvelle table → pas de GRANT à ajouter.
-
-## 5. Code App (frontend)
-
-- `useWaouhSell` / formulaire publication : envoyer explicitement `source_channel: 'waouh_app'` et `contact_waouh_user_id`.
-- Carte notification (`/app/chat`, page WAOUH) : afficher `photos[]` venues de `waouh_notifications.photos`.
-- Page partenaire : pré-remplir `contact_whatsapp` depuis `waouh_partners.whatsapp` lors d'une publication.
-
-## 6. Tests E2E
-
-Étendre `waouh-e2e-test` avec 4 scénarios :
-1. Annonce App + photo → match acheteur WhatsApp (acheteur reçoit photo).
-2. Annonce WhatsApp + photo → match acheteur App (carte in-app avec photo).
-3. Annonce Radar IA + photo scrappée → match acheteur App + WhatsApp.
-4. Annonce Partenaire → notif envoyée au numéro `waouh_partners.whatsapp`.
-
-Chaque test vérifie : photos[] identiques côté annonce/recherche/notif, contact correctement résolu, `waouh_notifications.delivery_status='delivered'`.
-
-## Détails techniques
-
-- Helper `_shared/resolveContact.ts` exporté `resolveContact({articleOrProfile})` → `{ channel, whatsapp, waouhUserId, partnerId }`.
-- `rehostMedia` actuel (`waouh-channel-in`) extrait dans `_shared/media.ts` et appelé aussi par `waouh-sell-handler` (cas upload App + cas radar/url externe).
-- `waouh-notify-dispatch` remplace l'envoi inline dans `waouh-notify-buyers` (qui devient un simple "matcher" appelant le dispatch).
-- Realtime in-app : table `waouh_notifications` déjà exposée ; le front s'abonne à `photos`/`payload` automatiquement.
-- Compat ascendante : `source_channel` default `waouh_app` couvre les lignes existantes ; backfill SQL pour `whatsapp` quand `origin='whatsapp'` (champ déjà présent).
-
-## Fichiers impactés
-
-- Migration SQL (1 fichier, §4)
-- `supabase/functions/_shared/resolveContact.ts` (nouveau)
-- `supabase/functions/_shared/media.ts` (nouveau, extraction de `rehostMedia`)
-- `supabase/functions/waouh-notify-dispatch/index.ts` (nouveau)
-- `supabase/functions/waouh-sell-handler/index.ts` (rehost + source_channel + dispatch)
-- `supabase/functions/waouh-buy-handler/index.ts` (rehost reference_photos + dispatch)
-- `supabase/functions/waouh-notify-buyers/index.ts` (devient matcher pur)
-- `supabase/functions/waouh-channel-in/index.ts` (utilise helper partagé)
-- `supabase/functions/waouh-radar-process/index.ts` (set source_channel='radar_ia' + rehost)
-- `supabase/functions/waouh-e2e-test/index.ts` (4 scénarios)
-- Front : composant carte notification WAOUH + form publication App (2-3 fichiers `src/pages/waouh/*`)
+Aucun changement de schéma — tout est déjà en place (migration du 28/05 a ajouté `photos[]`, `channel`, `delivery_status`). Les changements sont additifs côté edge functions et purement UI côté hook.

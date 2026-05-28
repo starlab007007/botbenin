@@ -473,7 +473,20 @@ serve(async (req) => {
         text
       );
       const productCategory = normalizeCategory(product.category);
-      if ((product.confidence ?? 0) < 0.5 || !product.price) {
+      // Fallback: try to recover a price from the raw text when the AI missed it.
+      let inferredPrice: number | null = typeof product.price === "number" && product.price > 0 ? product.price : null;
+      if (!inferredPrice) {
+        const m = String(text || "").match(/(\d{2,}(?:[ .]\d{3})*)\s*(?:fcfa|cfa|xof|f\b)?/i);
+        if (m) {
+          const n = parseInt(m[1].replace(/[ .]/g, ""), 10);
+          if (!Number.isNaN(n) && n >= 100) inferredPrice = n;
+        }
+      }
+      const fallbackTitle = String(text || "")
+        .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
+        .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
+      const accepted = (product.confidence ?? 0) >= 0.3 && !!inferredPrice;
+      if (!accepted) {
         reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
       } else {
         const photoUrls = attachments
@@ -482,29 +495,57 @@ serve(async (req) => {
           .filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
-          title: product.title || "Annonce",
+          title: product.title || fallbackTitle,
           description: product.description,
           category: productCategory,
           brand: product.brand, model: product.model,
           condition: product.condition || "good",
-          price: product.price, currency: "XOF",
+          price: inferredPrice, currency: "XOF",
           city: user!.city,
           location: `SRID=4326;POINT(${lng} ${lat})` as any,
           photos: photoUrls,
           market_price_min: product.market_price_min,
           market_price_max: product.market_price_max,
           origin: channel === "whatsapp" ? "whatsapp" : "chat",
+          source_channel: channel === "whatsapp" ? "whatsapp" : "waouh_app",
+          contact_whatsapp: user?.phone_number ?? null,
         }).select().single();
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
         const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""} jointe${photoUrls.length > 1 ? "s" : ""}` : "";
-        const min = product.market_price_min || product.price * 0.8;
-        const max = product.market_price_max || product.price * 1.2;
-        const aiNote = await marketNote(product.title || "", product.price, min, max, user!.city || "");
+        const min = product.market_price_min || inferredPrice * 0.8;
+        const max = product.market_price_max || inferredPrice * 1.2;
+        const aiNote = await marketNote(product.title || fallbackTitle, inferredPrice, min, max, user!.city || "");
         const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title}*\n💰 *Prix* : ${fmt(product.price)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title || fallbackTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
+
+        // 🔔 Dispatch in-app + WhatsApp confirmation notification (same photos)
+        if (art?.id) {
+          const sbUrl = Deno.env.get("SUPABASE_URL")!;
+          const sbKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          fetch(`${sbUrl}/functions/v1/waouh-notify-dispatch`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${sbKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              kind: "sale_published",
+              article_id: art.id,
+              recipient: "seller",
+              // The chat reply is already delivered via the original channel
+              // (WAHA for WhatsApp, in-chat for the app), so skip duplicate WA send.
+              skip_whatsapp: true,
+            }),
+          }).catch((e) => console.warn("[sell] notify-dispatch failed", e));
+
+          // 🎯 Match buyer profiles and fan-out alerts via the unified dispatcher
+          fetch(`${sbUrl}/functions/v1/waouh-notify-buyers`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${sbKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ article_id: art.id }),
+          }).catch((e) => console.warn("[sell] notify-buyers failed", e));
+        }
+
 
         // 🛰️ Radar IA: contacter les acheteurs (signaux BUY) qui correspondent
         try {
@@ -527,7 +568,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_buyer_outreach",
               p_payload: {
-                text: `🎯 WAOUH a trouvé pour vous : *${product.title}* à ${fmt(product.price)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
+                text: `🎯 WAOUH a trouvé pour vous : *${product.title || fallbackTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
                 article_id: art?.id,
                 radar_signal_id: b.id,
               },

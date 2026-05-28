@@ -7,6 +7,9 @@ const TEMPLATE_TITLES: Record<string, string> = {
   match_buyer: "🎯 Annonce trouvée pour vous",
   negotiation_open: "🤝 Nouvelle offre reçue",
   contact_exchange: "🎉 Accord conclu — contact partagé",
+  sale_published: "✅ Annonce publiée",
+  new_buyer: "🛒 Nouvel acheteur intéressé",
+  match: "🎯 Annonce trouvée pour vous",
 };
 
 
@@ -148,8 +151,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
       const fromUnified: WaouhNotification[] = unified.map((row: any) => ({
         id: row.id,
-        title: TEMPLATE_TITLES[row.notification_type === "match" ? "match_buyer" : "match_seller"]
-          || (row.payload?.text?.split("\n")?.[0] ?? "WAOUH"),
+        title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
         body: row.payload?.text || "Mise à jour WAOUH",
         template: row.notification_type,
         created_at: row.sent_at,
@@ -217,7 +219,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       const row: any = payload.new;
       const notif: WaouhNotification = {
         id: row.id,
-        title: TEMPLATE_TITLES[row.notification_type === "match" ? "match_buyer" : "match_seller"] || "WAOUH",
+        title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
         body: row.payload?.text || "Mise à jour WAOUH",
         template: row.notification_type,
         created_at: row.sent_at ?? new Date().toISOString(),

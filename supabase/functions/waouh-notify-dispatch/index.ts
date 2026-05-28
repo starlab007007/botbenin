@@ -125,10 +125,15 @@ serve(async (req) => {
     let waResult: any = { ok: false, skipped: true };
     let channelUsed = target.channel;
 
-    if ((target.channel === "whatsapp" || target.channel === "partner" || target.channel === "radar_ia") && target.whatsapp) {
+    const skipWhatsapp = !!body.skip_whatsapp;
+    if (!skipWhatsapp && (target.channel === "whatsapp" || target.channel === "partner" || target.channel === "radar_ia") && target.whatsapp) {
       const chatId = `${target.whatsapp}@c.us`;
       waResult = await sendWhatsAppCard(chatId, text, photos);
       channelUsed = target.channel;
+    } else if (skipWhatsapp) {
+      // Caller already delivered via WhatsApp (e.g. inline reply) — just log the in-app row.
+      channelUsed = target.channel === "whatsapp" ? "whatsapp" : "waouh_app";
+      waResult = { ok: true, skipped: true, reason: "skip_whatsapp" };
     } else {
       channelUsed = "waouh_app";
     }
