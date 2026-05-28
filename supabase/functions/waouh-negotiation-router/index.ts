@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
   // Helper: notification cloche + message direct chez l'autre partie
   async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null, attachments: Array<{url: string; type: string; caption?: string}> = [], toPhoneE164: string | null = null) {
     const { data: target } = await sb.from("waouh_users")
-      .select("id, phone_number, web_session_id").eq("id", toUserId).maybeSingle();
+      .select("id, phone_number, web_session_id, auth_user_id").eq("id", toUserId).maybeSingle();
     if (!target) return;
     if (target.id === payload?.from_user_id) return;
     let insertedMsgId: string | null = null;
@@ -63,7 +63,25 @@ Deno.serve(async (req) => {
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
     }
-    const outboundPhone = toPhoneE164 || target.phone_number || null;
+    // 🔑 Résolution centrale du vrai numéro WhatsApp (compte app + compte
+    // entreprise du produit + radar IA), même pour les contre-offres et refus.
+    let outboundPhone: string | null = toPhoneE164 || null;
+    if (!outboundPhone) {
+      try {
+        const role: "buyer" | "seller" | undefined =
+          payload?.target_role === "seller" || payload?.target_role === "buyer"
+            ? payload.target_role
+            : undefined;
+        const resolved = await resolveRealPhoneE164(sb, target as any, {
+          article_id: payload?.article_id ?? null,
+          role,
+        });
+        if (resolved) outboundPhone = resolved;
+      } catch (_) { /* fallback ci-dessous */ }
+    }
+    if (!outboundPhone && target.phone_number && !/@lid$/i.test(target.phone_number)) {
+      outboundPhone = target.phone_number;
+    }
     try {
       await sb.rpc("waouh_enqueue_outbound_v2", {
         p_to_phone: outboundPhone,
