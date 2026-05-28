@@ -151,12 +151,17 @@ serve(async (req) => {
         notifSession = u?.web_session_id ?? null;
       } catch {}
 
+      // Dedupe key: 1 notif per (kind, article, recipient, day) to prevent twin emissions
+      const dayBucket = new Date().toISOString().slice(0, 10);
+      const dedupeKey = `${kind}:${article_id}:${notifTargetUserId}:${recipient}:${dayBucket}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`;
+
       const { error: notifErr } = await sb.from("waouh_notifications").insert({
         user_id: notifTargetUserId,
         article_id,
         notification_type: kind,
         photos,
         web_session_id: notifSession,
+        dedupe_key: dedupeKey,
         payload: {
           text,
           recipient,
@@ -169,8 +174,16 @@ serve(async (req) => {
         delivered_at: waResult?.ok ? new Date().toISOString() : null,
         delivery_status: waResult?.ok ? "delivered" : (waResult?.skipped ? "queued" : "failed"),
       });
-      if (notifErr) console.error("[waouh-notify-dispatch] notif insert error", notifErr);
+      if (notifErr) {
+        // Duplicate (23505) is silently ignored — means same event already dispatched
+        if ((notifErr as any).code === "23505" || /duplicate/i.test((notifErr as any).message || "")) {
+          console.log("[waouh-notify-dispatch] dedup hit", dedupeKey);
+        } else {
+          console.error("[waouh-notify-dispatch] notif insert error", notifErr);
+        }
+      }
     }
+
 
     return new Response(JSON.stringify({
       success: true,
