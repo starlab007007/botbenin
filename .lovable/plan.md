@@ -1,78 +1,107 @@
 ## Objectifs
 
-1. Supprimer le doublon d'envoi des messages "Je cherche…" / "Je vends…" (côté WhatsApp + côté app).
-2. Pour chaque notification "nouvel acheteur trouvé" ou "annonce trouvée", ouvrir automatiquement une nouvelle fenêtre de chat dédiée SOUS la fenêtre WAOUH, avec historique persistant jusqu'à finalisation.
-3. Garantir parité simultanée des notifs/messages entre l'app et les comptes WhatsApp liés (annonce publiée, nouvel acheteur, annonce trouvée, contre‑offre vendeur/acheteur).
+1. **Bridge backend `waha-webhook`** : pour chaque message WhatsApp entrant, créer/mettre à jour une conversation WA dédiée et insérer une notification in‑app.
+2. **Chargement forcé** de l'historique conversationnel (messages + notifications) par utilisateur, déterministe et sans perte.
+3. **Inbox unifiée App + WhatsApp** avec badge « nouveau » basé sur le statut lu/non‑lu par utilisateur.
 
-## 1. Correction du doublon d'envoi
+---
 
-Cause identifiée :
-- `waouh-channel-in` insère le message `out` du bot + l'envoie déjà à WAHA (`sendWahaReply`, ligne 437).
-- `waouh-webhook` (intent SELL / BUY) déclenche en parallèle `pushToOther` qui ré‑enqueue parfois vers l'expéditeur lui‑même (mirror web/whatsapp), produisant un 2e affichage in‑app et une 2e bulle WhatsApp.
-- Côté UI, l'optimistic `temp-in-…` n'est pas dédupliqué par `id` réel quand le persistant arrive via Realtime avant `loadHistory` → 2 bulles "Je vends".
+## 1. Bridge backend `waha-webhook`
 
-Correctifs :
-- **`waouh-webhook` → `pushToOther`** : skipper proprement si `target.id === user.id` OU si `target.web_session_id === current sessionId` OU si `outboundPhone === phone` (déjà partiellement présent, à durcir et appliquer AVANT chaque `insert`/`enqueue`).
-- **`waouh-channel-in`** : ne plus appeler `sendWahaReply` quand le webhook retourne `delivered_whatsapp: true` (nouveau flag), pour confier l'envoi WA à un seul endroit (le dispatcher d'outbound). Variante mini : ajouter un `dedupe_key` basé sur `message_id` à l'enqueue, et conserver `sendWahaReply` direct UNIQUEMENT pour le canal `web`.
-- **`WaouhWebChat.tsx`** : remplacer le `temp-in-` par l'`id` réel renvoyé par `waouh-channel-in` (le faire renvoyer `inbound_message_id`), et matcher la dédup par `id` au lieu de `text + 30s`.
+Le forwarding vers `waouh-channel-in` existe déjà (lignes 71‑83) mais ne crée pas de notification in‑app pour les messages WA simples (hors évènements de match). On ajoute donc deux écritures dans le pipeline :
 
-## 2. Fenêtres de chat par match (sous WAOUH)
+**a) Table dédiée des conversations WA**
+- Réutiliser `waouh_conversations` (déjà keyée `user_id + phone_number`) en y forçant `channel = 'whatsapp'` pour ce flux.
+- Ajouter une colonne `unread_count INT DEFAULT 0` + `last_inbound_at TIMESTAMPTZ` + `last_direction TEXT` pour piloter le badge.
+- Trigger Postgres `on insert waouh_messages` : si `direction = 'in'` → incrémenter `unread_count` et mettre à jour `last_inbound_at` + `last_message` sur la conversation correspondante. Si `direction = 'out'` → laisser intact (sauf reset à 0 quand on ouvre la conv).
 
-Nouveau composant `WaouhMatchChats.tsx` :
-- Liste empilée verticalement, juste sous `WaouhWebChat`, une carte/fenêtre par "match" (= `waouh_negotiations.id` ou `waouh_notifications` de type `match_seller` / `match_buyer` / `new_buyer`).
-- Chaque fenêtre = mini chat (header avec photo article + titre + prix + autre partie, fil de messages, composer) connectée à `waouh_messages` filtré par `conversation_id` (à créer si absent) ou `negotiation_id`.
-- Restent ouvertes jusqu'à `state === 'closed' | 'paid' | 'cancelled'` ; on garde l'historique en base (déjà persistant) et un cache local pour le tri.
+**b) Notification in‑app par message WhatsApp entrant**
+- Dans `waha-webhook` (après forward réussi vers `waouh-channel-in`, donc avec `inbound_message_id`/`conversation_id` disponibles), insérer dans `waouh_notifications` :
+  ```
+  notification_type = 'wa_inbound'
+  channel = 'whatsapp'
+  user_id = <waouh_users.id résolu via phone>
+  payload = { text, from_phone, message_id, conversation_id }
+  dedupe_key = `wa_inbound:<waha_message_id>` (anti rejouage WAHA)
+  ```
+- Le hook `useWaouhMatchNotifications` (Realtime déjà branché) le recevra sans modif côté DB.
 
-Création/ouverture :
-- Dans `useWaouhMatchNotifications`, à la réception d'une notif `match_*` ou `new_buyer`, dispatch d'un évènement `waouh:open-match-chat` avec `{ article_id, negotiation_id, counterpart_user_id, photos, title, price }`.
-- `WaouhChatScreen` écoute cet évènement et insère/épingle la mini‑fenêtre dans `WaouhMatchChats`.
-- Persistance des fenêtres ouvertes via `localStorage` (`waouh_open_matches_<sessionId>`) pour survivre au refresh.
+**c) Idempotence**
+- Continuer d'utiliser `waouh_processed_events` (déjà en place dans `waouh-channel-in`) pour la dédup des évènements WAHA + nouveau `dedupe_key` côté notif pour bloquer les doublons.
 
-Backend mini :
-- Réutiliser `waouh_conversations` avec un champ existant `negotiation_id` (ajouter si manquant) pour cloisonner les messages par match.
-- Tous les envois passent par `waouh-channel-in` avec un `match_id` → routé vers `waouh-negotiation-router` qui répond et notifie l'autre partie (WA + app) via le pipeline unifié.
+---
 
-## 3. Parité app ↔ WhatsApp
+## 2. Forçage du chargement de l'historique par utilisateur
 
-Audit des 5 évènements clés et vérification qu'ils empruntent tous le même chemin unique :
+Symptôme actuel : si `waouh_users.id` lié change (nouveau device, login), les anciens messages ne s'affichent pas.
 
-```
-event → waouh-notify-dispatch
-          ├─ insert waouh_notifications (in-app, +photos[])
-          ├─ enqueue waouh_outbound_queue (web mirror si session)
-          └─ send WAHA (sendImage+caption || sendText)
-```
+Solution :
+- Nouvelle fonction Edge `waouh-history` (lecture seule) :
+  - Entrée : `{ sessionId, authUserId? }`.
+  - Résout **tous** les `waouh_users.id` liés (web_session_id ∪ auth_user_id ∪ phone_number du compte si présent).
+  - Retourne `{ users: [...], messages: [...], notifications: [...], conversations: [...] }` avec :
+    - messages : `waouh_messages` `or(web_session_id, user_id in)` (limit 1000, ordre asc).
+    - notifications : `waouh_notifications` même filtre (limit 200, ordre desc).
+    - conversations : `waouh_conversations` agrégée (user_id in) avec `unread_count`, `last_message`, `last_inbound_at`, `channel`.
 
-Évènements à valider/uniformiser :
-- `sale_published` → vendeur (déjà via dispatcher).
-- `new_buyer` / `match_seller` → vendeur.
-- `match_buyer` / `match` → acheteur.
-- `negotiation_open` (contre‑offre) → autre partie. Forcer le passage par `waouh-notify-dispatch` au lieu d'envoyer direct depuis `waouh-negotiation-router`.
-- `negotiation_closed` / `contact_exchange` → les deux parties.
+- Côté front :
+  - `WaouhWebChat` et `useWaouhMatchNotifications` appellent `waouh-history` à l'ouverture pour une réhydratation garantie (au lieu de plusieurs SELECT or() séquentiels), puis Realtime prend le relais.
+  - Mécanisme de retry exponentiel (3 tentatives) + cache local (`localStorage.waouh_hydrate_<sessionId>`) pour survie offline/reload.
 
-Pour chaque évènement :
-- Supprimer les envois WhatsApp directs depuis les handlers (`waouh-sell-handler`, `waouh-buy-handler`, `waouh-negotiation-router`) et appeler uniquement `waouh-notify-dispatch` avec `recipient` et `kind`.
-- Le dispatcher résout déjà `web_session_id` du destinataire → la notif in‑app arrive en Realtime ; il envoie WA via `resolveContact` → numéro réel (app, business produit, radar IA).
-- Ajouter un `dedupe_key` (`${kind}:${article_id}:${recipient_user_id}:${day}`) côté `waouh_notifications` et `waouh_outbound_queue` pour empêcher double émission si plusieurs déclencheurs.
+---
+
+## 3. Inbox unifiée App + WhatsApp
+
+Nouveau composant **`WaouhUnifiedInbox.tsx`** (et route `/app/chat/inbox` accessible depuis `WaouhChatScreen` via bouton "Inbox") :
+
+- Liste des conversations issues de `waouh-history.conversations`, triées par `last_inbound_at` desc.
+- Chaque ligne :
+  - Avatar (initiale ou photo article si lié) + nom/numéro
+  - Badge canal : `App` (cyan) ou `WhatsApp` (vert)
+  - Dernier message tronqué
+  - Heure relative
+  - **Badge « nouveau » rouge** = `unread_count > 0`
+- Clic → ouvre la fenêtre de discussion correspondante :
+  - Conv WAOUH classique → `WaouhWebChat` (mode focus conv)
+  - Conv match → fenêtre `WaouhMatchChatWindow` dans la pile
+- À l'ouverture d'une conversation : RPC `waouh_mark_conversation_read(conv_id)` (security definer) qui :
+  - `update waouh_conversations set unread_count = 0`
+  - `update waouh_notifications set opened = true, read_at = now() where conversation_id = ... and opened = false`
+
+**Badge global** (bell + onglet "Inbox") = somme `unread_count` toutes conv.
+
+---
+
+## Migrations SQL
+
+- `waouh_conversations` : `ADD COLUMN unread_count INT NOT NULL DEFAULT 0`, `last_inbound_at TIMESTAMPTZ`, `last_direction TEXT`.
+- `waouh_notifications` : `ADD COLUMN conversation_id UUID` + index.
+- Trigger `trg_waouh_messages_bump_conv` after insert sur `waouh_messages`.
+- Fonction RPC `waouh_mark_conversation_read(p_conv_id uuid)` security definer.
+- Index : `waouh_conversations(user_id, last_inbound_at DESC)`.
+
+---
 
 ## Fichiers impactés
 
 Backend :
-- `supabase/functions/waouh-channel-in/index.ts` (déléguer envoi WA, renvoyer `inbound_message_id`)
-- `supabase/functions/waouh-webhook/index.ts` (durcir `pushToOther`, plus de double mirror vers l'expéditeur)
-- `supabase/functions/waouh-negotiation-router/index.ts` (router via `waouh-notify-dispatch`)
-- `supabase/functions/waouh-notify-dispatch/index.ts` (ajouter `dedupe_key`, gérer `negotiation_open|closed|contact_exchange`)
-- Migration : index unique partiel `(dedupe_key)` sur `waouh_notifications` et `waouh_outbound_queue` ; colonne `negotiation_id` sur `waouh_conversations` si manquante.
+- `supabase/functions/waha-webhook/index.ts` (insertion notif `wa_inbound` après forward)
+- `supabase/functions/waouh-channel-in/index.ts` (retourner `conversation_id` dans la réponse pour faciliter la notif)
+- `supabase/functions/waouh-history/index.ts` (NEW)
+- Migrations (cf. ci‑dessus)
 
 Frontend :
-- `src/components/waouh/WaouhWebChat.tsx` (dédup `id` réel, drop matching `temp-in-` par id)
-- `src/hooks/useWaouhMatchNotifications.ts` (émettre `waouh:open-match-chat`)
-- `src/components/waouh/WaouhMatchChats.tsx` (NEW – pile de mini‑chats persistants)
-- `src/components/waouh/WaouhMatchChatWindow.tsx` (NEW – un chat individuel)
-- `src/app-mobile/screens/WaouhChatScreen.tsx` (afficher `WaouhMatchChats` sous `WaouhWebChat`, layout scrollable empilé)
+- `src/hooks/useWaouhInbox.ts` (NEW – conversations agrégées + unread)
+- `src/components/waouh/WaouhUnifiedInbox.tsx` (NEW)
+- `src/components/waouh/WaouhWebChat.tsx` (utilise `waouh-history` pour hydratation)
+- `src/hooks/useWaouhMatchNotifications.ts` (idem)
+- `src/app-mobile/screens/WaouhChatScreen.tsx` (bouton/onglet Inbox + badge global)
+
+---
 
 ## Critères de validation
 
-- Envoyer "Je vends iPhone…" depuis l'app → 1 seule bulle in‑app, 1 seul message WhatsApp côté business, 1 seule notif `sale_published`.
-- Lorsqu'un acheteur matche, une fenêtre apparaît automatiquement sous WAOUH côté vendeur (et symétriquement côté acheteur), persiste après refresh, et toute la conversation se déroule dedans.
-- Une contre‑offre envoyée depuis l'app arrive simultanément dans la fenêtre dédiée ET sur WhatsApp du destinataire (numéro réel résolu : compte app, business produit ou radar IA).
+- Envoyer un message WhatsApp au numéro business → 1 ligne dans `waouh_messages`, 1 dans `waouh_notifications` (type `wa_inbound`), `unread_count++` sur la conv.
+- Recharger la PWA / changer de device avec même compte → tout l'historique (App + WA) revient immédiatement via `waouh-history`.
+- Ouvrir une conv depuis l'inbox → badge passe à 0, notifs marquées lues, autres conv inchangées.
+- Aucun doublon de notif (dedupe `wa_inbound:<waha_message_id>` actif).
