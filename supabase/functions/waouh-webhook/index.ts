@@ -523,16 +523,18 @@ serve(async (req) => {
 
         // 🔔 Dispatch in-app + WhatsApp confirmation notification (same photos)
         if (art?.id) {
-          fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
+          const sbUrl = Deno.env.get("SUPABASE_URL")!;
+          const sbKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          fetch(`${sbUrl}/functions/v1/waouh-notify-dispatch`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${sbKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({ kind: "sale_published", article_id: art.id, recipient: "seller" }),
           }).catch((e) => console.warn("[sell] notify-dispatch failed", e));
 
           // 🎯 Match buyer profiles and fan-out alerts via the unified dispatcher
-          fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-buyers`, {
+          fetch(`${sbUrl}/functions/v1/waouh-notify-buyers`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${sbKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({ article_id: art.id }),
           }).catch((e) => console.warn("[sell] notify-buyers failed", e));
         }
