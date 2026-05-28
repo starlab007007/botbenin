@@ -4,6 +4,8 @@ import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLef
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
+import { WaouhMatchChats } from "@/components/waouh/WaouhMatchChats";
+
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { WaouhCityBadge } from "@/components/waouh/WaouhCityBadge";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
