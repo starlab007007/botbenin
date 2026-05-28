@@ -43,9 +43,12 @@ export const useWhatsAppAccounts = () => {
 
   const loadAccounts = useCallback(async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setAccounts([]); return; }
       const { data, error } = await supabase
         .from('whatsapp_accounts')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
