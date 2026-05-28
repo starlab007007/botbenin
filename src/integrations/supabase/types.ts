@@ -6088,6 +6088,7 @@ export type Database = {
           photos: string[] | null
           sent_at: string
           user_id: string
+          web_session_id: string | null
         }
         Insert: {
           article_id?: string | null
@@ -6101,6 +6102,7 @@ export type Database = {
           photos?: string[] | null
           sent_at?: string
           user_id: string
+          web_session_id?: string | null
         }
         Update: {
           article_id?: string | null
@@ -6114,6 +6116,7 @@ export type Database = {
           photos?: string[] | null
           sent_at?: string
           user_id?: string
+          web_session_id?: string | null
         }
         Relationships: [
           {
