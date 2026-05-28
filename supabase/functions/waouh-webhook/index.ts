@@ -528,7 +528,14 @@ serve(async (req) => {
           fetch(`${sbUrl}/functions/v1/waouh-notify-dispatch`, {
             method: "POST",
             headers: { Authorization: `Bearer ${sbKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ kind: "sale_published", article_id: art.id, recipient: "seller" }),
+            body: JSON.stringify({
+              kind: "sale_published",
+              article_id: art.id,
+              recipient: "seller",
+              // The chat reply is already delivered via the original channel
+              // (WAHA for WhatsApp, in-chat for the app), so skip duplicate WA send.
+              skip_whatsapp: true,
+            }),
           }).catch((e) => console.warn("[sell] notify-dispatch failed", e));
 
           // 🎯 Match buyer profiles and fan-out alerts via the unified dispatcher
