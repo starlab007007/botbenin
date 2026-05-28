@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, closed: true, from_user_id: user.id }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
       }
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
