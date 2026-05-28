@@ -1,52 +1,130 @@
-# Diagnostic — messages de vente & notifications manquantes
+## Diagnostic
 
-## Ce que j'ai constaté en lisant le code + la base
+Les symptômes viennent probablement d’une combinaison de problèmes côté base, backend et frontend :
 
-1. **Le SELL est traité 100 % dans `waouh-webhook`** (intent SELL, lignes ~470–540). Il crée bien la ligne `waouh_articles` et renvoie le texte `✅ Annonce publiée`. Ce texte est ensuite persisté dans `waouh_messages` par `waouh-channel-in` et — sur WhatsApp — renvoyé via WAHA. C'est pour ça que **WhatsApp reçoit bien** la confirmation : c'est le même message d'IA, dans le même canal.
+1. **Realtime incomplet**
+   - `waouh_messages` et `waouh_outbound_queue` sont dans `supabase_realtime`.
+   - `waouh_notifications` n’y est pas, donc les nouvelles notifications d’annonce publiée / acheteur trouvé ne peuvent pas arriver instantanément dans l’application.
 
-2. **Sur l'app (chat web/mobile), la confirmation EST persistée** dans `waouh_messages` (vérifié en base : ex. id `1cca86cd…` "✅ Annonce publiée" à 21:24). Donc si l'utilisateur ne la voit pas, c'est purement un problème d'affichage/realtime, pas de backend.
+2. **Permissions Data API manquantes ou insuffisantes**
+   - Les tables WAOUH critiques (`waouh_messages`, `waouh_notifications`, `waouh_outbound_queue`, `waouh_users`) n’ont pas de GRANT visibles pour `anon` / `authenticated`.
+   - Résultat probable : le frontend interroge Supabase mais reçoit des erreurs silencieuses ou des listes vides, donc l’historique, les messages envoyés, les notifications et les photos ne remontent pas correctement.
 
-3. **Aucune `waouh_notifications` n'est créée pour la publication**. La fonction `waouh-webhook` ne fait JAMAIS appel à `waouh-notify-dispatch` ni à `waouh-notify-buyers`. Conséquence directe :
-   - La cloche 🔔 (`WaouhNotificationsBell`) reste vide après une publication.
-   - Aucun acheteur correspondant n'est notifié quand une annonce est publiée via le chat (le matching tourne uniquement quand `waouh-sell-handler` est appelé, ce qui n'arrive pas pour les ventes faites depuis le chat web ou WhatsApp).
-   - Le vendeur ne reçoit pas non plus de "nouvel acheteur intéressé" tant que personne n'invoque `notify-buyers`.
+3. **Politiques RLS incohérentes avec le frontend**
+   - Des policies utilisent un header `x-waouh-session`, mais le client Supabase actuel n’envoie pas ce header.
+   - Le frontend essaie aussi de lire par `waouh_users.id` et `auth_user_id`, mais les policies ne couvrent pas correctement ce cas pour l’utilisateur connecté.
 
-4. **Les messages "Je vends …" peu détaillés** retombent sur `🤔 Je n'ai pas tous les détails` parce que le seuil `confidence < 0.5 || !price` est strict (cf. ligne 476). En base on voit "Je vends tira à 3000" → rejet. C'est le même code des deux côtés, mais ça donne l'impression que "l'app passe moins bien" car en WhatsApp on enchaîne plus naturellement.
+4. **Notifications in-app pas assez liées à la session/app**
+   - `waouh_notifications` stocke `user_id`, `photos`, `payload`, etc., mais pas de `web_session_id` direct.
+   - Pour l’app, il faut pouvoir retrouver les notifications à la fois par session web, compte connecté et identité WhatsApp liée.
 
-5. Le hook `useWaouhMatchNotifications` ne connaît que `match` / `match_buyer` / `match_seller` ; il ignore `sale_published` et `new_buyer` même quand ils existent.
+5. **Photos stockées mais pas toujours affichées**
+   - Les derniers messages et articles montrent bien des URLs de photos dans `attachments`, `photos` ou `waouh_notifications.photos`.
+   - Le problème semble donc plutôt être le chargement/autorisation/synchronisation côté application, plus que la création des photos.
 
 ## Plan de correction
 
-### A. Backend — `supabase/functions/waouh-webhook/index.ts`
-Dans la branche `intent.intent === "SELL"`, après l'insert de l'article et avant le `return` :
-1. **Fire-and-forget `waouh-notify-dispatch`** avec `{ kind: 'sale_published', article_id: art.id, recipient: 'seller' }` pour créer une notif in-app avec photos.
-2. **Fire-and-forget `waouh-notify-buyers`** avec `{ article_id: art.id }` pour lancer le matching et notifier les acheteurs intéressés.
-3. Si on est sur le canal `web` et qu'on connaît un `phone_number` du vendeur (ou inversement sur WhatsApp avec un `auth_user_id`), ajouter `contact_whatsapp` / `partner_id` lors de l'insert pour que `resolveContact` puisse aussi router la confirmation sur l'autre canal.
-4. **Assouplir la tolérance IA** : accepter dès `confidence >= 0.3` et tenter de récupérer un prix depuis la regex `/(\d[\d\s]{2,})\s*(?:FCFA|CFA|XOF|F)?/i` du texte brut si l'IA n'a pas extrait `price`. Ne renvoyer `🤔 Je n'ai pas tous les détails` que si on n'a vraiment ni titre ni prix.
+### 1. Corriger la base Supabase
 
-### B. Backend — `supabase/functions/waouh-notify-dispatch/index.ts`
-- Pour `sale_published`, si on a à la fois un `phone` vendeur ET un `waouh_user.auth_user_id`, créer **deux** notifications : une in-app + un message WhatsApp (déjà géré par `resolveContact` côté `whatsapp`, mais on veut systématiquement insérer la ligne `waouh_notifications` pour la cloche, même quand on envoie aussi sur WhatsApp). Le code actuel le fait déjà — vérifier que `notifTargetUserId` n'est jamais nul pour SELL (fallback sur `article.seller_id`).
+Créer une migration pour :
 
-### C. Frontend — `src/hooks/useWaouhMatchNotifications.ts`
-- Ajouter `sale_published` et `new_buyer` aux templates connus avec leurs titres ("✅ Annonce publiée", "🛒 Nouvel acheteur intéressé") et icônes, pour qu'ils apparaissent dans la cloche avec les photos `photos[]`.
-- S'assurer que le polling DB initial filtre `notification_type in ('match','sale_published','new_buyer','radar_match')`.
+- Ajouter `waouh_notifications` à `supabase_realtime` avec protection contre les doublons.
+- Ajouter `web_session_id` à `waouh_notifications` pour que l’application puisse charger les notifications par session.
+- Ajouter les index utiles :
+  - notifications par `user_id + sent_at`
+  - notifications par `web_session_id + sent_at`
+  - messages par `user_id + created_at`
+- Ajouter les GRANT nécessaires pour que l’app puisse lire les données WAOUH :
+  - `waouh_messages`
+  - `waouh_notifications`
+  - `waouh_outbound_queue`
+  - `waouh_users`
+- Ajuster les policies RLS pour autoriser :
+  - lecture des messages de la session courante
+  - lecture des messages des `waouh_users` liés au compte connecté
+  - lecture des notifications de la session courante
+  - lecture des notifications des `waouh_users` liés au compte connecté
+  - lecture limitée de `waouh_users` uniquement pour résoudre les identités de la session ou du compte connecté
 
-### D. Frontend — affichage chat (sécurité)
-- Vérifier que `WaouhWebChat.loadHistory` est bien rappelé après `sendCore` (déjà fait en ligne 247). Rien d'autre à changer.
+### 2. Corriger `waouh-notify-dispatch`
 
-## Test
+- Lors de l’insertion dans `waouh_notifications`, renseigner aussi `web_session_id` quand la cible a une session app/web.
+- Inclure dans `payload` :
+  - `article_id`
+  - `buyer_profile_id`
+  - `message_id` si disponible
+  - `photos`
+  - le canal résolu (`waouh_app`, `whatsapp`, `radar_ia`, `partner`)
+- Vérifier explicitement les erreurs d’insertion Supabase au lieu de les ignorer.
 
-1. Depuis l'app (`/app/chat/waouh`), envoyer `Je vends iPhone 13 256Go à 250000 FCFA` avec 2 photos.
-   - ✅ Bulle "Annonce publiée" affichée avec les photos.
-   - ✅ Une `waouh_notifications` `sale_published` apparaît, cloche +1, mêmes photos.
-   - ✅ Si un `waouh_buyer_profiles` matche, on voit aussi une `match` côté acheteur.
-2. Depuis WhatsApp, envoyer `Je vends Samsung A14 80000` + 1 photo.
-   - ✅ Confirmation WhatsApp inchangée.
-   - ✅ Si le compte WhatsApp est lié à un `auth_user_id`, la cloche in-app reçoit aussi `sale_published`.
-3. Envoyer un message vague `Je vends truc 3000`.
-   - ✅ Article créé (prix=3000, titre=truc) au lieu du message d'erreur.
-4. Vérifier les logs `waouh-webhook` + `waouh-notify-dispatch` : pas d'erreur, photos rehostées, `delivery_status = delivered` quand WhatsApp.
+### 3. Corriger `waouh-channel-in`
 
-## Risque
+- Après l’appel à `waouh-webhook`, retourner aussi au frontend :
+  - `attachments`
+  - `article_id`
+  - `transaction_id`
+  - `actions`
+- Aujourd’hui le message est persisté avec attachments, mais la réponse HTTP ne renvoie pas toutes ces données : si le refresh échoue à cause des permissions, l’UI peut perdre l’affichage immédiat.
+- En cas d’erreur de persistence du message entrant ou sortant, logger et retourner une erreur claire.
 
-Aucun changement de schéma — tout est déjà en place (migration du 28/05 a ajouté `photos[]`, `channel`, `delivery_status`). Les changements sont additifs côté edge functions et purement UI côté hook.
+### 4. Corriger `WaouhWebChat.tsx`
+
+- Ne plus supprimer le message optimiste si le refresh historique échoue silencieusement.
+- Vérifier les erreurs Supabase dans `loadHistory`; afficher un toast/log clair si la lecture est refusée.
+- Après envoi, fusionner :
+  - message optimiste utilisateur
+  - réponse backend
+  - historique Supabase
+  au lieu de remplacer brutalement par une liste potentiellement vide.
+- Quand la réponse backend contient des `attachments`, les afficher immédiatement.
+- Recalculer/charger les `waouhIds` juste après création d’un nouvel utilisateur WAOUH, pas seulement au montage.
+
+### 5. Corriger `useWaouhMatchNotifications.ts`
+
+- Charger l’historique depuis :
+  - `waouh_notifications`
+  - `waouh_outbound_queue`
+  - et fallback localStorage
+- Vérifier les erreurs Supabase au lieu d’ignorer `error`.
+- Lire les photos depuis :
+  - `row.photos[0]`
+  - `row.payload.photos[0]`
+  - `row.image_url`
+- Pour Realtime, s’abonner à :
+  - `waouh_notifications` par `web_session_id`
+  - `waouh_notifications` par chaque `user_id`
+  - `waouh_outbound_queue` par `web_session_id`
+  - `waouh_outbound_queue` par chaque `user_id`
+
+### 6. Vérification
+
+Tester ensuite :
+
+- Publier une annonce dans l’application avec photo.
+  - Le message envoyé reste visible.
+  - Le retour “Annonce publiée” apparaît.
+  - La photo s’affiche dans la bulle.
+  - La notification “Annonce publiée” apparaît avec photo.
+
+- Rechercher l’annonce dans l’application.
+  - Les annonces trouvées affichent les mêmes photos que celles stockées.
+
+- Publier/rechercher depuis WhatsApp.
+  - Le message WhatsApp est stocké.
+  - Le retour WhatsApp est aussi visible dans l’application quand l’identité est liée.
+  - Les notifications `match`, `new_buyer`, `sale_published` apparaissent avec les photos.
+
+- Vérifier en base :
+  - lignes dans `waouh_messages`
+  - lignes dans `waouh_notifications`
+  - photos dans `attachments` / `photos`
+  - `web_session_id` ou `user_id` correct pour chaque notification.
+
+## Fichiers à modifier
+
+- `supabase/migrations/...sql`
+- `supabase/functions/waouh-notify-dispatch/index.ts`
+- `supabase/functions/waouh-channel-in/index.ts`
+- `src/components/waouh/WaouhWebChat.tsx`
+- `src/hooks/useWaouhMatchNotifications.ts`
+- éventuellement `src/components/waouh/WaouhNotificationsBell.tsx` pour mieux afficher les miniatures si nécessaire.
