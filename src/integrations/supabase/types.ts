@@ -5736,10 +5736,13 @@ export type Database = {
           current_article_id: string | null
           current_transaction_id: string | null
           id: string
+          last_direction: string | null
+          last_inbound_at: string | null
           last_intent: string | null
           last_message: string | null
           phone_number: string
           state: string
+          unread_count: number
           updated_at: string
           user_id: string | null
         }
@@ -5749,10 +5752,13 @@ export type Database = {
           current_article_id?: string | null
           current_transaction_id?: string | null
           id?: string
+          last_direction?: string | null
+          last_inbound_at?: string | null
           last_intent?: string | null
           last_message?: string | null
           phone_number: string
           state?: string
+          unread_count?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -5762,10 +5768,13 @@ export type Database = {
           current_article_id?: string | null
           current_transaction_id?: string | null
           id?: string
+          last_direction?: string | null
+          last_inbound_at?: string | null
           last_intent?: string | null
           last_message?: string | null
           phone_number?: string
           state?: string
+          unread_count?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -6079,6 +6088,7 @@ export type Database = {
         Row: {
           article_id: string | null
           channel: string | null
+          conversation_id: string | null
           dedupe_key: string | null
           delivered_at: string | null
           delivery_status: string | null
@@ -6087,6 +6097,7 @@ export type Database = {
           opened: boolean
           payload: Json | null
           photos: string[] | null
+          read_at: string | null
           sent_at: string
           user_id: string
           web_session_id: string | null
@@ -6094,6 +6105,7 @@ export type Database = {
         Insert: {
           article_id?: string | null
           channel?: string | null
+          conversation_id?: string | null
           dedupe_key?: string | null
           delivered_at?: string | null
           delivery_status?: string | null
@@ -6102,6 +6114,7 @@ export type Database = {
           opened?: boolean
           payload?: Json | null
           photos?: string[] | null
+          read_at?: string | null
           sent_at?: string
           user_id: string
           web_session_id?: string | null
@@ -6109,6 +6122,7 @@ export type Database = {
         Update: {
           article_id?: string | null
           channel?: string | null
+          conversation_id?: string | null
           dedupe_key?: string | null
           delivered_at?: string | null
           delivery_status?: string | null
@@ -6117,6 +6131,7 @@ export type Database = {
           opened?: boolean
           payload?: Json | null
           photos?: string[] | null
+          read_at?: string | null
           sent_at?: string
           user_id?: string
           web_session_id?: string | null
@@ -10211,6 +10226,10 @@ export type Database = {
       }
       waouh_link_session: {
         Args: { p_session_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      waouh_mark_conversation_read: {
+        Args: { p_conv_id: string }
         Returns: undefined
       }
       waouh_match_signal: { Args: { p_signal_id: string }; Returns: Json }
