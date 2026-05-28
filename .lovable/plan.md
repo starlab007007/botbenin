@@ -1,82 +1,75 @@
-# Plan — Multi-tenant scoping, public chat avec paywall, page d'accueil
+## 1. Module Diffusion — boutons d'action invisibles
 
-## 1. Isolation stricte par utilisateur (chacun voit uniquement ses données)
+**Diagnostic**
+- Les boutons `Enregistrer` (Ajouter contact), `Importer N` (Import) et `Créer la campagne` existent bien dans le `footer` du composant `NativeScreen` (lignes 439, 1006, 1082 de `DiffusionScreen.tsx`).
+- Le composant `NativeScreen` est en `fixed inset-0 z-[60]`, mais le `<footer>` est rendu **après** le `<main>` qui occupe toute la hauteur. Sur petits viewports (≤ 700 px) avec clavier ouvert + `env(safe-area-inset-bottom)`, le footer sort de l'écran car `flex-col` sans `min-h-0` sur le conteneur racine peut laisser le main pousser le footer.
+- Aucun bouton explicite **« Créer & Lancer »** n'existe : la création produit uniquement un brouillon, l'utilisateur doit ensuite retrouver la campagne dans la liste pour cliquer « Lancer » → impression que le bouton manque.
 
-### a. WhatsApp IA (`src/app-mobile/screens/WhatsAppScreen.tsx`)
-- Bug actuel: la requête utilise `.or('user_id.eq.${user.id},is_admin_shared.eq.true')` → l'utilisateur voit aussi toutes les sessions admin partagées.
-- Correction: filtrer uniquement `.eq('user_id', user.id)`. Plus aucun affichage de sessions partagées.
-- Vérifier le realtime channel pour qu'il filtre aussi par `user_id`.
+**Corrections**
+- `NativeScreen` : ajouter `min-h-0` sur le wrapper et garantir `flex-shrink-0` sur le `footer` ; rendre le footer **sticky** (position sticky bottom-0) avec `z-10` à l'intérieur du conteneur fixed, et appliquer `pb-[calc(env(safe-area-inset-bottom)+12px)]`. Ajouter `mb-[80px]` au main si BottomTabBar visible.
+- Ajouter dans le formulaire « Nouvelle campagne » un **double bouton** dans le footer :
+  - `Enregistrer (brouillon)` (secondaire)
+  - `Créer & Lancer maintenant` (primaire vert) → enchaîne `createCampaign` puis `launchCampaign(id)`.
+- Idem pour `ContactAddScreen` et `ContactImportScreen` : footer sticky, et désactivation visuelle claire si champs vides (pas masqué).
 
-### b. Vérif (déjà OK, à confirmer en passant)
-- Bots (knowledge_bases) — filtré `user_id=eq.${user.id}` ✓
-- Diffusion (whatsapp_diffusion_sessions) — insert lie `user_id`, fetch déjà scopé ✓
-- Partenaire (waouh_partners) — déjà `.eq('user_id', user.id)` ✓
-- Conversations (waouh_conversations) — déjà via `waouhUserIds` ✓
+## 2. Module WhatsApp IA — isolation stricte par utilisateur
 
-### c. Audit RLS Supabase
-- Linter Supabase sur `whatsapp_accounts`, `knowledge_bases`, `whatsapp_diffusion_sessions`, `waouh_partners` pour s'assurer que les policies SELECT exigent `auth.uid() = user_id` (et ne tolèrent pas `is_admin_shared`).
-- Migration corrective si une policy permet la fuite cross-user.
+**Diagnostic**
+Trois fuites identifiées via `pg_policy` sur `whatsapp_accounts` :
+1. Policy `WA: anyone can view admin shared accounts` → `USING (is_admin_shared = true)` : tout compte marqué partagé est visible par tous.
+2. Policy `whatsapp_accounts_select_own` autorise `user_has_permission(auth.uid(),'whatsapp.view.all')` → permission largement attribuée.
+3. Hook `useDiffusionSessions` (`src/hooks/useDiffusionSessions.ts`) fait toujours `.or('user_id.eq.{id},is_admin_shared.eq.true')`.
+4. Hook `useWhatsAppAccounts.ts` ligne 44–52 fait un `SELECT *` sans filtre `user_id` (s'appuie sur RLS, mais les policies ci-dessus laissent passer le shared).
 
-## 2. Renommage "WhatsApp" → "WhatsApp IA"
+**Corrections (migration SQL + code)**
+- Migration : `DROP POLICY` sur les 2 policies fuyantes (`WA: anyone can view admin shared accounts`, `WA: admins manage shared accounts`), et réécrire `whatsapp_accounts_select_own` pour ne plus inclure `whatsapp.view.all`. Faire pareil pour `update`/`delete`/`insert` (retirer les branches OR par permission).
+- Migration : `UPDATE public.whatsapp_accounts SET is_admin_shared = false` (purge sécuritaire).
+- Code : retirer toute branche `is_admin_shared` de `useDiffusionSessions.ts` (filtre `eq('user_id', user.id)` simple) et supprimer la notion de « sessions partagées » dans `DiffusionScreen.tsx` (`isShared`, switch admin).
+- Code : `useWhatsAppAccounts.ts` → ajouter `.eq('user_id', user.id)` explicite + filtrer realtime channel par `user_id=eq.{id}`.
+- Vérifier policies sœurs sur `whatsapp_bot_links`, `wa_contacts`, `wa_campaigns` → ne garder que `auth.uid() = user_id`.
 
-- `src/app-mobile/layouts/BottomTabBar.tsx` : label `WhatsApp` → `WhatsApp IA`.
-- Tous titres / boutons / placeholders dans `WhatsAppScreen.tsx` ("Nouvelle session WhatsApp", "Aucune session WhatsApp", "Connecter WhatsApp", etc.) → "WhatsApp IA".
-- `NotificationsScreen.tsx` : `"WhatsApp"` badge → `"WhatsApp IA"`.
-- Garder les libellés "WhatsApp" uniquement lorsqu'on parle du vrai produit Meta (ex: "Ouvrez WhatsApp sur votre téléphone" lors du scan QR).
+## 3. Historique messages & notifications par utilisateur
 
-## 3. Accès public à `/app/chat` + paywall après 10 messages
+**Diagnostic**
+- `ChatListScreen` n'affiche les conversations qu'à partir de `waouh_users.id` (`useWaouhIdentity`), pas des messages WhatsApp entrants.
+- Les messages reçus via WhatsApp (table `whatsapp_messages` / sessions WAHA) ne sont pas fusionnés dans l'historique app.
+- `NotificationsScreen` (143 lignes) ne souscrit pas en realtime → pas de badge « nouveau ».
+- Pas de marquage `is_read` ni d'action « Répondre » depuis la liste.
 
-### Routage (`src/AppMobile.tsx`)
-- Sortir `chat` du sous-arbre protégé par `RequireMobileAuth`.
-- Nouvelle structure:
-  - Route publique `/app/chat` → `ChatListScreen` (mode public: n'affiche que la carte WAOUH épinglée, pas la liste de conversations privées).
-  - Route publique `/app/chat/waouh` → `WaouhChatScreen`.
-  - Toutes les autres routes (`bots`, `whatsapp`, `diffusion`, `partner`, `notifications`, `profile`, `chat/:id`) restent sous `RequireMobileAuth`.
+**Corrections**
+- Créer un hook unifié `useUnifiedInbox(userId)` qui agrège en parallèle :
+  - Messages app (`waouh_messages` via `waouh_users.id`)
+  - Messages WhatsApp (`whatsapp_messages` filtrés par `whatsapp_accounts.user_id = auth.uid()`)
+  - Notifications (`notifications` filtrées par `user_id`)
+  Retourne `conversations[]` triées par `last_message_at`, avec `unread_count` calculé via `last_read_at` (localStorage par conversation).
+- Souscriptions realtime : un channel par table, filtré par `user_id`, qui invalide le cache local et incrémente `unread_count`.
+- `ChatListScreen` : badge vert « Nouveau » sur conversations `unread_count > 0`, ouverture marque comme lu.
+- `ChatScreen` : input de réponse déjà présent — câbler `onSend` pour router vers WhatsApp (edge function `waha-send-message`) si conversation type=whatsapp, sinon vers `waouh_messages`.
+- `NotificationsScreen` : realtime subscribe + bouton « Marquer comme lu » + groupement par jour.
 
-### `ChatListScreen` mode invité
-- Si `user` est null: masquer la recherche de conversations, masquer l'avatar profil (remplacer par bouton "Se connecter"), n'afficher que la carte WAOUH + un bouton "Se connecter" dans le header.
+## Détails techniques
 
-### Paywall 10 messages dans `WaouhChatScreen` / `WaouhWebChat`
-- Compteur `guest_msg_count` en `localStorage` (clé `waouh_guest_msg_count`).
-- À chaque envoi utilisateur (`onUserSend`), si `!user` : incrémenter.
-- Si compteur ≥ 10 et `!user` : bloquer le composer, afficher un overlay "Connectez-vous pour continuer" avec CTA → `navigate('/app/auth', { state: { from: '/app/chat/waouh' } })`.
-- Reset du compteur à la connexion réussie.
+**Fichiers à modifier**
+- `src/app-mobile/screens/DiffusionScreen.tsx` (footer sticky, bouton Créer & Lancer)
+- `src/hooks/useDiffusionSessions.ts` (suppression du OR shared)
+- `src/hooks/useWhatsAppAccounts.ts` (filtre user_id explicite)
+- `src/hooks/useWaDiffusion.ts` (méthode `createAndLaunch`)
+- `src/app-mobile/hooks/useUnifiedInbox.ts` (nouveau)
+- `src/app-mobile/screens/ChatListScreen.tsx` (intégration inbox unifié + badges)
+- `src/app-mobile/screens/ChatScreen.tsx` (routage réponse WA vs app)
+- `src/app-mobile/screens/NotificationsScreen.tsx` (realtime + marquage lu)
 
-### Guard d'actions pour invités
-- Créer un petit hook `useRequireAuthAction()` qui: si `!user`, affiche un toast "Connectez-vous pour continuer" et redirige vers `/app/auth`.
-- Brancher dans:
-  - Bouton "Nouveau bot" (`KnowledgeBasesListScreen` → bouton `+`)
-  - Bouton "Nouvelle session WhatsApp IA" (`WhatsAppScreen`)
-  - Bouton "Nouvelle campagne" (`DiffusionScreen`)
-  - Bouton "Ajouter entreprise" (`PartnerBusinessesScreen`)
-- Concrètement: comme ces écrans restent derrière `RequireMobileAuth`, la garde route les rattrape déjà. Mais on ajoute une garde en plus pour les liens directs / cas où l'écran serait atteint via deep link.
+**Migration SQL (résumé)**
+```sql
+DROP POLICY "WA: anyone can view admin shared accounts" ON public.whatsapp_accounts;
+DROP POLICY "WA: admins manage shared accounts" ON public.whatsapp_accounts;
+DROP POLICY "whatsapp_accounts_select_own" ON public.whatsapp_accounts;
+CREATE POLICY "whatsapp_accounts_select_own" ON public.whatsapp_accounts
+  FOR SELECT USING (user_id = auth.uid());
+-- Idem update/delete/insert sans branche permission
+UPDATE public.whatsapp_accounts SET is_admin_shared = false;
+```
 
-## 4. `/app/chat` comme page d'accueil de bot.bj
-
-Deux cas selon le bundle servi sur `bot.bj` :
-
-### Bundle mobile (`AppMobile.tsx`)
-- Catch-all `*` redirige déjà vers `/app/chat` ✓ — vérifier que `/` aussi (ajouter `<Route path="/" element={<Navigate to="/app/chat" replace />} />`).
-
-### Bundle web (`App.tsx`)
-- Modifier la route `/` pour rediriger vers `/app/chat` (ou monter le même `WaouhChatScreen` public selon ce qui est exposé sur bot.bj).
-- À confirmer avec l'utilisateur: bot.bj sert-il le bundle mobile ou web ? (à vérifier dans la config nginx/build CI, mais on rendra les deux cohérents.)
-
-## 5. Détails techniques
-
-- `useMobileAuth` ne change pas — on l'utilise pour exposer `user`.
-- Pas de modification du schéma DB sauf si l'audit RLS révèle une fuite (probable sur `whatsapp_accounts` à cause de `is_admin_shared`).
-- Aucune dépendance nouvelle.
-
-## Fichiers touchés (estimation)
-
-- `src/AppMobile.tsx` (routes)
-- `src/App.tsx` (route /)
-- `src/app-mobile/screens/WhatsAppScreen.tsx` (filtre + libellés)
-- `src/app-mobile/layouts/BottomTabBar.tsx` (libellé)
-- `src/app-mobile/screens/NotificationsScreen.tsx` (libellé)
-- `src/app-mobile/screens/ChatListScreen.tsx` (mode invité)
-- `src/app-mobile/screens/WaouhChatScreen.tsx` + composant `WaouhWebChat` (paywall 10 msg)
-- Nouveau `src/app-mobile/hooks/useRequireAuthAction.ts`
-- Boutons "+" dans `KnowledgeBasesListScreen`, `WhatsAppScreen`, `DiffusionScreen`, `PartnerBusinessesScreen`
-- Migration Supabase si fuite RLS confirmée sur `whatsapp_accounts`
+**Compatibilité**
+- Aucun changement de schéma de table, uniquement policies + valeurs.
+- Le mode « shared admin » est retiré de l'UI ; un admin peut toujours se créer ses propres sessions.
