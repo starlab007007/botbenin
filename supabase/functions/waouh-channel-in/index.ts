@@ -345,13 +345,15 @@ serve(async (req) => {
     }
 
     // Persist incoming
-    await sb.from("waouh_messages").insert({
+    const { data: inboundRow } = await sb.from("waouh_messages").insert({
       conversation_id: convId,
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
       meta: { to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
-    });
+    }).select("id").maybeSingle();
+    const inboundMessageId: string | null = inboundRow?.id ?? null;
+
 
     // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router
     const { data: openNeg } = await sb
@@ -395,9 +397,10 @@ serve(async (req) => {
           await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId, attachments: negAttachments }), {
+      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+
     }
 
     // Call core engine
@@ -438,9 +441,10 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, inbound_message_id: inboundMessageId, article_id: core.article_id ?? null, transaction_id: core.transaction_id ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (e: any) {
     console.error("[waouh-channel-in] error", e);
     return new Response(JSON.stringify({ error: e.message }), {

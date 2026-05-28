@@ -260,12 +260,25 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         },
       });
       if (error) throw error;
-      // Force-refresh full history (session + all resolved waouh_users.id) so
-      // every message persisted by the backend appears, regardless of channel.
+      const realInId = (data as any)?.inbound_message_id ?? null;
+      // Replace the optimistic IN msg with the real id (dedupes against realtime/loadHistory).
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== tempInId);
+        if (realInId && !filtered.some((m) => m.id === realInId)) {
+          filtered.push({
+            id: realInId,
+            direction: "in",
+            text: text || "(image)",
+            created_at: now,
+            attachments: atts,
+          });
+        }
+        return filtered;
+      });
+      // Force-refresh full history so every persisted message appears.
       await loadHistory(waouhIds);
       if ((data as any)?.reply) {
         setMessages((prev) => {
-          // If the backend already persisted a reply, loadHistory got it; skip optimistic.
           const hasFresh = prev.some((m) => m.direction === "out" && m.created_at && new Date(m.created_at).getTime() > Date.now() - 15000);
           if (hasFresh) return prev;
           return [
@@ -289,6 +302,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       setSending(false);
     }
   };
+
 
   const send = async () => {
     const text = input.trim();

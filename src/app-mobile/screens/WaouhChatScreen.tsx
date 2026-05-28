@@ -4,6 +4,8 @@ import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLef
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
+import { WaouhMatchChats } from "@/components/waouh/WaouhMatchChats";
+
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { WaouhCityBadge } from "@/components/waouh/WaouhCityBadge";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
@@ -195,11 +197,15 @@ export default function WaouhChatScreen() {
       </header>
 
       {/* Chat fills remaining space — composer is at bottom with chips sitting right above it */}
-      <div className="flex-1 min-h-0">
-        <ErrorBoundary fallback={<MobileErrorFallback />}>
-          <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
-        </ErrorBoundary>
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0">
+          <ErrorBoundary fallback={<MobileErrorFallback />}>
+            <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
+          </ErrorBoundary>
+        </div>
+        <WaouhMatchChats sessionId={sessionId} authUserId={profile?.id ?? null} />
       </div>
+
     </div>
   );
 }

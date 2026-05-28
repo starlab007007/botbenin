@@ -343,7 +343,7 @@ serve(async (req) => {
         }
       }
       if (!target) return;
-      // Ne pas se renvoyer le message à soi-même
+      // Ne pas se renvoyer le message à soi-même (par id user, par phone, OU par web_session_id)
       if (target.id && user?.id && target.id === user.id) return;
       const outboundPhone = opts.to_phone ? normalizeBeninPhone(opts.to_phone) : (target.phone_number ? normalizeBeninPhone(target.phone_number) : null);
       if (outboundPhone && phone) {
@@ -351,6 +351,9 @@ serve(async (req) => {
         const meCanon = normalizeBeninPhone(phone);
         if (tgtCanon && meCanon && tgtCanon === meCanon) return;
       }
+      const targetWs = target.web_session_id || opts.to_web_session_id || null;
+      if (targetWs && webSessionId && targetWs === webSessionId) return;
+
 
       const webSession = target.web_session_id || opts.to_web_session_id || null;
       let insertedMsgId: string | null = null;
