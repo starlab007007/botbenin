@@ -242,7 +242,30 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         image_url: pickPhoto,
       };
       upsertNotif(notif);
+      // Auto-open a dedicated chat window for match-type notifications
+      const matchKinds = ["match", "match_buyer", "match_seller", "new_buyer"];
+      if (matchKinds.includes(row.notification_type) && row.article_id) {
+        const kind =
+          row.notification_type === "match_seller" || row.notification_type === "new_buyer"
+            ? "seller"
+            : "buyer";
+        try {
+          window.dispatchEvent(
+            new CustomEvent("waouh:open-match-chat", {
+              detail: {
+                article_id: row.article_id,
+                kind,
+                title: row.payload?.title,
+                price: row.payload?.price,
+                city: row.payload?.city,
+                photo: pickPhoto,
+              },
+            })
+          );
+        } catch {}
+      }
     };
+
 
     channels.push(
       supabase
