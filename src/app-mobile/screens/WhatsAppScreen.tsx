@@ -79,8 +79,9 @@ export default function WhatsAppScreen() {
     return () => { supabase.removeChannel(ch); };
   }, [user, loadDb]);
 
-  // Merge DB + live WAHA
+  // Merge DB + live WAHA — strict per-user: ignore live sessions not owned by current user
   const merged: WAHASession[] = useMemo(() => {
+    const allowed = new Set(dbSessions.map((d) => d.session_name));
     const map = new Map<string, WAHASession>();
     for (const db of dbSessions) {
       map.set(db.session_name, {
@@ -91,11 +92,13 @@ export default function WhatsAppScreen() {
       });
     }
     for (const live of sessions) {
+      if (!allowed.has(live.name)) continue; // hide other users' WAHA sessions
       const prev = map.get(live.name);
       map.set(live.name, { ...prev, ...live, config: { ...prev?.config, ...live.config } });
     }
     return Array.from(map.values());
   }, [dbSessions, sessions]);
+
 
   const handleRefresh = async () => {
     await Promise.all([refreshData(), loadDb()]);

@@ -36,7 +36,7 @@ async function fetchLiveSessions(): Promise<Record<string, string>> {
 export function useDiffusionSessions() {
   const { user } = useAuth();
   const [mine, setMine] = useState<DiffSession[]>([]);
-  const [shared, setShared] = useState<DiffSession[]>([]);
+
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -65,8 +65,7 @@ export function useDiffusionSessions() {
       supabase.from('whatsapp_accounts').update({ status: u.status, last_activity: new Date().toISOString() }).eq('id', u.id).then(() => {});
     }
 
-    setMine(rows.filter(r => r.user_id === user.id && !r.is_admin_shared));
-    setShared(rows.filter(r => r.is_admin_shared));
+    setMine(rows.filter(r => r.user_id === user.id));
     setLoading(false);
   }, [user]);
 
@@ -78,5 +77,6 @@ export function useDiffusionSessions() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  return { mine, shared, all: [...mine, ...shared], loading, refresh, isActive: (s: DiffSession) => ACTIVE.has(s.status) };
+  return { mine, shared: [] as DiffSession[], all: mine, loading, refresh, isActive: (s: DiffSession) => ACTIVE.has(s.status) };
 }
+

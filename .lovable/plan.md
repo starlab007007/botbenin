@@ -1,75 +1,51 @@
-## 1. Module Diffusion — boutons d'action invisibles
+# Isolation stricte des sessions WhatsApp IA par utilisateur
 
-**Diagnostic**
-- Les boutons `Enregistrer` (Ajouter contact), `Importer N` (Import) et `Créer la campagne` existent bien dans le `footer` du composant `NativeScreen` (lignes 439, 1006, 1082 de `DiffusionScreen.tsx`).
-- Le composant `NativeScreen` est en `fixed inset-0 z-[60]`, mais le `<footer>` est rendu **après** le `<main>` qui occupe toute la hauteur. Sur petits viewports (≤ 700 px) avec clavier ouvert + `env(safe-area-inset-bottom)`, le footer sort de l'écran car `flex-col` sans `min-h-0` sur le conteneur racine peut laisser le main pousser le footer.
-- Aucun bouton explicite **« Créer & Lancer »** n'existe : la création produit uniquement un brouillon, l'utilisateur doit ensuite retrouver la campagne dans la liste pour cliquer « Lancer » → impression que le bouton manque.
+## Diagnostic
 
-**Corrections**
-- `NativeScreen` : ajouter `min-h-0` sur le wrapper et garantir `flex-shrink-0` sur le `footer` ; rendre le footer **sticky** (position sticky bottom-0) avec `z-10` à l'intérieur du conteneur fixed, et appliquer `pb-[calc(env(safe-area-inset-bottom)+12px)]`. Ajouter `mb-[80px]` au main si BottomTabBar visible.
-- Ajouter dans le formulaire « Nouvelle campagne » un **double bouton** dans le footer :
-  - `Enregistrer (brouillon)` (secondaire)
-  - `Créer & Lancer maintenant` (primaire vert) → enchaîne `createCampaign` puis `launchCampaign(id)`.
-- Idem pour `ContactAddScreen` et `ContactImportScreen` : footer sticky, et désactivation visuelle claire si champs vides (pas masqué).
+Les requêtes Supabase sont déjà strictement filtrées par `user_id = auth.uid()` (RLS + code) dans :
+- `useWhatsAppAccounts.ts` (ligne 51)
+- `WhatsAppScreen.tsx` `loadDb` (ligne 61) et realtime (ligne 75)
+- `useDiffusionSessions.ts` (depuis la migration `wa_*_own_only`)
 
-## 2. Module WhatsApp IA — isolation stricte par utilisateur
+**Le vrai problème** : dans `WhatsAppScreen.tsx` (lignes 83–98), `merged` combine :
+- `dbSessions` → propres au user ✅
+- `sessions` → sessions live retournées par le serveur WAHA, qui liste **TOUTES les sessions de tous les utilisateurs** (le serveur WAHA ne connaît pas la notion de user Supabase).
 
-**Diagnostic**
-Trois fuites identifiées via `pg_policy` sur `whatsapp_accounts` :
-1. Policy `WA: anyone can view admin shared accounts` → `USING (is_admin_shared = true)` : tout compte marqué partagé est visible par tous.
-2. Policy `whatsapp_accounts_select_own` autorise `user_has_permission(auth.uid(),'whatsapp.view.all')` → permission largement attribuée.
-3. Hook `useDiffusionSessions` (`src/hooks/useDiffusionSessions.ts`) fait toujours `.or('user_id.eq.{id},is_admin_shared.eq.true')`.
-4. Hook `useWhatsAppAccounts.ts` ligne 44–52 fait un `SELECT *` sans filtre `user_id` (s'appuie sur RLS, mais les policies ci-dessus laissent passer le shared).
+Résultat : un utilisateur voit les sessions WhatsApp des autres comptes parce qu'elles remontent via WAHA.
 
-**Corrections (migration SQL + code)**
-- Migration : `DROP POLICY` sur les 2 policies fuyantes (`WA: anyone can view admin shared accounts`, `WA: admins manage shared accounts`), et réécrire `whatsapp_accounts_select_own` pour ne plus inclure `whatsapp.view.all`. Faire pareil pour `update`/`delete`/`insert` (retirer les branches OR par permission).
-- Migration : `UPDATE public.whatsapp_accounts SET is_admin_shared = false` (purge sécuritaire).
-- Code : retirer toute branche `is_admin_shared` de `useDiffusionSessions.ts` (filtre `eq('user_id', user.id)` simple) et supprimer la notion de « sessions partagées » dans `DiffusionScreen.tsx` (`isShared`, switch admin).
-- Code : `useWhatsAppAccounts.ts` → ajouter `.eq('user_id', user.id)` explicite + filtrer realtime channel par `user_id=eq.{id}`.
-- Vérifier policies sœurs sur `whatsapp_bot_links`, `wa_contacts`, `wa_campaigns` → ne garder que `auth.uid() = user_id`.
+## Correctif
 
-## 3. Historique messages & notifications par utilisateur
+### 1. `src/app-mobile/screens/WhatsAppScreen.tsx`
+Filtrer les sessions WAHA live pour ne garder que celles dont le `name` existe dans `dbSessions` du user connecté.
 
-**Diagnostic**
-- `ChatListScreen` n'affiche les conversations qu'à partir de `waouh_users.id` (`useWaouhIdentity`), pas des messages WhatsApp entrants.
-- Les messages reçus via WhatsApp (table `whatsapp_messages` / sessions WAHA) ne sont pas fusionnés dans l'historique app.
-- `NotificationsScreen` (143 lignes) ne souscrit pas en realtime → pas de badge « nouveau ».
-- Pas de marquage `is_read` ni d'action « Répondre » depuis la liste.
-
-**Corrections**
-- Créer un hook unifié `useUnifiedInbox(userId)` qui agrège en parallèle :
-  - Messages app (`waouh_messages` via `waouh_users.id`)
-  - Messages WhatsApp (`whatsapp_messages` filtrés par `whatsapp_accounts.user_id = auth.uid()`)
-  - Notifications (`notifications` filtrées par `user_id`)
-  Retourne `conversations[]` triées par `last_message_at`, avec `unread_count` calculé via `last_read_at` (localStorage par conversation).
-- Souscriptions realtime : un channel par table, filtré par `user_id`, qui invalide le cache local et incrémente `unread_count`.
-- `ChatListScreen` : badge vert « Nouveau » sur conversations `unread_count > 0`, ouverture marque comme lu.
-- `ChatScreen` : input de réponse déjà présent — câbler `onSend` pour router vers WhatsApp (edge function `waha-send-message`) si conversation type=whatsapp, sinon vers `waouh_messages`.
-- `NotificationsScreen` : realtime subscribe + bouton « Marquer comme lu » + groupement par jour.
-
-## Détails techniques
-
-**Fichiers à modifier**
-- `src/app-mobile/screens/DiffusionScreen.tsx` (footer sticky, bouton Créer & Lancer)
-- `src/hooks/useDiffusionSessions.ts` (suppression du OR shared)
-- `src/hooks/useWhatsAppAccounts.ts` (filtre user_id explicite)
-- `src/hooks/useWaDiffusion.ts` (méthode `createAndLaunch`)
-- `src/app-mobile/hooks/useUnifiedInbox.ts` (nouveau)
-- `src/app-mobile/screens/ChatListScreen.tsx` (intégration inbox unifié + badges)
-- `src/app-mobile/screens/ChatScreen.tsx` (routage réponse WA vs app)
-- `src/app-mobile/screens/NotificationsScreen.tsx` (realtime + marquage lu)
-
-**Migration SQL (résumé)**
-```sql
-DROP POLICY "WA: anyone can view admin shared accounts" ON public.whatsapp_accounts;
-DROP POLICY "WA: admins manage shared accounts" ON public.whatsapp_accounts;
-DROP POLICY "whatsapp_accounts_select_own" ON public.whatsapp_accounts;
-CREATE POLICY "whatsapp_accounts_select_own" ON public.whatsapp_accounts
-  FOR SELECT USING (user_id = auth.uid());
--- Idem update/delete/insert sans branche permission
-UPDATE public.whatsapp_accounts SET is_admin_shared = false;
+```ts
+const merged: WAHASession[] = useMemo(() => {
+  const allowed = new Set(dbSessions.map(d => d.session_name));
+  const map = new Map<string, WAHASession>();
+  for (const db of dbSessions) {
+    map.set(db.session_name, { name: db.session_name, status: ..., ... });
+  }
+  for (const live of sessions) {
+    if (!allowed.has(live.name)) continue;   // <- ignore sessions d'autres users
+    const prev = map.get(live.name);
+    map.set(live.name, { ...prev, ...live, config: { ...prev?.config, ...live.config } });
+  }
+  return Array.from(map.values());
+}, [dbSessions, sessions]);
 ```
 
-**Compatibilité**
-- Aucun changement de schéma de table, uniquement policies + valeurs.
-- Le mode « shared admin » est retiré de l'UI ; un admin peut toujours se créer ses propres sessions.
+### 2. `src/hooks/useDiffusionSessions.ts`
+- Supprimer la branche `shared` (sessions admin partagées) — la migration RLS a déjà purgé `is_admin_shared`, mais le code expose encore `s.shared` consommé par `DiffusionScreen` (section "Partagées admin").
+- Retourner uniquement `mine` (sessions du user), retirer `shared` du type retourné.
+- Adapter `DiffusionScreen.tsx` (SessionsTab) pour retirer le bloc `s.shared.length > 0` et le badge "Partagée".
+
+### 3. Vérification (lecture seule)
+Confirmer qu'aucune autre vue ne contourne le filtre :
+- `useWAHADashboard.ts` → utilisé seulement pour l'écran admin/diagnostic, à laisser tel quel mais ne PAS l'utiliser pour rendre des cartes côté user final.
+
+## Fichiers touchés
+- `src/app-mobile/screens/WhatsAppScreen.tsx` — filtre `merged` par `allowed`
+- `src/hooks/useDiffusionSessions.ts` — suppression `shared`
+- `src/app-mobile/screens/DiffusionScreen.tsx` — suppression UI "Partagées admin"
+
+Aucune migration SQL nécessaire (les RLS sont déjà strictes).

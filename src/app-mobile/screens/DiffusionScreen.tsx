@@ -1176,14 +1176,8 @@ function SessionsTab({
         )}
       </div>
 
-      {s.shared.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase mb-1.5 flex items-center gap-1">
-            <Share2 className="h-3 w-3" /> Partagées admin ({s.shared.length})
-          </div>
-          <div className="divide-y border rounded-xl bg-card">{s.shared.map(renderRow)}</div>
-        </div>
-      )}
+
+
 
       <p className="text-[11px] text-muted-foreground border-t pt-2">
         💡 Une session = un téléphone WhatsApp scanné. Vos campagnes l'utilisent pour envoyer.
