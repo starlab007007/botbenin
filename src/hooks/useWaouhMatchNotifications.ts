@@ -298,7 +298,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         channels.push(
           supabase
             .channel(`waouh_outbound_u_${u.id}_${suffix}`)
-            .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_outbound_queue", filter: `user_id=eq.${u.id}` }, onQueueInsert)
+            .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_outbound_queue", filter: `to_user_id=eq.${u.id}` }, onQueueInsert)
             .subscribe()
         );
         channels.push(
