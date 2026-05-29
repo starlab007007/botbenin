@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
     // 4. Pre-seed conversation context (last_matches → article en index 1)
     const { error: cErr } = await sb.from("waouh_conversations").insert({
       user_id: buyer.id,
+      phone_number: `web:${buyerSession}`,
       state: "browsing",
       channel: "web",
       context: { last_matches: [{ id: article.id, title: article.title, price: 150000, photos: [photoUrl], seller_id: seller.id, source: "chat" }] },
