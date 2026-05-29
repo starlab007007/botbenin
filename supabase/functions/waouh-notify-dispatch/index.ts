@@ -77,11 +77,22 @@ async function sendWhatsAppCard(chatId: string, text: string, photos: string[]) 
 function buildText(kind: string, article: any, buyerProfile: any, recipient: string) {
   const price = article?.price ? `${Number(article.price).toLocaleString("fr-FR")} FCFA` : "";
   const city = article?.city ? ` · ${article.city}` : "";
+  // Distance best-effort (null si coords manquantes)
+  const dKm = distanceKm(
+    article?.lat ?? article?.latitude ?? null,
+    article?.lng ?? article?.longitude ?? null,
+    buyerProfile?.lat ?? buyerProfile?.latitude ?? null,
+    buyerProfile?.lng ?? buyerProfile?.longitude ?? null,
+  );
   if (kind === "match" && recipient === "buyer") {
-    return `🎯 Nouvelle annonce qui correspond à votre recherche !\n\n📦 ${article.title}\n💰 ${price}${city}\n\nRépondez ACHETER pour être mis en relation.`;
+    return buildBuyerMatchText({ article, distanceKmValue: dKm });
   }
   if (kind === "new_buyer" && recipient === "seller") {
-    return `🛒 Nouvel acheteur intéressé par votre annonce !\n\n📦 ${article.title}\n💰 ${price}${city}\n\nRépondez CONTACT pour échanger.`;
+    return buildSellerNewBuyerText({
+      article,
+      buyerCity: buyerProfile?.city ?? null,
+      distanceKmValue: dKm,
+    });
   }
   if (kind === "sale_published" && recipient === "seller") {
     return `✅ Annonce publiée avec succès !\n\n📦 ${article.title}\n💰 ${price}${city}\n⏱️ Valable 7 jours`;
