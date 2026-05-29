@@ -83,6 +83,9 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         return next;
       });
       setActiveKey(meta.key);
+      window.dispatchEvent(
+        new CustomEvent("waouh:match-updated", { detail: { article_id: articleId } })
+      );
     };
     window.addEventListener("waouh:open-match-chat", onOpen as EventListener);
     return () => window.removeEventListener("waouh:open-match-chat", onOpen as EventListener);

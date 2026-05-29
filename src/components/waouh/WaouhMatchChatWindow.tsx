@@ -54,17 +54,15 @@ export function WaouhMatchChatWindow({
       if (!match.article_id) return;
       const ors: string[] = [`web_session_id.eq.${sessionId}`];
       if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
-      const { data } = await supabase
-        .from("waouh_messages")
-        .select("id,direction,text,created_at,attachments,meta")
+      const { data } = await (supabase
+        .from("waouh_messages") as any)
+        .select("id,direction,text,created_at,attachments,meta,article_id")
+        .eq("article_id", match.article_id)
         .or(ors.join(","))
         .order("created_at", { ascending: true })
         .limit(300);
       if (!alive) return;
-      const filtered = (data ?? []).filter(
-        (m: any) => m.meta?.article_id === match.article_id
-      );
-      setMessages(filtered as any);
+      setMessages((data ?? []) as any);
     })();
     return () => {
       alive = false;
@@ -81,8 +79,25 @@ export function WaouhMatchChatWindow({
         { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
         (payload: any) => {
           const m = payload.new;
-          if (m?.meta?.article_id !== match.article_id) return;
-          setMessages((prev) => (prev.find((x) => x.id === m.id) ? prev : [...prev, m]));
+          if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
+          setMessages((prev) => {
+            // Dedup by id
+            if (prev.find((x) => x.id === m.id)) return prev;
+            // Dedup optimistic temp by signature (same direction + text within 10s)
+            const tempIdx = prev.findIndex(
+              (x) =>
+                x.id.startsWith("temp-") &&
+                x.direction === m.direction &&
+                x.text === m.text &&
+                Math.abs(new Date(x.created_at).getTime() - new Date(m.created_at).getTime()) < 10000
+            );
+            if (tempIdx >= 0) {
+              const copy = [...prev];
+              copy[tempIdx] = m;
+              return copy;
+            }
+            return [...prev, m];
+          });
         }
       )
       .subscribe();
@@ -112,7 +127,7 @@ export function WaouhMatchChatWindow({
     setInput("");
     try {
       const contextPrefix = match.kind === "buyer" ? `[Annonce ${match.title}] ` : `[Acheteur ${match.title}] `;
-      const { data } = await supabase.functions.invoke("waouh-channel-in", {
+      const invokeP = supabase.functions.invoke("waouh-channel-in", {
         body: {
           channel: "web",
           sessionId,
@@ -127,6 +142,10 @@ export function WaouhMatchChatWindow({
           },
         },
       });
+      const timeoutP = new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error("timeout")), 20000)
+      );
+      const { data } = (await Promise.race([invokeP, timeoutP])) as any;
       const realId = (data as any)?.inbound_message_id;
       setMessages((prev) => {
         const f = prev.filter((m) => m.id !== tempId);
@@ -143,8 +162,13 @@ export function WaouhMatchChatWindow({
         }
         return f;
       });
+      // Bump inbox ordering
+      window.dispatchEvent(
+        new CustomEvent("waouh:match-updated", { detail: { article_id: match.article_id } })
+      );
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setInput(text); // restore so user can retry
     } finally {
       setSending(false);
       setTimeout(() => textareaRef.current?.focus(), 30);

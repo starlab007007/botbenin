@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ShoppingBag, Target, Archive, ArchiveRestore, ChevronDown, ChevronUp, X } from "lucide-react";
+import { ShoppingBag, Target, Archive, ArchiveRestore, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 
@@ -38,6 +38,9 @@ function saveArchived(sid: string | null, set: Set<string>) {
   } catch {}
 }
 
+// Canonical key: 1 article x 1 role => 1 row
+const itemKey = (role: "buyer" | "seller", articleId: string) => `${role[0]}_${articleId}`;
+
 export function WaouhMatchChatList({
   sessionId,
   authUserId,
@@ -57,7 +60,7 @@ export function WaouhMatchChatList({
       return false;
     }
   });
-  const [tick, setTick] = useState(0);
+  const loadRef = useRef<() => void>(() => {});
 
   const persistArchived = useCallback(
     (next: Set<string>) => {
@@ -107,7 +110,7 @@ export function WaouhMatchChatList({
           .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
           .or(nOrs.join(","))
           .order("sent_at", { ascending: false })
-          .limit(80);
+          .limit(120);
 
         for (const n of (notifs ?? []) as any[]) {
           const articleId: string | null = n.article_id;
@@ -116,12 +119,19 @@ export function WaouhMatchChatList({
             n.notification_type === "match_seller" || n.notification_type === "new_buyer"
               ? "seller"
               : "buyer";
-          const buyerProfileId = n.payload?.buyer_profile_id ?? null;
-          const counterpartUserId = n.payload?.counterpart_user_id ?? null;
-          const counterpartKey = buyerProfileId || counterpartUserId || "any";
-          const key = `${role[0]}_${articleId}_${counterpartKey}`;
+          const key = itemKey(role, articleId);
           const existing = map.get(key);
-          if (existing && new Date(existing.last_at) >= new Date(n.sent_at)) continue;
+          // Only update if newer (notifs already DESC, so first wins)
+          if (existing && new Date(existing.last_at) >= new Date(n.sent_at)) {
+            // Keep newest data, but enrich missing counterpart info if available
+            if (!existing.buyer_profile_id && n.payload?.buyer_profile_id) {
+              existing.buyer_profile_id = n.payload.buyer_profile_id;
+            }
+            if (!existing.counterpart_user_id && n.payload?.counterpart_user_id) {
+              existing.counterpart_user_id = n.payload.counterpart_user_id;
+            }
+            continue;
+          }
           const photo =
             (Array.isArray(n.photos) && n.photos[0]) ||
             (Array.isArray(n.payload?.photos) && n.payload.photos[0]) ||
@@ -131,8 +141,8 @@ export function WaouhMatchChatList({
           map.set(key, {
             key,
             article_id: articleId,
-            buyer_profile_id: buyerProfileId,
-            counterpart_user_id: counterpartUserId,
+            buyer_profile_id: n.payload?.buyer_profile_id ?? existing?.buyer_profile_id ?? null,
+            counterpart_user_id: n.payload?.counterpart_user_id ?? existing?.counterpart_user_id ?? null,
             role,
             title: n.payload?.title || existing?.title || "Annonce",
             price: n.payload?.price ?? existing?.price ?? null,
@@ -144,7 +154,7 @@ export function WaouhMatchChatList({
         }
       }
 
-      // 2) Fallback: recent article-scoped messages (last 48h) that have no notification yet
+      // 2) Fallback: recent article-scoped messages (last 48h)
       try {
         const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
         const mOrs: string[] = [];
@@ -158,31 +168,34 @@ export function WaouhMatchChatList({
             .gte("created_at", since)
             .or(mOrs.join(","))
             .order("created_at", { ascending: false })
-            .limit(80);
-          const seen = new Set<string>();
+            .limit(120);
+          const seenArt = new Set<string>();
           for (const m of (msgs ?? []) as any[]) {
             const articleId: string | null = m.article_id;
-            if (!articleId || seen.has(articleId)) continue;
-            seen.add(articleId);
-            // attach to any existing key for this article (any role), else create a buyer-side stub
-            const existingKey = Array.from(map.keys()).find((k) => k.endsWith(`_${articleId}_any`) || k.includes(`_${articleId}_`));
-            if (existingKey) {
-              const ex = map.get(existingKey)!;
-              if (new Date(m.created_at) > new Date(ex.last_at)) {
-                map.set(existingKey, { ...ex, last_at: m.created_at });
+            if (!articleId || seenArt.has(articleId)) continue;
+            seenArt.add(articleId);
+            // Bump any existing item (buyer or seller) for this article
+            let bumped = false;
+            for (const role of ["buyer", "seller"] as const) {
+              const k = itemKey(role, articleId);
+              const ex = map.get(k);
+              if (ex && new Date(m.created_at) > new Date(ex.last_at)) {
+                map.set(k, { ...ex, last_at: m.created_at });
+                bumped = true;
+              } else if (ex) {
+                bumped = true;
               }
-              continue;
             }
+            if (bumped) continue;
+            // No existing entry: create a buyer-side stub
             const role: "buyer" | "seller" = m.metadata?.role === "seller" ? "seller" : "buyer";
-            const key = `${role[0]}_${articleId}_any`;
-            // fetch lightweight article info
             const { data: art } = await supabase
               .from("waouh_articles" as any)
               .select("title,price,city,photos")
               .eq("id", articleId)
               .maybeSingle();
-            map.set(key, {
-              key,
+            map.set(itemKey(role, articleId), {
+              key: itemKey(role, articleId),
               article_id: articleId,
               buyer_profile_id: null,
               counterpart_user_id: null,
@@ -197,7 +210,7 @@ export function WaouhMatchChatList({
           }
         }
       } catch {
-        /* ignore fallback errors */
+        /* ignore */
       }
 
       if (!active) return;
@@ -207,44 +220,43 @@ export function WaouhMatchChatList({
       setItems(arr);
     };
 
+    loadRef.current = load;
     load();
 
-    // Realtime: re-load on any new notification touching us
-    const channels: any[] = [];
+    // Single combined realtime channel
+    const ch = supabase.channel(`waouh-match-list-${sessionId ?? authUserId ?? "anon"}`);
     if (sessionId) {
-      channels.push(
-        supabase
-          .channel(`waouh-match-list-sid-${sessionId}`)
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "waouh_notifications", filter: `web_session_id=eq.${sessionId}` },
-            load
-          )
-          .subscribe()
+      ch.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "waouh_notifications", filter: `web_session_id=eq.${sessionId}` },
+        () => loadRef.current?.()
+      );
+      ch.on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
+        (payload: any) => {
+          if (payload?.new?.article_id) loadRef.current?.();
+        }
       );
     }
     for (const uid of waouhIds) {
-      channels.push(
-        supabase
-          .channel(`waouh-match-list-uid-${uid}`)
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "waouh_notifications", filter: `user_id=eq.${uid}` },
-            load
-          )
-          .subscribe()
+      ch.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "waouh_notifications", filter: `user_id=eq.${uid}` },
+        () => loadRef.current?.()
       );
     }
+    ch.subscribe();
 
-    const onBump = () => load();
+    const onBump = () => loadRef.current?.();
     window.addEventListener("waouh:match-updated", onBump as EventListener);
 
     return () => {
       active = false;
-      channels.forEach((c) => supabase.removeChannel(c));
+      supabase.removeChannel(ch);
       window.removeEventListener("waouh:match-updated", onBump as EventListener);
     };
-  }, [sessionId, authUserId, waouhIds.join("|"), tick]);
+  }, [sessionId, authUserId, waouhIds.join("|")]);
 
   // Auto-archive items older than N days & read
   const { fresh, autoOld } = useMemo(() => {
@@ -267,14 +279,17 @@ export function WaouhMatchChatList({
   if (items.length === 0) return null;
 
   const open = async (item: MatchItem) => {
-    // Mark notifications as read for this article (best effort)
+    // Mark notifications as read (single combined query)
     try {
-      if (waouhIds.length || sessionId) {
-        const filter: any = supabase.from("waouh_notifications" as any).update({ opened: true }).eq("article_id", item.article_id);
-        // we can't easily OR in update; do two updates
-        if (waouhIds.length) await supabase.from("waouh_notifications" as any).update({ opened: true }).eq("article_id", item.article_id).in("user_id", waouhIds);
-        if (sessionId) await supabase.from("waouh_notifications" as any).update({ opened: true }).eq("article_id", item.article_id).eq("web_session_id", sessionId);
-        void filter; // noop
+      const ors: string[] = [];
+      if (sessionId) ors.push(`web_session_id.eq.${sessionId}`);
+      if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
+      if (ors.length) {
+        await supabase
+          .from("waouh_notifications" as any)
+          .update({ opened: true })
+          .eq("article_id", item.article_id)
+          .or(ors.join(","));
       }
     } catch {}
 
@@ -296,7 +311,7 @@ export function WaouhMatchChatList({
       );
     }, 50);
 
-    // Locally mark read to bump UI immediately
+    // Locally mark read
     setItems((prev) => prev.map((p) => (p.key === item.key ? { ...p, unread: false } : p)));
   };
 
@@ -311,7 +326,6 @@ export function WaouhMatchChatList({
     const next = new Set(archived);
     next.delete(key);
     persistArchived(next);
-    setTick((t) => t + 1);
   };
 
   const visible = expanded ? fresh : fresh.slice(0, VISIBLE_DEFAULT);
