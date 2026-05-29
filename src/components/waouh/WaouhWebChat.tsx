@@ -89,36 +89,57 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
 
   const loadHistory = async (ids: string[]) => {
-    const msgOrs: string[] = [`web_session_id.eq.${sessionId}`];
-    if (ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
-    const { data, error } = await supabase
-      .from("waouh_messages")
-      .select("id,direction,text,created_at,attachments,meta")
-      .or(msgOrs.join(","))
-      .order("created_at", { ascending: true })
-      .limit(500);
-    if (error) {
-      console.warn("[waouh-chat] history load error", error);
-      return; // Don't wipe existing UI (incl. optimistic msgs) on failure
+    // Prefer the server-side hydration endpoint (resolves user_id ∪ web_session_id ∪ phone)
+    let fresh: any[] | null = null;
+    try {
+      const { data: hist, error: histErr } = await supabase.functions.invoke("waouh-history", {
+        body: { sessionId, authUserId: user?.id ?? null },
+      });
+      if (!histErr && hist?.ok && Array.isArray(hist.messages)) {
+        fresh = hist.messages.map((m: any) => ({
+          id: m.id, direction: m.direction, text: m.text, created_at: m.created_at,
+          attachments: m.attachments, meta: m.meta,
+        }));
+      }
+    } catch (e) {
+      console.debug("[waouh-chat] waouh-history unavailable, fallback to direct query", e);
     }
-    if (!data || data.length === 0) {
-      // Nothing fetched yet — keep optimistic messages, just drop temp duplicates
-      return;
+
+    if (!fresh) {
+      const msgOrs: string[] = [`web_session_id.eq.${sessionId}`];
+      if (ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
+      const { data, error } = await supabase
+        .from("waouh_messages")
+        .select("id,direction,text,created_at,attachments,meta")
+        .or(msgOrs.join(","))
+        .order("created_at", { ascending: true })
+        .limit(500);
+      if (error) {
+        console.warn("[waouh-chat] history load error", error);
+        return;
+      }
+      fresh = (data || []) as any[];
     }
+
+    if (!fresh || fresh.length === 0) return;
+
     setMessages((prev) => {
-      const fresh = data as any[];
+      const freshIds = new Set(fresh!.map((f: any) => f.id));
       // Keep optimistic temp-in messages until backend has persisted them
       const keepOptimistic = prev.filter(
-        (m) => m.id.startsWith("temp-in-") && !fresh.some(
-          (f) => f.direction === "in" && f.text === m.text &&
-                 Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
+        (m) => m.id.startsWith("temp-in-") && !fresh!.some(
+          (f: any) => f.direction === "in" && f.text === m.text &&
+            Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
         )
       );
-      return [...fresh, ...keepOptimistic].sort(
+      // Drop any prev rows that come back from server (dedupe by id)
+      const prevKeep = prev.filter((p) => !freshIds.has(p.id) && !p.id.startsWith("temp-in-"));
+      return [...fresh!, ...prevKeep, ...keepOptimistic].sort(
         (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
     });
   };
+
 
 
   useEffect(() => {
