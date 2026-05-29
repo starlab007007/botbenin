@@ -296,6 +296,16 @@ export function WaouhMatchChatWindow({
           </div>
         </div>
 
+        {/* Full original notification message — pinned below seed header */}
+        {seedNotif?.text && (
+          <div className="mr-auto max-w-[92%] rounded-2xl rounded-bl-sm border bg-card px-3 py-2 text-sm shadow-sm">
+            <div className="whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed">
+              {seedNotif.text}
+            </div>
+          </div>
+        )}
+
+
         {messages.map((m) => (
           <div
             key={m.id}
