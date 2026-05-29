@@ -289,8 +289,13 @@ export function WaouhMatchChatWindow({
                 {match.price ? ` · ${Number(match.price).toLocaleString("fr-FR")} FCFA` : ""}
                 {match.city ? ` · ${match.city}` : ""}
               </div>
+              {seedNotif?.text && (
+                <div className="mt-2 text-[12.5px] leading-relaxed text-amber-950 dark:text-amber-50 whitespace-pre-wrap border-t border-amber-300/50 dark:border-amber-700/50 pt-2">
+                  {seedNotif.text}
+                </div>
+              )}
               {seedDate && (
-                <div className="text-[10px] text-amber-800/70 dark:text-amber-200/70 mt-0.5">{seedDate}</div>
+                <div className="text-[10px] text-amber-800/70 dark:text-amber-200/70 mt-1.5">{seedDate}</div>
               )}
             </div>
           </div>
