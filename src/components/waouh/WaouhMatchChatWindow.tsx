@@ -127,7 +127,7 @@ export function WaouhMatchChatWindow({
     setInput("");
     try {
       const contextPrefix = match.kind === "buyer" ? `[Annonce ${match.title}] ` : `[Acheteur ${match.title}] `;
-      const { data } = await supabase.functions.invoke("waouh-channel-in", {
+      const invokeP = supabase.functions.invoke("waouh-channel-in", {
         body: {
           channel: "web",
           sessionId,
@@ -142,6 +142,10 @@ export function WaouhMatchChatWindow({
           },
         },
       });
+      const timeoutP = new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error("timeout")), 20000)
+      );
+      const { data } = (await Promise.race([invokeP, timeoutP])) as any;
       const realId = (data as any)?.inbound_message_id;
       setMessages((prev) => {
         const f = prev.filter((m) => m.id !== tempId);
@@ -158,8 +162,13 @@ export function WaouhMatchChatWindow({
         }
         return f;
       });
+      // Bump inbox ordering
+      window.dispatchEvent(
+        new CustomEvent("waouh:match-updated", { detail: { article_id: match.article_id } })
+      );
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setInput(text); // restore so user can retry
     } finally {
       setSending(false);
       setTimeout(() => textareaRef.current?.focus(), 30);
