@@ -879,6 +879,51 @@ serve(async (req) => {
         } else {
           console.warn("[interest-push] no seller, no vendor phone", { pick_id: pick.id, source: pickSource });
         }
+        // Inbox notification (📩 Nouvel acheteur intéressé) — affichée en tête
+        // de WaouhMatchChatList et ouverte par WaouhMatchChatWindow avec
+        // exactement le même texte riche + photo qu'envoyé sur WhatsApp.
+        try {
+          let sellerWebSession: string | null = null;
+          if (seller?.id) {
+            const { data: su } = await sb
+              .from("waouh_users")
+              .select("web_session_id")
+              .eq("id", seller.id)
+              .maybeSingle();
+            sellerWebSession = (su as any)?.web_session_id ?? null;
+          }
+          const photosArr: string[] = Array.isArray(pick.photos)
+            ? (pick.photos as any[]).filter(Boolean)
+            : (firstPhoto ? [firstPhoto] : []);
+          const dayBucket = new Date().toISOString().slice(0, 10);
+          await sb.from("waouh_notifications").insert({
+            user_id: seller?.id ?? null,
+            web_session_id: sellerWebSession,
+            article_id: pick.id,
+            notification_type: "new_buyer",
+            photos: photosArr,
+            dedupe_key: `new_buyer:${pick.id}:${seller?.id ?? "anon"}:${user!.id}:${dayBucket}`,
+            payload: {
+              text: sellerText,
+              recipient: "seller",
+              title: pick.title,
+              price: askPrice,
+              city: pick.city ?? null,
+              photos: photosArr,
+              buyer_user_id: user!.id,
+              counterpart_user_id: user!.id,
+              negotiation_id: neg?.id ?? null,
+              contact: { channel: "whatsapp", whatsapp: vendorPhoneForPush },
+            },
+            channel: vendorPhoneForPush ? "whatsapp" : "waouh_app",
+            delivered_at: new Date().toISOString(),
+            delivery_status: "delivered",
+          });
+        } catch (e: any) {
+          if (e?.code !== "23505" && !/duplicate/i.test(e?.message || "")) {
+            console.error("[interest] notif insert error", e);
+          }
+        }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [];
         returnedActions = [];
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
