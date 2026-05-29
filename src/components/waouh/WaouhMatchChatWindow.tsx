@@ -32,6 +32,7 @@ type Msg = {
 type SeedNotif = {
   sent_at: string;
   notification_type: string;
+  text: string | null;
 };
 
 const CLOSED_STATUSES = new Set(["sold", "closed", "finalized", "completed", "vendu"]);
