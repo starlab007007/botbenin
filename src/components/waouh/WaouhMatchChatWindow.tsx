@@ -32,6 +32,7 @@ type Msg = {
 type SeedNotif = {
   sent_at: string;
   notification_type: string;
+  text: string | null;
 };
 
 const CLOSED_STATUSES = new Set(["sold", "closed", "finalized", "completed", "vendu"]);
@@ -82,7 +83,7 @@ export function WaouhMatchChatWindow({
           .order("created_at", { ascending: true })
           .limit(300),
         (supabase.from("waouh_notifications") as any)
-          .select("sent_at,notification_type")
+          .select("sent_at,notification_type,payload")
           .eq("article_id", match.article_id)
           .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
           .order("sent_at", { ascending: true })
@@ -96,7 +97,15 @@ export function WaouhMatchChatWindow({
       if (!alive) return;
       setMessages((msgsRes?.data ?? []) as any);
       const n = (notifRes?.data ?? [])[0];
-      setSeedNotif(n ? { sent_at: n.sent_at, notification_type: n.notification_type } : null);
+      setSeedNotif(
+        n
+          ? {
+              sent_at: n.sent_at,
+              notification_type: n.notification_type,
+              text: n?.payload?.text ?? null,
+            }
+          : null
+      );
       setArticleStatus((artRes?.data as any)?.status ?? null);
     })();
     return () => {
@@ -280,8 +289,13 @@ export function WaouhMatchChatWindow({
                 {match.price ? ` · ${Number(match.price).toLocaleString("fr-FR")} FCFA` : ""}
                 {match.city ? ` · ${match.city}` : ""}
               </div>
+              {seedNotif?.text && (
+                <div className="mt-2 text-[12.5px] leading-relaxed text-amber-950 dark:text-amber-50 whitespace-pre-wrap border-t border-amber-300/50 dark:border-amber-700/50 pt-2">
+                  {seedNotif.text}
+                </div>
+              )}
               {seedDate && (
-                <div className="text-[10px] text-amber-800/70 dark:text-amber-200/70 mt-0.5">{seedDate}</div>
+                <div className="text-[10px] text-amber-800/70 dark:text-amber-200/70 mt-1.5">{seedDate}</div>
               )}
             </div>
           </div>
