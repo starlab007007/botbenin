@@ -131,6 +131,50 @@ export function formatDistance(km: number | null): string {
 }
 
 /**
+ * Source unique du wording « 📩 Nouvel acheteur intéressé » (vendeur).
+ * Reprend exactement le format envoyé sur WhatsApp par waouh-webhook.
+ */
+export function buildSellerNewBuyerText(opts: {
+  article: { title?: string | null; price?: number | null };
+  buyerCity?: string | null;
+  distanceKmValue?: number | null;
+}): string {
+  const title = opts.article?.title || "Annonce";
+  const askPrice = Number(opts.article?.price ?? 0);
+  const distLine = opts.distanceKmValue != null ? `\n${formatDistance(opts.distanceKmValue)}` : "";
+  const counter = Math.max(1, Math.round(askPrice * 0.9));
+  return (
+    `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n` +
+    `📦 *${title}*\n` +
+    `💰 *Prix demandé* : ${fmtFCFA(askPrice)}${distLine}\n` +
+    `🏙️ *Acheteur* : ${opts.buyerCity || "?"}\n\n` +
+    `Répondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose ${fmtFCFA(counter)}* pour contre-offrir.\n\n` +
+    `${waouhFooter()}`
+  );
+}
+
+/**
+ * Source unique du wording « 🎯 Annonce trouvée » (acheteur).
+ */
+export function buildBuyerMatchText(opts: {
+  article: { title?: string | null; price?: number | null; city?: string | null };
+  distanceKmValue?: number | null;
+}): string {
+  const title = opts.article?.title || "Annonce";
+  const askPrice = Number(opts.article?.price ?? 0);
+  const distLine = opts.distanceKmValue != null ? `\n${formatDistance(opts.distanceKmValue)}` : "";
+  const cityLine = opts.article?.city ? `\n🏙️ *Vendeur* : ${opts.article.city}` : "";
+  const counter = Math.max(1, Math.round(askPrice * 0.9));
+  return (
+    `${waouhHeader("🎯 Annonce trouvée")}\n\n` +
+    `📦 *${title}*\n` +
+    `💰 *Prix* : ${fmtFCFA(askPrice)}${distLine}${cityLine}\n\n` +
+    `Répondez *OUI* pour être mis en relation, *NON* pour ignorer, ou écrivez *Je propose ${fmtFCFA(counter)}* pour négocier.\n\n` +
+    `${waouhFooter()}`
+  );
+}
+
+/**
  * Analyse marché IA réelle, synthétique (1 phrase max 25 mots).
  * Best-effort, ne lève jamais — renvoie "" en cas d'erreur. Cache 10 min.
  */
