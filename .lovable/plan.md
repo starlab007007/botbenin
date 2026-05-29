@@ -1,58 +1,69 @@
-# Fenêtres de chat produit : notification d'amorce + fond WAOUH + scope strict
-
 ## Objectif
 
-Quand l'utilisateur ouvre une conversation depuis `WaouhMatchChatList` (acheteur intéressé / annonce trouvée) :
-1. La fenêtre s'ouvre avec la **notification d'origine en tout premier message** ("📩 Nouvel acheteur intéressé…" ou "🎯 Annonce trouvée pour vous…"), en bulle système.
-2. La fenêtre utilise **exactement le même arrière-plan doodle vert** que la fenêtre WAOUH principale (`.waouh-chat-bg`).
-3. Toute la discussion reste **strictement scopée à l'article** (`article_id`) jusqu'à la clôture/finalisation de la vente — pas de fuite vers le chat WAOUH général, pas de mélange avec un autre produit.
+Dans chaque fenêtre `WaouhMatchChatWindow` (capture 1), supprimer le bloc "simple" actuel (capture 2 : "🛒 Nouvel acheteur intéressé par votre annonce ! / 📦 test007 / 💰 1 FCFA · Cotonou / Répondez CONTACT pour échanger.") et le remplacer par **exactement** le même message riche que WAOUH envoie sur WhatsApp (capture 3 : en‑tête `📩 Nouvel acheteur intéressé`, ligne `📦 *titre*`, `💰 *Prix demandé* : … FCFA`, `📏 à X m/km de vous`, `🏙️ Acheteur : ville`, instructions `OUI / NON / Je propose …`, pied `✨ WAOUH — Achetez · Vendez · Négociez en confiance`).
 
-## Problèmes actuels
+Même principe, en miroir, pour les notifications "🎯 Annonce trouvée" côté acheteur.
 
-- `WaouhMatchChatWindow` ouvre une zone messages vide (juste un texte centré "Démarrez la discussion…"). La notification d'origine (acheteur intéressé / annonce trouvée) n'est jamais rappelée dans le fil → l'utilisateur perd le contexte.
-- Le fond est `bg-muted/20` au lieu du fond doodle WAOUH (`.waouh-chat-bg`) → incohérence visuelle avec la fenêtre principale.
-- Le scope produit est presque correct (filtre `article_id` côté DB) mais :
-  - L'envoi inclut un préfixe `[Annonce …]` dans le texte qui pollue le message stocké côté DB.
-  - Il n'y a aucun statut de **clôture** : tant que la vente n'est pas finalisée, la conversation doit rester active et isolée; une fois clôturée, il faut le matérialiser (badge + composer désactivé).
-- Bug mineur : `useWaouhMatchChats` génère la clé `${role[0]}_${articleId}_${counterpart}` alors que `WaouhMatchChatList` archive par `${role[0]}_${articleId}` → l'auto-archive à la fermeture ne matche pas la ligne de l'inbox.
+La règle doit être généralisée et automatique : toute nouvelle notification de type `new_buyer` ou `match` doit produire ce texte unifié pour les deux canaux (WhatsApp + carte in‑app) sans aucune divergence.
 
-## Plan
+## Où ça se joue
 
-### 1. `WaouhMatchChatWindow.tsx` — Notification d'amorce + fond WAOUH
+- `supabase/functions/waouh-notify-dispatch/index.ts` — fonction `buildText(...)` qui génère aujourd'hui la version courte (`🛒 Nouvel acheteur intéressé par votre annonce ! …`). C'est ce texte qui est stocké dans `waouh_notifications.payload.text` puis affiché dans le chat.
+- `supabase/functions/_shared/waouh-format.ts` — expose déjà `waouhHeader`, `waouhFooter`, `formatDistance`, `distanceKm` (utilisés par `waouh-webhook`).
+- `supabase/functions/waouh-webhook/index.ts:838` — référence canonique du format riche vendeur ("📩 Nouvel acheteur intéressé"). À reprendre à l'identique.
+- `src/components/waouh/WaouhMatchChatWindow.tsx` — déjà capable d'afficher `seedNotif.text` en `whitespace-pre-wrap` (rien à changer si le texte stocké est déjà le bon).
 
-- **Charger la notification d'origine** au mount : query `waouh_notifications` filtrée sur `article_id`, types `match|match_buyer|match_seller|new_buyer|radar_match`, ordre `sent_at ASC`, limit 1. Stocker dans un state `seedNotif`.
-- **Injecter une bulle système** en tête du fil (avant les messages DB) :
-  - Pour `kind === "seller"` (vendeur côté annonce) → "📩 Nouvel acheteur intéressé par votre annonce : {title} · {price} FCFA · {city}".
-  - Pour `kind === "buyer"` (acheteur recherchant) → "🎯 Annonce trouvée pour votre recherche : {title} · {price} FCFA · {city}".
-  - Style : bulle centrée, fond `bg-amber-50/90 dark:bg-amber-900/20`, bord ambré, icône, horodatage de la notification, photo produit miniature si dispo.
-- **Remplacer le fond** de la zone messages : passer de `bg-muted/20` à `waouh-chat-bg` (la classe existe déjà dans `src/app-mobile/theme/chat-bg.css`, déjà importée via le shell mobile). Conserver la lisibilité des bulles.
-- **Empty state** : si aucun message DB, garder la bulle système comme amorce et supprimer le texte placeholder redondant.
+## Plan d'implémentation
 
-### 2. `WaouhMatchChatWindow.tsx` — Scope strict produit jusqu'à clôture
+1. **`waouh-format.ts` — nouveau helper partagé**
+   Ajouter deux fonctions pures qui centralisent les templates exacts utilisés par `waouh-webhook` :
+   - `buildSellerNewBuyerText({ article, buyerCity, distanceKmValue })` → bloc "📩 Nouvel acheteur intéressé" avec header/footer WAOUH, prix demandé formaté FR (`toLocaleString("fr-FR")` + ` FCFA`), distance via `formatDistance(distanceKm(...))`, ville acheteur, ligne `Répondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose <prix*0.9>* pour contre-offrir.`
+   - `buildBuyerMatchText({ article, buyerCity, distanceKmValue })` → bloc "🎯 Annonce trouvée" symétrique avec header/footer, prix, distance, ligne `Répondez *OUI* pour être mis en relation, *NON* pour ignorer, ou écrivez *Je propose XXX FCFA* pour négocier.`
 
-- **Nettoyer l'envoi** : retirer le préfixe `[Annonce …]` / `[Acheteur …]` injecté dans `text`. Le contexte produit doit voyager **uniquement** via `meta.article_id` + `meta.role` (déjà présent), pas dans le corps du message.
-- **Garde-fou réception** : la requête initiale filtre déjà `.eq("article_id", match.article_id)`. Renforcer le subscribe realtime pour ignorer tout INSERT dont `article_id` ≠ `match.article_id` ET `meta.article_id` ≠ `match.article_id` (déjà fait, juste documenter).
-- **Statut de clôture** : lire un éventuel `status` / `closed_at` depuis `waouh_articles` (ou `payload.status` de la notification). Si vendu/clôturé :
-  - Afficher un badge "Vente finalisée" dans le sub-header.
-  - Désactiver le composer (textarea + bouton) et afficher une bannière "Cette conversation est clôturée".
-  - Sinon laisser tout actif (comportement actuel).
-- Si aucune colonne de statut n'existe encore, on se contente du badge basé sur un flag local `match.closed?: boolean` que l'on prépare pour un futur câblage (no-op pour l'instant).
+   Ces helpers seront la **seule** source du wording.
 
-### 3. `useWaouhMatchChats.ts` — Aligner la clé d'archive
+2. **`waouh-notify-dispatch/index.ts` — utiliser les helpers**
+   - Importer `buildSellerNewBuyerText`, `buildBuyerMatchText` depuis `../_shared/waouh-format.ts`.
+   - Récupérer la ville acheteur (`buyerProfile?.city`) et calculer la distance via `distanceKm(article.lat, article.lng, buyerProfile?.lat, buyerProfile?.lng)` quand les coords existent (best‑effort, `null` sinon → pas de ligne distance).
+   - Remplacer dans `buildText(...)` :
+     - `kind === "new_buyer" && recipient === "seller"` → `buildSellerNewBuyerText(...)`.
+     - `kind === "match" && recipient === "buyer"` → `buildBuyerMatchText(...)`.
+   - Les autres branches (`sale_published`, fallback) restent inchangées.
+   - Conserver `extra_text` comme override prioritaire (déjà géré).
 
-- Unifier la clé de tab sur `${role[0]}_${articleId}` (sans counterpart) pour matcher `WaouhMatchChatList`. Conserver `buyer_profile_id` / `counterpart_user_id` dans `meta` pour les envois.
-- Conséquence : ouvrir 2 fois le même article rouvre le même onglet, et `close()` archive bien la ligne correspondante de l'inbox.
+3. **Aligner `waouh-webhook/index.ts`** (optionnel mais recommandé pour éviter la double source)
+   - Remplacer la construction inline du `sellerText` ligne 838 par un appel à `buildSellerNewBuyerText(...)`. Idem si un endroit équivalent existe pour l'acheteur. Aucun changement fonctionnel, juste suppression du duplicat.
 
-### 4. Vérifications
+4. **Aucun changement front**
+   `WaouhMatchChatWindow` lit déjà `payload.text` et l'affiche en `whitespace-pre-wrap` dans une bulle pinned. Dès que le dispatcher écrit le texte riche, le chat l'affiche tel quel — identique à WhatsApp.
 
-- À l'ouverture : la bulle d'amorce apparaît immédiatement, suivie de l'historique scopé.
-- Fond identique visuellement à la fenêtre WAOUH principale.
-- Envoyer un message dans la fenêtre produit A n'apparaît pas dans la fenêtre produit B ni dans WAOUH principal.
-- Fermer un onglet → la ligne disparaît bien de la liste sous la carte WAOUH (archive correctement appliquée).
+## Critères d'acceptation
 
-## Fichiers touchés
+- Sous la carte verte WAOUH dans une fenêtre de match (vendeur), la 2ᵉ bulle est strictement le bloc :
+  ```
+  ━━━━━━━━━━━━━━━━━━
+  📩 Nouvel acheteur intéressé
+  ━━━━━━━━━━━━━━━━━━
 
-- `src/components/waouh/WaouhMatchChatWindow.tsx` (fetch notif seed, bulle système, fond `waouh-chat-bg`, nettoyage préfixe, statut clôture)
-- `src/components/waouh/useWaouhMatchChats.ts` (clé d'onglet unifiée)
+  📦 *test007*
+  💰 *Prix demandé* : 1 FCFA
+  📏 *à 0 m de vous*           (seulement si distance dispo)
+  🏙️ *Acheteur* : Cotonou
 
-Aucune migration DB, aucune edge function modifiée.
+  Répondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose 1 FCFA* pour contre-offrir.
+
+  ━━━━━━━━━━━━━━━━━━
+  _✨ WAOUH — Achetez · Vendez · Négociez en confiance_
+  ```
+- Côté acheteur, équivalent "🎯 Annonce trouvée".
+- L'ancien texte court (`🛒 Nouvel acheteur intéressé par votre annonce ! … Répondez CONTACT pour échanger.`) n'apparaît plus nulle part (chat web, push, WhatsApp).
+- Mécanisme générique : toute nouvelle insertion dans `waouh_notifications` faite via `waouh-notify-dispatch` utilise automatiquement le format unifié, sans patch côté UI.
+- Pas de doublon : le `dedupe_key` actuel par `(kind, article, user, recipient, day)` reste inchangé.
+
+## Détails techniques
+
+- Les helpers vivent dans `_shared/waouh-format.ts` pour être consommés par toutes les edge functions (`waouh-notify-dispatch`, `waouh-webhook`, et toute future fonction).
+- Le formatage prix utilise `Number(price).toLocaleString("fr-FR")` + ` FCFA` (cohérent avec `waouh-webhook`).
+- La distance est optionnelle : si `distanceKm(...)` renvoie `null`, on omet la ligne `📏`.
+- Le contre-prix par défaut côté vendeur reste `Math.round(askPrice * 0.9)` (parité avec `waouh-webhook:838`).
+- Aucun changement de schéma DB ; on continue d'écrire `payload.text` (lu par le front).
