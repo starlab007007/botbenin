@@ -251,15 +251,20 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       const matchKinds = ["match", "match_buyer", "match_seller", "new_buyer"];
       if (matchKinds.includes(row.notification_type) && row.article_id) {
         const kind =
-          row.notification_type === "match_seller" || row.notification_type === "new_buyer"
+          recipient === "seller" ||
+          row.notification_type === "match_seller" ||
+          row.notification_type === "new_buyer"
             ? "seller"
             : "buyer";
         try {
           window.dispatchEvent(
             new CustomEvent("waouh:open-match-chat", {
               detail: {
+                notification_id: row.id,
+                seed_text: row.payload?.text ?? null,
                 article_id: row.article_id,
                 buyer_profile_id: buyerProfileId,
+                counterpart_user_id: row.payload?.counterpart_user_id ?? row.payload?.buyer_user_id ?? null,
                 recipient,
                 kind,
                 title: row.payload?.title,
@@ -272,6 +277,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         } catch {}
       }
     };
+
 
 
     channels.push(

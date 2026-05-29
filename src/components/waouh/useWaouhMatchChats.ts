@@ -59,12 +59,17 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         .maybeSingle();
 
       const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
-      // Unified key with WaouhMatchChatList: 1 article × 1 role => 1 tab
-      const key = `${role[0]}_${articleId}`;
+      const notificationId: string | null = detail.notification_id ?? null;
+      // One tab per notification (or article+role fallback when no notif id).
+      const key = notificationId
+        ? `n_${notificationId}`
+        : `${role[0]}_${articleId}`;
 
       const meta: MatchChatMeta = {
         key,
         article_id: articleId,
+        notification_id: notificationId,
+        seed_text: detail.seed_text ?? null,
         buyer_profile_id: detail.buyer_profile_id ?? null,
         counterpart_user_id: detail.counterpart_user_id ?? null,
         title: art?.title || detail.title || "Annonce",
@@ -90,6 +95,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
     window.addEventListener("waouh:open-match-chat", onOpen as EventListener);
     return () => window.removeEventListener("waouh:open-match-chat", onOpen as EventListener);
   }, [sessionId]);
+
 
   const close = useCallback(
     (key: string) => {
