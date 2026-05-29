@@ -155,6 +155,13 @@ export function WaouhMatchChatWindow({
             </div>
           )}
           <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider opacity-80">
+              {formatMatchLabel({
+                articleId: match.article_id,
+                userKey: match.buyer_profile_id || match.counterpart_user_id || sessionId,
+                role: match.kind,
+              })}
+            </div>
             <div className="text-xs font-semibold truncate">
               {match.kind === "buyer" ? "🎯 " : "🛒 "}
               {match.title}
