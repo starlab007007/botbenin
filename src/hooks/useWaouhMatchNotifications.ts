@@ -116,7 +116,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
       // 1) Outbound queue (legacy templated notifs)
       const qOrs: string[] = [`web_session_id.eq.${sessionId}`];
-      if (waouhIds.length) qOrs.push(`user_id.in.(${waouhIds.join(",")})`);
+      if (waouhIds.length) qOrs.push(`to_user_id.in.(${waouhIds.join(",")})`);
       const { data: queue, error: qErr } = await supabase
         .from("waouh_outbound_queue" as any)
         .select("id,template,payload,created_at,image_url,message_id,transaction_id")
