@@ -351,9 +351,52 @@ serve(async (req) => {
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
-      meta: { to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
+      meta: { ...clientMeta, to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
     }).select("id").maybeSingle();
     const inboundMessageId: string | null = inboundRow?.id ?? null;
+
+    // === Real "interested buyer" signal ===
+    // If the inbound message is tagged with an article (match chat window),
+    // notify the seller ONCE per (article, buyer) pair. This replaces the old
+    // publication-time seller spam.
+    const articleIdFromMeta: string | null = clientMeta?.article_id ?? null;
+    if (articleIdFromMeta) {
+      try {
+        const { data: art } = await sb
+          .from("waouh_articles")
+          .select("id, seller_id")
+          .eq("id", articleIdFromMeta)
+          .maybeSingle();
+        const buyerKey = clientMeta?.buyer_profile_id || user.id;
+        const isSeller =
+          art?.seller_id && (
+            (authUserId && art.seller_id === authUserId) ||
+            (user?.auth_user_id && art.seller_id === user.auth_user_id)
+          );
+        if (art?.seller_id && !isSeller) {
+          const dedupeId = `new_buyer:${articleIdFromMeta}:${buyerKey}`;
+          const { error: dupErr } = await sb
+            .from("waouh_processed_events")
+            .insert({ event_id: dedupeId, source: "new_buyer" });
+          if (!dupErr) {
+            fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                kind: "new_buyer",
+                article_id: articleIdFromMeta,
+                buyer_profile_id: clientMeta?.buyer_profile_id ?? null,
+                counterpart_user_id: user.id,
+                recipient: "seller",
+              }),
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.warn("[waouh-channel-in] new_buyer dispatch failed", e);
+      }
+    }
+
 
 
     // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router
