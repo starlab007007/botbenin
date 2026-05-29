@@ -1,48 +1,60 @@
-## Objectif
+# Fix WaouhMatchChatList: ordering, realtime, dedicated chats, archive
 
-Quand l'utilisateur ouvre un chat produit (WAOUH·ACH-… / WAOUH·VEN-…), il doit obtenir une **fenêtre plein écran identique à WAOUH principal** (même header, même composer, même fluidité), et pouvoir **basculer rapidement entre WAOUH principal et chaque chat produit** via une barre d'onglets.
+## Problèmes constatés
 
-## Problème actuel
+1. **Le dernier match (Chocolat, capture 1) n'apparaît pas sous WAOUH** dans l'inbox (capture 2).
+   - `WaouhMatchChatList` charge les notifications **une seule fois au montage** (pas de realtime ni de re-fetch).
+   - L'ordre est correct (`order sent_at desc`), mais sans realtime, un nouveau `new_buyer` / `match` arrivé après le mount n'est jamais affiché.
+   - Aucun fallback : si la notification a échoué/dédupliquée côté backend, l'item n'apparaît jamais même si un message `article_id` existe dans `waouh_messages`.
 
-`WaouhMatchChatWindow` s'affiche en carte empilée sous le composer principal (max-h 40vh, textarea 1 ligne, pas plein écran). Mauvaise ergonomie sur mobile.
+2. **La liste devient longue** (6+ "Annonce WAOUH·VEN-B033-*" identiques dans la capture 2) et noie le dernier match.
 
-## Solution
+3. **Pas de moyen d'archiver / masquer** d'anciens items.
 
-### 1. Transformer le chat produit en vue plein écran
-Refonte de `WaouhMatchChatWindow` (ou nouveau `WaouhMatchChatFullscreen`) pour qu'il occupe `h-[100dvh]` avec :
-- Header sticky identique à WAOUH (avatar produit, code WAOUH·ACH/VEN, prix·ville, bouton retour, bouton fermer)
-- Zone messages `flex-1 overflow-y-auto` avec même style de bulles que WAOUH
-- Composer bas identique à WAOUH (textarea auto-grow multi-lignes, bouton pièce jointe, bouton envoyer rond)
-- Safe-area iOS (`pb-[env(safe-area-inset-bottom)]`)
+## Plan (frontend uniquement)
 
-### 2. Barre d'onglets de navigation entre conversations
-Nouveau composant `WaouhChatTabs` affiché en haut (sous le header) qui liste :
-- Onglet **WAOUH** (principal) — toujours premier
-- Un onglet par chat produit ouvert (label court `ACH-B033` / `VEN-8AC` + pastille non-lus)
-- Onglet actif surligné, scroll horizontal si > 3 onglets
-- Tap = bascule instantanée sans démontage des autres (état conservé)
+### 1. `WaouhMatchChatList.tsx` — refonte
 
-### 3. Orchestrateur dans l'écran WAOUH
-`WaouhChatScreen` devient un conteneur qui :
-- Maintient `activeTab: "main" | matchKey`
-- Rend `WaouhChatTabs` en haut
-- Affiche soit le chat WAOUH principal soit la fenêtre produit active (les autres restent montées en `hidden` pour préserver scroll/saisie)
-- `WaouhMatchChats` (carte empilée actuelle) est **supprimé** de l'inbox / remplacé par cette logique d'onglets
+**Tri & épinglage**
+- Trier strictement par `last_at` DESC (déjà) et **épingler le plus récent en tête** avec un fond highlight (`bg-emerald-50/60 dark:bg-emerald-950/20`) + badge "Dernier".
+- Le plus récent est rendu *au-dessus* du séparateur des autres pour bien occuper la 1ère place sous la carte WAOUH.
 
-### 4. Ouverture depuis l'inbox
-`WaouhMatchChatList` (liste sous WAOUH dans `ChatListScreen`) navigue vers `/app/chat?match=<key>` qui ouvre directement l'onglet correspondant dans `WaouhChatScreen`.
+**Realtime**
+- Souscrire aux changements `waouh_notifications` filtrés par `user_id in waouhIds` + `web_session_id=sessionId` (un channel par filtre) → relancer `load()` au moindre INSERT.
+- Écouter aussi l'event custom `waouh:match-updated` (émis par `WaouhMatchChatWindow` quand on envoie un message) pour rebump l'ordre instantanément.
+
+**Fallback messages**
+- Si aucune `waouh_notifications` ne couvre un `article_id` récent, requêter `waouh_messages` (où `article_id is not null`) du `sessionId` / `waouhIds` des dernières 24 h et fusionner avec la map. Cela garantit que la conversation "Chocolat" apparaît même si la notification n'a pas été persistée.
+
+**Archivage / masquage**
+- Affichage par défaut : **3 premiers items**.
+- Bouton « Voir tout (N) » → étend ; bouton « Réduire » pour replier.
+- Bouton archive par item (icône `Archive` au swipe-style sur tap long, ou simple bouton "×" à droite avec confirm) → écrit la clé dans `localStorage` `waouh_archived_matches_<sid>` (Set de keys). Les items archivés sont filtrés.
+- Bouton « Voir les archivés » en bas si Set non vide → permet de désarchiver.
+- Auto-archive silencieux : tout item dont `last_at` > 7 jours et `unread === false` est automatiquement archivé (filtré de la vue principale, accessible via "Archivés").
+
+**Ouverture chat dédié**
+- Comportement actuel (`waouh:open-match-chat`) déjà OK : ouvre `/app/chat/waouh` + dispatch event → `useWaouhMatchChats` crée l'onglet et `WaouhChatScreen` affiche la fenêtre plein écran. Aucun changement.
+
+### 2. `useWaouhMatchChats.ts`
+
+- Quand un onglet est sélectionné depuis `WaouhMatchChatList`, **marquer les notifications correspondantes comme `opened=true`** (`update waouh_notifications set opened=true where article_id=... and user_id in (waouhIds)`) pour que le badge "Nouveau" disparaisse et que l'item descende en priorité.
+- Quand l'utilisateur ferme un onglet, **archiver automatiquement** la match-key (ajoute dans `waouh_archived_matches_<sid>`) → "faire disparaître les anciennes fenêtres" comme demandé.
+
+### 3. UI: indicateur de mise à jour
+
+- Petit séparateur "Conversations produit" au-dessus de la liste avec un compteur `(3/12)` quand collapsé.
 
 ## Fichiers touchés
 
-- `src/components/waouh/WaouhMatchChatWindow.tsx` — refonte plein écran
-- `src/components/waouh/WaouhChatTabs.tsx` — **NOUVEAU** barre d'onglets
-- `src/app-mobile/screens/WaouhChatScreen.tsx` — orchestration tabs + état partagé
-- `src/components/waouh/WaouhMatchChats.tsx` — simplifié (registre des matches ouverts uniquement, sans rendu carte)
-- `src/components/waouh/WaouhMatchChatList.tsx` — navigation vers `/app/chat?match=…`
+- `src/components/waouh/WaouhMatchChatList.tsx` (refonte tri + realtime + archive + fallback messages)
+- `src/components/waouh/useWaouhMatchChats.ts` (mark-as-read + auto-archive on close)
+- (aucune migration DB, aucun edge function)
 
 ## Notes techniques
 
-- Garder les hooks existants (`useWaouhInbox`, realtime sur `waouh_messages`) — aucun changement backend
-- Persister la liste des onglets ouverts dans `localStorage` (déjà fait pour `waouh_open_matches_<sid>`)
-- Préserver le focus textarea au switch d'onglet (cf. chat-agent-ui-contract)
-- Aucun changement d'edge function ni de schéma DB
+- Realtime Supabase : un `supabase.channel('waouh-match-list')` avec deux listeners postgres_changes (un sur `user_id=in.(...)`, un sur `web_session_id=eq...`). Cleanup au unmount.
+- `localStorage` keys :
+  - `waouh_archived_matches_<sessionId>` → JSON string array de match keys.
+  - `waouh_match_expanded_<sessionId>` → "1" si liste étendue.
+- Garde-fou : si `items.length <= 3`, masquer les boutons "Voir tout / Réduire".

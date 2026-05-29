@@ -96,9 +96,20 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         return next;
       });
       setActiveKey((cur) => (cur === key ? "main" : cur));
+      // Auto-archive in the inbox list so closed windows disappear from the visible list
+      try {
+        const aKey = `waouh_archived_matches_${sessionId}`;
+        const raw = localStorage.getItem(aKey);
+        const arr: string[] = raw ? JSON.parse(raw) : [];
+        if (!arr.includes(key)) {
+          arr.push(key);
+          localStorage.setItem(aKey, JSON.stringify(arr));
+        }
+      } catch {}
     },
     [sessionId]
   );
+
 
   return { matches, waouhIds, activeKey, setActiveKey, close };
 }
