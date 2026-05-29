@@ -79,8 +79,25 @@ export function WaouhMatchChatWindow({
         { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
         (payload: any) => {
           const m = payload.new;
-          if (m?.meta?.article_id !== match.article_id) return;
-          setMessages((prev) => (prev.find((x) => x.id === m.id) ? prev : [...prev, m]));
+          if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
+          setMessages((prev) => {
+            // Dedup by id
+            if (prev.find((x) => x.id === m.id)) return prev;
+            // Dedup optimistic temp by signature (same direction + text within 10s)
+            const tempIdx = prev.findIndex(
+              (x) =>
+                x.id.startsWith("temp-") &&
+                x.direction === m.direction &&
+                x.text === m.text &&
+                Math.abs(new Date(x.created_at).getTime() - new Date(m.created_at).getTime()) < 10000
+            );
+            if (tempIdx >= 0) {
+              const copy = [...prev];
+              copy[tempIdx] = m;
+              return copy;
+            }
+            return [...prev, m];
+          });
         }
       )
       .subscribe();
