@@ -16,6 +16,11 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { resolveContact, normalizeBeninPhone } from "../_shared/waouhContact.ts";
+import {
+  buildSellerNewBuyerText,
+  buildBuyerMatchText,
+  distanceKm,
+} from "../_shared/waouh-format.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,11 +77,22 @@ async function sendWhatsAppCard(chatId: string, text: string, photos: string[]) 
 function buildText(kind: string, article: any, buyerProfile: any, recipient: string) {
   const price = article?.price ? `${Number(article.price).toLocaleString("fr-FR")} FCFA` : "";
   const city = article?.city ? ` · ${article.city}` : "";
+  // Distance best-effort (null si coords manquantes)
+  const dKm = distanceKm(
+    article?.lat ?? article?.latitude ?? null,
+    article?.lng ?? article?.longitude ?? null,
+    buyerProfile?.lat ?? buyerProfile?.latitude ?? null,
+    buyerProfile?.lng ?? buyerProfile?.longitude ?? null,
+  );
   if (kind === "match" && recipient === "buyer") {
-    return `🎯 Nouvelle annonce qui correspond à votre recherche !\n\n📦 ${article.title}\n💰 ${price}${city}\n\nRépondez ACHETER pour être mis en relation.`;
+    return buildBuyerMatchText({ article, distanceKmValue: dKm });
   }
   if (kind === "new_buyer" && recipient === "seller") {
-    return `🛒 Nouvel acheteur intéressé par votre annonce !\n\n📦 ${article.title}\n💰 ${price}${city}\n\nRépondez CONTACT pour échanger.`;
+    return buildSellerNewBuyerText({
+      article,
+      buyerCity: buyerProfile?.city ?? null,
+      distanceKmValue: dKm,
+    });
   }
   if (kind === "sale_published" && recipient === "seller") {
     return `✅ Annonce publiée avec succès !\n\n📦 ${article.title}\n💰 ${price}${city}\n⏱️ Valable 7 jours`;
