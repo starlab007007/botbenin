@@ -122,6 +122,19 @@ serve(async (req) => {
     // and for delivery tracking when channel is WhatsApp/partner).
     const notifTargetUserId = recipient === "seller" ? article.seller_id : buyerProfile?.user_id ?? target.waouhUserId;
 
+    // Anti self-notification guard: never send a buyer-side notif to the seller (or vice versa)
+    if (
+      notifTargetUserId &&
+      article.seller_id &&
+      ((recipient === "buyer" && notifTargetUserId === article.seller_id) ||
+        (recipient === "seller" && buyerProfile?.user_id && buyerProfile.user_id === article.seller_id))
+    ) {
+      console.log("[waouh-notify-dispatch] self-notification blocked", { recipient, notifTargetUserId, seller_id: article.seller_id });
+      return new Response(JSON.stringify({ success: true, skipped: "self_notification" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     let waResult: any = { ok: false, skipped: true };
     let channelUsed = target.channel;
 
