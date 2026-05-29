@@ -115,6 +115,12 @@ export function WaouhMatchChatWindow({
           text: contextPrefix + text,
           attachments: [],
           authUserId: null,
+          meta: {
+            article_id: match.article_id,
+            buyer_profile_id: match.buyer_profile_id ?? null,
+            counterpart_user_id: match.counterpart_user_id ?? null,
+            role: match.kind,
+          },
         },
       });
       const realId = (data as any)?.inbound_message_id;
