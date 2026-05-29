@@ -18,6 +18,7 @@ import {
   type WaouhUserLike,
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
+import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
 
 type Conv = {
   id: string;
@@ -236,6 +237,10 @@ export default function ChatListScreen() {
             <p className="text-sm text-muted-foreground truncate">Achetez · Vendez · Négociez par message</p>
           </div>
         </button>
+
+        {/* Per-product chat windows (buyer-found & interested-buyer) appear directly under WAOUH */}
+        <WaouhMatchChatList sessionId={sessionId} authUserId={profile?.id ?? null} />
+
 
         {isGuest && (
           <div className="px-4 pt-5 pb-2 flex flex-col items-center text-center">
