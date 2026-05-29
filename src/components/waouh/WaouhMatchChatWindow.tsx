@@ -8,8 +8,10 @@ import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { cn } from "@/lib/utils";
 
 export type MatchChatMeta = {
-  key: string; // unique key (article_id or negotiation_id)
+  key: string; // unique key (role + article + counterpart)
   article_id: string | null;
+  buyer_profile_id?: string | null;
+  counterpart_user_id?: string | null;
   title: string;
   price: number | null;
   city?: string | null;
