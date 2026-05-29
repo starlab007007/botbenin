@@ -226,6 +226,7 @@ serve(async (req) => {
     const lng = raw.lng ?? 2.42;
     const city = raw.city ?? "Cotonou";
     const authUserId: string | null = raw.authUserId ?? null;
+    const clientMeta: Record<string, any> = (raw.meta && typeof raw.meta === "object") ? raw.meta : {};
 
     const wahaSession = raw.session || WAHA_SESSION;
     let fromChatId: string | null = null;
