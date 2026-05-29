@@ -248,7 +248,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       const buyerProfileId = row.payload?.buyer_profile_id ?? null;
 
       // Auto-open a dedicated chat window for match-type notifications
-      const matchKinds = ["match", "match_buyer", "match_seller", "new_buyer"];
+      const matchKinds = ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"];
       if (matchKinds.includes(row.notification_type) && row.article_id) {
         const kind =
           recipient === "seller" ||

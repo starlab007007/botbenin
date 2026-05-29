@@ -250,7 +250,9 @@ export function WaouhMatchChatWindow({
   const seedTitle =
     match.kind === "seller"
       ? "📩 Nouvel acheteur intéressé par votre annonce"
-      : "🎯 Annonce trouvée pour votre recherche";
+      : seedNotif?.notification_type === "radar_match"
+        ? "🎯 Annonce détectée par le Radar IA"
+        : "🎯 Annonce trouvée pour votre recherche";
 
   const seedDate = seedNotif?.sent_at
     ? new Date(seedNotif.sent_at).toLocaleString("fr-FR", {

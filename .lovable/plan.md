@@ -1,44 +1,57 @@
 ## Objectif
 
-Faire apparaître chaque notification "📩 intéressé N" comme une ligne distincte en tête de `WaouhMatchChatList`, et garantir que l'ouverture charge exactement le `payload.text` riche de CETTE notification dans `WaouhMatchChatWindow`.
+Appliquer exactement le même fonctionnement que « 📩 Nouvel acheteur intéressé » aux deux types côté acheteur :
+- « 🎯 Annonce trouvée pour vous » (`match` / `match_buyer`)
+- « 🎯 Annonce détectée par le Radar IA » (`radar_match`)
 
-## Cause racine confirmée
+Chaque notification doit :
+1. Apparaître en tête de `WaouhMatchChatList` (sous la carte WAOUH) comme une ligne distincte, clé = `notification.id`.
+2. À l'ouverture, afficher dans `WaouhMatchChatWindow` le **même contenu riche** (photo + texte intégral identique à WhatsApp) via `payload.text`.
+3. Auto-ouvrir une fenêtre dédiée à la réception temps réel.
 
-- `WaouhMatchChatList` regroupe par `article_id + role` → "intéressé 1", "intéressé 2"… fusionnés en 1 ligne (seule la plus récente "gagne", les nouvelles sont masquées si la clé a été archivée).
-- `WaouhMatchChatWindow` recharge le seed via `eq("article_id", …) order desc limit 1` → texte ambigu, pas forcément celui sur lequel l'utilisateur a cliqué.
-- `useWaouhMatchChats` réutilise la même clé `${role[0]}_${articleId}` → impossible d'ouvrir deux notifications distinctes pour le même article.
+## Constat
+
+Le front est déjà presque prêt :
+- `WaouhMatchChatList` charge déjà les types `match`, `match_buyer`, `match_seller`, `new_buyer`, `radar_match` et les keye par `notification.id`.
+- `WaouhMatchChatWindow` affiche un seed bulle riche depuis `payload.text` / `seed_text`.
+
+Deux trous bloquent l'expérience côté acheteur :
+- **Auto-ouverture** (`useWaouhMatchNotifications`) : `matchKinds` n'inclut **pas** `radar_match`, donc la fenêtre ne s'ouvre pas automatiquement quand le Radar IA détecte une annonce.
+- **Contenu riche manquant** (`waouh-radar-process`) : l'insert dans `waouh_notifications` pour `radar_match` ne pose pas `payload.text` ni `web_session_id`. Résultat : ligne générique « 🎯 Annonce trouvée pour vous » et bulle riche vide dans la fenêtre.
+
+Côté `match` / `match_buyer`, `waouh-notify-dispatch` pose déjà `payload.text` (via `buildBuyerMatchText`) + `web_session_id` → rien à changer côté serveur.
 
 ## Changements
 
-### 1. `WaouhMatchChatList.tsx`
-- Clé de ligne = `notification.id` (plus de `itemKey(role, articleId)`).
-- Une ligne par notification `new_buyer | match | match_seller | match_buyer | radar_match`, triées `sent_at DESC`.
-- Badge "Dernier" sur la première ligne ; "Nouveau" tant que `opened=false`.
-- `open()` : marque seulement CETTE notif `opened=true` (par `id`), puis dispatch `waouh:open-match-chat` avec `notification_id`, `article_id`, `payload.text` (snapshot), `payload.title/price/city/photos`, `kind`.
-- Garder le fallback messages 48h mais sans écraser les lignes notifs (pas de regroupement). Stub message → clé synthétique `msg_${articleId}_${role}` (différent espace de noms).
-- Archivage : continue par `key` (donc par notification.id), mais on désactive l'auto-archivage par date pour les notifs récentes < 7 j (logique inchangée).
+### 1. `src/hooks/useWaouhMatchNotifications.ts`
+- Ajouter `radar_match` à `matchKinds` pour déclencher l'event `waouh:open-match-chat` à l'insert temps réel.
+- Forcer `kind: "buyer"` pour `radar_match` (et `match` / `match_buyer` sans `recipient`).
+- Propager `seed_text`, `notification_id`, `photos`, `title/price/city` depuis `row.payload` comme déjà fait pour les autres.
 
-### 2. `WaouhMatchChatWindow.tsx` + `MatchChatMeta`
-- Ajouter `notification_id?: string | null` et `seed_text?: string | null` dans `MatchChatMeta`.
-- Si `seed_text` fourni → l'afficher directement (pas de re-fetch).
-- Sinon, si `notification_id` fourni → `select(...).eq("id", notification_id).maybeSingle()`.
-- Fallback actuel (par `article_id`) uniquement si rien d'autre n'est dispo.
-- Le titre header reste l'article ; la bulle riche utilise toujours `whitespace-pre-wrap font-mono`.
+### 2. `supabase/functions/waouh-radar-process/index.ts`
+Enrichir l'insert `waouh_notifications` (vers ligne 233) pour le rendre identique à `waouh-notify-dispatch` :
+- Récupérer `web_session_id` du `waouh_users` cible (déjà lu ensuite ligne 241, juste hoister).
+- Ajouter au row : `web_session_id`, `photos: signalPhotos`, et `payload: { text: directText, recipient: "buyer", title, price, city, signal_id, match_id, photos }`.
+- Conserver `title`/`body`/`meta` existants pour rétro-compat.
 
-### 3. `useWaouhMatchChats.ts`
-- Clé d'onglet = `notification_id` si présent, sinon `n_${role}_${articleId}_${ts}`. Permet plusieurs onglets pour un même article.
-- Propager `notification_id` et `seed_text` dans `MatchChatMeta`.
-- Archivage à la fermeture inchangé (par key).
+Ainsi `WaouhMatchChatList` affichera la ligne avec photo + preview de la première ligne du texte riche, et `WaouhMatchChatWindow` épinglera la bulle complète identique à WhatsApp (`🎯 *Annonce détectée par le Radar IA* …`).
 
-### 4. `useWaouhMatchNotifications.ts`
-- Dans `onUnifiedInsert`, inclure `notification_id: row.id`, `seed_text: row.payload?.text`, `photos` (tableau complet) dans le `detail` de `waouh:open-match-chat`.
-- Ne plus dériver `kind` uniquement du type : respecter aussi `payload.recipient` si fourni.
+### 3. `src/components/waouh/WaouhMatchChatWindow.tsx` (cosmétique)
+Adapter `seedTitle` pour différencier :
+- `seller` → « 📩 Nouvel acheteur intéressé par votre annonce »
+- `buyer` + `notification_type === "radar_match"` → « 🎯 Annonce détectée par le Radar IA »
+- `buyer` autre → « 🎯 Annonce trouvée pour votre recherche »
 
-## Aucun changement backend
-Edge functions (`waouh-webhook`, `waouh-notify-dispatch`, format WAOUH) restent identiques — le `payload.text` est déjà correct et figé côté serveur.
+(`seedNotif.notification_type` est déjà chargé.)
+
+## Hors scope
+
+- Pas de changement DB (schémas / RLS).
+- Pas de modification du dispatcher `match` / `new_buyer` (déjà conforme).
+- Aucun changement sur le côté vendeur (déjà OK).
 
 ## Validation
-1. Côté vendeur : envoyer 2 fois "intéressé 1" depuis 2 sessions acheteur → 2 lignes distinctes apparaissent en haut, badges "Dernier"/"Nouveau", ouverture de chacune affiche son propre texte riche.
-2. Côté acheteur : `match_buyer` distinct → ligne séparée, même comportement.
-3. Vérifier qu'archiver une notif ne masque pas les autres du même article.
-4. Vérifier que `WaouhMatchChatWindow` ouvre le bon `payload.text` même si une notif plus récente existe pour le même article.
+
+- 1 signal Radar IA détecté → 1 ligne distincte au top de la liste avec photo + texte riche, et la fenêtre s'ouvre automatiquement avec la bulle complète identique au WhatsApp.
+- 2 annonces match successives pour un même acheteur → 2 lignes séparées (clé `notification.id`).
+- Notification `match_buyer` existante : reste fonctionnelle, contenu identique à avant.
