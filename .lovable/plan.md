@@ -1,66 +1,48 @@
+## Objectif
 
-## Problèmes constatés
+Quand l'utilisateur ouvre un chat produit (WAOUH·ACH-… / WAOUH·VEN-…), il doit obtenir une **fenêtre plein écran identique à WAOUH principal** (même header, même composer, même fluidité), et pouvoir **basculer rapidement entre WAOUH principal et chaque chat produit** via une barre d'onglets.
 
-1. **Spam de notifications "acheteur intéressé"** dès qu'une annonce est publiée, sans qu'un acheteur ait réellement manifesté d'intérêt.
-   - `waouh-notify-buyers` traite `keywords = []` comme « match tout » (`!p.keywords?.length` ⇒ true). Plusieurs profils vides en BDD déclenchent une notif sur chaque publication.
-   - Des profils dupliqués (même user_id + même mot-clé) multiplient les notifs.
-   - L'étiquette `new_buyer` (« acheteur trouvé ! ») est envoyée au vendeur dès qu'un mot-clé **enregistré** matche, ce qui n'est PAS un intérêt réel — l'acheteur n'a encore rien ouvert ni écrit.
+## Problème actuel
 
-2. **Les fenêtres de chat produit** (capture 1, `WAOUH·ACH-…`) n'apparaissent qu'à l'intérieur de l'écran WAOUH. Sur la liste des conversations (capture 2), il n'y a rien sous la carte WAOUH alors que l'utilisateur s'attend à voir chaque produit matché comme une **nouvelle conversation** ouvrable.
+`WaouhMatchChatWindow` s'affiche en carte empilée sous le composer principal (max-h 40vh, textarea 1 ligne, pas plein écran). Mauvaise ergonomie sur mobile.
 
-## Corrections proposées
+## Solution
 
-### 1. Arrêter le spam (backend)
+### 1. Transformer le chat produit en vue plein écran
+Refonte de `WaouhMatchChatWindow` (ou nouveau `WaouhMatchChatFullscreen`) pour qu'il occupe `h-[100dvh]` avec :
+- Header sticky identique à WAOUH (avatar produit, code WAOUH·ACH/VEN, prix·ville, bouton retour, bouton fermer)
+- Zone messages `flex-1 overflow-y-auto` avec même style de bulles que WAOUH
+- Composer bas identique à WAOUH (textarea auto-grow multi-lignes, bouton pièce jointe, bouton envoyer rond)
+- Safe-area iOS (`pb-[env(safe-area-inset-bottom)]`)
 
-`supabase/functions/waouh-notify-buyers/index.ts` :
-- **Exiger des keywords non vides** : `if (!p.keywords?.length) continue;` (un profil sans mot-clé ne reçoit plus rien).
-- **Dédoublonner** par `(user_id, lower(keyword))` : ne dispatcher qu'une fois par utilisateur destinataire et par annonce.
-- **Ne plus notifier le vendeur à la publication.** Supprimer le dispatch `kind: 'new_buyer'`. Le vendeur n'est notifié comme « acheteur intéressé » **que** lorsqu'un acheteur ouvre/écrit dans le chat produit (déclenché côté `waouh-channel-in` quand un inbound porte `meta.article_id` + role `buyer`, à condition que ce soit la première interaction sur ce couple article/acheteur).
-- Garder la dispatch acheteur (`kind: 'match'`, recipient `buyer`) — c'est l'alerte légitime « ton mot-clé matche cette annonce ».
-- Garde-fou existant `p.user_id === article.seller_id` reste en place.
+### 2. Barre d'onglets de navigation entre conversations
+Nouveau composant `WaouhChatTabs` affiché en haut (sous le header) qui liste :
+- Onglet **WAOUH** (principal) — toujours premier
+- Un onglet par chat produit ouvert (label court `ACH-B033` / `VEN-8AC` + pastille non-lus)
+- Onglet actif surligné, scroll horizontal si > 3 onglets
+- Tap = bascule instantanée sans démontage des autres (état conservé)
 
-Migration ponctuelle (one-shot) :
-- Désactiver (`is_active = false`) les `waouh_buyer_profiles` où `keywords` est vide ou NULL.
-- Dédupliquer les profils strictement identiques (même `user_id` + même set de keywords).
+### 3. Orchestrateur dans l'écran WAOUH
+`WaouhChatScreen` devient un conteneur qui :
+- Maintient `activeTab: "main" | matchKey`
+- Rend `WaouhChatTabs` en haut
+- Affiche soit le chat WAOUH principal soit la fenêtre produit active (les autres restent montées en `hidden` pour préserver scroll/saisie)
+- `WaouhMatchChats` (carte empilée actuelle) est **supprimé** de l'inbox / remplacé par cette logique d'onglets
 
-### 2. Notification d'intérêt réel (vendeur)
-
-`supabase/functions/waouh-channel-in/index.ts` :
-- Quand un message entrant porte `meta.article_id` et que l'expéditeur n'est pas le `seller_id`, déclencher `waouh-notify-dispatch` avec `kind: 'new_buyer'`, `recipient: 'seller'`, `buyer_profile_id` ou `counterpart_user_id`. Idempotent via un `dedupe_key = new_buyer:<article_id>:<buyer_key>` pour ne notifier qu'une seule fois par couple.
-
-### 3. Chats produit visibles dans la liste (capture 2)
-
-Nouveau composant `WaouhMatchChatList` injecté dans `ChatListScreen.tsx` **juste sous la carte WAOUH épinglée** :
-- Source : même mécanisme que `WaouhMatchChats` (lecture `waouh_notifications` kind ∈ {`match`, `match_buyer`, `match_seller`, `new_buyer`} + persistance localStorage `waouh_open_matches_<sid>`).
-- Affichage : une ligne par produit matché avec :
-  - mini-photo article,
-  - label `WAOUH·ACH-{ART4}-{USR3}` ou `WAOUH·VEN-…` (via `formatMatchLabel`),
-  - titre + prix + ville,
-  - badge « Nouveau » si non lu,
-  - tap → navigation vers un écran dédié `/app/chat/match/:role/:articleId/:counterpart` (route nouvelle) qui réutilise `WaouhMatchChatWindow` en plein écran pour garder l'historique par produit.
-- Côté vendeur : même liste, items générés à partir des notifs `new_buyer` reçues (un item par couple article+acheteur).
-
-Conserver également `WaouhMatchChats` à l'intérieur de l'écran WAOUH (comportement actuel) pour les ouvertures immédiates depuis une notif push pendant qu'on chatte avec WAOUH.
-
-### 4. UI nettoyage
-
-- Ne plus afficher dans l'inbox unifiée (`useWaouhInbox`) les notifs `match` côté soi-même quand `payload.recipient` ne correspond pas au rôle de l'utilisateur (filtre déjà partiel — verrouiller).
-- Sur l'écran vendeur : badge spécifique `WAOUH·VEN-…` (vert teal foncé) pour distinguer des chats acheteur.
+### 4. Ouverture depuis l'inbox
+`WaouhMatchChatList` (liste sous WAOUH dans `ChatListScreen`) navigue vers `/app/chat?match=<key>` qui ouvre directement l'onglet correspondant dans `WaouhChatScreen`.
 
 ## Fichiers touchés
 
-- `supabase/functions/waouh-notify-buyers/index.ts` (skip empty keywords, dedupe, retirer dispatch seller)
-- `supabase/functions/waouh-channel-in/index.ts` (dispatch `new_buyer` au premier inbound acheteur)
-- 1 migration SQL (désactivation profils vides + déduplication)
-- `src/components/waouh/WaouhMatchChatList.tsx` (nouveau, version "ligne" pour la liste)
-- `src/app-mobile/screens/ChatListScreen.tsx` (montage sous la carte WAOUH)
-- `src/app-mobile/screens/WaouhMatchChatScreen.tsx` (nouvel écran plein écran, réutilise `WaouhMatchChatWindow`)
-- `src/AppMobile.tsx` (route `/app/chat/match/:role/:articleId/:counterpart`)
-- `src/hooks/useWaouhInbox.ts` (filtre strict du recipient)
+- `src/components/waouh/WaouhMatchChatWindow.tsx` — refonte plein écran
+- `src/components/waouh/WaouhChatTabs.tsx` — **NOUVEAU** barre d'onglets
+- `src/app-mobile/screens/WaouhChatScreen.tsx` — orchestration tabs + état partagé
+- `src/components/waouh/WaouhMatchChats.tsx` — simplifié (registre des matches ouverts uniquement, sans rendu carte)
+- `src/components/waouh/WaouhMatchChatList.tsx` — navigation vers `/app/chat?match=…`
 
-## Vérifications après build
+## Notes techniques
 
-- Publier une annonce avec un titre qui ne matche aucun keyword existant ⇒ 0 notif vendeur, 0 notif acheteur.
-- Publier une annonce qui matche un keyword d'un autre utilisateur ⇒ 1 notif acheteur uniquement, vendeur silencieux.
-- Quand l'acheteur ouvre la fenêtre produit et envoie un message ⇒ 1 et une seule notif `new_buyer` côté vendeur, ligne `WAOUH·VEN-…` apparaît dans sa liste.
-- La carte produit (capture 1) apparaît bien comme ligne de conversation juste sous WAOUH (capture 2).
+- Garder les hooks existants (`useWaouhInbox`, realtime sur `waouh_messages`) — aucun changement backend
+- Persister la liste des onglets ouverts dans `localStorage` (déjà fait pour `waouh_open_matches_<sid>`)
+- Préserver le focus textarea au switch d'onglet (cf. chat-agent-ui-contract)
+- Aucun changement d'edge function ni de schéma DB

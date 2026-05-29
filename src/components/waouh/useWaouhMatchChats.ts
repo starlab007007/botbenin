@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { WaouhMatchChatWindow, type MatchChatMeta } from "./WaouhMatchChatWindow";
+import type { MatchChatMeta } from "./WaouhMatchChatWindow";
 
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
 
@@ -19,12 +19,17 @@ function saveOpen(sid: string, list: MatchChatMeta[]) {
   } catch {}
 }
 
-export function WaouhMatchChats({ sessionId, authUserId }: { sessionId: string; authUserId?: string | null }) {
+/**
+ * Manages the list of open product-scoped chat tabs.
+ * Listens for `waouh:open-match-chat` events fired from notifications/inbox.
+ */
+export function useWaouhMatchChats(sessionId: string, authUserId?: string | null) {
   const [matches, setMatches] = useState<MatchChatMeta[]>(() => loadOpen(sessionId));
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
+  const [activeKey, setActiveKey] = useState<string>("main");
 
   useEffect(() => {
-    let active = true;
+    let alive = true;
     (async () => {
       const ors: string[] = [`web_session_id.eq.${sessionId}`];
       if (authUserId) ors.push(`auth_user_id.eq.${authUserId}`);
@@ -33,22 +38,20 @@ export function WaouhMatchChats({ sessionId, authUserId }: { sessionId: string; 
         .select("id")
         .or(ors.join(","))
         .limit(50);
-      if (!active) return;
+      if (!alive) return;
       setWaouhIds(Array.from(new Set((data ?? []).map((u: any) => u.id))));
     })();
     return () => {
-      active = false;
+      alive = false;
     };
   }, [sessionId, authUserId]);
 
-  // Listen for open-match-chat events from notifications
   useEffect(() => {
     const onOpen = async (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       const articleId: string | null = detail.article_id ?? null;
       if (!articleId) return;
 
-      // Fetch article info to populate the window
       const { data: art } = await supabase
         .from("waouh_articles")
         .select("id,title,price,city,photos")
@@ -71,40 +74,31 @@ export function WaouhMatchChats({ sessionId, authUserId }: { sessionId: string; 
         kind: role,
       };
       setMatches((prev) => {
-        if (prev.some((m) => m.key === meta.key)) return prev;
+        if (prev.some((m) => m.key === meta.key)) {
+          setActiveKey(meta.key);
+          return prev;
+        }
         const next = [meta, ...prev].slice(0, 10);
         saveOpen(sessionId, next);
         return next;
       });
+      setActiveKey(meta.key);
     };
     window.addEventListener("waouh:open-match-chat", onOpen as EventListener);
     return () => window.removeEventListener("waouh:open-match-chat", onOpen as EventListener);
   }, [sessionId]);
 
-  const close = (key: string) => {
-    setMatches((prev) => {
-      const next = prev.filter((m) => m.key !== key);
-      saveOpen(sessionId, next);
-      return next;
-    });
-  };
-
-  if (matches.length === 0) return null;
-
-  return (
-    <div className="px-2 pt-2 pb-1 bg-background border-t border-border/40 max-h-[50vh] overflow-y-auto">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1 mb-1">
-        Discussions ({matches.length})
-      </div>
-      {matches.map((m) => (
-        <WaouhMatchChatWindow
-          key={m.key}
-          match={m}
-          sessionId={sessionId}
-          waouhIds={waouhIds}
-          onClose={() => close(m.key)}
-        />
-      ))}
-    </div>
+  const close = useCallback(
+    (key: string) => {
+      setMatches((prev) => {
+        const next = prev.filter((m) => m.key !== key);
+        saveOpen(sessionId, next);
+        return next;
+      });
+      setActiveKey((cur) => (cur === key ? "main" : cur));
+    },
+    [sessionId]
   );
+
+  return { matches, waouhIds, activeKey, setActiveKey, close };
 }

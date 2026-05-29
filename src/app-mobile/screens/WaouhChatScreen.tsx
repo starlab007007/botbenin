@@ -4,7 +4,9 @@ import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLef
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
-import { WaouhMatchChats } from "@/components/waouh/WaouhMatchChats";
+import { WaouhMatchChatWindow } from "@/components/waouh/WaouhMatchChatWindow";
+import { WaouhChatTabs } from "@/components/waouh/WaouhChatTabs";
+import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
 import { WaouhUnifiedInbox } from "@/components/waouh/WaouhUnifiedInbox";
 
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
@@ -47,6 +49,10 @@ export default function WaouhChatScreen() {
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } =
     useWaouhMatchNotifications(sessionId, profile?.id ?? null);
+  const { matches, waouhIds, activeKey, setActiveKey, close } = useWaouhMatchChats(
+    sessionId,
+    profile?.id ?? null
+  );
 
   useEffect(() => {
     document.title = "WAOUH Chat — bot.bj";
@@ -200,16 +206,36 @@ export default function WaouhChatScreen() {
         </div>
       </header>
 
-      {/* Chat fills remaining space — composer is at bottom with chips sitting right above it */}
-      <div className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-0">
+      {/* Tabs bar — switch between main WAOUH and product chats */}
+      <WaouhChatTabs
+        matches={matches}
+        activeKey={activeKey}
+        onSelect={setActiveKey}
+        onClose={close}
+        sessionId={sessionId}
+      />
+
+      {/* Active panel fills remaining space. Inactive panels stay mounted (hidden) to preserve state. */}
+      <div className="flex-1 min-h-0 relative">
+        <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
           <ErrorBoundary fallback={<MobileErrorFallback />}>
             <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
           </ErrorBoundary>
         </div>
-        <WaouhMatchChats sessionId={sessionId} authUserId={profile?.id ?? null} />
+        {matches.map((m) => (
+          <div
+            key={m.key}
+            className={cn("absolute inset-0", activeKey === m.key ? "" : "hidden")}
+          >
+            <WaouhMatchChatWindow
+              match={m}
+              sessionId={sessionId}
+              waouhIds={waouhIds}
+              active={activeKey === m.key}
+            />
+          </div>
+        ))}
       </div>
-
     </div>
   );
 }
