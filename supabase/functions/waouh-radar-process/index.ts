@@ -230,18 +230,33 @@ Deno.serve(async (req) => {
           if (b.user_id) {
             const title = `🎯 Annonce détectée : ${sig.product?.title || sig.category}`;
             const body = `${sig.price ? Number(sig.price).toLocaleString("fr-FR") + " FCFA" : "Prix non précisé"} · ${sig.city || "?"} · source: ${sig.source_type}`;
+            const signalPhotos = extractProductPhotos(sig);
+            const directText = `🎯 *Annonce détectée par le Radar IA*\n${title}\n${body}\n${sig.raw_url ? `🔗 ${sig.raw_url}\n` : ""}Répondez « intéressé » pour entrer en contact.`;
+            const { data: wu } = await sb.from("waouh_users").select("id, phone_number, web_session_id").eq("id", b.user_id).maybeSingle();
+            const notifWebSession = wu?.web_session_id ?? null;
+
             await sb.from("waouh_notifications").insert({
               user_id: b.user_id,
               notification_type: "radar_match",
               title,
               body,
+              photos: signalPhotos,
+              web_session_id: notifWebSession,
+              payload: {
+                text: directText,
+                recipient: "buyer",
+                title: sig.product?.title || sig.category,
+                price: sig.price,
+                city: sig.city,
+                photos: signalPhotos,
+                signal_id: sig.id,
+                raw_url: sig.raw_url,
+                match_id: m?.id,
+              },
               meta: { signal_id: sig.id, raw_url: sig.raw_url, match_id: m?.id },
             });
 
-            const { data: wu } = await sb.from("waouh_users").select("id, phone_number, web_session_id").eq("id", b.user_id).maybeSingle();
             if (wu) {
-              const signalPhotos = extractProductPhotos(sig);
-              const directText = `🎯 *Annonce détectée par le Radar IA*\n${title}\n${body}\n${sig.raw_url ? `🔗 ${sig.raw_url}\n` : ""}Répondez « intéressé » pour entrer en contact.`;
               let msgId: string | null = null;
               if (wu.web_session_id) {
                 const { data: msg } = await sb.from("waouh_messages").insert({
