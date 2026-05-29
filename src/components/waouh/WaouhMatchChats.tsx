@@ -54,14 +54,21 @@ export function WaouhMatchChats({ sessionId, authUserId }: { sessionId: string; 
         .select("id,title,price,city,photos")
         .eq("id", articleId)
         .maybeSingle();
+
+      const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
+      const counterpartKey = detail.buyer_profile_id || detail.counterpart_user_id || "any";
+      const key = `${role[0]}_${articleId}_${counterpartKey}`;
+
       const meta: MatchChatMeta = {
-        key: `${detail.kind === "buyer" ? "b" : "s"}_${articleId}`,
+        key,
         article_id: articleId,
+        buyer_profile_id: detail.buyer_profile_id ?? null,
+        counterpart_user_id: detail.counterpart_user_id ?? null,
         title: art?.title || detail.title || "Annonce",
         price: art?.price ?? detail.price ?? null,
         city: art?.city ?? detail.city ?? null,
         photo: (Array.isArray(art?.photos) && art!.photos[0]) || detail.photo || null,
-        kind: detail.kind === "buyer" ? "buyer" : "seller",
+        kind: role,
       };
       setMatches((prev) => {
         if (prev.some((m) => m.key === meta.key)) return prev;

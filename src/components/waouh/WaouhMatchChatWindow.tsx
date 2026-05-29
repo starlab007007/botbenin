@@ -6,10 +6,14 @@ import { Send, X, ChevronUp, ChevronDown, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { cn } from "@/lib/utils";
+import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
+
 
 export type MatchChatMeta = {
-  key: string; // unique key (article_id or negotiation_id)
+  key: string; // unique key (role + article + counterpart)
   article_id: string | null;
+  buyer_profile_id?: string | null;
+  counterpart_user_id?: string | null;
   title: string;
   price: number | null;
   city?: string | null;
@@ -151,6 +155,13 @@ export function WaouhMatchChatWindow({
             </div>
           )}
           <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider opacity-80">
+              {formatMatchLabel({
+                articleId: match.article_id,
+                userKey: match.buyer_profile_id || match.counterpart_user_id || sessionId,
+                role: match.kind,
+              })}
+            </div>
             <div className="text-xs font-semibold truncate">
               {match.kind === "buyer" ? "🎯 " : "🛒 "}
               {match.title}

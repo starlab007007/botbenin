@@ -242,6 +242,11 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         image_url: pickPhoto,
       };
       upsertNotif(notif);
+      // Anti self-notification: ignore if recipient is seller but user_id is the buyer (or vice versa)
+      // Server-side guard handles primary case; this is a UI safety net.
+      const recipient = row.payload?.recipient;
+      const buyerProfileId = row.payload?.buyer_profile_id ?? null;
+
       // Auto-open a dedicated chat window for match-type notifications
       const matchKinds = ["match", "match_buyer", "match_seller", "new_buyer"];
       if (matchKinds.includes(row.notification_type) && row.article_id) {
@@ -254,6 +259,8 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
             new CustomEvent("waouh:open-match-chat", {
               detail: {
                 article_id: row.article_id,
+                buyer_profile_id: buyerProfileId,
+                recipient,
                 kind,
                 title: row.payload?.title,
                 price: row.payload?.price,

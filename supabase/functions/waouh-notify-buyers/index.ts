@@ -24,6 +24,8 @@ Deno.serve(async (req) => {
     const matched: string[] = [];
 
     for (const p of profiles || []) {
+      // Skip self-notification: the buyer profile belongs to the seller
+      if (p.user_id && article.seller_id && p.user_id === article.seller_id) continue;
       const text = (article.title + ' ' + (article.brand || '') + ' ' + (article.model || '')).toLowerCase();
       const kwMatch = !p.keywords?.length || p.keywords.some((k: string) => text.includes(k.toLowerCase()));
       const priceMatch = (!p.price_min || article.price >= p.price_min) && (!p.price_max || article.price <= p.price_max);
