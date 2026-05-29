@@ -18,6 +18,7 @@ import {
   type WaouhUserLike,
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
+import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
 
 type Conv = {
   id: string;
