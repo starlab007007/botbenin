@@ -59,8 +59,8 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         .maybeSingle();
 
       const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
-      const counterpartKey = detail.buyer_profile_id || detail.counterpart_user_id || "any";
-      const key = `${role[0]}_${articleId}_${counterpartKey}`;
+      // Unified key with WaouhMatchChatList: 1 article × 1 role => 1 tab
+      const key = `${role[0]}_${articleId}`;
 
       const meta: MatchChatMeta = {
         key,

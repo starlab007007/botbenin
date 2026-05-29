@@ -1,80 +1,58 @@
-# Tri chronologique strict + robustesse messages/notifications
+# Fenêtres de chat produit : notification d'amorce + fond WAOUH + scope strict
 
 ## Objectif
-Sous la carte WAOUH, toutes les conversations produit (acheteurs intéressés + annonces trouvées) sont affichées **strictement du plus récent au plus ancien**, sans doublon, sans blocage d'envoi/réception, avec coordination temps réel fiable.
 
-## Problèmes identifiés
+Quand l'utilisateur ouvre une conversation depuis `WaouhMatchChatList` (acheteur intéressé / annonce trouvée) :
+1. La fenêtre s'ouvre avec la **notification d'origine en tout premier message** ("📩 Nouvel acheteur intéressé…" ou "🎯 Annonce trouvée pour vous…"), en bulle système.
+2. La fenêtre utilise **exactement le même arrière-plan doodle vert** que la fenêtre WAOUH principale (`.waouh-chat-bg`).
+3. Toute la discussion reste **strictement scopée à l'article** (`article_id`) jusqu'à la clôture/finalisation de la vente — pas de fuite vers le chat WAOUH général, pas de mélange avec un autre produit.
 
-1. **Tri partiellement faux**
-   - Le tri DESC existe mais la déduplication par clé `role_articleId_counterpart` crée parfois 2 lignes pour le même article (une notification avec `buyer_profile_id` puis une autre sans → clé `..._any`). Résultat : doublons et ordre cassé.
-   - Le fallback `waouh_messages` cherche une clé existante via `keys().find(k => k.includes(`_${articleId}_`))` ce qui matche n'importe quel rôle et peut rebumper la mauvaise ligne.
+## Problèmes actuels
 
-2. **Pas de rebump après envoi**
-   - `WaouhMatchChatWindow.send()` n'émet pas `waouh:match-updated`, donc l'ordre dans l'inbox ne reflète pas la dernière activité tant qu'on ne reload pas.
+- `WaouhMatchChatWindow` ouvre une zone messages vide (juste un texte centré "Démarrez la discussion…"). La notification d'origine (acheteur intéressé / annonce trouvée) n'est jamais rappelée dans le fil → l'utilisateur perd le contexte.
+- Le fond est `bg-muted/20` au lieu du fond doodle WAOUH (`.waouh-chat-bg`) → incohérence visuelle avec la fenêtre principale.
+- Le scope produit est presque correct (filtre `article_id` côté DB) mais :
+  - L'envoi inclut un préfixe `[Annonce …]` dans le texte qui pollue le message stocké côté DB.
+  - Il n'y a aucun statut de **clôture** : tant que la vente n'est pas finalisée, la conversation doit rester active et isolée; une fois clôturée, il faut le matérialiser (badge + composer désactivé).
+- Bug mineur : `useWaouhMatchChats` génère la clé `${role[0]}_${articleId}_${counterpart}` alors que `WaouhMatchChatList` archive par `${role[0]}_${articleId}` → l'auto-archive à la fermeture ne matche pas la ligne de l'inbox.
 
-3. **Realtime fragile**
-   - Listener uniquement sur INSERT `waouh_notifications`. Les nouveaux messages article-scoped (`waouh_messages.article_id`) n'ont pas de canal realtime → l'item ne remonte pas.
-   - Plusieurs subscriptions parallèles (1 par `waouhId`) avec le même channel name peuvent provoquer des collisions silencieuses.
+## Plan
 
-4. **Risques d'envoi/blocage**
-   - `setSending(true)` sans timeout : si `functions.invoke` reste pendu, le composer reste bloqué indéfiniment.
-   - Optimistic temp message peut rester orphelin si l'INSERT realtime arrive avant la réponse → doublon visuel.
-   - `WaouhMatchChatWindow` lit les messages en filtrant côté client sur `meta.article_id` après un `OR` large → coûteux et peut rater des messages si la pagination tronque (limit 300).
+### 1. `WaouhMatchChatWindow.tsx` — Notification d'amorce + fond WAOUH
 
-5. **Marquage "lu" suspect**
-   - Le `open()` exécute 3 updates (dont une orpheline `filter` jamais awaitée) → bruit + warnings TS.
+- **Charger la notification d'origine** au mount : query `waouh_notifications` filtrée sur `article_id`, types `match|match_buyer|match_seller|new_buyer|radar_match`, ordre `sent_at ASC`, limit 1. Stocker dans un state `seedNotif`.
+- **Injecter une bulle système** en tête du fil (avant les messages DB) :
+  - Pour `kind === "seller"` (vendeur côté annonce) → "📩 Nouvel acheteur intéressé par votre annonce : {title} · {price} FCFA · {city}".
+  - Pour `kind === "buyer"` (acheteur recherchant) → "🎯 Annonce trouvée pour votre recherche : {title} · {price} FCFA · {city}".
+  - Style : bulle centrée, fond `bg-amber-50/90 dark:bg-amber-900/20`, bord ambré, icône, horodatage de la notification, photo produit miniature si dispo.
+- **Remplacer le fond** de la zone messages : passer de `bg-muted/20` à `waouh-chat-bg` (la classe existe déjà dans `src/app-mobile/theme/chat-bg.css`, déjà importée via le shell mobile). Conserver la lisibilité des bulles.
+- **Empty state** : si aucun message DB, garder la bulle système comme amorce et supprimer le texte placeholder redondant.
 
-## Plan d'action (frontend uniquement)
+### 2. `WaouhMatchChatWindow.tsx` — Scope strict produit jusqu'à clôture
 
-### A. `WaouhMatchChatList.tsx`
+- **Nettoyer l'envoi** : retirer le préfixe `[Annonce …]` / `[Acheteur …]` injecté dans `text`. Le contexte produit doit voyager **uniquement** via `meta.article_id` + `meta.role` (déjà présent), pas dans le corps du message.
+- **Garde-fou réception** : la requête initiale filtre déjà `.eq("article_id", match.article_id)`. Renforcer le subscribe realtime pour ignorer tout INSERT dont `article_id` ≠ `match.article_id` ET `meta.article_id` ≠ `match.article_id` (déjà fait, juste documenter).
+- **Statut de clôture** : lire un éventuel `status` / `closed_at` depuis `waouh_articles` (ou `payload.status` de la notification). Si vendu/clôturé :
+  - Afficher un badge "Vente finalisée" dans le sub-header.
+  - Désactiver le composer (textarea + bouton) et afficher une bannière "Cette conversation est clôturée".
+  - Sinon laisser tout actif (comportement actuel).
+- Si aucune colonne de statut n'existe encore, on se contente du badge basé sur un flag local `match.closed?: boolean` que l'on prépare pour un futur câblage (no-op pour l'instant).
 
-**Déduplication unifiée par article**
-- Clé canonique = `${role[0]}_${article_id}` (sans counterpart). Pour un même article + rôle, on garde toujours l'entrée la plus récente. `buyer_profile_id` / `counterpart_user_id` sont conservés depuis la dernière notification (préférence : non-null).
-- Cela élimine les doublons "any" vs "with profile".
+### 3. `useWaouhMatchChats.ts` — Aligner la clé d'archive
 
-**Tri strict**
-- Tri unique par `last_at DESC` après merge. Pas de pinning séparé : le 1er de la liste = badge "Dernier" automatiquement.
-- L'auto-archive 7j reste hors liste principale.
+- Unifier la clé de tab sur `${role[0]}_${articleId}` (sans counterpart) pour matcher `WaouhMatchChatList`. Conserver `buyer_profile_id` / `counterpart_user_id` dans `meta` pour les envois.
+- Conséquence : ouvrir 2 fois le même article rouvre le même onglet, et `close()` archive bien la ligne correspondante de l'inbox.
 
-**Realtime renforcé**
-- 1 seul `supabase.channel('waouh-match-list-${sid}')` qui combine :
-  - `postgres_changes` sur `waouh_notifications` filtré `web_session_id=eq.${sid}`
-  - `postgres_changes` sur `waouh_notifications` filtré `user_id=in.(...)` (un listener par uid au sein du même channel)
-  - `postgres_changes` sur `waouh_messages` filtré `web_session_id=eq.${sid}` (INSERT) → si `article_id` non null, rebump local.
-- Event window `waouh:match-updated` toujours écouté pour bump immédiat post-envoi.
-- Cleanup unique au unmount.
+### 4. Vérifications
 
-**Marquage "lu" propre**
-- Une seule requête conditionnelle (sessionId OU waouhIds) avec `.or()`. Suppression de la variable `filter` morte.
-
-### B. `WaouhMatchChatWindow.tsx`
-
-**Émission de l'event bump**
-- Après `functions.invoke` réussi, `window.dispatchEvent(new CustomEvent('waouh:match-updated', { detail: { article_id } }))` → l'inbox remonte cette conv en tête.
-
-**Anti-doublon optimistic / realtime**
-- Dedup par `id` ET par signature `(direction, text, ~created_at within 5s)` : si on reçoit via realtime un message dont la signature matche un temp, on remplace au lieu d'ajouter.
-
-**Anti-blocage envoi**
-- Wrapper `Promise.race` avec timeout 20 s sur `functions.invoke`. En cas de timeout : on garde le temp message marqué "non envoyé" avec bouton réessayer (simple : toast + re-set `input`).
-- `try/finally` garantit `setSending(false)` toujours appelé (déjà en place — on confirme).
-
-**Lecture messages**
-- Garder le filtre client mais augmenter la sécurité : ajouter `.eq('article_id', match.article_id)` dans la query Supabase quand `article_id` est non null, évitant de dépendre du filtrage `meta` côté client.
-
-### C. `useWaouhMatchChats.ts`
-- Quand on ouvre un tab : émettre aussi `waouh:match-updated` pour synchroniser l'ordre côté inbox.
+- À l'ouverture : la bulle d'amorce apparaît immédiatement, suivie de l'historique scopé.
+- Fond identique visuellement à la fenêtre WAOUH principale.
+- Envoyer un message dans la fenêtre produit A n'apparaît pas dans la fenêtre produit B ni dans WAOUH principal.
+- Fermer un onglet → la ligne disparaît bien de la liste sous la carte WAOUH (archive correctement appliquée).
 
 ## Fichiers touchés
-- `src/components/waouh/WaouhMatchChatList.tsx` (refactor merge + tri + realtime msgs)
-- `src/components/waouh/WaouhMatchChatWindow.tsx` (dispatch bump, anti-doublon, timeout envoi, filter article_id côté DB)
-- `src/components/waouh/useWaouhMatchChats.ts` (dispatch bump à l'ouverture)
+
+- `src/components/waouh/WaouhMatchChatWindow.tsx` (fetch notif seed, bulle système, fond `waouh-chat-bg`, nettoyage préfixe, statut clôture)
+- `src/components/waouh/useWaouhMatchChats.ts` (clé d'onglet unifiée)
 
 Aucune migration DB, aucune edge function modifiée.
-
-## Garanties après changement
-- Ordre = strictement `last_at DESC` sur la fusion (notifications + derniers messages).
-- 1 article = 1 ligne par rôle, jamais de doublon.
-- Nouvelle notification, nouveau message article-scoped, ou envoi local → la ligne remonte en tête immédiatement.
-- Composer jamais bloqué : timeout dur + finally.
-- Pas de doublon visuel dans la fenêtre de chat (dedup id + signature).
