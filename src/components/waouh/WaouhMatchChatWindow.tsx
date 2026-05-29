@@ -11,6 +11,8 @@ import "@/app-mobile/theme/chat-bg.css";
 export type MatchChatMeta = {
   key: string;
   article_id: string | null;
+  notification_id?: string | null;
+  seed_text?: string | null;
   buyer_profile_id?: string | null;
   counterpart_user_id?: string | null;
   title: string;
@@ -20,6 +22,7 @@ export type MatchChatMeta = {
   kind: "buyer" | "seller";
   closed?: boolean;
 };
+
 
 type Msg = {
   id: string;
@@ -75,6 +78,27 @@ export function WaouhMatchChatWindow({
       const ors: string[] = [`web_session_id.eq.${sessionId}`];
       if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
 
+      // If caller provided the exact seed_text, use it immediately.
+      if (match.seed_text) {
+        setSeedNotif({
+          sent_at: new Date().toISOString(),
+          notification_type: match.kind === "seller" ? "new_buyer" : "match_buyer",
+          text: match.seed_text,
+        });
+      }
+
+      const seedQuery = match.notification_id
+        ? (supabase.from("waouh_notifications") as any)
+            .select("sent_at,notification_type,payload")
+            .eq("id", match.notification_id)
+            .maybeSingle()
+        : (supabase.from("waouh_notifications") as any)
+            .select("sent_at,notification_type,payload")
+            .eq("article_id", match.article_id)
+            .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
+            .order("sent_at", { ascending: false })
+            .limit(1);
+
       const [msgsRes, notifRes, artRes] = await Promise.all([
         (supabase.from("waouh_messages") as any)
           .select("id,direction,text,created_at,attachments,meta,article_id")
@@ -82,12 +106,7 @@ export function WaouhMatchChatWindow({
           .or(ors.join(","))
           .order("created_at", { ascending: true })
           .limit(300),
-        (supabase.from("waouh_notifications") as any)
-          .select("sent_at,notification_type,payload")
-          .eq("article_id", match.article_id)
-          .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
-          .order("sent_at", { ascending: false })
-          .limit(1),
+        seedQuery,
         (supabase.from("waouh_articles") as any)
           .select("status")
           .eq("id", match.article_id)
@@ -96,22 +115,24 @@ export function WaouhMatchChatWindow({
 
       if (!alive) return;
       setMessages((msgsRes?.data ?? []) as any);
-      const n = (notifRes?.data ?? [])[0];
-      setSeedNotif(
-        n
-          ? {
-              sent_at: n.sent_at,
-              notification_type: n.notification_type,
-              text: (n.payload as any)?.text ?? null,
-            }
-          : null
-      );
+      const raw = notifRes?.data;
+      const n = Array.isArray(raw) ? raw[0] : raw;
+      if (n) {
+        setSeedNotif({
+          sent_at: n.sent_at,
+          notification_type: n.notification_type,
+          text: (n.payload as any)?.text ?? match.seed_text ?? null,
+        });
+      } else if (!match.seed_text) {
+        setSeedNotif(null);
+      }
       setArticleStatus((artRes?.data as any)?.status ?? null);
     })();
     return () => {
       alive = false;
     };
-  }, [match.article_id, sessionId, waouhIds.join(",")]);
+  }, [match.article_id, match.notification_id, match.seed_text, sessionId, waouhIds.join(",")]);
+
 
   // Realtime — strictly filtered by article_id
   useEffect(() => {

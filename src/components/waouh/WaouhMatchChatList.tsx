@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 
 type MatchItem = {
-  key: string;
+  key: string; // notification.id (or msg_<articleId>_<role> for message-only fallback)
+  notification_id: string | null;
+  seed_text: string | null;
   article_id: string;
   buyer_profile_id: string | null;
   counterpart_user_id: string | null;
@@ -37,9 +39,6 @@ function saveArchived(sid: string | null, set: Set<string>) {
     localStorage.setItem(ARCHIVE_KEY(sid), JSON.stringify(Array.from(set)));
   } catch {}
 }
-
-// Canonical key: 1 article x 1 role => 1 row
-const itemKey = (role: "buyer" | "seller", articleId: string) => `${role[0]}_${articleId}`;
 
 export function WaouhMatchChatList({
   sessionId,
@@ -91,7 +90,7 @@ export function WaouhMatchChatList({
     };
   }, [sessionId, authUserId]);
 
-  // Load + merge notifications + message fallback
+  // Load + merge notifications + message fallback — ONE ROW PER NOTIFICATION
   useEffect(() => {
     if (!sessionId && !authUserId) return;
     let active = true;
@@ -99,7 +98,7 @@ export function WaouhMatchChatList({
     const load = async () => {
       const map = new Map<string, MatchItem>();
 
-      // 1) Notifications
+      // 1) Notifications — one row per notification.id
       const nOrs: string[] = [];
       if (sessionId) nOrs.push(`web_session_id.eq.${sessionId}`);
       if (waouhIds.length) nOrs.push(`user_id.in.(${waouhIds.join(",")})`);
@@ -115,46 +114,38 @@ export function WaouhMatchChatList({
         for (const n of (notifs ?? []) as any[]) {
           const articleId: string | null = n.article_id;
           if (!articleId) continue;
+          const recipient = n.payload?.recipient;
           const role: "buyer" | "seller" =
-            n.notification_type === "match_seller" || n.notification_type === "new_buyer"
+            recipient === "seller" ||
+            n.notification_type === "match_seller" ||
+            n.notification_type === "new_buyer"
               ? "seller"
               : "buyer";
-          const key = itemKey(role, articleId);
-          const existing = map.get(key);
-          // Only update if newer (notifs already DESC, so first wins)
-          if (existing && new Date(existing.last_at) >= new Date(n.sent_at)) {
-            // Keep newest data, but enrich missing counterpart info if available
-            if (!existing.buyer_profile_id && n.payload?.buyer_profile_id) {
-              existing.buyer_profile_id = n.payload.buyer_profile_id;
-            }
-            if (!existing.counterpart_user_id && n.payload?.counterpart_user_id) {
-              existing.counterpart_user_id = n.payload.counterpart_user_id;
-            }
-            continue;
-          }
           const photo =
             (Array.isArray(n.photos) && n.photos[0]) ||
             (Array.isArray(n.payload?.photos) && n.payload.photos[0]) ||
             n.payload?.image_url ||
-            existing?.photo ||
             null;
-          map.set(key, {
-            key,
+          map.set(n.id, {
+            key: n.id,
+            notification_id: n.id,
+            seed_text: n.payload?.text ?? null,
             article_id: articleId,
-            buyer_profile_id: n.payload?.buyer_profile_id ?? existing?.buyer_profile_id ?? null,
-            counterpart_user_id: n.payload?.counterpart_user_id ?? existing?.counterpart_user_id ?? null,
+            buyer_profile_id: n.payload?.buyer_profile_id ?? null,
+            counterpart_user_id: n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null,
             role,
-            title: n.payload?.title || existing?.title || "Annonce",
-            price: n.payload?.price ?? existing?.price ?? null,
-            city: n.payload?.city ?? existing?.city ?? null,
+            title: n.payload?.title || "Annonce",
+            price: n.payload?.price ?? null,
+            city: n.payload?.city ?? null,
             photo,
-            unread: existing ? existing.unread || !n.opened : !n.opened,
+            unread: !n.opened,
             last_at: n.sent_at,
           });
         }
       }
 
-      // 2) Fallback: recent article-scoped messages (last 48h)
+      // 2) Fallback: recent article-scoped messages (last 48h) — only create stubs
+      // for articles that have NO notification row at all (keeps notifications dominant).
       try {
         const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
         const mOrs: string[] = [];
@@ -169,33 +160,26 @@ export function WaouhMatchChatList({
             .or(mOrs.join(","))
             .order("created_at", { ascending: false })
             .limit(120);
+          const articlesWithNotif = new Set(
+            Array.from(map.values()).map((it) => it.article_id)
+          );
           const seenArt = new Set<string>();
           for (const m of (msgs ?? []) as any[]) {
             const articleId: string | null = m.article_id;
             if (!articleId || seenArt.has(articleId)) continue;
             seenArt.add(articleId);
-            // Bump any existing item (buyer or seller) for this article
-            let bumped = false;
-            for (const role of ["buyer", "seller"] as const) {
-              const k = itemKey(role, articleId);
-              const ex = map.get(k);
-              if (ex && new Date(m.created_at) > new Date(ex.last_at)) {
-                map.set(k, { ...ex, last_at: m.created_at });
-                bumped = true;
-              } else if (ex) {
-                bumped = true;
-              }
-            }
-            if (bumped) continue;
-            // No existing entry: create a buyer-side stub
+            if (articlesWithNotif.has(articleId)) continue;
             const role: "buyer" | "seller" = m.metadata?.role === "seller" ? "seller" : "buyer";
+            const stubKey = `msg_${articleId}_${role}`;
             const { data: art } = await supabase
               .from("waouh_articles" as any)
               .select("title,price,city,photos")
               .eq("id", articleId)
               .maybeSingle();
-            map.set(itemKey(role, articleId), {
-              key: itemKey(role, articleId),
+            map.set(stubKey, {
+              key: stubKey,
+              notification_id: null,
+              seed_text: null,
               article_id: articleId,
               buyer_profile_id: null,
               counterpart_user_id: null,
@@ -279,17 +263,13 @@ export function WaouhMatchChatList({
   if (items.length === 0) return null;
 
   const open = async (item: MatchItem) => {
-    // Mark notifications as read (single combined query)
+    // Mark THIS notification as read (by id)
     try {
-      const ors: string[] = [];
-      if (sessionId) ors.push(`web_session_id.eq.${sessionId}`);
-      if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
-      if (ors.length) {
+      if (item.notification_id) {
         await supabase
           .from("waouh_notifications" as any)
           .update({ opened: true })
-          .eq("article_id", item.article_id)
-          .or(ors.join(","));
+          .eq("id", item.notification_id);
       }
     } catch {}
 
@@ -298,6 +278,8 @@ export function WaouhMatchChatList({
       window.dispatchEvent(
         new CustomEvent("waouh:open-match-chat", {
           detail: {
+            notification_id: item.notification_id,
+            seed_text: item.seed_text,
             article_id: item.article_id,
             buyer_profile_id: item.buyer_profile_id,
             counterpart_user_id: item.counterpart_user_id,
@@ -342,9 +324,15 @@ export function WaouhMatchChatList({
   const renderRow = (it: MatchItem, opts: { pinned?: boolean; archivedRow?: boolean } = {}) => {
     const label = formatMatchLabel({
       articleId: it.article_id,
-      userKey: it.buyer_profile_id || it.counterpart_user_id || sessionId || "any",
+      userKey: it.buyer_profile_id || it.counterpart_user_id || it.notification_id || sessionId || "any",
       role: it.role,
     });
+    // Preview = first non-empty line of the rich seed_text, fallback to generic.
+    const previewLine =
+      (it.seed_text && it.seed_text.split("\n").map((s) => s.trim()).find((s) => s.length > 0)) ||
+      (it.role === "buyer"
+        ? "🎯 Annonce trouvée pour vous"
+        : "🛒 Acheteur intéressé par votre annonce");
     return (
       <li
         key={it.key}
@@ -377,9 +365,7 @@ export function WaouhMatchChatList({
             <span className="text-[10px] text-muted-foreground shrink-0">{label}</span>
           </div>
           <p className="text-xs text-muted-foreground truncate">
-            {it.role === "buyer"
-              ? "🎯 Annonce trouvée pour vous"
-              : "🛒 Acheteur intéressé par votre annonce"}
+            {previewLine}
             {it.price ? ` · ${Number(it.price).toLocaleString("fr-FR")} FCFA` : ""}
             {it.city ? ` · ${it.city}` : ""}
           </p>
