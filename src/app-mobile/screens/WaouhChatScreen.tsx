@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 import { WaouhMatchChats } from "@/components/waouh/WaouhMatchChats";
+import { WaouhUnifiedInbox } from "@/components/waouh/WaouhUnifiedInbox";
 
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { WaouhCityBadge } from "@/components/waouh/WaouhCityBadge";
@@ -147,6 +148,9 @@ export default function WaouhChatScreen() {
 
         <div className="flex items-center gap-1">
           <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
+          <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
+            <WaouhUnifiedInbox sessionId={sessionId} authUserId={profile?.id ?? null} />
+          </div>
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
             <WaouhNotificationsBell
               permission={permission}
