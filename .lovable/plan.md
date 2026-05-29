@@ -1,60 +1,80 @@
-# Fix WaouhMatchChatList: ordering, realtime, dedicated chats, archive
+# Tri chronologique strict + robustesse messages/notifications
 
-## Problèmes constatés
+## Objectif
+Sous la carte WAOUH, toutes les conversations produit (acheteurs intéressés + annonces trouvées) sont affichées **strictement du plus récent au plus ancien**, sans doublon, sans blocage d'envoi/réception, avec coordination temps réel fiable.
 
-1. **Le dernier match (Chocolat, capture 1) n'apparaît pas sous WAOUH** dans l'inbox (capture 2).
-   - `WaouhMatchChatList` charge les notifications **une seule fois au montage** (pas de realtime ni de re-fetch).
-   - L'ordre est correct (`order sent_at desc`), mais sans realtime, un nouveau `new_buyer` / `match` arrivé après le mount n'est jamais affiché.
-   - Aucun fallback : si la notification a échoué/dédupliquée côté backend, l'item n'apparaît jamais même si un message `article_id` existe dans `waouh_messages`.
+## Problèmes identifiés
 
-2. **La liste devient longue** (6+ "Annonce WAOUH·VEN-B033-*" identiques dans la capture 2) et noie le dernier match.
+1. **Tri partiellement faux**
+   - Le tri DESC existe mais la déduplication par clé `role_articleId_counterpart` crée parfois 2 lignes pour le même article (une notification avec `buyer_profile_id` puis une autre sans → clé `..._any`). Résultat : doublons et ordre cassé.
+   - Le fallback `waouh_messages` cherche une clé existante via `keys().find(k => k.includes(`_${articleId}_`))` ce qui matche n'importe quel rôle et peut rebumper la mauvaise ligne.
 
-3. **Pas de moyen d'archiver / masquer** d'anciens items.
+2. **Pas de rebump après envoi**
+   - `WaouhMatchChatWindow.send()` n'émet pas `waouh:match-updated`, donc l'ordre dans l'inbox ne reflète pas la dernière activité tant qu'on ne reload pas.
 
-## Plan (frontend uniquement)
+3. **Realtime fragile**
+   - Listener uniquement sur INSERT `waouh_notifications`. Les nouveaux messages article-scoped (`waouh_messages.article_id`) n'ont pas de canal realtime → l'item ne remonte pas.
+   - Plusieurs subscriptions parallèles (1 par `waouhId`) avec le même channel name peuvent provoquer des collisions silencieuses.
 
-### 1. `WaouhMatchChatList.tsx` — refonte
+4. **Risques d'envoi/blocage**
+   - `setSending(true)` sans timeout : si `functions.invoke` reste pendu, le composer reste bloqué indéfiniment.
+   - Optimistic temp message peut rester orphelin si l'INSERT realtime arrive avant la réponse → doublon visuel.
+   - `WaouhMatchChatWindow` lit les messages en filtrant côté client sur `meta.article_id` après un `OR` large → coûteux et peut rater des messages si la pagination tronque (limit 300).
 
-**Tri & épinglage**
-- Trier strictement par `last_at` DESC (déjà) et **épingler le plus récent en tête** avec un fond highlight (`bg-emerald-50/60 dark:bg-emerald-950/20`) + badge "Dernier".
-- Le plus récent est rendu *au-dessus* du séparateur des autres pour bien occuper la 1ère place sous la carte WAOUH.
+5. **Marquage "lu" suspect**
+   - Le `open()` exécute 3 updates (dont une orpheline `filter` jamais awaitée) → bruit + warnings TS.
 
-**Realtime**
-- Souscrire aux changements `waouh_notifications` filtrés par `user_id in waouhIds` + `web_session_id=sessionId` (un channel par filtre) → relancer `load()` au moindre INSERT.
-- Écouter aussi l'event custom `waouh:match-updated` (émis par `WaouhMatchChatWindow` quand on envoie un message) pour rebump l'ordre instantanément.
+## Plan d'action (frontend uniquement)
 
-**Fallback messages**
-- Si aucune `waouh_notifications` ne couvre un `article_id` récent, requêter `waouh_messages` (où `article_id is not null`) du `sessionId` / `waouhIds` des dernières 24 h et fusionner avec la map. Cela garantit que la conversation "Chocolat" apparaît même si la notification n'a pas été persistée.
+### A. `WaouhMatchChatList.tsx`
 
-**Archivage / masquage**
-- Affichage par défaut : **3 premiers items**.
-- Bouton « Voir tout (N) » → étend ; bouton « Réduire » pour replier.
-- Bouton archive par item (icône `Archive` au swipe-style sur tap long, ou simple bouton "×" à droite avec confirm) → écrit la clé dans `localStorage` `waouh_archived_matches_<sid>` (Set de keys). Les items archivés sont filtrés.
-- Bouton « Voir les archivés » en bas si Set non vide → permet de désarchiver.
-- Auto-archive silencieux : tout item dont `last_at` > 7 jours et `unread === false` est automatiquement archivé (filtré de la vue principale, accessible via "Archivés").
+**Déduplication unifiée par article**
+- Clé canonique = `${role[0]}_${article_id}` (sans counterpart). Pour un même article + rôle, on garde toujours l'entrée la plus récente. `buyer_profile_id` / `counterpart_user_id` sont conservés depuis la dernière notification (préférence : non-null).
+- Cela élimine les doublons "any" vs "with profile".
 
-**Ouverture chat dédié**
-- Comportement actuel (`waouh:open-match-chat`) déjà OK : ouvre `/app/chat/waouh` + dispatch event → `useWaouhMatchChats` crée l'onglet et `WaouhChatScreen` affiche la fenêtre plein écran. Aucun changement.
+**Tri strict**
+- Tri unique par `last_at DESC` après merge. Pas de pinning séparé : le 1er de la liste = badge "Dernier" automatiquement.
+- L'auto-archive 7j reste hors liste principale.
 
-### 2. `useWaouhMatchChats.ts`
+**Realtime renforcé**
+- 1 seul `supabase.channel('waouh-match-list-${sid}')` qui combine :
+  - `postgres_changes` sur `waouh_notifications` filtré `web_session_id=eq.${sid}`
+  - `postgres_changes` sur `waouh_notifications` filtré `user_id=in.(...)` (un listener par uid au sein du même channel)
+  - `postgres_changes` sur `waouh_messages` filtré `web_session_id=eq.${sid}` (INSERT) → si `article_id` non null, rebump local.
+- Event window `waouh:match-updated` toujours écouté pour bump immédiat post-envoi.
+- Cleanup unique au unmount.
 
-- Quand un onglet est sélectionné depuis `WaouhMatchChatList`, **marquer les notifications correspondantes comme `opened=true`** (`update waouh_notifications set opened=true where article_id=... and user_id in (waouhIds)`) pour que le badge "Nouveau" disparaisse et que l'item descende en priorité.
-- Quand l'utilisateur ferme un onglet, **archiver automatiquement** la match-key (ajoute dans `waouh_archived_matches_<sid>`) → "faire disparaître les anciennes fenêtres" comme demandé.
+**Marquage "lu" propre**
+- Une seule requête conditionnelle (sessionId OU waouhIds) avec `.or()`. Suppression de la variable `filter` morte.
 
-### 3. UI: indicateur de mise à jour
+### B. `WaouhMatchChatWindow.tsx`
 
-- Petit séparateur "Conversations produit" au-dessus de la liste avec un compteur `(3/12)` quand collapsé.
+**Émission de l'event bump**
+- Après `functions.invoke` réussi, `window.dispatchEvent(new CustomEvent('waouh:match-updated', { detail: { article_id } }))` → l'inbox remonte cette conv en tête.
+
+**Anti-doublon optimistic / realtime**
+- Dedup par `id` ET par signature `(direction, text, ~created_at within 5s)` : si on reçoit via realtime un message dont la signature matche un temp, on remplace au lieu d'ajouter.
+
+**Anti-blocage envoi**
+- Wrapper `Promise.race` avec timeout 20 s sur `functions.invoke`. En cas de timeout : on garde le temp message marqué "non envoyé" avec bouton réessayer (simple : toast + re-set `input`).
+- `try/finally` garantit `setSending(false)` toujours appelé (déjà en place — on confirme).
+
+**Lecture messages**
+- Garder le filtre client mais augmenter la sécurité : ajouter `.eq('article_id', match.article_id)` dans la query Supabase quand `article_id` est non null, évitant de dépendre du filtrage `meta` côté client.
+
+### C. `useWaouhMatchChats.ts`
+- Quand on ouvre un tab : émettre aussi `waouh:match-updated` pour synchroniser l'ordre côté inbox.
 
 ## Fichiers touchés
+- `src/components/waouh/WaouhMatchChatList.tsx` (refactor merge + tri + realtime msgs)
+- `src/components/waouh/WaouhMatchChatWindow.tsx` (dispatch bump, anti-doublon, timeout envoi, filter article_id côté DB)
+- `src/components/waouh/useWaouhMatchChats.ts` (dispatch bump à l'ouverture)
 
-- `src/components/waouh/WaouhMatchChatList.tsx` (refonte tri + realtime + archive + fallback messages)
-- `src/components/waouh/useWaouhMatchChats.ts` (mark-as-read + auto-archive on close)
-- (aucune migration DB, aucun edge function)
+Aucune migration DB, aucune edge function modifiée.
 
-## Notes techniques
-
-- Realtime Supabase : un `supabase.channel('waouh-match-list')` avec deux listeners postgres_changes (un sur `user_id=in.(...)`, un sur `web_session_id=eq...`). Cleanup au unmount.
-- `localStorage` keys :
-  - `waouh_archived_matches_<sessionId>` → JSON string array de match keys.
-  - `waouh_match_expanded_<sessionId>` → "1" si liste étendue.
-- Garde-fou : si `items.length <= 3`, masquer les boutons "Voir tout / Réduire".
+## Garanties après changement
+- Ordre = strictement `last_at DESC` sur la fusion (notifications + derniers messages).
+- 1 article = 1 ligne par rôle, jamais de doublon.
+- Nouvelle notification, nouveau message article-scoped, ou envoi local → la ligne remonte en tête immédiatement.
+- Composer jamais bloqué : timeout dur + finally.
+- Pas de doublon visuel dans la fenêtre de chat (dedup id + signature).
