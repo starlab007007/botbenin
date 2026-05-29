@@ -54,8 +54,8 @@ export function WaouhMatchChatWindow({
       if (!match.article_id) return;
       const ors: string[] = [`web_session_id.eq.${sessionId}`];
       if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
-      const { data } = await supabase
-        .from("waouh_messages")
+      const { data } = await (supabase
+        .from("waouh_messages") as any)
         .select("id,direction,text,created_at,attachments,meta,article_id")
         .eq("article_id", match.article_id)
         .or(ors.join(","))
