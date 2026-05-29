@@ -56,15 +56,13 @@ export function WaouhMatchChatWindow({
       if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
       const { data } = await supabase
         .from("waouh_messages")
-        .select("id,direction,text,created_at,attachments,meta")
+        .select("id,direction,text,created_at,attachments,meta,article_id")
+        .eq("article_id", match.article_id)
         .or(ors.join(","))
         .order("created_at", { ascending: true })
         .limit(300);
       if (!alive) return;
-      const filtered = (data ?? []).filter(
-        (m: any) => m.meta?.article_id === match.article_id
-      );
-      setMessages(filtered as any);
+      setMessages((data ?? []) as any);
     })();
     return () => {
       alive = false;
