@@ -238,6 +238,10 @@ export default function ChatListScreen() {
           </div>
         </button>
 
+        {/* Per-product chat windows (buyer-found & interested-buyer) appear directly under WAOUH */}
+        <WaouhMatchChatList sessionId={sessionId} authUserId={profile?.id ?? null} />
+
+
         {isGuest && (
           <div className="px-4 pt-5 pb-2 flex flex-col items-center text-center">
             <Button
