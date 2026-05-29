@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, ShoppingBag, Target } from "lucide-react";
+import { Send, ShoppingBag, Target, CheckCircle2, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { cn } from "@/lib/utils";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
+import "@/app-mobile/theme/chat-bg.css";
 
 export type MatchChatMeta = {
   key: string;
@@ -17,6 +18,7 @@ export type MatchChatMeta = {
   city?: string | null;
   photo?: string | null;
   kind: "buyer" | "seller";
+  closed?: boolean;
 };
 
 type Msg = {
@@ -27,9 +29,18 @@ type Msg = {
   attachments?: any;
 };
 
+type SeedNotif = {
+  sent_at: string;
+  notification_type: string;
+};
+
+const CLOSED_STATUSES = new Set(["sold", "closed", "finalized", "completed", "vendu"]);
+
 /**
  * Full-screen match chat — fills parent flex container exactly like the main
- * WAOUH chat (no card chrome, auto-grow textarea, multi-line composer).
+ * WAOUH chat. Pinned with the original "📩 Nouvel acheteur intéressé" /
+ * "🎯 Annonce trouvée" notification as a system bubble, strictly scoped to
+ * one article until the sale is finalized.
  */
 export function WaouhMatchChatWindow({
   match,
@@ -45,30 +56,55 @@ export function WaouhMatchChatWindow({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [seedNotif, setSeedNotif] = useState<SeedNotif | null>(null);
+  const [articleStatus, setArticleStatus] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const closed = useMemo(
+    () => !!match.closed || (articleStatus ? CLOSED_STATUSES.has(articleStatus.toLowerCase()) : false),
+    [match.closed, articleStatus]
+  );
+
+  // Load history (strictly scoped to article_id) + seed notification + article status
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!match.article_id) return;
       const ors: string[] = [`web_session_id.eq.${sessionId}`];
       if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
-      const { data } = await (supabase
-        .from("waouh_messages") as any)
-        .select("id,direction,text,created_at,attachments,meta,article_id")
-        .eq("article_id", match.article_id)
-        .or(ors.join(","))
-        .order("created_at", { ascending: true })
-        .limit(300);
+
+      const [msgsRes, notifRes, artRes] = await Promise.all([
+        (supabase.from("waouh_messages") as any)
+          .select("id,direction,text,created_at,attachments,meta,article_id")
+          .eq("article_id", match.article_id)
+          .or(ors.join(","))
+          .order("created_at", { ascending: true })
+          .limit(300),
+        (supabase.from("waouh_notifications") as any)
+          .select("sent_at,notification_type")
+          .eq("article_id", match.article_id)
+          .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
+          .order("sent_at", { ascending: true })
+          .limit(1),
+        (supabase.from("waouh_articles") as any)
+          .select("status")
+          .eq("id", match.article_id)
+          .maybeSingle(),
+      ]);
+
       if (!alive) return;
-      setMessages((data ?? []) as any);
+      setMessages((msgsRes?.data ?? []) as any);
+      const n = (notifRes?.data ?? [])[0];
+      setSeedNotif(n ? { sent_at: n.sent_at, notification_type: n.notification_type } : null);
+      setArticleStatus((artRes?.data as any)?.status ?? null);
     })();
     return () => {
       alive = false;
     };
   }, [match.article_id, sessionId, waouhIds.join(",")]);
 
+  // Realtime — strictly filtered by article_id
   useEffect(() => {
     if (!match.article_id) return;
     const suffix = Math.random().toString(36).slice(2, 6);
@@ -79,11 +115,10 @@ export function WaouhMatchChatWindow({
         { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
         (payload: any) => {
           const m = payload.new;
+          // Strict article scope: ignore anything not tied to this product
           if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
           setMessages((prev) => {
-            // Dedup by id
             if (prev.find((x) => x.id === m.id)) return prev;
-            // Dedup optimistic temp by signature (same direction + text within 10s)
             const tempIdx = prev.findIndex(
               (x) =>
                 x.id.startsWith("temp-") &&
@@ -111,27 +146,27 @@ export function WaouhMatchChatWindow({
   }, [messages.length]);
 
   useEffect(() => {
-    if (active) {
+    if (active && !closed) {
       setTimeout(() => textareaRef.current?.focus(), 50);
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
     }
-  }, [active]);
+  }, [active, closed]);
 
   const send = async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text || sending || closed) return;
     setSending(true);
     const tempId = `temp-${Date.now()}`;
     const now = new Date().toISOString();
     setMessages((prev) => [...prev, { id: tempId, direction: "in", text, created_at: now }]);
     setInput("");
     try {
-      const contextPrefix = match.kind === "buyer" ? `[Annonce ${match.title}] ` : `[Acheteur ${match.title}] `;
+      // Product context travels via meta only — never pollute the message body
       const invokeP = supabase.functions.invoke("waouh-channel-in", {
         body: {
           channel: "web",
           sessionId,
-          text: contextPrefix + text,
+          text,
           attachments: [],
           authUserId: null,
           meta: {
@@ -139,6 +174,7 @@ export function WaouhMatchChatWindow({
             buyer_profile_id: match.buyer_profile_id ?? null,
             counterpart_user_id: match.counterpart_user_id ?? null,
             role: match.kind,
+            product_title: match.title,
           },
         },
       });
@@ -162,13 +198,12 @@ export function WaouhMatchChatWindow({
         }
         return f;
       });
-      // Bump inbox ordering
       window.dispatchEvent(
         new CustomEvent("waouh:match-updated", { detail: { article_id: match.article_id } })
       );
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      setInput(text); // restore so user can retry
+      setInput(text);
     } finally {
       setSending(false);
       setTimeout(() => textareaRef.current?.focus(), 30);
@@ -182,6 +217,20 @@ export function WaouhMatchChatWindow({
     role: match.kind,
   });
 
+  const seedTitle =
+    match.kind === "seller"
+      ? "📩 Nouvel acheteur intéressé par votre annonce"
+      : "🎯 Annonce trouvée pour votre recherche";
+
+  const seedDate = seedNotif?.sent_at
+    ? new Date(seedNotif.sent_at).toLocaleString("fr-FR", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
   return (
     <div className="flex flex-col h-full w-full bg-background">
       {/* Sub-header with product info */}
@@ -194,7 +243,14 @@ export function WaouhMatchChatWindow({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] uppercase tracking-wider opacity-80 font-mono">{matchLabel}</div>
+          <div className="flex items-center gap-1.5">
+            <div className="text-[10px] uppercase tracking-wider opacity-80 font-mono truncate">{matchLabel}</div>
+            {closed && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/95 text-emerald-700 px-1.5 py-0.5 rounded">
+                <CheckCircle2 className="w-3 h-3" /> Vente finalisée
+              </span>
+            )}
+          </div>
           <div className="text-sm font-semibold truncate">{match.title}</div>
           <div className="text-[11px] opacity-90 truncate">
             {match.price ? `${Number(match.price).toLocaleString("fr-FR")} FCFA` : ""}
@@ -205,14 +261,32 @@ export function WaouhMatchChatWindow({
         </div>
       </div>
 
-      {/* Messages area — fills */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 bg-muted/20">
-        {messages.length === 0 && (
-          <div className="text-sm text-muted-foreground text-center py-12 px-6">
-            Démarrez la discussion avec {match.kind === "buyer" ? "le vendeur" : "l'acheteur"} à propos de
-            <span className="block font-semibold text-foreground mt-1">{match.title}</span>
+      {/* Messages area — same WAOUH doodle background */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 waouh-chat-bg">
+        {/* Seed notification bubble — always pinned at top */}
+        <div className="mx-auto max-w-[92%] rounded-2xl border border-amber-300/70 bg-amber-50/95 dark:bg-amber-900/30 dark:border-amber-700/60 px-3 py-2.5 shadow-sm">
+          <div className="flex items-start gap-2.5">
+            {match.photo ? (
+              <img src={match.photo} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+            ) : (
+              <div className="w-12 h-12 rounded-lg bg-amber-200/70 dark:bg-amber-800/40 flex items-center justify-center shrink-0">
+                <Icon className="w-6 h-6 text-amber-700 dark:text-amber-300" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-bold text-amber-900 dark:text-amber-100">{seedTitle}</div>
+              <div className="text-[12px] text-amber-900/90 dark:text-amber-100/90 truncate">
+                {match.title}
+                {match.price ? ` · ${Number(match.price).toLocaleString("fr-FR")} FCFA` : ""}
+                {match.city ? ` · ${match.city}` : ""}
+              </div>
+              {seedDate && (
+                <div className="text-[10px] text-amber-800/70 dark:text-amber-200/70 mt-0.5">{seedDate}</div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+
         {messages.map((m) => (
           <div
             key={m.id}
@@ -232,34 +306,44 @@ export function WaouhMatchChatWindow({
         ))}
       </div>
 
-      {/* Composer — same look as main WAOUH */}
-      <div
-        className="flex items-end gap-2 p-2 border-t bg-background shrink-0"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
-      >
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder="Votre message…"
-          rows={1}
-          className="resize-none min-h-[40px] max-h-32 text-sm flex-1 rounded-2xl"
-        />
-        <Button
-          size="icon"
-          onClick={send}
-          disabled={sending || !input.trim()}
-          className="h-10 w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-700"
+      {/* Composer */}
+      {closed ? (
+        <div
+          className="flex items-center gap-2 p-3 border-t bg-muted/60 text-muted-foreground text-sm shrink-0"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
         >
-          <Send className="w-4 h-4" />
-        </Button>
-      </div>
+          <Lock className="w-4 h-4 shrink-0" />
+          <span>Cette conversation est clôturée — la vente a été finalisée.</span>
+        </div>
+      ) : (
+        <div
+          className="flex items-end gap-2 p-2 border-t bg-background shrink-0"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
+        >
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder="Votre message…"
+            rows={1}
+            className="resize-none min-h-[40px] max-h-32 text-sm flex-1 rounded-2xl"
+          />
+          <Button
+            size="icon"
+            onClick={send}
+            disabled={sending || !input.trim()}
+            className="h-10 w-10 shrink-0 rounded-full bg-emerald-600 hover:bg-emerald-700"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
