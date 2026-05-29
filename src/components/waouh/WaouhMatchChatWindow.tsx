@@ -32,6 +32,7 @@ type Msg = {
 type SeedNotif = {
   sent_at: string;
   notification_type: string;
+  text: string | null;
 };
 
 const CLOSED_STATUSES = new Set(["sold", "closed", "finalized", "completed", "vendu"]);
@@ -82,10 +83,10 @@ export function WaouhMatchChatWindow({
           .order("created_at", { ascending: true })
           .limit(300),
         (supabase.from("waouh_notifications") as any)
-          .select("sent_at,notification_type")
+          .select("sent_at,notification_type,payload")
           .eq("article_id", match.article_id)
           .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
-          .order("sent_at", { ascending: true })
+          .order("sent_at", { ascending: false })
           .limit(1),
         (supabase.from("waouh_articles") as any)
           .select("status")
@@ -96,7 +97,15 @@ export function WaouhMatchChatWindow({
       if (!alive) return;
       setMessages((msgsRes?.data ?? []) as any);
       const n = (notifRes?.data ?? [])[0];
-      setSeedNotif(n ? { sent_at: n.sent_at, notification_type: n.notification_type } : null);
+      setSeedNotif(
+        n
+          ? {
+              sent_at: n.sent_at,
+              notification_type: n.notification_type,
+              text: (n.payload as any)?.text ?? null,
+            }
+          : null
+      );
       setArticleStatus((artRes?.data as any)?.status ?? null);
     })();
     return () => {
@@ -286,6 +295,16 @@ export function WaouhMatchChatWindow({
             </div>
           </div>
         </div>
+
+        {/* Full original notification message — pinned below seed header */}
+        {seedNotif?.text && (
+          <div className="mr-auto max-w-[92%] rounded-2xl rounded-bl-sm border bg-card px-3 py-2 text-sm shadow-sm">
+            <div className="whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed">
+              {seedNotif.text}
+            </div>
+          </div>
+        )}
+
 
         {messages.map((m) => (
           <div
