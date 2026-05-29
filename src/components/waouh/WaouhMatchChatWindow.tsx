@@ -6,6 +6,8 @@ import { Send, X, ChevronUp, ChevronDown, ShoppingBag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { cn } from "@/lib/utils";
+import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
+
 
 export type MatchChatMeta = {
   key: string; // unique key (role + article + counterpart)
