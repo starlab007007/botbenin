@@ -108,11 +108,22 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
   const markAllRead = useCallback(() => {
     if (!sessionId) return;
+    let unifiedIds: string[] = [];
     setNotifications((prev) => {
+      unifiedIds = prev.filter((n) => !n.read && MATCH_TEMPLATES.has(n.template)).map((n) => n.id);
       const updated = prev.map((n) => ({ ...n, read: true }));
       saveNotifs(sessionId, updated);
       return updated;
     });
+    if (unifiedIds.length) {
+      supabase
+        .from("waouh_notifications" as any)
+        .update({ opened: true })
+        .in("id", unifiedIds)
+        .then(({ error }) => {
+          if (error) console.warn("[waouh-notifs] markAllRead error", error);
+        });
+    }
   }, [sessionId]);
 
   const clearAll = useCallback(() => {
