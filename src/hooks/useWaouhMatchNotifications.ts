@@ -43,7 +43,38 @@ export type WaouhNotification = {
   image_url?: string | null;
   message_id?: string | null;
   transaction_id?: string | null;
+  article_id?: string | null;
+  payload?: any;
 };
+
+const MATCH_TEMPLATES = new Set([
+  "match",
+  "match_buyer",
+  "match_seller",
+  "new_buyer",
+  "radar_match",
+]);
+
+export function getMatchKind(template: string): "buyer" | "seller" | null {
+  if (template === "match_seller" || template === "new_buyer") return "seller";
+  if (template === "match" || template === "match_buyer" || template === "radar_match") return "buyer";
+  return null;
+}
+
+export function getMatchBadgeLabel(template: string): string | null {
+  switch (template) {
+    case "radar_match":
+      return "Radar IA";
+    case "match":
+    case "match_buyer":
+      return "Annonce trouvée";
+    case "new_buyer":
+    case "match_seller":
+      return "Nouvel acheteur";
+    default:
+      return null;
+  }
+}
 
 const STORAGE_PREFIX = "waouh_notifs_";
 
