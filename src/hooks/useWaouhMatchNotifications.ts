@@ -322,6 +322,8 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         created_at: row.sent_at ?? new Date().toISOString(),
         read: !!row.opened,
         image_url: pickPhoto,
+        article_id: row.article_id ?? null,
+        payload: row.payload ?? null,
       };
       upsertNotif(notif);
       // Notify the list to refresh — but do NOT auto-open a chat window.
