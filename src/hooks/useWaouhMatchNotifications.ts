@@ -91,13 +91,32 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
   }, [sessionId]);
 
   const upsertNotif = useCallback((notif: WaouhNotification, withToast = true) => {
+    let isNew = true;
     setNotifications((prev) => {
-      if (prev.find((n) => n.id === notif.id)) return prev;
-      const updated = [notif, ...prev].slice(0, 50);
+      const idx = prev.findIndex((n) => n.id === notif.id);
+      let updated: WaouhNotification[];
+      if (idx >= 0) {
+        isNew = false;
+        const merged = { ...prev[idx], ...notif, read: prev[idx].read && notif.read };
+        updated = [...prev];
+        updated[idx] = merged;
+      } else {
+        updated = [notif, ...prev].slice(0, 50);
+      }
+      updated.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       if (sessionId) saveNotifs(sessionId, updated);
       return updated;
     });
-    if (withToast) toast(notif.title, { description: notif.body, duration: 6000 });
+    if (!isNew || !withToast) return;
+    // Gate toast: only show when user is not actively on the WAOUH chat page,
+    // or when the tab is hidden.
+    const onChatPage =
+      typeof window !== "undefined" &&
+      /\/(app\/chat|waouh-chat)/.test(window.location.pathname);
+    const hidden = typeof document !== "undefined" && document.visibilityState !== "visible";
+    if (hidden || !onChatPage) {
+      toast(notif.title, { description: notif.body, duration: 6000 });
+    }
   }, [sessionId]);
 
   // === Force-load history per user (queue + unified notifications) ===
@@ -242,40 +261,15 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         image_url: pickPhoto,
       };
       upsertNotif(notif);
-      // Anti self-notification: ignore if recipient is seller but user_id is the buyer (or vice versa)
-      // Server-side guard handles primary case; this is a UI safety net.
-      const recipient = row.payload?.recipient;
-      const buyerProfileId = row.payload?.buyer_profile_id ?? null;
-
-      // Auto-open a dedicated chat window for match-type notifications
-      const matchKinds = ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"];
-      if (matchKinds.includes(row.notification_type) && row.article_id) {
-        const kind =
-          recipient === "seller" ||
-          row.notification_type === "match_seller" ||
-          row.notification_type === "new_buyer"
-            ? "seller"
-            : "buyer";
-        try {
-          window.dispatchEvent(
-            new CustomEvent("waouh:open-match-chat", {
-              detail: {
-                notification_id: row.id,
-                seed_text: row.payload?.text ?? null,
-                article_id: row.article_id,
-                buyer_profile_id: buyerProfileId,
-                counterpart_user_id: row.payload?.counterpart_user_id ?? row.payload?.buyer_user_id ?? null,
-                recipient,
-                kind,
-                title: row.payload?.title,
-                price: row.payload?.price,
-                city: row.payload?.city,
-                photo: pickPhoto,
-              },
-            })
-          );
-        } catch {}
-      }
+      // Notify the list to refresh — but do NOT auto-open a chat window.
+      // The user opens it intentionally by clicking the notification/list row.
+      try {
+        window.dispatchEvent(
+          new CustomEvent("waouh:match-updated", {
+            detail: { article_id: row.article_id ?? null, notification_id: row.id },
+          })
+        );
+      } catch {}
     };
 
 
