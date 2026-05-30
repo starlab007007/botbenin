@@ -164,6 +164,7 @@ export default function WaouhChatScreen() {
               unreadCount={unreadCount}
               onRequestPermission={requestPermission}
               onMarkAllRead={markAllRead}
+              onMarkRead={markRead}
               onClearAll={clearAll}
             />
           </div>
