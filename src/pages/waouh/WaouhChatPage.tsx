@@ -84,6 +84,7 @@ export default function WaouhChatPage() {
       unreadCount={unreadCount}
       onRequestPermission={requestPermission}
       onMarkAllRead={markAllRead}
+      onMarkRead={markRead}
       onClearAll={clearAll}
     />
   );
