@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { MatchChatMeta } from "./WaouhMatchChatWindow";
 
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
+const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
 
 function loadOpen(sid: string): MatchChatMeta[] {
   try {
@@ -16,6 +17,20 @@ function loadOpen(sid: string): MatchChatMeta[] {
 function saveOpen(sid: string, list: MatchChatMeta[]) {
   try {
     localStorage.setItem(STORAGE_KEY(sid), JSON.stringify(list.slice(0, 10)));
+  } catch {}
+}
+
+function loadActive(sid: string): string {
+  try {
+    return localStorage.getItem(ACTIVE_KEY(sid)) || "main";
+  } catch {
+    return "main";
+  }
+}
+
+function saveActive(sid: string, key: string) {
+  try {
+    localStorage.setItem(ACTIVE_KEY(sid), key);
   } catch {}
 }
 
