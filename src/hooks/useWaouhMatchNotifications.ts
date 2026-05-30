@@ -249,6 +249,8 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         image_url: pickPhoto(row),
         message_id: null,
         transaction_id: null,
+        article_id: row.article_id ?? null,
+        payload: row.payload ?? null,
       }));
 
       // Merge with local cache, dedupe by id, sort by date desc, cap 50
