@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, ShoppingBag, Target, CheckCircle2, Lock } from "lucide-react";
@@ -78,55 +79,64 @@ export function WaouhMatchChatWindow({
       const ors: string[] = [`web_session_id.eq.${sessionId}`];
       if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
 
-      // If caller provided the exact seed_text, use it immediately.
-      if (match.seed_text) {
+      // If caller provided the exact seed_text, use it immediately and skip the seed query.
+      const hasInlineSeed = !!match.seed_text;
+      if (hasInlineSeed) {
         setSeedNotif({
           sent_at: new Date().toISOString(),
           notification_type: match.kind === "seller" ? "new_buyer" : "match_buyer",
-          text: match.seed_text,
+          text: match.seed_text!,
         });
       }
 
-      const seedQuery = match.notification_id
-        ? (supabase.from("waouh_notifications") as any)
-            .select("sent_at,notification_type,payload")
-            .eq("id", match.notification_id)
-            .maybeSingle()
-        : (supabase.from("waouh_notifications") as any)
-            .select("sent_at,notification_type,payload")
-            .eq("article_id", match.article_id)
-            .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
-            .order("sent_at", { ascending: false })
-            .limit(1);
-
-      const [msgsRes, notifRes, artRes] = await Promise.all([
+      const promises: Promise<any>[] = [
         (supabase.from("waouh_messages") as any)
           .select("id,direction,text,created_at,attachments,meta,article_id")
           .eq("article_id", match.article_id)
           .or(ors.join(","))
           .order("created_at", { ascending: true })
           .limit(300),
-        seedQuery,
         (supabase.from("waouh_articles") as any)
           .select("status")
           .eq("id", match.article_id)
           .maybeSingle(),
-      ]);
+      ];
+      if (!hasInlineSeed) {
+        const seedQuery = match.notification_id
+          ? (supabase.from("waouh_notifications") as any)
+              .select("sent_at,notification_type,payload")
+              .eq("id", match.notification_id)
+              .maybeSingle()
+          : (supabase.from("waouh_notifications") as any)
+              .select("sent_at,notification_type,payload")
+              .eq("article_id", match.article_id)
+              .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
+              .order("sent_at", { ascending: false })
+              .limit(1);
+        promises.push(seedQuery);
+      }
+
+      const results = await Promise.all(promises);
+      const msgsRes = results[0];
+      const artRes = results[1];
+      const notifRes = hasInlineSeed ? null : results[2];
 
       if (!alive) return;
       setMessages((msgsRes?.data ?? []) as any);
-      const raw = notifRes?.data;
-      const n = Array.isArray(raw) ? raw[0] : raw;
-      if (n) {
-        setSeedNotif({
-          sent_at: n.sent_at,
-          notification_type: n.notification_type,
-          text: (n.payload as any)?.text ?? match.seed_text ?? null,
-        });
-      } else if (!match.seed_text) {
-        setSeedNotif(null);
-      }
       setArticleStatus((artRes?.data as any)?.status ?? null);
+      if (!hasInlineSeed) {
+        const raw = notifRes?.data;
+        const n = Array.isArray(raw) ? raw[0] : raw;
+        if (n) {
+          setSeedNotif({
+            sent_at: n.sent_at,
+            notification_type: n.notification_type,
+            text: (n.payload as any)?.text ?? null,
+          });
+        } else {
+          setSeedNotif(null);
+        }
+      }
     })();
     return () => {
       alive = false;
@@ -134,51 +144,71 @@ export function WaouhMatchChatWindow({
   }, [match.article_id, match.notification_id, match.seed_text, sessionId, waouhIds.join(",")]);
 
 
-  // Realtime — strictly filtered by article_id
+  // Realtime — strictly filtered by article_id, listens on session AND linked users
   useEffect(() => {
     if (!match.article_id) return;
     const suffix = Math.random().toString(36).slice(2, 6);
-    const ch = supabase
-      .channel(`match_${match.key}_${suffix}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
-        (payload: any) => {
-          const m = payload.new;
-          // Strict article scope: ignore anything not tied to this product
-          if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
-          setMessages((prev) => {
-            if (prev.find((x) => x.id === m.id)) return prev;
-            const tempIdx = prev.findIndex(
-              (x) =>
-                x.id.startsWith("temp-") &&
-                x.direction === m.direction &&
-                x.text === m.text &&
-                Math.abs(new Date(x.created_at).getTime() - new Date(m.created_at).getTime()) < 10000
-            );
-            if (tempIdx >= 0) {
-              const copy = [...prev];
-              copy[tempIdx] = m;
-              return copy;
-            }
-            return [...prev, m];
-          });
+    const handle = (payload: any) => {
+      const m = payload.new;
+      if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
+      setMessages((prev) => {
+        if (prev.find((x) => x.id === m.id)) return prev;
+        const tempIdx = prev.findIndex(
+          (x) =>
+            x.id.startsWith("temp-") &&
+            x.direction === m.direction &&
+            x.text === m.text &&
+            Math.abs(new Date(x.created_at).getTime() - new Date(m.created_at).getTime()) < 10000
+        );
+        if (tempIdx >= 0) {
+          const copy = [...prev];
+          copy[tempIdx] = m;
+          return copy;
         }
-      )
-      .subscribe();
+        return [...prev, m];
+      });
+    };
+
+    const ch = supabase.channel(`match_${match.key}_${suffix}`);
+    ch.on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
+      handle
+    );
+    for (const uid of waouhIds) {
+      ch.on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${uid}` },
+        handle
+      );
+    }
+    ch.subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [match.article_id, sessionId, match.key]);
+  }, [match.article_id, sessionId, match.key, waouhIds.join(",")]);
 
+  // Smart scroll: only auto-scroll if user is already near the bottom.
+  const prevLenRef = useRef(0);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    const isFirstRender = prevLenRef.current === 0 && messages.length > 0;
+    prevLenRef.current = messages.length;
+    if (isFirstRender) {
+      el.scrollTop = el.scrollHeight;
+    } else if (nearBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [messages.length]);
 
+  // Focus textarea only when this tab becomes active (not on every message).
   useEffect(() => {
     if (active && !closed) {
       setTimeout(() => textareaRef.current?.focus(), 50);
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
     }
   }, [active, closed]);
 
