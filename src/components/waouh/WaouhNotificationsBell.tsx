@@ -1,10 +1,31 @@
 import React, { useState } from "react";
-import { Bell, BellOff, Check } from "lucide-react";
+import { Bell, BellOff, Check, ShoppingBag, Target, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { WaouhNotification } from "@/hooks/useWaouhMatchNotifications";
+import {
+  type WaouhNotification,
+  getMatchKind,
+  getMatchBadgeLabel,
+} from "@/hooks/useWaouhMatchNotifications";
+
+const BADGE_STYLES: Record<string, string> = {
+  radar_match: "bg-violet-600 text-white",
+  match: "bg-emerald-600 text-white",
+  match_buyer: "bg-emerald-600 text-white",
+  new_buyer: "bg-amber-500 text-white",
+  match_seller: "bg-amber-500 text-white",
+};
+
+const BadgeIcon: React.FC<{ template: string; className?: string }> = ({ template, className }) => {
+  if (template === "radar_match") return <Radar className={className} />;
+  const kind = getMatchKind(template);
+  if (kind === "seller") return <ShoppingBag className={className} />;
+  if (kind === "buyer") return <Target className={className} />;
+  return null;
+};
 
 export const WaouhNotificationsBell: React.FC<{
   permission: NotificationPermission;
@@ -12,16 +33,13 @@ export const WaouhNotificationsBell: React.FC<{
   unreadCount: number;
   onRequestPermission: () => void;
   onMarkAllRead: () => void;
+  onMarkRead?: (id: string) => void;
   onClearAll: () => void;
-}> = ({ permission, notifications, unreadCount, onRequestPermission, onMarkAllRead, onClearAll }) => {
+}> = ({ permission, notifications, unreadCount, onRequestPermission, onMarkAllRead, onMarkRead, onClearAll }) => {
   const [open, setOpen] = useState(false);
 
   const handleOpen = (v: boolean) => {
     setOpen(v);
-    if (v && unreadCount > 0) {
-      // Defer to allow visual ack
-      setTimeout(onMarkAllRead, 400);
-    }
     if (v && permission !== "granted") onRequestPermission();
   };
 
@@ -68,32 +86,88 @@ export const WaouhNotificationsBell: React.FC<{
           ) : (
             <ul className="divide-y">
               {notifications.map((n) => {
-                const clickable = !!(n.message_id || n.transaction_id);
+                const matchKind = getMatchKind(n.template);
+                const isMatch = !!matchKind;
+                const clickable = isMatch || !!(n.message_id || n.transaction_id);
+                const badgeLabel = getMatchBadgeLabel(n.template);
+
                 const handleClick = () => {
                   if (!clickable) return;
-                  window.dispatchEvent(new CustomEvent("waouh:focus-message", {
-                    detail: { message_id: n.message_id, transaction_id: n.transaction_id }
-                  }));
+                  if (isMatch && n.article_id) {
+                    window.dispatchEvent(
+                      new CustomEvent("waouh:open-match-chat", {
+                        detail: {
+                          notification_id: n.id,
+                          seed_text: n.payload?.text ?? n.body ?? null,
+                          article_id: n.article_id,
+                          buyer_profile_id: n.payload?.buyer_profile_id ?? null,
+                          counterpart_user_id:
+                            n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null,
+                          kind: matchKind,
+                          title: n.payload?.title,
+                          price: n.payload?.price,
+                          city: n.payload?.city,
+                          photo: n.image_url,
+                        },
+                      })
+                    );
+                  } else if (n.message_id || n.transaction_id) {
+                    window.dispatchEvent(
+                      new CustomEvent("waouh:focus-message", {
+                        detail: { message_id: n.message_id, transaction_id: n.transaction_id },
+                      })
+                    );
+                  }
+                  onMarkRead?.(n.id);
                   setOpen(false);
                 };
+
                 return (
                   <li
                     key={n.id}
                     onClick={handleClick}
                     className={cn(
                       "p-3 text-sm",
-                      !n.read && "bg-emerald-50/60",
+                      !n.read && "bg-emerald-50/60 dark:bg-emerald-950/30",
                       clickable && "cursor-pointer hover:bg-muted/60 active:bg-muted"
                     )}
                     role={clickable ? "button" : undefined}
                   >
                     <div className="flex items-start gap-2">
-                      {n.image_url && (
+                      {n.image_url ? (
                         <img src={n.image_url} alt="" className="w-10 h-10 rounded object-cover border" />
-                      )}
+                      ) : isMatch ? (
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded flex items-center justify-center shrink-0",
+                            BADGE_STYLES[n.template] || "bg-emerald-600 text-white"
+                          )}
+                        >
+                          <BadgeIcon template={n.template} className="w-5 h-5" />
+                        </div>
+                      ) : null}
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{n.title}</div>
-                        <div className="text-xs text-muted-foreground line-clamp-2">{n.body}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium truncate flex-1">{n.title}</span>
+                          {!n.read && (
+                            <span
+                              className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
+                              aria-label="Non lue"
+                            />
+                          )}
+                        </div>
+                        {badgeLabel && (
+                          <Badge
+                            className={cn(
+                              "mt-1 border-0 text-[9px] py-0 px-1.5 h-4",
+                              BADGE_STYLES[n.template] || "bg-emerald-600 text-white"
+                            )}
+                          >
+                            <BadgeIcon template={n.template} className="w-2.5 h-2.5 mr-0.5" />
+                            {badgeLabel}
+                          </Badge>
+                        )}
+                        <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</div>
                         <div className="text-[10px] text-muted-foreground mt-1">
                           {new Date(n.created_at).toLocaleString("fr-FR")}
                           {clickable && <span className="ml-2 text-emerald-600">↗ Ouvrir</span>}

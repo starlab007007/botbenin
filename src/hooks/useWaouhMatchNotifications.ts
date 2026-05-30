@@ -43,7 +43,38 @@ export type WaouhNotification = {
   image_url?: string | null;
   message_id?: string | null;
   transaction_id?: string | null;
+  article_id?: string | null;
+  payload?: any;
 };
+
+const MATCH_TEMPLATES = new Set([
+  "match",
+  "match_buyer",
+  "match_seller",
+  "new_buyer",
+  "radar_match",
+]);
+
+export function getMatchKind(template: string): "buyer" | "seller" | null {
+  if (template === "match_seller" || template === "new_buyer") return "seller";
+  if (template === "match" || template === "match_buyer" || template === "radar_match") return "buyer";
+  return null;
+}
+
+export function getMatchBadgeLabel(template: string): string | null {
+  switch (template) {
+    case "radar_match":
+      return "Radar IA";
+    case "match":
+    case "match_buyer":
+      return "Annonce trouvée";
+    case "new_buyer":
+    case "match_seller":
+      return "Nouvel acheteur";
+    default:
+      return null;
+  }
+}
 
 const STORAGE_PREFIX = "waouh_notifs_";
 
@@ -77,11 +108,22 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
   const markAllRead = useCallback(() => {
     if (!sessionId) return;
+    let unifiedIds: string[] = [];
     setNotifications((prev) => {
+      unifiedIds = prev.filter((n) => !n.read && MATCH_TEMPLATES.has(n.template)).map((n) => n.id);
       const updated = prev.map((n) => ({ ...n, read: true }));
       saveNotifs(sessionId, updated);
       return updated;
     });
+    if (unifiedIds.length) {
+      supabase
+        .from("waouh_notifications" as any)
+        .update({ opened: true })
+        .in("id", unifiedIds)
+        .then(({ error }) => {
+          if (error) console.warn("[waouh-notifs] markAllRead error", error);
+        });
+    }
   }, [sessionId]);
 
   const clearAll = useCallback(() => {
@@ -89,6 +131,25 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     setNotifications([]);
     saveNotifs(sessionId, []);
   }, [sessionId]);
+
+  const markRead = useCallback(
+    (id: string) => {
+      setNotifications((prev) => {
+        const updated = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+        if (sessionId) saveNotifs(sessionId, updated);
+        return updated;
+      });
+      // Best-effort DB sync (only matches unified notifications by id)
+      supabase
+        .from("waouh_notifications" as any)
+        .update({ opened: true })
+        .eq("id", id)
+        .then(({ error }) => {
+          if (error) console.warn("[waouh-notifs] markRead error", error);
+        });
+    },
+    [sessionId]
+  );
 
   const upsertNotif = useCallback((notif: WaouhNotification, withToast = true) => {
     let isNew = true;
@@ -188,6 +249,8 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         image_url: pickPhoto(row),
         message_id: null,
         transaction_id: null,
+        article_id: row.article_id ?? null,
+        payload: row.payload ?? null,
       }));
 
       // Merge with local cache, dedupe by id, sort by date desc, cap 50
@@ -259,6 +322,8 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         created_at: row.sent_at ?? new Date().toISOString(),
         read: !!row.opened,
         image_url: pickPhoto,
+        article_id: row.article_id ?? null,
+        payload: row.payload ?? null,
       };
       upsertNotif(notif);
       // Notify the list to refresh — but do NOT auto-open a chat window.
@@ -315,5 +380,5 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  return { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll };
+  return { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll };
 }

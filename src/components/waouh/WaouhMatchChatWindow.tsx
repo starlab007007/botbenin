@@ -188,29 +188,77 @@ export function WaouhMatchChatWindow({
     };
   }, [match.article_id, sessionId, match.key, waouhIds.join(",")]);
 
-  // Smart scroll: only auto-scroll if user is already near the bottom.
+  // Smart scroll + persisted scroll position per match.key
   const prevLenRef = useRef(0);
+  const restoredRef = useRef(false);
+  const SCROLL_KEY = `waouh_scroll_${sessionId}_${match.key}`;
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
     const isFirstRender = prevLenRef.current === 0 && messages.length > 0;
     prevLenRef.current = messages.length;
-    if (isFirstRender) {
-      el.scrollTop = el.scrollHeight;
+    if (isFirstRender && !restoredRef.current) {
+      // Restore saved scroll position if any, else go to bottom
+      let restored = false;
+      try {
+        const raw = localStorage.getItem(SCROLL_KEY);
+        if (raw != null) {
+          const top = Number(raw);
+          if (Number.isFinite(top) && top >= 0) {
+            el.scrollTop = Math.min(top, el.scrollHeight);
+            restored = true;
+          }
+        }
+      } catch {}
+      if (!restored) el.scrollTop = el.scrollHeight;
+      restoredRef.current = true;
     } else if (nearBottom) {
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }
-  }, [messages.length]);
+  }, [messages.length, SCROLL_KEY]);
 
-  // Focus textarea only when this tab becomes active (not on every message).
+  // Persist scroll position (throttled via rAF)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        try {
+          localStorage.setItem(SCROLL_KEY, String(el.scrollTop));
+        } catch {}
+      });
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [SCROLL_KEY]);
+
+  // Focus textarea only when this tab becomes active (do NOT force-scroll —
+  // the persisted scroll position must be preserved across refreshes).
   useEffect(() => {
     if (active && !closed) {
       setTimeout(() => textareaRef.current?.focus(), 50);
-      const el = scrollRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
     }
   }, [active, closed]);
+
+  // When the user opens this match (clicks notification/list), mark it read
+  useEffect(() => {
+    if (!active || !match.notification_id) return;
+    supabase
+      .from("waouh_notifications" as any)
+      .update({ opened: true })
+      .eq("id", match.notification_id)
+      .then(({ error }) => {
+        if (error) console.warn("[waouh-match] markRead error", error);
+      });
+  }, [active, match.notification_id]);
 
   const send = async () => {
     const text = input.trim();

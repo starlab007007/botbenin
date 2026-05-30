@@ -47,7 +47,7 @@ export default function WaouhChatScreen() {
   const sessionId = getSessionId();
   const chatRef = useRef<WaouhWebChatHandle>(null);
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
-  const { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll } =
+  const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } =
     useWaouhMatchNotifications(sessionId, profile?.id ?? null);
   const { matches, waouhIds, activeKey, setActiveKey, close } = useWaouhMatchChats(
     sessionId,
@@ -164,6 +164,7 @@ export default function WaouhChatScreen() {
               unreadCount={unreadCount}
               onRequestPermission={requestPermission}
               onMarkAllRead={markAllRead}
+              onMarkRead={markRead}
               onClearAll={clearAll}
             />
           </div>

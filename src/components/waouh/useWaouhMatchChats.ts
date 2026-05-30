@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { MatchChatMeta } from "./WaouhMatchChatWindow";
 
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
+const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
 
 function loadOpen(sid: string): MatchChatMeta[] {
   try {
@@ -19,6 +20,20 @@ function saveOpen(sid: string, list: MatchChatMeta[]) {
   } catch {}
 }
 
+function loadActive(sid: string): string {
+  try {
+    return localStorage.getItem(ACTIVE_KEY(sid)) || "main";
+  } catch {
+    return "main";
+  }
+}
+
+function saveActive(sid: string, key: string) {
+  try {
+    localStorage.setItem(ACTIVE_KEY(sid), key);
+  } catch {}
+}
+
 /**
  * Manages the list of open product-scoped chat tabs.
  * Listens for `waouh:open-match-chat` events fired from notifications/inbox.
@@ -26,7 +41,24 @@ function saveOpen(sid: string, list: MatchChatMeta[]) {
 export function useWaouhMatchChats(sessionId: string, authUserId?: string | null) {
   const [matches, setMatches] = useState<MatchChatMeta[]>(() => loadOpen(sessionId));
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
-  const [activeKey, setActiveKey] = useState<string>("main");
+  const [activeKey, setActiveKeyState] = useState<string>(() => {
+    const saved = loadActive(sessionId);
+    const open = loadOpen(sessionId);
+    // Only restore active key if the match is still in the open list
+    if (saved !== "main" && !open.some((m) => m.key === saved)) return "main";
+    return saved;
+  });
+
+  const setActiveKey = useCallback(
+    (key: string | ((cur: string) => string)) => {
+      setActiveKeyState((cur) => {
+        const next = typeof key === "function" ? key(cur) : key;
+        saveActive(sessionId, next);
+        return next;
+      });
+    },
+    [sessionId]
+  );
 
   useEffect(() => {
     let alive = true;
