@@ -1,57 +1,86 @@
-## Objectif
 
-Appliquer exactement le même fonctionnement que « 📩 Nouvel acheteur intéressé » aux deux types côté acheteur :
-- « 🎯 Annonce trouvée pour vous » (`match` / `match_buyer`)
-- « 🎯 Annonce détectée par le Radar IA » (`radar_match`)
+# Stabilisation des notifications & chats WAOUH
 
-Chaque notification doit :
-1. Apparaître en tête de `WaouhMatchChatList` (sous la carte WAOUH) comme une ligne distincte, clé = `notification.id`.
-2. À l'ouverture, afficher dans `WaouhMatchChatWindow` le **même contenu riche** (photo + texte intégral identique à WhatsApp) via `payload.text`.
-3. Auto-ouvrir une fenêtre dédiée à la réception temps réel.
+Objectif : rendre **robuste**, **fluide** et **prévisible** tout le flux *notification → liste → ouverture de la fenêtre → chat*, pour les types `match`, `match_buyer`, `match_seller`, `new_buyer`, `radar_match`.
 
-## Constat
+## Problèmes identifiés dans le code actuel
 
-Le front est déjà presque prêt :
-- `WaouhMatchChatList` charge déjà les types `match`, `match_buyer`, `match_seller`, `new_buyer`, `radar_match` et les keye par `notification.id`.
-- `WaouhMatchChatWindow` affiche un seed bulle riche depuis `payload.text` / `seed_text`.
+1. **Auto-ouverture intrusive** : `useWaouhMatchNotifications` dispatch `waouh:open-match-chat` à **chaque** INSERT realtime — même quand l'utilisateur n'est pas sur `/app/chat`. Une nouvelle notif vole le focus et ouvre une fenêtre.
+2. **Doublons de souscriptions realtime** : `useWaouhMatchNotifications`, `WaouhMatchChatList`, `useWaouhMatchChats` et `WaouhMatchChatWindow` s'abonnent chacun à `waouh_notifications` / `waouh_messages` avec leurs propres canaux → 4+ canaux par session, recharges multiples, race conditions, fuites au démontage.
+3. **`WaouhMatchChatList` recharge tout** à chaque event (`loadRef.current?.()`) : N+1 sur `waouh_articles` dans la boucle fallback messages, pas de debounce → scintillement de la liste.
+4. **Dépendance instable** `waouhIds.join("|")` re-crée le canal à chaque changement (auth resolve, etc.).
+5. **`upsertNotif` skip silencieusement** les doublons mais ne met pas à jour `read`/`image_url` si la version realtime arrive après l'historique.
+6. **Toast + Notification système systématiques** même lorsque la fenêtre cible est déjà ouverte/active → bruit.
+7. **`WaouhMatchChatWindow`** : filtre realtime uniquement par `web_session_id` (rate les messages reçus via `user_id`), scroll forcé en `smooth` sur chaque arrivée (saccadé sur mobile), refocus auto même quand l'utilisateur scrolle.
+8. **Seed text** rechargé même quand `match.seed_text` est déjà fourni (requête `waouh_notifications` inutile).
+9. **Clé d'archivage `EXPANDED_KEY`** dépend de `sessionId` mais l'état initial n'est lu qu'au mount → désynchronisé si `sessionId` change.
+10. **Pas de gestion d'erreur visible** côté `send()` (le message disparaît, restauré dans l'input sans toast → l'utilisateur ne sait pas pourquoi).
 
-Deux trous bloquent l'expérience côté acheteur :
-- **Auto-ouverture** (`useWaouhMatchNotifications`) : `matchKinds` n'inclut **pas** `radar_match`, donc la fenêtre ne s'ouvre pas automatiquement quand le Radar IA détecte une annonce.
-- **Contenu riche manquant** (`waouh-radar-process`) : l'insert dans `waouh_notifications` pour `radar_match` ne pose pas `payload.text` ni `web_session_id`. Résultat : ligne générique « 🎯 Annonce trouvée pour vous » et bulle riche vide dans la fenêtre.
+## Plan d'action (frontend uniquement, aucune migration DB)
 
-Côté `match` / `match_buyer`, `waouh-notify-dispatch` pose déjà `payload.text` (via `buildBuyerMatchText`) + `web_session_id` → rien à changer côté serveur.
+### 1. Centraliser le realtime dans un seul provider
+Créer `src/components/waouh/WaouhRealtimeProvider.tsx` (+ hook `useWaouhRealtime`) :
+- Un seul `supabase.channel` par session/user qui écoute `waouh_notifications` et `waouh_messages`.
+- Expose un **event bus interne** (`subscribe(event, handler)`) consommé par `useWaouhMatchNotifications`, `WaouhMatchChatList`, `useWaouhMatchChats`, `WaouhMatchChatWindow`.
+- Monté une fois dans `WaouhChatPage` + `WaouhChatScreen` (mobile).
 
-## Changements
+### 2. Ne plus auto-ouvrir la fenêtre depuis le realtime
+Dans `useWaouhMatchNotifications` :
+- Supprimer le dispatch automatique de `waouh:open-match-chat` sur INSERT.
+- Garder uniquement : ajout en liste + toast cliquable + notification système.
+- Le toast/notif clique → dispatch `waouh:open-match-chat` (intention utilisateur).
+- `WaouhMatchChatList` reste le seul point d'ouverture proactif (déjà géré).
 
-### 1. `src/hooks/useWaouhMatchNotifications.ts`
-- Ajouter `radar_match` à `matchKinds` pour déclencher l'event `waouh:open-match-chat` à l'insert temps réel.
-- Forcer `kind: "buyer"` pour `radar_match` (et `match` / `match_buyer` sans `recipient`).
-- Propager `seed_text`, `notification_id`, `photos`, `title/price/city` depuis `row.payload` comme déjà fait pour les autres.
+### 3. Robustifier `upsertNotif`
+- Sur doublon : merger (`read`, `image_url`, `body`) au lieu de skip.
+- Trier la liste après merge.
+- Persister immédiatement.
 
-### 2. `supabase/functions/waouh-radar-process/index.ts`
-Enrichir l'insert `waouh_notifications` (vers ligne 233) pour le rendre identique à `waouh-notify-dispatch` :
-- Récupérer `web_session_id` du `waouh_users` cible (déjà lu ensuite ligne 241, juste hoister).
-- Ajouter au row : `web_session_id`, `photos: signalPhotos`, et `payload: { text: directText, recipient: "buyer", title, price, city, signal_id, match_id, photos }`.
-- Conserver `title`/`body`/`meta` existants pour rétro-compat.
+### 4. Optimiser `WaouhMatchChatList`
+- Remplacer le N+1 sur `waouh_articles` par **un seul** `select ... in ("id", [...])`.
+- Debounce `load()` (150ms) — un seul rechargement par rafale.
+- Mise à jour locale immédiate sur INSERT (push optimiste dans `items`) avant le reload.
+- Stabiliser les deps : `useMemo` sur `waouhIds`.
 
-Ainsi `WaouhMatchChatList` affichera la ligne avec photo + preview de la première ligne du texte riche, et `WaouhMatchChatWindow` épinglera la bulle complète identique à WhatsApp (`🎯 *Annonce détectée par le Radar IA* …`).
+### 5. Fluidifier `WaouhMatchChatWindow`
+- Filtre realtime : OR sur `web_session_id` et `user_id IN (waouhIds)`.
+- Skip la requête seed si `match.seed_text` est déjà fourni.
+- Scroll : `auto` (instantané) sur premier render, `smooth` ensuite ; ne pas scroller si l'utilisateur est >120px du bas.
+- Focus textarea : seulement à l'ouverture/changement de tab, pas après chaque message.
+- `send()` : sur erreur, restaurer l'input **+** `toast.error("Message non envoyé, réessayez")`.
+- Empêcher double-submit (déjà via `sending`, ajouter guard sur Enter).
 
-### 3. `src/components/waouh/WaouhMatchChatWindow.tsx` (cosmétique)
-Adapter `seedTitle` pour différencier :
-- `seller` → « 📩 Nouvel acheteur intéressé par votre annonce »
-- `buyer` + `notification_type === "radar_match"` → « 🎯 Annonce détectée par le Radar IA »
-- `buyer` autre → « 🎯 Annonce trouvée pour votre recherche »
+### 6. UX notifications
+- Toast/notif système uniquement si :
+  - L'onglet n'est pas focus (`document.visibilityState !== "visible"`), **ou**
+  - L'utilisateur n'est pas sur `/app/chat` / `/waouh-chat`.
+- Sinon : juste un bump visuel sur la cloche + liste mise à jour.
 
-(`seedNotif.notification_type` est déjà chargé.)
+### 7. Nettoyage & cohérence
+- Unifier les types : `recipient` toujours dérivé via une seule fonction `resolveRole(notif)` partagée (`src/components/waouh/utils/role.ts`).
+- Unifier les listes `matchKinds` dans une constante exportée.
+- Logs `console.warn` préfixés `[waouh]` uniquement, supprimer les `console.log` debug restants.
 
-## Hors scope
+## Détails techniques
 
-- Pas de changement DB (schémas / RLS).
-- Pas de modification du dispatcher `match` / `new_buyer` (déjà conforme).
-- Aucun changement sur le côté vendeur (déjà OK).
+**Fichiers modifiés** :
+- `src/hooks/useWaouhMatchNotifications.ts` — retirer auto-open, fix upsert merge, gate toast.
+- `src/components/waouh/WaouhMatchChatList.tsx` — debounce, batch articles, optimistic update.
+- `src/components/waouh/WaouhMatchChatWindow.tsx` — filtre realtime élargi, scroll/focus intelligents, toast erreur.
+- `src/components/waouh/useWaouhMatchChats.ts` — consommer le provider.
 
-## Validation
+**Fichiers créés** :
+- `src/components/waouh/WaouhRealtimeProvider.tsx`
+- `src/components/waouh/utils/role.ts`
+- `src/components/waouh/utils/matchKinds.ts`
 
-- 1 signal Radar IA détecté → 1 ligne distincte au top de la liste avec photo + texte riche, et la fenêtre s'ouvre automatiquement avec la bulle complète identique au WhatsApp.
-- 2 annonces match successives pour un même acheteur → 2 lignes séparées (clé `notification.id`).
-- Notification `match_buyer` existante : reste fonctionnelle, contenu identique à avant.
+**Aucune** modification de :
+- Edge functions (`waouh-radar-process`, `waouh-notify-dispatch`, `waouh-channel-in`) — la chaîne backend est déjà OK depuis la dernière itération.
+- Schéma DB / RLS.
+
+## Critères de succès
+- Une nouvelle notif `radar_match` apparaît instantanément dans la cloche + liste **sans** ouvrir une fenêtre intempestive.
+- Cliquer une notif (liste ou toast) ouvre la fenêtre avec seed text + photo dès la 1ʳᵉ frame (pas de flash).
+- Envoyer un message ne fait plus sauter le scroll si l'utilisateur lit l'historique.
+- Un seul canal Supabase par session visible dans les DevTools Network (vs 4+ actuellement).
+- Aucune erreur si on enchaîne 10 notifs en rafale.
