@@ -41,7 +41,24 @@ function saveActive(sid: string, key: string) {
 export function useWaouhMatchChats(sessionId: string, authUserId?: string | null) {
   const [matches, setMatches] = useState<MatchChatMeta[]>(() => loadOpen(sessionId));
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
-  const [activeKey, setActiveKey] = useState<string>("main");
+  const [activeKey, setActiveKeyState] = useState<string>(() => {
+    const saved = loadActive(sessionId);
+    const open = loadOpen(sessionId);
+    // Only restore active key if the match is still in the open list
+    if (saved !== "main" && !open.some((m) => m.key === saved)) return "main";
+    return saved;
+  });
+
+  const setActiveKey = useCallback(
+    (key: string | ((cur: string) => string)) => {
+      setActiveKeyState((cur) => {
+        const next = typeof key === "function" ? key(cur) : key;
+        saveActive(sessionId, next);
+        return next;
+      });
+    },
+    [sessionId]
+  );
 
   useEffect(() => {
     let alive = true;
