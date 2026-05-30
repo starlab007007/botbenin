@@ -380,5 +380,5 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  return { permission, requestPermission, notifications, unreadCount, markAllRead, clearAll };
+  return { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll };
 }
