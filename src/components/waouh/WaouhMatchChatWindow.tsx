@@ -264,6 +264,7 @@ export function WaouhMatchChatWindow({
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setInput(text);
+      toast.error("Message non envoyé, réessayez");
     } finally {
       setSending(false);
       setTimeout(() => textareaRef.current?.focus(), 30);
