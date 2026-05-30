@@ -163,34 +163,40 @@ export function WaouhMatchChatList({
           const articlesWithNotif = new Set(
             Array.from(map.values()).map((it) => it.article_id)
           );
-          const seenArt = new Set<string>();
+          const seenArt = new Map<string, { role: "buyer" | "seller"; created_at: string }>();
           for (const m of (msgs ?? []) as any[]) {
             const articleId: string | null = m.article_id;
-            if (!articleId || seenArt.has(articleId)) continue;
-            seenArt.add(articleId);
-            if (articlesWithNotif.has(articleId)) continue;
+            if (!articleId || seenArt.has(articleId) || articlesWithNotif.has(articleId)) continue;
             const role: "buyer" | "seller" = m.metadata?.role === "seller" ? "seller" : "buyer";
-            const stubKey = `msg_${articleId}_${role}`;
-            const { data: art } = await supabase
+            seenArt.set(articleId, { role, created_at: m.created_at });
+          }
+          // Batch fetch article metadata in one query
+          const stubIds = Array.from(seenArt.keys());
+          if (stubIds.length) {
+            const { data: arts } = await supabase
               .from("waouh_articles" as any)
-              .select("title,price,city,photos")
-              .eq("id", articleId)
-              .maybeSingle();
-            map.set(stubKey, {
-              key: stubKey,
-              notification_id: null,
-              seed_text: null,
-              article_id: articleId,
-              buyer_profile_id: null,
-              counterpart_user_id: null,
-              role,
-              title: (art as any)?.title || "Annonce",
-              price: (art as any)?.price ?? null,
-              city: (art as any)?.city ?? null,
-              photo: (Array.isArray((art as any)?.photos) && (art as any).photos[0]) || null,
-              unread: false,
-              last_at: m.created_at,
-            });
+              .select("id,title,price,city,photos")
+              .in("id", stubIds);
+            const artById = new Map<string, any>((arts ?? []).map((a: any) => [a.id, a]));
+            for (const [articleId, info] of seenArt.entries()) {
+              const art = artById.get(articleId);
+              const stubKey = `msg_${articleId}_${info.role}`;
+              map.set(stubKey, {
+                key: stubKey,
+                notification_id: null,
+                seed_text: null,
+                article_id: articleId,
+                buyer_profile_id: null,
+                counterpart_user_id: null,
+                role: info.role,
+                title: art?.title || "Annonce",
+                price: art?.price ?? null,
+                city: art?.city ?? null,
+                photo: (Array.isArray(art?.photos) && art.photos[0]) || null,
+                unread: false,
+                last_at: info.created_at,
+              });
+            }
           }
         }
       } catch {
@@ -204,7 +210,14 @@ export function WaouhMatchChatList({
       setItems(arr);
     };
 
-    loadRef.current = load;
+    // Debounce: coalesce bursts of realtime events into one reload.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedLoad = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => load(), 180);
+    };
+
+    loadRef.current = debouncedLoad;
     load();
 
     // Single combined realtime channel
