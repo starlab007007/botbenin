@@ -121,6 +121,25 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     saveNotifs(sessionId, []);
   }, [sessionId]);
 
+  const markRead = useCallback(
+    (id: string) => {
+      setNotifications((prev) => {
+        const updated = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+        if (sessionId) saveNotifs(sessionId, updated);
+        return updated;
+      });
+      // Best-effort DB sync (only matches unified notifications by id)
+      supabase
+        .from("waouh_notifications" as any)
+        .update({ opened: true })
+        .eq("id", id)
+        .then(({ error }) => {
+          if (error) console.warn("[waouh-notifs] markRead error", error);
+        });
+    },
+    [sessionId]
+  );
+
   const upsertNotif = useCallback((notif: WaouhNotification, withToast = true) => {
     let isNew = true;
     setNotifications((prev) => {
