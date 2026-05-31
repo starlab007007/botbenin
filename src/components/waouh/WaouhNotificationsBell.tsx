@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bell, BellOff, Check, ShoppingBag, Target, Radar } from "lucide-react";
+import { Bell, BellOff, Check, ShoppingBag, Target, Radar, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,10 +17,17 @@ const BADGE_STYLES: Record<string, string> = {
   match_buyer: "bg-emerald-600 text-white",
   new_buyer: "bg-amber-500 text-white",
   match_seller: "bg-amber-500 text-white",
+  deal_created: "bg-sky-600 text-white",
+  deal_seller: "bg-sky-600 text-white",
+  deal_buyer: "bg-sky-600 text-white",
+  deal_ops: "bg-fuchsia-600 text-white",
 };
+
+const DEAL_TEMPLATES = new Set(["deal_created", "deal_seller", "deal_buyer", "deal_ops"]);
 
 const BadgeIcon: React.FC<{ template: string; className?: string }> = ({ template, className }) => {
   if (template === "radar_match") return <Radar className={className} />;
+  if (DEAL_TEMPLATES.has(template)) return <Truck className={className} />;
   const kind = getMatchKind(template);
   if (kind === "seller") return <ShoppingBag className={className} />;
   if (kind === "buyer") return <Target className={className} />;
