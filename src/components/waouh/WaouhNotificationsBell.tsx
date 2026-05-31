@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bell, BellOff, Check, ShoppingBag, Target, Radar, Truck } from "lucide-react";
+import { Bell, BellOff, Check, ShoppingBag, Target, Radar, Truck, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -10,6 +10,7 @@ import {
   getMatchKind,
   getMatchBadgeLabel,
 } from "@/hooks/useWaouhMatchNotifications";
+import { WaouhDealPaymentDialog } from "./WaouhDealPaymentDialog";
 
 const BADGE_STYLES: Record<string, string> = {
   radar_match: "bg-violet-600 text-white",
@@ -21,9 +22,19 @@ const BADGE_STYLES: Record<string, string> = {
   deal_seller: "bg-sky-600 text-white",
   deal_buyer: "bg-sky-600 text-white",
   deal_ops: "bg-fuchsia-600 text-white",
+  deal_assigned: "bg-sky-600 text-white",
+  deal_picked_up: "bg-cyan-600 text-white",
+  deal_delivered: "bg-indigo-600 text-white",
+  deal_payment_request: "bg-amber-600 text-white",
+  deal_paid: "bg-emerald-600 text-white",
+  deal_cancelled: "bg-rose-600 text-white",
 };
 
-const DEAL_TEMPLATES = new Set(["deal_created", "deal_seller", "deal_buyer", "deal_ops"]);
+const DEAL_TEMPLATES = new Set([
+  "deal_created", "deal_seller", "deal_buyer", "deal_ops",
+  "deal_assigned", "deal_picked_up", "deal_delivered",
+  "deal_payment_request", "deal_paid", "deal_cancelled",
+]);
 
 const BadgeIcon: React.FC<{ template: string; className?: string }> = ({ template, className }) => {
   if (template === "radar_match") return <Radar className={className} />;
