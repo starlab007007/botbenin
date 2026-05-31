@@ -171,8 +171,8 @@ const DealCard: React.FC<{
     if (!courierId) { toast.error("Choisis un livreur"); return; }
     setBusy("assign");
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-assign", {
-        body: { deal_id: deal.id, courier_id: courierId, eta_minutes: etaMin },
+      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+        body: { action: "assign", deal_id: deal.id, courier_id: courierId, eta_minutes: etaMin },
       });
       if (error) throw error;
       toast.success("Livreur assigné — notifications envoyées");
@@ -185,8 +185,8 @@ const DealCard: React.FC<{
   const updateStatus = async (status: string, reason?: string) => {
     setBusy(status);
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-status", {
-        body: { deal_id: deal.id, status, reason: reason || undefined },
+      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+        body: { action: "status", deal_id: deal.id, status, reason: reason || undefined },
       });
       if (error) throw error;
       toast.success(`Statut mis à jour : ${STATUS_LABEL[status] || status}`);
@@ -200,8 +200,8 @@ const DealCard: React.FC<{
     if (!newEta || newEta < 1) { toast.error("ETA invalide"); return; }
     setBusy("eta");
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-update-eta", {
-        body: { deal_id: deal.id, eta_minutes: newEta },
+      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+        body: { action: "update_eta", deal_id: deal.id, eta_minutes: newEta },
       });
       if (error) throw error;
       toast.success(`ETA mise à jour (${newEta} min) — acheteur notifié`);
