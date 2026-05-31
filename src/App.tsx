@@ -270,6 +270,7 @@ const AppContent = () => {
                      <Route path="/admin/waouh/data-control" element={<AdminRoute><AdminWaouhDataControlPage /></AdminRoute>} />
                      <Route path="/admin/waouh/monitoring" element={<AdminRoute><AdminWaouhMonitoringPage /></AdminRoute>} />
                      <Route path="/admin/waouh/businesses" element={<AdminRoute><AdminWaouhBusinessesPage /></AdminRoute>} />
+                     <Route path="/admin/waouh/deals" element={<AdminRoute><AdminWaouhDealsPage /></AdminRoute>} />
                      <Route path="/partner" element={<AuthRoute><PartnerDashboardPage /></AuthRoute>} />
                      <Route path="/partner/businesses" element={<PartnerRoute><PartnerBusinessesPage /></PartnerRoute>} />
                      <Route path="/partner/b/:code/produits" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
