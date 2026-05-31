@@ -59,7 +59,7 @@ export default function AdminWaouhDealsPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // Enrich deals with article/users in batch
+  // Enrich deals with article/users in batch (with profiles fallback for name/phone)
   const [enrichments, setEnrichments] = useState<Record<string, any>>({});
   useEffect(() => {
     if (deals.length === 0) return;
@@ -68,11 +68,24 @@ export default function AdminWaouhDealsPage() {
       const userIds = Array.from(new Set(deals.flatMap((d) => [d.buyer_user_id, d.seller_user_id]).filter(Boolean)));
       const [{ data: arts }, { data: us }] = await Promise.all([
         articleIds.length ? supabase.from("waouh_articles").select("id, title, price").in("id", articleIds) : Promise.resolve({ data: [] } as any),
-        userIds.length ? supabase.from("waouh_users").select("id, display_name, phone_number, city").in("id", userIds) : Promise.resolve({ data: [] } as any),
+        userIds.length ? supabase.from("waouh_users").select("id, display_name, phone_number, city, auth_user_id").in("id", userIds) : Promise.resolve({ data: [] } as any),
       ]);
+      const authIds = Array.from(new Set((us || []).map((u: any) => u.auth_user_id).filter(Boolean)));
+      const { data: profs } = authIds.length
+        ? await supabase.from("profiles" as any).select("id, full_name, phone").in("id", authIds)
+        : { data: [] } as any;
+      const profMap: Record<string, any> = {};
+      (profs || []).forEach((p: any) => { profMap[p.id] = p; });
       const map: Record<string, any> = {};
       (arts || []).forEach((a: any) => { map[`article:${a.id}`] = a; });
-      (us || []).forEach((u: any) => { map[`user:${u.id}`] = u; });
+      (us || []).forEach((u: any) => {
+        const p = u.auth_user_id ? profMap[u.auth_user_id] : null;
+        map[`user:${u.id}`] = {
+          ...u,
+          display_name: u.display_name || p?.full_name || null,
+          phone_number: u.phone_number || p?.phone || null,
+        };
+      });
       setEnrichments(map);
     })();
   }, [deals]);
@@ -171,8 +184,8 @@ const DealCard: React.FC<{
     if (!courierId) { toast.error("Choisis un livreur"); return; }
     setBusy("assign");
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-assign", {
-        body: { deal_id: deal.id, courier_id: courierId, eta_minutes: etaMin },
+      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+        body: { action: "assign", deal_id: deal.id, courier_id: courierId, eta_minutes: etaMin },
       });
       if (error) throw error;
       toast.success("Livreur assigné — notifications envoyées");
@@ -185,8 +198,8 @@ const DealCard: React.FC<{
   const updateStatus = async (status: string, reason?: string) => {
     setBusy(status);
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-status", {
-        body: { deal_id: deal.id, status, reason: reason || undefined },
+      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+        body: { action: "status", deal_id: deal.id, status, reason: reason || undefined },
       });
       if (error) throw error;
       toast.success(`Statut mis à jour : ${STATUS_LABEL[status] || status}`);
@@ -200,8 +213,8 @@ const DealCard: React.FC<{
     if (!newEta || newEta < 1) { toast.error("ETA invalide"); return; }
     setBusy("eta");
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-update-eta", {
-        body: { deal_id: deal.id, eta_minutes: newEta },
+      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+        body: { action: "update_eta", deal_id: deal.id, eta_minutes: newEta },
       });
       if (error) throw error;
       toast.success(`ETA mise à jour (${newEta} min) — acheteur notifié`);
