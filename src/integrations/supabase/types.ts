@@ -5788,6 +5788,69 @@ export type Database = {
           },
         ]
       }
+      waouh_deals: {
+        Row: {
+          amount: number
+          article_id: string | null
+          assigned_at: string | null
+          buyer_user_id: string
+          cancelled_at: string | null
+          courier_user_id: string | null
+          created_at: string
+          delivered_at: string | null
+          dropoff_address: string | null
+          eta_minutes: number | null
+          id: string
+          negotiation_id: string | null
+          notes: string | null
+          picked_up_at: string | null
+          pickup_address: string | null
+          seller_user_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          article_id?: string | null
+          assigned_at?: string | null
+          buyer_user_id: string
+          cancelled_at?: string | null
+          courier_user_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          dropoff_address?: string | null
+          eta_minutes?: number | null
+          id?: string
+          negotiation_id?: string | null
+          notes?: string | null
+          picked_up_at?: string | null
+          pickup_address?: string | null
+          seller_user_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          article_id?: string | null
+          assigned_at?: string | null
+          buyer_user_id?: string
+          cancelled_at?: string | null
+          courier_user_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          dropoff_address?: string | null
+          eta_minutes?: number | null
+          id?: string
+          negotiation_id?: string | null
+          notes?: string | null
+          picked_up_at?: string | null
+          pickup_address?: string | null
+          seller_user_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waouh_external_listings: {
         Row: {
           category: string | null
