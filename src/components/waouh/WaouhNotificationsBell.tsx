@@ -208,6 +208,14 @@ export const WaouhNotificationsBell: React.FC<{
           )}
         </ScrollArea>
       </PopoverContent>
+      {payDialog && (
+        <WaouhDealPaymentDialog
+          open={!!payDialog}
+          onOpenChange={(v) => { if (!v) setPayDialog(null); }}
+          dealId={payDialog.dealId}
+          amount={payDialog.amount}
+        />
+      )}
     </Popover>
   );
 };
