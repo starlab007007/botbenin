@@ -162,6 +162,10 @@ const DealCard: React.FC<{
   const [courierId, setCourierId] = useState<string>("");
   const [etaMin, setEtaMin] = useState<number>(30);
   const [busy, setBusy] = useState<string | null>(null);
+  const [editEta, setEditEta] = useState(false);
+  const [newEta, setNewEta] = useState<number>(deal.eta_minutes || 30);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const assign = async () => {
     if (!courierId) { toast.error("Choisis un livreur"); return; }
@@ -178,11 +182,11 @@ const DealCard: React.FC<{
     } finally { setBusy(null); }
   };
 
-  const updateStatus = async (status: string) => {
+  const updateStatus = async (status: string, reason?: string) => {
     setBusy(status);
     try {
       const { error } = await supabase.functions.invoke("waouh-deal-status", {
-        body: { deal_id: deal.id, status },
+        body: { deal_id: deal.id, status, reason: reason || undefined },
       });
       if (error) throw error;
       toast.success(`Statut mis à jour : ${STATUS_LABEL[status] || status}`);
@@ -190,6 +194,28 @@ const DealCard: React.FC<{
     } catch (e: any) {
       toast.error(e?.message || "Erreur");
     } finally { setBusy(null); }
+  };
+
+  const updateEta = async () => {
+    if (!newEta || newEta < 1) { toast.error("ETA invalide"); return; }
+    setBusy("eta");
+    try {
+      const { error } = await supabase.functions.invoke("waouh-deal-update-eta", {
+        body: { deal_id: deal.id, eta_minutes: newEta },
+      });
+      if (error) throw error;
+      toast.success(`ETA mise à jour (${newEta} min) — acheteur notifié`);
+      setEditEta(false);
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e?.message || "Erreur ETA");
+    } finally { setBusy(null); }
+  };
+
+  const confirmCancel = async () => {
+    await updateStatus("cancelled", cancelReason.trim());
+    setCancelOpen(false);
+    setCancelReason("");
   };
 
   const amountFcfa = Number(deal.amount || 0).toLocaleString("fr-FR");
