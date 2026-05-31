@@ -17,6 +17,9 @@ import {
   Wallet,
   Radar,
   Settings2,
+  Activity,
+  Truck,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -237,6 +240,10 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
               <NavItem item={{ title: 'Catalogue unifié', path: '/admin/waouh/data-control', icon: Database, color: 'from-emerald-500 to-teal-600', description: 'Contrôle & IA' }} showDescription />
               <NavItem item={{ title: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', icon: Settings2, color: 'from-green-600 to-emerald-700', description: 'Opérations WhatsApp' }} showDescription />
               <NavItem item={{ title: 'Radar IA', path: '/admin/waouh/radar', icon: Radar, color: 'from-purple-500 to-pink-600', description: 'Scraping intelligent' }} showDescription />
+              <NavItem item={{ title: 'Monitoring', path: '/admin/waouh/monitoring', icon: Activity, color: 'from-rose-500 to-red-600', description: 'Santé & métriques temps réel' }} showDescription />
+              <NavItem item={{ title: 'Livraisons (Deals)', path: '/admin/waouh/deals', icon: Truck, color: 'from-orange-500 to-amber-600', description: 'Assigner livreurs & suivi' }} showDescription />
+              <NavItem item={{ title: 'Commerces', path: '/admin/waouh/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Catalogue des commerces' }} showDescription />
+              <NavItem item={{ title: 'Démo WAOUH', path: '/admin/waouh/demo', icon: Sparkles, color: 'from-fuchsia-500 to-purple-600', description: 'Page démo / showcase' }} showDescription />
             </div>
           </div>
         )}
