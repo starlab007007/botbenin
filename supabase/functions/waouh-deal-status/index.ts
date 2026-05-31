@@ -3,6 +3,7 @@
 // On delivered → also issues a "payment_request" notification to the buyer.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireAdmin, pushDealChatEvent } from "../_shared/waouh-deal.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
