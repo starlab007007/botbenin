@@ -38,6 +38,7 @@ const DEAL_TEMPLATES = new Set([
 
 const BadgeIcon: React.FC<{ template: string; className?: string }> = ({ template, className }) => {
   if (template === "radar_match") return <Radar className={className} />;
+  if (template === "deal_payment_request" || template === "deal_paid") return <Wallet className={className} />;
   if (DEAL_TEMPLATES.has(template)) return <Truck className={className} />;
   const kind = getMatchKind(template);
   if (kind === "seller") return <ShoppingBag className={className} />;
@@ -55,6 +56,7 @@ export const WaouhNotificationsBell: React.FC<{
   onClearAll: () => void;
 }> = ({ permission, notifications, unreadCount, onRequestPermission, onMarkAllRead, onMarkRead, onClearAll }) => {
   const [open, setOpen] = useState(false);
+  const [payDialog, setPayDialog] = useState<{ dealId: string; amount?: number } | null>(null);
 
   const handleOpen = (v: boolean) => {
     setOpen(v);
