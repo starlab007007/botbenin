@@ -261,10 +261,29 @@ const DealCard: React.FC<{
         </div>
 
         {deal.courier_name && (
-          <div className="text-sm bg-sky-50 dark:bg-sky-950/30 rounded p-2">
-            🛵 Livreur : <strong>{deal.courier_name}</strong> · {deal.courier_phone}
-            {deal.eta_minutes && <> · ETA {deal.eta_minutes} min</>}
-            {deal.eta_at && <> (≈ {new Date(deal.eta_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })})</>}
+          <div className="text-sm bg-sky-50 dark:bg-sky-950/30 rounded p-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>🛵 Livreur : <strong>{deal.courier_name}</strong> · {deal.courier_phone}</span>
+            {!editEta && deal.eta_minutes && (
+              <span className="text-muted-foreground">
+                · ETA {deal.eta_minutes} min
+                {deal.eta_at && <> (≈ {new Date(deal.eta_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })})</>}
+              </span>
+            )}
+            {(isAssigned || isPickedUp) && !editEta && (
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs ml-auto" onClick={() => { setNewEta(deal.eta_minutes || 30); setEditEta(true); }}>
+                ⏱️ Modifier ETA
+              </Button>
+            )}
+            {editEta && (
+              <div className="flex items-center gap-1 ml-auto">
+                <Input type="number" min={1} value={newEta} onChange={(e) => setNewEta(Number(e.target.value || 0))} className="h-7 w-20" />
+                <span className="text-xs text-muted-foreground">min</span>
+                <Button size="sm" className="h-7" onClick={updateEta} disabled={busy === "eta"}>
+                  {busy === "eta" ? <Loader2 className="w-3 h-3 animate-spin" /> : "OK"}
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditEta(false)} disabled={busy === "eta"}>Annuler</Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -306,12 +325,42 @@ const DealCard: React.FC<{
                 Marquer livré
               </Button>
             )}
-            <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => updateStatus("cancelled")} disabled={busy !== null}>
-              Annuler
+            <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => setCancelOpen(true)} disabled={busy !== null}>
+              <X className="w-4 h-4 mr-1" /> Annuler la livraison
             </Button>
           </div>
         )}
       </CardContent>
+
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="max-w-md max-h-[90dvh] w-[90vw] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-rose-600">⚠️ Annuler la livraison</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              L'acheteur et le vendeur seront notifiés. Cette action ne peut pas être annulée.
+            </p>
+            <div>
+              <Label className="text-xs">Raison (optionnel, partagée aux parties)</Label>
+              <Input
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="ex : livreur indisponible, article cassé…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCancelOpen(false)} disabled={busy === "cancelled"}>
+              Retour
+            </Button>
+            <Button variant="destructive" onClick={confirmCancel} disabled={busy === "cancelled"}>
+              {busy === "cancelled" ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              Confirmer l'annulation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
