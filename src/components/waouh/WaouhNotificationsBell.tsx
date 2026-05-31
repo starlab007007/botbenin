@@ -108,11 +108,18 @@ export const WaouhNotificationsBell: React.FC<{
               {notifications.map((n) => {
                 const matchKind = getMatchKind(n.template);
                 const isMatch = !!matchKind;
-                const clickable = isMatch || !!(n.message_id || n.transaction_id);
+                const isPaymentRequest = n.template === "deal_payment_request" && n.payload?.deal_id;
+                const clickable = isMatch || isPaymentRequest || !!(n.message_id || n.transaction_id);
                 const badgeLabel = getMatchBadgeLabel(n.template);
 
                 const handleClick = () => {
                   if (!clickable) return;
+                  if (isPaymentRequest) {
+                    setPayDialog({ dealId: n.payload.deal_id, amount: n.payload?.amount });
+                    onMarkRead?.(n.id);
+                    setOpen(false);
+                    return;
+                  }
                   if (isMatch && n.article_id) {
                     window.dispatchEvent(
                       new CustomEvent("waouh:open-match-chat", {
