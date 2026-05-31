@@ -1,86 +1,131 @@
 
-# Stabilisation des notifications & chats WAOUH
+# Refonte du flux "Accord conclu" — livraison médiée
 
-Objectif : rendre **robuste**, **fluide** et **prévisible** tout le flux *notification → liste → ouverture de la fenêtre → chat*, pour les types `match`, `match_buyer`, `match_seller`, `new_buyer`, `radar_match`.
+## Objectif
+À l'acceptation d'une négociation, on **ne partage plus** les numéros entre acheteur et vendeur. Un **livreur WAOUH** est attribué et devient l'unique point de contact opérationnel. L'équipe WAOUH reçoit les deux contacts pour orchestrer la livraison.
 
-## Problèmes identifiés dans le code actuel
+## Nouveau parcours utilisateur
 
-1. **Auto-ouverture intrusive** : `useWaouhMatchNotifications` dispatch `waouh:open-match-chat` à **chaque** INSERT realtime — même quand l'utilisateur n'est pas sur `/app/chat`. Une nouvelle notif vole le focus et ouvre une fenêtre.
-2. **Doublons de souscriptions realtime** : `useWaouhMatchNotifications`, `WaouhMatchChatList`, `useWaouhMatchChats` et `WaouhMatchChatWindow` s'abonnent chacun à `waouh_notifications` / `waouh_messages` avec leurs propres canaux → 4+ canaux par session, recharges multiples, race conditions, fuites au démontage.
-3. **`WaouhMatchChatList` recharge tout** à chaque event (`loadRef.current?.()`) : N+1 sur `waouh_articles` dans la boucle fallback messages, pas de debounce → scintillement de la liste.
-4. **Dépendance instable** `waouhIds.join("|")` re-crée le canal à chaque changement (auth resolve, etc.).
-5. **`upsertNotif` skip silencieusement** les doublons mais ne met pas à jour `read`/`image_url` si la version realtime arrive après l'historique.
-6. **Toast + Notification système systématiques** même lorsque la fenêtre cible est déjà ouverte/active → bruit.
-7. **`WaouhMatchChatWindow`** : filtre realtime uniquement par `web_session_id` (rate les messages reçus via `user_id`), scroll forcé en `smooth` sur chaque arrivée (saccadé sur mobile), refocus auto même quand l'utilisateur scrolle.
-8. **Seed text** rechargé même quand `match.seed_text` est déjà fourni (requête `waouh_notifications` inutile).
-9. **Clé d'archivage `EXPANDED_KEY`** dépend de `sessionId` mais l'état initial n'est lu qu'au mount → désynchronisé si `sessionId` change.
-10. **Pas de gestion d'erreur visible** côté `send()` (le message disparaît, restauré dans l'input sans toast → l'utilisateur ne sait pas pourquoi).
+```
+Acheteur dit "oui"
+        │
+        ▼
+┌──────────────────────────┐
+│  Négociation acceptée    │
+│  (state = accepted)      │
+└──────────────────────────┘
+        │
+        ├──► Création d'un "deal" (livraison)
+        │
+        ├──► Notif Vendeur :
+        │    "✅ Vente conclue. Un livreur WAOUH vous
+        │     contactera dans quelques minutes pour
+        │     récupérer le colis. Ne partagez pas vos
+        │     coordonnées avec l'acheteur."
+        │
+        ├──► Notif Acheteur :
+        │    "🎉 Achat confirmé ! Vous recevrez sous peu
+        │     une notification avec le délai estimé.
+        │     Paiement à la livraison."
+        │
+        ├──► Notif Équipe WAOUH (canal interne) :
+        │    Récap complet : article, prix, vendeur (nom+tél+adresse),
+        │     acheteur (nom+tél+adresse), distance, deal_id.
+        │
+        └──► Notif Livreur assigné (si auto-attribution) :
+             Mission, points de collecte/dépôt, contacts des 2 parties.
+```
 
-## Plan d'action (frontend uniquement, aucune migration DB)
+## Messages (wording proposé)
 
-### 1. Centraliser le realtime dans un seul provider
-Créer `src/components/waouh/WaouhRealtimeProvider.tsx` (+ hook `useWaouhRealtime`) :
-- Un seul `supabase.channel` par session/user qui écoute `waouh_notifications` et `waouh_messages`.
-- Expose un **event bus interne** (`subscribe(event, handler)`) consommé par `useWaouhMatchNotifications`, `WaouhMatchChatList`, `useWaouhMatchChats`, `WaouhMatchChatWindow`.
-- Monté une fois dans `WaouhChatPage` + `WaouhChatScreen` (mobile).
+**Vendeur** (`replyToSeller`)
+> 🎉 *Vente conclue !*
+> 📦 {title} — 💰 {prix}
+>
+> 🛵 Un livreur WAOUH vous contactera dans quelques minutes au numéro associé à ce compte pour convenir de la collecte du colis.
+>
+> 🔒 *Confidentialité* : pour votre sécurité, le contact de l'acheteur n'est pas partagé. WAOUH coordonne la livraison.
+>
+> ⏱️ Préparez le colis dès maintenant.
 
-### 2. Ne plus auto-ouvrir la fenêtre depuis le realtime
-Dans `useWaouhMatchNotifications` :
-- Supprimer le dispatch automatique de `waouh:open-match-chat` sur INSERT.
-- Garder uniquement : ajout en liste + toast cliquable + notification système.
-- Le toast/notif clique → dispatch `waouh:open-match-chat` (intention utilisateur).
-- `WaouhMatchChatList` reste le seul point d'ouverture proactif (déjà géré).
+**Acheteur** (`replyToBuyer`)
+> 🎉 *Achat confirmé !*
+> 📦 {title} — 💰 {prix}
+>
+> 🛵 Un livreur WAOUH a été assigné. Vous recevrez sous peu une notification avec le **délai estimé de livraison**.
+> 💵 *Paiement à la livraison* (cash ou Mobile Money au livreur).
+>
+> 🔒 Le contact du vendeur n'est pas partagé : WAOUH s'occupe de tout.
 
-### 3. Robustifier `upsertNotif`
-- Sur doublon : merger (`read`, `image_url`, `body`) au lieu de skip.
-- Trier la liste après merge.
-- Persister immédiatement.
+**Équipe WAOUH** (canal WhatsApp interne / dashboard)
+> 🆕 *Nouveau deal #{deal_id}*
+> 📦 {title} — 💰 {prix} — 📍 {distance} km
+> 👤 Vendeur : {nom} · {tel} · {ville/coord}
+> 🛒 Acheteur : {nom} · {tel} · {ville/coord}
+> ▶️ Assigner un livreur : {lien dashboard}
 
-### 4. Optimiser `WaouhMatchChatList`
-- Remplacer le N+1 sur `waouh_articles` par **un seul** `select ... in ("id", [...])`.
-- Debounce `load()` (150ms) — un seul rechargement par rafale.
-- Mise à jour locale immédiate sur INSERT (push optimiste dans `items`) avant le reload.
-- Stabiliser les deps : `useMemo` sur `waouhIds`.
+**Livreur** (à l'assignation, optionnel phase 1)
+> 🛵 *Nouvelle mission #{deal_id}*
+> Collecte : {vendeur, tel, adresse}
+> Dépôt : {acheteur, tel, adresse}
+> À encaisser : {prix} FCFA
 
-### 5. Fluidifier `WaouhMatchChatWindow`
-- Filtre realtime : OR sur `web_session_id` et `user_id IN (waouhIds)`.
-- Skip la requête seed si `match.seed_text` est déjà fourni.
-- Scroll : `auto` (instantané) sur premier render, `smooth` ensuite ; ne pas scroller si l'utilisateur est >120px du bas.
-- Focus textarea : seulement à l'ouverture/changement de tab, pas après chaque message.
-- `send()` : sur erreur, restaurer l'input **+** `toast.error("Message non envoyé, réessayez")`.
-- Empêcher double-submit (déjà via `sending`, ajouter guard sur Enter).
+## Changements techniques
 
-### 6. UX notifications
-- Toast/notif système uniquement si :
-  - L'onglet n'est pas focus (`document.visibilityState !== "visible"`), **ou**
-  - L'utilisateur n'est pas sur `/app/chat` / `/waouh-chat`.
-- Sinon : juste un bump visuel sur la cloche + liste mise à jour.
+### 1. Base de données (migration)
+Nouvelle table `public.waouh_deals` :
+- `negotiation_id`, `article_id`, `buyer_user_id`, `seller_user_id`, `courier_user_id` (nullable)
+- `amount`, `status` (`pending_assignment` | `assigned` | `picked_up` | `delivered` | `cancelled`)
+- `eta_minutes`, `pickup_address`, `dropoff_address`, `assigned_at`, `delivered_at`
+- RLS : acheteur/vendeur voient leur deal ; livreur voit ses missions ; équipe (rôle `waouh_ops`) voit tout.
+- GRANTs standards + `service_role`.
 
-### 7. Nettoyage & cohérence
-- Unifier les types : `recipient` toujours dérivé via une seule fonction `resolveRole(notif)` partagée (`src/components/waouh/utils/role.ts`).
-- Unifier les listes `matchKinds` dans une constante exportée.
-- Logs `console.warn` préfixés `[waouh]` uniquement, supprimer les `console.log` debug restants.
+Nouveau secret : `WAOUH_OPS_WHATSAPP` (numéro/JID du canal équipe) et `WAOUH_OPS_USER_IDS` (optionnel pour notifs in-app).
 
-## Détails techniques
+### 2. Edge function `waouh-negotiation-router` (branche `intent.kind === "yes"`)
+Remplacer le bloc actuel :
+- **Supprimer** : `contactExchangeText(...)` envoyé à l'autre partie, et tout numéro dans les replies acheteur/vendeur.
+- **Ajouter** :
+  - Insert dans `waouh_deals` (status `pending_assignment`).
+  - Appel à `waouh-deal-dispatch` (nouvelle fonction) avec `{ deal_id }`.
+- Conserver les photos de l'article dans les deux notifs.
+- Conserver la mise à jour `waouh_negotiations.state = accepted` mais retirer `contact_shared_at` (renommer en `deal_created_at` côté code uniquement, colonne DB inchangée pour éviter migration cassante).
 
-**Fichiers modifiés** :
-- `src/hooks/useWaouhMatchNotifications.ts` — retirer auto-open, fix upsert merge, gate toast.
-- `src/components/waouh/WaouhMatchChatList.tsx` — debounce, batch articles, optimistic update.
-- `src/components/waouh/WaouhMatchChatWindow.tsx` — filtre realtime élargi, scroll/focus intelligents, toast erreur.
-- `src/components/waouh/useWaouhMatchChats.ts` — consommer le provider.
+### 3. Nouvelle edge function `waouh-deal-dispatch`
+Entrée : `{ deal_id }`. Responsabilités :
+1. Charger deal + acheteur + vendeur + article.
+2. Envoyer notif vendeur (WhatsApp + in-app via `waouh-notify-dispatch` avec nouveau `kind = "deal_seller"`).
+3. Envoyer notif acheteur (`kind = "deal_buyer"`).
+4. Envoyer récap équipe :
+   - WhatsApp à `WAOUH_OPS_WHATSAPP` (WAHA).
+   - In-app : insertion `waouh_notifications` pour chaque `WAOUH_OPS_USER_IDS` avec `notification_type = "deal_ops"` et payload contenant les contacts.
+5. (Phase 2) Si auto-attribution livreur activée : pick livreur dispo le plus proche → update `courier_user_id` + notif livreur.
 
-**Fichiers créés** :
-- `src/components/waouh/WaouhRealtimeProvider.tsx`
-- `src/components/waouh/utils/role.ts`
-- `src/components/waouh/utils/matchKinds.ts`
+### 4. Extensions `waouh-notify-dispatch`
+Ajouter 3 nouveaux `kind` dans `buildText` :
+- `deal_seller` → wording vendeur ci-dessus.
+- `deal_buyer` → wording acheteur ci-dessus.
+- `deal_ops` → récap équipe.
 
-**Aucune** modification de :
-- Edge functions (`waouh-radar-process`, `waouh-notify-dispatch`, `waouh-channel-in`) — la chaîne backend est déjà OK depuis la dernière itération.
-- Schéma DB / RLS.
+Aucun changement de signature : on passe `extra_text` ou on étend le switch.
+
+### 5. Frontend (léger)
+- `useWaouhMatchNotifications.ts` : ajouter les libellés/badges pour les 3 nouveaux types (`deal_seller`, `deal_buyer`, `deal_ops`).
+- `WaouhNotificationsBell.tsx` : badge violet "Livraison" pour `deal_*`.
+- Aucun changement de routing / chat — le chat reste ouvert sur la négo, mais sans numéros affichés.
+
+### 6. Suppression des fuites de contact existantes
+- `contactExchangeText` : conservée pour usage interne (équipe), **plus jamais** envoyée à buyer/seller.
+- `useWaouhMatchNotifications.ts` ligne 9 : libellé `contact_exchange` → `"🎉 Accord conclu — livraison en cours d'organisation"`.
+
+## Hors-scope phase 1 (à valider plus tard)
+- UI dashboard équipe WAOUH pour assigner manuellement un livreur.
+- Module livreur (app mobile dédiée, suivi GPS).
+- Calcul automatique `eta_minutes` (utilisera la distance déjà calculée via `waouh_user_pair_distance_km` + vitesse moyenne).
+- Encaissement par le livreur (intégration Mobile Money escrow).
 
 ## Critères de succès
-- Une nouvelle notif `radar_match` apparaît instantanément dans la cloche + liste **sans** ouvrir une fenêtre intempestive.
-- Cliquer une notif (liste ou toast) ouvre la fenêtre avec seed text + photo dès la 1ʳᵉ frame (pas de flash).
-- Envoyer un message ne fait plus sauter le scroll si l'utilisateur lit l'historique.
-- Un seul canal Supabase par session visible dans les DevTools Network (vs 4+ actuellement).
-- Aucune erreur si on enchaîne 10 notifs en rafale.
+- Après "oui" de l'acheteur : aucun numéro de téléphone n'apparaît dans les messages vendeur/acheteur (WhatsApp + in-app).
+- Une ligne `waouh_deals` est créée avec `status = pending_assignment`.
+- L'équipe WAOUH reçoit le récap complet avec les deux numéros.
+- Les badges/notifications "Livraison" apparaissent côté acheteur et vendeur dans la cloche.
