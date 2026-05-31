@@ -79,6 +79,15 @@ Deno.serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+    // 🔒 Admin-only
+    const guard = await requireAdmin(req, sb);
+    if (!guard.ok) {
+      return new Response(JSON.stringify({ error: guard.error }), {
+        status: guard.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
     if (!deal) return new Response(JSON.stringify({ error: "deal not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
