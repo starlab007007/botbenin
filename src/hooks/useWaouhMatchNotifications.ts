@@ -6,7 +6,11 @@ const TEMPLATE_TITLES: Record<string, string> = {
   match_seller: "📩 Nouvel acheteur intéressé !",
   match_buyer: "🎯 Annonce trouvée pour vous",
   negotiation_open: "🤝 Nouvelle offre reçue",
-  contact_exchange: "🎉 Accord conclu — contact partagé",
+  contact_exchange: "🎉 Accord conclu — livraison en cours d'organisation",
+  deal_created: "🛵 Accord conclu — livraison en préparation",
+  deal_seller: "🛵 Vente conclue — un livreur va vous contacter",
+  deal_buyer: "🛵 Achat confirmé — livraison en préparation",
+  deal_ops: "📦 Nouveau deal à orchestrer",
   sale_published: "✅ Annonce publiée",
   new_buyer: "🛒 Nouvel acheteur intéressé",
   match: "🎯 Annonce trouvée pour vous",
@@ -71,6 +75,11 @@ export function getMatchBadgeLabel(template: string): string | null {
     case "new_buyer":
     case "match_seller":
       return "Nouvel acheteur";
+    case "deal_created":
+    case "deal_seller":
+    case "deal_buyer":
+    case "deal_ops":
+      return "Livraison";
     default:
       return null;
   }

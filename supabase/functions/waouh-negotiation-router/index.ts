@@ -126,93 +126,100 @@ Deno.serve(async (req) => {
     const amount = Number(neg.last_offer_price || 0);
 
     if (intent.kind === "yes") {
-      // 🎉 Accord conclu : on échange les coordonnées et on clôt.
+      // 🎉 Accord conclu : on crée un "deal" (livraison médiée).
+      // ❌ AUCUN partage de contact entre acheteur et vendeur.
+      // ✅ Un livreur WAOUH prend le relais ; l'équipe ops reçoit les contacts.
       const nowIso = new Date().toISOString();
       await sb.from("waouh_negotiations").update({
         state: "accepted",
         last_actor: isBuyer ? "buyer" : "seller",
         closed_at: nowIso,
-        contact_shared_at: nowIso,
       }).eq("id", neg.id);
 
       // Charge les deux parties + article (pour photos et titre)
       const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location, auth_user_id").eq("id", neg.buyer_user_id).maybeSingle(),
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location, auth_user_id").eq("id", neg.seller_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.buyer_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.seller_user_id).maybeSingle(),
         sb.from("waouh_articles").select("id, title, photos").eq("id", neg.article_id).maybeSingle(),
       ]);
 
-      // Résolution des vrais numéros WhatsApp E.164 (LID → phone, auth → phone, …)
-      const [buyerPhoneE164, sellerPhoneE164] = await Promise.all([
-        resolveRealPhoneE164(sb, buyer, { article_id: neg.article_id, role: "buyer" }),
-        resolveRealPhoneE164(sb, seller, { article_id: neg.article_id, role: "seller" }),
-      ]);
-
-      // Distance live entre acheteur et vendeur (via RPC PostGIS)
-      let distKm: number | null = null;
-      try {
-        const { data: distData } = await sb.rpc("waouh_user_pair_distance_km", {
-          p_user_a: neg.buyer_user_id,
-          p_user_b: neg.seller_user_id,
-        });
-        if (typeof distData === "number") distKm = Math.round(distData * 10) / 10;
-      } catch {}
-
-
       const title = article?.title || "votre annonce";
+      const articlePhotos: string[] = Array.isArray((article as any)?.photos)
+        ? (article as any).photos.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u))
+        : [];
+      const replyAttachments = articlePhotos.slice(0, 4).map((url, k) => ({
+        url, type: "image/jpeg",
+        caption: `${title}${articlePhotos.length > 1 ? ` — photo ${k + 1}/${articlePhotos.length}` : ""}`,
+      }));
 
+      // Création du deal (livraison à organiser)
+      const { data: deal } = await sb.from("waouh_deals").insert({
+        negotiation_id: neg.id,
+        article_id: neg.article_id,
+        buyer_user_id: neg.buyer_user_id,
+        seller_user_id: neg.seller_user_id,
+        amount,
+        status: "pending_assignment",
+        pickup_address: (seller as any)?.city ?? null,
+        dropoff_address: (buyer as any)?.city ?? null,
+      }).select("id").maybeSingle();
+
+      // Wording neutre, sans aucun numéro
       const buildSynthese = (heading: string) =>
         `${waouhHeader(heading)}\n\n` +
         `📦 *${title}*\n` +
         `💰 *Prix final* : ${fmt(amount)}\n\n`;
 
       const replyToBuyer =
-        buildSynthese("🎉 Le vendeur a accepté !") +
-        contactExchangeText("buyer_to_seller", { display_name: seller?.display_name, phone_e164: sellerPhoneE164, phone_number: seller?.phone_number, city: seller?.city, distance_km: distKm, location: (seller as any)?.location }) +
-        `\n\n🎊 *Félicitations !* Vous pouvez maintenant convenir directement de la livraison avec le vendeur.\n\n` +
+        buildSynthese("🎉 Achat confirmé !") +
+        `🛵 Un *livreur WAOUH* a été assigné.\n` +
+        `⏱️ Vous recevrez sous peu une notification avec le *délai estimé de livraison*.\n` +
+        `💵 *Paiement à la livraison* (cash ou Mobile Money au livreur).\n\n` +
+        `🔒 Le contact du vendeur n'est pas partagé : WAOUH s'occupe de tout.\n\n` +
         waouhFooter("WAOUH — Merci de votre confiance ✨");
 
       const replyToSeller =
-        buildSynthese("🎉 Accord conclu — Acheteur confirmé") +
-        contactExchangeText("seller_to_buyer", { display_name: buyer?.display_name, phone_e164: buyerPhoneE164, phone_number: buyer?.phone_number, city: buyer?.city, distance_km: distKm, location: (buyer as any)?.location }) +
-        `\n\n🎊 *Félicitations !* Convenez librement de la livraison avec l'acheteur.\n\n` +
+        buildSynthese("🎉 Vente conclue !") +
+        `🛵 Un *livreur WAOUH* vous contactera dans quelques minutes pour convenir de la collecte du colis.\n` +
+        `⏱️ Préparez le colis dès maintenant.\n\n` +
+        `🔒 *Confidentialité* : le contact de l'acheteur n'est pas partagé. WAOUH coordonne la livraison.\n\n` +
         waouhFooter("WAOUH — Merci de votre confiance ✨");
-
 
       const targetReply = isBuyer ? replyToSeller : replyToBuyer; // l'autre partie
       const myReply = isBuyer ? replyToBuyer : replyToSeller;
 
-      // Photos de l'article pour les deux parties (synthèse finale enrichie)
-      const articlePhotos: string[] = Array.isArray((article as any)?.photos) ? (article as any).photos.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u)) : [];
-      const replyAttachments = articlePhotos.slice(0, 4).map((url, k) => ({
-        url, type: "image/jpeg",
-        caption: `${title}${articlePhotos.length > 1 ? ` — photo ${k + 1}/${articlePhotos.length}` : ""}`,
-      }));
-
       if (otherUserId) {
         await pushToOther(
           otherUserId,
-          "contact_exchange",
-          { neg_id: neg.id, article_id: neg.article_id, accepted: true, price: amount, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
+          "deal_created",
+          { neg_id: neg.id, deal_id: deal?.id, article_id: neg.article_id, accepted: true, price: amount, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
           targetReply,
-          { intent: "contact_exchange", negotiation_id: neg.id },
+          { intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id },
           null,
           [],
-          `neg:${neg.id}:contact:${otherUserId}`,
-          "contact_exchange",
+          `neg:${neg.id}:deal:${otherUserId}`,
+          "deal_created",
           replyAttachments,
-          isBuyer ? sellerPhoneE164 : buyerPhoneE164
+          null
         );
       }
 
-      // Note: l'insertion côté requester est faite par waouh-channel-in via les attachments retournés.
+      // Dispatch des notifications "livraison médiée" (vendeur + acheteur + équipe ops)
+      if (deal?.id) {
+        fetch(`${SUPABASE_URL}/functions/v1/waouh-deal-dispatch`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ deal_id: deal.id }),
+        }).catch((e) => console.warn("[neg-router] deal-dispatch failed", e));
+      }
 
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
-      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "contact_exchange", actions: [], attachments: replyAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "deal_created", actions: [], attachments: replyAttachments, deal_id: deal?.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
 
