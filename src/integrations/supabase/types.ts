@@ -5788,6 +5788,39 @@ export type Database = {
           },
         ]
       }
+      waouh_couriers: {
+        Row: {
+          active: boolean
+          city: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          phone_number: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          city?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone_number: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          city?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone_number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waouh_deals: {
         Row: {
           amount: number
@@ -5795,14 +5828,20 @@ export type Database = {
           assigned_at: string | null
           buyer_user_id: string
           cancelled_at: string | null
+          courier_name: string | null
+          courier_phone: string | null
           courier_user_id: string | null
           created_at: string
           delivered_at: string | null
           dropoff_address: string | null
+          eta_at: string | null
           eta_minutes: number | null
           id: string
           negotiation_id: string | null
           notes: string | null
+          paid_at: string | null
+          payment_method: string | null
+          payment_status: string
           picked_up_at: string | null
           pickup_address: string | null
           seller_user_id: string
@@ -5815,14 +5854,20 @@ export type Database = {
           assigned_at?: string | null
           buyer_user_id: string
           cancelled_at?: string | null
+          courier_name?: string | null
+          courier_phone?: string | null
           courier_user_id?: string | null
           created_at?: string
           delivered_at?: string | null
           dropoff_address?: string | null
+          eta_at?: string | null
           eta_minutes?: number | null
           id?: string
           negotiation_id?: string | null
           notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string
           picked_up_at?: string | null
           pickup_address?: string | null
           seller_user_id: string
@@ -5835,14 +5880,20 @@ export type Database = {
           assigned_at?: string | null
           buyer_user_id?: string
           cancelled_at?: string | null
+          courier_name?: string | null
+          courier_phone?: string | null
           courier_user_id?: string | null
           created_at?: string
           delivered_at?: string | null
           dropoff_address?: string | null
+          eta_at?: string | null
           eta_minutes?: number | null
           id?: string
           negotiation_id?: string | null
           notes?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string
           picked_up_at?: string | null
           pickup_address?: string | null
           seller_user_id?: string

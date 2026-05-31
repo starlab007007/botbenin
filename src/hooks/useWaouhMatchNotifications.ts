@@ -11,6 +11,12 @@ const TEMPLATE_TITLES: Record<string, string> = {
   deal_seller: "🛵 Vente conclue — un livreur va vous contacter",
   deal_buyer: "🛵 Achat confirmé — livraison en préparation",
   deal_ops: "📦 Nouveau deal à orchestrer",
+  deal_assigned: "🛵 Livreur assigné — ETA en cours",
+  deal_picked_up: "📦 Colis collecté",
+  deal_delivered: "📬 Colis livré",
+  deal_payment_request: "💵 Confirmez le paiement",
+  deal_paid: "✅ Paiement confirmé",
+  deal_cancelled: "⚠️ Livraison annulée",
   sale_published: "✅ Annonce publiée",
   new_buyer: "🛒 Nouvel acheteur intéressé",
   match: "🎯 Annonce trouvée pour vous",
@@ -79,6 +85,12 @@ export function getMatchBadgeLabel(template: string): string | null {
     case "deal_seller":
     case "deal_buyer":
     case "deal_ops":
+    case "deal_assigned":
+    case "deal_picked_up":
+    case "deal_delivered":
+    case "deal_payment_request":
+    case "deal_paid":
+    case "deal_cancelled":
       return "Livraison";
     default:
       return null;
