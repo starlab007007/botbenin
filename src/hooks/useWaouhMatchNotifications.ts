@@ -85,6 +85,12 @@ export function getMatchBadgeLabel(template: string): string | null {
     case "deal_seller":
     case "deal_buyer":
     case "deal_ops":
+    case "deal_assigned":
+    case "deal_picked_up":
+    case "deal_delivered":
+    case "deal_payment_request":
+    case "deal_paid":
+    case "deal_cancelled":
       return "Livraison";
     default:
       return null;
