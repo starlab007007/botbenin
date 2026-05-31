@@ -156,7 +156,14 @@ Deno.serve(async (req) => {
       deal_id, article_id: deal.article_id, role: "seller", eta_minutes: etaMin,
     });
 
-    // 4) Ops — WhatsApp recap
+    // 5) Historique dans le chat (visible des deux côtés)
+    const chatLine = `🛵 Livreur assigné — ETA ~${etaMin} min (mise à jour à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}).`;
+    await Promise.all([
+      pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, chatLine, { deal_id, event: "assigned", eta_minutes: etaMin }),
+      pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, chatLine, { deal_id, event: "assigned", eta_minutes: etaMin }),
+    ]);
+
+    // 6) Ops — WhatsApp recap
     if (WAOUH_OPS_WHATSAPP) {
       const opsText =
         `✅ Deal #${String(deal_id).slice(0, 8)} assigné à *${courier.name}* (${courier.phone_number}) — ETA ${etaMin} min.`;
