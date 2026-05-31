@@ -17,8 +17,8 @@ export const WaouhDealPaymentDialog: React.FC<{
   const confirm = async (method: "cash" | "mobile_money") => {
     setLoading(method);
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-payment", {
-        body: { deal_id: dealId, method },
+      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+        body: { action: "payment", deal_id: dealId, method },
       });
       if (error) throw error;
       toast.success("Paiement confirmé. Merci !");
