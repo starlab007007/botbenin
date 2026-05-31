@@ -5,6 +5,7 @@
 //  - the seller (in-app, "le livreur arrive bientôt")
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireAdmin, pushDealChatEvent } from "../_shared/waouh-deal.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -78,6 +79,15 @@ Deno.serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+    // 🔒 Admin-only
+    const guard = await requireAdmin(req, sb);
+    if (!guard.ok) {
+      return new Response(JSON.stringify({ error: guard.error }), {
+        status: guard.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
     if (!deal) return new Response(JSON.stringify({ error: "deal not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -146,7 +156,14 @@ Deno.serve(async (req) => {
       deal_id, article_id: deal.article_id, role: "seller", eta_minutes: etaMin,
     });
 
-    // 4) Ops — WhatsApp recap
+    // 5) Historique dans le chat (visible des deux côtés)
+    const chatLine = `🛵 Livreur assigné — ETA ~${etaMin} min (mise à jour à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}).`;
+    await Promise.all([
+      pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, chatLine, { deal_id, event: "assigned", eta_minutes: etaMin }),
+      pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, chatLine, { deal_id, event: "assigned", eta_minutes: etaMin }),
+    ]);
+
+    // 6) Ops — WhatsApp recap
     if (WAOUH_OPS_WHATSAPP) {
       const opsText =
         `✅ Deal #${String(deal_id).slice(0, 8)} assigné à *${courier.name}* (${courier.phone_number}) — ETA ${etaMin} min.`;

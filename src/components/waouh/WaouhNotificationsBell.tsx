@@ -23,6 +23,7 @@ const BADGE_STYLES: Record<string, string> = {
   deal_buyer: "bg-sky-600 text-white",
   deal_ops: "bg-fuchsia-600 text-white",
   deal_assigned: "bg-sky-600 text-white",
+  deal_eta_updated: "bg-sky-500 text-white",
   deal_picked_up: "bg-cyan-600 text-white",
   deal_delivered: "bg-indigo-600 text-white",
   deal_payment_request: "bg-amber-600 text-white",
@@ -32,7 +33,7 @@ const BADGE_STYLES: Record<string, string> = {
 
 const DEAL_TEMPLATES = new Set([
   "deal_created", "deal_seller", "deal_buyer", "deal_ops",
-  "deal_assigned", "deal_picked_up", "deal_delivered",
+  "deal_assigned", "deal_eta_updated", "deal_picked_up", "deal_delivered",
   "deal_payment_request", "deal_paid", "deal_cancelled",
 ]);
 
