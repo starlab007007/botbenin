@@ -75,6 +75,11 @@ export function getMatchBadgeLabel(template: string): string | null {
     case "new_buyer":
     case "match_seller":
       return "Nouvel acheteur";
+    case "deal_created":
+    case "deal_seller":
+    case "deal_buyer":
+    case "deal_ops":
+      return "Livraison";
     default:
       return null;
   }
