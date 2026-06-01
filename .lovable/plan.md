@@ -1,131 +1,98 @@
+# Plan — Stabilisation WAOUH (phase test)
 
-# Refonte du flux "Accord conclu" — livraison médiée
+Six incohérences observées, regroupées en 4 chantiers cohérents. Tout le travail reste dans le périmètre WAOUH existant (tables `waouh_*`, edge functions `waouh-*`, écrans `/app/chat` et `/waouh-chat`).
 
-## Objectif
-À l'acceptation d'une négociation, on **ne partage plus** les numéros entre acheteur et vendeur. Un **livreur WAOUH** est attribué et devient l'unique point de contact opérationnel. L'équipe WAOUH reçoit les deux contacts pour orchestrer la livraison.
+---
 
-## Nouveau parcours utilisateur
+## 1. Isolation de l'historique chat par compte
 
+**Problème**
+`WaouhWebChat.loadHistory` et `useWaouhMatchNotifications` font l'union `web_session_id ∪ auth_user_id`. Quand plusieurs comptes se connectent dans le même navigateur (même `localStorage.waouh_web_session_id`), tous les messages et notifications de tous les comptes apparaissent fusionnés. La fonction `waouh-history` fait la même union côté serveur.
+
+**Correctif**
+- Régénérer un `waouh_web_session_id` distinct à chaque login / logout (hook `AuthContext`) : effacer la clé puis la recréer pour que chaque session soit propre.
+- Dans `WaouhWebChat`, `useWaouhMatchNotifications`, `useWaouhMatchChats`, `useWaouhInbox` :
+  - Si `authUserId` existe → ne charger que les `waouh_users` liés à `auth_user_id` (ignorer la session anonyme).
+  - Si pas connecté → ne charger que `web_session_id`.
+- Mettre à jour `waouh-history` (edge) avec la même règle : ne pas mélanger `auth_user_id` et `web_session_id` simultanément.
+- Migration légère : pour chaque `waouh_users` rattaché à un `auth_user_id`, vider `web_session_id` pour éviter les fuites passées.
+
+## 2. Notifier le vendeur dès l'intérêt acheteur
+
+**Problème**
+`waouh-channel-in` ne déclenche `new_buyer` que lorsqu'un acheteur envoie un message dans le chat article-scopé. Si l'acheteur clique seulement « Je suis intéressé » depuis la notification radar/match, le vendeur ne reçoit rien (ni in-app, ni WhatsApp).
+
+**Correctif**
+- Nouvelle edge function **`waouh-buyer-interest`** appelée par le front quand l'acheteur ouvre un `WaouhMatchChatWindow` pour la 1ère fois ou clique « Contacter le vendeur » :
+  - Insère un événement `waouh_interests` (article_id, buyer_user_id, seller_id, created_at, dédupe unique).
+  - Délègue à `waouh-notify-dispatch` avec `kind: "new_buyer"`, `recipient: "seller"`, en réutilisant la déduplication existante.
+- Brancher l'appel dans `useWaouhMatchChats.onOpen` et dans le bouton « Je suis intéressé » d'une notification `match_buyer` / `radar_match`.
+- Le vendeur reçoit la notif in-app + le message WhatsApp via la même chaîne (`waouh-outbound-dispatch`).
+
+## 3. Géolocalisation & étude de marché
+
+**Problème**
+`useWaouhGeolocation` + `waouh-geocode` (Nominatim seul) renvoient souvent une ville approximative ; `waouh-price-compare` calcule un marché à partir d'articles trop éloignés ou non normalisés.
+
+**Correctif**
+- `waouh-geocode` :
+  - Ajouter un fallback Google Geocoding (clé `GOOGLE_MAPS_API_KEY` à demander si absente) avec priorité Nominatim → Google sur faible confiance.
+  - Normaliser systématiquement ville/quartier via `beninLocations` (liste interne) pour éviter les variantes ("Cotonou" vs "Cotonou IV").
+  - Conserver `lat/lng` source et `lat/lng` snappés sur quartier connu.
+- `useWaouhGeolocation` : stocker `{city, district, lat, lng, accuracy}` et afficher un badge d'incertitude quand `accuracy > 1 km`.
+- `waouh-price-compare` : filtrer par ville normalisée + rayon (haversine) + même catégorie/marque et exposer min/median/max + nb d'échantillons. Refuser de produire une recommandation si < 3 échantillons et l'indiquer dans le résultat.
+
+## 4. Chats privés par produit + persistance des notifications Radar IA
+
+**Problème**
+- Aucun point d'entrée explicite pour démarrer un chat privé sur un produit hors notification (depuis une carte radar par ex.).
+- Les notifications radar/match sont éphémères : `clearAll` vide le `localStorage` et certaines notifs radar ne sont jamais persistées dans `waouh_notifications`.
+- Les cartes de produits trouvés (Radar IA) ne sont pas structurées (manque image, prix, source, CTA).
+
+**Correctif**
+- **Persistance** :
+  - Dans `waouh-radar-process` (et `waouh-serpapi-scout` / `waouh-radar-apify`), insérer une ligne `waouh_notifications` avec `notification_type = 'radar_match'`, payload = `{title, price, city, source_url, photos, signal_id}` pour chaque match envoyé à un acheteur.
+  - `useWaouhMatchNotifications.clearAll` ne supprime plus côté serveur : il met juste `opened = true` dans `waouh_notifications` pour les ids concernés (les notifs restent rechargeables).
+  - Bouton « Tout effacer » remplacé par « Tout marquer comme lu ». Ajouter un onglet « Historique » dans la cloche listant les notifs déjà lues (chargées depuis la DB).
+- **Carte produit Radar IA** : dans `WaouhNotificationsBell`, rendre les notifs `radar_match` avec image, titre, prix formaté, ville, badge source, CTA `Ouvrir le chat` et `Voir la source`. Reutiliser le composant `WaouhTransactionCard` style condensé.
+- **Ouverture chat privé** :
+  - Sur le clic CTA `Ouvrir le chat` (radar_match, match_buyer, match_seller), dispatcher `waouh:open-match-chat` (déjà géré par `useWaouhMatchChats`) → cela crée un onglet privé scopé à `article_id`.
+  - Ajouter un bouton « 💬 Discuter » sur chaque carte produit affichée dans le chat principal (`WaouhTransactionCard`) qui dispatch le même event.
+  - Appeler `waouh-buyer-interest` (chantier 2) lors de la 1re ouverture pour notifier le vendeur.
+
+---
+
+## Technique — récap fichiers
+
+```text
+Front
+  src/contexts/AuthContext.tsx                       # reset waouh_web_session_id sur login/logout
+  src/components/waouh/WaouhWebChat.tsx              # scoping strict auth vs anon
+  src/hooks/useWaouhMatchNotifications.ts            # scoping + clearAll = mark read + radar card mapping
+  src/hooks/useWaouhInbox.ts                         # scoping
+  src/components/waouh/useWaouhMatchChats.ts         # appel waouh-buyer-interest à l'ouverture
+  src/components/waouh/WaouhNotificationsBell.tsx    # rendu carte radar_match + onglet historique
+  src/components/waouh/WaouhTransactionCard.tsx      # bouton « Discuter »
+  src/hooks/useWaouhGeolocation.ts                   # accuracy + normalisation
+
+Edge functions
+  supabase/functions/waouh-history/index.ts          # scoping strict
+  supabase/functions/waouh-buyer-interest/index.ts   # NOUVEAU
+  supabase/functions/waouh-notify-dispatch/index.ts  # accepter source 'interest'
+  supabase/functions/waouh-geocode/index.ts          # fallback Google + normalisation
+  supabase/functions/waouh-price-compare/index.ts    # rayon + min échantillons
+  supabase/functions/waouh-radar-process/index.ts    # insert waouh_notifications
+  supabase/functions/waouh-serpapi-scout/index.ts    # idem
+  supabase/functions/waouh-radar-apify/index.ts      # idem
+
+Migrations
+  - table waouh_interests (article_id, buyer_user_id, seller_id, created_at, unique)
+  - vider web_session_id sur waouh_users.auth_user_id NOT NULL
 ```
-Acheteur dit "oui"
-        │
-        ▼
-┌──────────────────────────┐
-│  Négociation acceptée    │
-│  (state = accepted)      │
-└──────────────────────────┘
-        │
-        ├──► Création d'un "deal" (livraison)
-        │
-        ├──► Notif Vendeur :
-        │    "✅ Vente conclue. Un livreur WAOUH vous
-        │     contactera dans quelques minutes pour
-        │     récupérer le colis. Ne partagez pas vos
-        │     coordonnées avec l'acheteur."
-        │
-        ├──► Notif Acheteur :
-        │    "🎉 Achat confirmé ! Vous recevrez sous peu
-        │     une notification avec le délai estimé.
-        │     Paiement à la livraison."
-        │
-        ├──► Notif Équipe WAOUH (canal interne) :
-        │    Récap complet : article, prix, vendeur (nom+tél+adresse),
-        │     acheteur (nom+tél+adresse), distance, deal_id.
-        │
-        └──► Notif Livreur assigné (si auto-attribution) :
-             Mission, points de collecte/dépôt, contacts des 2 parties.
-```
 
-## Messages (wording proposé)
+## Secret éventuel
+`GOOGLE_MAPS_API_KEY` (chantier 3, fallback géocodage). Confirmer si vous l'avez déjà ; sinon je n'ajoute que la normalisation Nominatim + `beninLocations`.
 
-**Vendeur** (`replyToSeller`)
-> 🎉 *Vente conclue !*
-> 📦 {title} — 💰 {prix}
->
-> 🛵 Un livreur WAOUH vous contactera dans quelques minutes au numéro associé à ce compte pour convenir de la collecte du colis.
->
-> 🔒 *Confidentialité* : pour votre sécurité, le contact de l'acheteur n'est pas partagé. WAOUH coordonne la livraison.
->
-> ⏱️ Préparez le colis dès maintenant.
-
-**Acheteur** (`replyToBuyer`)
-> 🎉 *Achat confirmé !*
-> 📦 {title} — 💰 {prix}
->
-> 🛵 Un livreur WAOUH a été assigné. Vous recevrez sous peu une notification avec le **délai estimé de livraison**.
-> 💵 *Paiement à la livraison* (cash ou Mobile Money au livreur).
->
-> 🔒 Le contact du vendeur n'est pas partagé : WAOUH s'occupe de tout.
-
-**Équipe WAOUH** (canal WhatsApp interne / dashboard)
-> 🆕 *Nouveau deal #{deal_id}*
-> 📦 {title} — 💰 {prix} — 📍 {distance} km
-> 👤 Vendeur : {nom} · {tel} · {ville/coord}
-> 🛒 Acheteur : {nom} · {tel} · {ville/coord}
-> ▶️ Assigner un livreur : {lien dashboard}
-
-**Livreur** (à l'assignation, optionnel phase 1)
-> 🛵 *Nouvelle mission #{deal_id}*
-> Collecte : {vendeur, tel, adresse}
-> Dépôt : {acheteur, tel, adresse}
-> À encaisser : {prix} FCFA
-
-## Changements techniques
-
-### 1. Base de données (migration)
-Nouvelle table `public.waouh_deals` :
-- `negotiation_id`, `article_id`, `buyer_user_id`, `seller_user_id`, `courier_user_id` (nullable)
-- `amount`, `status` (`pending_assignment` | `assigned` | `picked_up` | `delivered` | `cancelled`)
-- `eta_minutes`, `pickup_address`, `dropoff_address`, `assigned_at`, `delivered_at`
-- RLS : acheteur/vendeur voient leur deal ; livreur voit ses missions ; équipe (rôle `waouh_ops`) voit tout.
-- GRANTs standards + `service_role`.
-
-Nouveau secret : `WAOUH_OPS_WHATSAPP` (numéro/JID du canal équipe) et `WAOUH_OPS_USER_IDS` (optionnel pour notifs in-app).
-
-### 2. Edge function `waouh-negotiation-router` (branche `intent.kind === "yes"`)
-Remplacer le bloc actuel :
-- **Supprimer** : `contactExchangeText(...)` envoyé à l'autre partie, et tout numéro dans les replies acheteur/vendeur.
-- **Ajouter** :
-  - Insert dans `waouh_deals` (status `pending_assignment`).
-  - Appel à `waouh-deal-dispatch` (nouvelle fonction) avec `{ deal_id }`.
-- Conserver les photos de l'article dans les deux notifs.
-- Conserver la mise à jour `waouh_negotiations.state = accepted` mais retirer `contact_shared_at` (renommer en `deal_created_at` côté code uniquement, colonne DB inchangée pour éviter migration cassante).
-
-### 3. Nouvelle edge function `waouh-deal-dispatch`
-Entrée : `{ deal_id }`. Responsabilités :
-1. Charger deal + acheteur + vendeur + article.
-2. Envoyer notif vendeur (WhatsApp + in-app via `waouh-notify-dispatch` avec nouveau `kind = "deal_seller"`).
-3. Envoyer notif acheteur (`kind = "deal_buyer"`).
-4. Envoyer récap équipe :
-   - WhatsApp à `WAOUH_OPS_WHATSAPP` (WAHA).
-   - In-app : insertion `waouh_notifications` pour chaque `WAOUH_OPS_USER_IDS` avec `notification_type = "deal_ops"` et payload contenant les contacts.
-5. (Phase 2) Si auto-attribution livreur activée : pick livreur dispo le plus proche → update `courier_user_id` + notif livreur.
-
-### 4. Extensions `waouh-notify-dispatch`
-Ajouter 3 nouveaux `kind` dans `buildText` :
-- `deal_seller` → wording vendeur ci-dessus.
-- `deal_buyer` → wording acheteur ci-dessus.
-- `deal_ops` → récap équipe.
-
-Aucun changement de signature : on passe `extra_text` ou on étend le switch.
-
-### 5. Frontend (léger)
-- `useWaouhMatchNotifications.ts` : ajouter les libellés/badges pour les 3 nouveaux types (`deal_seller`, `deal_buyer`, `deal_ops`).
-- `WaouhNotificationsBell.tsx` : badge violet "Livraison" pour `deal_*`.
-- Aucun changement de routing / chat — le chat reste ouvert sur la négo, mais sans numéros affichés.
-
-### 6. Suppression des fuites de contact existantes
-- `contactExchangeText` : conservée pour usage interne (équipe), **plus jamais** envoyée à buyer/seller.
-- `useWaouhMatchNotifications.ts` ligne 9 : libellé `contact_exchange` → `"🎉 Accord conclu — livraison en cours d'organisation"`.
-
-## Hors-scope phase 1 (à valider plus tard)
-- UI dashboard équipe WAOUH pour assigner manuellement un livreur.
-- Module livreur (app mobile dédiée, suivi GPS).
-- Calcul automatique `eta_minutes` (utilisera la distance déjà calculée via `waouh_user_pair_distance_km` + vitesse moyenne).
-- Encaissement par le livreur (intégration Mobile Money escrow).
-
-## Critères de succès
-- Après "oui" de l'acheteur : aucun numéro de téléphone n'apparaît dans les messages vendeur/acheteur (WhatsApp + in-app).
-- Une ligne `waouh_deals` est créée avec `status = pending_assignment`.
-- L'équipe WAOUH reçoit le récap complet avec les deux numéros.
-- Les badges/notifications "Livraison" apparaissent côté acheteur et vendeur dans la cloche.
+## Questions ouvertes
+1. Doit-on inclure le fallback Google Geocoding (chantier 3) ou rester sur Nominatim + normalisation locale uniquement ?
+2. Sur le bouton « Tout effacer » des notifications : remplacement total par « Tout marquer comme lu », ou garder un effacement local + onglet Historique ?
