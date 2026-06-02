@@ -122,7 +122,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.warn('[Auth] Forcing isLoading to false after timeout');
           setIsLoading(false);
         }, 5000);
-        
+
+        // On every fresh login or token refresh tied to a different user, force a
+        // brand-new WAOUH per-browser session id so chat/notifications history
+        // never bleeds between accounts sharing the same browser.
+        if (event === "SIGNED_IN") {
+          try {
+            localStorage.removeItem("waouh_web_session_id");
+            Object.keys(localStorage)
+              .filter((k) =>
+                k.startsWith("waouh_notifs_") ||
+                k.startsWith("waouh_open_matches_") ||
+                k.startsWith("waouh_active_match_") ||
+                k.startsWith("waouh_archived_matches_")
+              )
+              .forEach((k) => localStorage.removeItem(k));
+          } catch {}
+        }
+
         setSession(session);
         setSupabaseUser(session?.user ?? null);
         
