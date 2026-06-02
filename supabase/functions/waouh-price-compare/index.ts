@@ -13,11 +13,42 @@ Deno.serve(async (req) => {
 
     let context = query;
     let article: any = null;
+    let city: string | null = null;
+    let category: string | null = null;
     if (article_id) {
       const { data } = await supabase.from('waouh_articles').select('*').eq('id', article_id).single();
       article = data;
       context = `${data.title} ${data.brand || ''} ${data.model || ''} état ${data.condition}`;
+      city = data.city ?? null;
+      category = data.category ?? null;
     }
+
+    // Sample real local listings (same city + same category) to ground the AI estimate
+    // and surface a "low sample" warning when we don't have enough comparables.
+    let samples: any[] = [];
+    if (city || category) {
+      let q = supabase
+        .from('waouh_articles')
+        .select('id, title, price, city, category, created_at')
+        .eq('status', 'active')
+        .not('price', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (city) q = q.ilike('city', city);
+      if (category) q = q.eq('category', category);
+      if (article_id) q = q.neq('id', article_id);
+      const { data: s } = await q;
+      samples = (s || []).filter((r: any) => r.price > 0);
+    }
+    const prices = samples.map((s) => Number(s.price)).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b);
+    const sampleMin = prices[0] ?? null;
+    const sampleMax = prices[prices.length - 1] ?? null;
+    const sampleMedian = prices.length
+      ? prices.length % 2
+        ? prices[(prices.length - 1) / 2]
+        : Math.round((prices[prices.length / 2 - 1] + prices[prices.length / 2]) / 2)
+      : null;
+    const lowSample = prices.length < 3;
 
     // Cache check
     const cacheKey = `price:${context}`.slice(0, 200);
