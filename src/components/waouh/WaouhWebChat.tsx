@@ -106,8 +106,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
 
     if (!fresh) {
-      const msgOrs: string[] = [`web_session_id.eq.${sessionId}`];
-      if (ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
+      // Strict per-identity scoping (auth user OR session — never both).
+      const msgOrs: string[] = [];
+      if (user?.id && ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
+      else msgOrs.push(`web_session_id.eq.${sessionId}`);
       const { data, error } = await supabase
         .from("waouh_messages")
         .select("id,direction,text,created_at,attachments,meta")
@@ -148,17 +150,26 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const uid = user?.id ?? null;
 
     (async () => {
-      // Resolve all waouh_users.id linked to this device (session) + auth account.
-      // waouh_messages.user_id references waouh_users.id (NOT auth.users.id),
-      // so we MUST query by these IDs to get full history.
-      const ors: string[] = [`web_session_id.eq.${sessionId}`];
-      if (uid) ors.push(`auth_user_id.eq.${uid}`);
-      const { data: wusers } = await supabase
-        .from("waouh_users")
-        .select("id")
-        .or(ors.join(","))
-        .limit(50);
-      const ids = Array.from(new Set((wusers ?? []).map((u: any) => u.id)));
+      // Resolve waouh_users.id strictly per identity to avoid mixing histories.
+      // - If logged in → only auth_user_id rows (ignore the anonymous session row).
+      // - If not logged in → only this device's web_session_id.
+      let users: any[] | null = null;
+      if (uid) {
+        const { data } = await supabase
+          .from("waouh_users")
+          .select("id")
+          .eq("auth_user_id", uid)
+          .limit(50);
+        users = data ?? [];
+      } else {
+        const { data } = await supabase
+          .from("waouh_users")
+          .select("id")
+          .eq("web_session_id", sessionId)
+          .limit(50);
+        users = data ?? [];
+      }
+      const ids = Array.from(new Set((users ?? []).map((u: any) => u.id)));
       if (!active) return;
       setWaouhIds(ids);
 
