@@ -395,6 +395,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null);
       setSupabaseUser(null);
       setSession(null);
+      // Reset WAOUH per-browser session so a different account on the same
+      // browser doesn't inherit the previous user's chat/notifications history.
+      try {
+        localStorage.removeItem("waouh_web_session_id");
+        localStorage.removeItem("waouh_geo_v1");
+        // Wipe per-session caches (notifications, open match tabs, archived list)
+        Object.keys(localStorage)
+          .filter((k) =>
+            k.startsWith("waouh_notifs_") ||
+            k.startsWith("waouh_open_matches_") ||
+            k.startsWith("waouh_active_match_") ||
+            k.startsWith("waouh_archived_matches_")
+          )
+          .forEach((k) => localStorage.removeItem(k));
+      } catch {}
       toast({
         title: "Déconnexion",
         description: "Vous avez été déconnecté avec succès",
