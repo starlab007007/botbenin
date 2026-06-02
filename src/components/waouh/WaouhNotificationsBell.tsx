@@ -58,11 +58,16 @@ export const WaouhNotificationsBell: React.FC<{
 }> = ({ permission, notifications, unreadCount, onRequestPermission, onMarkAllRead, onMarkRead, onClearAll }) => {
   const [open, setOpen] = useState(false);
   const [payDialog, setPayDialog] = useState<{ dealId: string; amount?: number } | null>(null);
+  const [view, setView] = useState<"active" | "history">("active");
 
   const handleOpen = (v: boolean) => {
     setOpen(v);
     if (v && permission !== "granted") onRequestPermission();
   };
+
+  const visibleNotifs = view === "active"
+    ? notifications.filter((n) => !n.read)
+    : notifications.filter((n) => n.read);
 
   return (
     <Popover open={open} onOpenChange={handleOpen}>
