@@ -93,25 +93,40 @@ export const WaouhNotificationsBell: React.FC<{
           <div className="font-semibold text-sm">Notifications</div>
           <div className="flex gap-1">
             {notifications.length > 0 && (
-              <>
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onMarkAllRead}>
-                  <Check className="w-3 h-3 mr-1" /> Tout lire
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onClearAll}>
-                  Effacer
-                </Button>
-              </>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onMarkAllRead}>
+                <Check className="w-3 h-3 mr-1" /> Tout lire
+              </Button>
             )}
           </div>
         </div>
+        <div className="flex border-b text-xs">
+          <button
+            onClick={() => setView("active")}
+            className={cn(
+              "flex-1 py-1.5 font-medium transition-colors",
+              view === "active" ? "border-b-2 border-emerald-600 text-emerald-700" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Actives {unreadCount > 0 && <span className="ml-1 text-[10px] bg-red-500 text-white rounded-full px-1.5">{unreadCount}</span>}
+          </button>
+          <button
+            onClick={() => setView("history")}
+            className={cn(
+              "flex-1 py-1.5 font-medium transition-colors",
+              view === "history" ? "border-b-2 border-emerald-600 text-emerald-700" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Historique
+          </button>
+        </div>
         <ScrollArea className="max-h-80">
-          {notifications.length === 0 ? (
+          {visibleNotifs.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-8 px-4">
-              Aucune notification pour le moment.
+              {view === "active" ? "Aucune notification active." : "Aucune notification dans l'historique."}
             </div>
           ) : (
             <ul className="divide-y">
-              {notifications.map((n) => {
+              {visibleNotifs.map((n) => {
                 const matchKind = getMatchKind(n.template);
                 const isMatch = !!matchKind;
                 const isPaymentRequest = n.template === "deal_payment_request" && n.payload?.deal_id;
