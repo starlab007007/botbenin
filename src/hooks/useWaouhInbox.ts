@@ -21,9 +21,11 @@ export function useWaouhInbox(sessionId: string, authUserId: string | null) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("waouh-history", {
-        body: { sessionId, authUserId },
-      });
+      // Strict per-identity scoping: when authenticated, ignore the anonymous session.
+      const body = authUserId
+        ? { authUserId }
+        : { sessionId };
+      const { data, error } = await supabase.functions.invoke("waouh-history", { body });
       if (!error && data?.ok && Array.isArray(data.conversations)) {
         setItems(data.conversations as WaouhInboxItem[]);
       }

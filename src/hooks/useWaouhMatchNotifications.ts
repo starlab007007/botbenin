@@ -149,10 +149,31 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     }
   }, [sessionId]);
 
+  // "Tout effacer" is now a soft action — we mark every notification as read
+  // server-side (so they stay rechargeable from the History tab) and only hide
+  // them from the active list locally.
   const clearAll = useCallback(() => {
     if (!sessionId) return;
-    setNotifications([]);
-    saveNotifs(sessionId, []);
+    let unifiedIds: string[] = [];
+    setNotifications((prev) => {
+      unifiedIds = prev
+        .filter((n) => !n.read && MATCH_TEMPLATES.has(n.template))
+        .map((n) => n.id);
+      // Mark everything as read locally; do NOT drop the array so the bell can
+      // still show history when explicitly requested.
+      const updated = prev.map((n) => ({ ...n, read: true }));
+      saveNotifs(sessionId, updated);
+      return updated;
+    });
+    if (unifiedIds.length) {
+      supabase
+        .from("waouh_notifications" as any)
+        .update({ opened: true })
+        .in("id", unifiedIds)
+        .then(({ error }) => {
+          if (error) console.warn("[waouh-notifs] clearAll error", error);
+        });
+    }
   }, [sessionId]);
 
   const markRead = useCallback(
@@ -209,35 +230,48 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     let active = true;
 
     (async () => {
-      // Resolve waouh_users.id linked to this device or auth account
-      const ors: string[] = [`web_session_id.eq.${sessionId}`];
-      if (authUserId) ors.push(`auth_user_id.eq.${authUserId}`);
-      const { data: wusers, error: wuErr } = await supabase
-        .from("waouh_users").select("id").or(ors.join(",")).limit(50);
-      if (wuErr) console.warn("[waouh-notifs] users lookup error", wuErr);
+      // Strict per-identity scoping: ignore the anonymous session row when
+      // the user is logged in, so two accounts on the same browser don't share
+      // notifications.
+      let wusers: any[] | null = null;
+      if (authUserId) {
+        const { data } = await supabase
+          .from("waouh_users").select("id").eq("auth_user_id", authUserId).limit(50);
+        wusers = data ?? [];
+      } else {
+        const { data } = await supabase
+          .from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
+        wusers = data ?? [];
+      }
       const waouhIds = Array.from(new Set((wusers ?? []).map((u: any) => u.id)));
 
       // 1) Outbound queue (legacy templated notifs)
-      const qOrs: string[] = [`web_session_id.eq.${sessionId}`];
+      const qOrs: string[] = [];
       if (waouhIds.length) qOrs.push(`to_user_id.in.(${waouhIds.join(",")})`);
-      const { data: queue, error: qErr } = await supabase
-        .from("waouh_outbound_queue" as any)
-        .select("id,template,payload,created_at,image_url,message_id,transaction_id")
-        .or(qOrs.join(","))
-        .order("created_at", { ascending: false })
-        .limit(50);
+      if (!authUserId) qOrs.push(`web_session_id.eq.${sessionId}`);
+      const queryQueue = qOrs.length
+        ? supabase.from("waouh_outbound_queue" as any)
+            .select("id,template,payload,created_at,image_url,message_id,transaction_id")
+            .or(qOrs.join(","))
+            .order("created_at", { ascending: false })
+            .limit(50)
+        : Promise.resolve({ data: [], error: null } as any);
+      const { data: queue, error: qErr } = await queryQueue;
       if (qErr) console.warn("[waouh-notifs] queue load error", qErr);
 
-      // 2) Unified in-app notifications: by session OR by linked user_id
+      // 2) Unified in-app notifications: strict scoping mirror
       let unified: any[] = [];
-      const uOrs: string[] = [`web_session_id.eq.${sessionId}`];
+      const uOrs: string[] = [];
       if (waouhIds.length) uOrs.push(`user_id.in.(${waouhIds.join(",")})`);
-      const { data: uData, error: uErr } = await supabase
-        .from("waouh_notifications" as any)
-        .select("id,notification_type,payload,photos,sent_at,article_id,opened,web_session_id,user_id")
-        .or(uOrs.join(","))
-        .order("sent_at", { ascending: false })
-        .limit(50);
+      if (!authUserId) uOrs.push(`web_session_id.eq.${sessionId}`);
+      const { data: uData, error: uErr } = uOrs.length
+        ? await supabase
+            .from("waouh_notifications" as any)
+            .select("id,notification_type,payload,photos,sent_at,article_id,opened,web_session_id,user_id")
+            .or(uOrs.join(","))
+            .order("sent_at", { ascending: false })
+            .limit(50)
+        : { data: [], error: null } as any;
       if (uErr) console.warn("[waouh-notifs] notifications load error", uErr);
       unified = uData ?? [];
 

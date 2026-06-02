@@ -26,11 +26,14 @@ serve(async (req) => {
       });
     }
 
-    // Resolve all waouh_users.id linked to this caller (web_session_id ∪ auth_user_id ∪ phone)
+    // Strict per-identity scoping. When auth_user_id is provided we IGNORE the
+    // session id so two accounts on the same browser never share history.
+    // (Phone-based recovery still allowed when neither auth nor session given.)
+    const useAuth = !!authUserId;
     const ors: string[] = [];
-    if (sessionId) ors.push(`web_session_id.eq.${sessionId}`);
-    if (authUserId) ors.push(`auth_user_id.eq.${authUserId}`);
-    if (phoneNumber) ors.push(`phone_number.eq.${phoneNumber}`);
+    if (useAuth) ors.push(`auth_user_id.eq.${authUserId}`);
+    else if (sessionId) ors.push(`web_session_id.eq.${sessionId}`);
+    if (!useAuth && phoneNumber) ors.push(`phone_number.eq.${phoneNumber}`);
 
     const { data: users, error: usersErr } = await sb
       .from("waouh_users")
@@ -39,14 +42,14 @@ serve(async (req) => {
     if (usersErr) throw usersErr;
     const userIds = (users || []).map((u: any) => u.id);
 
-    // Messages: by user_id IN userIds OR by web_session_id
+    // Messages: by user_id IN userIds (auth path) OR by web_session_id (anon path)
     let msgQuery = sb.from("waouh_messages")
       .select("id, conversation_id, user_id, web_session_id, phone_number, channel, direction, text, meta, attachments, created_at")
       .order("created_at", { ascending: true })
       .limit(1000);
     const msgOrs: string[] = [];
     if (userIds.length) msgOrs.push(`user_id.in.(${userIds.join(",")})`);
-    if (sessionId) msgOrs.push(`web_session_id.eq.${sessionId}`);
+    if (!useAuth && sessionId) msgOrs.push(`web_session_id.eq.${sessionId}`);
     if (msgOrs.length) msgQuery = msgQuery.or(msgOrs.join(","));
     const { data: messages } = await msgQuery;
 
@@ -57,7 +60,7 @@ serve(async (req) => {
       .limit(200);
     const notifOrs: string[] = [];
     if (userIds.length) notifOrs.push(`user_id.in.(${userIds.join(",")})`);
-    if (sessionId) notifOrs.push(`web_session_id.eq.${sessionId}`);
+    if (!useAuth && sessionId) notifOrs.push(`web_session_id.eq.${sessionId}`);
     if (notifOrs.length) notifQuery = notifQuery.or(notifOrs.join(","));
     const { data: notifications } = await notifQuery;
 
