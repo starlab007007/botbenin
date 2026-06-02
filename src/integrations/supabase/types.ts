@@ -5983,6 +5983,39 @@ export type Database = {
           },
         ]
       }
+      waouh_interests: {
+        Row: {
+          article_id: string
+          buyer_profile_id: string | null
+          buyer_user_id: string | null
+          created_at: string
+          id: string
+          payload: Json | null
+          seller_user_id: string | null
+          source: string | null
+        }
+        Insert: {
+          article_id: string
+          buyer_profile_id?: string | null
+          buyer_user_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          seller_user_id?: string | null
+          source?: string | null
+        }
+        Update: {
+          article_id?: string
+          buyer_profile_id?: string | null
+          buyer_user_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          seller_user_id?: string | null
+          source?: string | null
+        }
+        Relationships: []
+      }
       waouh_lid_phone_map: {
         Row: {
           created_at: string
