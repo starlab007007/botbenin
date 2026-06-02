@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Circle, CreditCard, Loader2, ShieldCheck, Truck, Star, PackageCheck } from "lucide-react";
+import { CheckCircle2, Circle, CreditCard, Loader2, ShieldCheck, Truck, Star, PackageCheck, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -189,13 +189,37 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
 
         {/* BUYER actions */}
         {viewerRole === "buyer" && normalizedStatus === "pending" && (
-          <Button
-            size="lg"
-            className="w-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:opacity-95 shadow-lg shadow-cyan-500/30 font-semibold"
-            onClick={() => onPay(tx)}
-          >
-            <CreditCard className="w-4 h-4 mr-2" /> 💳 Payer maintenant
-          </Button>
+          <div className="space-y-2">
+            <Button
+              size="lg"
+              className="w-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:opacity-95 shadow-lg shadow-cyan-500/30 font-semibold"
+              onClick={() => onPay(tx)}
+            >
+              <CreditCard className="w-4 h-4 mr-2" /> 💳 Payer maintenant
+            </Button>
+            {tx.article_id && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full border-emerald-300 hover:bg-emerald-50"
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("waouh:open-match-chat", {
+                      detail: {
+                        article_id: tx.article_id,
+                        kind: "buyer",
+                        title: article?.title,
+                        source: "card",
+                      },
+                    })
+                  );
+                }}
+              >
+                <MessageCircle className="w-4 h-4 mr-1.5 text-emerald-600" />
+                Discuter avec le vendeur
+              </Button>
+            )}
+          </div>
         )}
         {viewerRole === "buyer" && tx.status === "paid" && (
           <div className="space-y-2">
