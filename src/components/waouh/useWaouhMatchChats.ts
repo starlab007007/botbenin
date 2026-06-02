@@ -63,13 +63,17 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
   useEffect(() => {
     let alive = true;
     (async () => {
-      const ors: string[] = [`web_session_id.eq.${sessionId}`];
-      if (authUserId) ors.push(`auth_user_id.eq.${authUserId}`);
-      const { data } = await supabase
-        .from("waouh_users")
-        .select("id")
-        .or(ors.join(","))
-        .limit(50);
+      // Strict per-identity scoping (mirrors useWaouhMatchNotifications)
+      let data: any[] | null = null;
+      if (authUserId) {
+        const res = await supabase
+          .from("waouh_users").select("id").eq("auth_user_id", authUserId).limit(50);
+        data = res.data ?? [];
+      } else {
+        const res = await supabase
+          .from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
+        data = res.data ?? [];
+      }
       if (!alive) return;
       setWaouhIds(Array.from(new Set((data ?? []).map((u: any) => u.id))));
     })();
@@ -123,6 +127,16 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       window.dispatchEvent(
         new CustomEvent("waouh:match-updated", { detail: { article_id: articleId } })
       );
+
+      // Buyer-side: notify the seller that this article got real interest.
+      // Edge function dedupes per (article, buyer) so it's safe to call repeatedly.
+      if (role === "buyer" && articleId) {
+        supabase.functions
+          .invoke("waouh-buyer-interest", {
+            body: { article_id: articleId, source: detail.source || "match" },
+          })
+          .catch((e) => console.debug("[waouh-buyer-interest] invoke failed", e));
+      }
     };
     window.addEventListener("waouh:open-match-chat", onOpen as EventListener);
     return () => window.removeEventListener("waouh:open-match-chat", onOpen as EventListener);
