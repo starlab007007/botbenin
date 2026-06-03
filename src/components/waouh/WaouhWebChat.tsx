@@ -85,62 +85,111 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const { toast } = useToast();
 
   // Resolved waouh_users.id list for this device + auth account.
-  // Kept in state so realtime + post-send refresh always re-query the FULL union.
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
 
-  const loadHistory = async (ids: string[]) => {
-    // Prefer the server-side hydration endpoint (resolves user_id ∪ web_session_id ∪ phone)
-    let fresh: any[] | null = null;
+  // Pagination state (lazy chat history)
+  const PAGE_INITIAL = 10;
+  const PAGE_OLDER = 20;
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+
+  // Merge helper: dedupe by id, preserve optimistic temp-* until persisted, re-sort ASC.
+  const mergeMessages = (prev: Msg[], incoming: Msg[]): Msg[] => {
+    if (!incoming.length) return prev;
+    const incomingIds = new Set(incoming.map((m) => m.id));
+    const keepOptimistic = prev.filter(
+      (m) =>
+        m.id.startsWith("temp-") &&
+        !incoming.some(
+          (f) =>
+            f.direction === m.direction &&
+            f.text === m.text &&
+            Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
+        )
+    );
+    const prevKeep = prev.filter((p) => !incomingIds.has(p.id) && !p.id.startsWith("temp-"));
+    return [...prevKeep, ...incoming, ...keepOptimistic].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  };
+
+  // Direct fallback when the edge function is unavailable.
+  const fetchPageDirect = async (ids: string[], before: string | null, limit: number) => {
+    const msgOrs: string[] = [];
+    if (user?.id && ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
+    else msgOrs.push(`web_session_id.eq.${sessionId}`);
+    let q = supabase
+      .from("waouh_messages")
+      .select("id,direction,text,created_at,attachments,meta")
+      .or(msgOrs.join(","))
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (before) q = q.lt("created_at", before);
+    const { data, error } = await q;
+    if (error) {
+      console.warn("[waouh-chat] direct page load error", error);
+      return { messages: [] as any[], hasMore: false };
+    }
+    const desc = (data || []) as any[];
+    return { messages: desc.slice().reverse(), hasMore: desc.length === limit };
+  };
+
+  const fetchPage = async (ids: string[], before: string | null, limit: number) => {
     try {
       const { data: hist, error: histErr } = await supabase.functions.invoke("waouh-history", {
-        body: { sessionId, authUserId: user?.id ?? null },
+        body: {
+          sessionId,
+          authUserId: user?.id ?? null,
+          limit,
+          before,
+          includeMeta: !before, // notifications/conversations only on the very first call
+        },
       });
       if (!histErr && hist?.ok && Array.isArray(hist.messages)) {
-        fresh = hist.messages.map((m: any) => ({
-          id: m.id, direction: m.direction, text: m.text, created_at: m.created_at,
-          attachments: m.attachments, meta: m.meta,
-        }));
+        return {
+          messages: hist.messages as any[],
+          hasMore: !!hist.hasMore,
+        };
       }
     } catch (e) {
       console.debug("[waouh-chat] waouh-history unavailable, fallback to direct query", e);
     }
-
-    if (!fresh) {
-      // Strict per-identity scoping (auth user OR session — never both).
-      const msgOrs: string[] = [];
-      if (user?.id && ids.length) msgOrs.push(`user_id.in.(${ids.join(",")})`);
-      else msgOrs.push(`web_session_id.eq.${sessionId}`);
-      const { data, error } = await supabase
-        .from("waouh_messages")
-        .select("id,direction,text,created_at,attachments,meta")
-        .or(msgOrs.join(","))
-        .order("created_at", { ascending: true })
-        .limit(500);
-      if (error) {
-        console.warn("[waouh-chat] history load error", error);
-        return;
-      }
-      fresh = (data || []) as any[];
-    }
-
-    if (!fresh || fresh.length === 0) return;
-
-    setMessages((prev) => {
-      const freshIds = new Set(fresh!.map((f: any) => f.id));
-      // Keep optimistic temp-in messages until backend has persisted them
-      const keepOptimistic = prev.filter(
-        (m) => m.id.startsWith("temp-in-") && !fresh!.some(
-          (f: any) => f.direction === "in" && f.text === m.text &&
-            Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
-        )
-      );
-      // Drop any prev rows that come back from server (dedupe by id)
-      const prevKeep = prev.filter((p) => !freshIds.has(p.id) && !p.id.startsWith("temp-in-"));
-      return [...fresh!, ...prevKeep, ...keepOptimistic].sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
-    });
+    return fetchPageDirect(ids, before, limit);
   };
+
+  const loadInitial = async (ids: string[]) => {
+    const page = await fetchPage(ids, null, PAGE_INITIAL);
+    setHasMore(page.hasMore);
+    if (page.messages.length === 0) return;
+    setMessages((prev) => mergeMessages(prev, page.messages));
+  };
+
+  const loadOlder = async () => {
+    if (loadingOlder || !hasMore) return;
+    const oldest = messages[0]?.created_at;
+    if (!oldest) return;
+    setLoadingOlder(true);
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const prevTop = el?.scrollTop ?? 0;
+    try {
+      const page = await fetchPage(waouhIds, oldest, PAGE_OLDER);
+      setHasMore(page.hasMore);
+      if (page.messages.length) {
+        setMessages((prev) => mergeMessages(prev, page.messages));
+        // Preserve scroll position after prepend
+        requestAnimationFrame(() => {
+          const el2 = scrollRef.current;
+          if (!el2) return;
+          el2.scrollTop = el2.scrollHeight - prevHeight + prevTop;
+        });
+      }
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
 
 
 
