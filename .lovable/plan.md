@@ -1,98 +1,70 @@
-# Plan — Stabilisation WAOUH (phase test)
+## Objectif
 
-Six incohérences observées, regroupées en 4 chantiers cohérents. Tout le travail reste dans le périmètre WAOUH existant (tables `waouh_*`, edge functions `waouh-*`, écrans `/app/chat` et `/waouh-chat`).
+Trois chantiers indépendants sur la couche chat WAOUH :
 
----
-
-## 1. Isolation de l'historique chat par compte
-
-**Problème**
-`WaouhWebChat.loadHistory` et `useWaouhMatchNotifications` font l'union `web_session_id ∪ auth_user_id`. Quand plusieurs comptes se connectent dans le même navigateur (même `localStorage.waouh_web_session_id`), tous les messages et notifications de tous les comptes apparaissent fusionnés. La fonction `waouh-history` fait la même union côté serveur.
-
-**Correctif**
-- Régénérer un `waouh_web_session_id` distinct à chaque login / logout (hook `AuthContext`) : effacer la clé puis la recréer pour que chaque session soit propre.
-- Dans `WaouhWebChat`, `useWaouhMatchNotifications`, `useWaouhMatchChats`, `useWaouhInbox` :
-  - Si `authUserId` existe → ne charger que les `waouh_users` liés à `auth_user_id` (ignorer la session anonyme).
-  - Si pas connecté → ne charger que `web_session_id`.
-- Mettre à jour `waouh-history` (edge) avec la même règle : ne pas mélanger `auth_user_id` et `web_session_id` simultanément.
-- Migration légère : pour chaque `waouh_users` rattaché à un `auth_user_id`, vider `web_session_id` pour éviter les fuites passées.
-
-## 2. Notifier le vendeur dès l'intérêt acheteur
-
-**Problème**
-`waouh-channel-in` ne déclenche `new_buyer` que lorsqu'un acheteur envoie un message dans le chat article-scopé. Si l'acheteur clique seulement « Je suis intéressé » depuis la notification radar/match, le vendeur ne reçoit rien (ni in-app, ni WhatsApp).
-
-**Correctif**
-- Nouvelle edge function **`waouh-buyer-interest`** appelée par le front quand l'acheteur ouvre un `WaouhMatchChatWindow` pour la 1ère fois ou clique « Contacter le vendeur » :
-  - Insère un événement `waouh_interests` (article_id, buyer_user_id, seller_id, created_at, dédupe unique).
-  - Délègue à `waouh-notify-dispatch` avec `kind: "new_buyer"`, `recipient: "seller"`, en réutilisant la déduplication existante.
-- Brancher l'appel dans `useWaouhMatchChats.onOpen` et dans le bouton « Je suis intéressé » d'une notification `match_buyer` / `radar_match`.
-- Le vendeur reçoit la notif in-app + le message WhatsApp via la même chaîne (`waouh-outbound-dispatch`).
-
-## 3. Géolocalisation & étude de marché
-
-**Problème**
-`useWaouhGeolocation` + `waouh-geocode` (Nominatim seul) renvoient souvent une ville approximative ; `waouh-price-compare` calcule un marché à partir d'articles trop éloignés ou non normalisés.
-
-**Correctif**
-- `waouh-geocode` :
-  - Ajouter un fallback Google Geocoding (clé `GOOGLE_MAPS_API_KEY` à demander si absente) avec priorité Nominatim → Google sur faible confiance.
-  - Normaliser systématiquement ville/quartier via `beninLocations` (liste interne) pour éviter les variantes ("Cotonou" vs "Cotonou IV").
-  - Conserver `lat/lng` source et `lat/lng` snappés sur quartier connu.
-- `useWaouhGeolocation` : stocker `{city, district, lat, lng, accuracy}` et afficher un badge d'incertitude quand `accuracy > 1 km`.
-- `waouh-price-compare` : filtrer par ville normalisée + rayon (haversine) + même catégorie/marque et exposer min/median/max + nb d'échantillons. Refuser de produire une recommandation si < 3 échantillons et l'indiquer dans le résultat.
-
-## 4. Chats privés par produit + persistance des notifications Radar IA
-
-**Problème**
-- Aucun point d'entrée explicite pour démarrer un chat privé sur un produit hors notification (depuis une carte radar par ex.).
-- Les notifications radar/match sont éphémères : `clearAll` vide le `localStorage` et certaines notifs radar ne sont jamais persistées dans `waouh_notifications`.
-- Les cartes de produits trouvés (Radar IA) ne sont pas structurées (manque image, prix, source, CTA).
-
-**Correctif**
-- **Persistance** :
-  - Dans `waouh-radar-process` (et `waouh-serpapi-scout` / `waouh-radar-apify`), insérer une ligne `waouh_notifications` avec `notification_type = 'radar_match'`, payload = `{title, price, city, source_url, photos, signal_id}` pour chaque match envoyé à un acheteur.
-  - `useWaouhMatchNotifications.clearAll` ne supprime plus côté serveur : il met juste `opened = true` dans `waouh_notifications` pour les ids concernés (les notifs restent rechargeables).
-  - Bouton « Tout effacer » remplacé par « Tout marquer comme lu ». Ajouter un onglet « Historique » dans la cloche listant les notifs déjà lues (chargées depuis la DB).
-- **Carte produit Radar IA** : dans `WaouhNotificationsBell`, rendre les notifs `radar_match` avec image, titre, prix formaté, ville, badge source, CTA `Ouvrir le chat` et `Voir la source`. Reutiliser le composant `WaouhTransactionCard` style condensé.
-- **Ouverture chat privé** :
-  - Sur le clic CTA `Ouvrir le chat` (radar_match, match_buyer, match_seller), dispatcher `waouh:open-match-chat` (déjà géré par `useWaouhMatchChats`) → cela crée un onglet privé scopé à `article_id`.
-  - Ajouter un bouton « 💬 Discuter » sur chaque carte produit affichée dans le chat principal (`WaouhTransactionCard`) qui dispatch le même event.
-  - Appeler `waouh-buyer-interest` (chantier 2) lors de la 1re ouverture pour notifier le vendeur.
+1. Charger seulement les **10 derniers messages** à l'ouverture du chat, puis paginer vers le haut au scroll.
+2. Stabiliser `WaouhMatchChatWindow` pour qu'il **conserve tout l'historique** d'une discussion produit, sans perte ni re-fetch destructif.
+3. **Fiabiliser** l'envoi/réception des messages et notifications (in-app + WhatsApp), avec retries, dédup et statuts.
 
 ---
 
-## Technique — récap fichiers
+## Chantier 1 — Pagination lazy du chat (WaouhWebChat + WaouhMatchChatWindow)
 
-```text
-Front
-  src/contexts/AuthContext.tsx                       # reset waouh_web_session_id sur login/logout
-  src/components/waouh/WaouhWebChat.tsx              # scoping strict auth vs anon
-  src/hooks/useWaouhMatchNotifications.ts            # scoping + clearAll = mark read + radar card mapping
-  src/hooks/useWaouhInbox.ts                         # scoping
-  src/components/waouh/useWaouhMatchChats.ts         # appel waouh-buyer-interest à l'ouverture
-  src/components/waouh/WaouhNotificationsBell.tsx    # rendu carte radar_match + onglet historique
-  src/components/waouh/WaouhTransactionCard.tsx      # bouton « Discuter »
-  src/hooks/useWaouhGeolocation.ts                   # accuracy + normalisation
+Aujourd'hui `WaouhWebChat.loadHistory()` tire jusqu'à 500 messages, et `WaouhMatchChatWindow` jusqu'à 300, en un seul `select`. Sur les comptes actifs cela charge tout l'historique à chaque ouverture.
 
-Edge functions
-  supabase/functions/waouh-history/index.ts          # scoping strict
-  supabase/functions/waouh-buyer-interest/index.ts   # NOUVEAU
-  supabase/functions/waouh-notify-dispatch/index.ts  # accepter source 'interest'
-  supabase/functions/waouh-geocode/index.ts          # fallback Google + normalisation
-  supabase/functions/waouh-price-compare/index.ts    # rayon + min échantillons
-  supabase/functions/waouh-radar-process/index.ts    # insert waouh_notifications
-  supabase/functions/waouh-serpapi-scout/index.ts    # idem
-  supabase/functions/waouh-radar-apify/index.ts      # idem
+Changements :
+- `waouh-history` edge function : ajouter params `limit` (défaut 10) et `before` (ISO timestamp). Tri DESC côté DB, re-tri ASC à l'envoi.
+- `WaouhWebChat.loadHistory(ids, { initial: true })` : premier appel → 10 messages les plus récents. Affichage immédiat en bas (scroll-to-bottom).
+- Ajout `loadOlder()` : récupère les 20 suivants `created_at < oldestLoaded.created_at`. Préserve la position de scroll (mesure `scrollHeight` avant/après et compense `scrollTop`).
+- Sentinelle `IntersectionObserver` en haut de la liste : déclenche `loadOlder()` quand visible, avec garde `loadingOlder` + `hasMore` (false si la dernière page renvoie < pageSize).
+- `WaouhMatchChatWindow` : même logique, pagination scopée par `article_id`. Premier load → 10 derniers messages du fil produit.
+- Realtime INSERT continue d'append en bas (inchangé). Dédup par `id`.
 
-Migrations
-  - table waouh_interests (article_id, buyer_user_id, seller_id, created_at, unique)
-  - vider web_session_id sur waouh_users.auth_user_id NOT NULL
-```
+## Chantier 2 — Stabilité de WaouhMatchChatWindow
 
-## Secret éventuel
-`GOOGLE_MAPS_API_KEY` (chantier 3, fallback géocodage). Confirmer si vous l'avez déjà ; sinon je n'ajoute que la normalisation Nominatim + `beninLocations`.
+Causes identifiées de la "perte" d'historique :
+- L'effect de chargement se re-déclenche quand `waouhIds.join(",")` change (l'identité se résout en plusieurs étapes au login), et `setMessages(data ?? [])` **écrase** la liste, y compris les `temp-*` optimistes et tout message déjà reçu par realtime.
+- `WaouhMatchChatList` démonte/remonte la fenêtre quand on bascule entre tabs : la liste repart de zéro.
+- Le scope de la requête (`web_session_id` OR `user_id`) loupe les messages où `article_id` est porté uniquement par `meta.article_id` (anciens enregistrements).
 
-## Questions ouvertes
-1. Doit-on inclure le fallback Google Geocoding (chantier 3) ou rester sur Nominatim + normalisation locale uniquement ?
-2. Sur le bouton « Tout effacer » des notifications : remplacement total par « Tout marquer comme lu », ou garder un effacement local + onglet Historique ?
+Changements :
+- Cache mémoire **par `match.key`** dans `useWaouhMatchChats` (Map en ref) — la fenêtre lit depuis ce cache et y persiste ses ajouts (optimistic + realtime). Démonter/remonter ne vide plus rien.
+- Sur reload, **merge** au lieu d'écraser : dédupe par `id`, conserve les `temp-*` non encore confirmés, re-tri par `created_at`.
+- Requête article-scope : `or(article_id.eq.X, meta->>article_id.eq.X)` pour rattraper les anciens messages.
+- Garde l'effect "réinitialisation" uniquement quand `match.article_id` change réellement, pas quand `waouhIds` est juste enrichi (compare avec ref précédente).
+- Persistance locale optionnelle : snapshot des 50 derniers messages du fil dans `localStorage` clé `waouh_match_msgs_${sessionId}_${match.key}` → restauration instantanée à la prochaine ouverture en attendant le fetch.
+
+## Chantier 3 — Fiabilité messages & notifications
+
+État actuel : `waouh-channel-in` appelle WAHA puis `waouh-notify-dispatch` en fire-and-forget ; `waouh-notify-dispatch` envoie WhatsApp puis insère la notif in-app. Pas de retry, pas d'idempotence côté envoi WA, statuts seulement `delivered/queued/failed` sans relance.
+
+Changements :
+- **Outbound queue** : toute notif/message sortant passe par `waouh_outbound_queue` (déjà existant). `waouh-notify-dispatch` enregistre l'intent avec `status='pending'`, puis tente l'envoi ; si KO → `status='retry'` + `retry_after`. Edge function planifiée existante (`waouh-outbound-dispatch`) reprend les `retry`/`pending`.
+- **Idempotence WhatsApp** : clé `dedupe_key = ${kind}:${article_id}:${recipient}:${dayBucket}` déjà côté `waouh_notifications`. Étendre la même clé à l'outbound queue pour éviter les doubles envois WA si la queue retry après succès silencieux.
+- **Ack côté WAHA** : `sendImage`/`sendText` retournent un id message ; le stocker dans `waouh_outbound_queue.provider_message_id`. `waha-webhook` met à jour le statut `delivered/read` quand WA push l'event.
+- **In-app garanti** : aujourd'hui la notif in-app n'est insérée que si `notifTargetUserId` est résolu. Fallback : si non résolu mais `phone_number` connu → résoudre/créer un `waouh_users` puis insérer. Sinon insérer une notif "orpheline" scopée par `phone_number` que le front lit en plus de `user_id`.
+- **Notif d'intérêt acheteur** : `waouh-buyer-interest` doit toujours appeler `waouh-notify-dispatch` même si la 1ère insertion `waouh_interests` est un duplicate (sinon le vendeur ne reçoit rien lors d'un 2e clic légitime). Gérer le dédup uniquement au niveau notification, pas au niveau dispatch.
+- **Frontend** : `useWaouhMatchNotifications` et `WaouhNotificationsBell` s'abonnent déjà au realtime — vérifier qu'ils écoutent aussi sur `web_session_id=eq.<sid>` (utile pour les comptes anonymes) et sur `phone_number=eq.<phone>` si renseigné.
+- **Retry envoi message utilisateur** : `WaouhWebChat.send()` et `WaouhMatchChatWindow.send()` — sur timeout (>20s) ou erreur, conserver le message optimiste avec badge "⚠️ Renvoyer", bouton manuel. Pas de perte côté UI.
+- **Observabilité** : logguer dans `waouh_pipeline_events` chaque étape (`outbound_queued`, `wa_sent`, `wa_failed`, `inapp_inserted`) avec `dedupe_key` pour pouvoir diagnostiquer en SQL.
+
+---
+
+## Détails techniques
+
+**Fichiers édités :**
+- `supabase/functions/waouh-history/index.ts` — params `limit`, `before`, tri DESC + reverse.
+- `src/components/waouh/WaouhWebChat.tsx` — `loadInitial(10)`, `loadOlder()`, IO sentinelle, conservation `scrollTop`.
+- `src/components/waouh/WaouhMatchChatWindow.tsx` — pareil + cache externalisé.
+- `src/components/waouh/useWaouhMatchChats.ts` — ajoute `messagesCache: Map<string, Msg[]>` exposé via ref, helpers `getCached/setCached/append`.
+- `supabase/functions/waouh-notify-dispatch/index.ts` — passage par `waouh_outbound_queue`, dédup étendu, fallback user resolution.
+- `supabase/functions/waouh-channel-in/index.ts` — n'attend plus le notify (déjà), mais logue pipeline_event.
+- `supabase/functions/waouh-buyer-interest/index.ts` — découple insertion intérêt et dispatch.
+- `supabase/functions/waouh-outbound-dispatch/index.ts` — gère retry/backoff.
+- `supabase/functions/waha-webhook/index.ts` — update `provider_message_id` → `delivered_at/read_at`.
+
+**Pas de migration nécessaire** : les tables `waouh_outbound_queue`, `waouh_pipeline_events`, `waouh_notifications.dedupe_key` existent déjà. Ajout éventuel d'une colonne `provider_message_id` sur `waouh_outbound_queue` si absente — à vérifier au moment du build.
+
+**Questions ouvertes :**
+1. Pour la pagination, préfères-tu 10 messages initiaux + 20 par page, ou un autre couple (ex. 15/30) ?
+2. Pour les messages échoués côté UI, garde-t-on un bouton "Renvoyer" manuel, ou un retry automatique silencieux (3 tentatives) avant d'afficher l'erreur ?

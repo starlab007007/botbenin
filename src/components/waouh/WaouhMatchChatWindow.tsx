@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, ShoppingBag, Target, CheckCircle2, Lock } from "lucide-react";
+import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ type Msg = {
   text: string;
   created_at: string;
   attachments?: any;
+  meta?: any;
 };
 
 type SeedNotif = {
@@ -40,46 +41,102 @@ type SeedNotif = {
 };
 
 const CLOSED_STATUSES = new Set(["sold", "closed", "finalized", "completed", "vendu"]);
+const PAGE_INITIAL = 10;
+const PAGE_OLDER = 20;
+
+function mergeMsgs(prev: Msg[], incoming: Msg[]): Msg[] {
+  if (!incoming.length) return prev;
+  const incomingIds = new Set(incoming.map((m) => m.id));
+  const keepOptimistic = prev.filter(
+    (m) =>
+      m.id.startsWith("temp-") &&
+      !incoming.some(
+        (f) =>
+          f.direction === m.direction &&
+          f.text === m.text &&
+          Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
+      )
+  );
+  const prevKeep = prev.filter((p) => !incomingIds.has(p.id) && !p.id.startsWith("temp-"));
+  return [...prevKeep, ...incoming, ...keepOptimistic].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+}
 
 /**
  * Full-screen match chat — fills parent flex container exactly like the main
- * WAOUH chat. Pinned with the original "📩 Nouvel acheteur intéressé" /
- * "🎯 Annonce trouvée" notification as a system bubble, strictly scoped to
- * one article until the sale is finalized.
+ * WAOUH chat. Pinned with the original notification as a system bubble,
+ * strictly scoped to one article until the sale is finalized.
  */
 export function WaouhMatchChatWindow({
   match,
   sessionId,
   waouhIds,
   active,
+  getCached,
+  setCached,
+  getHasMore,
+  setHasMoreCached,
 }: {
   match: MatchChatMeta;
   sessionId: string;
   waouhIds: string[];
   active: boolean;
+  getCached?: (key: string) => Msg[];
+  setCached?: (key: string, msgs: Msg[]) => void;
+  getHasMore?: (key: string) => boolean;
+  setHasMoreCached?: (key: string, v: boolean) => void;
 }) {
-  const [messages, setMessages] = useState<Msg[]>([]);
+  // Bootstrap from cache so closing/reopening or switching tabs keeps history.
+  const [messages, setMessagesState] = useState<Msg[]>(() => getCached?.(match.key) ?? []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [seedNotif, setSeedNotif] = useState<SeedNotif | null>(null);
   const [articleStatus, setArticleStatus] = useState<string | null>(null);
+  const [hasMore, setHasMoreState] = useState<boolean>(() => getHasMore?.(match.key) ?? true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Wrap setters to persist into the per-tab cache.
+  const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
+    setMessagesState((prev) => {
+      const next = typeof updater === "function" ? (updater as any)(prev) : updater;
+      setCached?.(match.key, next);
+      return next;
+    });
+  };
+  const setHasMore = (v: boolean) => {
+    setHasMoreState(v);
+    setHasMoreCached?.(match.key, v);
+  };
 
   const closed = useMemo(
     () => !!match.closed || (articleStatus ? CLOSED_STATUSES.has(articleStatus.toLowerCase()) : false),
     [match.closed, articleStatus]
   );
 
-  // Load history (strictly scoped to article_id) + seed notification + article status
+  // Article-scoped query helper. Widened to catch messages where article_id is
+  // only carried in meta->>article_id (legacy rows).
+  const fetchArticlePage = async (before: string | null, limit: number): Promise<Msg[]> => {
+    if (!match.article_id) return [];
+    let q: any = (supabase.from("waouh_messages") as any)
+      .select("id,direction,text,created_at,attachments,meta,article_id")
+      .or(`article_id.eq.${match.article_id},meta->>article_id.eq.${match.article_id}`)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (before) q = q.lt("created_at", before);
+    const { data } = await q;
+    return ((data ?? []) as Msg[]).slice().reverse();
+  };
+
+  // Load initial 10 + seed notification + article status. Merge, never overwrite.
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!match.article_id) return;
-      const ors: string[] = [`web_session_id.eq.${sessionId}`];
-      if (waouhIds.length) ors.push(`user_id.in.(${waouhIds.join(",")})`);
 
-      // If caller provided the exact seed_text, use it immediately and skip the seed query.
       const hasInlineSeed = !!match.seed_text;
       if (hasInlineSeed) {
         setSeedNotif({
@@ -90,12 +147,7 @@ export function WaouhMatchChatWindow({
       }
 
       const promises: Promise<any>[] = [
-        (supabase.from("waouh_messages") as any)
-          .select("id,direction,text,created_at,attachments,meta,article_id")
-          .eq("article_id", match.article_id)
-          .or(ors.join(","))
-          .order("created_at", { ascending: true })
-          .limit(300),
+        fetchArticlePage(null, PAGE_INITIAL),
         (supabase.from("waouh_articles") as any)
           .select("status")
           .eq("id", match.article_id)
@@ -117,12 +169,13 @@ export function WaouhMatchChatWindow({
       }
 
       const results = await Promise.all(promises);
-      const msgsRes = results[0];
+      const pageMsgs = results[0] as Msg[];
       const artRes = results[1];
       const notifRes = hasInlineSeed ? null : results[2];
 
       if (!alive) return;
-      setMessages((msgsRes?.data ?? []) as any);
+      setMessages((prev) => mergeMsgs(prev, pageMsgs));
+      setHasMore(pageMsgs.length === PAGE_INITIAL);
       setArticleStatus((artRes?.data as any)?.status ?? null);
       if (!hasInlineSeed) {
         const raw = notifRes?.data;
@@ -141,7 +194,50 @@ export function WaouhMatchChatWindow({
     return () => {
       alive = false;
     };
-  }, [match.article_id, match.notification_id, match.seed_text, sessionId, waouhIds.join(",")]);
+    // Reload only when the article identity changes, NOT when waouhIds is enriched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.article_id, match.notification_id, match.seed_text]);
+
+  // Load older messages on top-scroll
+  const loadOlder = async () => {
+    if (loadingOlder || !hasMore) return;
+    const oldest = messages[0]?.created_at;
+    if (!oldest) return;
+    setLoadingOlder(true);
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const prevTop = el?.scrollTop ?? 0;
+    try {
+      const page = await fetchArticlePage(oldest, PAGE_OLDER);
+      setHasMore(page.length === PAGE_OLDER);
+      if (page.length) {
+        setMessages((prev) => mergeMsgs(prev, page));
+        requestAnimationFrame(() => {
+          const el2 = scrollRef.current;
+          if (!el2) return;
+          el2.scrollTop = el2.scrollHeight - prevHeight + prevTop;
+        });
+      }
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
+  useEffect(() => {
+    const node = topSentinelRef.current;
+    const root = scrollRef.current;
+    if (!node || !root || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadOlder();
+      },
+      { root, rootMargin: "200px 0px 0px 0px", threshold: 0 }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loadingOlder, messages.length]);
+
 
 
   // Realtime — strictly filtered by article_id, listens on session AND linked users
@@ -407,8 +503,14 @@ export function WaouhMatchChatWindow({
           </div>
         )}
 
+        {hasMore && (
+          <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
+            {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "↑ Charger plus d'historique"}
+          </div>
+        )}
 
         {messages.map((m) => (
+
           <div
             key={m.id}
             className={cn(
