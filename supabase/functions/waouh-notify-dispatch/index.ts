@@ -136,7 +136,32 @@ serve(async (req) => {
 
     // Always create an in-app notification record (used both for WAOUH App users
     // and for delivery tracking when channel is WhatsApp/partner).
-    const notifTargetUserId = recipient === "seller" ? article.seller_id : buyerProfile?.user_id ?? target.waouhUserId;
+    let notifTargetUserId = recipient === "seller" ? article.seller_id : buyerProfile?.user_id ?? target.waouhUserId;
+
+    // Fallback: if no user resolved but we have a WhatsApp number, upsert a
+    // waouh_users row so the in-app notification always lands.
+    if (!notifTargetUserId && target.whatsapp) {
+      try {
+        const { data: existing } = await sb
+          .from("waouh_users")
+          .select("id")
+          .eq("phone_number", target.whatsapp)
+          .maybeSingle();
+        if (existing?.id) {
+          notifTargetUserId = existing.id;
+        } else {
+          const { data: created } = await sb
+            .from("waouh_users")
+            .insert({ phone_number: target.whatsapp })
+            .select("id")
+            .maybeSingle();
+          notifTargetUserId = created?.id ?? null;
+        }
+      } catch (e) {
+        console.warn("[waouh-notify-dispatch] fallback user upsert failed", e);
+      }
+    }
+
 
     // Anti self-notification guard: never send a buyer-side notif to the seller (or vice versa)
     if (
