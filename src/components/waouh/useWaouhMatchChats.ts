@@ -215,5 +215,5 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
   );
 
 
-  return { matches, waouhIds, activeKey, setActiveKey, close };
+  return { matches, waouhIds, activeKey, setActiveKey, close, getCached, setCached, getHasMore, setHasMoreCached };
 }
