@@ -72,34 +72,29 @@ Deno.serve(async (req) => {
       console.error("[waouh-buyer-interest] insert error", insErr);
     }
 
-    // Dedupe seller notification per (article, buyer) using the processed_events table
-    const buyerKey = buyerUserId || `anon:${crypto.randomUUID()}`;
-    const dedupeId = `new_buyer:${article_id}:${buyerKey}`;
-    const { error: dupErr } = await sb
-      .from("waouh_processed_events")
-      .insert({ event_id: dedupeId, source: "new_buyer" });
-
+    // Always dispatch the seller notification. The dispatcher has its own
+    // per-day dedupe_key, so a re-click won't create twin notifications, but
+    // a legitimate retry after a previous failure WILL go through.
     let dispatched = false;
-    if (!dupErr) {
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            kind: "new_buyer",
-            article_id,
-            counterpart_user_id: buyerUserId,
-            recipient: "seller",
-          }),
-        });
-        dispatched = true;
-      } catch (e) {
-        console.warn("[waouh-buyer-interest] dispatch failed", e);
-      }
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SERVICE_ROLE}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          kind: "new_buyer",
+          article_id,
+          counterpart_user_id: buyerUserId,
+          recipient: "seller",
+        }),
+      });
+      dispatched = true;
+    } catch (e) {
+      console.warn("[waouh-buyer-interest] dispatch failed", e);
     }
+
 
     return new Response(JSON.stringify({
       ok: true,
