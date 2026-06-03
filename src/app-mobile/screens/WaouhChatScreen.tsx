@@ -49,7 +49,7 @@ export default function WaouhChatScreen() {
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } =
     useWaouhMatchNotifications(sessionId, profile?.id ?? null);
-  const { matches, waouhIds, activeKey, setActiveKey, close } = useWaouhMatchChats(
+  const { matches, waouhIds, activeKey, setActiveKey, close, getCached, setCached, getHasMore, setHasMoreCached } = useWaouhMatchChats(
     sessionId,
     profile?.id ?? null
   );
