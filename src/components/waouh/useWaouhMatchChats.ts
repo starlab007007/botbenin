@@ -16,7 +16,6 @@ const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
 const SNAPSHOT_KEY = (sid: string, key: string) => `waouh_match_msgs_${sid}_${key}`;
 const SNAPSHOT_LIMIT = 50;
 
-const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
 
 function loadOpen(sid: string): MatchChatMeta[] {
   try {
