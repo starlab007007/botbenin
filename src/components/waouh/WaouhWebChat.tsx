@@ -356,8 +356,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         }
         return filtered;
       });
-      // Force-refresh full history so every persisted message appears.
-      await loadHistory(waouhIds);
+      // Realtime delivers persisted rows; no full reload needed.
+
       if ((data as any)?.reply) {
         setMessages((prev) => {
           const hasFresh = prev.some((m) => m.direction === "out" && m.created_at && new Date(m.created_at).getTime() > Date.now() - 15000);
