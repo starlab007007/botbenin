@@ -233,7 +233,12 @@ export default function WaouhChatScreen() {
               sessionId={sessionId}
               waouhIds={waouhIds}
               active={activeKey === m.key}
+              getCached={getCached}
+              setCached={setCached}
+              getHasMore={getHasMore}
+              setHasMoreCached={setHasMoreCached}
             />
+
           </div>
         ))}
       </div>
