@@ -263,9 +263,35 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     };
   }, [open, sessionId, user?.id, waouhIds.join(",")]);
 
+  // Auto-scroll to bottom only when near the bottom (not when prepending older history).
+  const prevMsgLenRef = useRef(0);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const grew = messages.length > prevMsgLenRef.current;
+    prevMsgLenRef.current = messages.length;
+    if (!grew || loadingOlder) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+    if (nearBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages, loadingOlder]);
+
+  // IntersectionObserver: load older messages when the top sentinel becomes visible.
+  useEffect(() => {
+    const node = topSentinelRef.current;
+    const root = scrollRef.current;
+    if (!node || !root || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadOlder();
+      },
+      { root, rootMargin: "200px 0px 0px 0px", threshold: 0 }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [hasMore, loadingOlder, messages.length, waouhIds.join(",")]);
+
 
   // Listen to notification clicks → scroll & highlight target message/transaction
   useEffect(() => {
