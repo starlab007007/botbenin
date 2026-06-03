@@ -507,12 +507,18 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 waouh-chat-bg min-h-0">
+        {hasMore && (
+          <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
+            {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "↑ Charger plus d'historique"}
+          </div>
+        )}
         {messages.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-8 px-4">
             👋 Bonjour ! Utilisez les boutons ci-dessous, ou tapez « Je vends … » / « Je cherche … ».
             <br />📍 Annonces autour de <strong>{geo.city}</strong>.
           </div>
         )}
+
         {messages.map((m) => (
           <div
             key={m.id}
