@@ -222,7 +222,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       if (!active) return;
       setWaouhIds(ids);
 
-      await loadHistory(ids);
+      await loadInitial(ids);
 
       // Link this device's anonymous waouh_users row to the freshly authenticated account
       if (uid) {
