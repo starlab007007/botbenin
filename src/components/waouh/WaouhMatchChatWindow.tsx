@@ -503,8 +503,14 @@ export function WaouhMatchChatWindow({
           </div>
         )}
 
+        {hasMore && (
+          <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
+            {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "↑ Charger plus d'historique"}
+          </div>
+        )}
 
         {messages.map((m) => (
+
           <div
             key={m.id}
             className={cn(
