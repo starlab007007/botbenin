@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchChatMeta } from "./WaouhMatchChatWindow";
 
+export type CachedMsg = {
+  id: string;
+  direction: "in" | "out";
+  text: string;
+  created_at: string;
+  attachments?: any;
+  meta?: any;
+};
+
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
+const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
+const SNAPSHOT_KEY = (sid: string, key: string) => `waouh_match_msgs_${sid}_${key}`;
+const SNAPSHOT_LIMIT = 50;
+
 const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
 
 function loadOpen(sid: string): MatchChatMeta[] {
