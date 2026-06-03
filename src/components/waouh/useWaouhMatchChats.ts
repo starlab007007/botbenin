@@ -56,10 +56,47 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
   const [activeKey, setActiveKeyState] = useState<string>(() => {
     const saved = loadActive(sessionId);
     const open = loadOpen(sessionId);
-    // Only restore active key if the match is still in the open list
     if (saved !== "main" && !open.some((m) => m.key === saved)) return "main";
     return saved;
   });
+
+  // Per-match in-memory message cache. Survives window mount/unmount when
+  // user switches tabs in WaouhMatchChatList, and bootstraps from localStorage
+  // snapshots so the previous conversation is visible instantly on reopen.
+  const msgCacheRef = useRef<Map<string, CachedMsg[]>>(new Map());
+  const hasMoreCacheRef = useRef<Map<string, boolean>>(new Map());
+
+  const getCached = useCallback((key: string): CachedMsg[] => {
+    const mem = msgCacheRef.current.get(key);
+    if (mem) return mem;
+    try {
+      const raw = localStorage.getItem(SNAPSHOT_KEY(sessionId, key));
+      if (raw) {
+        const arr = JSON.parse(raw) as CachedMsg[];
+        msgCacheRef.current.set(key, arr);
+        return arr;
+      }
+    } catch {}
+    return [];
+  }, [sessionId]);
+
+  const setCached = useCallback((key: string, msgs: CachedMsg[]) => {
+    msgCacheRef.current.set(key, msgs);
+    try {
+      const snap = msgs.slice(-SNAPSHOT_LIMIT);
+      localStorage.setItem(SNAPSHOT_KEY(sessionId, key), JSON.stringify(snap));
+    } catch {}
+  }, [sessionId]);
+
+  const getHasMore = useCallback((key: string): boolean => {
+    const v = hasMoreCacheRef.current.get(key);
+    return v === undefined ? true : v;
+  }, []);
+
+  const setHasMoreCached = useCallback((key: string, v: boolean) => {
+    hasMoreCacheRef.current.set(key, v);
+  }, []);
+
 
   const setActiveKey = useCallback(
     (key: string | ((cur: string) => string)) => {
